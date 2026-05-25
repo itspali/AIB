@@ -1,0 +1,48 @@
+name: CI/CD Supabase Deployment Engine
+
+on:
+  push:
+    branches:
+      - develop  # Synchronizes schema profiles with AIB Sandbox
+      - main     # Synchronizes schema profiles with AIB Production
+
+jobs:
+  deploy-sandbox:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+
+      - name: Load Supabase Core CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link & Push Migrations to AIB Sandbox
+        run: |
+          supabase link --project-ref $PROJECT_ID
+          supabase db push
+        env:
+          PROJECT_ID: ${{ secrets.SUPABASE_SANDBOX_PROJECT_ID }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+
+      - name: Load Supabase Core CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link & Push Migrations to AIB Production
+        run: |
+          supabase link --project-ref $PROJECT_ID
+          supabase db push
+        env:
+          PROJECT_ID: ${{ secrets.SUPABASE_PRODUCTION_PROJECT_ID }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

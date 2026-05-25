@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+
+# Local Environment Secret Files
+.env
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# Production Build and Execution Compiling Artifacts
+dist/
+build/
+.next/
+out/
+go-bin/
+
+# Hidden System Logs and Tracking Profiles
+.DS_Store
+*.log
+.vscode/
+.cursor/

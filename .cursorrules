@@ -1,0 +1,10 @@
+# AIB ERP Monorepo Architecture Directives
+
+## 1. Global Project Layout
+- **Frontend Core & API Handlers**: `/apps/web` (Next.js with TypeScript & Tailwind CSS)
+- **Shared Data Layer Models**: `/packages/database`
+
+## 2. Technical Strategy Rules
+- **Language Uniformity**: All frontend interfaces and server-side routines must be authored strictly in **TypeScript**.
+- **Database Engine Rules**: All relational maps reference `packages/database/schema.sql`. You must never write queries or data scripts that bypass PostgreSQL Row Level Security (RLS) policies. Every operation must isolate by a valid `tenant_id`.
+- **UX Constraint**: Raw HTML or un-mapped Tailwind utility declarations for base buttons or tables are strictly prohibited. centralize through a uniform element kit.

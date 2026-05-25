@@ -1,0 +1,96 @@
+-- ====================================================================
+-- AIB SMART ERP - SYSTEM MASTER ENGINE: GLOBAL TENANT CORE PROFILE
+-- ====================================================================
+
+-- 1. CORE CONFIGURATION ENUMS
+CREATE TYPE tenant_account_status AS ENUM ('TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED');
+CREATE TYPE tenant_onboarding_source AS ENUM ('DIRECT_SAAS', 'PARTNER_REFERRAL', 'SALES_OUTREACH', 'MARKETPLACE_INTEGRATION');
+CREATE TYPE tenant_onboarding_status AS ENUM ('ACCOUNT_CREATED', 'ORGANIZATION_CONFIGURED', 'DATABASE_SEEDED', 'COMPLIANCE_VERIFIED', 'GO_LIVE_READY');
+
+-- 2. EXHAUSTIVE MULTI-TENANT IDENTITY & POLICY CONTROL BRAIN
+CREATE TABLE tenants (
+    -- --- System Keys & Identity Vectors ---
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,                             -- Primary Display Designation (e.g., 'AIB Global')
+    legal_name TEXT,                                -- Formally Registered Corporate Title
+    trade_name TEXT,                                -- Public Brand / Doing-Business-As (DBA) Profile
+    logo_url TEXT,                                  -- Global Asset Storage Link for UI and Printed Documents
+    
+    -- --- Global Communication Routing Channels ---
+    primary_email TEXT NOT NULL,                    -- Root System Administrative Alert Router
+    primary_phone VARCHAR(30) NOT NULL,             -- Primary Corporate Identity Contact Line
+    secondary_phone VARCHAR(30),
+    website_url TEXT,
+    
+    -- --- Lifecycle Platform Account Metrics ---
+    status tenant_account_status DEFAULT 'TRIAL',
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    -- --- Acquisition, Activation & Lifecycle Tracking Analytics ---
+    onboarding_source tenant_onboarding_source DEFAULT 'DIRECT_SAAS',
+    onboarding_status tenant_onboarding_status DEFAULT 'ACCOUNT_CREATED',
+    created_by_user_id UUID,                        -- Permanent ID signature of the system account creator
+    metadata_json JSONB DEFAULT '{}'::jsonb,         -- Dynamic configuration maps tracking referral payloads
+    
+    -- --- Global Localization & Compliance Infrastructure ---
+    base_currency VARCHAR(3) DEFAULT 'USD',         -- System Base Ledger Consolidation Currency Code (ISO 4217)
+    tax_identifier VARCHAR(50),                     -- Corporate Tax Registration Id (VAT, GST, EIN)
+    legal_registration_number TEXT,                 -- Government Incorporation Certificate Identification
+    fiscal_year_start_month SMALLINT DEFAULT 1      -- Baseline month configuration offset for accounting loops (1 to 12)
+        CHECK (fiscal_year_start_month BETWEEN 1 AND 12),
+    
+    -- --- Corporate Legal Registration / Billing Address Matrix ---
+    -- Shipping parameters are dropped; fulfillment tracks downstream via the locations system.
+    billing_address_line1 TEXT,
+    billing_address_line2 TEXT,
+    billing_city TEXT,
+    billing_state TEXT,
+    billing_zip_postal VARCHAR(20),
+    billing_country_code VARCHAR(2),                -- ISO 3166-1 alpha-2 Legal Framework parameters
+    
+    -- --- Smart Automated Transaction Numbering Sequences ---
+    -- Manages automated document IDs cleanly at the business boundary:
+    -- { "PO": {"prefix": "PO-2026-", "digits": 5, "current": 1}, "INV": {"prefix": "INV-", "digits": 6, "current": 420} }
+    naming_sequences JSONB DEFAULT '{}'::jsonb,
+    
+    -- --- Deep Financial Accounting Governance Controls ---
+    -- Declares structural constraint flags system-wide:
+    -- { "inventory_valuation_method": "FIFO", "allow_negative_inventory": false, "multi_currency_enabled": true }
+    accounting_config JSONB DEFAULT '{
+        "inventory_valuation_method": "FIFO",
+        "allow_negative_inventory": false,
+        "multi_currency_enabled": true,
+        "credit_control_enforcement": "STRICT"
+    }'::jsonb,
+    
+    -- --- Deep Manufacturing & WIP Operations Controls ---
+    -- Guides product configuration recipes and processing steps:
+    -- { "auto_backflush_components": true, "wip_variance_account_code": "MFG-VAR-001" }
+    manufacturing_config JSONB DEFAULT '{
+        "auto_backflush_components": true,
+        "wip_variance_account_code": "MFG-VAR-001"
+    }'::jsonb,
+
+    -- --- Multi-Location & Regional HQ Topology Controls ---
+    -- Orchestrates location mapping behavior ahead of the physical layer layout:
+    -- { "multi_location_enabled": true, "central_hq_location_id": null, "regional_hqs_enabled": false }
+    location_governance_config JSONB DEFAULT '{
+        "multi_location_enabled": true,
+        "central_hq_location_id": null,
+        "regional_hqs_enabled": false,
+        "consensual_stock_transfers": true
+    }'::jsonb,
+    
+    -- --- System Lifecycle Audit Timestamps ---
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3. ENABLE ROW-LEVEL SECURITY ENFORCEMENT
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+
+-- 4. SINGLE-TENANT ROW SECURITY ISOLATION BOUNDARY POLICY
+-- Automatically evaluates session authentication parameters to sandbox incoming data traffic cleanly
+CREATE POLICY tenant_isolation_policy ON tenants 
+    FOR ALL 
+    USING (id = (auth.jwt() -> 'app_metadata' ->> 'tenant_id')::uuid);
