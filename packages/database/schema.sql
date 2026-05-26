@@ -94,3 +94,54 @@ ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation_policy ON tenants 
     FOR ALL 
     USING (id = (auth.jwt() -> 'app_metadata' ->> 'tenant_id')::uuid);
+
+-- ====================================================================
+-- USER IDENTITY & RBAC (Milestone 1)
+-- Full triggers, RLS policies, and private helpers live in:
+--   supabase/migrations/20260526100000_init_users_rbac.sql
+-- ====================================================================
+
+CREATE TYPE user_role AS ENUM ('OWNER', 'ADMIN', 'MANAGER', 'STAFF');
+
+CREATE TABLE users (
+    id                      UUID PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    role                    user_role NOT NULL DEFAULT 'STAFF',
+    assigned_location_id    UUID,
+
+    first_name              TEXT NOT NULL,
+    last_name               TEXT NOT NULL,
+    email                   TEXT NOT NULL,
+    phone_number            VARCHAR(30),
+    avatar_url              TEXT,
+    job_title               TEXT,
+
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    last_login_at           TIMESTAMPTZ,
+    metadata_json           JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT users_email_lowercase_chk
+        CHECK (email = lower(email)),
+    CONSTRAINT users_role_location_scope_chk
+        CHECK (
+            (role IN ('OWNER', 'ADMIN') AND assigned_location_id IS NULL)
+            OR
+            (role IN ('MANAGER', 'STAFF') AND assigned_location_id IS NOT NULL)
+        ),
+    CONSTRAINT users_tenant_email_unique
+        UNIQUE (tenant_id, email)
+);
+
+ALTER TABLE users
+    ADD CONSTRAINT users_assigned_location_tenant_fk
+    FOREIGN KEY (tenant_id, assigned_location_id)
+    REFERENCES tenant_locations (tenant_id, id)
+    ON DELETE SET NULL
+    DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE tenants
+    ADD CONSTRAINT tenants_created_by_user_id_fk
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE SET NULL;

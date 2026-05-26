@@ -37,3 +37,10 @@ CRITICAL: Do not write code or migrations for these tasks automatically. The use
 ### Task Sequence 4: Master Product & Inventory Catalogs
 - Build the `items` table supporting dynamic item categorization typing (`RAW_MATERIAL`, `WIP_ASSEMBLY`, `FINISHED_GOOD`, `SERVICE`, `KIT_BUNDLE`). Include pricing structures, tracking parameters, and custom dynamic attributes layouts via `custom_fields JSONB`.
 - Build the `inventory_ledger` strict, audit-compliant append-only stock registry tracking precise transaction movements (`PURCHASE_RECEIPT`, `SALES_SHIPMENT`, `PRODUCTION_CONSUMPTION`, etc.) mapped explicitly per physical warehouse space node location.
+
+## 5. Automation Commands & Git Operations
+Whenever the user requests you to add, commit, and push changes to the repository, use the following chained terminal block. You may modify the string inside the `-m` flag to accurately reflect the development milestones completed:
+
+```powershell
+git add .; git commit -m "feat: add users RBAC schema with auth provisioning trigger, JWT sync, and RLS policies"; git push origin develop
+```
