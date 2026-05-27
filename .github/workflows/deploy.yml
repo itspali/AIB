@@ -22,7 +22,7 @@ jobs:
       - name: Link & Push Migrations to AIB Sandbox
         run: |
           supabase link --project-ref $PROJECT_ID
-          supabase db push
+          supabase db push --yes
         env:
           PROJECT_ID: ${{ secrets.SUPABASE_SANDBOX_PROJECT_ID }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -42,7 +42,7 @@ jobs:
       - name: Link & Push Migrations to AIB Production
         run: |
           supabase link --project-ref $PROJECT_ID
-          supabase db push
+          supabase db push --yes
         env:
           PROJECT_ID: ${{ secrets.SUPABASE_PRODUCTION_PROJECT_ID }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

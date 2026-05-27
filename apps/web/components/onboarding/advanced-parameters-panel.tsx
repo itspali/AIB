@@ -7,19 +7,22 @@ import { Switch } from "@/components/ui/switch";
 type Props = {
   enabled: boolean;
   onEnabledChange: (v: boolean) => void;
+  children?: React.ReactNode;
 };
 
-export function AdvancedParametersPanel({ enabled, onEnabledChange }: Props) {
+export function AdvancedParametersPanel({ enabled, onEnabledChange, children }: Props) {
   return (
     <div className="space-y-4 rounded-lg border border-dashed p-4">
-      <div className="flex items-center justify-between">
-        <Label htmlFor="advanced-toggle" className="text-sm font-medium">
-          Show Advanced System Parameters
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="advanced-toggle" className="text-sm font-medium leading-snug">
+          Show Advanced Parameters
         </Label>
         <Switch id="advanced-toggle" checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
       {enabled && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
+        <>
+          {children}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
           <div className="space-y-2 rounded-md border p-3">
             <p className="font-medium">Currency Exchange Rates</p>
             <p className="text-muted-foreground text-xs">
@@ -45,6 +48,7 @@ export function AdvancedParametersPanel({ enabled, onEnabledChange }: Props) {
             <Input placeholder="Available after catalog setup" disabled />
           </div>
         </div>
+        </>
       )}
     </div>
   );

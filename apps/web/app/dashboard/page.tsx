@@ -23,7 +23,7 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           Your tenant is live. Module consoles for Procurement, Inventory, Sales, and Financials are
-          available from the left navigation rail.
+          available from the navigation rail on desktop or the bottom tab bar on mobile.
         </CardContent>
       </Card>
     </DashboardShell>

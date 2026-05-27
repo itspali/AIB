@@ -1124,7 +1124,7 @@ BEGIN
             END IF;
 
             IF COALESCE(v_discount_pct, 0) > v_max_discount THEN
-                RAISE EXCEPTION 'returns blocked: discount %% exceeds policy maximum %%', v_discount_pct, v_max_discount;
+                RAISE EXCEPTION 'returns blocked: discount % exceeds policy maximum %', v_discount_pct, v_max_discount;
             END IF;
 
             v_reference_at := COALESCE(

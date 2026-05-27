@@ -1,5 +1,9 @@
 export type MilestoneStatus = "COMPLETED" | "ACTION_REQUIRED" | "LOCKED";
 
+export type WizardStepId = "locations" | "coa" | "tax" | "channels";
+
+export type WizardNavStatus = "DONE" | "ACTIVE" | "LOCKED";
+
 export type TenantProfile = {
   id: string;
   name: string;
@@ -21,7 +25,7 @@ export type PrimaryLocation = {
 };
 
 export type OnboardingStepState = {
-  id: string;
+  id: WizardStepId;
   title: string;
   status: MilestoneStatus;
   completed: boolean;
@@ -38,9 +42,14 @@ export type OnboardingSnapshot = {
   progressPercent: number;
   canLaunch: boolean;
   isOnboardingComplete: boolean;
+  schemaWarning?: boolean;
+  rlsWarning?: boolean;
 };
 
-export type LocationFormValues = {
+export type CorporateProfileFormValues = {
+  company_name: string;
+  legal_registration_number: string;
+  tax_identifier: string;
   name: string;
   code: string;
   address_line1: string;
@@ -53,6 +62,8 @@ export type LocationFormValues = {
   tax_registered_name?: string;
   location_tax_identifier?: string;
 };
+
+export type LocationFormValues = CorporateProfileFormValues;
 
 export type TaxRateRow = {
   tax_component_name: string;
@@ -73,8 +84,15 @@ export type ChannelFormValues = {
 };
 
 export type OnboardingDraft = {
-  location?: Partial<LocationFormValues>;
+  corporateProfile?: Partial<CorporateProfileFormValues>;
+  location?: Partial<CorporateProfileFormValues>;
   taxRates?: TaxRateRow[];
   channel?: Partial<ChannelFormValues>;
   advanced?: Record<string, unknown>;
+};
+
+export type StepSubmitResult = { error?: string; success?: true };
+
+export type StepSubmitHandle = {
+  submit: () => Promise<StepSubmitResult>;
 };

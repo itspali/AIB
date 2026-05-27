@@ -9,8 +9,8 @@ type TenantProfileCardProps = {
 export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCardProps) {
   return (
     <Card className="border-neutral-200 bg-neutral-50/50">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold tracking-tight">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-xl font-bold tracking-tight md:text-2xl">
           {tenant.trade_name || tenant.name}
         </CardTitle>
         <CardDescription className="text-sm text-muted-foreground">
@@ -18,7 +18,7 @@ export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCard
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+        <dl className="hidden gap-3 text-sm sm:grid sm:grid-cols-2">
           <div>
             <dt className="font-medium text-muted-foreground">Legal Name</dt>
             <dd>{tenant.legal_name || "—"}</dd>

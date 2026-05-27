@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { STANDARD_COA_TEMPLATE } from "@/lib/onboarding/coa-template";
-import type { ChannelFormValues, LocationFormValues, OnboardingDraft, TaxRateRow } from "@/lib/onboarding/types";
+import type {
+  ChannelFormValues,
+  CorporateProfileFormValues,
+  OnboardingDraft,
+  TaxRateRow,
+} from "@/lib/onboarding/types";
 
 async function requireTenantId() {
   const supabase = await createClient();
@@ -16,35 +21,35 @@ async function requireTenantId() {
   return { supabase, tenantId };
 }
 
-export async function saveLocation(values: LocationFormValues) {
-  const { supabase, tenantId } = await requireTenantId();
+export async function saveCorporateProfile(values: CorporateProfileFormValues) {
+  const { supabase } = await requireTenantId();
 
-  const { error } = await supabase.from("tenant_locations").insert({
-    tenant_id: tenantId,
-    name: values.name,
-    code: values.code,
-    address_line1: values.address_line1,
-    city: values.city,
-    state: values.state,
-    zip_postal: values.zip_postal,
-    country_code: values.country_code.toUpperCase(),
-    tax_registered_name: values.tax_registered_name || values.name,
-    location_tax_identifier: values.location_tax_identifier || null,
-    location_meta: {
-      billing_state: values.billing_state,
-      shipping_state: values.shipping_state,
-    },
+  const { error } = await supabase.rpc("save_onboarding_corporate_profile", {
+    p_company_name: values.company_name,
+    p_legal_registration_number: values.legal_registration_number,
+    p_tax_identifier: values.tax_identifier,
+    p_location_name: values.name,
+    p_location_code: values.code,
+    p_address_line1: values.address_line1,
+    p_city: values.city,
+    p_state: values.state,
+    p_zip_postal: values.zip_postal,
+    p_country_code: values.country_code,
+    p_billing_state: values.billing_state || null,
+    p_shipping_state: values.shipping_state || null,
+    p_tax_registered_name: values.tax_registered_name || null,
+    p_location_tax_identifier: values.location_tax_identifier || null,
   });
 
   if (error) return { error: error.message };
 
-  await supabase
-    .from("tenants")
-    .update({ onboarding_status: "ORGANIZATION_CONFIGURED" })
-    .eq("id", tenantId);
-
   revalidatePath("/onboarding");
-  return { success: true };
+  return { success: true as const };
+}
+
+/** @deprecated Use saveCorporateProfile */
+export async function saveLocation(values: CorporateProfileFormValues) {
+  return saveCorporateProfile(values);
 }
 
 export async function deployCoaTemplate() {
@@ -59,7 +64,7 @@ export async function deployCoaTemplate() {
   if (error) return { error: error.message };
 
   revalidatePath("/onboarding");
-  return { success: true, count: rows.length };
+  return { success: true as const, count: rows.length };
 }
 
 export async function saveTaxRates(rows: TaxRateRow[]) {
@@ -82,7 +87,7 @@ export async function saveTaxRates(rows: TaxRateRow[]) {
   if (error) return { error: error.message };
 
   revalidatePath("/onboarding");
-  return { success: true };
+  return { success: true as const };
 }
 
 export async function saveChannel(values: ChannelFormValues) {
@@ -117,7 +122,7 @@ export async function saveChannel(values: ChannelFormValues) {
   if (error) return { error: error.message };
 
   revalidatePath("/onboarding");
-  return { success: true };
+  return { success: true as const };
 }
 
 export async function saveDraft(draft: OnboardingDraft) {
@@ -140,7 +145,7 @@ export async function saveDraft(draft: OnboardingDraft) {
 
   if (error) return { error: error.message };
   revalidatePath("/onboarding");
-  return { success: true };
+  return { success: true as const };
 }
 
 export async function completeOnboarding() {
@@ -155,5 +160,6 @@ export async function completeOnboarding() {
 
   revalidatePath("/onboarding");
   revalidatePath("/");
-  return { success: true };
+  revalidatePath("/dashboard");
+  return { success: true as const };
 }

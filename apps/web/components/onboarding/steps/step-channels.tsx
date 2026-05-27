@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
-import { Button } from "@/components/ui/button";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,18 +11,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { saveChannel } from "@/app/onboarding/actions";
-import type { ChannelFormValues } from "@/lib/onboarding/types";
+import type { ChannelFormValues, StepSubmitHandle } from "@/lib/onboarding/types";
 
 type Props = {
   completed: boolean;
   channelCount: number;
   returnPolicies: { id: string; policy_name: string }[];
   defaultValues?: Partial<ChannelFormValues>;
+  showAdvanced: boolean;
 };
 
-export function StepChannels({ completed, channelCount, returnPolicies, defaultValues }: Props) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepChannels(
+  { completed, channelCount, returnPolicies, defaultValues, showAdvanced },
+  ref
+) {
   const [values, setValues] = useState<ChannelFormValues>({
     name: defaultValues?.name || "",
     slug: defaultValues?.slug || "",
@@ -35,6 +35,10 @@ export function StepChannels({ completed, channelCount, returnPolicies, defaultV
     return_window_days: "30",
   });
 
+  useImperativeHandle(ref, () => ({
+    submit: async () => saveChannel(values),
+  }));
+
   if (completed) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -43,17 +47,8 @@ export function StepChannels({ completed, channelCount, returnPolicies, defaultV
     );
   }
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    startTransition(async () => {
-      const result = await saveChannel(values);
-      if (result.error) setError(result.error);
-    });
-  };
-
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Channel Name</Label>
@@ -88,14 +83,16 @@ export function StepChannels({ completed, channelCount, returnPolicies, defaultV
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label>Domain URL</Label>
-          <Input
-            value={values.domain_url}
-            onChange={(e) => setValues((v) => ({ ...v, domain_url: e.target.value }))}
-            placeholder="https://shop.example.com"
-          />
-        </div>
+        {showAdvanced && (
+          <div className="space-y-2">
+            <Label>Domain URL</Label>
+            <Input
+              value={values.domain_url}
+              onChange={(e) => setValues((v) => ({ ...v, domain_url: e.target.value }))}
+              placeholder="https://shop.example.com"
+            />
+          </div>
+        )}
         <div className="space-y-2 md:col-span-2">
           <Label>Return Policy</Label>
           {returnPolicies.length > 0 ? (
@@ -130,10 +127,6 @@ export function StepChannels({ completed, channelCount, returnPolicies, defaultV
           )}
         </div>
       </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Register Channel"}
-      </Button>
-    </form>
+    </div>
   );
-}
+});

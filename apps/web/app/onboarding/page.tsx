@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { TenantProfileCard } from "@/components/onboarding/tenant-profile-card";
-import { MilestoneChecklist } from "@/components/onboarding/milestone-checklist";
+import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
@@ -20,9 +20,9 @@ export default async function OnboardingPage() {
       progressPercent={snapshot.progressPercent}
       onboardingMode
     >
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8 min-w-0">
         <TenantProfileCard tenant={snapshot.tenant} progressPercent={snapshot.progressPercent} />
-        <MilestoneChecklist snapshot={snapshot} />
+        <OnboardingWizard snapshot={snapshot} />
       </div>
     </DashboardShell>
   );

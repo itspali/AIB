@@ -1,28 +1,48 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { saveTaxRates } from "@/app/onboarding/actions";
-import type { TaxRateRow } from "@/lib/onboarding/types";
+import type { StepSubmitHandle, TaxRateRow } from "@/lib/onboarding/types";
 
 const DEFAULT_ROWS: TaxRateRow[] = [
-  { tax_component_name: "CGST_9", tax_percentage: "9.00", active_from_date: new Date().toISOString().slice(0, 10), legal_compliance_code: "HSN" },
-  { tax_component_name: "SGST_9", tax_percentage: "9.00", active_from_date: new Date().toISOString().slice(0, 10), legal_compliance_code: "HSN" },
-  { tax_component_name: "IGST_18", tax_percentage: "18.00", active_from_date: new Date().toISOString().slice(0, 10), legal_compliance_code: "HSN" },
+  {
+    tax_component_name: "CGST_9",
+    tax_percentage: "9.00",
+    active_from_date: new Date().toISOString().slice(0, 10),
+    legal_compliance_code: "HSN",
+  },
+  {
+    tax_component_name: "SGST_9",
+    tax_percentage: "9.00",
+    active_from_date: new Date().toISOString().slice(0, 10),
+    legal_compliance_code: "HSN",
+  },
+  {
+    tax_component_name: "IGST_18",
+    tax_percentage: "18.00",
+    active_from_date: new Date().toISOString().slice(0, 10),
+    legal_compliance_code: "HSN",
+  },
 ];
 
 type Props = {
   completed: boolean;
   taxRateCount: number;
   initialRows?: TaxRateRow[];
+  showAdvanced: boolean;
 };
 
-export function StepTaxRegistry({ completed, taxRateCount, initialRows }: Props) {
+export const StepTaxRegistry = forwardRef<StepSubmitHandle, Props>(function StepTaxRegistry(
+  { completed, taxRateCount, initialRows, showAdvanced },
+  ref
+) {
   const [rows, setRows] = useState<TaxRateRow[]>(initialRows?.length ? initialRows : DEFAULT_ROWS);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    submit: async () => saveTaxRates(rows),
+  }));
 
   if (completed) {
     return (
@@ -45,6 +65,9 @@ export function StepTaxRegistry({ completed, taxRateCount, initialRows }: Props)
               <th className="p-3 font-medium text-muted-foreground">Component</th>
               <th className="p-3 font-medium text-muted-foreground text-right">Rate %</th>
               <th className="p-3 font-medium text-muted-foreground">Active From</th>
+              {showAdvanced && (
+                <th className="p-3 font-medium text-muted-foreground">Active To</th>
+              )}
               <th className="p-3 font-medium text-muted-foreground">HSN/SAC Token</th>
             </tr>
           </thead>
@@ -71,6 +94,15 @@ export function StepTaxRegistry({ completed, taxRateCount, initialRows }: Props)
                     onChange={(e) => updateRow(i, "active_from_date", e.target.value)}
                   />
                 </td>
+                {showAdvanced && (
+                  <td className="p-2">
+                    <Input
+                      type="date"
+                      value={row.active_to_date?.slice(0, 10) || ""}
+                      onChange={(e) => updateRow(i, "active_to_date", e.target.value)}
+                    />
+                  </td>
+                )}
                 <td className="p-2">
                   <Input
                     value={row.legal_compliance_code || ""}
@@ -98,19 +130,6 @@ export function StepTaxRegistry({ completed, taxRateCount, initialRows }: Props)
       >
         Add Tax Row
       </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button
-        disabled={pending}
-        onClick={() => {
-          setError(null);
-          startTransition(async () => {
-            const result = await saveTaxRates(rows);
-            if (result.error) setError(result.error);
-          });
-        }}
-      >
-        {pending ? "Saving…" : "Save Tax Registry"}
-      </Button>
     </div>
   );
-}
+});

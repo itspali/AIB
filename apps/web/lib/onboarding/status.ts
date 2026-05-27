@@ -5,11 +5,55 @@ import type {
   OnboardingStepState,
   PrimaryLocation,
   TenantProfile,
+  WizardStepId,
 } from "./types";
 
 function stepStatus(completed: boolean, locked = false): MilestoneStatus {
   if (locked) return "LOCKED";
   return completed ? "COMPLETED" : "ACTION_REQUIRED";
+}
+
+function isMissingTableError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    message.includes("could not find the table") ||
+    message.includes("schema cache") ||
+    (message.includes("relation") && message.includes("does not exist"))
+  );
+}
+
+function isRlsError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "42501" ||
+    message.includes("permission denied") ||
+    message.includes("row-level security")
+  );
+}
+
+async function safeCount(
+  supabase: SupabaseClient,
+  table: string,
+  tenantId: string
+): Promise<{ count: number; missing: boolean; rlsDenied: boolean }> {
+  const { count, error } = await supabase
+    .from(table)
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  if (isMissingTableError(error)) {
+    return { count: 0, missing: true, rlsDenied: false };
+  }
+
+  if (isRlsError(error)) {
+    return { count: 0, missing: false, rlsDenied: true };
+  }
+
+  return { count: count ?? 0, missing: false, rlsDenied: false };
 }
 
 export async function fetchOnboardingSnapshot(
@@ -26,28 +70,50 @@ export async function fetchOnboardingSnapshot(
 
   if (tenantError || !tenant) return null;
 
-  const [
-    { count: locationCount, data: locations },
-    { count: accountCount },
-    { count: taxRateCount },
-    { count: channelCount },
-    { data: returnPolicies },
-  ] = await Promise.all([
-    supabase
-      .from("tenant_locations")
-      .select("id, name, tax_registered_name, location_tax_identifier, state, city", { count: "exact" })
-      .eq("tenant_id", tenantId)
-      .limit(1),
-    supabase.from("accounts").select("*", { count: "exact", head: true }).eq("tenant_id", tenantId),
-    supabase.from("tax_rate_registry").select("*", { count: "exact", head: true }).eq("tenant_id", tenantId),
-    supabase.from("storefront_channels").select("*", { count: "exact", head: true }).eq("tenant_id", tenantId),
-    supabase.from("return_policies").select("id, policy_name").eq("tenant_id", tenantId),
-  ]);
+  const { count: locationCount, data: locations, error: locationError } = await supabase
+    .from("tenant_locations")
+    .select("id, name, tax_registered_name, location_tax_identifier, state, city", { count: "exact" })
+    .eq("tenant_id", tenantId)
+    .limit(1);
+
+  const accountResult = await safeCount(supabase, "accounts", tenantId);
+  const taxResult = await safeCount(supabase, "tax_rate_registry", tenantId);
+  const channelResult = await safeCount(supabase, "storefront_channels", tenantId);
+
+  let returnPolicies: { id: string; policy_name: string }[] = [];
+  let policiesMissing = false;
+  let policiesRlsDenied = false;
+  const { data: policies, error: policiesError } = await supabase
+    .from("return_policies")
+    .select("id, policy_name")
+    .eq("tenant_id", tenantId);
+
+  if (isMissingTableError(policiesError)) {
+    policiesMissing = true;
+  } else if (isRlsError(policiesError)) {
+    policiesRlsDenied = true;
+  } else {
+    returnPolicies = policies ?? [];
+  }
+
+  const schemaWarning =
+    isMissingTableError(locationError) ||
+    accountResult.missing ||
+    taxResult.missing ||
+    channelResult.missing ||
+    policiesMissing;
+
+  const rlsWarning =
+    isRlsError(locationError) ||
+    accountResult.rlsDenied ||
+    taxResult.rlsDenied ||
+    channelResult.rlsDenied ||
+    policiesRlsDenied;
 
   const step1Complete = (locationCount ?? 0) >= 1;
-  const step2Complete = (accountCount ?? 0) >= 1;
-  const step3Complete = (taxRateCount ?? 0) >= 1;
-  const step4Complete = (channelCount ?? 0) >= 1;
+  const step2Complete = accountResult.count >= 1;
+  const step3Complete = taxResult.count >= 1;
+  const step4Complete = channelResult.count >= 1;
 
   const steps: OnboardingStepState[] = [
     {
@@ -82,15 +148,28 @@ export async function fetchOnboardingSnapshot(
   return {
     tenant: tenant as TenantProfile,
     primaryLocation: (locations?.[0] as PrimaryLocation | undefined) ?? null,
-    accountCount: accountCount ?? 0,
-    taxRateCount: taxRateCount ?? 0,
-    channelCount: channelCount ?? 0,
-    returnPolicies: returnPolicies ?? [],
+    accountCount: accountResult.count,
+    taxRateCount: taxResult.count,
+    channelCount: channelResult.count,
+    returnPolicies,
     steps,
     progressPercent: Math.round((completedSteps / 4) * 100),
     canLaunch: step1Complete && step2Complete && step3Complete && step4Complete,
     isOnboardingComplete,
+    schemaWarning,
+    rlsWarning,
   };
+}
+
+export function getFirstIncompleteStepId(steps: OnboardingStepState[]): WizardStepId {
+  const order: WizardStepId[] = ["locations", "coa", "tax", "channels"];
+  for (const id of order) {
+    const step = steps.find((s) => s.id === id);
+    if (step && !step.completed && step.status !== "LOCKED") {
+      return id;
+    }
+  }
+  return "channels";
 }
 
 export async function getTenantIdFromSession(supabase: SupabaseClient): Promise<string | null> {
