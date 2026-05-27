@@ -145,3 +145,112 @@ ALTER TABLE users
 ALTER TABLE tenants
     ADD CONSTRAINT tenants_created_by_user_id_fk
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE SET NULL;
+
+-- ====================================================================
+-- COMMERCIAL PARTNERS & CONTACTS (Milestone 2)
+-- Full triggers, RLS policies, and private helpers live in:
+--   supabase/migrations/20260526200000_init_entities_contacts.sql
+-- ====================================================================
+
+CREATE TYPE entity_commercial_type AS ENUM ('CUSTOMER', 'SUPPLIER', 'MUTUAL_PARTNER');
+
+CREATE TYPE tax_treatment_type AS ENUM (
+    'REGULAR_B2B',
+    'COMPOSITION',
+    'UNREGISTERED_B2C',
+    'SEZ_DEVELOPER',
+    'OVERSEAS_EXPORT',
+    'DEEMED_EXPORT'
+);
+
+CREATE TABLE entities (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+
+    name                        TEXT NOT NULL,
+    legal_name                  TEXT,
+    code                        VARCHAR(30),
+    type                        entity_commercial_type NOT NULL,
+
+    tax_registration_number     TEXT,
+    tax_treatment               tax_treatment_type NOT NULL DEFAULT 'REGULAR_B2B',
+
+    base_currency_override      VARCHAR(3),
+    credit_limit                NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    current_balance             NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    payment_terms_days          INTEGER NOT NULL DEFAULT 0,
+
+    billing_address_line1       TEXT,
+    billing_address_line2       TEXT,
+    billing_city                TEXT,
+    billing_state               TEXT,
+    billing_zip_postal          VARCHAR(20),
+    billing_country_code        VARCHAR(2),
+
+    shipping_address_line1      TEXT,
+    shipping_address_line2      TEXT,
+    shipping_city               TEXT,
+    shipping_state              TEXT,
+    shipping_zip_postal         VARCHAR(20),
+    shipping_country_code       VARCHAR(2),
+
+    incoterms_code              VARCHAR(3),
+    default_shipping_method     TEXT,
+
+    company_email               TEXT,
+    company_phone               VARCHAR(30),
+    website_url                 TEXT,
+    internal_notes              TEXT,
+    custom_fields               JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    is_active                   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT entities_base_currency_override_uppercase_chk
+        CHECK (
+            base_currency_override IS NULL
+            OR base_currency_override = upper(base_currency_override)
+        ),
+    CONSTRAINT entities_tax_registration_required_chk
+        CHECK (
+            tax_treatment IN ('UNREGISTERED_B2C', 'OVERSEAS_EXPORT')
+            OR tax_registration_number IS NOT NULL
+        ),
+    CONSTRAINT entities_credit_limit_non_negative_chk
+        CHECK (credit_limit >= 0),
+    CONSTRAINT entities_company_email_lowercase_chk
+        CHECK (company_email IS NULL OR company_email = lower(company_email)),
+    CONSTRAINT entities_incoterms_code_length_chk
+        CHECK (incoterms_code IS NULL OR char_length(incoterms_code) = 3),
+    CONSTRAINT entities_tenant_code_unique
+        UNIQUE (tenant_id, code)
+);
+
+CREATE TABLE entity_contacts (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    entity_id       UUID NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
+
+    first_name      TEXT NOT NULL,
+    last_name       TEXT NOT NULL,
+    email           TEXT,
+    phone_number    VARCHAR(30),
+    department      TEXT,
+    job_title       TEXT,
+
+    is_primary      BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT entity_contacts_email_lowercase_chk
+        CHECK (email IS NULL OR email = lower(email))
+);
+
+ALTER TABLE entity_contacts
+    ADD CONSTRAINT entity_contacts_entity_tenant_fk
+    FOREIGN KEY (tenant_id, entity_id)
+    REFERENCES entities (tenant_id, id)
+    ON DELETE CASCADE;
