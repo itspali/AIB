@@ -9,10 +9,10 @@ export default async function OnboardingPage() {
   const supabase = await createClient();
   const tenantId = await getTenantIdFromSession(supabase);
 
-  if (!tenantId) redirect("/login");
+  if (!tenantId) redirect("/signup");
 
   const snapshot = await fetchOnboardingSnapshot(supabase, tenantId);
-  if (!snapshot) redirect("/login");
+  if (!snapshot) redirect("/signup");
 
   return (
     <DashboardShell

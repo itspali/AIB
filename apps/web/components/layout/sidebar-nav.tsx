@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/procurement", label: "Procurement", icon: ShoppingCart },
   { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/sales", label: "Sales", icon: CreditCard },

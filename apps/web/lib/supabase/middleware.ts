@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -30,8 +31,16 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isOnboarding = pathname.startsWith("/onboarding");
   const isLogin = pathname.startsWith("/login");
+  const isSignup = pathname.startsWith("/signup");
+  const isSignupApi = pathname.startsWith("/api/signup");
+  const isPublicAuth = isLogin || isSignup || isSignupApi;
+  const isServerAction = request.method === "POST" && request.headers.has("next-action");
 
-  if (!user && !isLogin) {
+  if (isSignupApi) {
+    return supabaseResponse;
+  }
+
+  if (!user && !isPublicAuth) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -40,25 +49,33 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     const tenantId = user.app_metadata?.tenant_id as string | undefined;
 
-    if (tenantId) {
-      const { data: tenant } = await supabase
-        .from("tenants")
-        .select("onboarding_status")
-        .eq("id", tenantId)
-        .single();
-
-      const isComplete = tenant?.onboarding_status === "GO_LIVE_READY";
-
-      if (!isComplete && !isOnboarding && !isLogin) {
+    if (!tenantId) {
+      if (!isSignup) {
         const url = request.nextUrl.clone();
-        url.pathname = "/onboarding";
+        url.pathname = "/signup";
         return NextResponse.redirect(url);
       }
+      return supabaseResponse;
     }
 
-    if (isLogin) {
+    const postLoginRoute = await resolvePostLoginRoute(supabase, tenantId);
+    const needsOnboarding = postLoginRoute === "/onboarding";
+
+    if (needsOnboarding && !isOnboarding && !isPublicAuth) {
       const url = request.nextUrl.clone();
-      url.pathname = tenantId ? "/onboarding" : "/";
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+
+    if (!needsOnboarding && isOnboarding) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+
+    if ((isLogin || isSignup) && !isServerAction) {
+      const url = request.nextUrl.clone();
+      url.pathname = postLoginRoute;
       return NextResponse.redirect(url);
     }
   }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getPostLoginRoute } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +23,15 @@ export default function LoginPage() {
     setError(null);
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (authError) {
+      setLoading(false);
       setError(authError.message);
       return;
     }
-    router.push("/onboarding");
+
+    const { redirectTo } = await getPostLoginRoute();
+    setLoading(false);
+    router.push(redirectTo);
     router.refresh();
   };
 
@@ -41,7 +46,13 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="transition-colors duration-200 focus-visible:ring-2"
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
@@ -49,14 +60,28 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="transition-colors duration-200 focus-visible:ring-2"
                 required
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full transition-colors duration-200"
+              disabled={loading}
+            >
               {loading ? "Signing in…" : "Sign In"}
             </Button>
           </form>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            New organization?{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-primary underline-offset-4 transition-colors duration-200 hover:underline"
+            >
+              Register your enterprise
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

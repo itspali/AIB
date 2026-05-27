@@ -367,6 +367,8 @@ CREATE TABLE inventory_ledger (
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Signup bootstrap RPC: see supabase/migrations/20260527180000_create_tenant_signup_initialization.sql
+
 -- ====================================================================
 -- PROCUREMENT & CONTROL ENGINE (Milestone 4)
 -- Full triggers, RLS policies, and functions live in:
@@ -859,3 +861,5 @@ CREATE TABLE general_ledger_entries (
     credit_amount   NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Signup bootstrap RPC: see supabase/migrations/20260527180000_create_tenant_signup_initialization.sql

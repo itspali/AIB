@@ -19,6 +19,8 @@ The folder tree structure is:
 - `supabase/migrations/20260527143000_create_inventory_transfers_and_valuation.sql` -> Houses multi-warehouse stock transfer matrices, en-route incidental logging tables, and the automated Moving Weighted Average Costing (MWAC) engine.
 - `supabase/migrations/20260527150000_create_sales_outbound_and_omnichannel_integrations.sql` -> Houses the progressive outbound trade engine, omnichannel conditional return engines, multi-vector state monitors, payment clearing paths, and the bounding-box packaging matrix.
 - `supabase/migrations/20260527170000_create_financial_accounting_and_ledger_automation.sql` -> Houses the unified Chart of Accounts (COA), date-bound tax rate registries with HSN/SAC return tokens, fiscal period lockout calendar gates, multi-state address nexus tax splits, and real-time trigger-driven forex variance sub-ledgers.
+- `supabase/migrations/20260527180000_create_tenant_signup_initialization.sql` -> Deferred auth provisioning and `initialize_new_tenant` RPC for public B2B signup bootstrap.
+- `apps/web/app/signup/` -> Public organization registration canvas and server actions.
 
 ## 3. Active System Tables Definition (Do Not Re-create)
 The database contains forty-five active models, protected by Row-Level Security:
@@ -27,7 +29,7 @@ The database contains forty-five active models, protected by Row-Level Security:
 ## 4. Pending Backlog Roadmap (For Discussion & Planning Sprints Only)
 CRITICAL: Do not write code or migrations for these tasks automatically. The user will initiate a planning chat to refine these points. Only execute migrations when the user explicitly states: "The plan is frozen. Please execute."
 
-### Task Sequence 9: Public Organization Registration Funnel (Sign-Up) & Post-Login Setup Routing [CURRENT MILESTONE]
-- **Deploy the Public B2B Signup Gate Canvas:** Construct a public-facing onboarding view allowing corporate owners to initialize custom multi-tenant workspaces by supplying Company Name, Admin Email, and strong security credentials.
-- **Architect Atomic Registration Database Procedures:** Write a database edge transaction/RPC function that registers the user within Supabase Auth, seeds an independent `public.tenants` primary row identity, and maps the corresponding admin worker node to role level 'OWNER' smoothly.
-- **Enforce Conditional Post-Login Routing Guards:** Build Next.js routing controllers that scan database properties immediately after login. If a tenant has zero location network nodes configured, force route selection directly into the Milestone 8 interactive Setup Wizard layout.
+### Task Sequence 9: Public Organization Registration Funnel (Sign-Up) & Post-Login Setup Routing [IMPLEMENTED]
+- **Public B2B Signup Gate Canvas:** `/signup` — organization registration with design-system card layout.
+- **Atomic Registration RPC:** `public.initialize_new_tenant` (SECURITY DEFINER) with deferred `handle_new_auth_user` trigger path.
+- **Post-Login Routing:** `resolvePostLoginRoute` — zero `tenant_locations` or incomplete onboarding → `/onboarding`; live tenant → `/dashboard`.

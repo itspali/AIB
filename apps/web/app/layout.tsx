@@ -29,8 +29,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en">
-      <body className={`${inter.variable} font-sans`}>
+    <html lang="en" className={inter.variable}>
+      <body className="min-h-screen font-sans antialiased">
         <Providers>
           <OnboardingProvider initialComplete={initialComplete}>
             {children}

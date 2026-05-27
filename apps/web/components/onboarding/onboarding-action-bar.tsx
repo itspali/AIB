@@ -45,7 +45,7 @@ export function OnboardingActionBar({ canLaunch, getDraft }: Props) {
             }
             setOnboardingComplete(true);
             toast.success("Welcome to your live AIB Smart ERP workspace!");
-            router.push("/");
+            router.push("/dashboard");
             router.refresh();
           });
         }}
