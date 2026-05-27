@@ -21,49 +21,13 @@ The folder tree structure is:
 - `supabase/migrations/20260527170000_create_financial_accounting_and_ledger_automation.sql` -> Houses the unified Chart of Accounts (COA), date-bound tax rate registries with HSN/SAC return tokens, fiscal period lockout calendar gates, multi-state address nexus tax splits, and real-time trigger-driven forex variance sub-ledgers.
 
 ## 3. Active System Tables Definition (Do Not Re-create)
-The cloud database currently possesses exactly forty-five operational entity models, matching dependencies perfectly:
-- `tenants` -> Primary corporate identities and root corporate tax definitions.
-- `tenant_locations` -> Physical space branch networks, modified with regional tax identifiers and registered trade names.
-- `users` -> Corporate workforce registry bound via custom private roles and department settings.
-- `entities` -> Business partners profile center ('CUSTOMER', 'SUPPLIER', 'MUTUAL_PARTNER') with active credit tracking layers.
-- `entity_contacts` -> Subsidiary human index ensuring single-primary contact index validation per account.
-- `item_categories` -> Template trees handling relational parameters and schema-less item dynamic variable arrays.
-- `items` & `item_variants` -> Structural parent-child master catalog splitting global parameters from individual physical child SKUs. Enforces explicit unboxed bounding dimensions (`length_cm`, `width_cm`, `height_cm`, `dead_weight_kg`) and contextual `is_returnable` flags.
-- `item_uoms` -> Decoupled packaging conversion coefficient grids with strict positive multiplier controls.
-- `supplier_items` -> Multi-vendor procurement catalogues enforcing preferred-source partial indexes.
-- `price_books` & `price_book_entries` -> Multi-tier volume discount frameworks and currency matrices.
-- `storefront_channels` & `storefront_items` -> Multi-brand commerce engines hosting visual style configurations, store-facing text overrides, linked custom return policies (`return_policy_id`), and automated channel tracking maps (`channel_lifecycle_presets`).
-- `item_media` & `tags` -> Hierarchical asset and faceting tag directories.
-- `workspace_control_registry` -> Centralized preference engine controlling feature gates (`is_po_mandatory_for_grn`, `is_qc_required_before_stocking`, `allow_negative_inventory`, `allow_line_item_discounts`).
-- `document_layout_templates` -> Cross-channel view design matrix handling explicit presentation rules for `SCREEN_GRID`, `PDF_PRINT`, and `EMAIL_HTML` contexts.
-- `document_sequences` -> Transaction-isolated series counter utilizing explicit row-locking block mechanics.
-- `purchase_orders` & `purchase_order_items` -> Contractual purchasing records, custom pricing layers, and fulfillment metrics.
-- `goods_receipts` & `goods_receipt_items` -> Asynchronous material receiving logs that trigger automated landed-cost costing distributions.
-- `purchase_order_grn_mappings` -> Retroactive junction matrix allowing operators to link standalone receipts to purchasing contracts after execution.
-- `purchase_invoices` & `purchase_invoice_items` -> Corporate financial liabilities and regional tax bookkeeping records.
-- `stock_transfers` & `stock_transfer_items` -> Two-stage logistics matrix splitting dispatch from destination receipt and routing shortages to scrap or write-off nodes.
-- `stock_transfer_incidents` -> Polymorphic ledger tracking en-route unexpected costs (tolls, vehicle breakdowns) with billable transporter flags.
-- `transfer_discrepancy_claims` -> Settlement audit tracker for short-landed warehouse transfers.
-- `item_valuations` -> Location-bound material repository tracking running quantities and true Moving Weighted Average Costs (MWAC).
-- `inventory_buffer_thresholds` -> Safety triggers specifying min, max, and reorder point zones per branch warehouse.
-- `sales_quotations` & `sales_quotation_items` -> Customer soft commercial estimates containing an explicit `valid_until` constraint check.
-- `sales_orders` & `sales_order_items` -> The definitive sales agreements tracking concurrent Commercial, Logistical, and Financial status vectors with progressive ancestry tracking links (`source_quotation_id`).
-- `sales_invoices` & `sales_invoice_items` -> The formal tax invoice registry tracking automated shipping-state regional nexus taxation matrices, line markdown gates, and global fulfillment counters.
-- `sales_shipments`, `sales_shipment_packages` & `sales_shipment_items` -> Multi-package fulfillment dispatch framework tracking explicit box dimensions, scaled dead weights, and automated IATA volumetric and billable weight selection criteria while automatically computing real-time ledger-based COGS adjustments.
-- `payment_gateway_vouchers` -> Decoupled three-tier cash clearing sub-ledger isolating gross, processing fee, and net reconciled revenue for Stripe/Razorpay automated webhooks.
-- `customer_payments` & `payment_applications` -> Financial double-entry allocation matrices managing multi-invoice part-payments, customer balance liquification, and credit note distributions.
-- `sales_credit_notes` & `sales_returns` / `sales_return_items` -> Audit-ready structural reversal ledgers checking dynamic multi-conditional channel return windows, discount caps, and promo code restrictions before moving units to available or scrap quarantine nodes.
-- `document_approvals` -> Centralized hierarchical sign-off audit log preventing transaction downstream velocity until managerial authorization constraints are matched.
-- `accounts` -> The dynamic tenant-isolated Chart of Accounts (COA) managing financial categories cleanly.
-- `tax_rate_registry` -> The dynamic policy configuration bank housing active validation dates, percentage scales, and regulatory return codes.
-- `currency_exchange_rates` -> Daily spot value registries with contract-bound B2B exception tracking hooks.
-- `general_ledger_headers` & `general_ledger_entries` -> Strict append-only double-entry financial journals driven natively by automated database mutation triggers.
-- `inventory_ledger` -> Strict append-only tracking database engine with native triggers entirely prohibiting row updates or deletions.
+The database contains forty-five active models, protected by Row-Level Security:
+- `tenants`, `tenant_locations`, `users`, `entities`, `entity_contacts`, `item_categories`, `items`, `item_variants`, `item_uoms`, `supplier_items`, `price_books`, `price_book_entries`, `storefront_channels`, `storefront_items`, `item_media`, `tags`, `workspace_control_registry`, `document_layout_templates`, `document_sequences`, `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`, `stock_transfers`, `stock_transfer_items`, `stock_transfer_incidents`, `transfer_discrepancy_claims`, `item_valuations`, `inventory_buffer_thresholds`, `sales_quotations`, `sales_orders`, `sales_invoices`, `sales_shipments`, `payment_gateway_vouchers`, `customer_payments`, `payment_applications`, `sales_credit_notes`, `sales_returns`, `document_approvals`, `accounts`, `tax_rate_registry`, `currency_exchange_rates`, `general_ledger_headers`, `general_ledger_entries`, `inventory_ledger`.
 
 ## 4. Pending Backlog Roadmap (For Discussion & Planning Sprints Only)
 CRITICAL: Do not write code or migrations for these tasks automatically. The user will initiate a planning chat to refine these points. Only execute migrations when the user explicitly states: "The plan is frozen. Please execute."
 
-### Task Sequence 9: Three-Zone Frontend Dashboards, Dynamic Custom Field Injectors, & Tax-Ready Statutory Exports [CURRENT MILESTONE]
-- **Animate the Warehouse Packing & Carrier Dispatch Console:** Build the Next.js visual screen mapping data rows out into live multi-package configuration elements, resolving IATA volumetric metrics and carrier shipping labels on the fly.
-- **Wire the Multi-Tenant Chart of Accounts Settings Manager:** Construct an interface allowing administrators to manipulate the dynamic `tax_rate_registry` slabs, toggle line markdown switches, and audit unbalanced journal nodes without code interaction.
-- **Formulate Schema-less JSONB Custom Field Injectors:** Build the UI custom field manager mapping back into our category template dictionaries, allowing users to define unique variables on products without table alters.
+### Task Sequence 9: Public Organization Registration Funnel (Sign-Up) & Post-Login Setup Routing [CURRENT MILESTONE]
+- **Deploy the Public B2B Signup Gate Canvas:** Construct a public-facing onboarding view allowing corporate owners to initialize custom multi-tenant workspaces by supplying Company Name, Admin Email, and strong security credentials.
+- **Architect Atomic Registration Database Procedures:** Write a database edge transaction/RPC function that registers the user within Supabase Auth, seeds an independent `public.tenants` primary row identity, and maps the corresponding admin worker node to role level 'OWNER' smoothly.
+- **Enforce Conditional Post-Login Routing Guards:** Build Next.js routing controllers that scan database properties immediately after login. If a tenant has zero location network nodes configured, force route selection directly into the Milestone 8 interactive Setup Wizard layout.
