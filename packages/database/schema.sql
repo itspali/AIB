@@ -367,7 +367,7 @@ CREATE TABLE inventory_ledger (
 -- ====================================================================
 
 CREATE TYPE document_voucher_type AS ENUM (
-    'PURCHASE_ORDER', 'GOODS_RECEIPT_NOTE', 'PURCHASE_INVOICE'
+    'PURCHASE_ORDER', 'GOODS_RECEIPT_NOTE', 'PURCHASE_INVOICE', 'STOCK_TRANSFER'
 );
 
 CREATE TYPE purchase_document_status AS ENUM (
@@ -452,4 +452,101 @@ CREATE TABLE purchase_invoices (
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, system_voucher_number)
+);
+
+-- ====================================================================
+-- INVENTORY TRANSFERS & VALUATION (Milestone 5)
+-- Full triggers, RLS policies, and functions live in:
+--   supabase/migrations/20260527143000_create_inventory_transfers_and_valuation.sql
+-- ====================================================================
+
+CREATE TYPE stock_transfer_status AS ENUM (
+    'DRAFT', 'PENDING_APPROVAL', 'DISPATCHED_IN_TRANSIT',
+    'RECEIPT_DISCREPANCY', 'FULLY_COMPLETED', 'CANCELLED'
+);
+
+CREATE TYPE transfer_incident_type AS ENUM (
+    'TOLL_TAX', 'BORDER_CHARGES', 'EMERGENCY_MAINTENANCE',
+    'DRIVER_ALLOWANCE', 'OTHER_INCIDENTAL'
+);
+
+CREATE TABLE stock_transfers (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    transfer_number             TEXT NOT NULL,
+    source_location_id          UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    destination_location_id     UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    current_status              stock_transfer_status NOT NULL DEFAULT 'DRAFT',
+    inter_company_freight_cost  NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    loading_overhead_cost       NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    unloading_overhead_cost     NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    dispatched_at               TIMESTAMPTZ,
+    received_at                 TIMESTAMPTZ,
+    created_by                  UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, transfer_number)
+);
+
+CREATE TABLE stock_transfer_items (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    stock_transfer_id           UUID NOT NULL REFERENCES stock_transfers (id) ON DELETE CASCADE,
+    item_id                     UUID NOT NULL REFERENCES items (id) ON DELETE RESTRICT,
+    variant_id                  UUID REFERENCES item_variants (id) ON DELETE RESTRICT,
+    quantity_dispatched         NUMERIC(15, 4) NOT NULL,
+    quantity_accepted           NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    quantity_damaged            NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    quantity_lost               NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    source_unit_cost_at_dispatch NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    allocated_transfer_overhead NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE stock_transfer_incidents (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    stock_transfer_id           UUID NOT NULL REFERENCES stock_transfers (id) ON DELETE CASCADE,
+    expense_type                transfer_incident_type NOT NULL,
+    amount                      NUMERIC(15, 4) NOT NULL,
+    currency_code               VARCHAR(3) NOT NULL DEFAULT 'USD',
+    is_billable_to_transporter  BOOLEAN NOT NULL DEFAULT FALSE,
+    receipt_document_url        TEXT,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE transfer_discrepancy_claims (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    stock_transfer_id   UUID NOT NULL REFERENCES stock_transfers (id) ON DELETE CASCADE,
+    reported_by         UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    resolution_notes    TEXT,
+    is_settled          BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE item_valuations (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    location_id             UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    item_id                 UUID NOT NULL REFERENCES items (id) ON DELETE RESTRICT,
+    variant_id              UUID REFERENCES item_variants (id) ON DELETE RESTRICT,
+    current_average_cost    NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_quantity_on_hand  NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE inventory_buffer_thresholds (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    location_id         UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    item_id             UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    variant_id          UUID REFERENCES item_variants (id) ON DELETE CASCADE,
+    min_stock_level     NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    max_stock_level     NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    reorder_point_qty   NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
