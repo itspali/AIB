@@ -150,6 +150,8 @@ ALTER TABLE tenants
 -- COMMERCIAL PARTNERS & CONTACTS (Milestone 2)
 -- Full triggers, RLS policies, and private helpers live in:
 --   supabase/migrations/20260526200000_init_entities_contacts.sql
+-- Delta alignments (phone split, frozen blueprint):
+--   supabase/migrations/20260527100000_create_entities_and_contacts.sql
 -- ====================================================================
 
 CREATE TYPE entity_commercial_type AS ENUM ('CUSTOMER', 'SUPPLIER', 'MUTUAL_PARTNER');
@@ -198,7 +200,7 @@ CREATE TABLE entities (
     default_shipping_method     TEXT,
 
     company_email               TEXT,
-    company_phone               VARCHAR(30),
+    company_phone               TEXT,
     website_url                 TEXT,
     internal_notes              TEXT,
     custom_fields               JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -233,9 +235,11 @@ CREATE TABLE entity_contacts (
     entity_id       UUID NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
 
     first_name      TEXT NOT NULL,
-    last_name       TEXT NOT NULL,
+    last_name       TEXT,
     email           TEXT,
-    phone_number    VARCHAR(30),
+    phone           TEXT,
+    mobile          TEXT,
+    whatsapp_number TEXT,
     department      TEXT,
     job_title       TEXT,
 
