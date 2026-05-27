@@ -258,3 +258,104 @@ ALTER TABLE entity_contacts
     FOREIGN KEY (tenant_id, entity_id)
     REFERENCES entities (tenant_id, id)
     ON DELETE CASCADE;
+
+-- ====================================================================
+-- MASTER PRODUCT & INVENTORY CATALOG (Milestone 3)
+-- Full triggers, RLS policies, anon storefront policies, and guards live in:
+--   supabase/migrations/20260527123000_create_master_product_and_inventory_catalog.sql
+-- ====================================================================
+
+CREATE TYPE item_classification_type AS ENUM (
+    'RAW_MATERIAL', 'WIP_ASSEMBLY', 'FINISHED_GOOD', 'SERVICE', 'KIT_BUNDLE'
+);
+
+CREATE TYPE storefront_channel_type AS ENUM (
+    'B2C_ECOMMERCE', 'B2B_PORTAL', 'MARKETPLACE_FEED', 'PHYSICAL_POS'
+);
+
+CREATE TYPE inventory_transaction_type AS ENUM (
+    'PURCHASE_RECEIPT', 'SALES_SHIPMENT', 'PRODUCTION_CONSUMPTION',
+    'PRODUCTION_YIELD', 'STOCK_TRANSFER', 'INVENTORY_ADJUSTMENT', 'CYCLE_COUNT_CORRECTION'
+);
+
+-- tenant_locations (M3 compliance columns)
+-- location_tax_identifier TEXT, tax_registered_name TEXT
+
+CREATE TABLE item_categories (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name                TEXT NOT NULL,
+    parent_id           UUID REFERENCES item_categories (id) ON DELETE CASCADE,
+    attribute_templates JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE items (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    category_id             UUID,
+    name                    TEXT NOT NULL,
+    description             TEXT,
+    classification          item_classification_type NOT NULL,
+    base_unit_of_measure    TEXT NOT NULL,
+    hsn_sac_code            TEXT,
+    is_purchasable          BOOLEAN NOT NULL DEFAULT TRUE,
+    is_salable              BOOLEAN NOT NULL DEFAULT TRUE,
+    has_variants            BOOLEAN NOT NULL DEFAULT FALSE,
+    default_tax_category    TEXT NOT NULL DEFAULT 'STANDARD',
+    custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE item_variants (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id             UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    sku                 TEXT NOT NULL,
+    barcode             TEXT,
+    variant_attributes  JSONB NOT NULL DEFAULT '{}'::jsonb,
+    weight              NUMERIC(15, 4),
+    volume              NUMERIC(15, 4),
+    length              NUMERIC(15, 4),
+    width               NUMERIC(15, 4),
+    height              NUMERIC(15, 4),
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, sku)
+);
+
+CREATE TABLE storefront_channels (
+    id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name                            TEXT NOT NULL,
+    channel_type                    storefront_channel_type NOT NULL,
+    slug                            TEXT NOT NULL,
+    domain_url                      TEXT,
+    brand_logo_url                  TEXT,
+    brand_favicon_url               TEXT,
+    theme_config                    JSONB NOT NULL DEFAULT '{"primary_color": "#4F46E5", "secondary_color": "#10B981", "font_family": "Inter, sans-serif"}'::jsonb,
+    inventory_fulfillment_strategy  JSONB NOT NULL DEFAULT '{"fallback_to_all_locations": true}'::jsonb,
+    is_active                       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, slug)
+);
+
+CREATE TABLE inventory_ledger (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    item_id                 UUID NOT NULL REFERENCES items (id) ON DELETE RESTRICT,
+    variant_id              UUID REFERENCES item_variants (id) ON DELETE RESTRICT,
+    location_id             UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    transaction_type        inventory_transaction_type NOT NULL,
+    quantity                NUMERIC(15, 4) NOT NULL,
+    cost_at_transaction     NUMERIC(15, 4) NOT NULL,
+    reference_document      TEXT NOT NULL,
+    created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
