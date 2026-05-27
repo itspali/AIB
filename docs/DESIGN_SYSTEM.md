@@ -28,3 +28,11 @@ To protect complex tables and multi-step forms on compact viewports, the layout 
 - **Action Elements**: Interactive components must include explicit transition behaviors (`transition-colors duration-200`) and visually separate states (`hover:bg-accent`, `focus-visible:ring-2`, `disabled:opacity-50`).
 - **Pristine State Layouts (Empty States)**: List modules lacking current database rows must never display empty white boxes. They must serve structured instructional components holding descriptive text alerts, an illustrative icon vector, and an immediate actionable trigger button (e.g., "Create First Item").
 - **UX Complexity Control (Progressive Disclosure)**: Multi-field entry forms must default to an "Essentials Only" layout. Advanced parameters, complex attributes, or uncommon configuration tags (such as inventory bin tags, alternate units of measure, or HSN custom codes) must remain hidden behind an explicit toggle element marked "Show Advanced Fields". This prevents cognitive overload for onboarding users.
+
+## 5. Enterprise Data Tables & Precision Form Controls
+- **Precision Financial Inputs**: Numeric fields manipulating currency values, unit prices, or tax allocation coefficients must utilize explicit right-aligned text alignments (`text-right`) and apply dedicated masks that strictly prohibit the submission of unformatted float decimals.
+- **Transactional State Badges**: Document lifecycle parameters mapping straight to our multi-vector database enums (Commercial, Logistical, Financial) must display using distinct, low-saturation contextual status badges:
+  - Success/Settled States (`FULLY_PAID`, `DELIVERED`): Emerald backgrounds with high-contrast text overlays.
+  - Informational/Active States (`APPROVED_ACTIVE`, `DISPATCHED_IN_TRANSIT`): Soft indigo or sky blue layout blocks.
+  - Critical/Hold States (`CREDIT_HOLD`, `PENDING_APPROVAL`, `UNPAID`): Muted amber or soft crimson alert palettes to immediately draw administrative attention.
+- **Asynchronous Loading Skeletons**: Data table grids pulling live records through Supabase real-time queries must display localized animated skeleton layouts during state transitions instead of generic, full-screen spinners, preventing layout shifts during data processing loops.
