@@ -359,3 +359,97 @@ CREATE TABLE inventory_ledger (
     created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ====================================================================
+-- PROCUREMENT & CONTROL ENGINE (Milestone 4)
+-- Full triggers, RLS policies, and functions live in:
+--   supabase/migrations/20260527134500_create_procurement_and_control_registry.sql
+-- ====================================================================
+
+CREATE TYPE document_voucher_type AS ENUM (
+    'PURCHASE_ORDER', 'GOODS_RECEIPT_NOTE', 'PURCHASE_INVOICE'
+);
+
+CREATE TYPE purchase_document_status AS ENUM (
+    'DRAFT', 'PENDING_APPROVAL', 'ISSUED_ACTIVE', 'QC_HOLD',
+    'PARTIALLY_FULFILLED', 'FULLY_COMPLETED', 'CANCELLED'
+);
+
+CREATE TABLE workspace_control_registry (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    scope_level             TEXT NOT NULL,
+    target_reference_id     UUID,
+    registry_key            TEXT NOT NULL,
+    configuration_metadata  JSONB NOT NULL DEFAULT '{
+        "is_po_mandatory_for_grn": false,
+        "is_qc_required_before_stocking": false
+    }'::jsonb,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE document_sequences (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    voucher_type    document_voucher_type NOT NULL,
+    prefix          TEXT NOT NULL,
+    next_value      INTEGER NOT NULL DEFAULT 1,
+    padding_length  INTEGER NOT NULL DEFAULT 5,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, voucher_type, prefix)
+);
+
+CREATE TABLE purchase_orders (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    destination_location_id UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    supplier_id             UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    voucher_number          TEXT NOT NULL,
+    document_status         purchase_document_status NOT NULL DEFAULT 'DRAFT',
+    payment_terms_days      INTEGER NOT NULL DEFAULT 0,
+    currency_code           VARCHAR(3) NOT NULL DEFAULT 'USD',
+    exchange_rate           NUMERIC(15, 4) NOT NULL DEFAULT 1.0000,
+    total_gross_amount      NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_tax_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_net_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, voucher_number)
+);
+
+CREATE TABLE goods_receipts (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    destination_location_id UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    purchase_order_id       UUID REFERENCES purchase_orders (id) ON DELETE SET NULL,
+    voucher_number          TEXT NOT NULL,
+    is_qc_pending           BOOLEAN NOT NULL DEFAULT FALSE,
+    received_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, voucher_number)
+);
+
+CREATE TABLE purchase_invoices (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    supplier_id             UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    purchase_order_id       UUID REFERENCES purchase_orders (id) ON DELETE SET NULL,
+    invoice_number_vendor   TEXT NOT NULL,
+    system_voucher_number   TEXT NOT NULL,
+    tax_treatment           tax_treatment_type NOT NULL DEFAULT 'REGULAR_B2B',
+    total_liability_amount  NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    billing_location_id     UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    is_paid                 BOOLEAN NOT NULL DEFAULT FALSE,
+    custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, system_voucher_number)
+);
