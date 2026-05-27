@@ -375,7 +375,8 @@ CREATE TABLE inventory_ledger (
 
 CREATE TYPE document_voucher_type AS ENUM (
     'PURCHASE_ORDER', 'GOODS_RECEIPT_NOTE', 'PURCHASE_INVOICE', 'STOCK_TRANSFER',
-    'SALES_QUOTATION', 'SALES_ORDER', 'SALES_INVOICE', 'CUSTOMER_PAYMENT', 'SALES_CREDIT_NOTE'
+    'SALES_QUOTATION', 'SALES_ORDER', 'SALES_INVOICE', 'CUSTOMER_PAYMENT', 'SALES_CREDIT_NOTE',
+    'GENERAL_LEDGER'
 );
 
 CREATE TYPE purchase_document_status AS ENUM (
@@ -668,6 +669,8 @@ CREATE TABLE sales_invoices (
     total_net_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     total_paid_amount       NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     invoice_payment_status  sales_payment_status NOT NULL DEFAULT 'UNPAID',
+    currency_code           VARCHAR(3) NOT NULL DEFAULT 'USD',
+    exchange_rate_snapshot  NUMERIC(15, 6) NOT NULL DEFAULT 1.000000,
     custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -733,6 +736,8 @@ CREATE TABLE customer_payments (
     payment_number      TEXT NOT NULL,
     amount_received     NUMERIC(15, 4) NOT NULL,
     payment_method      gateway_provider_type NOT NULL,
+    currency_code       VARCHAR(3) NOT NULL DEFAULT 'USD',
+    exchange_rate_at_receipt NUMERIC(15, 6) NOT NULL DEFAULT 1.000000,
     reference_number    TEXT,
     received_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by          UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
@@ -777,5 +782,80 @@ CREATE TABLE document_approvals (
     approved_by     UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     approved_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     notes           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ====================================================================
+-- FINANCIAL ACCOUNTING & LEDGER AUTOMATION (Milestone 8)
+-- Full triggers, RLS policies, and functions live in:
+--   supabase/migrations/20260527170000_create_financial_accounting_and_ledger_automation.sql
+-- ====================================================================
+
+CREATE TYPE account_type_class AS ENUM (
+    'ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'
+);
+
+CREATE TYPE tax_split_type AS ENUM (
+    'INTRA_STATE', 'INTER_STATE', 'EXEMPT_EXPORT'
+);
+
+CREATE TABLE accounts (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    account_code    TEXT NOT NULL,
+    account_name    TEXT NOT NULL,
+    classification  account_type_class NOT NULL,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, account_code)
+);
+
+CREATE TABLE tax_rate_registry (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    tax_component_name      TEXT NOT NULL,
+    tax_percentage          NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+    active_from_date        TIMESTAMPTZ NOT NULL,
+    active_to_date          TIMESTAMPTZ,
+    legal_compliance_code   TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, tax_component_name, active_from_date)
+);
+
+CREATE TABLE currency_exchange_rates (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    from_currency               VARCHAR(3) NOT NULL,
+    to_currency                 VARCHAR(3) NOT NULL,
+    conversion_rate             NUMERIC(15, 6) NOT NULL,
+    rate_timestamp              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_custom_contract_fixed    BOOLEAN NOT NULL DEFAULT FALSE,
+    linked_sales_order_id       UUID REFERENCES sales_orders (id) ON DELETE SET NULL,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE general_ledger_headers (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    voucher_number          TEXT NOT NULL,
+    posting_date            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    source_document_type    TEXT NOT NULL,
+    source_document_id      UUID NOT NULL,
+    narration               TEXT,
+    is_manager_backpost     BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, voucher_number)
+);
+
+CREATE TABLE general_ledger_entries (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    gl_header_id    UUID NOT NULL REFERENCES general_ledger_headers (id) ON DELETE CASCADE,
+    account_id      UUID NOT NULL REFERENCES accounts (id) ON DELETE RESTRICT,
+    debit_amount    NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    credit_amount   NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
