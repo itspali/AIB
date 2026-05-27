@@ -18,9 +18,10 @@ The folder tree structure is:
 - `supabase/migrations/20260527134500_create_procurement_and_control_registry.sql` -> Houses procurement, sequences, layout templates, and configuration preferences.
 - `supabase/migrations/20260527143000_create_inventory_transfers_and_valuation.sql` -> Houses multi-warehouse stock transfer matrices, en-route incidental logging tables, and the automated Moving Weighted Average Costing (MWAC) engine.
 - `supabase/migrations/20260527150000_create_sales_outbound_and_omnichannel_integrations.sql` -> Houses the progressive outbound trade engine, omnichannel conditional return engines, multi-vector state monitors, payment clearing paths, and the bounding-box packaging matrix.
+- `supabase/migrations/20260527170000_create_financial_accounting_and_ledger_automation.sql` -> Houses the unified Chart of Accounts (COA), date-bound tax rate registries with HSN/SAC return tokens, fiscal period lockout calendar gates, multi-state address nexus tax splits, and real-time trigger-driven forex variance sub-ledgers.
 
 ## 3. Active System Tables Definition (Do Not Re-create)
-The cloud database currently possesses exactly forty operational entity models, matching dependencies perfectly:
+The cloud database currently possesses exactly forty-five operational entity models, matching dependencies perfectly:
 - `tenants` -> Primary corporate identities and root corporate tax definitions.
 - `tenant_locations` -> Physical space branch networks, modified with regional tax identifiers and registered trade names.
 - `users` -> Corporate workforce registry bound via custom private roles and department settings.
@@ -53,17 +54,16 @@ The cloud database currently possesses exactly forty operational entity models, 
 - `customer_payments` & `payment_applications` -> Financial double-entry allocation matrices managing multi-invoice part-payments, customer balance liquification, and credit note distributions.
 - `sales_credit_notes` & `sales_returns` / `sales_return_items` -> Audit-ready structural reversal ledgers checking dynamic multi-conditional channel return windows, discount caps, and promo code restrictions before moving units to available or scrap quarantine nodes.
 - `document_approvals` -> Centralized hierarchical sign-off audit log preventing transaction downstream velocity until managerial authorization constraints are matched.
+- `accounts` -> The dynamic tenant-isolated Chart of Accounts (COA) managing financial categories cleanly.
+- `tax_rate_registry` -> The dynamic policy configuration bank housing active validation dates, percentage scales, and regulatory return codes.
+- `currency_exchange_rates` -> Daily spot value registries with contract-bound B2B exception tracking hooks.
+- `general_ledger_headers` & `general_ledger_entries` -> Strict append-only double-entry financial journals driven natively by automated database mutation triggers.
 - `inventory_ledger` -> Strict append-only tracking database engine with native triggers entirely prohibiting row updates or deletions.
 
 ## 4. Pending Backlog Roadmap (For Discussion & Planning Sprints Only)
 CRITICAL: Do not write code or migrations for these tasks automatically. The user will initiate a planning chat to refine these points. Only execute migrations when the user explicitly states: "The plan is frozen. Please execute."
 
-### Task Sequence 8: Multi-Currency Exchange Volatility, Financial Accounting Ledgers, & Double-Entry Journal Triggers [NEXT MILESTONE]
-- **Structure the Unified Chart of Accounts (COA):** Build a multi-tenant chart of accounts repository (`accounts`, `account_classes`) managing asset, liability, equity, revenue, and operational expense structures.
-- **Implement Multi-Currency Volatility Matrices:** Create dynamic transaction logs tracking fluctuating currency pairs, baseline tenant currency hedges, and trigger-calculated exchange conversion deviations.
-- **Deploy the Double-Entry General Ledger Engine:** Formulate transaction-isolated ledger maps (`general_ledger_entries`) driven by triggers on purchase invoices, sales dispatches, transport incidents, and payment vouchers to execute gapless debit-credit alignment.
-- **Automate Dynamic Realized/Unrealized Gain & Loss Accounts:** Embed financial math routines calculating exchange rate deltas between order booking points, invoice timestamps, and payment applications to automatically write forex variances to specialized loss ledger channels.
-### Task Sequence 6 & 7 Extension: Consumable Packaging & Material Depletion Matrices
-- **Structure Consumable Rule Registries:** Build out the `packaging_consumable_rules` schema linking container dimensional formats (BOX_MEDIUM, PALLET) directly to structural packaging variants.
-- **Automate Outbound Packaging Trigger Ledger:** Implement an AFTER INSERT trigger on `sales_shipment_packages` that automatically fires outbound reductions for packing materials inside `inventory_ledger` at the origin warehouse node.
-- **Establish Return Recovery Loop Gates:** Implement an inbound ledger adjustment function attached to `sales_returns` that inspects item reusability flags, automatically restoring qualified plastic inserts or pallet units back to AVAILABLE stock blocks while generating write-off logs for unrecoverable cardboard items.
+### Task Sequence 9: Three-Zone Frontend Dashboards, Dynamic Custom Field Injectors, & Tax-Ready Statutory Exports [CURRENT MILESTONE]
+- **Animate the Warehouse Packing & Carrier Dispatch Console:** Build the Next.js visual screen mapping data rows out into live multi-package configuration elements, resolving IATA volumetric metrics and carrier shipping labels on the fly.
+- **Wire the Multi-Tenant Chart of Accounts Settings Manager:** Construct an interface allowing administrators to manipulate the dynamic `tax_rate_registry` slabs, toggle line markdown switches, and audit unbalanced journal nodes without code interaction.
+- **Formulate Schema-less JSONB Custom Field Injectors:** Build the UI custom field manager mapping back into our category template dictionaries, allowing users to define unique variables on products without table alters.
