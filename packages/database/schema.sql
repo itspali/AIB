@@ -303,6 +303,7 @@ CREATE TABLE items (
     hsn_sac_code            TEXT,
     is_purchasable          BOOLEAN NOT NULL DEFAULT TRUE,
     is_salable              BOOLEAN NOT NULL DEFAULT TRUE,
+    is_returnable           BOOLEAN NOT NULL DEFAULT TRUE,
     has_variants            BOOLEAN NOT NULL DEFAULT FALSE,
     default_tax_category    TEXT NOT NULL DEFAULT 'STANDARD',
     custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -323,6 +324,10 @@ CREATE TABLE item_variants (
     length              NUMERIC(15, 4),
     width               NUMERIC(15, 4),
     height              NUMERIC(15, 4),
+    length_cm           NUMERIC(8, 2) NOT NULL DEFAULT 0.00,
+    width_cm            NUMERIC(8, 2) NOT NULL DEFAULT 0.00,
+    height_cm           NUMERIC(8, 2) NOT NULL DEFAULT 0.00,
+    dead_weight_kg      NUMERIC(10, 3) NOT NULL DEFAULT 0.000,
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -340,6 +345,8 @@ CREATE TABLE storefront_channels (
     brand_favicon_url               TEXT,
     theme_config                    JSONB NOT NULL DEFAULT '{"primary_color": "#4F46E5", "secondary_color": "#10B981", "font_family": "Inter, sans-serif"}'::jsonb,
     inventory_fulfillment_strategy  JSONB NOT NULL DEFAULT '{"fallback_to_all_locations": true}'::jsonb,
+    return_policy_id                UUID,
+    channel_lifecycle_presets       JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_active                       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -367,7 +374,8 @@ CREATE TABLE inventory_ledger (
 -- ====================================================================
 
 CREATE TYPE document_voucher_type AS ENUM (
-    'PURCHASE_ORDER', 'GOODS_RECEIPT_NOTE', 'PURCHASE_INVOICE', 'STOCK_TRANSFER'
+    'PURCHASE_ORDER', 'GOODS_RECEIPT_NOTE', 'PURCHASE_INVOICE', 'STOCK_TRANSFER',
+    'SALES_QUOTATION', 'SALES_ORDER', 'SALES_INVOICE', 'CUSTOMER_PAYMENT', 'SALES_CREDIT_NOTE'
 );
 
 CREATE TYPE purchase_document_status AS ENUM (
@@ -549,4 +557,225 @@ CREATE TABLE inventory_buffer_thresholds (
     reorder_point_qty   NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ====================================================================
+-- OUTBOUND COMMERCE & OMNICHANNEL (Milestones 6 & 7)
+-- Full triggers, RLS policies, and functions live in:
+--   supabase/migrations/20260527150000_create_sales_outbound_and_omnichannel_integrations.sql
+-- ====================================================================
+
+CREATE TYPE sales_document_status AS ENUM (
+    'DRAFT', 'PENDING_APPROVAL', 'CREDIT_HOLD', 'APPROVED_ACTIVE',
+    'PARTIALLY_SHIPPED', 'FULLY_COMPLETED', 'CANCELLED'
+);
+
+CREATE TYPE sales_fulfillment_status AS ENUM (
+    'NOT_FULFILLED', 'PICKING_PACKING', 'DISPATCHED_IN_TRANSIT', 'DELIVERED',
+    'RETURNED_PARTIAL', 'RETURNED_FULLY'
+);
+
+CREATE TYPE sales_payment_status AS ENUM (
+    'UNPAID', 'PARTIALLY_PAID', 'FULLY_PAID', 'REFUNDED'
+);
+
+CREATE TYPE gateway_provider_type AS ENUM (
+    'STRIPE', 'RAZORPAY', 'PAYPAL', 'INTERNAL_CREDIT', 'BANK_TRANSFER', 'CASH_ON_DELIVERY'
+);
+
+CREATE TYPE payment_reconciliation_state AS ENUM (
+    'UNRECONCILED', 'WEBHOOK_MATCHED', 'BANK_SETTLED', 'DISPUTED_CHARGEBACK'
+);
+
+CREATE TYPE refund_settlement_type AS ENUM (
+    'ORIGINAL_PAYMENT_SOURCE', 'STORE_CREDIT_LEDGER'
+);
+
+CREATE TYPE shipping_carrier_provider AS ENUM (
+    'FEDEX', 'DHL', 'UPS', 'BLUE_DART', 'CUSTOM_FLEET'
+);
+
+CREATE TABLE return_policies (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    policy_name                 TEXT NOT NULL,
+    return_window_days          INTEGER NOT NULL DEFAULT 30,
+    allow_refunds               BOOLEAN NOT NULL DEFAULT TRUE,
+    allow_exchanges             BOOLEAN NOT NULL DEFAULT TRUE,
+    refund_method_default       refund_settlement_type NOT NULL DEFAULT 'ORIGINAL_PAYMENT_SOURCE',
+    restocking_fee_percentage   NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+    conditional_rules_json      JSONB NOT NULL DEFAULT '{}'::jsonb,
+    requires_manager_approval_past_window BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, policy_name)
+);
+
+CREATE TABLE sales_quotations (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    customer_id         UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    quotation_number    TEXT NOT NULL,
+    commercial_status   sales_document_status NOT NULL DEFAULT 'DRAFT',
+    valid_until         TIMESTAMPTZ NOT NULL,
+    billing_state       TEXT NOT NULL,
+    shipping_state      TEXT NOT NULL,
+    total_gross_amount  NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_tax_amount    NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_net_amount    NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    custom_fields       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by          UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, quotation_number)
+);
+
+CREATE TABLE sales_orders (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    customer_id             UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    storefront_channel_id   UUID REFERENCES storefront_channels (id) ON DELETE RESTRICT,
+    shipping_location_id    UUID REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    source_quotation_id     UUID REFERENCES sales_quotations (id) ON DELETE SET NULL,
+    voucher_number          TEXT NOT NULL,
+    commercial_status       sales_document_status NOT NULL DEFAULT 'DRAFT',
+    fulfillment_status      sales_fulfillment_status NOT NULL DEFAULT 'NOT_FULFILLED',
+    payment_status          sales_payment_status NOT NULL DEFAULT 'UNPAID',
+    billing_state           TEXT NOT NULL,
+    shipping_state          TEXT NOT NULL,
+    total_gross_amount      NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_tax_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_net_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, voucher_number)
+);
+
+CREATE TABLE sales_invoices (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    customer_id             UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    source_order_id         UUID REFERENCES sales_orders (id) ON DELETE SET NULL,
+    origin_location_id      UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    invoice_number          TEXT NOT NULL,
+    billing_state           TEXT NOT NULL,
+    shipping_state          TEXT NOT NULL,
+    tax_treatment_applied   TEXT NOT NULL DEFAULT 'IGST',
+    total_gross_amount      NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_tax_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_net_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_paid_amount       NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    invoice_payment_status  sales_payment_status NOT NULL DEFAULT 'UNPAID',
+    custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, invoice_number)
+);
+
+CREATE TABLE payment_gateway_vouchers (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    sales_order_id              UUID NOT NULL REFERENCES sales_orders (id) ON DELETE RESTRICT,
+    sales_invoice_id            UUID REFERENCES sales_invoices (id) ON DELETE SET NULL,
+    gateway_provider            TEXT NOT NULL,
+    external_transaction_id     TEXT NOT NULL,
+    gross_amount_captured       NUMERIC(15, 4) NOT NULL,
+    provider_processing_fee     NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    net_reconciled_amount       NUMERIC(15, 4) GENERATED ALWAYS AS (gross_amount_captured - provider_processing_fee) STORED,
+    reconciliation_status       payment_reconciliation_state NOT NULL DEFAULT 'UNRECONCILED',
+    raw_webhook_payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, gateway_provider, external_transaction_id)
+);
+
+CREATE TABLE sales_shipments (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    sales_order_id              UUID NOT NULL REFERENCES sales_orders (id) ON DELETE RESTRICT,
+    origin_location_id          UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    carrier_provider            shipping_carrier_provider NOT NULL,
+    tracking_number             TEXT NOT NULL,
+    estimated_freight_quote     NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    actual_carrier_invoice_cost NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    dispatched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    delivered_at                TIMESTAMPTZ,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, carrier_provider, tracking_number)
+);
+
+CREATE TABLE sales_shipment_packages (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    sales_shipment_id           UUID NOT NULL REFERENCES sales_shipments (id) ON DELETE CASCADE,
+    box_identifier              TEXT NOT NULL,
+    box_length_cm               NUMERIC(8, 2) NOT NULL,
+    box_width_cm                NUMERIC(8, 2) NOT NULL,
+    box_height_cm               NUMERIC(8, 2) NOT NULL,
+    total_dead_weight_kg        NUMERIC(10, 3) NOT NULL,
+    total_volumetric_weight_kg  NUMERIC(10, 3) GENERATED ALWAYS AS ((box_length_cm * box_width_cm * box_height_cm) / 5000.000) STORED,
+    billable_weight_kg          NUMERIC(10, 3) GENERATED ALWAYS AS (
+        CASE WHEN total_dead_weight_kg >= ((box_length_cm * box_width_cm * box_height_cm) / 5000.000)
+        THEN total_dead_weight_kg ELSE ((box_length_cm * box_width_cm * box_height_cm) / 5000.000) END
+    ) STORED,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE customer_payments (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    customer_id         UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    payment_number      TEXT NOT NULL,
+    amount_received     NUMERIC(15, 4) NOT NULL,
+    payment_method      gateway_provider_type NOT NULL,
+    reference_number    TEXT,
+    received_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by          UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, payment_number)
+);
+
+CREATE TABLE sales_credit_notes (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    customer_id         UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    source_invoice_id   UUID REFERENCES sales_invoices (id) ON DELETE SET NULL,
+    credit_note_number  TEXT NOT NULL,
+    credit_amount       NUMERIC(15, 4) NOT NULL,
+    reason              TEXT,
+    created_by          UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, credit_note_number)
+);
+
+CREATE TABLE sales_returns (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    sales_order_id      UUID NOT NULL REFERENCES sales_orders (id) ON DELETE RESTRICT,
+    customer_id         UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    return_number       TEXT NOT NULL,
+    return_location_id  UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
+    custom_fields       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by          UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, return_number)
+);
+
+CREATE TABLE document_approvals (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    document_type   TEXT NOT NULL,
+    document_id     UUID NOT NULL,
+    approved_by     UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    approved_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
