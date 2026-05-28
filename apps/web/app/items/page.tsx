@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchCategoryRows } from "@/lib/categories/queries";
 import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
+import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import { fetchProductListRows } from "@/lib/products/queries";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -21,12 +22,14 @@ export default async function ItemsPage() {
 
   const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
 
-  const [products, categories, approvalAlertCount, operatorProfile] = await Promise.all([
-    fetchProductListRows(supabase, tenantId),
-    fetchCategoryRows(supabase, tenantId),
-    fetchApprovalAlertCount(supabase, tenantId),
-    fetchOperatorProfileForSession(supabase, orgName),
-  ]);
+  const [products, categories, catalogContext, approvalAlertCount, operatorProfile] =
+    await Promise.all([
+      fetchProductListRows(supabase, tenantId),
+      fetchCategoryRows(supabase, tenantId),
+      fetchProductCatalogContext(supabase, tenantId),
+      fetchApprovalAlertCount(supabase, tenantId),
+      fetchOperatorProfileForSession(supabase, orgName),
+    ]);
 
   return (
     <DashboardShell
@@ -34,7 +37,11 @@ export default async function ItemsPage() {
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
     >
-      <ProductCatalogTerminal initialProducts={products} categories={categories} />
+      <ProductCatalogTerminal
+        initialProducts={products}
+        categories={categories}
+        catalogContext={catalogContext}
+      />
     </DashboardShell>
   );
 }

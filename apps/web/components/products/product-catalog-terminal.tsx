@@ -13,17 +13,22 @@ import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
 import { detailToFormValues } from "@/lib/products/types";
-import type { ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
+import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
   initialProducts: ProductListRow[];
   categories: CategoryRow[];
+  catalogContext: ProductCatalogContext;
 };
 
 type CanvasMode = "empty" | "detail" | "create" | "edit";
 
-export function ProductCatalogTerminal({ initialProducts, categories }: Props) {
+export function ProductCatalogTerminal({
+  initialProducts,
+  categories,
+  catalogContext,
+}: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<CanvasMode>("empty");
   const [detail, setDetail] = useState<ProductDetailSnapshot | null>(null);
@@ -70,7 +75,7 @@ export function ProductCatalogTerminal({ initialProducts, categories }: Props) {
   };
 
   return (
-    <>
+    <div className={mode === "create" || mode === "edit" ? undefined : "canvas-scroll-endpad"}>
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Product Master Catalog</h1>
@@ -118,12 +123,19 @@ export function ProductCatalogTerminal({ initialProducts, categories }: Props) {
 
         <section className="col-span-1 min-h-[420px] w-full p-4 sm:p-6 lg:col-span-8">
           {mode === "create" && (
-            <ProductMasterForm categories={categories} onCancel={handleCancel} onSaved={handleSaved} />
+            <ProductMasterForm
+              categories={categories}
+              catalogContext={catalogContext}
+              onCancel={handleCancel}
+              onSaved={handleSaved}
+            />
           )}
 
           {mode === "edit" && detail && (
             <ProductMasterForm
               categories={categories}
+              catalogContext={catalogContext}
+              valuations={detail.valuations}
               initialValues={detailToFormValues(detail)}
               onCancel={handleCancel}
               onSaved={handleSaved}
@@ -135,6 +147,7 @@ export function ProductCatalogTerminal({ initialProducts, categories }: Props) {
           {mode === "detail" && detail && !isLoadingDetail && (
             <ProductDetailViewport
               product={detail}
+              catalogContext={catalogContext}
               onEdit={() => {
                 setMode("edit");
               }}
@@ -149,6 +162,6 @@ export function ProductCatalogTerminal({ initialProducts, categories }: Props) {
           )}
         </section>
       </div>
-    </>
+    </div>
   );
 }

@@ -125,6 +125,33 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  .chip-scroll-track {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chip-scroll-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Workspace content inset — horizontal + top only; no bottom pad (sticky footers sit flush). */
+  .canvas-workspace-pad {
+    @apply px-4 pt-4 md:px-6 md:pt-6 lg:px-8 lg:pt-8;
+  }
+
+  /* Sticky save bars: flush to scrollport bottom; sit above mobile module nav (h-14). */
+  .canvas-sticky-footer {
+    @apply sticky z-10 mt-8 flex justify-end gap-2 border-t border-border bg-background py-4 shadow-[0_-8px_24px_-12px_hsl(var(--background))];
+    @apply bottom-14 md:bottom-0;
+    @apply -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8;
+  }
+
+  /* Pages without a sticky footer still need clearance above mobile nav. */
+  .canvas-scroll-endpad {
+    @apply pb-16 md:pb-6 lg:pb-8;
+  }
 }
 
 @keyframes shimmer {

@@ -39,19 +39,21 @@ export default async function DashboardPage() {
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
     >
-      <CommandHubHeader approvalAlertCount={approvalAlertCount} />
+      <div className="canvas-scroll-endpad">
+        <CommandHubHeader approvalAlertCount={approvalAlertCount} />
 
-      <Suspense fallback={<MetricGaugeSkeleton />}>
-        <MetricGaugeGrid />
-      </Suspense>
+        <Suspense fallback={<MetricGaugeSkeleton />}>
+          <MetricGaugeGrid />
+        </Suspense>
 
-      <Suspense fallback={<ControlPanelSkeleton />}>
-        <ControlPanelSection />
-      </Suspense>
+        <Suspense fallback={<ControlPanelSkeleton />}>
+          <ControlPanelSection />
+        </Suspense>
 
-      <Suspense fallback={<TaxPolicyGridSkeleton />}>
-        <TaxPolicySection />
-      </Suspense>
+        <Suspense fallback={<TaxPolicyGridSkeleton />}>
+          <TaxPolicySection />
+        </Suspense>
+      </div>
     </DashboardShell>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { saveProductMasterProfile } from "@/app/items/actions";
+import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,20 +25,71 @@ import {
   classificationLabel,
 } from "@/lib/products/classification-labels";
 import { productMasterSchema } from "@/lib/products/schemas";
+import {
+  TAX_CATEGORY_OPTIONS,
+  taxCategoryLabel,
+} from "@/lib/products/tax-options";
 import { UOM_OPTIONS } from "@/lib/products/uom-options";
 import {
   defaultProductFormValues,
+  type ProductCatalogContext,
   type ProductMasterFormValues,
+  type ProductValuationSnapshot,
 } from "@/lib/products/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   categories: CategoryRow[];
+  catalogContext: ProductCatalogContext;
+  valuations?: ProductValuationSnapshot[];
   initialValues?: ProductMasterFormValues;
   onCancel: () => void;
   onSaved: (itemId: string) => void;
 };
 
-export function ProductMasterForm({ categories, initialValues, onCancel, onSaved }: Props) {
+function formatMoney(amount: string, currency: string): string {
+  const parsed = Number(amount);
+  if (!amount || !Number.isFinite(parsed)) return "—";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(parsed);
+}
+
+function SwitchRow({
+  label,
+  description,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+export function ProductMasterForm({
+  categories,
+  catalogContext,
+  valuations = [],
+  initialValues,
+  onCancel,
+  onSaved,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -55,7 +107,17 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
   } = form;
 
   const showAdvanced = watch("show_advanced");
+  const categoryId = watch("category_id");
+  const baseUom = watch("base_unit_of_measure");
+  const purchaseUom = watch("purchase_uom");
+  const variantAttributes = watch("variant_attributes");
   const categoryOptions = parentSelectOptions(categories).filter((option) => option.id !== null);
+  const previousBaseUomRef = useRef(baseUom);
+
+  const categoryTemplates = useMemo(() => {
+    if (!categoryId) return [];
+    return categories.find((category) => category.id === categoryId)?.attribute_templates ?? [];
+  }, [categories, categoryId]);
 
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
@@ -76,8 +138,27 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
   );
 
   useEffect(() => {
-    form.reset(initialValues ?? defaultProductFormValues);
+    const nextValues = initialValues ?? defaultProductFormValues;
+    form.reset(nextValues);
+    previousBaseUomRef.current = nextValues.base_unit_of_measure;
   }, [initialValues, form]);
+
+  useEffect(() => {
+    if (previousBaseUomRef.current === baseUom) return;
+
+    const sellingUom = form.getValues("selling_uom");
+    const currentPurchaseUom = form.getValues("purchase_uom");
+
+    if (sellingUom === previousBaseUomRef.current) {
+      setValue("selling_uom", baseUom, { shouldDirty: true });
+    }
+    if (currentPurchaseUom === previousBaseUomRef.current) {
+      setValue("purchase_uom", baseUom, { shouldDirty: true });
+      setValue("purchase_uom_conversion", "1", { shouldDirty: true });
+    }
+
+    previousBaseUomRef.current = baseUom;
+  }, [baseUom, form, setValue]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,14 +173,14 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
   }, [handleSubmit, onSubmit]);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pb-24">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">
           {initialValues?.item_id ? "Edit Product Master Profile" : "Create Product Master Profile"}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Essentials are always visible. Advanced logistical and statutory fields stay hidden until
-          enabled.
+          Essentials cover identity, commerce flags, and master SKU. Advanced fields map to the
+          full item and variant master schema.
         </p>
       </div>
 
@@ -138,7 +219,7 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="name" className="text-sm font-medium text-muted-foreground">
               Root product name
             </Label>
@@ -152,6 +233,14 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
             </Label>
             <Input id="sku" disabled={isPending} className="font-mono" {...register("sku")} />
             {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="barcode" className="text-sm font-medium text-muted-foreground">
+              Barcode / GTIN
+            </Label>
+            <Input id="barcode" disabled={isPending} className="font-mono" {...register("barcode")} />
+            {errors.barcode && <p className="text-xs text-destructive">{errors.barcode.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -176,9 +265,6 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
                 ))}
               </SelectContent>
             </Select>
-            {errors.base_unit_of_measure && (
-              <p className="text-xs text-destructive">{errors.base_unit_of_measure.message}</p>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -206,14 +292,223 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
               </SelectContent>
             </Select>
           </div>
+
+          <div className="sm:col-span-2">
+            <SwitchRow
+              label="Purchasable"
+              description="Allow procurement and purchase order workflows for this item."
+              checked={watch("is_purchasable")}
+              disabled={isPending}
+              onCheckedChange={(checked) => setValue("is_purchasable", checked, { shouldDirty: true })}
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <SwitchRow
+              label="Salable"
+              description="Allow sales orders, quotations, and storefront exposure."
+              checked={watch("is_salable")}
+              disabled={isPending}
+              onCheckedChange={(checked) => setValue("is_salable", checked, { shouldDirty: true })}
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <SwitchRow
+              label="Product active"
+              description="Inactive products display as archived in the directory stream."
+              checked={watch("is_active")}
+              disabled={isPending}
+              onCheckedChange={(checked) => setValue("is_active", checked, { shouldDirty: true })}
+            />
+          </div>
         </div>
+      </section>
+
+      <section className="surface-panel space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Commerce &amp; Costing
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Default list price, purchase unit, preferred supplier rate, and tenant valuation policy.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="selling_price" className="text-sm font-medium text-muted-foreground">
+              Default selling rate ({catalogContext.base_currency})
+            </Label>
+            <Input
+              id="selling_price"
+              disabled={isPending}
+              className="text-right font-mono"
+              inputMode="decimal"
+              placeholder="0.00"
+              {...register("selling_price")}
+            />
+            {errors.selling_price && (
+              <p className="text-xs text-destructive">{errors.selling_price.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Selling unit</Label>
+            <Select
+              value={watch("selling_uom")}
+              disabled={isPending}
+              onValueChange={(value) => setValue("selling_uom", value, { shouldDirty: true })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UOM_OPTIONS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Purchase unit</Label>
+            <Select
+              value={purchaseUom}
+              disabled={isPending}
+              onValueChange={(value) => {
+                setValue("purchase_uom", value, { shouldDirty: true });
+                if (value === baseUom) {
+                  setValue("purchase_uom_conversion", "1", { shouldDirty: true });
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UOM_OPTIONS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="purchase_uom_conversion"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Purchase unit conversion factor
+            </Label>
+            <Input
+              id="purchase_uom_conversion"
+              disabled={isPending || purchaseUom === baseUom}
+              className="text-right font-mono"
+              inputMode="decimal"
+              placeholder="1"
+              {...register("purchase_uom_conversion")}
+            />
+            <p className="text-xs text-muted-foreground">
+              How many {baseUom} equal one {purchaseUom}.
+            </p>
+            {errors.purchase_uom_conversion && (
+              <p className="text-xs text-destructive">{errors.purchase_uom_conversion.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
+            <Label className="text-sm font-medium text-muted-foreground">Preferred supplier</Label>
+            <Select
+              value={watch("supplier_id") ?? "none"}
+              disabled={isPending}
+              onValueChange={(value) =>
+                setValue("supplier_id", value === "none" ? null : value, { shouldDirty: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select supplier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No preferred supplier</SelectItem>
+                {catalogContext.suppliers.map((supplier) => (
+                  <SelectItem key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.supplier_id && (
+              <p className="text-xs text-destructive">{errors.supplier_id.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="purchase_price" className="text-sm font-medium text-muted-foreground">
+              Purchase rate ({catalogContext.base_currency})
+            </Label>
+            <Input
+              id="purchase_price"
+              disabled={isPending}
+              className="text-right font-mono"
+              inputMode="decimal"
+              placeholder="0.00"
+              {...register("purchase_price")}
+            />
+            {errors.purchase_price && (
+              <p className="text-xs text-destructive">{errors.purchase_price.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Inventory valuation method</Label>
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+              {catalogContext.inventory_valuation_method}{" "}
+              <span className="text-muted-foreground">
+                (runtime engine: {catalogContext.runtime_valuation_engine})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {valuations.length > 0 && (
+          <div className="space-y-3 border-t border-border pt-4">
+            <h4 className="text-sm font-medium">Live inventory valuation (read-only)</h4>
+            <div className="surface-inset overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40 text-left">
+                    <th className="p-3 font-medium text-muted-foreground">Location</th>
+                    <th className="p-3 font-medium text-muted-foreground">On hand</th>
+                    <th className="p-3 font-medium text-muted-foreground">MWAC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {valuations.map((row) => (
+                    <tr key={row.location_id} className="border-b border-border last:border-0">
+                      <td className="p-3">{row.location_name}</td>
+                      <td className="p-3 font-mono">{row.total_quantity_on_hand}</td>
+                      <td className="p-3 font-mono">
+                        {formatMoney(row.current_average_cost, catalogContext.base_currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </section>
 
       <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
         <div>
           <p className="text-sm font-medium">Show Advanced Parameters</p>
           <p className="text-xs text-muted-foreground">
-            Reveal statutory codes, return policy, and dimensional bounds.
+            Description, tax category, logistics, variant flags, and category-driven attributes.
           </p>
         </div>
         <Switch
@@ -224,13 +519,60 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
       </div>
 
       {showAdvanced && (
-        <section className="surface-panel space-y-4">
+        <section className="surface-panel space-y-6">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Advanced Logistical &amp; Statutory Attributes
           </h3>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="description" className="text-sm font-medium text-muted-foreground">
+                Product description
+              </Label>
+              <textarea
+                id="description"
+                disabled={isPending}
+                rows={4}
+                className={cn(
+                  "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                )}
+                {...register("description")}
+              />
+              {errors.description && (
+                <p className="text-xs text-destructive">{errors.description.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Default tax category
+              </Label>
+              <Select
+                value={watch("default_tax_category")}
+                disabled={isPending}
+                onValueChange={(value) =>
+                  setValue(
+                    "default_tax_category",
+                    value as ProductMasterFormValues["default_tax_category"],
+                    { shouldDirty: true }
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAX_CATEGORY_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {taxCategoryLabel(value)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="hsn_sac_code" className="text-sm font-medium text-muted-foreground">
                 Statutory return code (HSN/SAC)
               </Label>
@@ -241,22 +583,37 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
                 placeholder="e.g. 84713010"
                 {...register("hsn_sac_code")}
               />
-              {errors.hsn_sac_code && (
-                <p className="text-xs text-destructive">{errors.hsn_sac_code.message}</p>
-              )}
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3 sm:col-span-2">
-              <div>
-                <p className="text-sm font-medium">Return policy eligibility</p>
-                <p className="text-xs text-muted-foreground">
-                  Allow this product to participate in return workflows.
-                </p>
-              </div>
-              <Switch
+            <div className="sm:col-span-2">
+              <SwitchRow
+                label="Multi-variant product"
+                description="Marks the item as supporting multiple SKU variants in future catalog expansion."
+                checked={watch("has_variants")}
+                disabled={isPending}
+                onCheckedChange={(checked) => setValue("has_variants", checked, { shouldDirty: true })}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <SwitchRow
+                label="Return policy eligibility"
+                description="Allow this product to participate in return workflows."
                 checked={watch("is_returnable")}
                 disabled={isPending}
                 onCheckedChange={(checked) => setValue("is_returnable", checked, { shouldDirty: true })}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <SwitchRow
+                label="Master variant active"
+                description="Inactive variants remain linked but are excluded from operational flows."
+                checked={watch("variant_is_active")}
+                disabled={isPending}
+                onCheckedChange={(checked) =>
+                  setValue("variant_is_active", checked, { shouldDirty: true })
+                }
               />
             </div>
 
@@ -271,9 +628,34 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
                 inputMode="decimal"
                 {...register("dead_weight_kg")}
               />
-              {errors.dead_weight_kg && (
-                <p className="text-xs text-destructive">{errors.dead_weight_kg.message}</p>
-              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="weight" className="text-sm font-medium text-muted-foreground">
+                Legacy weight (optional)
+              </Label>
+              <Input
+                id="weight"
+                disabled={isPending}
+                className="text-right font-mono"
+                inputMode="decimal"
+                placeholder="NUMERIC(15,4)"
+                {...register("weight")}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="volume" className="text-sm font-medium text-muted-foreground">
+                Volume (optional)
+              </Label>
+              <Input
+                id="volume"
+                disabled={isPending}
+                className="text-right font-mono"
+                inputMode="decimal"
+                placeholder="NUMERIC(15,4)"
+                {...register("volume")}
+              />
             </div>
 
             <div className="space-y-2">
@@ -287,9 +669,6 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
                 inputMode="decimal"
                 {...register("length_cm")}
               />
-              {errors.length_cm && (
-                <p className="text-xs text-destructive">{errors.length_cm.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -303,9 +682,6 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
                 inputMode="decimal"
                 {...register("width_cm")}
               />
-              {errors.width_cm && (
-                <p className="text-xs text-destructive">{errors.width_cm.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -319,15 +695,28 @@ export function ProductMasterForm({ categories, initialValues, onCancel, onSaved
                 inputMode="decimal"
                 {...register("height_cm")}
               />
-              {errors.height_cm && (
-                <p className="text-xs text-destructive">{errors.height_cm.message}</p>
-              )}
             </div>
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-4">
+            <h4 className="text-sm font-medium">Category variant attributes</h4>
+            <VariantAttributeFields
+              templates={categoryTemplates}
+              values={variantAttributes}
+              disabled={isPending}
+              onChange={(key, value) =>
+                setValue(
+                  "variant_attributes",
+                  { ...variantAttributes, [key]: value },
+                  { shouldDirty: true }
+                )
+              }
+            />
           </div>
         </section>
       )}
 
-      <div className="sticky bottom-0 mt-8 flex justify-end gap-2 border-t border-border bg-background/95 py-4 backdrop-blur">
+      <div className="canvas-sticky-footer">
         <Button type="button" variant="ghost" disabled={isPending} onClick={onCancel}>
           Cancel
         </Button>

@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, LogOut, Settings } from "lucide-react";
+import { Building2, LogOut, Settings, Settings2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { OperatorProfile } from "@/lib/user/types";
@@ -36,6 +36,11 @@ export function UserProfileActions({ profile, onNavigate }: Props) {
       <Link href="/settings/profile" className={rowClassName} onClick={onNavigate}>
         <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
         Account Settings &amp; Security
+      </Link>
+
+      <Link href="/settings/organization" className={rowClassName} onClick={onNavigate}>
+        <Settings2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+        Organization Settings
       </Link>
 
       {showWorkspaceSwitch && (

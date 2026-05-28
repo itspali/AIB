@@ -13,6 +13,24 @@ function parseDecimal(value: string, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseOptionalDecimal(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildVariantAttributes(raw: Record<string, string>): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const trimmedKey = key.trim();
+    const trimmedValue = value.trim();
+    if (!trimmedKey || !trimmedValue) continue;
+    attributes[trimmedKey] = trimmedValue;
+  }
+  return attributes;
+}
+
 export async function saveProductMasterProfile(raw: unknown) {
   const parsed = productMasterSchema.safeParse(raw);
   if (!parsed.success) {
@@ -29,12 +47,34 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_base_uom: values.base_unit_of_measure,
     p_category_id: values.category_id,
     p_sku: values.sku,
+    p_description: values.description || null,
+    p_is_purchasable: values.is_purchasable,
+    p_is_salable: values.is_salable,
+    p_is_active: values.is_active,
     p_hsn_sac_code: values.hsn_sac_code || null,
+    p_has_variants: values.has_variants,
+    p_default_tax_category: values.default_tax_category,
     p_is_returnable: values.is_returnable,
+    p_barcode: values.barcode || null,
+    p_variant_attributes: buildVariantAttributes(values.variant_attributes),
     p_dead_weight_kg: parseDecimal(values.dead_weight_kg),
+    p_weight: parseOptionalDecimal(values.weight),
+    p_volume: parseOptionalDecimal(values.volume),
     p_length_cm: parseDecimal(values.length_cm),
     p_width_cm: parseDecimal(values.width_cm),
     p_height_cm: parseDecimal(values.height_cm),
+    p_variant_is_active: values.variant_is_active,
+    p_selling_price: parseOptionalDecimal(values.selling_price),
+    p_selling_uom:
+      values.selling_uom !== values.base_unit_of_measure ? values.selling_uom : null,
+    p_purchase_uom:
+      values.purchase_uom !== values.base_unit_of_measure ? values.purchase_uom : null,
+    p_purchase_uom_conversion:
+      values.purchase_uom !== values.base_unit_of_measure
+        ? parseDecimal(values.purchase_uom_conversion, 1)
+        : null,
+    p_purchase_price: parseOptionalDecimal(values.purchase_price),
+    p_supplier_id: values.supplier_id,
   });
 
   if (error) {

@@ -1,4 +1,5 @@
 import type { ItemClassification } from "@/lib/products/classification-labels";
+import type { TaxCategory } from "@/lib/products/tax-options";
 
 export type ProductListRow = {
   id: string;
@@ -8,28 +9,62 @@ export type ProductListRow = {
   category_id: string | null;
   category_name: string | null;
   is_active: boolean;
+  is_purchasable: boolean;
+  is_salable: boolean;
   default_variant_id: string | null;
   default_sku: string | null;
   created_at: string;
   updated_at: string;
 };
 
+export type ProductCatalogContext = {
+  base_currency: string;
+  inventory_valuation_method: string;
+  runtime_valuation_engine: "MWAC";
+  suppliers: Array<{ id: string; name: string }>;
+};
+
+export type ProductValuationSnapshot = {
+  location_id: string;
+  location_name: string;
+  total_quantity_on_hand: string;
+  current_average_cost: string;
+};
+
 export type ProductDetailSnapshot = {
   id: string;
   name: string;
+  description: string | null;
   classification: ItemClassification;
   base_unit_of_measure: string;
   category_id: string | null;
   category_name: string | null;
   hsn_sac_code: string | null;
+  is_purchasable: boolean;
+  is_salable: boolean;
+  has_variants: boolean;
+  default_tax_category: TaxCategory;
   is_returnable: boolean;
   is_active: boolean;
   variant_id: string;
   sku: string;
+  barcode: string | null;
+  variant_attributes: Record<string, unknown>;
   dead_weight_kg: string;
+  weight: string;
+  volume: string;
   length_cm: string;
   width_cm: string;
   height_cm: string;
+  variant_is_active: boolean;
+  selling_price: string;
+  selling_uom: string;
+  purchase_uom: string;
+  purchase_uom_conversion: string;
+  purchase_price: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  valuations: ProductValuationSnapshot[];
   created_at: string;
   updated_at: string;
 };
@@ -38,39 +73,86 @@ export type ProductMasterFormValues = {
   item_id: string | null;
   classification: ItemClassification;
   name: string;
+  description: string;
   sku: string;
+  barcode: string;
   base_unit_of_measure: string;
   category_id: string | null;
+  is_purchasable: boolean;
+  is_salable: boolean;
+  is_active: boolean;
   hsn_sac_code: string;
+  has_variants: boolean;
+  default_tax_category: TaxCategory;
   is_returnable: boolean;
   dead_weight_kg: string;
+  weight: string;
+  volume: string;
   length_cm: string;
   width_cm: string;
   height_cm: string;
+  variant_is_active: boolean;
+  variant_attributes: Record<string, string>;
+  selling_price: string;
+  selling_uom: string;
+  purchase_uom: string;
+  purchase_uom_conversion: string;
+  purchase_price: string;
+  supplier_id: string | null;
   show_advanced: boolean;
 };
 
 export function detailToFormValues(detail: ProductDetailSnapshot): ProductMasterFormValues {
+  const variantAttributes: Record<string, string> = {};
+  for (const [key, value] of Object.entries(detail.variant_attributes)) {
+    if (value === null || value === undefined) continue;
+    variantAttributes[key] = Array.isArray(value) ? value.join(", ") : String(value);
+  }
+
   return {
     item_id: detail.id,
     classification: detail.classification,
     name: detail.name,
+    description: detail.description ?? "",
     sku: detail.sku,
+    barcode: detail.barcode ?? "",
     base_unit_of_measure: detail.base_unit_of_measure,
     category_id: detail.category_id,
+    is_purchasable: detail.is_purchasable,
+    is_salable: detail.is_salable,
+    is_active: detail.is_active,
     hsn_sac_code: detail.hsn_sac_code ?? "",
+    has_variants: detail.has_variants,
+    default_tax_category: detail.default_tax_category,
     is_returnable: detail.is_returnable,
     dead_weight_kg: detail.dead_weight_kg,
+    weight: detail.weight,
+    volume: detail.volume,
     length_cm: detail.length_cm,
     width_cm: detail.width_cm,
     height_cm: detail.height_cm,
+    variant_is_active: detail.variant_is_active,
+    variant_attributes: variantAttributes,
+    selling_price: detail.selling_price,
+    selling_uom: detail.selling_uom || detail.base_unit_of_measure,
+    purchase_uom: detail.purchase_uom || detail.base_unit_of_measure,
+    purchase_uom_conversion: detail.purchase_uom_conversion || "1",
+    purchase_price: detail.purchase_price,
+    supplier_id: detail.supplier_id,
     show_advanced: Boolean(
-      detail.hsn_sac_code ||
+      detail.description ||
+        detail.hsn_sac_code ||
+        detail.has_variants ||
+        detail.default_tax_category !== "STANDARD" ||
         !detail.is_returnable ||
         detail.dead_weight_kg !== "0" ||
+        detail.weight !== "0" ||
+        detail.volume !== "0" ||
         detail.length_cm !== "0" ||
         detail.width_cm !== "0" ||
-        detail.height_cm !== "0"
+        detail.height_cm !== "0" ||
+        !detail.variant_is_active ||
+        Object.keys(variantAttributes).length > 0
     ),
   };
 }
@@ -79,14 +161,31 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   item_id: null,
   classification: "FINISHED_GOOD",
   name: "",
+  description: "",
   sku: "",
+  barcode: "",
   base_unit_of_measure: "PCS",
   category_id: null,
+  is_purchasable: true,
+  is_salable: true,
+  is_active: true,
   hsn_sac_code: "",
+  has_variants: false,
+  default_tax_category: "STANDARD",
   is_returnable: true,
   dead_weight_kg: "0",
+  weight: "",
+  volume: "",
   length_cm: "0",
   width_cm: "0",
   height_cm: "0",
+  variant_is_active: true,
+  variant_attributes: {},
+  selling_price: "",
+  selling_uom: "PCS",
+  purchase_uom: "PCS",
+  purchase_uom_conversion: "1",
+  purchase_price: "",
+  supplier_id: null,
   show_advanced: false,
 };

@@ -61,7 +61,7 @@ CRITICAL: Do not write code or migrations for these tasks automatically. The use
 - **Route:** `/dashboard` — three-zone shell (utility strip, left rail / mobile drawer, workspace canvas `bg-muted/20`).
 - **Zone A:** Cmd/Ctrl+K command search block; managerial approval badge counts `sales_orders` (`PENDING_APPROVAL`, `CREDIT_HOLD`), `purchase_orders` (`document_status = PENDING_APPROVAL`), `stock_transfers` (`current_status = PENDING_APPROVAL`).
 - **Metrics:** Net capital exposure (GL `1200-AR` net minus unpaid `purchase_invoices.total_liability_amount`); inventory valuation from `item_valuations`; pipeline velocity badges from `sales_orders`.
-- **Controls:** `workspace_control_registry` upserts for `SALES_SETTINGS.allow_line_item_discounts` and `FINANCIAL_SETTINGS.accounting_period_closing_date`.
+- **Controls:** `workspace_control_registry` upserts for `SALES_SETTINGS.allow_line_item_discounts` and `FINANCIAL_SETTINGS.accounting_period_closing_date` — **moved to** `/settings/organization` (Task Sequence 16).
 - **Tax grid:** Read/write `tax_rate_registry` with inline add form; server actions in `apps/web/app/dashboard/actions.ts`; queries in `apps/web/lib/dashboard/queries.ts`.
 
 ### Task Sequence 12: Master Data — Category Management Core [IMPLEMENTED — Sprint 1]
@@ -104,4 +104,15 @@ CRITICAL: Do not write code or migrations for these tasks automatically. The use
   - [20260529130000_user_auth_sessions.sql](supabase/migrations/20260529130000_user_auth_sessions.sql) — `user_auth_sessions` table + `register_user_auth_session` / `revoke_other_auth_sessions` RPCs.
   - [20260529140000_user_avatars_storage.sql](supabase/migrations/20260529140000_user_avatars_storage.sql) — private `user-avatars` bucket with tenant/user-scoped RLS.
 - **MFA prerequisite:** Enable TOTP in Supabase Auth settings; modal shows instructional empty state if enrollment fails.
-- **Avatar storage path:** `{tenant_id}/{user_id}/avatar.{ext}` in bucket `user-avatars` (max 2MB; JPEG/PNG/WebP).
+### Task Sequence 16: Organization Settings Portal (Tier A + B) [IMPLEMENTED]
+- **Primary route:** `/settings/organization` — 65/35 split canvas (`lg:grid-cols-[13fr_7fr]`) inside `DashboardShell`.
+- **Access sentinel:** OWNER immediate access; non-owners require `workspace_control_registry` row with `registry_key = allow_organization_settings_modification` and `target_reference_id = auth.uid()`. Denied users see `AdministrativeAccessDeniedView` with escape to `/dashboard`.
+- **Tier A essentials:** legal/trade identity, tax IDs, corporate email/phone, billing address block, base currency (locked after inventory activity), fiscal year start month.
+- **Tier B advanced:** corporate logo upload (`tenant-logos` bucket), secondary phone, website, full `location_governance_config`, `naming_sequences` editor + read-only `document_sequences`, `accounting_config`, consolidated `SALES_SETTINGS` / `FINANCIAL_SETTINGS` (moved from dashboard control panel).
+- **Right rail:** lifecycle badges, policy summary, settings access delegate grid with grant/revoke sheet modal (OWNER-only grants).
+- **Form stack:** react-hook-form + Zod; sticky header **Reset Changes** / **Save Organization Profile**; success toast: *Workspace Governance Profiles Synchronized Safely*.
+- **Lib:** [apps/web/lib/organization/](apps/web/lib/organization/) — access, queries, types, schemas, logo signed URLs, option constants.
+- **Server actions:** [apps/web/app/settings/organization/actions.ts](apps/web/app/settings/organization/actions.ts) — `saveOrganizationSettings`, `grantOrganizationSettingsDelegate`, `revokeOrganizationSettingsDelegate`.
+- **Migration (CI deploy only):** [20260531120000_organization_settings_security_rpc.sql](supabase/migrations/20260531120000_organization_settings_security_rpc.sql) — tenants SELECT-only RLS; `update_organization_governance_profile`, `upsert_tenant_workspace_control`, delegate grant/revoke RPCs; `tenant-logos` storage bucket.
+- **Nav:** User profile dropdown links to `/settings/organization` alongside `/settings/profile`.
+- **Dashboard:** Control panel replaced with link card to organization settings.
