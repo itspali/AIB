@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { locationFormSchema, domRoutingSaveSchema } from "@/lib/locations/schemas";
+import type { LocationCodeSuggestInput, LocationCodeSuggestion } from "@/lib/locations/code-generation";
 import { resolveLocationManagementAccess } from "@/lib/locations/access";
 import { buildDomRoutingPatch } from "@/lib/locations/dom-routing";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
@@ -32,6 +33,17 @@ export async function saveLocation(raw: unknown) {
     return { error: "Administrative privileges required." };
   }
 
+  const locationMeta =
+    !values.location_id && values.code_generation
+      ? {
+          code_generation: {
+            ...values.code_generation,
+            manually_edited: values.code_manually_edited ?? false,
+            generated_at: new Date().toISOString(),
+          },
+        }
+      : null;
+
   const { data, error } = await supabase.rpc("save_tenant_location", {
     p_location_id: values.location_id,
     p_name: values.name,
@@ -54,6 +66,7 @@ export async function saveLocation(raw: unknown) {
     p_pos_terminal_count: values.pos_terminal_count,
     p_location_tax_identifier: values.location_tax_identifier || null,
     p_tax_registered_name: values.tax_registered_name || null,
+    p_location_meta: locationMeta,
   });
 
   if (error) {
@@ -68,6 +81,50 @@ export async function saveLocation(raw: unknown) {
   }
 
   return { success: true as const, locationId: data as string };
+}
+
+export async function suggestLocationCode(input: LocationCodeSuggestInput) {
+  const { supabase, tenantId } = await requireTenantId();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const access = await resolveLocationManagementAccess(supabase, user.id, tenantId);
+  if (!access.canManage) {
+    return { error: "Administrative privileges required." };
+  }
+
+  const { data, error } = await supabase.rpc("suggest_tenant_location_code", {
+    p_presence_type: input.presence_type,
+    p_is_administrative_office: input.is_administrative_office,
+    p_is_commercial_storefront: input.is_commercial_storefront,
+    p_is_manufacturing_floor: input.is_manufacturing_floor,
+    p_is_stock_holding: input.is_stock_holding,
+    p_parent_location_id: input.parent_location_id,
+    p_country_code: input.country_code,
+    p_city: input.city || null,
+    p_location_id: input.location_id,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("suggest_tenant_location_code") };
+    }
+    return { error: error.message };
+  }
+
+  const suggestion = data as Record<string, unknown>;
+  return {
+    success: true as const,
+    suggestion: {
+      code: String(suggestion.code),
+      scope: String(suggestion.scope),
+      role: String(suggestion.role),
+      sequence: Number(suggestion.sequence),
+      role_key: String(suggestion.role_key),
+    } satisfies LocationCodeSuggestion,
+  };
 }
 
 export async function deactivateLocation(locationId: string) {

@@ -27,6 +27,17 @@ export const locationFormSchema = z
     location_tax_identifier: z.string().trim().max(50),
     tax_registered_name: z.string().trim().max(200),
     show_advanced: z.boolean(),
+    code_manually_edited: z.boolean().optional(),
+    code_generation: z
+      .object({
+        scope: z.string(),
+        role: z.string(),
+        sequence: z.number().int(),
+        role_key: z.string(),
+        suggested_code: z.string(),
+      })
+      .nullable()
+      .optional(),
   })
   .superRefine((values, ctx) => {
     if (values.presence_type === "PHYSICAL") {

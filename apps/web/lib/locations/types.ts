@@ -93,6 +93,14 @@ export type LocationFormValues = {
   location_tax_identifier: string;
   tax_registered_name: string;
   show_advanced: boolean;
+  code_manually_edited?: boolean;
+  code_generation?: {
+    scope: string;
+    role: string;
+    sequence: number;
+    role_key: string;
+    suggested_code: string;
+  } | null;
 };
 
 export type LocationTagVariant = "administrative" | "completed" | "active";

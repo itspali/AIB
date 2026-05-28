@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { saveLocation } from "@/app/inventory/locations/actions";
+import { saveLocation, suggestLocationCode } from "@/app/inventory/locations/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
+import { buildLocationCodeSuggestInput } from "@/lib/locations/code-generation";
 import { presenceLabel } from "@/lib/locations/axis-labels";
 import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from "@/lib/locations/types";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
@@ -79,6 +81,9 @@ export function LocationProvisionForm({
   const [form, setForm] = useState<LocationFormValues>(defaultForm);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const codeManuallyEditedRef = useRef(false);
+  const lastSuggestionRef = useRef<LocationFormValues["code_generation"]>(null);
 
   const useHierarchy = hierarchyEnabled(governance);
   const parentOptions = useMemo(
@@ -88,6 +93,8 @@ export function LocationProvisionForm({
 
   useEffect(() => {
     if (editingLocation) {
+      codeManuallyEditedRef.current = true;
+      lastSuggestionRef.current = null;
       setForm({
         location_id: editingLocation.id,
         name: editingLocation.name,
@@ -123,10 +130,62 @@ export function LocationProvisionForm({
         ),
       });
     } else {
+      codeManuallyEditedRef.current = false;
+      lastSuggestionRef.current = null;
       setForm(defaultForm);
     }
     setError(null);
   }, [editingLocation]);
+
+  const applySuggestedCode = async (force = false) => {
+    if (isEditing) return;
+    if (!force && codeManuallyEditedRef.current) return;
+
+    setIsSuggesting(true);
+    const result = await suggestLocationCode(buildLocationCodeSuggestInput(form));
+    setIsSuggesting(false);
+
+    if ("error" in result) {
+      if (force) toast.error(result.error ?? "Unable to suggest a facility code.");
+      return;
+    }
+
+    const suggestion = result.suggestion;
+    lastSuggestionRef.current = {
+      scope: suggestion.scope,
+      role: suggestion.role,
+      sequence: suggestion.sequence,
+      role_key: suggestion.role_key,
+      suggested_code: suggestion.code,
+    };
+
+    setForm((prev) => ({
+      ...prev,
+      code: suggestion.code,
+      code_generation: lastSuggestionRef.current,
+      code_manually_edited: false,
+    }));
+  };
+
+  useEffect(() => {
+    if (isEditing) return;
+
+    const timer = window.setTimeout(() => {
+      void applySuggestedCode();
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isEditing,
+    form.presence_type,
+    form.parent_location_id,
+    form.country_code,
+    form.city,
+    form.is_administrative_office,
+    form.is_commercial_storefront,
+    form.is_manufacturing_floor,
+    form.is_stock_holding,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -134,7 +193,11 @@ export function LocationProvisionForm({
         event.preventDefault();
         setError(null);
         startTransition(async () => {
-          const payload = normalizeVirtualAddress(form);
+          const payload = normalizeVirtualAddress({
+        ...form,
+        code_manually_edited: codeManuallyEditedRef.current,
+        code_generation: lastSuggestionRef.current,
+      });
           const result = await saveLocation(payload);
           if ("error" in result) {
             setError(result.error ?? "Unable to save facility node.");
@@ -163,6 +226,9 @@ export function LocationProvisionForm({
       }
       if (key === "code" && typeof value === "string") {
         next.code = value.toUpperCase();
+        codeManuallyEditedRef.current = true;
+        next.code_manually_edited = true;
+        next.code_generation = lastSuggestionRef.current;
       }
       return next;
     });
@@ -171,7 +237,11 @@ export function LocationProvisionForm({
   const handleSubmit = () => {
     setError(null);
     startTransition(async () => {
-      const payload = normalizeVirtualAddress(form);
+      const payload = normalizeVirtualAddress({
+        ...form,
+        code_manually_edited: codeManuallyEditedRef.current,
+        code_generation: lastSuggestionRef.current,
+      });
       const result = await saveLocation(payload);
       if ("error" in result) {
         setError(result.error ?? "Unable to save facility node.");
@@ -238,13 +308,34 @@ export function LocationProvisionForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="facility-code">Short system identifier code</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="facility-code">Short system identifier code</Label>
+                {!isEditing && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    disabled={isSuggesting}
+                    onClick={() => void applySuggestedCode(true)}
+                  >
+                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                    {isSuggesting ? "Suggesting…" : "Suggest code"}
+                  </Button>
+                )}
+              </div>
               <Input
                 id="facility-code"
                 value={form.code}
                 onChange={(event) => updateField("code", event.target.value)}
                 placeholder="MUM-PLANT-04"
+                className="font-mono uppercase"
               />
+              {!isEditing && form.code && !codeManuallyEditedRef.current && (
+                <p className="text-xs text-muted-foreground">
+                  System-generated from scope, capability role, and next sequence.
+                </p>
+              )}
             </div>
 
             {useHierarchy && (
