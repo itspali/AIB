@@ -159,8 +159,99 @@ export function ProductDetailViewport({
         itemId={product.id}
         variants={product.variants}
         categoryTemplates={categoryTemplates}
+        skuMask={product.sku_mask}
+        baseSku={product.sku}
         onChanged={() => onExtensionsChanged?.()}
       />
+
+      {(product.sku_mask ||
+        product.custom_fields.length > 0 ||
+        product.alternate_uoms.length > 0 ||
+        product.tags.length > 0 ||
+        product.storefront_visibility.length > 0) && (
+        <section className="surface-panel space-y-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Catalog Extensions
+          </h3>
+          {product.sku_mask && (
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">SKU mask</h4>
+              <p className="font-mono text-sm">{product.sku_mask}</p>
+            </div>
+          )}
+          {product.custom_fields.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">Custom fields</h4>
+              <div className="surface-inset overflow-x-auto">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {product.custom_fields.map((field) => (
+                      <tr key={field.key} className="border-b border-border last:border-0">
+                        <td className="p-3 font-medium">{field.key}</td>
+                        <td className="p-3">{field.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {product.alternate_uoms.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">Alternate units</h4>
+              <div className="surface-inset overflow-x-auto">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {product.alternate_uoms.map((row) => (
+                      <tr key={row.uom_code} className="border-b border-border last:border-0">
+                        <td className="p-3 font-mono">{row.uom_code}</td>
+                        <td className="p-3 font-mono">{row.conversion_factor}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {product.tags.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Tags</h4>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {product.tags.map((tag) => (
+                  <Badge key={tag.id} variant="active">
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {product.storefront_visibility.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">Storefront visibility</h4>
+              <div className="surface-inset overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 text-left">
+                      <th className="p-3 font-medium text-muted-foreground">Channel</th>
+                      <th className="p-3 font-medium text-muted-foreground">Visible</th>
+                      <th className="p-3 font-medium text-muted-foreground">Display name</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {product.storefront_visibility.map((row) => (
+                      <tr key={row.storefront_id} className="border-b border-border last:border-0">
+                        <td className="p-3">{row.storefront_name}</td>
+                        <td className="p-3">{row.is_visible ? "Yes" : "No"}</td>
+                        <td className="p-3">{row.store_custom_name ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <ProductMediaGallery
         tenantId={tenantId}

@@ -4,10 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isItemClassification } from "@/lib/products/classification-labels";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { isTaxCategory } from "@/lib/products/tax-options";
+import { parseCustomFields } from "@/lib/products/sku-mask";
 import type {
   ProductDetailSnapshot,
   ProductListRow,
   ProductMediaSnapshot,
+  ProductStorefrontVisibilitySnapshot,
+  ProductTagSnapshot,
   ProductValuationSnapshot,
   ProductVariantSnapshot,
 } from "@/lib/products/types";
@@ -41,6 +44,7 @@ type ItemRow = {
   default_tax_category: string;
   is_returnable: boolean;
   is_active: boolean;
+  custom_fields: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   item_categories: { name: string } | { name: string }[] | null;
@@ -129,6 +133,96 @@ function pickPreferredSupplier(
 ): SupplierItemRow | null {
   if (!rows?.length) return null;
   return rows.find((row) => row.is_preferred) ?? rows[0] ?? null;
+}
+
+type TagAssignmentRow = {
+  tag_id: string;
+  tags: { id: string; name: string; slug: string } | { id: string; name: string; slug: string }[] | null;
+};
+
+type StorefrontItemRow = {
+  storefront_id: string;
+  is_visible: boolean;
+  store_custom_name: string | null;
+  store_price_book_id: string | null;
+  storefront_channels:
+    | { id: string; name: string; channel_type: string }
+    | { id: string; name: string; channel_type: string }[]
+    | null;
+};
+
+function resolveTagRow(raw: TagAssignmentRow["tags"]): ProductTagSnapshot | null {
+  if (!raw) return null;
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  if (!row) return null;
+  return { id: row.id, name: row.name, slug: row.slug };
+}
+
+function mapStorefrontVisibility(rows: StorefrontItemRow[] | null | undefined): ProductStorefrontVisibilitySnapshot[] {
+  if (!rows?.length) return [];
+
+  return rows
+    .map((row) => {
+      const channel = Array.isArray(row.storefront_channels)
+        ? row.storefront_channels[0]
+        : row.storefront_channels;
+      if (!channel) return null;
+      return {
+        storefront_id: row.storefront_id,
+        storefront_name: channel.name,
+        channel_type: channel.channel_type,
+        is_visible: row.is_visible,
+        store_custom_name: row.store_custom_name,
+        store_price_book_id: row.store_price_book_id,
+      };
+    })
+    .filter((row): row is ProductStorefrontVisibilitySnapshot => row !== null);
+}
+
+async function fetchProductTags(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<ProductTagSnapshot[]> {
+  const { data, error } = await supabase
+    .from("item_tag_assignments")
+    .select(
+      `
+      tag_id,
+      tags ( id, name, slug )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+
+  if (error || !data) return [];
+
+  return (data as TagAssignmentRow[])
+    .map((row) => resolveTagRow(row.tags))
+    .filter((row): row is ProductTagSnapshot => row !== null);
+}
+
+async function fetchProductStorefrontVisibility(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<ProductStorefrontVisibilitySnapshot[]> {
+  const { data, error } = await supabase
+    .from("storefront_items")
+    .select(
+      `
+      storefront_id,
+      is_visible,
+      store_custom_name,
+      store_price_book_id,
+      storefront_channels ( id, name, channel_type )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+
+  if (error || !data) return [];
+  return mapStorefrontVisibility(data as StorefrontItemRow[]);
 }
 
 type MediaRow = {
@@ -300,6 +394,7 @@ export async function fetchProductDetail(
       default_tax_category,
       is_returnable,
       is_active,
+      custom_fields,
       created_at,
       updated_at,
       item_categories ( name ),
@@ -341,6 +436,8 @@ export async function fetchProductDetail(
     { data: supplierItems },
     { data: valuations },
     media,
+    tags,
+    storefrontVisibility,
   ] = await Promise.all([
     supabase
       .from("price_book_entries")
@@ -385,6 +482,8 @@ export async function fetchProductDetail(
       .eq("item_id", itemId)
       .order("total_quantity_on_hand", { ascending: false }),
     fetchProductMedia(supabase, tenantId, itemId),
+    fetchProductTags(supabase, tenantId, itemId),
+    fetchProductStorefrontVisibility(supabase, tenantId, itemId),
   ]);
 
   const sortedVariants = [...(row.item_variants ?? [])].sort(
@@ -399,6 +498,15 @@ export async function fetchProductDetail(
     row.base_unit_of_measure
   );
   const preferredSupplier = pickPreferredSupplier(supplierItems as SupplierItemRow[] | null);
+  const parsedCustomFields = parseCustomFields(
+    row.custom_fields && typeof row.custom_fields === "object"
+      ? (row.custom_fields as Record<string, unknown>)
+      : {}
+  );
+  const alternateUoms = (itemUoms as ItemUomRow[] | null ?? []).map((entry) => ({
+    uom_code: entry.uom_code,
+    conversion_factor: formatDecimal(entry.conversion_factor, "1"),
+  }));
 
   return {
     id: row.id,
@@ -443,6 +551,11 @@ export async function fetchProductDetail(
     valuations: mapValuations(valuations as ValuationRow[] | null),
     variants,
     media,
+    sku_mask: parsedCustomFields.sku_mask,
+    custom_fields: parsedCustomFields.entries,
+    alternate_uoms: alternateUoms,
+    tags,
+    storefront_visibility: storefrontVisibility,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

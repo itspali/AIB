@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { fetchProductDetail } from "@/lib/products/queries";
 import { productMasterSchema } from "@/lib/products/schemas";
+import { buildCustomFieldsPayload } from "@/lib/products/sku-mask";
+import type { ProductMasterInput } from "@/lib/products/schemas";
 import { itemMediaSchema, itemVariantSchema } from "@/lib/products/variant-schemas";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
@@ -30,6 +32,67 @@ function buildVariantAttributes(raw: Record<string, string>): Record<string, str
     attributes[trimmedKey] = trimmedValue;
   }
   return attributes;
+}
+
+function buildAlternateUomsPayload(values: ProductMasterInput) {
+  const rows = values.alternate_uoms.map((row) => ({
+    uom_code: row.uom_code,
+    conversion_factor: parseDecimal(row.conversion_factor, 1),
+  }));
+
+  if (values.purchase_uom !== values.base_unit_of_measure) {
+    const purchaseIndex = rows.findIndex((row) => row.uom_code === values.purchase_uom);
+    if (purchaseIndex >= 0) {
+      rows[purchaseIndex] = {
+        uom_code: values.purchase_uom,
+        conversion_factor: parseDecimal(values.purchase_uom_conversion, 1),
+      };
+    } else {
+      rows.unshift({
+        uom_code: values.purchase_uom,
+        conversion_factor: parseDecimal(values.purchase_uom_conversion, 1),
+      });
+    }
+  }
+
+  return rows;
+}
+
+function buildStorefrontItemsPayload(values: ProductMasterInput) {
+  return values.storefront_visibility
+    .filter(
+      (row) =>
+        row.is_visible ||
+        row.store_custom_name.trim() ||
+        row.store_price_book_id
+    )
+    .map((row) => ({
+      storefront_id: row.storefront_id,
+      is_visible: row.is_visible,
+      store_custom_name: row.store_custom_name.trim() || null,
+      store_price_book_id: row.store_price_book_id,
+    }));
+}
+
+export async function ensureProductTag(name: string, tagGroup?: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Tag name is required." };
+
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("ensure_tag", {
+    p_name: trimmed,
+    p_tag_group: tagGroup?.trim() || null,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("ensure_tag") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/items");
+  return { success: true as const, tagId: data as string };
 }
 
 export async function saveProductMasterProfile(raw: unknown) {
@@ -76,6 +139,10 @@ export async function saveProductMasterProfile(raw: unknown) {
         : null,
     p_purchase_price: parseOptionalDecimal(values.purchase_price),
     p_supplier_id: values.supplier_id,
+    p_custom_fields: buildCustomFieldsPayload(values.sku_mask, values.custom_fields),
+    p_alternate_uoms: buildAlternateUomsPayload(values),
+    p_tag_ids: values.tag_ids,
+    p_storefront_items: buildStorefrontItemsPayload(values),
   });
 
   if (error) {

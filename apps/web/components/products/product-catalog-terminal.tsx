@@ -12,6 +12,7 @@ import { ProductMasterForm } from "@/components/products/product-master-form";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
+import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import { detailToFormValues } from "@/lib/products/types";
 import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
 import { cn } from "@/lib/utils";
@@ -151,7 +152,13 @@ export function ProductCatalogTerminal({
               valuations={detail.valuations}
               variants={detail.variants}
               media={detail.media}
-              initialValues={detailToFormValues(detail)}
+              initialValues={{
+                ...detailToFormValues(detail),
+                storefront_visibility: mergeStorefrontVisibility(
+                  catalogContext.storefronts,
+                  detailToFormValues(detail).storefront_visibility
+                ),
+              }}
               onCancel={handleCancel}
               onSaved={handleSaved}
               onExtensionsChanged={refreshDetail}

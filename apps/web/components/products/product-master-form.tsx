@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { saveProductMasterProfile } from "@/app/items/actions";
+import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { parentSelectOptions } from "@/lib/categories/tree";
 import type { CategoryRow } from "@/lib/categories/types";
+import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import {
   ITEM_CLASSIFICATIONS,
   classificationLabel,
@@ -104,10 +106,14 @@ export function ProductMasterForm({
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [tagOptions, setTagOptions] = useState(catalogContext.tags);
 
   const form = useForm<ProductMasterFormValues>({
     resolver: zodResolver(productMasterSchema),
-    defaultValues: initialValues ?? defaultProductFormValues,
+    defaultValues: initialValues ?? {
+      ...defaultProductFormValues,
+      storefront_visibility: mergeStorefrontVisibility(catalogContext.storefronts, []),
+    },
   });
 
   const {
@@ -124,6 +130,12 @@ export function ProductMasterForm({
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
   const variantAttributes = watch("variant_attributes");
+  const skuMask = watch("sku_mask");
+  const masterSku = watch("sku");
+  const customFields = watch("custom_fields");
+  const alternateUoms = watch("alternate_uoms");
+  const tagIds = watch("tag_ids");
+  const storefrontVisibility = watch("storefront_visibility");
   const categoryOptions = parentSelectOptions(categories).filter((option) => option.id !== null);
   const previousBaseUomRef = useRef(baseUom);
 
@@ -151,10 +163,19 @@ export function ProductMasterForm({
   );
 
   useEffect(() => {
-    const nextValues = initialValues ?? defaultProductFormValues;
+    setTagOptions(catalogContext.tags);
+  }, [catalogContext.tags]);
+
+  useEffect(() => {
+    const nextValues =
+      initialValues ??
+      ({
+        ...defaultProductFormValues,
+        storefront_visibility: mergeStorefrontVisibility(catalogContext.storefronts, []),
+      } satisfies ProductMasterFormValues);
     form.reset(nextValues);
     previousBaseUomRef.current = nextValues.base_unit_of_measure;
-  }, [initialValues, form]);
+  }, [initialValues, form, catalogContext.storefronts]);
 
   useEffect(() => {
     if (previousBaseUomRef.current === baseUom) return;
@@ -726,6 +747,51 @@ export function ProductMasterForm({
               }
             />
           </div>
+
+          <ProductCatalogExtensions
+            catalogContext={{ ...catalogContext, tags: tagOptions }}
+            categoryTemplates={categoryTemplates}
+            disabled={isPending}
+            values={{
+              sku_mask: skuMask,
+              custom_fields: customFields,
+              alternate_uoms: alternateUoms,
+              tag_ids: tagIds,
+              storefront_visibility: storefrontVisibility,
+              base_unit_of_measure: baseUom,
+            }}
+            onTagsChanged={setTagOptions}
+            onChange={(key, value) => {
+              switch (key) {
+                case "sku_mask":
+                  setValue("sku_mask", value as string, { shouldDirty: true });
+                  break;
+                case "custom_fields":
+                  setValue("custom_fields", value as ProductMasterFormValues["custom_fields"], {
+                    shouldDirty: true,
+                  });
+                  break;
+                case "alternate_uoms":
+                  setValue("alternate_uoms", value as ProductMasterFormValues["alternate_uoms"], {
+                    shouldDirty: true,
+                  });
+                  break;
+                case "tag_ids":
+                  setValue("tag_ids", value as string[], { shouldDirty: true });
+                  break;
+                case "storefront_visibility":
+                  setValue(
+                    "storefront_visibility",
+                    value as ProductMasterFormValues["storefront_visibility"],
+                    { shouldDirty: true }
+                  );
+                  break;
+                case "base_unit_of_measure":
+                  setValue("base_unit_of_measure", value as string, { shouldDirty: true });
+                  break;
+              }
+            }}
+          />
         </section>
       )}
 
@@ -735,6 +801,8 @@ export function ProductMasterForm({
             itemId={itemId}
             variants={variants}
             categoryTemplates={categoryTemplates}
+            skuMask={skuMask}
+            baseSku={masterSku}
             onChanged={() => onExtensionsChanged?.()}
           />
           <ProductMediaGallery

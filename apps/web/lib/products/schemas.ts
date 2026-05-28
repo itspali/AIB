@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ITEM_CLASSIFICATIONS } from "@/lib/products/classification-labels";
+import { alternateUomRowSchema, customFieldRowSchema, storefrontVisibilityRowSchema } from "@/lib/products/catalog-schemas";
 import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
 import { UOM_OPTIONS } from "@/lib/products/uom-options";
 
@@ -54,6 +55,11 @@ export const productMasterSchema = z.object({
   purchase_price: nonNegativeDecimal(4, true),
   supplier_id: z.string().uuid().nullable(),
   show_advanced: z.boolean(),
+  sku_mask: z.string().trim().max(128),
+  custom_fields: z.array(customFieldRowSchema),
+  alternate_uoms: z.array(alternateUomRowSchema),
+  tag_ids: z.array(z.string().uuid()),
+  storefront_visibility: z.array(storefrontVisibilityRowSchema),
 }).superRefine((values, ctx) => {
   if (
     values.purchase_uom !== values.base_unit_of_measure &&
@@ -72,6 +78,45 @@ export const productMasterSchema = z.object({
       path: ["supplier_id"],
       message: "Select a preferred supplier when entering a purchase rate",
     });
+  }
+
+  const uomKeys = new Set<string>();
+  for (const [index, row] of values.alternate_uoms.entries()) {
+    if (row.uom_code === values.base_unit_of_measure) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["alternate_uoms", index, "uom_code"],
+        message: "Alternate unit must differ from base unit",
+      });
+    }
+    if (uomKeys.has(row.uom_code)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["alternate_uoms", index, "uom_code"],
+        message: "Duplicate alternate unit",
+      });
+    }
+    uomKeys.add(row.uom_code);
+  }
+
+  const customFieldKeys = new Set<string>();
+  for (const [index, row] of values.custom_fields.entries()) {
+    const normalized = row.key.trim().toLowerCase();
+    if (normalized === "sku_mask") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["custom_fields", index, "key"],
+        message: "Use the SKU mask field instead of custom_fields.sku_mask",
+      });
+    }
+    if (customFieldKeys.has(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["custom_fields", index, "key"],
+        message: "Duplicate custom field key",
+      });
+    }
+    customFieldKeys.add(normalized);
   }
 });
 

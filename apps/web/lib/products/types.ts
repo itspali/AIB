@@ -17,11 +17,34 @@ export type ProductListRow = {
   updated_at: string;
 };
 
+export type ProductTagSnapshot = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+export type ProductAlternateUomSnapshot = {
+  uom_code: string;
+  conversion_factor: string;
+};
+
+export type ProductStorefrontVisibilitySnapshot = {
+  storefront_id: string;
+  storefront_name: string;
+  channel_type: string;
+  is_visible: boolean;
+  store_custom_name: string | null;
+  store_price_book_id: string | null;
+};
+
 export type ProductCatalogContext = {
   base_currency: string;
   inventory_valuation_method: string;
   runtime_valuation_engine: "MWAC";
   suppliers: Array<{ id: string; name: string }>;
+  tags: ProductTagSnapshot[];
+  storefronts: Array<{ id: string; name: string; channel_type: string; slug: string }>;
+  price_books: Array<{ id: string; name: string }>;
 };
 
 export type ProductValuationSnapshot = {
@@ -97,6 +120,11 @@ export type ProductDetailSnapshot = {
   valuations: ProductValuationSnapshot[];
   variants: ProductVariantSnapshot[];
   media: ProductMediaSnapshot[];
+  sku_mask: string;
+  custom_fields: Array<{ key: string; value: string }>;
+  alternate_uoms: ProductAlternateUomSnapshot[];
+  tags: ProductTagSnapshot[];
+  storefront_visibility: ProductStorefrontVisibilitySnapshot[];
   created_at: string;
   updated_at: string;
 };
@@ -188,6 +216,16 @@ export type ProductMasterFormValues = {
   purchase_price: string;
   supplier_id: string | null;
   show_advanced: boolean;
+  sku_mask: string;
+  custom_fields: Array<{ key: string; value: string }>;
+  alternate_uoms: Array<{ uom_code: string; conversion_factor: string }>;
+  tag_ids: string[];
+  storefront_visibility: Array<{
+    storefront_id: string;
+    is_visible: boolean;
+    store_custom_name: string;
+    store_price_book_id: string | null;
+  }>;
 };
 
 export function detailToFormValues(detail: ProductDetailSnapshot): ProductMasterFormValues {
@@ -196,6 +234,10 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     if (value === null || value === undefined) continue;
     variantAttributes[key] = Array.isArray(value) ? value.join(", ") : String(value);
   }
+
+  const extraAlternateUoms = detail.alternate_uoms.filter(
+    (row) => row.uom_code !== detail.purchase_uom
+  );
 
   return {
     item_id: detail.id,
@@ -227,6 +269,19 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     purchase_uom_conversion: detail.purchase_uom_conversion || "1",
     purchase_price: detail.purchase_price,
     supplier_id: detail.supplier_id,
+    sku_mask: detail.sku_mask,
+    custom_fields: detail.custom_fields.map((entry) => ({ ...entry })),
+    alternate_uoms: extraAlternateUoms.map((row) => ({
+      uom_code: row.uom_code,
+      conversion_factor: row.conversion_factor,
+    })),
+    tag_ids: detail.tags.map((tag) => tag.id),
+    storefront_visibility: detail.storefront_visibility.map((row) => ({
+      storefront_id: row.storefront_id,
+      is_visible: row.is_visible,
+      store_custom_name: row.store_custom_name ?? "",
+      store_price_book_id: row.store_price_book_id,
+    })),
     show_advanced: Boolean(
       detail.description ||
         detail.hsn_sac_code ||
@@ -240,7 +295,12 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
         detail.width_cm !== "0" ||
         detail.height_cm !== "0" ||
         !detail.variant_is_active ||
-        Object.keys(variantAttributes).length > 0
+        Object.keys(variantAttributes).length > 0 ||
+        detail.sku_mask ||
+        detail.custom_fields.length > 0 ||
+        detail.alternate_uoms.length > 0 ||
+        detail.tags.length > 0 ||
+        detail.storefront_visibility.some((row) => row.is_visible)
     ),
   };
 }
@@ -276,4 +336,9 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   purchase_price: "",
   supplier_id: null,
   show_advanced: false,
+  sku_mask: "",
+  custom_fields: [],
+  alternate_uoms: [],
+  tag_ids: [],
+  storefront_visibility: [],
 };

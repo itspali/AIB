@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { composeSkuFromMask } from "@/lib/products/sku-mask";
 import { itemVariantSchema } from "@/lib/products/variant-schemas";
 import {
   defaultVariantFormValues,
@@ -28,6 +29,8 @@ type Props = {
   itemId: string;
   variants: ProductVariantSnapshot[];
   categoryTemplates: AttributeTemplateEntry[];
+  skuMask?: string;
+  baseSku?: string;
   readOnly?: boolean;
   onChanged: () => void;
 };
@@ -44,6 +47,8 @@ export function ProductVariantPanel({
   itemId,
   variants,
   categoryTemplates,
+  skuMask = "",
+  baseSku = "",
   readOnly = false,
   onChanged,
 }: Props) {
@@ -184,6 +189,8 @@ export function ProductVariantPanel({
         onOpenChange={setDrawerOpen}
         itemId={itemId}
         categoryTemplates={categoryTemplates}
+        skuMask={skuMask}
+        baseSku={baseSku}
         initialValues={
           editingVariant
             ? variantSnapshotToFormValues(editingVariant, itemId)
@@ -205,6 +212,8 @@ function VariantDrawerForm({
   onOpenChange,
   itemId,
   categoryTemplates,
+  skuMask,
+  baseSku,
   initialValues,
   isEditing,
   onSaved,
@@ -213,11 +222,14 @@ function VariantDrawerForm({
   onOpenChange: (open: boolean) => void;
   itemId: string;
   categoryTemplates: AttributeTemplateEntry[];
+  skuMask: string;
+  baseSku: string;
   initialValues: ItemVariantFormValues;
   isEditing: boolean;
   onSaved: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const skuManualRef = useRef(isEditing);
 
   const form = useForm<ItemVariantFormValues>({
     resolver: zodResolver(itemVariantSchema),
@@ -228,8 +240,19 @@ function VariantDrawerForm({
   const variantAttributes = watch("variant_attributes");
 
   useEffect(() => {
-    if (open) reset(initialValues);
-  }, [open, initialValues, reset]);
+    if (open) {
+      reset(initialValues);
+      skuManualRef.current = isEditing;
+    }
+  }, [open, initialValues, reset, isEditing]);
+
+  useEffect(() => {
+    if (!open || isEditing || skuManualRef.current || !skuMask.trim()) return;
+    const composed = composeSkuFromMask(skuMask, baseSku || "ITEM", variantAttributes);
+    if (composed) {
+      setValue("sku", composed, { shouldDirty: true });
+    }
+  }, [open, isEditing, skuMask, baseSku, variantAttributes, setValue]);
 
   const onSubmit = useCallback(
     (values: ItemVariantFormValues) => {
@@ -256,7 +279,16 @@ function VariantDrawerForm({
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           <div className="space-y-2">
             <Label htmlFor="variant_sku">Variant SKU</Label>
-            <Input id="variant_sku" disabled={isPending} className="font-mono" {...register("sku")} />
+            <Input
+              id="variant_sku"
+              disabled={isPending}
+              className="font-mono"
+              {...register("sku", {
+                onChange: () => {
+                  skuManualRef.current = true;
+                },
+              })}
+            />
             {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
           </div>
 
