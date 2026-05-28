@@ -3,6 +3,49 @@
 -- Migration: 20260531300000_enterprise_location_topology.sql
 -- ====================================================================
 
+-- Drop RPCs that pin the legacy enum before replacing the type.
+DROP FUNCTION IF EXISTS public.save_tenant_location(
+    TEXT,
+    TEXT,
+    public.location_operational_type,
+    UUID,
+    UUID,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    BOOLEAN,
+    TEXT,
+    TEXT,
+    JSONB
+);
+
+DROP FUNCTION IF EXISTS private.save_tenant_location_core(
+    UUID,
+    TEXT,
+    TEXT,
+    public.location_operational_type,
+    UUID,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    TEXT,
+    BOOLEAN,
+    TEXT,
+    TEXT,
+    JSONB
+);
+
 CREATE TYPE public.location_operational_type_extended AS ENUM (
     'HEAD_OFFICE',
     'REGIONAL_HQ',
@@ -128,7 +171,7 @@ $$;
 CREATE OR REPLACE FUNCTION private.validate_dom_routing_patch(p_patch JSONB)
 RETURNS VOID
 LANGUAGE plpgsql
-IMMUTABLE
+STABLE
 AS $$
 DECLARE
     v_dom JSONB;
