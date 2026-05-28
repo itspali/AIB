@@ -10,13 +10,19 @@ import {
   tagLabel,
 } from "@/lib/locations/axis-labels";
 import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
-import type { LocationRow } from "@/lib/locations/types";
+import type { LocationRow, RevenueAccountOption } from "@/lib/locations/types";
+import {
+  parseVirtualLocationConfiguration,
+  virtualFulfillmentModeLabel,
+  webhookVerificationLabel,
+} from "@/lib/locations/virtual-config";
 import { cn } from "@/lib/utils";
 
 type Props = {
   location: LocationRow;
   centralHqLocationId: string | null;
   canManage: boolean;
+  revenueAccounts?: RevenueAccountOption[];
   onEdit: () => void;
   onDeactivate: () => void;
   onReactivate: () => void;
@@ -26,6 +32,7 @@ export function LocationDetailViewport({
   location,
   centralHqLocationId,
   canManage,
+  revenueAccounts = [],
   onEdit,
   onDeactivate,
   onReactivate,
@@ -34,6 +41,15 @@ export function LocationDetailViewport({
   const tagVariant = resolveLocationTagVariant(location);
   const axisBadges = resolveAxisMicroBadges(location);
   const PresenceIcon = location.presence_type === "VIRTUAL" ? Globe2 : Building2;
+  const virtualConfig =
+    location.presence_type === "VIRTUAL"
+      ? parseVirtualLocationConfiguration(location.location_meta)
+      : null;
+  const revenueAccount = virtualConfig?.default_revenue_clearing_account_id
+    ? revenueAccounts.find(
+        (account) => account.id === virtualConfig.default_revenue_clearing_account_id
+      )
+    : null;
 
   return (
     <div className="space-y-6">
@@ -164,6 +180,64 @@ export function LocationDetailViewport({
             Production routing, bill of materials execution, and raw-to-WIP sub-ledger calculations
             are scoped to this manufacturing floor node.
           </p>
+        </section>
+      )}
+
+      {virtualConfig && (
+        <section className="surface-panel space-y-4 p-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Digital Integration Configuration
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Per-location omni-channel DOM routing and API settlement hooks.
+            </p>
+          </div>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Fulfillment assignment</dt>
+              <dd className="mt-1 text-sm">
+                {virtualFulfillmentModeLabel(virtualConfig.fulfillment_assignment_mode)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Digital safety stock buffer</dt>
+              <dd className="mt-1 font-mono text-sm">{virtualConfig.digital_safety_stock_buffer}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-sm font-medium text-muted-foreground">Channel webhook sync URL</dt>
+              <dd className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                {virtualConfig.channel_webhook_sync_url.trim() ? (
+                  <span className="break-all font-mono text-xs">
+                    {virtualConfig.channel_webhook_sync_url}
+                  </span>
+                ) : (
+                  <span>—</span>
+                )}
+                <Badge
+                  variant={
+                    virtualConfig.webhook_verification_status === "VERIFIED"
+                      ? "completed"
+                      : virtualConfig.webhook_verification_status === "PENDING"
+                        ? "action_required"
+                        : "locked"
+                  }
+                >
+                  {webhookVerificationLabel(virtualConfig.webhook_verification_status)}
+                </Badge>
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-sm font-medium text-muted-foreground">
+                Default revenue clearing account
+              </dt>
+              <dd className="mt-1 text-sm">
+                {revenueAccount
+                  ? `${revenueAccount.account_code} · ${revenueAccount.account_name}`
+                  : virtualConfig.default_revenue_clearing_account_id ?? "—"}
+              </dd>
+            </div>
+          </dl>
         </section>
       )}
 

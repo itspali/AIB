@@ -127,6 +127,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
             <LocationProvisionForm
               rows={initialRows}
               governance={moduleContext.governance}
+              revenueAccounts={moduleContext.revenueAccounts}
               editingLocation={editingLocation}
               onDiscard={handleDiscard}
               onSaved={handleSaved}
@@ -136,6 +137,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
               location={selectedLocation}
               centralHqLocationId={moduleContext.centralHqLocationId}
               canManage={moduleContext.canManage}
+              revenueAccounts={moduleContext.revenueAccounts}
               onEdit={openEdit}
               onDeactivate={handleDeactivate}
               onReactivate={handleReactivate}

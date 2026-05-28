@@ -2,6 +2,21 @@ import { z } from "zod";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { PRESENCE_ENVIRONMENTS } from "@/lib/locations/types";
 import { DOM_FULFILLMENT_STRATEGIES } from "@/lib/locations/dom-routing";
+import {
+  VIRTUAL_FULFILLMENT_MODES,
+  WEBHOOK_VERIFICATION_STATUSES,
+} from "@/lib/locations/virtual-config";
+
+export const virtualLocationConfigurationSchema = z.object({
+  fulfillment_assignment_mode: z.enum(VIRTUAL_FULFILLMENT_MODES),
+  digital_safety_stock_buffer: z
+    .number()
+    .int("Safety stock buffer must be a whole number")
+    .min(0, "Safety stock buffer cannot be negative"),
+  channel_webhook_sync_url: z.union([z.literal(""), z.string().trim().url("Enter a valid URL")]),
+  default_revenue_clearing_account_id: z.string().uuid().nullable(),
+  webhook_verification_status: z.enum(WEBHOOK_VERIFICATION_STATUSES),
+});
 
 export const locationFormSchema = z
   .object({
@@ -38,6 +53,8 @@ export const locationFormSchema = z
       })
       .nullable()
       .optional(),
+    existing_location_meta: z.record(z.unknown()).optional(),
+    virtual_configuration: virtualLocationConfigurationSchema.optional(),
   })
   .superRefine((values, ctx) => {
     if (values.presence_type === "PHYSICAL") {

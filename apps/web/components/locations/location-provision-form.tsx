@@ -17,10 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LocationVirtualAdvancedPanel } from "@/components/locations/location-virtual-advanced-panel";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
 import { buildLocationCodeSuggestInput } from "@/lib/locations/code-generation";
 import { presenceLabel } from "@/lib/locations/axis-labels";
-import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from "@/lib/locations/types";
+import {
+  PRESENCE_ENVIRONMENTS,
+  type LocationFormValues,
+  type LocationRow,
+  type RevenueAccountOption,
+} from "@/lib/locations/types";
+import {
+  DEFAULT_VIRTUAL_LOCATION_CONFIG,
+  parseVirtualLocationConfiguration,
+} from "@/lib/locations/virtual-config";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { cn } from "@/lib/utils";
@@ -28,6 +38,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   rows: LocationRow[];
   governance: OrganizationLocationGovernanceConfig;
+  revenueAccounts: RevenueAccountOption[];
   editingLocation?: LocationRow | null;
   onDiscard: () => void;
   onSaved: (locationId: string) => void;
@@ -56,6 +67,8 @@ const defaultForm: LocationFormValues = {
   location_tax_identifier: "",
   tax_registered_name: "",
   show_advanced: false,
+  virtual_configuration: DEFAULT_VIRTUAL_LOCATION_CONFIG,
+  existing_location_meta: {},
 };
 
 function normalizeVirtualAddress(form: LocationFormValues): LocationFormValues {
@@ -72,6 +85,7 @@ function normalizeVirtualAddress(form: LocationFormValues): LocationFormValues {
 export function LocationProvisionForm({
   rows,
   governance,
+  revenueAccounts,
   editingLocation = null,
   onDiscard,
   onSaved,
@@ -126,8 +140,11 @@ export function LocationProvisionForm({
             editingLocation.is_manufacturing_floor ||
             editingLocation.is_stock_holding ||
             editingLocation.pos_terminal_count > 0 ||
-            editingLocation.address_line2
+            editingLocation.address_line2 ||
+            editingLocation.presence_type === "VIRTUAL"
         ),
+        virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
+        existing_location_meta: editingLocation.location_meta,
       });
     } else {
       codeManuallyEditedRef.current = false;
@@ -187,18 +204,21 @@ export function LocationProvisionForm({
     form.is_stock_holding,
   ]);
 
+  const buildSavePayload = () =>
+    normalizeVirtualAddress({
+      ...form,
+      code_manually_edited: codeManuallyEditedRef.current,
+      code_generation: lastSuggestionRef.current,
+      existing_location_meta: form.existing_location_meta ?? {},
+    });
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
         setError(null);
         startTransition(async () => {
-          const payload = normalizeVirtualAddress({
-        ...form,
-        code_manually_edited: codeManuallyEditedRef.current,
-        code_generation: lastSuggestionRef.current,
-      });
-          const result = await saveLocation(payload);
+          const result = await saveLocation(buildSavePayload());
           if ("error" in result) {
             setError(result.error ?? "Unable to save facility node.");
             return;
@@ -221,6 +241,9 @@ export function LocationProvisionForm({
         next.is_stock_holding = false;
         next.is_manufacturing_floor = false;
       }
+      if (key === "presence_type" && value === "PHYSICAL") {
+        next.virtual_configuration = DEFAULT_VIRTUAL_LOCATION_CONFIG;
+      }
       if (key === "is_commercial_storefront") {
         next.pos_terminal_count = value ? Math.max(1, prev.pos_terminal_count || 1) : 0;
       }
@@ -237,12 +260,7 @@ export function LocationProvisionForm({
   const handleSubmit = () => {
     setError(null);
     startTransition(async () => {
-      const payload = normalizeVirtualAddress({
-        ...form,
-        code_manually_edited: codeManuallyEditedRef.current,
-        code_generation: lastSuggestionRef.current,
-      });
-      const result = await saveLocation(payload);
+      const result = await saveLocation(buildSavePayload());
       if ("error" in result) {
         setError(result.error ?? "Unable to save facility node.");
         return;
@@ -254,8 +272,7 @@ export function LocationProvisionForm({
     });
   };
 
-  const stockToggleDisabled = form.presence_type === "VIRTUAL";
-  const manufacturingToggleDisabled = form.presence_type === "VIRTUAL";
+  const isVirtual = form.presence_type === "VIRTUAL";
 
   return (
     <div className="flex h-full min-h-[520px] flex-col">
@@ -370,7 +387,9 @@ export function LocationProvisionForm({
           <div>
             <p className="text-sm font-medium">Show Advanced Parameters</p>
             <p className="text-xs text-muted-foreground">
-              Reveal address mapping, inventory rules, POS registry, and manufacturing controls.
+              {isVirtual
+                ? "Reveal digital integration hooks, storefront controls, and virtual DOM routing."
+                : "Reveal address mapping, inventory rules, POS registry, and manufacturing controls."}
             </p>
           </div>
           <Switch
@@ -389,124 +408,164 @@ export function LocationProvisionForm({
               />
             </CapabilityCard>
 
-            {form.presence_type === "PHYSICAL" && (
-              <CapabilityCard title="Physical Workspace Mapping">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Street line 1</Label>
-                    <Input
-                      value={form.address_line1}
-                      onChange={(event) => updateField("address_line1", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Street line 2</Label>
-                    <Input
-                      value={form.address_line2}
-                      onChange={(event) => updateField("address_line2", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>City</Label>
-                    <Input
-                      value={form.city}
-                      onChange={(event) => updateField("city", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>State / province</Label>
-                    <Input
-                      value={form.state}
-                      onChange={(event) => updateField("state", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Postal code</Label>
-                    <Input
-                      value={form.zip_postal}
-                      onChange={(event) => updateField("zip_postal", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Country code</Label>
-                    <Select
-                      value={form.country_code}
-                      onValueChange={(value) =>
-                        updateField("country_code", value as LocationFormValues["country_code"])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COUNTRY_OPTIONS.map((code) => (
-                          <SelectItem key={code} value={code}>
-                            {code}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CapabilityCard>
-            )}
-
-            <CapabilityCard title="Inventory Storage Rules">
-              <SwitchRow
-                label="Houses physical inventory stock"
-                checked={form.is_stock_holding}
-                disabled={stockToggleDisabled}
-                onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
-              />
-              {form.is_stock_holding && (
-                <div className="mt-3 rounded-md border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
-                  Warehouse layout zone metrics and bin allocation grids will attach to this node in
-                  the inventory module. Stock authority is active for MWAC and shelf slot selectors.
-                </div>
-              )}
-            </CapabilityCard>
-
-            <CapabilityCard title="POS Terminal Registry">
-              <SwitchRow
-                label="Operates a consumer retail storefront / sales desk"
-                checked={form.is_commercial_storefront}
-                onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
-              />
-              {form.is_commercial_storefront && (
-                <div className="mt-3 space-y-2">
-                  <Label htmlFor="pos-count">
-                    Number of active cash registers / billing terminals
-                  </Label>
-                  <Input
-                    id="pos-count"
-                    type="number"
-                    min={1}
-                    value={form.pos_terminal_count}
-                    onChange={(event) =>
-                      updateField(
-                        "pos_terminal_count",
-                        Math.max(1, Number(event.target.value) || 1)
-                      )
-                    }
+            {isVirtual ? (
+              <>
+                <CapabilityCard title="POS Terminal Registry">
+                  <SwitchRow
+                    label="Operates a consumer retail storefront / sales desk"
+                    checked={form.is_commercial_storefront}
+                    onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
                   />
-                </div>
-              )}
-            </CapabilityCard>
+                  {form.is_commercial_storefront && (
+                    <div className="mt-3 space-y-2">
+                      <Label htmlFor="pos-count">
+                        Number of active cash registers / billing terminals
+                      </Label>
+                      <Input
+                        id="pos-count"
+                        type="number"
+                        min={0}
+                        value={form.pos_terminal_count}
+                        onChange={(event) =>
+                          updateField(
+                            "pos_terminal_count",
+                            Math.max(0, Number(event.target.value) || 0)
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+                </CapabilityCard>
 
-            <CapabilityCard title="Manufacturing WIP Center">
-              <SwitchRow
-                label="Operates as an active manufacturing floor"
-                checked={form.is_manufacturing_floor}
-                disabled={manufacturingToggleDisabled}
-                onCheckedChange={(checked) => updateField("is_manufacturing_floor", checked)}
-              />
-              {form.is_manufacturing_floor && (
-                <div className="mt-3 rounded-md border border-dashed border-red-500/30 bg-red-500/5 p-3 text-sm text-muted-foreground">
-                  Unlocks production routing, bill of materials recipe execution, and raw-to-WIP
-                  sub-ledger calculations at this site.
-                </div>
-              )}
-            </CapabilityCard>
+                <LocationVirtualAdvancedPanel
+                  value={form.virtual_configuration}
+                  revenueAccounts={revenueAccounts}
+                  onChange={(virtual_configuration) =>
+                    updateField("virtual_configuration", virtual_configuration)
+                  }
+                />
+              </>
+            ) : (
+              <>
+                {form.presence_type === "PHYSICAL" && (
+                  <CapabilityCard title="Physical Workspace Mapping">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Street line 1</Label>
+                        <Input
+                          value={form.address_line1}
+                          onChange={(event) => updateField("address_line1", event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Street line 2</Label>
+                        <Input
+                          value={form.address_line2}
+                          onChange={(event) => updateField("address_line2", event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>City</Label>
+                        <Input
+                          value={form.city}
+                          onChange={(event) => updateField("city", event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>State / province</Label>
+                        <Input
+                          value={form.state}
+                          onChange={(event) => updateField("state", event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Postal code</Label>
+                        <Input
+                          value={form.zip_postal}
+                          onChange={(event) => updateField("zip_postal", event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Country code</Label>
+                        <Select
+                          value={form.country_code}
+                          onValueChange={(value) =>
+                            updateField("country_code", value as LocationFormValues["country_code"])
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COUNTRY_OPTIONS.map((code) => (
+                              <SelectItem key={code} value={code}>
+                                {code}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CapabilityCard>
+                )}
+
+                <CapabilityCard title="Inventory Storage Rules">
+                  <SwitchRow
+                    label="Houses physical inventory stock"
+                    checked={form.is_stock_holding}
+                    onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
+                  />
+                  {form.is_stock_holding && (
+                    <div className="mt-3 rounded-md border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
+                      Warehouse layout zone metrics and bin allocation grids will attach to this
+                      node in the inventory module. Stock authority is active for MWAC and shelf
+                      slot selectors.
+                    </div>
+                  )}
+                </CapabilityCard>
+
+                <CapabilityCard title="POS Terminal Registry">
+                  <SwitchRow
+                    label="Operates a consumer retail storefront / sales desk"
+                    checked={form.is_commercial_storefront}
+                    onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
+                  />
+                  {form.is_commercial_storefront && (
+                    <div className="mt-3 space-y-2">
+                      <Label htmlFor="pos-count">
+                        Number of active cash registers / billing terminals
+                      </Label>
+                      <Input
+                        id="pos-count"
+                        type="number"
+                        min={1}
+                        value={form.pos_terminal_count}
+                        onChange={(event) =>
+                          updateField(
+                            "pos_terminal_count",
+                            Math.max(1, Number(event.target.value) || 1)
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+                </CapabilityCard>
+
+                <CapabilityCard title="Manufacturing WIP Center">
+                  <SwitchRow
+                    label="Operates as an active manufacturing floor"
+                    checked={form.is_manufacturing_floor}
+                    onCheckedChange={(checked) => updateField("is_manufacturing_floor", checked)}
+                  />
+                  {form.is_manufacturing_floor && (
+                    <div className="mt-3 rounded-md border border-dashed border-red-500/30 bg-red-500/5 p-3 text-sm text-muted-foreground">
+                      Unlocks production routing, bill of materials recipe execution, and raw-to-WIP
+                      sub-ledger calculations at this site.
+                    </div>
+                  )}
+                </CapabilityCard>
+              </>
+            )}
           </div>
         )}
 

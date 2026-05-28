@@ -5,6 +5,7 @@ import { locationFormSchema, domRoutingSaveSchema } from "@/lib/locations/schema
 import type { LocationCodeSuggestInput, LocationCodeSuggestion } from "@/lib/locations/code-generation";
 import { resolveLocationManagementAccess } from "@/lib/locations/access";
 import { buildDomRoutingPatch } from "@/lib/locations/dom-routing";
+import { buildLocationMetaPatch, DEFAULT_VIRTUAL_LOCATION_CONFIG } from "@/lib/locations/virtual-config";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -33,16 +34,17 @@ export async function saveLocation(raw: unknown) {
     return { error: "Administrative privileges required." };
   }
 
-  const locationMeta =
-    !values.location_id && values.code_generation
-      ? {
-          code_generation: {
-            ...values.code_generation,
-            manually_edited: values.code_manually_edited ?? false,
-            generated_at: new Date().toISOString(),
-          },
-        }
-      : null;
+  const locationMeta = buildLocationMetaPatch({
+    presence_type: values.presence_type,
+    existing_meta: values.existing_location_meta ?? {},
+    code_generation:
+      !values.location_id && values.code_generation ? values.code_generation : undefined,
+    code_manually_edited: values.code_manually_edited,
+    virtual_configuration:
+      values.presence_type === "VIRTUAL"
+        ? (values.virtual_configuration ?? DEFAULT_VIRTUAL_LOCATION_CONFIG)
+        : undefined,
+  });
 
   const { data, error } = await supabase.rpc("save_tenant_location", {
     p_location_id: values.location_id,

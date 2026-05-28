@@ -1,4 +1,10 @@
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type {
+  RevenueAccountOption,
+  VirtualLocationConfiguration,
+} from "@/lib/locations/virtual-config";
+
+export type { RevenueAccountOption, VirtualLocationConfiguration };
 
 export const PRESENCE_ENVIRONMENTS = ["PHYSICAL", "VIRTUAL"] as const;
 
@@ -68,6 +74,7 @@ export type LocationModuleContext = {
   governance: LocationGovernanceSnapshot;
   centralHqLocationId: string | null;
   canManage: boolean;
+  revenueAccounts: RevenueAccountOption[];
 };
 
 export type LocationFormValues = {
@@ -93,6 +100,8 @@ export type LocationFormValues = {
   location_tax_identifier: string;
   tax_registered_name: string;
   show_advanced: boolean;
+  virtual_configuration: VirtualLocationConfiguration;
+  existing_location_meta?: Record<string, unknown>;
   code_manually_edited?: boolean;
   code_generation?: {
     scope: string;

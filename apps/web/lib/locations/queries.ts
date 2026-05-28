@@ -8,6 +8,7 @@ import type {
   LocationRow,
   LocationTopologyRow,
   PresenceEnvironment,
+  RevenueAccountOption,
 } from "@/lib/locations/types";
 import { mapTenantRowToSnapshotParts } from "@/lib/organization/types";
 
@@ -111,17 +112,42 @@ export async function fetchLocationTopologyRows(
   return (data as Record<string, unknown>[]).map(mapTopologyRow);
 }
 
+export async function fetchRevenueAccounts(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<RevenueAccountOption[]> {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, account_code, account_name")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .eq("classification", "REVENUE")
+    .order("account_code");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: String(row.id),
+    account_code: String(row.account_code),
+    account_name: String(row.account_name),
+  }));
+}
+
 export async function fetchLocationModuleContext(
   supabase: SupabaseClient,
   tenantId: string,
   canManage: boolean
 ): Promise<LocationModuleContext | null> {
-  const governance = await fetchLocationGovernanceSnapshot(supabase, tenantId);
+  const [governance, revenueAccounts] = await Promise.all([
+    fetchLocationGovernanceSnapshot(supabase, tenantId),
+    fetchRevenueAccounts(supabase, tenantId),
+  ]);
   if (!governance) return null;
 
   return {
     governance,
     centralHqLocationId: governance.central_hq_location_id,
     canManage,
+    revenueAccounts,
   };
 }

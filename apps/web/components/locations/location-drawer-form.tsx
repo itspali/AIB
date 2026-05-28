@@ -22,6 +22,10 @@ import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { presenceLabel } from "@/lib/locations/axis-labels";
+import {
+  DEFAULT_VIRTUAL_LOCATION_CONFIG,
+  parseVirtualLocationConfiguration,
+} from "@/lib/locations/virtual-config";
 
 type Props = {
   open: boolean;
@@ -55,6 +59,8 @@ const defaultForm: LocationFormValues = {
   location_tax_identifier: "",
   tax_registered_name: "",
   show_advanced: false,
+  virtual_configuration: DEFAULT_VIRTUAL_LOCATION_CONFIG,
+  existing_location_meta: {},
 };
 
 export function LocationDrawerForm({
@@ -112,6 +118,8 @@ export function LocationDrawerForm({
             editingLocation.is_commercial_storefront ||
             editingLocation.pos_terminal_count > 0
         ),
+        virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
+        existing_location_meta: editingLocation.location_meta,
       });
     } else {
       setForm(defaultForm);
