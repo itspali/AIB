@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 
 type Props = {
   onCreate: () => void;
+  hasExistingCategories?: boolean;
 };
 
-export function CategoryEmptyState({ onCreate }: Props) {
+export function CategoryEmptyState({ onCreate, hasExistingCategories = false }: Props) {
   return (
     <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center dark:border-white/10">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
@@ -19,7 +20,7 @@ export function CategoryEmptyState({ onCreate }: Props) {
         Start by defining your first product category node to unblock catalog onboarding.
       </p>
       <Button className="mt-6 shadow-glow-sm" onClick={onCreate}>
-        Create Initial Product Category
+        {hasExistingCategories ? "Create Product Category" : "Create Initial Product Category"}
       </Button>
     </div>
   );

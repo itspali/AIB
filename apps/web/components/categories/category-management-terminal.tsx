@@ -18,11 +18,19 @@ type Props = {
 export function CategoryManagementTerminal({ initialRows }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryRow | null>(null);
 
   const selectedCategory = initialRows.find((r) => r.id === selectedId) ?? null;
 
   const openCreate = () => {
+    setEditingCategory(null);
     setSelectedId(null);
+    setDrawerOpen(true);
+  };
+
+  const openEdit = (category: CategoryRow) => {
+    setEditingCategory(category);
+    setSelectedId(category.id);
     setDrawerOpen(true);
   };
 
@@ -52,7 +60,7 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" />
-          Create System Category
+          Create Product Category
         </Button>
       </header>
 
@@ -70,9 +78,16 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
 
         <section className="col-span-1 min-h-[420px] w-full p-4 sm:p-6 lg:col-span-8">
           {selectedCategory ? (
-            <CategoryDetailViewport category={selectedCategory} allRows={initialRows} />
+            <CategoryDetailViewport
+              category={selectedCategory}
+              allRows={initialRows}
+              onEdit={openEdit}
+            />
           ) : (
-            <CategoryEmptyState onCreate={openCreate} />
+            <CategoryEmptyState
+              onCreate={openCreate}
+              hasExistingCategories={initialRows.length > 0}
+            />
           )}
         </section>
       </div>
@@ -81,6 +96,7 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         rows={initialRows}
+        editingCategory={editingCategory}
         onSaved={(id) => setSelectedId(id)}
       />
     </>

@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Command, Menu, Search, Sparkles, User } from "lucide-react";
+import { AlertTriangle, Command, Menu, Search, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { OperatorProfile } from "@/lib/user/types";
 import { cn } from "@/lib/utils";
 
 type TopUtilityStripProps = {
@@ -13,6 +15,7 @@ type TopUtilityStripProps = {
   showProgress?: boolean;
   approvalAlertCount?: number;
   onMobileMenuOpen?: () => void;
+  operatorProfile?: OperatorProfile | null;
 };
 
 export function TopUtilityStrip({
@@ -21,21 +24,27 @@ export function TopUtilityStrip({
   showProgress = false,
   approvalAlertCount = 0,
   onMobileMenuOpen,
+  operatorProfile = null,
 }: TopUtilityStripProps) {
   const [commandOpen, setCommandOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const commandRef = useRef<HTMLButtonElement>(null);
 
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      setCommandOpen(false);
-      return;
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      setCommandOpen(true);
-      commandRef.current?.focus();
-    }
-  }, []);
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (profileOpen) return;
+        setCommandOpen(false);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen(true);
+        commandRef.current?.focus();
+      }
+    },
+    [profileOpen]
+  );
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -44,7 +53,7 @@ export function TopUtilityStrip({
 
   return (
     <>
-      <header className="relative flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-4 backdrop-blur-xl dark:border-white/10 md:px-6">
+      <header className="relative z-20 flex h-16 shrink-0 items-center justify-between overflow-visible border-b border-border/80 bg-background/80 px-4 backdrop-blur-xl dark:border-white/10 md:px-6">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
           {onMobileMenuOpen && (
             <Button
@@ -91,7 +100,7 @@ export function TopUtilityStrip({
           </button>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="relative flex shrink-0 items-center gap-1.5 overflow-visible">
           <Button
             variant="ghost"
             size="sm"
@@ -120,14 +129,23 @@ export function TopUtilityStrip({
 
           <ThemeToggle />
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full border border-transparent hover:border-white/10"
-          >
-            <User className="h-4 w-4" />
-            <span className="sr-only">Account</span>
-          </Button>
+          {operatorProfile ? (
+            <UserProfileMenu
+              key={`${operatorProfile.userId}-${operatorProfile.firstName}-${operatorProfile.lastName}-${operatorProfile.avatarUrl ?? ""}`}
+              profile={operatorProfile}
+              onOpenChange={setProfileOpen}
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full border border-transparent hover:border-white/10"
+              aria-label="Account"
+              disabled
+            >
+              <span className="h-4 w-4 rounded-full bg-muted" />
+            </Button>
+          )}
         </div>
       </header>
 

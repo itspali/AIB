@@ -1,23 +1,51 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { attributeTypeNeedsOptions } from "@/lib/categories/attribute-types";
+import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
+import { validateCategoryParentAssignment } from "@/lib/categories/validate-parent";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
-import type { SystemCategoryFormValues } from "@/lib/categories/types";
+import type { AttributeTemplateEntry, SystemCategoryFormValues } from "@/lib/categories/types";
+
+function buildAttributeTemplates(
+  entries: AttributeTemplateEntry[]
+): Record<string, unknown>[] {
+  return entries
+    .filter((entry) => entry.key.trim())
+    .map((entry) => {
+      const template: Record<string, unknown> = {
+        key: entry.key.trim(),
+        label: entry.label.trim() || entry.key.trim(),
+        type: entry.type,
+        required: Boolean(entry.required),
+      };
+
+      if (attributeTypeNeedsOptions(entry.type) && entry.options?.length) {
+        template.options = entry.options.map((option) => option.trim()).filter(Boolean);
+      }
+
+      return template;
+    });
+}
 
 export async function saveSystemCategory(values: SystemCategoryFormValues) {
-  const { supabase } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantId();
 
   const name = values.name.trim();
   if (!name) return { error: "Category name is required" };
 
-  const templates = values.attribute_templates
-    .filter((t) => t.key.trim())
-    .map((t) => ({
-      key: t.key.trim(),
-      label: t.label.trim() || t.key.trim(),
-      type: t.type,
-      required: Boolean(t.required),
-    }));
+  const templates = buildAttributeTemplates(values.attribute_templates);
+  const templateError = validateAttributeTemplates(values.attribute_templates);
+  if (templateError) return { error: templateError };
+
+  if (values.category_id) {
+    return updateSystemCategory(supabase, tenantId, values.category_id, {
+      name,
+      parent_id: values.parent_id,
+      is_active: values.is_active,
+      attribute_templates: templates,
+    });
+  }
 
   const { data, error } = await supabase.rpc("save_system_category", {
     p_name: name,
@@ -31,4 +59,52 @@ export async function saveSystemCategory(values: SystemCategoryFormValues) {
   revalidatePath("/items/categories");
   revalidatePath("/items");
   return { success: true as const, categoryId: data as string };
+}
+
+async function updateSystemCategory(
+  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  tenantId: string,
+  categoryId: string,
+  payload: {
+    name: string;
+    parent_id: string | null;
+    is_active: boolean;
+    attribute_templates: Record<string, unknown>[];
+  }
+) {
+  const { data: rows, error: fetchError } = await supabase
+    .from("item_categories")
+    .select("id, parent_id")
+    .eq("tenant_id", tenantId);
+
+  if (fetchError) return { error: fetchError.message };
+
+  const categoryExists = rows?.some((row) => row.id === categoryId);
+  if (!categoryExists) return { error: "Category not found" };
+
+  const parentError = validateCategoryParentAssignment(
+    categoryId,
+    payload.parent_id,
+    rows ?? []
+  );
+  if (parentError) return { error: parentError };
+
+  const { data, error } = await supabase
+    .from("item_categories")
+    .update({
+      name: payload.name,
+      parent_id: payload.parent_id,
+      is_active: payload.is_active,
+      attribute_templates: payload.attribute_templates,
+    })
+    .eq("id", categoryId)
+    .eq("tenant_id", tenantId)
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/items/categories");
+  revalidatePath("/items");
+  return { success: true as const, categoryId: data.id as string };
 }

@@ -1,3 +1,4 @@
+import { isAttributeFieldType } from "@/lib/categories/attribute-types";
 import type { AttributeTemplateEntry, CategoryRow, CategoryTreeNode } from "@/lib/categories/types";
 
 export function buildCategoryTree(rows: CategoryRow[]): CategoryTreeNode[] {
@@ -77,31 +78,63 @@ export function filterCategoryTree(
   return nodes.map(filterNode).filter((n): n is CategoryTreeNode => n !== null);
 }
 
+function parseTemplateOptions(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const options = raw.map((value) => String(value).trim()).filter(Boolean);
+  return options.length > 0 ? options : undefined;
+}
+
 export function parseAttributeTemplates(raw: unknown): AttributeTemplateEntry[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
-    .map((entry) => ({
-      key: String(entry.key ?? ""),
-      label: String(entry.label ?? entry.key ?? ""),
-      type: (["text", "number", "date", "boolean"].includes(String(entry.type))
-        ? String(entry.type)
-        : "text") as AttributeTemplateEntry["type"],
-      required: Boolean(entry.required),
-    }))
+    .map((entry) => {
+      const typeValue = String(entry.type ?? "text");
+      return {
+        key: String(entry.key ?? ""),
+        label: String(entry.label ?? entry.key ?? ""),
+        type: isAttributeFieldType(typeValue) ? typeValue : "text",
+        required: Boolean(entry.required),
+        options: parseTemplateOptions(entry.options),
+      };
+    })
     .filter((entry) => entry.key.trim().length > 0);
 }
 
+export function collectDescendantIds(categoryId: string, rows: CategoryRow[]): Set<string> {
+  const byParent = new Map<string | null, CategoryRow[]>();
+
+  for (const row of rows) {
+    const siblings = byParent.get(row.parent_id) ?? [];
+    siblings.push(row);
+    byParent.set(row.parent_id, siblings);
+  }
+
+  const blocked = new Set<string>([categoryId]);
+  const walk = (parentId: string) => {
+    for (const child of byParent.get(parentId) ?? []) {
+      blocked.add(child.id);
+      walk(child.id);
+    }
+  };
+  walk(categoryId);
+
+  return blocked;
+}
+
 export function parentSelectOptions(
-  rows: CategoryRow[]
+  rows: CategoryRow[],
+  excludeCategoryId?: string | null
 ): { id: string | null; label: string; depth: number }[] {
   const tree = buildCategoryTree(rows);
   const flat = flattenTree(tree);
+  const blocked = excludeCategoryId ? collectDescendantIds(excludeCategoryId, rows) : new Set<string>();
   const options: { id: string | null; label: string; depth: number }[] = [
     { id: null, label: "Root level (no parent)", depth: 0 },
   ];
 
   for (const node of flat) {
+    if (blocked.has(node.id)) continue;
     options.push({
       id: node.id,
       label: node.name,

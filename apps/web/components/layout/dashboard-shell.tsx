@@ -6,6 +6,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopUtilityStrip } from "@/components/layout/top-utility-strip";
+import type { OperatorProfile } from "@/lib/user/types";
 import { cn } from "@/lib/utils";
 
 type DashboardShellProps = {
@@ -14,6 +15,7 @@ type DashboardShellProps = {
   progressPercent?: number;
   onboardingMode?: boolean;
   approvalAlertCount?: number;
+  operatorProfile?: OperatorProfile | null;
 };
 
 export function DashboardShell({
@@ -22,6 +24,7 @@ export function DashboardShell({
   progressPercent = 0,
   onboardingMode = false,
   approvalAlertCount = 0,
+  operatorProfile = null,
 }: DashboardShellProps) {
   const { isOnboardingComplete } = useOnboardingContext();
   const showModuleNav = isOnboardingComplete && !onboardingMode;
@@ -35,6 +38,7 @@ export function DashboardShell({
         showProgress={onboardingMode || !isOnboardingComplete}
         approvalAlertCount={showModuleNav ? approvalAlertCount : 0}
         onMobileMenuOpen={showModuleNav ? () => setMobileNavOpen(true) : undefined}
+        operatorProfile={operatorProfile}
       />
       <div className="flex min-h-0 flex-1">
         {showModuleNav && <SidebarNav />}

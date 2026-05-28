@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { saveSystemCategory } from "@/app/items/categories/actions";
@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { isDuplicateAttributeKey, normalizeAttributeKey } from "@/lib/categories/attribute-key";
+import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
 import { parentSelectOptions } from "@/lib/categories/tree";
 
@@ -26,24 +28,57 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rows: CategoryRow[];
+  editingCategory?: CategoryRow | null;
   onSaved: (categoryId: string) => void;
 };
 
-const defaultForm = {
-  name: "",
-  parent_id: null as string | null,
-  is_active: true,
-  attribute_templates: [] as AttributeTemplateEntry[],
+type FormState = {
+  name: string;
+  parent_id: string | null;
+  is_active: boolean;
+  attribute_templates: AttributeTemplateEntry[];
 };
 
-export function CategoryDrawerForm({ open, onOpenChange, rows, onSaved }: Props) {
+const defaultForm: FormState = {
+  name: "",
+  parent_id: null,
+  is_active: true,
+  attribute_templates: [],
+};
+
+export function CategoryDrawerForm({
+  open,
+  onOpenChange,
+  rows,
+  editingCategory = null,
+  onSaved,
+}: Props) {
   const router = useRouter();
-  const [form, setForm] = useState(defaultForm);
+  const isEditing = Boolean(editingCategory);
+  const [form, setForm] = useState<FormState>(defaultForm);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const parentOptions = parentSelectOptions(rows);
+  const parentOptions = parentSelectOptions(rows, editingCategory?.id ?? null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (editingCategory) {
+      setForm({
+        name: editingCategory.name,
+        parent_id: editingCategory.parent_id,
+        is_active: editingCategory.is_active,
+        attribute_templates: editingCategory.attribute_templates.map((entry) => ({ ...entry })),
+      });
+      setShowAdvanced(editingCategory.attribute_templates.length > 0);
+    } else {
+      setForm(defaultForm);
+      setShowAdvanced(false);
+    }
+    setError(null);
+  }, [open, editingCategory]);
 
   const handleClose = () => {
     onOpenChange(false);
@@ -56,9 +91,16 @@ export function CategoryDrawerForm({ open, onOpenChange, rows, onSaved }: Props)
     setError(null);
     startTransition(async () => {
       const templates = showAdvanced ? form.attribute_templates : [];
+      for (let index = 0; index < templates.length; index += 1) {
+        if (isDuplicateAttributeKey(templates, index)) {
+          setError("Duplicate attribute template keys are not allowed.");
+          return;
+        }
+      }
+
       const keys = new Set<string>();
       for (const entry of templates) {
-        const key = entry.key.trim();
+        const key = normalizeAttributeKey(entry.key);
         if (!key) continue;
         if (keys.has(key)) {
           setError("Duplicate attribute template keys are not allowed.");
@@ -67,27 +109,40 @@ export function CategoryDrawerForm({ open, onOpenChange, rows, onSaved }: Props)
         keys.add(key);
       }
 
+      const optionsError = validateAttributeTemplates(templates);
+      if (optionsError) {
+        setError(optionsError);
+        return;
+      }
+
       const result = await saveSystemCategory({
+        category_id: editingCategory?.id ?? null,
         name: form.name,
         parent_id: form.parent_id,
         is_active: form.is_active,
         attribute_templates: templates.filter((t) => t.key.trim()),
       });
 
-      if ("error" in result && result.error) {
-        setError(result.error);
+      if ("error" in result) {
+        setError(result.error ?? "Unable to save category.");
         return;
       }
 
-      toast.success("System Category Saved Successfully");
+      toast.success(
+        isEditing ? "Product Category Updated Successfully" : "Product Category Saved Successfully"
+      );
       handleClose();
       router.refresh();
-      if (result.categoryId) onSaved(result.categoryId);
+      onSaved(result.categoryId);
     });
   };
 
   return (
-    <RightDrawer open={open} onOpenChange={(next) => (next ? onOpenChange(true) : handleClose())} title="Create System Category">
+    <RightDrawer
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : handleClose())}
+      title={isEditing ? "Edit Product Category" : "Create Product Category"}
+    >
       <div className="relative flex min-h-0 flex-1 flex-col">
         {isPending && (
           <div className="absolute inset-0 z-10 rounded-lg bg-background/80 p-4 backdrop-blur-sm">
@@ -162,6 +217,7 @@ export function CategoryDrawerForm({ open, onOpenChange, rows, onSaved }: Props)
 
           {showAdvanced && (
             <AttributeTemplateBuilder
+              key={editingCategory?.id ?? "create"}
               rows={form.attribute_templates}
               onChange={(attribute_templates) => setForm((f) => ({ ...f, attribute_templates }))}
             />
@@ -175,7 +231,7 @@ export function CategoryDrawerForm({ open, onOpenChange, rows, onSaved }: Props)
             Cancel
           </Button>
           <Button type="button" disabled={isPending} onClick={handleSubmit}>
-            Confirm & Save System Category
+            {isEditing ? "Save Category Changes" : "Confirm & Save Product Category"}
           </Button>
         </div>
       </div>

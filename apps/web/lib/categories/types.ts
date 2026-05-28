@@ -1,8 +1,11 @@
+import type { AttributeFieldType } from "@/lib/categories/attribute-types";
+
 export type AttributeTemplateEntry = {
   key: string;
   label: string;
-  type: "text" | "number" | "date" | "boolean";
+  type: AttributeFieldType;
   required?: boolean;
+  options?: string[];
 };
 
 export type CategoryRow = {
@@ -21,6 +24,7 @@ export type CategoryTreeNode = CategoryRow & {
 };
 
 export type SystemCategoryFormValues = {
+  category_id?: string | null;
   name: string;
   parent_id: string | null;
   is_active: boolean;

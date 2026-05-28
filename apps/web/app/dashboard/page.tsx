@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
+import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { CommandHubHeader } from "@/components/dashboard/command-hub-header";
 import { MetricGaugeGrid } from "@/components/dashboard/metric-gauge-grid";
@@ -25,12 +26,18 @@ export default async function DashboardPage() {
 
   if (!snapshot.isOnboardingComplete) redirect("/onboarding");
 
-  const approvalAlertCount = await fetchApprovalAlertCount(supabase, tenantId);
+  const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
+
+  const [approvalAlertCount, operatorProfile] = await Promise.all([
+    fetchApprovalAlertCount(supabase, tenantId),
+    fetchOperatorProfileForSession(supabase, orgName),
+  ]);
 
   return (
     <DashboardShell
-      orgName={snapshot.tenant.trade_name || snapshot.tenant.name}
+      orgName={orgName}
       approvalAlertCount={approvalAlertCount}
+      operatorProfile={operatorProfile}
     >
       <CommandHubHeader approvalAlertCount={approvalAlertCount} />
 

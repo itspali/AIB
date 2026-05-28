@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchCategoryRows } from "@/lib/categories/queries";
+import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { CategoryManagementTerminal } from "@/components/categories/category-management-terminal";
 
@@ -17,15 +18,19 @@ export default async function CategoriesPage() {
 
   if (!snapshot.isOnboardingComplete) redirect("/onboarding");
 
-  const [rows, approvalAlertCount] = await Promise.all([
+  const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
+
+  const [rows, approvalAlertCount, operatorProfile] = await Promise.all([
     fetchCategoryRows(supabase, tenantId),
     fetchApprovalAlertCount(supabase, tenantId),
+    fetchOperatorProfileForSession(supabase, orgName),
   ]);
 
   return (
     <DashboardShell
-      orgName={snapshot.tenant.trade_name || snapshot.tenant.name}
+      orgName={orgName}
       approvalAlertCount={approvalAlertCount}
+      operatorProfile={operatorProfile}
     >
       <CategoryManagementTerminal initialRows={rows} />
     </DashboardShell>
