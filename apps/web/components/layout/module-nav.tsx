@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
+  Tags,
   Truck,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ export type ModuleNavItem = {
 
 export const moduleNavItems: ModuleNavItem[] = [
   { href: "/dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { href: "/items/categories", label: "Product Catalog", shortLabel: "Catalog", icon: Tags },
   { href: "/procurement", label: "Procurement", shortLabel: "Procure", icon: ShoppingCart },
   { href: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Package },
   { href: "/sales", label: "Sales", shortLabel: "Sales", icon: CreditCard },

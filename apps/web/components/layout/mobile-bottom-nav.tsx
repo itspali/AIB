@@ -11,7 +11,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Module navigation"
-      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-background/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
     >
       <div className="grid h-14 grid-cols-6">
         {moduleNavItems.map(({ href, label, shortLabel, icon: Icon }) => {
@@ -23,10 +23,16 @@ export function MobileBottomNav() {
               aria-label={label}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium leading-none transition-colors duration-200",
+                "relative flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium leading-none transition-colors duration-200",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
+              {active && (
+                <span
+                  className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-primary shadow-glow-sm"
+                  aria-hidden
+                />
+              )}
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               <span className="truncate">{shortLabel}</span>
             </Link>

@@ -23,6 +23,9 @@ The folder tree structure is:
 - `supabase/migrations/20260527200000_onboarding_corporate_profile_rpc.sql` -> Atomic `save_onboarding_corporate_profile` RPC for Step 1 tenant + location save.
 - `apps/web/app/signup/` -> Public organization registration canvas and silent signup API.
 - `apps/web/app/onboarding/` -> Horizontal multi-step onboarding wizard (`OnboardingWizard`, step rail + viewport + footer).
+- `apps/web/app/dashboard/` -> Command Hub landing dashboard (M10): live metrics, workspace controls, tax policy grid.
+- `apps/web/app/items/categories/` -> Category Management Core (Sprint 1): tree + metadata viewport + RightDrawer create form.
+- `supabase/migrations/20260527210000_save_system_category_rpc.sql` -> `save_system_category` RPC for atomic `item_categories` insert.
 
 ## 3. Active System Tables Definition (Do Not Re-create)
 The database contains forty-five active models, protected by Row-Level Security:
@@ -43,3 +46,18 @@ CRITICAL: Do not write code or migrations for these tasks automatically. The use
 - **Step 1:** Corporate profile + home location via `save_onboarding_corporate_profile` RPC.
 - **Steps 2–4:** COA deploy, tax registry, omnichannel channels — completion gated by row counts on `accounts`, `tax_rate_registry`, `storefront_channels`.
 - **Resilience:** `fetchOnboardingSnapshot` distinguishes missing-table (`schemaWarning`) vs RLS denial (`rlsWarning`).
+
+### Task Sequence 11: Multi-Tenant Command Hub Landing Dashboard [IMPLEMENTED]
+- **Route:** `/dashboard` — three-zone shell (utility strip, left rail / mobile drawer, workspace canvas `bg-muted/20`).
+- **Zone A:** Cmd/Ctrl+K command search block; managerial approval badge counts `sales_orders` (`PENDING_APPROVAL`, `CREDIT_HOLD`), `purchase_orders` (`document_status = PENDING_APPROVAL`), `stock_transfers` (`current_status = PENDING_APPROVAL`).
+- **Metrics:** Net capital exposure (GL `1200-AR` net minus unpaid `purchase_invoices.total_liability_amount`); inventory valuation from `item_valuations`; pipeline velocity badges from `sales_orders`.
+- **Controls:** `workspace_control_registry` upserts for `SALES_SETTINGS.allow_line_item_discounts` and `FINANCIAL_SETTINGS.accounting_period_closing_date`.
+- **Tax grid:** Read/write `tax_rate_registry` with inline add form; server actions in `apps/web/app/dashboard/actions.ts`; queries in `apps/web/lib/dashboard/queries.ts`.
+
+### Task Sequence 12: Master Data — Category Management Core [IMPLEMENTED — Sprint 1]
+- **Route:** `/items/categories` — 1/3 + 2/3 split canvas inside `DashboardShell`.
+- **Left:** Searchable recursive folder tree from `item_categories` with ACTIVE/INACTIVE badges.
+- **Right:** Metadata viewport (lineage, timestamps, attribute_templates) or empty state CTA.
+- **RightDrawer:** Resizable 40/60/80% width; create form with essentials + advanced attribute template builder.
+- **RPC:** `public.save_system_category` — tenant-scoped insert with JSONB `attribute_templates`.
+- **Pending Sprint 2:** `/items` Product Master Catalog Terminal (item + variant create form).

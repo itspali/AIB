@@ -1,8 +1,18 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
+import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommandHubHeader } from "@/components/dashboard/command-hub-header";
+import { MetricGaugeGrid } from "@/components/dashboard/metric-gauge-grid";
+import { ControlPanelSection } from "@/components/dashboard/control-panel-section";
+import { TaxPolicySection } from "@/components/dashboard/tax-policy-section";
+import {
+  ControlPanelSkeleton,
+  MetricGaugeSkeleton,
+  TaxPolicyGridSkeleton,
+} from "@/components/dashboard/dashboard-skeletons";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -15,17 +25,26 @@ export default async function DashboardPage() {
 
   if (!snapshot.isOnboardingComplete) redirect("/onboarding");
 
+  const approvalAlertCount = await fetchApprovalAlertCount(supabase, tenantId);
+
   return (
-    <DashboardShell orgName={snapshot.tenant.trade_name || snapshot.tenant.name}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold tracking-tight">Workspace Dashboard</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Your tenant is live. Module consoles for Procurement, Inventory, Sales, and Financials are
-          available from the navigation rail on desktop or the bottom tab bar on mobile.
-        </CardContent>
-      </Card>
+    <DashboardShell
+      orgName={snapshot.tenant.trade_name || snapshot.tenant.name}
+      approvalAlertCount={approvalAlertCount}
+    >
+      <CommandHubHeader approvalAlertCount={approvalAlertCount} />
+
+      <Suspense fallback={<MetricGaugeSkeleton />}>
+        <MetricGaugeGrid />
+      </Suspense>
+
+      <Suspense fallback={<ControlPanelSkeleton />}>
+        <ControlPanelSection />
+      </Suspense>
+
+      <Suspense fallback={<TaxPolicyGridSkeleton />}>
+        <TaxPolicySection />
+      </Suspense>
     </DashboardShell>
   );
 }

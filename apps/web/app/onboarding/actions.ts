@@ -1,25 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { STANDARD_COA_TEMPLATE } from "@/lib/onboarding/coa-template";
+import { requireTenantId } from "@/lib/supabase/require-tenant";
 import type {
   ChannelFormValues,
   CorporateProfileFormValues,
   OnboardingDraft,
   TaxRateRow,
 } from "@/lib/onboarding/types";
-
-async function requireTenantId() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) throw new Error("Tenant context missing from session");
-  return { supabase, tenantId };
-}
 
 export async function saveCorporateProfile(values: CorporateProfileFormValues) {
   const { supabase } = await requireTenantId();
