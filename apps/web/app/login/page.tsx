@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getPostLoginRoute } from "@/app/auth/actions";
+import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
+import { getTenantIdFromSession } from "@/lib/onboarding/status";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,8 @@ export default function LoginPage() {
       return;
     }
 
-    const { redirectTo } = await getPostLoginRoute();
+    const tenantId = await getTenantIdFromSession(supabase);
+    const redirectTo = tenantId ? await resolvePostLoginRoute(supabase, tenantId) : "/onboarding";
     setLoading(false);
     router.push(redirectTo);
     router.refresh();

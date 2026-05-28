@@ -72,6 +72,18 @@ CRITICAL: Do not write code or migrations for these tasks automatically. The use
 - **RPC:** `public.save_system_category(p_name, p_parent_id, p_is_active, p_attribute_templates, p_category_id)` — tenant-scoped insert when `p_category_id` is null; update when set.
 - **Pending Sprint 2:** `/items` Product Master Catalog Terminal (item + variant create form).
 
+### Task Sequence 15: Product Master Catalog Terminal [IMPLEMENTED]
+- **Route:** `/items` — 1/3 + 2/3 split canvas inside `DashboardShell` (left stream panel `lg:col-span-4`, right canvas `lg:col-span-8`).
+- **Left stream:** Real-time search across name, SKU, category; category facet filter; summary cards with ACTIVE/ARCHIVED badges.
+- **Right canvas modes:** Empty state CTA, read-only detail viewport, create/edit form with progressive disclosure (**Show Advanced Parameters**).
+- **Essentials (Section A):** classification, name, master SKU, base UOM (PCS/KG/LTRS/BOX), category node.
+- **Advanced (Section B):** HSN/SAC, return eligibility, dead weight (kg), L×W×H (cm) — right-aligned numeric fields.
+- **Form stack:** react-hook-form + Zod; footer **Cancel** / **Save Product Master Profile** with Cmd/Ctrl+Enter shortcut.
+- **Lib:** [apps/web/lib/products/](apps/web/lib/products/) — types, schemas, queries, classification labels, UOM options.
+- **Server actions:** [apps/web/app/items/actions.ts](apps/web/app/items/actions.ts) — `saveProductMasterProfile`, `getProductDetail`.
+- **Migration:** [20260530120000_save_product_master_profile_rpc.sql](supabase/migrations/20260530120000_save_product_master_profile_rpc.sql) — `PHYSICAL_GOOD` enum value + atomic `save_product_master_profile` RPC (insert/update parent `items` + master `item_variants`).
+- **Sub-nav:** Products (`/items`) and Categories (`/items/categories`); module nav primary href → `/items`.
+
 ### Task Sequence 13: Zone A User Profile Dropdown Menu [IMPLEMENTED]
 - **Trigger:** Avatar or user icon in [top-utility-strip.tsx](apps/web/components/layout/top-utility-strip.tsx) opens `UserProfileMenu` flyout (`w-72`, click-outside + Esc).
 - **Section 1:** Operator identity from `public.users` + tenant/location labels via [lib/user/queries.ts](apps/web/lib/user/queries.ts).

@@ -18,8 +18,8 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 214.3 22% 78%;
+    --input: 214.3 22% 76%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.75rem;
     --popover: 0 0% 100%;
@@ -43,8 +43,8 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 210 40% 98%;
-    --border: 224 47% 16%;
-    --input: 224 47% 16%;
+    --border: 224 35% 28%;
+    --input: 224 35% 30%;
     --ring: 187 85% 53%;
     --popover: 224 47% 8%;
     --popover-foreground: 210 40% 98%;
@@ -84,11 +84,19 @@
   }
 
   .glass-panel {
-    @apply rounded-xl border border-white/10 bg-card/70 shadow-lg shadow-black/20 backdrop-blur-xl;
+    @apply rounded-xl border border-border bg-card/70 shadow-md shadow-black/10 backdrop-blur-xl dark:shadow-black/20;
   }
 
   .glass-panel-hover {
-    @apply transition-all duration-200 hover:border-white/20 hover:shadow-xl hover:shadow-primary/5;
+    @apply transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5;
+  }
+
+  .surface-panel {
+    @apply rounded-xl border border-border bg-card/60 p-4 shadow-sm dark:bg-card/50;
+  }
+
+  .surface-inset {
+    @apply rounded-lg border border-border bg-muted/20 shadow-sm;
   }
 
   .gradient-text {

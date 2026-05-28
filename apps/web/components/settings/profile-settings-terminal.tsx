@@ -102,7 +102,7 @@ export function ProfileSettingsTerminal({ snapshot, tenantId, avatarPreviewUrl }
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <div className="sticky top-0 z-10 -mx-1 flex flex-col gap-4 border-b border-border/80 bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
+      <div className="sticky top-0 z-10 -mx-1 flex flex-col gap-4 border-b border-border bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Account Settings &amp; Security</h1>
           <p className="mt-1 text-sm text-muted-foreground">

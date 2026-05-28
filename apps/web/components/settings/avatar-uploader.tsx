@@ -73,7 +73,7 @@ export function AvatarUploader({
     <div className="space-y-2">
       <div
         className={cn(
-          "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-6 text-center transition-colors duration-200 dark:border-white/10",
+          "surface-inset flex flex-col items-center justify-center gap-3 border-dashed px-4 py-6 text-center transition-colors duration-200",
           !disabled && "hover:border-primary/40 hover:bg-muted/30",
           disabled && "opacity-50"
         )}

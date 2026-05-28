@@ -45,7 +45,7 @@ export function UserProfileActions({ profile, onNavigate }: Props) {
         </button>
       )}
 
-      <div className="my-1 border-t border-border/80 dark:border-white/10" />
+      <div className="my-1 border-t border-border" />
 
       <button
         type="button"

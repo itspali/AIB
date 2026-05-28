@@ -47,7 +47,7 @@ export function SecurityRail({
 
   return (
     <aside className="space-y-4 lg:col-span-3">
-      <section className="space-y-4 rounded-xl border border-border/80 bg-card/50 p-4 dark:border-white/10">
+      <section className="surface-panel space-y-4">
         <div className="flex items-center gap-2">
           <Shield className="h-5 w-5 text-primary" />
           <h2 className="text-xl font-semibold">Credential Hardening</h2>
@@ -58,7 +58,7 @@ export function SecurityRail({
         <PasswordFields form={form} disabled={disabled} />
       </section>
 
-      <section className="space-y-3 rounded-xl border border-border/80 bg-card/50 p-4 dark:border-white/10">
+      <section className="surface-panel space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />

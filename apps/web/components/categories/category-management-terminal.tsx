@@ -44,17 +44,17 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
           </p>
           <nav className="mt-3 flex gap-2 text-sm" aria-label="Catalog sub-navigation">
             <Link
+              href="/items"
+              className="rounded-md px-2.5 py-1 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
+            >
+              Products
+            </Link>
+            <Link
               href="/items/categories"
               className="rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary"
               aria-current="page"
             >
               Categories
-            </Link>
-            <Link
-              href="/items"
-              className="rounded-md px-2.5 py-1 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
-            >
-              Products
             </Link>
           </nav>
         </div>

@@ -50,13 +50,13 @@ export function SessionTelemetryGrid({ sessions, timezone, authSessionId, disabl
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-border/80 bg-card/50 p-4 dark:border-white/10">
+    <section className="surface-panel space-y-4">
       <div className="flex items-center gap-2">
         <MonitorSmartphone className="h-5 w-5 text-primary" />
         <h2 className="text-xl font-semibold">Live Session Telemetry</h2>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border/60">
+      <div className="surface-inset overflow-x-auto">
         <table className="w-full min-w-[420px] text-left text-sm">
           <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -77,7 +77,7 @@ export function SessionTelemetryGrid({ sessions, timezone, authSessionId, disabl
               sessions.map((session) => (
                 <tr
                   key={session.id}
-                  className={cn("border-t border-border/60", session.is_current && "bg-primary/5")}
+                  className={cn("border-t border-border", session.is_current && "bg-primary/5")}
                 >
                   <td className="px-3 py-2">{session.os_browser}</td>
                   <td className="px-3 py-2 font-mono text-xs">{session.ip_address || "—"}</td>

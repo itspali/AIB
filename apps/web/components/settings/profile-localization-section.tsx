@@ -30,7 +30,7 @@ export function ProfileLocalizationSection({ form, disabled }: Props) {
   const uiDensity = watch("ui_density");
 
   return (
-    <section className="space-y-4 rounded-xl border border-border/80 bg-card/50 p-4 dark:border-white/10">
+    <section className="surface-panel space-y-4">
       <h2 className="text-xl font-semibold">Localization &amp; Regional Preferences</h2>
 
       <div className="space-y-2">

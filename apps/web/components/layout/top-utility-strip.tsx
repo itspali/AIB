@@ -53,7 +53,7 @@ export function TopUtilityStrip({
 
   return (
     <>
-      <header className="relative z-20 flex h-16 shrink-0 items-center justify-between overflow-visible border-b border-border/80 bg-background/80 px-4 backdrop-blur-xl dark:border-white/10 md:px-6">
+      <header className="relative z-20 flex h-16 shrink-0 items-center justify-between overflow-visible border-b border-border bg-background/80 px-4 backdrop-blur-xl md:px-6">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
           {onMobileMenuOpen && (
             <Button
@@ -87,7 +87,7 @@ export function TopUtilityStrip({
             type="button"
             onClick={() => setCommandOpen(true)}
             className={cn(
-              "flex h-10 w-full items-center gap-2 rounded-xl border border-border/80 bg-card/60 px-4 text-sm text-muted-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/30 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-white/10 dark:shadow-glow-sm",
+              "flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-card/60 px-4 text-sm text-muted-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:shadow-glow-sm",
               commandOpen && "border-primary/40 ring-2 ring-primary/20"
             )}
             aria-label="Search commands"

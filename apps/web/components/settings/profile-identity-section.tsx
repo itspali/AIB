@@ -32,7 +32,7 @@ export function ProfileIdentitySection({
   } = form;
 
   return (
-    <section className="space-y-4 rounded-xl border border-border/80 bg-card/50 p-4 dark:border-white/10">
+    <section className="surface-panel space-y-4">
       <h2 className="text-xl font-semibold">Personal Worker Identity</h2>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

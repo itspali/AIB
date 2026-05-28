@@ -124,7 +124,7 @@ export function MfaSetupModal({ open, onOpenChange, onEnrolled }: Props) {
               </p>
 
               <div
-                className="mx-auto flex max-w-[220px] justify-center rounded-lg border border-border/80 bg-white p-3"
+                className="mx-auto flex max-w-[220px] justify-center rounded-lg border border-border bg-white p-3 shadow-sm"
                 // Supabase returns an SVG string for the QR code.
                 dangerouslySetInnerHTML={{ __html: enrollState.qrCode }}
               />
