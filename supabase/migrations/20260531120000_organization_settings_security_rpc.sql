@@ -482,6 +482,7 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+DROP POLICY IF EXISTS tenant_logos_select_tenant ON storage.objects;
 CREATE POLICY tenant_logos_select_tenant
     ON storage.objects
     FOR SELECT
@@ -491,6 +492,7 @@ CREATE POLICY tenant_logos_select_tenant
         AND (storage.foldername(name))[1] = (auth.jwt() -> 'app_metadata' ->> 'tenant_id')
     );
 
+DROP POLICY IF EXISTS tenant_logos_insert_authorized ON storage.objects;
 CREATE POLICY tenant_logos_insert_authorized
     ON storage.objects
     FOR INSERT
@@ -501,6 +503,7 @@ CREATE POLICY tenant_logos_insert_authorized
         AND private.user_can_modify_organization_settings()
     );
 
+DROP POLICY IF EXISTS tenant_logos_update_authorized ON storage.objects;
 CREATE POLICY tenant_logos_update_authorized
     ON storage.objects
     FOR UPDATE
@@ -516,6 +519,7 @@ CREATE POLICY tenant_logos_update_authorized
         AND private.user_can_modify_organization_settings()
     );
 
+DROP POLICY IF EXISTS tenant_logos_delete_authorized ON storage.objects;
 CREATE POLICY tenant_logos_delete_authorized
     ON storage.objects
     FOR DELETE
@@ -527,10 +531,12 @@ CREATE POLICY tenant_logos_delete_authorized
     );
 
 REVOKE ALL ON FUNCTION public.update_organization_governance_profile(
-    TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, SMALLINT, TEXT, JSONB, JSONB, JSONB
+    TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
+    SMALLINT, TEXT, JSONB, JSONB, JSONB
 ) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.update_organization_governance_profile(
-    TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, SMALLINT, TEXT, JSONB, JSONB, JSONB
+    TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
+    SMALLINT, TEXT, JSONB, JSONB, JSONB
 ) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.upsert_tenant_workspace_control(TEXT, JSONB) FROM PUBLIC;
