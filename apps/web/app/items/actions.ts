@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { fetchProductDetail } from "@/lib/products/queries";
 import { productMasterSchema } from "@/lib/products/schemas";
+import { itemMediaSchema, itemVariantSchema } from "@/lib/products/variant-schemas";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -97,4 +98,114 @@ export async function getProductDetail(itemId: string) {
   const detail = await fetchProductDetail(supabase, tenantId, itemId);
   if (!detail) return { error: "Product profile not found." };
   return { detail };
+}
+
+export async function saveItemVariant(raw: unknown) {
+  const parsed = itemVariantSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid variant profile" };
+  }
+
+  const values = parsed.data;
+  const { supabase } = await requireTenantId();
+
+  const { data, error } = await supabase.rpc("save_item_variant", {
+    p_item_id: values.item_id,
+    p_sku: values.sku,
+    p_variant_id: values.variant_id,
+    p_barcode: values.barcode || null,
+    p_variant_attributes: buildVariantAttributes(values.variant_attributes),
+    p_dead_weight_kg: parseDecimal(values.dead_weight_kg),
+    p_weight: parseOptionalDecimal(values.weight),
+    p_volume: parseOptionalDecimal(values.volume),
+    p_length_cm: parseDecimal(values.length_cm),
+    p_width_cm: parseDecimal(values.width_cm),
+    p_height_cm: parseDecimal(values.height_cm),
+    p_is_active: values.is_active,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_item_variant") };
+    }
+    if (error.message.toLowerCase().includes("sku already exists")) {
+      return { error: "SKU is already assigned to another variant in this workspace." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/items");
+  return { success: true as const, variantId: data as string };
+}
+
+export async function deleteItemVariant(variantId: string) {
+  const { supabase } = await requireTenantId();
+
+  const { error } = await supabase.rpc("delete_item_variant", {
+    p_variant_id: variantId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("delete_item_variant") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/items");
+  return { success: true as const };
+}
+
+export async function saveItemMedia(raw: unknown) {
+  const parsed = itemMediaSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid media profile" };
+  }
+
+  const values = parsed.data;
+  const { supabase } = await requireTenantId();
+
+  const { data, error } = await supabase.rpc("save_item_media", {
+    p_item_id: values.item_id,
+    p_storage_url: values.storage_url,
+    p_media_id: values.media_id,
+    p_variant_id: values.variant_id,
+    p_sort_order: values.sort_order,
+    p_is_primary: values.is_primary,
+    p_show_on_storefront: values.show_on_storefront,
+    p_show_in_digital_catalog: values.show_in_digital_catalog,
+    p_show_on_internal_transactions: values.show_on_internal_transactions,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_item_media") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/items");
+  return { success: true as const, mediaId: data as string };
+}
+
+export async function deleteItemMedia(mediaId: string, storagePath?: string) {
+  const { supabase } = await requireTenantId();
+
+  const { error } = await supabase.rpc("delete_item_media", {
+    p_media_id: mediaId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("delete_item_media") };
+    }
+    return { error: error.message };
+  }
+
+  if (storagePath?.trim()) {
+    await supabase.storage.from("product-media").remove([storagePath.trim()]);
+  }
+
+  revalidatePath("/items");
+  return { success: true as const };
 }

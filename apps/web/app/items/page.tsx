@@ -38,6 +38,7 @@ export default async function ItemsPage() {
       operatorProfile={operatorProfile}
     >
       <ProductCatalogTerminal
+        tenantId={tenantId}
         initialProducts={products}
         categories={categories}
         catalogContext={catalogContext}

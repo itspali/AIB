@@ -17,6 +17,7 @@ import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } fro
 import { cn } from "@/lib/utils";
 
 type Props = {
+  tenantId: string;
   initialProducts: ProductListRow[];
   categories: CategoryRow[];
   catalogContext: ProductCatalogContext;
@@ -25,6 +26,7 @@ type Props = {
 type CanvasMode = "empty" | "detail" | "create" | "edit";
 
 export function ProductCatalogTerminal({
+  tenantId,
   initialProducts,
   categories,
   catalogContext,
@@ -67,6 +69,15 @@ export function ProductCatalogTerminal({
     setMode("empty");
     setSelectedId(null);
     setDetail(null);
+  };
+
+  const categoryTemplates = detail?.category_id
+    ? categories.find((category) => category.id === detail.category_id)?.attribute_templates ?? []
+    : [];
+
+  const refreshDetail = () => {
+    if (!selectedId) return;
+    loadDetail(selectedId, mode === "edit" ? "edit" : "detail");
   };
 
   const handleSaved = (itemId: string) => {
@@ -124,6 +135,7 @@ export function ProductCatalogTerminal({
         <section className="col-span-1 min-h-[420px] w-full p-4 sm:p-6 lg:col-span-8">
           {mode === "create" && (
             <ProductMasterForm
+              tenantId={tenantId}
               categories={categories}
               catalogContext={catalogContext}
               onCancel={handleCancel}
@@ -133,12 +145,16 @@ export function ProductCatalogTerminal({
 
           {mode === "edit" && detail && (
             <ProductMasterForm
+              tenantId={tenantId}
               categories={categories}
               catalogContext={catalogContext}
               valuations={detail.valuations}
+              variants={detail.variants}
+              media={detail.media}
               initialValues={detailToFormValues(detail)}
               onCancel={handleCancel}
               onSaved={handleSaved}
+              onExtensionsChanged={refreshDetail}
             />
           )}
 
@@ -146,11 +162,14 @@ export function ProductCatalogTerminal({
 
           {mode === "detail" && detail && !isLoadingDetail && (
             <ProductDetailViewport
+              tenantId={tenantId}
               product={detail}
               catalogContext={catalogContext}
+              categoryTemplates={categoryTemplates}
               onEdit={() => {
                 setMode("edit");
               }}
+              onExtensionsChanged={refreshDetail}
             />
           )}
 

@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { saveProductMasterProfile } from "@/app/items/actions";
+import { ProductMediaGallery } from "@/components/products/product-media-gallery";
+import { ProductVariantPanel } from "@/components/products/product-variant-panel";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,17 +36,23 @@ import {
   defaultProductFormValues,
   type ProductCatalogContext,
   type ProductMasterFormValues,
+  type ProductMediaSnapshot,
   type ProductValuationSnapshot,
+  type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  tenantId: string;
   categories: CategoryRow[];
   catalogContext: ProductCatalogContext;
   valuations?: ProductValuationSnapshot[];
+  variants?: ProductVariantSnapshot[];
+  media?: ProductMediaSnapshot[];
   initialValues?: ProductMasterFormValues;
   onCancel: () => void;
   onSaved: (itemId: string) => void;
+  onExtensionsChanged?: () => void;
 };
 
 function formatMoney(amount: string, currency: string): string {
@@ -83,12 +91,16 @@ function SwitchRow({
 }
 
 export function ProductMasterForm({
+  tenantId,
   categories,
   catalogContext,
   valuations = [],
+  variants = [],
+  media = [],
   initialValues,
   onCancel,
   onSaved,
+  onExtensionsChanged,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -107,6 +119,7 @@ export function ProductMasterForm({
   } = form;
 
   const showAdvanced = watch("show_advanced");
+  const itemId = watch("item_id");
   const categoryId = watch("category_id");
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
@@ -588,7 +601,7 @@ export function ProductMasterForm({
             <div className="sm:col-span-2">
               <SwitchRow
                 label="Multi-variant product"
-                description="Marks the item as supporting multiple SKU variants in future catalog expansion."
+                description="Enable additional SKU variants. Use the variant manager below after saving."
                 checked={watch("has_variants")}
                 disabled={isPending}
                 onCheckedChange={(checked) => setValue("has_variants", checked, { shouldDirty: true })}
@@ -713,6 +726,30 @@ export function ProductMasterForm({
               }
             />
           </div>
+        </section>
+      )}
+
+      {itemId && (
+        <>
+          <ProductVariantPanel
+            itemId={itemId}
+            variants={variants}
+            categoryTemplates={categoryTemplates}
+            onChanged={() => onExtensionsChanged?.()}
+          />
+          <ProductMediaGallery
+            tenantId={tenantId}
+            itemId={itemId}
+            variants={variants}
+            media={media}
+            onChanged={() => onExtensionsChanged?.()}
+          />
+        </>
+      )}
+
+      {!itemId && (
+        <section className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+          Save the product profile first to manage additional variants and upload images.
         </section>
       )}
 

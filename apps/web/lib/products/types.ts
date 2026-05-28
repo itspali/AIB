@@ -31,6 +31,36 @@ export type ProductValuationSnapshot = {
   current_average_cost: string;
 };
 
+export type ProductVariantSnapshot = {
+  id: string;
+  sku: string;
+  barcode: string | null;
+  variant_attributes: Record<string, unknown>;
+  dead_weight_kg: string;
+  weight: string;
+  volume: string;
+  length_cm: string;
+  width_cm: string;
+  height_cm: string;
+  is_active: boolean;
+  is_master: boolean;
+  created_at: string;
+};
+
+export type ProductMediaSnapshot = {
+  id: string;
+  item_id: string;
+  variant_id: string | null;
+  storage_url: string;
+  preview_url: string | null;
+  sort_order: number;
+  is_primary: boolean;
+  show_on_storefront: boolean;
+  show_in_digital_catalog: boolean;
+  show_on_internal_transactions: boolean;
+  created_at: string;
+};
+
 export type ProductDetailSnapshot = {
   id: string;
   name: string;
@@ -65,9 +95,67 @@ export type ProductDetailSnapshot = {
   supplier_id: string | null;
   supplier_name: string | null;
   valuations: ProductValuationSnapshot[];
+  variants: ProductVariantSnapshot[];
+  media: ProductMediaSnapshot[];
   created_at: string;
   updated_at: string;
 };
+
+export type ItemVariantFormValues = {
+  variant_id: string | null;
+  item_id: string;
+  sku: string;
+  barcode: string;
+  dead_weight_kg: string;
+  weight: string;
+  volume: string;
+  length_cm: string;
+  width_cm: string;
+  height_cm: string;
+  is_active: boolean;
+  variant_attributes: Record<string, string>;
+};
+
+export const defaultVariantFormValues = (itemId: string): ItemVariantFormValues => ({
+  variant_id: null,
+  item_id: itemId,
+  sku: "",
+  barcode: "",
+  dead_weight_kg: "0",
+  weight: "",
+  volume: "",
+  length_cm: "0",
+  width_cm: "0",
+  height_cm: "0",
+  is_active: true,
+  variant_attributes: {},
+});
+
+export function variantSnapshotToFormValues(
+  variant: ProductVariantSnapshot,
+  itemId: string
+): ItemVariantFormValues {
+  const variantAttributes: Record<string, string> = {};
+  for (const [key, value] of Object.entries(variant.variant_attributes)) {
+    if (value === null || value === undefined) continue;
+    variantAttributes[key] = Array.isArray(value) ? value.join(", ") : String(value);
+  }
+
+  return {
+    variant_id: variant.id,
+    item_id: itemId,
+    sku: variant.sku,
+    barcode: variant.barcode ?? "",
+    dead_weight_kg: variant.dead_weight_kg,
+    weight: variant.weight !== "0" ? variant.weight : "",
+    volume: variant.volume !== "0" ? variant.volume : "",
+    length_cm: variant.length_cm,
+    width_cm: variant.width_cm,
+    height_cm: variant.height_cm,
+    is_active: variant.is_active,
+    variant_attributes: variantAttributes,
+  };
+}
 
 export type ProductMasterFormValues = {
   item_id: string | null;

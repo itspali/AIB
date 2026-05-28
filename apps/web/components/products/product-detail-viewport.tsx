@@ -1,17 +1,23 @@
 "use client";
 
 import { Pencil } from "lucide-react";
+import { ProductMediaGallery } from "@/components/products/product-media-gallery";
+import { ProductVariantPanel } from "@/components/products/product-variant-panel";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dashboard/format";
+import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
 
 type Props = {
+  tenantId: string;
   product: ProductDetailSnapshot;
   catalogContext: ProductCatalogContext;
+  categoryTemplates?: AttributeTemplateEntry[];
   onEdit: () => void;
+  onExtensionsChanged?: () => void;
 };
 
 function formatMoney(amount: string, currency: string): string {
@@ -31,7 +37,14 @@ function FlagBadge({ active, activeLabel, inactiveLabel }: { active: boolean; ac
   );
 }
 
-export function ProductDetailViewport({ product, catalogContext, onEdit }: Props) {
+export function ProductDetailViewport({
+  tenantId,
+  product,
+  catalogContext,
+  categoryTemplates = [],
+  onEdit,
+  onExtensionsChanged,
+}: Props) {
   const attributeEntries = Object.entries(product.variant_attributes).filter(
     ([, value]) => value !== null && value !== undefined && String(value).trim() !== ""
   );
@@ -141,6 +154,21 @@ export function ProductDetailViewport({ product, catalogContext, onEdit }: Props
           </div>
         </section>
       )}
+
+      <ProductVariantPanel
+        itemId={product.id}
+        variants={product.variants}
+        categoryTemplates={categoryTemplates}
+        onChanged={() => onExtensionsChanged?.()}
+      />
+
+      <ProductMediaGallery
+        tenantId={tenantId}
+        itemId={product.id}
+        variants={product.variants}
+        media={product.media}
+        onChanged={() => onExtensionsChanged?.()}
+      />
 
       <section className="surface-panel space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

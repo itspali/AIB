@@ -2,11 +2,14 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isItemClassification } from "@/lib/products/classification-labels";
+import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { isTaxCategory } from "@/lib/products/tax-options";
 import type {
   ProductDetailSnapshot,
   ProductListRow,
+  ProductMediaSnapshot,
   ProductValuationSnapshot,
+  ProductVariantSnapshot,
 } from "@/lib/products/types";
 
 type VariantRow = {
@@ -126,6 +129,89 @@ function pickPreferredSupplier(
 ): SupplierItemRow | null {
   if (!rows?.length) return null;
   return rows.find((row) => row.is_preferred) ?? rows[0] ?? null;
+}
+
+type MediaRow = {
+  id: string;
+  item_id: string;
+  variant_id: string | null;
+  storage_url: string;
+  sort_order: number;
+  is_primary: boolean;
+  show_on_storefront: boolean;
+  show_in_digital_catalog: boolean;
+  show_on_internal_transactions: boolean;
+  created_at: string;
+};
+
+function mapVariantRow(row: VariantRow, masterVariantId: string): ProductVariantSnapshot {
+  return {
+    id: row.id,
+    sku: row.sku,
+    barcode: row.barcode,
+    variant_attributes:
+      row.variant_attributes && typeof row.variant_attributes === "object"
+        ? row.variant_attributes
+        : {},
+    dead_weight_kg: formatDecimal(row.dead_weight_kg, "0"),
+    weight: formatDecimal(row.weight, "0"),
+    volume: formatDecimal(row.volume, "0"),
+    length_cm: formatDecimal(row.length_cm, "0"),
+    width_cm: formatDecimal(row.width_cm, "0"),
+    height_cm: formatDecimal(row.height_cm, "0"),
+    is_active: row.is_active,
+    is_master: row.id === masterVariantId,
+    created_at: row.created_at,
+  };
+}
+
+async function fetchProductMedia(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<ProductMediaSnapshot[]> {
+  const { data, error } = await supabase
+    .from("item_media")
+    .select(
+      `
+      id,
+      item_id,
+      variant_id,
+      storage_url,
+      sort_order,
+      is_primary,
+      show_on_storefront,
+      show_in_digital_catalog,
+      show_on_internal_transactions,
+      created_at
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .order("sort_order")
+    .order("created_at");
+
+  if (error || !data?.length) return [];
+
+  const rows = data as MediaRow[];
+  const signedUrls = await resolveProductMediaSignedUrls(
+    supabase,
+    rows.map((row) => row.storage_url)
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    item_id: row.item_id,
+    variant_id: row.variant_id,
+    storage_url: row.storage_url,
+    preview_url: signedUrls.get(row.storage_url) ?? null,
+    sort_order: row.sort_order,
+    is_primary: row.is_primary,
+    show_on_storefront: row.show_on_storefront,
+    show_in_digital_catalog: row.show_in_digital_catalog,
+    show_on_internal_transactions: row.show_on_internal_transactions,
+    created_at: row.created_at,
+  }));
 }
 
 function mapValuations(rows: ValuationRow[] | null | undefined): ProductValuationSnapshot[] {
@@ -254,6 +340,7 @@ export async function fetchProductDetail(
     { data: itemUoms },
     { data: supplierItems },
     { data: valuations },
+    media,
   ] = await Promise.all([
     supabase
       .from("price_book_entries")
@@ -297,7 +384,14 @@ export async function fetchProductDetail(
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId)
       .order("total_quantity_on_hand", { ascending: false }),
+    fetchProductMedia(supabase, tenantId, itemId),
   ]);
+
+  const sortedVariants = [...(row.item_variants ?? [])].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const masterVariantId = sortedVariants[0]?.id ?? variant.id;
+  const variants = sortedVariants.map((entry) => mapVariantRow(entry, masterVariantId));
 
   const priceEntry = pickDefaultPriceEntry(priceEntries as PriceBookEntryRow[] | null);
   const purchaseUom = pickAlternatePurchaseUom(
@@ -347,6 +441,8 @@ export async function fetchProductDetail(
     supplier_id: preferredSupplier?.supplier_id ?? null,
     supplier_name: preferredSupplier ? resolveEntityName(preferredSupplier.entities) : null,
     valuations: mapValuations(valuations as ValuationRow[] | null),
+    variants,
+    media,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
