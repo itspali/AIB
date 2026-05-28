@@ -6,23 +6,11 @@ import {
   organizationSettingsSchema,
 } from "@/lib/organization/schemas";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
+import { buildNamingSequencesPayload } from "@/lib/naming/sequences";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 const ORGANIZATION_PATHS = ["/settings/organization", "/dashboard"];
-
-function buildNamingSequencesPayload(
-  raw: Record<string, { prefix: string; digits: string }>
-): Record<string, { prefix: string; digits: number }> {
-  const payload: Record<string, { prefix: string; digits: number }> = {};
-  for (const [key, entry] of Object.entries(raw)) {
-    const prefix = entry.prefix.trim();
-    if (!prefix) continue;
-    const digits = Number(entry.digits) || 5;
-    payload[key] = { prefix, digits };
-  }
-  return payload;
-}
 
 export async function saveOrganizationSettings(raw: unknown) {
   const parsed = organizationSettingsSchema.safeParse(raw);

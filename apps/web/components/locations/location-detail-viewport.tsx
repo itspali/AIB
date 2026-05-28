@@ -5,12 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   locationCapabilitySummary,
+  detailAdminCapabilityText,
+  detailStorefrontCapabilityText,
+  posCountCompactLabel,
   resolveAxisMicroBadges,
   resolveLocationTagVariant,
   tagLabel,
 } from "@/lib/locations/axis-labels";
 import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
 import type { LocationRow, RevenueAccountOption } from "@/lib/locations/types";
+import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
+import { hasNamingOverrides, namingOverrideSummary } from "@/lib/naming/sequences";
 import {
   parseVirtualLocationConfiguration,
   virtualFulfillmentModeLabel,
@@ -50,6 +55,10 @@ export function LocationDetailViewport({
         (account) => account.id === virtualConfig.default_revenue_clearing_account_id
       )
     : null;
+  const namingSequences = parseLocationNamingSequences(location.location_meta);
+  const namingOverrides = hasNamingOverrides(namingSequences)
+    ? namingOverrideSummary(namingSequences)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -95,14 +104,11 @@ export function LocationDetailViewport({
         <div>
           <dt className="text-sm font-medium text-muted-foreground">Operational capabilities</dt>
           <dd className="mt-1 space-y-1 text-sm">
-            {location.is_administrative_office && <p>Business / HQ administrative office</p>}
+            {location.is_administrative_office && (
+              <p>{detailAdminCapabilityText(location.presence_type)}</p>
+            )}
             {location.is_commercial_storefront && (
-              <p>
-                Commercial storefront
-                {location.pos_terminal_count > 0
-                  ? ` · ${location.pos_terminal_count} active POS terminals`
-                  : ""}
-              </p>
+              <p>{detailStorefrontCapabilityText(location)}</p>
             )}
             {location.is_stock_holding && <p>Stock-holding warehouse authority</p>}
             {location.is_manufacturing_floor && (
@@ -237,6 +243,32 @@ export function LocationDetailViewport({
                   : virtualConfig.default_revenue_clearing_account_id ?? "—"}
               </dd>
             </div>
+          </dl>
+        </section>
+      )}
+
+      {namingOverrides.length > 0 && (
+        <section className="surface-panel space-y-4 p-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Document Naming Overrides
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This facility node uses local prefixes instead of organization defaults.
+            </p>
+          </div>
+          <dl className="space-y-2">
+            {namingOverrides.map((entry) => (
+              <div key={entry.key} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                <dt className="text-muted-foreground">{entry.key.replace(/_/g, " ")}</dt>
+                <dd className="font-mono">
+                  {entry.prefix}
+                  {"{"}
+                  {entry.digits}
+                  {"}"}
+                </dd>
+              </div>
+            ))}
           </dl>
         </section>
       )}

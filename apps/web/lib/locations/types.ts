@@ -1,10 +1,12 @@
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import type {
   RevenueAccountOption,
   VirtualLocationConfiguration,
 } from "@/lib/locations/virtual-config";
 
 export type { RevenueAccountOption, VirtualLocationConfiguration };
+export type { NamingSequenceEntry };
 
 export const PRESENCE_ENVIRONMENTS = ["PHYSICAL", "VIRTUAL"] as const;
 
@@ -75,6 +77,7 @@ export type LocationModuleContext = {
   centralHqLocationId: string | null;
   canManage: boolean;
   revenueAccounts: RevenueAccountOption[];
+  tenantNamingDefaults: Record<string, NamingSequenceEntry>;
 };
 
 export type LocationFormValues = {
@@ -101,6 +104,7 @@ export type LocationFormValues = {
   tax_registered_name: string;
   show_advanced: boolean;
   virtual_configuration: VirtualLocationConfiguration;
+  naming_sequences: Record<string, NamingSequenceEntry>;
   existing_location_meta?: Record<string, unknown>;
   code_manually_edited?: boolean;
   code_generation?: {

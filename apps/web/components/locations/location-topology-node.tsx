@@ -4,6 +4,7 @@ import { ChevronRight, Globe2, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   locationCapabilitySummary,
+  posCountCompactLabel,
   resolveLocationTagVariant,
   tagLabel,
 } from "@/lib/locations/axis-labels";
@@ -84,7 +85,9 @@ export function LocationTopologyNodeRow({
           </p>
           <p className="mt-1 text-muted-foreground">
             {node.is_stock_holding ? "Stock holding" : "Non-stock"} · {node.child_count} children
-            {node.pos_terminal_count > 0 ? ` · ${node.pos_terminal_count} POS` : ""}
+            {node.pos_terminal_count > 0
+              ? posCountCompactLabel(node.presence_type, node.pos_terminal_count)
+              : ""}
           </p>
         </div>
       </div>

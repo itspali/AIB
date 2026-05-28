@@ -128,6 +128,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
               rows={initialRows}
               governance={moduleContext.governance}
               revenueAccounts={moduleContext.revenueAccounts}
+              tenantNamingDefaults={moduleContext.tenantNamingDefaults}
               editingLocation={editingLocation}
               onDiscard={handleDiscard}
               onSaved={handleSaved}

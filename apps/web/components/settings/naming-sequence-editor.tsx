@@ -1,21 +1,25 @@
 "use client";
 
 import { NAMING_SEQUENCE_KEYS } from "@/lib/organization/naming-options";
-import type { NamingSequenceEntry } from "@/lib/organization/types";
+import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type Props = {
   values: Record<string, NamingSequenceEntry>;
+  tenantDefaults?: Record<string, NamingSequenceEntry>;
   disabled?: boolean;
   onChange: (key: string, field: keyof NamingSequenceEntry, value: string) => void;
 };
 
-export function NamingSequenceEditor({ values, disabled, onChange }: Props) {
+export function NamingSequenceEditor({ values, tenantDefaults, disabled, onChange }: Props) {
   return (
     <div className="space-y-3">
       {NAMING_SEQUENCE_KEYS.map((key) => {
         const entry = values[key] ?? { prefix: "", digits: "5" };
+        const tenantDefault = tenantDefaults?.[key];
+        const inheritedPrefix = tenantDefault?.prefix?.trim() || "not configured";
+        const inheritedDigits = tenantDefault?.digits?.trim() || "5";
         return (
           <div key={key} className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_2fr_1fr]">
             <div>
@@ -28,7 +32,11 @@ export function NamingSequenceEditor({ values, disabled, onChange }: Props) {
                 disabled={disabled}
                 className="font-mono"
                 value={entry.prefix}
-                placeholder="e.g. PO-2026-"
+                placeholder={
+                  tenantDefaults
+                    ? `Inherit: ${inheritedPrefix}`
+                    : "e.g. PO-2026-"
+                }
                 onChange={(event) => onChange(key, "prefix", event.target.value)}
               />
             </div>
@@ -39,6 +47,7 @@ export function NamingSequenceEditor({ values, disabled, onChange }: Props) {
                 className="text-right font-mono"
                 inputMode="numeric"
                 value={entry.digits}
+                placeholder={tenantDefaults ? inheritedDigits : "5"}
                 onChange={(event) => onChange(key, "digits", event.target.value)}
               />
             </div>

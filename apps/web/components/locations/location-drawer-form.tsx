@@ -21,11 +21,18 @@ import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/gover
 import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from "@/lib/locations/types";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
-import { presenceLabel } from "@/lib/locations/axis-labels";
+import {
+  adminCapabilityToggleLabel,
+  posCountFieldLabel,
+  presenceLabel,
+  storefrontCapabilityToggleLabel,
+} from "@/lib/locations/axis-labels";
+import { emptyNamingSequencesForm } from "@/lib/naming/sequences";
 import {
   DEFAULT_VIRTUAL_LOCATION_CONFIG,
   parseVirtualLocationConfiguration,
 } from "@/lib/locations/virtual-config";
+import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
 
 type Props = {
   open: boolean;
@@ -60,6 +67,7 @@ const defaultForm: LocationFormValues = {
   tax_registered_name: "",
   show_advanced: false,
   virtual_configuration: DEFAULT_VIRTUAL_LOCATION_CONFIG,
+  naming_sequences: emptyNamingSequencesForm(),
   existing_location_meta: {},
 };
 
@@ -119,6 +127,7 @@ export function LocationDrawerForm({
             editingLocation.pos_terminal_count > 0
         ),
         virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
+        naming_sequences: parseLocationNamingSequences(editingLocation.location_meta),
         existing_location_meta: editingLocation.location_meta,
       });
     } else {
@@ -251,12 +260,12 @@ export function LocationDrawerForm({
         <div className="space-y-3 rounded-lg border border-border p-4">
           <p className="text-sm font-medium">Functional capabilities</p>
           <SwitchRow
-            label="Business / administrative office"
+            label={adminCapabilityToggleLabel(form.presence_type)}
             checked={form.is_administrative_office}
             onCheckedChange={(checked) => updateField("is_administrative_office", checked)}
           />
           <SwitchRow
-            label="Commercial storefront"
+            label={storefrontCapabilityToggleLabel(form.presence_type)}
             checked={form.is_commercial_storefront}
             onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
           />
@@ -268,7 +277,7 @@ export function LocationDrawerForm({
           />
           {form.is_commercial_storefront && (
             <div className="space-y-2">
-              <Label>POS terminal count</Label>
+              <Label>{posCountFieldLabel(form.presence_type)}</Label>
               <Input
                 type="number"
                 min={0}

@@ -10,6 +10,8 @@ import type {
   PresenceEnvironment,
   RevenueAccountOption,
 } from "@/lib/locations/types";
+import type { NamingSequenceEntry } from "@/lib/naming/sequences";
+import { parseNamingSequences } from "@/lib/naming/sequences";
 import { mapTenantRowToSnapshotParts } from "@/lib/organization/types";
 
 function mapLocationRow(row: Record<string, unknown>): LocationRow {
@@ -133,14 +135,29 @@ export async function fetchRevenueAccounts(
   }));
 }
 
+export async function fetchTenantNamingDefaults(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<Record<string, NamingSequenceEntry>> {
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("naming_sequences")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (error || !data) return parseNamingSequences({});
+  return parseNamingSequences(data.naming_sequences);
+}
+
 export async function fetchLocationModuleContext(
   supabase: SupabaseClient,
   tenantId: string,
   canManage: boolean
 ): Promise<LocationModuleContext | null> {
-  const [governance, revenueAccounts] = await Promise.all([
+  const [governance, revenueAccounts, tenantNamingDefaults] = await Promise.all([
     fetchLocationGovernanceSnapshot(supabase, tenantId),
     fetchRevenueAccounts(supabase, tenantId),
+    fetchTenantNamingDefaults(supabase, tenantId),
   ]);
   if (!governance) return null;
 
@@ -149,5 +166,6 @@ export async function fetchLocationModuleContext(
     centralHqLocationId: governance.central_hq_location_id,
     canManage,
     revenueAccounts,
+    tenantNamingDefaults,
   };
 }

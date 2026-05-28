@@ -6,6 +6,7 @@ import {
   VIRTUAL_FULFILLMENT_MODES,
   WEBHOOK_VERIFICATION_STATUSES,
 } from "@/lib/locations/virtual-config";
+import { locationNamingSequencesSchema } from "@/lib/naming/sequences";
 
 export const virtualLocationConfigurationSchema = z.object({
   fulfillment_assignment_mode: z.enum(VIRTUAL_FULFILLMENT_MODES),
@@ -55,6 +56,7 @@ export const locationFormSchema = z
       .optional(),
     existing_location_meta: z.record(z.unknown()).optional(),
     virtual_configuration: virtualLocationConfigurationSchema.optional(),
+    naming_sequences: locationNamingSequencesSchema.optional(),
   })
   .superRefine((values, ctx) => {
     if (values.presence_type === "PHYSICAL") {

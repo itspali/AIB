@@ -18,15 +18,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LocationVirtualAdvancedPanel } from "@/components/locations/location-virtual-advanced-panel";
+import { LocationNamingAdvancedPanel } from "@/components/locations/location-naming-advanced-panel";
+import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
 import { buildLocationCodeSuggestInput } from "@/lib/locations/code-generation";
-import { presenceLabel } from "@/lib/locations/axis-labels";
+import {
+  adminCapabilityCardTitle,
+  adminCapabilityToggleLabel,
+  posCountFieldLabel,
+  presenceLabel,
+  storefrontCapabilityCardTitle,
+  storefrontCapabilityToggleLabel,
+} from "@/lib/locations/axis-labels";
 import {
   PRESENCE_ENVIRONMENTS,
   type LocationFormValues,
   type LocationRow,
+  type NamingSequenceEntry,
   type RevenueAccountOption,
 } from "@/lib/locations/types";
+import { emptyNamingSequencesForm, hasNamingOverrides } from "@/lib/naming/sequences";
 import {
   DEFAULT_VIRTUAL_LOCATION_CONFIG,
   parseVirtualLocationConfiguration,
@@ -39,6 +50,7 @@ type Props = {
   rows: LocationRow[];
   governance: OrganizationLocationGovernanceConfig;
   revenueAccounts: RevenueAccountOption[];
+  tenantNamingDefaults: Record<string, NamingSequenceEntry>;
   editingLocation?: LocationRow | null;
   onDiscard: () => void;
   onSaved: (locationId: string) => void;
@@ -68,6 +80,7 @@ const defaultForm: LocationFormValues = {
   tax_registered_name: "",
   show_advanced: false,
   virtual_configuration: DEFAULT_VIRTUAL_LOCATION_CONFIG,
+  naming_sequences: emptyNamingSequencesForm(),
   existing_location_meta: {},
 };
 
@@ -86,6 +99,7 @@ export function LocationProvisionForm({
   rows,
   governance,
   revenueAccounts,
+  tenantNamingDefaults,
   editingLocation = null,
   onDiscard,
   onSaved,
@@ -109,6 +123,7 @@ export function LocationProvisionForm({
     if (editingLocation) {
       codeManuallyEditedRef.current = true;
       lastSuggestionRef.current = null;
+      const namingSequences = parseLocationNamingSequences(editingLocation.location_meta);
       setForm({
         location_id: editingLocation.id,
         name: editingLocation.name,
@@ -141,9 +156,11 @@ export function LocationProvisionForm({
             editingLocation.is_stock_holding ||
             editingLocation.pos_terminal_count > 0 ||
             editingLocation.address_line2 ||
-            editingLocation.presence_type === "VIRTUAL"
+            editingLocation.presence_type === "VIRTUAL" ||
+            hasNamingOverrides(namingSequences)
         ),
         virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
+        naming_sequences: namingSequences,
         existing_location_meta: editingLocation.location_meta,
       });
     } else {
@@ -388,8 +405,8 @@ export function LocationProvisionForm({
             <p className="text-sm font-medium">Show Advanced Parameters</p>
             <p className="text-xs text-muted-foreground">
               {isVirtual
-                ? "Reveal digital integration hooks, storefront controls, and virtual DOM routing."
-                : "Reveal address mapping, inventory rules, POS registry, and manufacturing controls."}
+                ? "Reveal digital integration hooks, sales channel controls, document naming, and virtual DOM routing."
+                : "Reveal address mapping, inventory rules, POS registry, document naming, and manufacturing controls."}
             </p>
           </div>
           <Switch
@@ -400,9 +417,9 @@ export function LocationProvisionForm({
 
         {form.show_advanced && (
           <div className="space-y-4">
-            <CapabilityCard title="Administrative / HQ Office">
+            <CapabilityCard title={adminCapabilityCardTitle(form.presence_type)}>
               <SwitchRow
-                label="Mark as business headquarters or administrative office"
+                label={adminCapabilityToggleLabel(form.presence_type)}
                 checked={form.is_administrative_office}
                 onCheckedChange={(checked) => updateField("is_administrative_office", checked)}
               />
@@ -410,17 +427,15 @@ export function LocationProvisionForm({
 
             {isVirtual ? (
               <>
-                <CapabilityCard title="POS Terminal Registry">
+                <CapabilityCard title={storefrontCapabilityCardTitle(form.presence_type)}>
                   <SwitchRow
-                    label="Operates a consumer retail storefront / sales desk"
+                    label={storefrontCapabilityToggleLabel(form.presence_type)}
                     checked={form.is_commercial_storefront}
                     onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
                   />
                   {form.is_commercial_storefront && (
                     <div className="mt-3 space-y-2">
-                      <Label htmlFor="pos-count">
-                        Number of active cash registers / billing terminals
-                      </Label>
+                      <Label htmlFor="pos-count">{posCountFieldLabel(form.presence_type)}</Label>
                       <Input
                         id="pos-count"
                         type="number"
@@ -524,17 +539,15 @@ export function LocationProvisionForm({
                   )}
                 </CapabilityCard>
 
-                <CapabilityCard title="POS Terminal Registry">
+                <CapabilityCard title={storefrontCapabilityCardTitle(form.presence_type)}>
                   <SwitchRow
-                    label="Operates a consumer retail storefront / sales desk"
+                    label={storefrontCapabilityToggleLabel(form.presence_type)}
                     checked={form.is_commercial_storefront}
                     onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
                   />
                   {form.is_commercial_storefront && (
                     <div className="mt-3 space-y-2">
-                      <Label htmlFor="pos-count">
-                        Number of active cash registers / billing terminals
-                      </Label>
+                      <Label htmlFor="pos-count">{posCountFieldLabel(form.presence_type)}</Label>
                       <Input
                         id="pos-count"
                         type="number"
@@ -566,6 +579,12 @@ export function LocationProvisionForm({
                 </CapabilityCard>
               </>
             )}
+
+            <LocationNamingAdvancedPanel
+              value={form.naming_sequences}
+              tenantDefaults={tenantNamingDefaults}
+              onChange={(naming_sequences) => updateField("naming_sequences", naming_sequences)}
+            />
           </div>
         )}
 

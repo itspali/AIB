@@ -5,7 +5,8 @@ import { locationFormSchema, domRoutingSaveSchema } from "@/lib/locations/schema
 import type { LocationCodeSuggestInput, LocationCodeSuggestion } from "@/lib/locations/code-generation";
 import { resolveLocationManagementAccess } from "@/lib/locations/access";
 import { buildDomRoutingPatch } from "@/lib/locations/dom-routing";
-import { buildLocationMetaPatch, DEFAULT_VIRTUAL_LOCATION_CONFIG } from "@/lib/locations/virtual-config";
+import { buildLocationMetaPatch } from "@/lib/locations/location-meta";
+import { DEFAULT_VIRTUAL_LOCATION_CONFIG } from "@/lib/locations/virtual-config";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -44,6 +45,7 @@ export async function saveLocation(raw: unknown) {
       values.presence_type === "VIRTUAL"
         ? (values.virtual_configuration ?? DEFAULT_VIRTUAL_LOCATION_CONFIG)
         : undefined,
+    naming_sequences: values.naming_sequences,
   });
 
   const { data, error } = await supabase.rpc("save_tenant_location", {

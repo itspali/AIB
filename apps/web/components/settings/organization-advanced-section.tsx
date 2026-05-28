@@ -213,6 +213,10 @@ export function OrganizationAdvancedSection({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Document Naming Sequences
         </h2>
+        <p className="text-sm text-muted-foreground">
+          Tenant-wide defaults for all facility nodes. Override per location in the Location Command
+          Center advanced settings when a site needs its own prefixes.
+        </p>
         <NamingSequenceEditor
           values={namingSequences}
           disabled={disabled}

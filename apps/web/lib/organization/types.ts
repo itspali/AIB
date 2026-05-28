@@ -3,11 +3,10 @@ import { parseDomRoutingConfig } from "@/lib/locations/dom-routing";
 import type { CreditControlEnforcement } from "@/lib/organization/credit-control-options";
 import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
+import type { NamingSequenceEntry } from "@/lib/naming/sequences";
+import { parseNamingSequences } from "@/lib/naming/sequences";
 
-export type NamingSequenceEntry = {
-  prefix: string;
-  digits: string;
-};
+export type { NamingSequenceEntry };
 
 export type OrganizationAccountingConfig = {
   inventory_valuation_method: string;
@@ -116,20 +115,6 @@ export type OrganizationSettingsFormValues = {
   accounting_period_closing_date: string;
   show_advanced: boolean;
 };
-
-function parseNamingSequences(raw: unknown): Record<string, NamingSequenceEntry> {
-  if (!raw || typeof raw !== "object") return {};
-  const result: Record<string, NamingSequenceEntry> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!value || typeof value !== "object") continue;
-    const entry = value as Record<string, unknown>;
-    result[key] = {
-      prefix: entry.prefix != null ? String(entry.prefix) : "",
-      digits: entry.digits != null ? String(entry.digits) : "5",
-    };
-  }
-  return result;
-}
 
 function parseAccountingConfig(raw: unknown): OrganizationAccountingConfig {
   const config =
