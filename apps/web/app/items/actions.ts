@@ -102,7 +102,7 @@ export async function saveProductMasterProfile(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantId();
 
   const { data, error } = await supabase.rpc("save_product_master_profile", {
     p_item_id: values.item_id,
@@ -157,7 +157,11 @@ export async function saveProductMasterProfile(raw: unknown) {
 
   revalidatePath("/items");
   revalidatePath("/items/categories");
-  return { success: true as const, itemId: data as string };
+
+  const itemId = data as string;
+  const detail = await fetchProductDetail(supabase, tenantId, itemId);
+
+  return { success: true as const, itemId, detail };
 }
 
 export async function getProductDetail(itemId: string) {

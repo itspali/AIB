@@ -10,6 +10,7 @@ import { ProductCatalogExtensions } from "@/components/products/product-catalog-
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
+import { FormSectionNav } from "@/components/settings/form-section-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,11 +38,14 @@ import { UOM_OPTIONS } from "@/lib/products/uom-options";
 import {
   defaultProductFormValues,
   type ProductCatalogContext,
+  type ProductDetailSnapshot,
   type ProductMasterFormValues,
   type ProductMediaSnapshot,
   type ProductValuationSnapshot,
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
+import { PRODUCT_FORM_SECTIONS, PRODUCT_SECTION_IDS } from "@/lib/products/section-nav";
+import { useFormSectionSpy } from "@/lib/settings/form-section-spy";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -52,8 +56,9 @@ type Props = {
   variants?: ProductVariantSnapshot[];
   media?: ProductMediaSnapshot[];
   initialValues?: ProductMasterFormValues;
+  layout?: "canvas" | "drawer";
   onCancel: () => void;
-  onSaved: (itemId: string) => void;
+  onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
 };
 
@@ -100,6 +105,7 @@ export function ProductMasterForm({
   variants = [],
   media = [],
   initialValues,
+  layout = "canvas",
   onCancel,
   onSaved,
   onExtensionsChanged,
@@ -107,6 +113,9 @@ export function ProductMasterForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
+  const moduleHeaderRef = useRef<HTMLDivElement>(null);
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+  const isDrawer = layout === "drawer";
 
   const form = useForm<ProductMasterFormValues>({
     resolver: zodResolver(productMasterSchema),
@@ -144,6 +153,29 @@ export function ProductMasterForm({
     return categories.find((category) => category.id === categoryId)?.attribute_templates ?? [];
   }, [categories, categoryId]);
 
+  const visibleSections = useMemo(
+    () => PRODUCT_FORM_SECTIONS.filter((section) => !section.advanced || showAdvanced),
+    [showAdvanced]
+  );
+  const sectionIds = useMemo(() => visibleSections.map((section) => section.id), [visibleSections]);
+  const { activeId, scrollToSection } = useFormSectionSpy(sectionIds, {
+    headerRef: moduleHeaderRef,
+    scrollRootRef: isDrawer ? scrollRootRef : undefined,
+  });
+
+  const handleSectionSelect = useCallback(
+    (sectionId: string) => {
+      const section = PRODUCT_FORM_SECTIONS.find((item) => item.id === sectionId);
+      if (section?.advanced && !showAdvanced) {
+        setValue("show_advanced", true);
+        window.setTimeout(() => scrollToSection(sectionId), 100);
+        return;
+      }
+      scrollToSection(sectionId);
+    },
+    [scrollToSection, setValue, showAdvanced]
+  );
+
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
       startTransition(async () => {
@@ -155,7 +187,7 @@ export function ProductMasterForm({
         }
 
         toast.success("Product master profile saved successfully");
-        onSaved(result.itemId);
+        onSaved(result.itemId, result.detail ?? null);
         router.refresh();
       });
     },
@@ -207,18 +239,42 @@ export function ProductMasterForm({
   }, [handleSubmit, onSubmit]);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold">
-          {initialValues?.item_id ? "Edit Product Master Profile" : "Create Product Master Profile"}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Essentials cover identity, commerce flags, and master SKU. Advanced fields map to the
-          full item and variant master schema.
-        </p>
-      </div>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className={cn(isDrawer ? "flex h-full min-h-0 flex-col" : "space-y-6")}
+    >
+      {isDrawer && (
+        <div
+          ref={moduleHeaderRef}
+          className="shrink-0 border-b border-border/60 bg-background pb-3"
+        >
+          <FormSectionNav
+            sections={visibleSections}
+            activeId={activeId}
+            onSelect={handleSectionSelect}
+          />
+        </div>
+      )}
 
-      <section className="surface-panel space-y-4">
+      <div
+        ref={scrollRootRef}
+        className={cn(
+          isDrawer ? "min-h-0 flex-1 space-y-6 overflow-y-auto py-1" : "space-y-6"
+        )}
+      >
+      {!isDrawer && (
+        <div>
+          <h2 className="text-xl font-semibold">
+            {initialValues?.item_id ? "Edit Product Master Profile" : "Create Product Master Profile"}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Essentials cover identity, commerce flags, and master SKU. Advanced fields map to the
+            full item and variant master schema.
+          </p>
+        </div>
+      )}
+
+      <section id={PRODUCT_SECTION_IDS.essentials} className="surface-panel space-y-4 scroll-mt-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Essential Product Attributes
         </h3>
@@ -359,7 +415,7 @@ export function ProductMasterForm({
         </div>
       </section>
 
-      <section className="surface-panel space-y-4">
+      <section id={PRODUCT_SECTION_IDS.commerce} className="surface-panel space-y-4 scroll-mt-4">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Commerce &amp; Costing
@@ -553,7 +609,10 @@ export function ProductMasterForm({
       </div>
 
       {showAdvanced && (
-        <section className="surface-panel space-y-6">
+        <section
+          id={PRODUCT_SECTION_IDS.advanced}
+          className="surface-panel space-y-6 scroll-mt-4"
+        >
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Advanced Logistical &amp; Statutory Attributes
           </h3>
@@ -795,7 +854,7 @@ export function ProductMasterForm({
         </section>
       )}
 
-      {itemId && (
+      {!isDrawer && itemId && (
         <>
           <ProductVariantPanel
             itemId={itemId}
@@ -815,13 +874,26 @@ export function ProductMasterForm({
         </>
       )}
 
-      {!itemId && (
+      {!isDrawer && !itemId && (
         <section className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
           Save the product profile first to manage additional variants and upload images.
         </section>
       )}
 
-      <div className="canvas-sticky-footer">
+      {isDrawer && (
+        <section className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+          Variants and images are managed on the product detail view after saving.
+        </section>
+      )}
+      </div>
+
+      <div
+        className={cn(
+          isDrawer
+            ? "flex shrink-0 items-center justify-end gap-2 border-t border-border pt-4"
+            : "canvas-sticky-footer"
+        )}
+      >
         <Button type="button" variant="ghost" disabled={isPending} onClick={onCancel}>
           Cancel
         </Button>

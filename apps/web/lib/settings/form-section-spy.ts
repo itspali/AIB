@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 
 const DASHBOARD_SCROLL_ROOT_SELECTOR = "[data-dashboard-scroll-root]";
 
-function getDashboardScrollRoot(): HTMLElement | null {
+function resolveScrollRoot(scrollRootRef?: RefObject<HTMLElement | null>): HTMLElement | null {
+  if (scrollRootRef?.current) return scrollRootRef.current;
   return document.querySelector(DASHBOARD_SCROLL_ROOT_SELECTOR);
 }
 
@@ -15,10 +16,11 @@ function getAnchorLine(headerRef: RefObject<HTMLElement | null>): number {
 export function scrollToFormSection(
   sectionId: string,
   headerRef: RefObject<HTMLElement | null>,
-  extraGap = 12
+  extraGap = 12,
+  scrollRootRef?: RefObject<HTMLElement | null>
 ) {
   const element = document.getElementById(sectionId);
-  const scrollRoot = getDashboardScrollRoot();
+  const scrollRoot = resolveScrollRoot(scrollRootRef);
   if (!element || !scrollRoot) return;
 
   const anchorLine = getAnchorLine(headerRef);
@@ -30,11 +32,12 @@ export function scrollToFormSection(
 
 type UseFormSectionSpyOptions = {
   headerRef: RefObject<HTMLElement | null>;
+  scrollRootRef?: RefObject<HTMLElement | null>;
 };
 
 export function useFormSectionSpy(
   sectionIds: string[],
-  { headerRef }: UseFormSectionSpyOptions
+  { headerRef, scrollRootRef }: UseFormSectionSpyOptions
 ) {
   const [activeId, setActiveId] = useState(sectionIds[0] ?? "");
   const ignoreUntilRef = useRef(0);
@@ -52,7 +55,7 @@ export function useFormSectionSpy(
   useEffect(() => {
     if (sectionIds.length === 0) return;
 
-    const scrollRoot = getDashboardScrollRoot();
+    const scrollRoot = resolveScrollRoot(scrollRootRef);
     if (!scrollRoot) return;
 
     const updateActive = () => {
@@ -90,15 +93,15 @@ export function useFormSectionSpy(
       window.removeEventListener("resize", updateActive);
       headerObserver?.disconnect();
     };
-  }, [headerRef, sectionIds.join(",")]);
+  }, [headerRef, scrollRootRef, sectionIds.join(",")]);
 
   const scrollToSection = useCallback(
     (sectionId: string) => {
       markScrollToSection();
       setActiveId(sectionId);
-      scrollToFormSection(sectionId, headerRef);
+      scrollToFormSection(sectionId, headerRef, 12, scrollRootRef);
     },
-    [headerRef, markScrollToSection]
+    [headerRef, markScrollToSection, scrollRootRef]
   );
 
   return { activeId, scrollToSection };

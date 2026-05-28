@@ -44,10 +44,16 @@ function killPort(targetPort) {
 
 killPort(port);
 
-const nextDir = join(webRoot, ".next");
-if (existsSync(nextDir)) {
-  rmSync(nextDir, { recursive: true, force: true });
-  console.log("Removed .next cache");
+const cachePaths = [
+  join(webRoot, ".next"),
+  join(webRoot, "node_modules", ".cache"),
+];
+
+for (const cachePath of cachePaths) {
+  if (existsSync(cachePath)) {
+    rmSync(cachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    console.log(`Removed ${cachePath.replace(webRoot, ".")}`);
+  }
 }
 
 console.log(`Starting next dev on port ${port}...`);

@@ -340,6 +340,37 @@ function mapListRow(row: ItemRow): ProductListRow | null {
   };
 }
 
+const VARIANT_DETAIL_SELECT = `
+  id,
+  sku,
+  barcode,
+  variant_attributes,
+  created_at,
+  dead_weight_kg,
+  weight,
+  volume,
+  length_cm,
+  width_cm,
+  height_cm,
+  is_active
+`;
+
+async function fetchProductVariants(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<VariantRow[]> {
+  const { data, error } = await supabase
+    .from("item_variants")
+    .select(VARIANT_DETAIL_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .order("created_at");
+
+  if (error || !data) return [];
+  return data as VariantRow[];
+}
+
 export async function fetchProductListRows(
   supabase: SupabaseClient,
   tenantId: string
@@ -399,18 +430,7 @@ export async function fetchProductDetail(
       updated_at,
       item_categories ( name ),
       item_variants (
-        id,
-        sku,
-        barcode,
-        variant_attributes,
-        created_at,
-        dead_weight_kg,
-        weight,
-        volume,
-        length_cm,
-        width_cm,
-        height_cm,
-        is_active
+        ${VARIANT_DETAIL_SELECT}
       )
     `
     )
@@ -423,12 +443,18 @@ export async function fetchProductDetail(
   const row = data as ItemRow;
   if (!isItemClassification(row.classification)) return null;
 
+  let variantRows = row.item_variants ?? [];
+  if (!variantRows.length) {
+    variantRows = await fetchProductVariants(supabase, tenantId, itemId);
+    row.item_variants = variantRows;
+  }
+
+  const variant = pickDefaultVariant(variantRows);
+  if (!variant) return null;
+
   const taxCategory = isTaxCategory(row.default_tax_category)
     ? row.default_tax_category
     : "STANDARD";
-
-  const variant = pickDefaultVariant(row.item_variants);
-  if (!variant) return null;
 
   const [
     { data: priceEntries },

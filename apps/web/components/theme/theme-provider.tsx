@@ -25,6 +25,19 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
+function persistTheme(theme: Theme) {
+  try {
+    localStorage.setItem(STORAGE_KEY, theme);
+  } catch {
+    /* ignore */
+  }
+  try {
+    document.cookie = `aib-theme=${theme}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {
+    /* ignore */
+  }
+}
+
 function readStoredTheme(): Theme {
   if (typeof window === "undefined") return "dark";
   try {
@@ -44,28 +57,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const stored = readStoredTheme();
     setThemeState(stored);
     applyTheme(stored);
+    persistTheme(stored);
     setMounted(true);
   }, []);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
     applyTheme(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* ignore */
-    }
+    persistTheme(next);
   }, []);
 
   const toggleTheme = useCallback(() => {
     setThemeState((prev) => {
       const next: Theme = prev === "dark" ? "light" : "dark";
       applyTheme(next);
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        /* ignore */
-      }
+      persistTheme(next);
       return next;
     });
   }, []);
