@@ -1,203 +1,34 @@
 -- ====================================================================
--- AIB SMART ERP - 4-AXIS LOCATION MANAGEMENT MODEL
--- Migration: 20260531400000_tenant_locations_three_axis_model.sql
+-- AIB SMART ERP - 4-AXIS LOCATION MANAGEMENT (MANUFACTURING FLOOR)
+-- Migration: 20260531500000_tenant_locations_manufacturing_floor_axis.sql
 -- ====================================================================
--- Replaces rigid location_operational_type enum with decoupled axes:
---   Axis 1: presence_type (PHYSICAL | VIRTUAL)
---   Axis 2 & 4: is_administrative_office, is_commercial_storefront,
---               is_manufacturing_floor
---   Axis 3: is_stock_holding
+-- Extends the 3-axis model already deployed on sandbox with Axis 4:
+--   is_manufacturing_floor — WIP tracking, work centers, production routines
+-- Idempotent for environments that already received the updated 31400000 file.
 -- ====================================================================
-
--- --------------------------------------------------------------------
--- 1. AXIS 1 — presence_environment enum + new columns
--- --------------------------------------------------------------------
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_type t
-        JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE n.nspname = 'public'
-          AND t.typname = 'presence_environment'
-    ) THEN
-        CREATE TYPE public.presence_environment AS ENUM ('PHYSICAL', 'VIRTUAL');
-    END IF;
-END;
-$$;
-
-ALTER TABLE public.tenant_locations
-    ADD COLUMN IF NOT EXISTS presence_type public.presence_environment NOT NULL DEFAULT 'PHYSICAL';
-
-ALTER TABLE public.tenant_locations
-    ADD COLUMN IF NOT EXISTS is_administrative_office BOOLEAN NOT NULL DEFAULT FALSE;
-
-ALTER TABLE public.tenant_locations
-    ADD COLUMN IF NOT EXISTS is_commercial_storefront BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE public.tenant_locations
     ADD COLUMN IF NOT EXISTS is_manufacturing_floor BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE public.tenant_locations
-    ADD COLUMN IF NOT EXISTS pos_terminal_count INT NOT NULL DEFAULT 0;
-
--- --------------------------------------------------------------------
--- 2. AXIS 3 — normalize is_stock_holding (default false, NOT NULL)
--- --------------------------------------------------------------------
-UPDATE public.tenant_locations
-SET is_stock_holding = FALSE
-WHERE is_stock_holding IS NULL;
-
-ALTER TABLE public.tenant_locations
-    ALTER COLUMN is_stock_holding SET DEFAULT FALSE;
-
-ALTER TABLE public.tenant_locations
-    ALTER COLUMN is_stock_holding SET NOT NULL;
-
--- --------------------------------------------------------------------
--- 3. Backfill 4-axis values from legacy location_type (audit preserved)
--- --------------------------------------------------------------------
-UPDATE public.tenant_locations
-SET location_meta = COALESCE(location_meta, '{}'::jsonb)
-    || jsonb_build_object('legacy_location_type', location_type::text)
-WHERE location_type IS NOT NULL
-  AND NOT (COALESCE(location_meta, '{}'::jsonb) ? 'legacy_location_type');
-
+-- Backfill manufacturing plants preserved in location_meta audit trail
 UPDATE public.tenant_locations
 SET
-    presence_type = 'PHYSICAL',
-    is_administrative_office = TRUE,
-    is_commercial_storefront = FALSE,
-    is_manufacturing_floor = FALSE,
-    is_stock_holding = FALSE,
-    pos_terminal_count = 0
-WHERE location_type::text IN (
-    'GLOBAL_HQ',
-    'SUBCONTINENTAL_HQ',
-    'COUNTRY_HQ',
-    'REGIONAL_ZONE',
-    'STATE_HQ',
-    'HEAD_OFFICE',
-    'REGIONAL_HQ',
-    'OFFICE_BRANCH'
-);
-
-UPDATE public.tenant_locations
-SET
-    presence_type = 'PHYSICAL',
-    is_administrative_office = FALSE,
-    is_commercial_storefront = FALSE,
-    is_manufacturing_floor = FALSE,
-    is_stock_holding = TRUE,
-    pos_terminal_count = 0
-WHERE location_type::text IN (
-    'STORAGE_WAREHOUSE',
-    'WAREHOUSE'
-);
-
-UPDATE public.tenant_locations
-SET
-    presence_type = 'PHYSICAL',
-    is_administrative_office = FALSE,
-    is_commercial_storefront = FALSE,
     is_manufacturing_floor = TRUE,
-    is_stock_holding = TRUE,
-    pos_terminal_count = 0
-WHERE location_type::text = 'MANUFACTURING_PLANT';
-
-UPDATE public.tenant_locations
-SET
-    presence_type = 'PHYSICAL',
-    is_administrative_office = FALSE,
-    is_commercial_storefront = TRUE,
-    is_manufacturing_floor = FALSE,
-    is_stock_holding = FALSE,
-    pos_terminal_count = 0
-WHERE location_type::text = 'RETAIL_OUTLET';
-
-UPDATE public.tenant_locations
-SET
-    presence_type = 'VIRTUAL',
-    is_administrative_office = FALSE,
-    is_commercial_storefront = TRUE,
-    is_manufacturing_floor = FALSE,
-    is_stock_holding = FALSE,
-    pos_terminal_count = 0
-WHERE location_type::text = 'VIRTUAL_STOREFRONT';
-
--- --------------------------------------------------------------------
--- 4. Integrity constraints
--- --------------------------------------------------------------------
-ALTER TABLE public.tenant_locations
-    DROP CONSTRAINT IF EXISTS tenant_locations_pos_terminal_count_non_negative_chk;
-
-ALTER TABLE public.tenant_locations
-    ADD CONSTRAINT tenant_locations_pos_terminal_count_non_negative_chk
-    CHECK (pos_terminal_count >= 0);
-
-ALTER TABLE public.tenant_locations
-    DROP CONSTRAINT IF EXISTS tenant_locations_storefront_pos_terminal_count_chk;
-
-ALTER TABLE public.tenant_locations
-    ADD CONSTRAINT tenant_locations_storefront_pos_terminal_count_chk
-    CHECK (NOT is_commercial_storefront OR pos_terminal_count >= 0);
-
-ALTER TABLE public.tenant_locations
-    DROP CONSTRAINT IF EXISTS tenant_locations_virtual_not_stock_holding_chk;
-
-ALTER TABLE public.tenant_locations
-    ADD CONSTRAINT tenant_locations_virtual_not_stock_holding_chk
-    CHECK (presence_type <> 'VIRTUAL' OR is_stock_holding = FALSE);
-
-ALTER TABLE public.tenant_locations
-    DROP CONSTRAINT IF EXISTS tenant_locations_non_storefront_zero_pos_chk;
-
-ALTER TABLE public.tenant_locations
-    ADD CONSTRAINT tenant_locations_non_storefront_zero_pos_chk
-    CHECK (is_commercial_storefront OR pos_terminal_count = 0);
-
--- --------------------------------------------------------------------
--- 5. Performance indexes
--- --------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS tenant_locations_parent_location_id_idx
-    ON public.tenant_locations (parent_location_id);
-
-CREATE INDEX IF NOT EXISTS tenant_locations_presence_type_idx
-    ON public.tenant_locations (tenant_id, presence_type);
-
-CREATE INDEX IF NOT EXISTS tenant_locations_commercial_storefront_idx
-    ON public.tenant_locations (tenant_id, is_commercial_storefront)
-    WHERE is_commercial_storefront;
-
-CREATE INDEX IF NOT EXISTS tenant_locations_stock_holding_idx
-    ON public.tenant_locations (tenant_id, is_stock_holding)
-    WHERE is_stock_holding;
+    is_stock_holding = TRUE
+WHERE COALESCE(location_meta, '{}'::jsonb) ->> 'legacy_location_type' = 'MANUFACTURING_PLANT'
+  AND is_manufacturing_floor = FALSE;
 
 CREATE INDEX IF NOT EXISTS tenant_locations_manufacturing_floor_idx
     ON public.tenant_locations (tenant_id, is_manufacturing_floor)
     WHERE is_manufacturing_floor;
 
--- --------------------------------------------------------------------
--- 6. Hierarchy FK — ON DELETE RESTRICT
--- --------------------------------------------------------------------
-ALTER TABLE public.tenant_locations
-    DROP CONSTRAINT IF EXISTS tenant_locations_parent_location_id_fkey;
-
-ALTER TABLE public.tenant_locations
-    ADD CONSTRAINT tenant_locations_parent_location_id_fkey
-    FOREIGN KEY (parent_location_id)
-    REFERENCES public.tenant_locations (id)
-    ON DELETE RESTRICT;
-
--- --------------------------------------------------------------------
--- 7. Drop enum-dependent functions before removing location_type
--- --------------------------------------------------------------------
+-- Drop 3-axis RPC signatures before recreating with manufacturing parameter
 DROP FUNCTION IF EXISTS public.get_tenant_location_topology();
 
 DROP FUNCTION IF EXISTS public.save_tenant_location(
     TEXT,
     TEXT,
-    public.location_operational_type,
+    public.presence_environment,
     UUID,
     UUID,
     TEXT,
@@ -210,6 +41,9 @@ DROP FUNCTION IF EXISTS public.save_tenant_location(
     TEXT,
     TEXT,
     BOOLEAN,
+    BOOLEAN,
+    BOOLEAN,
+    INT,
     TEXT,
     TEXT,
     JSONB
@@ -219,7 +53,7 @@ DROP FUNCTION IF EXISTS private.save_tenant_location_core(
     UUID,
     TEXT,
     TEXT,
-    public.location_operational_type,
+    public.presence_environment,
     UUID,
     TEXT,
     TEXT,
@@ -231,99 +65,14 @@ DROP FUNCTION IF EXISTS private.save_tenant_location_core(
     TEXT,
     TEXT,
     BOOLEAN,
+    BOOLEAN,
+    BOOLEAN,
+    INT,
     TEXT,
     TEXT,
     JSONB
 );
 
-DROP FUNCTION IF EXISTS private.default_stock_holding_for_location_type(public.location_operational_type);
-DROP FUNCTION IF EXISTS private.validate_location_hierarchy_pair(
-    public.location_operational_type,
-    public.location_operational_type
-);
-
-ALTER TABLE public.tenant_locations
-    DROP COLUMN IF EXISTS location_type;
-
-DROP TYPE IF EXISTS public.location_operational_type;
-
--- --------------------------------------------------------------------
--- 8. System virtual location resolver (4-axis aware)
--- --------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION private.ensure_system_location(
-    p_tenant_id UUID,
-    p_code TEXT,
-    p_name TEXT
-)
-RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, private
-AS $$
-DECLARE
-    v_location_id UUID;
-BEGIN
-    SELECT id
-    INTO v_location_id
-    FROM public.tenant_locations
-    WHERE tenant_id = p_tenant_id
-      AND code = p_code
-    LIMIT 1;
-
-    IF v_location_id IS NOT NULL THEN
-        RETURN v_location_id;
-    END IF;
-
-    INSERT INTO public.tenant_locations (
-        tenant_id,
-        name,
-        code,
-        presence_type,
-        is_administrative_office,
-        is_commercial_storefront,
-        is_manufacturing_floor,
-        is_stock_holding,
-        pos_terminal_count,
-        address_line1,
-        city,
-        state,
-        zip_postal,
-        country_code,
-        is_active
-    )
-    VALUES (
-        p_tenant_id,
-        p_name,
-        p_code,
-        'PHYSICAL',
-        FALSE,
-        FALSE,
-        FALSE,
-        FALSE,
-        0,
-        'System Virtual Node',
-        'System',
-        'NA',
-        '00000',
-        'US',
-        TRUE
-    )
-    ON CONFLICT ON CONSTRAINT unique_tenant_location_code DO NOTHING;
-
-    SELECT id
-    INTO v_location_id
-    FROM public.tenant_locations
-    WHERE tenant_id = p_tenant_id
-      AND code = p_code
-    LIMIT 1;
-
-    RETURN v_location_id;
-END;
-$$;
-
--- --------------------------------------------------------------------
--- 9. Location save RPC (4-axis parameters)
--- --------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION private.save_tenant_location_core(
     p_location_id UUID,
     p_name TEXT,
@@ -658,9 +407,6 @@ BEGIN
 END;
 $$;
 
--- --------------------------------------------------------------------
--- 10. Topology RPC (4-axis columns)
--- --------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_tenant_location_topology()
 RETURNS TABLE (
     id UUID,
@@ -790,23 +536,6 @@ AS $$
     ORDER BY counted.path;
 $$;
 
--- --------------------------------------------------------------------
--- 11. RLS re-verification (SELECT-only; writes via SECURITY DEFINER RPCs)
--- --------------------------------------------------------------------
-ALTER TABLE public.tenant_locations ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS location_isolation_policy ON public.tenant_locations;
-DROP POLICY IF EXISTS tenant_locations_select_tenant ON public.tenant_locations;
-
-CREATE POLICY tenant_locations_select_tenant
-    ON public.tenant_locations
-    FOR SELECT
-    TO authenticated
-    USING (tenant_id = private.current_tenant_id());
-
--- --------------------------------------------------------------------
--- 12. Grants
--- --------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.save_tenant_location(
     TEXT,
     TEXT,
@@ -860,20 +589,5 @@ GRANT EXECUTE ON FUNCTION public.save_tenant_location(
 REVOKE ALL ON FUNCTION public.get_tenant_location_topology() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_tenant_location_topology() TO authenticated;
 
-COMMENT ON COLUMN public.tenant_locations.presence_type IS
-    'Axis 1: PHYSICAL or VIRTUAL presence environment.';
-
-COMMENT ON COLUMN public.tenant_locations.is_administrative_office IS
-    'Axis 2: business/HQ/back-office capability flag.';
-
-COMMENT ON COLUMN public.tenant_locations.is_commercial_storefront IS
-    'Axis 2: retail/POS/commercial storefront capability flag.';
-
 COMMENT ON COLUMN public.tenant_locations.is_manufacturing_floor IS
     'Axis 4: manufacturing/WIP/work-center production capability flag.';
-
-COMMENT ON COLUMN public.tenant_locations.is_stock_holding IS
-    'Axis 3: inventory stock authority for this location.';
-
-COMMENT ON COLUMN public.tenant_locations.pos_terminal_count IS
-    'Active POS/billing terminals when is_commercial_storefront is true.';
