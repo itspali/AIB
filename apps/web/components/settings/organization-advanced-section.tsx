@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { UseFormReturn } from "react-hook-form";
 import { DocumentSequenceReadout } from "@/components/settings/document-sequence-readout";
 import { NamingSequenceEditor } from "@/components/settings/naming-sequence-editor";
@@ -15,10 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { creditControlLabel, CREDIT_CONTROL_OPTIONS } from "@/lib/organization/credit-control-options";
+import { domStrategyLabel } from "@/lib/locations/dom-routing";
 import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
 import type {
   DocumentSequenceRow,
   OrganizationSettingsFormValues,
+  OrganizationSettingsSnapshot,
   TenantLocationOption,
 } from "@/lib/organization/types";
 
@@ -36,6 +39,7 @@ type Props = {
   logoPreviewUrl?: string | null;
   locations: TenantLocationOption[];
   documentSequences: DocumentSequenceRow[];
+  snapshot: OrganizationSettingsSnapshot;
   disabled?: boolean;
 };
 
@@ -70,10 +74,13 @@ export function OrganizationAdvancedSection({
   logoPreviewUrl,
   locations,
   documentSequences,
+  snapshot,
   disabled,
 }: Props) {
   const { register, watch, setValue } = form;
   const namingSequences = watch("naming_sequences");
+  const multiLocationEnabled = watch("multi_location_enabled");
+  const domRouting = snapshot.location_governance_config.dom_routing;
 
   return (
     <div className="space-y-4">
@@ -121,11 +128,36 @@ export function OrganizationAdvancedSection({
           label="Regional HQs enabled"
           description="Enable regional headquarters topology controls."
           checked={watch("regional_hqs_enabled")}
-          disabled={disabled}
+          disabled={disabled || !multiLocationEnabled}
           onCheckedChange={(checked) =>
             setValue("regional_hqs_enabled", checked, { shouldDirty: true })
           }
         />
+        {!multiLocationEnabled && (
+          <p className="text-xs text-muted-foreground">
+            Enable multi-location before configuring regional hierarchy.
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Link
+            href="/inventory/locations"
+            className="rounded-lg border border-border px-4 py-3 text-sm transition-colors duration-200 hover:bg-accent"
+          >
+            <p className="font-medium">Manage locations</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Open the operational location directory.
+            </p>
+          </Link>
+          <Link
+            href="/inventory/locations/topology"
+            className="rounded-lg border border-border px-4 py-3 text-sm transition-colors duration-200 hover:bg-accent"
+          >
+            <p className="font-medium">Topology explorer</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Visualize hierarchy and configure DOM routing.
+            </p>
+          </Link>
+        </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Central HQ location</Label>
           <Select
@@ -159,6 +191,22 @@ export function OrganizationAdvancedSection({
             setValue("restrict_cross_warehouse_transfers", checked, { shouldDirty: true })
           }
         />
+        {domRouting && (
+          <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+            <p className="font-medium">DOM routing summary</p>
+            <p className="mt-1 text-muted-foreground">
+              {domStrategyLabel(domRouting.primary_fulfillment_strategy)} · Safety threshold{" "}
+              {domRouting.local_branch_safety_threshold}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Edit routing logic in the{" "}
+              <Link href="/inventory/locations/topology" className="text-primary underline-offset-4 hover:underline">
+                topology explorer
+              </Link>
+              .
+            </p>
+          </div>
+        )}
       </section>
 
       <section id={sectionIds.naming} className="surface-panel scroll-mt-40 space-y-4">

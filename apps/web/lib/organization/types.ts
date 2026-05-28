@@ -1,3 +1,5 @@
+import type { DomRoutingConfig } from "@/lib/locations/dom-routing";
+import { parseDomRoutingConfig } from "@/lib/locations/dom-routing";
 import type { CreditControlEnforcement } from "@/lib/organization/credit-control-options";
 import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
@@ -19,6 +21,7 @@ export type OrganizationLocationGovernanceConfig = {
   regional_hqs_enabled: boolean;
   central_hq_location_id: string | null;
   consensual_stock_transfers: boolean;
+  dom_routing?: DomRoutingConfig;
 };
 
 export type DocumentSequenceRow = {
@@ -148,11 +151,13 @@ function parseLocationGovernance(raw: unknown): OrganizationLocationGovernanceCo
   const config =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const hq = config.central_hq_location_id;
+  const centralHq = typeof hq === "string" ? hq : null;
   return {
     multi_location_enabled: config.multi_location_enabled !== false,
     regional_hqs_enabled: Boolean(config.regional_hqs_enabled),
-    central_hq_location_id: typeof hq === "string" ? hq : null,
+    central_hq_location_id: centralHq,
     consensual_stock_transfers: config.consensual_stock_transfers !== false,
+    dom_routing: parseDomRoutingConfig(config.dom_routing, centralHq),
   };
 }
 

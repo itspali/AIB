@@ -196,6 +196,7 @@ export function OrganizationSettingsTerminal({
               logoPreviewUrl={logoPreviewUrl}
               locations={snapshot.locations}
               documentSequences={snapshot.document_sequences}
+              snapshot={snapshot}
               disabled={fieldsDisabled}
             />
           )}

@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { GrantDelegateModalSection } from "@/components/settings/grant-delegate-modal";
 import { creditControlLabel } from "@/lib/organization/credit-control-options";
+import { domStrategyLabel } from "@/lib/locations/dom-routing";
 import { formatDate } from "@/lib/dashboard/format";
 import type { OrganizationSettingsAccess } from "@/lib/organization/access";
 import type { OrganizationSettingsFormValues, OrganizationSettingsSnapshot } from "@/lib/organization/types";
@@ -69,6 +70,24 @@ export function OrganizationGovernanceRail({
               {formValues.restrict_cross_warehouse_transfers ? "Restricted" : "Consensual"}
             </dd>
           </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Multi-location</dt>
+            <dd>{formValues.multi_location_enabled ? "Enabled" : "Single site"}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Regional HQs</dt>
+            <dd>{formValues.regional_hqs_enabled ? "Enabled" : "Off"}</dd>
+          </div>
+          {snapshot.location_governance_config.dom_routing && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">DOM strategy</dt>
+              <dd className="text-right">
+                {domStrategyLabel(
+                  snapshot.location_governance_config.dom_routing.primary_fulfillment_strategy
+                )}
+              </dd>
+            </div>
+          )}
         </dl>
       </section>
 
