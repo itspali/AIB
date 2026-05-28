@@ -16,18 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { defaultStockHoldingForType } from "@/lib/locations/capabilities";
-import {
-  eligibleParentLocations,
-  hierarchyEnabled,
-} from "@/lib/locations/governance";
-import {
-  enterpriseLocationTypeOptions,
-  flatLocationTypeOptions,
-} from "@/lib/locations/location-type-options";
-import type { LocationFormValues, LocationRow } from "@/lib/locations/types";
+import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
+import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
+import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from "@/lib/locations/types";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
+import { presenceLabel } from "@/lib/locations/axis-labels";
 
 type Props = {
   open: boolean;
@@ -42,7 +36,7 @@ const defaultForm: LocationFormValues = {
   location_id: null,
   name: "",
   code: "",
-  location_type: "STORAGE_WAREHOUSE",
+  presence_type: "PHYSICAL",
   parent_location_id: null,
   address_line1: "",
   address_line2: "",
@@ -53,7 +47,10 @@ const defaultForm: LocationFormValues = {
   manager_name: "",
   contact_email: "",
   contact_phone: "",
-  is_stock_holding: true,
+  is_administrative_office: false,
+  is_commercial_storefront: false,
+  is_stock_holding: false,
+  pos_terminal_count: 0,
   location_tax_identifier: "",
   tax_registered_name: "",
   show_advanced: false,
@@ -74,12 +71,10 @@ export function LocationDrawerForm({
   const [isPending, startTransition] = useTransition();
 
   const useHierarchy = hierarchyEnabled(governance);
-  const typeOptions = useHierarchy ? enterpriseLocationTypeOptions() : flatLocationTypeOptions();
 
   const parentOptions = useMemo(
-    () =>
-      eligibleParentLocations(rows, form.location_type, editingLocation?.id ?? null),
-    [rows, form.location_type, editingLocation?.id]
+    () => eligibleParentLocations(rows, editingLocation?.id ?? null),
+    [rows, editingLocation?.id]
   );
 
   useEffect(() => {
@@ -90,7 +85,7 @@ export function LocationDrawerForm({
         location_id: editingLocation.id,
         name: editingLocation.name,
         code: editingLocation.code,
-        location_type: editingLocation.location_type as LocationFormValues["location_type"],
+        presence_type: editingLocation.presence_type,
         parent_location_id: editingLocation.parent_location_id,
         address_line1: editingLocation.address_line1,
         address_line2: editingLocation.address_line2 ?? "",
@@ -101,13 +96,19 @@ export function LocationDrawerForm({
         manager_name: editingLocation.manager_name ?? "",
         contact_email: editingLocation.contact_email ?? "",
         contact_phone: editingLocation.contact_phone ?? "",
+        is_administrative_office: editingLocation.is_administrative_office,
+        is_commercial_storefront: editingLocation.is_commercial_storefront,
         is_stock_holding: editingLocation.is_stock_holding,
+        pos_terminal_count: editingLocation.pos_terminal_count,
         location_tax_identifier: editingLocation.location_tax_identifier ?? "",
         tax_registered_name: editingLocation.tax_registered_name ?? "",
         show_advanced: Boolean(
           editingLocation.parent_location_id ||
             editingLocation.manager_name ||
-            editingLocation.location_tax_identifier
+            editingLocation.location_tax_identifier ||
+            editingLocation.is_administrative_office ||
+            editingLocation.is_commercial_storefront ||
+            editingLocation.pos_terminal_count > 0
         ),
       });
     } else {
@@ -125,11 +126,11 @@ export function LocationDrawerForm({
   const updateField = <K extends keyof LocationFormValues>(key: K, value: LocationFormValues[K]) => {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
-      if (key === "location_type") {
-        next.is_stock_holding = defaultStockHoldingForType(
-          value as LocationFormValues["location_type"]
-        );
-        next.parent_location_id = null;
+      if (key === "presence_type" && value === "VIRTUAL") {
+        next.is_stock_holding = false;
+      }
+      if (key === "is_commercial_storefront" && value === false) {
+        next.pos_terminal_count = 0;
       }
       return next;
     });
@@ -151,8 +152,7 @@ export function LocationDrawerForm({
     });
   };
 
-  const stockToggleDisabled =
-    form.location_type === "OFFICE_BRANCH" || form.location_type === "VIRTUAL_STOREFRONT";
+  const stockToggleDisabled = form.presence_type === "VIRTUAL";
 
   return (
     <RightDrawer
@@ -161,7 +161,7 @@ export function LocationDrawerForm({
       title={isEditing ? "Edit location" : "Create location"}
     >
       <p className="mb-4 text-sm text-muted-foreground">
-        Configure operational site details and hierarchy placement.
+        Configure presence, capabilities, and hierarchy placement using the 3-axis model.
       </p>
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -174,20 +174,20 @@ export function LocationDrawerForm({
             <Input value={form.code} onChange={(e) => updateField("code", e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Location type</Label>
+            <Label>Presence environment</Label>
             <Select
-              value={form.location_type}
+              value={form.presence_type}
               onValueChange={(value) =>
-                updateField("location_type", value as LocationFormValues["location_type"])
+                updateField("presence_type", value as LocationFormValues["presence_type"])
               }
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {typeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {PRESENCE_ENVIRONMENTS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {presenceLabel(value)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -237,6 +237,39 @@ export function LocationDrawerForm({
           </div>
         </div>
 
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <p className="text-sm font-medium">Functional capabilities</p>
+          <SwitchRow
+            label="Business / administrative office"
+            checked={form.is_administrative_office}
+            onCheckedChange={(checked) => updateField("is_administrative_office", checked)}
+          />
+          <SwitchRow
+            label="Commercial storefront"
+            checked={form.is_commercial_storefront}
+            onCheckedChange={(checked) => updateField("is_commercial_storefront", checked)}
+          />
+          <SwitchRow
+            label="Stock-holding location"
+            checked={form.is_stock_holding}
+            disabled={stockToggleDisabled}
+            onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
+          />
+          {form.is_commercial_storefront && (
+            <div className="space-y-2">
+              <Label>POS terminal count</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.pos_terminal_count}
+                onChange={(e) =>
+                  updateField("pos_terminal_count", Math.max(0, Number(e.target.value) || 0))
+                }
+              />
+            </div>
+          )}
+        </div>
+
         <Button
           type="button"
           variant="ghost"
@@ -261,7 +294,7 @@ export function LocationDrawerForm({
                     <SelectValue placeholder="Select parent" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No parent (root eligible only)</SelectItem>
+                    <SelectItem value="none">No parent (root node)</SelectItem>
                     {parentOptions.map((location) => (
                       <SelectItem key={location.id} value={location.id}>
                         {location.name} ({location.code})
@@ -308,20 +341,13 @@ export function LocationDrawerForm({
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-              <div>
-                <p className="text-sm font-medium">Stock holding location</p>
-                <p className="text-xs text-muted-foreground">
-                  Enables inventory counting, MWAC, and shelf slot tools.
-                </p>
-              </div>
-              <Switch
-                checked={form.is_stock_holding}
-                disabled={stockToggleDisabled}
-                onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
-              />
-            </div>
           </div>
+        )}
+
+        {!locationSupportsInventoryOps(form) && form.is_stock_holding === false && (
+          <p className="text-xs text-muted-foreground">
+            Inventory counting, MWAC grids, and shelf selectors are hidden for non-stock locations.
+          </p>
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -336,5 +362,24 @@ export function LocationDrawerForm({
         </div>
       </div>
     </RightDrawer>
+  );
+}
+
+function SwitchRow({
+  label,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-sm">{label}</p>
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
+    </div>
   );
 }

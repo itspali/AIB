@@ -2,9 +2,9 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { locationCapabilitySummary, resolveLocationTagVariant, tagLabel } from "@/lib/locations/axis-labels";
 import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
 import type { LocationRow } from "@/lib/locations/types";
-import { locationTypeLabel } from "@/lib/locations/topology";
 
 type Props = {
   location: LocationRow;
@@ -24,6 +24,7 @@ export function LocationDetailViewport({
   onReactivate,
 }: Props) {
   const supportsInventory = locationSupportsInventoryOps(location);
+  const tagVariant = resolveLocationTagVariant(location);
 
   return (
     <div className="space-y-6">
@@ -31,7 +32,7 @@ export function LocationDetailViewport({
         <div>
           <h2 className="text-xl font-semibold">{location.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {location.code} · {locationTypeLabel(location.location_type)}
+            {location.code} · {locationCapabilitySummary(location)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -39,13 +40,21 @@ export function LocationDetailViewport({
           <Badge variant={location.is_active ? "completed" : "locked"}>
             {location.is_active ? "ACTIVE" : "INACTIVE"}
           </Badge>
-          <Badge variant={supportsInventory ? "completed" : "administrative"}>
-            {supportsInventory ? "STOCK HOLDING" : "NON-STOCK"}
-          </Badge>
+          <Badge variant={tagVariant}>{tagLabel(tagVariant)}</Badge>
         </div>
       </div>
 
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <dt className="text-sm font-medium text-muted-foreground">Capabilities</dt>
+          <dd className="mt-1 text-sm">
+            {location.is_administrative_office && "Business office"}
+            {location.is_administrative_office && location.is_commercial_storefront && " · "}
+            {location.is_commercial_storefront &&
+              `Commercial storefront${location.pos_terminal_count ? ` (${location.pos_terminal_count} POS)` : ""}`}
+            {!location.is_administrative_office && !location.is_commercial_storefront && "—"}
+          </dd>
+        </div>
         <div>
           <dt className="text-sm font-medium text-muted-foreground">Address</dt>
           <dd className="mt-1 text-sm">

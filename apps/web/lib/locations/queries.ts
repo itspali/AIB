@@ -7,6 +7,7 @@ import type {
   LocationModuleContext,
   LocationRow,
   LocationTopologyRow,
+  PresenceEnvironment,
 } from "@/lib/locations/types";
 import { mapTenantRowToSnapshotParts } from "@/lib/organization/types";
 
@@ -16,7 +17,11 @@ function mapLocationRow(row: Record<string, unknown>): LocationRow {
     parent_location_id: row.parent_location_id ? String(row.parent_location_id) : null,
     name: String(row.name),
     code: String(row.code),
-    location_type: row.location_type as LocationRow["location_type"],
+    presence_type: (row.presence_type as PresenceEnvironment) ?? "PHYSICAL",
+    is_administrative_office: Boolean(row.is_administrative_office),
+    is_commercial_storefront: Boolean(row.is_commercial_storefront),
+    is_stock_holding: Boolean(row.is_stock_holding),
+    pos_terminal_count: Number(row.pos_terminal_count ?? 0),
     address_line1: String(row.address_line1),
     address_line2: row.address_line2 ? String(row.address_line2) : null,
     city: String(row.city),
@@ -26,7 +31,6 @@ function mapLocationRow(row: Record<string, unknown>): LocationRow {
     manager_name: row.manager_name ? String(row.manager_name) : null,
     contact_email: row.contact_email ? String(row.contact_email) : null,
     contact_phone: row.contact_phone ? String(row.contact_phone) : null,
-    is_stock_holding: Boolean(row.is_stock_holding),
     is_active: Boolean(row.is_active),
     location_tax_identifier: row.location_tax_identifier
       ? String(row.location_tax_identifier)
@@ -47,8 +51,11 @@ function mapTopologyRow(row: Record<string, unknown>): LocationTopologyRow {
     parent_location_id: row.parent_location_id ? String(row.parent_location_id) : null,
     name: String(row.name),
     code: String(row.code),
-    location_type: row.location_type as LocationTopologyRow["location_type"],
+    presence_type: (row.presence_type as PresenceEnvironment) ?? "PHYSICAL",
+    is_administrative_office: Boolean(row.is_administrative_office),
+    is_commercial_storefront: Boolean(row.is_commercial_storefront),
     is_stock_holding: Boolean(row.is_stock_holding),
+    pos_terminal_count: Number(row.pos_terminal_count ?? 0),
     is_active: Boolean(row.is_active),
     address_line1: String(row.address_line1),
     address_line2: row.address_line2 ? String(row.address_line2) : null,

@@ -42,9 +42,7 @@ export function DomRoutingConfigCard({ initialConfig, locations, canManage }: Pr
   const fallbackLocations = locations.filter(
     (row) =>
       row.is_active &&
-      (row.location_type === "COUNTRY_HQ" ||
-        row.location_type === "GLOBAL_HQ" ||
-        row.location_type === "STORAGE_WAREHOUSE")
+      (row.is_administrative_office || row.is_stock_holding)
   );
 
   const handleSave = () => {

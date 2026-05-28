@@ -3,9 +3,10 @@
 import { ChevronRight, Globe2, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
-  locationTypeLabel,
+  locationCapabilitySummary,
   resolveLocationTagVariant,
-} from "@/lib/locations/topology";
+  tagLabel,
+} from "@/lib/locations/axis-labels";
 import type { LocationTreeNode } from "@/lib/locations/types";
 import { cn } from "@/lib/utils";
 
@@ -17,17 +18,6 @@ type Props = {
   onToggleExpand: (id: string) => void;
 };
 
-function tagLabel(variant: ReturnType<typeof resolveLocationTagVariant>): string {
-  switch (variant) {
-    case "completed":
-      return "FULFILLMENT";
-    case "active":
-      return "VIRTUAL";
-    default:
-      return "ADMIN";
-  }
-}
-
 export function LocationTopologyNodeRow({
   node,
   selectedId,
@@ -38,7 +28,7 @@ export function LocationTopologyNodeRow({
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedIds.has(node.id);
   const isSelected = selectedId === node.id;
-  const tagVariant = resolveLocationTagVariant(node.location_type, node.is_stock_holding);
+  const tagVariant = resolveLocationTagVariant(node);
 
   return (
     <div className="group/node">
@@ -69,9 +59,9 @@ export function LocationTopologyNodeRow({
           onClick={() => onSelect(node.id)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
         >
-          {node.location_type === "VIRTUAL_STOREFRONT" ? (
+          {node.presence_type === "VIRTUAL" && node.is_commercial_storefront ? (
             <Link2 className="h-4 w-4 shrink-0 text-indigo-500" />
-          ) : node.location_type === "GLOBAL_HQ" ? (
+          ) : node.parent_location_id === null ? (
             <Globe2 className="h-4 w-4 shrink-0 text-muted-foreground" />
           ) : null}
           <span className="truncate font-medium">{node.name}</span>
@@ -87,13 +77,14 @@ export function LocationTopologyNodeRow({
         <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 hidden w-64 -translate-y-1/2 rounded-lg border border-border bg-popover p-3 text-xs shadow-md group-hover/node:block">
           <p className="font-semibold">{node.name}</p>
           <p className="mt-1 text-muted-foreground">
-            {node.code} · {locationTypeLabel(node.location_type)}
+            {node.code} · {locationCapabilitySummary(node)}
           </p>
           <p className="mt-2 text-muted-foreground">
             {node.city}, {node.state} {node.zip_postal}
           </p>
           <p className="mt-1 text-muted-foreground">
             {node.is_stock_holding ? "Stock holding" : "Non-stock"} · {node.child_count} children
+            {node.pos_terminal_count > 0 ? ` · ${node.pos_terminal_count} POS` : ""}
           </p>
         </div>
       </div>

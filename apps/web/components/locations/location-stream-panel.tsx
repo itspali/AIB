@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { locationCapabilitySummary } from "@/lib/locations/axis-labels";
 import type { LocationRow } from "@/lib/locations/types";
 import { cn } from "@/lib/utils";
-import { locationTypeLabel } from "@/lib/locations/topology";
 
 type Props = {
   rows: LocationRow[];
@@ -64,7 +64,7 @@ export function LocationStreamPanel({
               <div className="min-w-0">
                 <p className="truncate font-medium">{row.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {row.code} · {locationTypeLabel(row.location_type)}
+                  {row.code} · {locationCapabilitySummary(row)}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">

@@ -1,9 +1,4 @@
-import type {
-  LocationOperationalType,
-  LocationTagVariant,
-  LocationTopologyRow,
-  LocationTreeNode,
-} from "@/lib/locations/types";
+import type { LocationTopologyRow, LocationTreeNode } from "@/lib/locations/types";
 
 export function buildLocationTopologyTree(rows: LocationTopologyRow[]): LocationTreeNode[] {
   const byId = new Map<string, LocationTreeNode>();
@@ -48,7 +43,7 @@ export function filterLocationTopologyTree(
     const selfMatches =
       node.name.toLowerCase().includes(normalized) ||
       node.code.toLowerCase().includes(normalized) ||
-      node.location_type.toLowerCase().includes(normalized);
+      node.presence_type.toLowerCase().includes(normalized);
 
     if (selfMatches || childMatches.length > 0) {
       return { ...node, children: childMatches };
@@ -58,19 +53,6 @@ export function filterLocationTopologyTree(
   };
 
   return nodes.map(filterNode).filter((node): node is LocationTreeNode => node !== null);
-}
-
-export function resolveLocationTagVariant(
-  locationType: LocationOperationalType,
-  isStockHolding: boolean
-): LocationTagVariant {
-  if (locationType === "VIRTUAL_STOREFRONT") return "active";
-  if (isStockHolding) return "completed";
-  return "administrative";
-}
-
-export function locationTypeLabel(locationType: LocationOperationalType): string {
-  return locationType.replace(/_/g, " ");
 }
 
 export function collectDefaultExpandedIds(rows: LocationTopologyRow[]): Set<string> {
