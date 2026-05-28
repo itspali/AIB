@@ -49,6 +49,7 @@ const defaultForm: LocationFormValues = {
   contact_phone: "",
   is_administrative_office: false,
   is_commercial_storefront: false,
+  is_manufacturing_floor: false,
   is_stock_holding: false,
   pos_terminal_count: 0,
   location_tax_identifier: "",
@@ -98,6 +99,7 @@ export function LocationDrawerForm({
         contact_phone: editingLocation.contact_phone ?? "",
         is_administrative_office: editingLocation.is_administrative_office,
         is_commercial_storefront: editingLocation.is_commercial_storefront,
+        is_manufacturing_floor: editingLocation.is_manufacturing_floor,
         is_stock_holding: editingLocation.is_stock_holding,
         pos_terminal_count: editingLocation.pos_terminal_count,
         location_tax_identifier: editingLocation.location_tax_identifier ?? "",
@@ -128,6 +130,7 @@ export function LocationDrawerForm({
       const next = { ...prev, [key]: value };
       if (key === "presence_type" && value === "VIRTUAL") {
         next.is_stock_holding = false;
+        next.is_manufacturing_floor = false;
       }
       if (key === "is_commercial_storefront" && value === false) {
         next.pos_terminal_count = 0;

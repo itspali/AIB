@@ -10,17 +10,18 @@ export const locationFormSchema = z
     code: z.string().trim().min(1, "Location code is required").max(30),
     presence_type: z.enum(PRESENCE_ENVIRONMENTS),
     parent_location_id: z.string().uuid().nullable(),
-    address_line1: z.string().trim().min(1, "Address is required").max(200),
+    address_line1: z.string().trim().max(200),
     address_line2: z.string().trim().max(200),
-    city: z.string().trim().min(1, "City is required").max(100),
-    state: z.string().trim().min(1, "State is required").max(100),
-    zip_postal: z.string().trim().min(1, "Postal code is required").max(20),
+    city: z.string().trim().max(100),
+    state: z.string().trim().max(100),
+    zip_postal: z.string().trim().max(20),
     country_code: z.enum(COUNTRY_OPTIONS),
     manager_name: z.string().trim().max(200),
     contact_email: z.union([z.literal(""), z.string().trim().email("Enter a valid email")]),
     contact_phone: z.string().trim().max(30),
     is_administrative_office: z.boolean(),
     is_commercial_storefront: z.boolean(),
+    is_manufacturing_floor: z.boolean(),
     is_stock_holding: z.boolean(),
     pos_terminal_count: z.number().int().min(0, "POS terminal count cannot be negative"),
     location_tax_identifier: z.string().trim().max(50),
@@ -28,11 +29,48 @@ export const locationFormSchema = z
     show_advanced: z.boolean(),
   })
   .superRefine((values, ctx) => {
+    if (values.presence_type === "PHYSICAL") {
+      if (!values.address_line1.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Street address is required for physical locations",
+          path: ["address_line1"],
+        });
+      }
+      if (!values.city.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "City is required for physical locations",
+          path: ["city"],
+        });
+      }
+      if (!values.state.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "State is required for physical locations",
+          path: ["state"],
+        });
+      }
+      if (!values.zip_postal.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Postal code is required for physical locations",
+          path: ["zip_postal"],
+        });
+      }
+    }
     if (values.presence_type === "VIRTUAL" && values.is_stock_holding) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Virtual locations cannot be stock-holding",
         path: ["is_stock_holding"],
+      });
+    }
+    if (values.presence_type === "VIRTUAL" && values.is_manufacturing_floor) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Virtual locations cannot be manufacturing floors",
+        path: ["is_manufacturing_floor"],
       });
     }
     if (!values.is_commercial_storefront && values.pos_terminal_count > 0) {

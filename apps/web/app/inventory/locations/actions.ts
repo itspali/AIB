@@ -49,6 +49,7 @@ export async function saveLocation(raw: unknown) {
     p_contact_phone: values.contact_phone || null,
     p_is_administrative_office: values.is_administrative_office,
     p_is_commercial_storefront: values.is_commercial_storefront,
+    p_is_manufacturing_floor: values.is_manufacturing_floor,
     p_is_stock_holding: values.is_stock_holding,
     p_pos_terminal_count: values.pos_terminal_count,
     p_location_tax_identifier: values.location_tax_identifier || null,

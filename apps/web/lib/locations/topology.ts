@@ -1,4 +1,34 @@
-import type { LocationTopologyRow, LocationTreeNode } from "@/lib/locations/types";
+import type { LocationRow, LocationTopologyRow, LocationTreeNode } from "@/lib/locations/types";
+
+export function buildLocationTreeFromRows(rows: LocationRow[]): LocationTreeNode[] {
+  const mapped: LocationTopologyRow[] = rows.map((row) => ({
+    id: row.id,
+    parent_location_id: row.parent_location_id,
+    name: row.name,
+    code: row.code,
+    presence_type: row.presence_type,
+    is_administrative_office: row.is_administrative_office,
+    is_commercial_storefront: row.is_commercial_storefront,
+    is_manufacturing_floor: row.is_manufacturing_floor,
+    is_stock_holding: row.is_stock_holding,
+    pos_terminal_count: row.pos_terminal_count,
+    is_active: row.is_active,
+    address_line1: row.address_line1,
+    address_line2: row.address_line2,
+    city: row.city,
+    state: row.state,
+    zip_postal: row.zip_postal,
+    country_code: row.country_code,
+    manager_name: row.manager_name,
+    contact_email: row.contact_email,
+    contact_phone: row.contact_phone,
+    depth: 0,
+    path: [row.id],
+    child_count: rows.filter((candidate) => candidate.parent_location_id === row.id).length,
+  }));
+
+  return buildLocationTopologyTree(mapped);
+}
 
 export function buildLocationTopologyTree(rows: LocationTopologyRow[]): LocationTreeNode[] {
   const byId = new Map<string, LocationTreeNode>();

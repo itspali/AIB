@@ -11,9 +11,12 @@ export function LocationModuleHeader({ activeTab }: Props) {
   return (
     <header className="mb-6 flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Location Management</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Hierarchical Location & Logistical Command Center
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Configure operational sites, enterprise hierarchy topology, and distributed order routing.
+          Provision facility nodes, traverse parent_location_id hierarchy, and configure 4-axis
+          operational capabilities.
         </p>
         <nav className="mt-3 flex gap-2 text-sm" aria-label="Location module sub-navigation">
           <Link

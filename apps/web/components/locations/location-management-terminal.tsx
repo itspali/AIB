@@ -5,10 +5,11 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { deactivateLocation, reactivateLocation } from "@/app/inventory/locations/actions";
 import { LocationDetailViewport } from "@/components/locations/location-detail-viewport";
-import { LocationDrawerForm } from "@/components/locations/location-drawer-form";
 import { LocationGovernanceBanner } from "@/components/locations/location-governance-banner";
+import { LocationHierarchyRail } from "@/components/locations/location-hierarchy-rail";
 import { LocationModuleHeader } from "@/components/locations/location-module-header";
-import { LocationStreamPanel } from "@/components/locations/location-stream-panel";
+import { LocationPristineCanvas } from "@/components/locations/location-pristine-canvas";
+import { LocationProvisionForm } from "@/components/locations/location-provision-form";
 import { Button } from "@/components/ui/button";
 import { canAddLocation } from "@/lib/locations/governance";
 import type { LocationModuleContext, LocationRow } from "@/lib/locations/types";
@@ -19,30 +20,45 @@ type Props = {
   moduleContext: LocationModuleContext;
 };
 
+type CanvasMode = "empty" | "detail" | "form";
+
 export function LocationManagementTerminal({ initialRows, moduleContext }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>("empty");
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const activeRows = initialRows.filter((row) => row.is_active);
-  const selectedLocation =
-    initialRows.find((row) => row.id === selectedId) ??
-    activeRows[0] ??
-    initialRows[0] ??
-    null;
-
+  const selectedLocation = initialRows.find((row) => row.id === selectedId) ?? null;
   const canAdd = canAddLocation(moduleContext.governance, activeRows.length);
+  const canProvision = moduleContext.canManage && canAdd;
 
-  const openCreate = () => {
+  const openProvision = () => {
     setEditingLocation(null);
-    setDrawerOpen(true);
+    setCanvasMode("form");
   };
 
   const openEdit = () => {
     if (!selectedLocation) return;
     setEditingLocation(selectedLocation);
-    setDrawerOpen(true);
+    setCanvasMode("form");
+  };
+
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    setCanvasMode("detail");
+    setEditingLocation(null);
+  };
+
+  const handleDiscard = () => {
+    setEditingLocation(null);
+    setCanvasMode(selectedLocation ? "detail" : "empty");
+  };
+
+  const handleSaved = (locationId: string) => {
+    setSelectedId(locationId);
+    setEditingLocation(null);
+    setCanvasMode("detail");
   };
 
   const handleDeactivate = () => {
@@ -50,10 +66,10 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
     startTransition(async () => {
       const result = await deactivateLocation(selectedLocation.id);
       if ("error" in result) {
-        toast.error(result.error ?? "Unable to deactivate location.");
+        toast.error(result.error ?? "Unable to deactivate facility node.");
         return;
       }
-      toast.success("Location deactivated.");
+      toast.success("Facility node deactivated.");
     });
   };
 
@@ -62,10 +78,10 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
     startTransition(async () => {
       const result = await reactivateLocation(selectedLocation.id);
       if ("error" in result) {
-        toast.error(result.error ?? "Unable to reactivate location.");
+        toast.error(result.error ?? "Unable to reactivate facility node.");
         return;
       }
-      toast.success("Location reactivated.");
+      toast.success("Facility node reactivated.");
     });
   };
 
@@ -74,34 +90,48 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
       <LocationModuleHeader activeTab="directory" />
       <LocationGovernanceBanner governance={moduleContext.governance} />
 
-      <div className="mb-4 flex justify-end">
-        {moduleContext.canManage && canAdd && (
-          <Button onClick={openCreate}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Hierarchical location and logistical command center for tenant-scoped facility nodes.
+        </p>
+        {canProvision && (
+          <Button onClick={openProvision}>
             <Plus className="h-4 w-4" />
-            Add location
+            Provision Facility Node
           </Button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-0">
+      <div
+        className={cn(
+          "grid min-h-[calc(100vh-theme(spacing.16)-12rem)] grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-0",
+          "surface-panel overflow-hidden"
+        )}
+      >
         <aside
           className={cn(
-            "col-span-1 lg:col-span-4",
-            "border-border/80 lg:border-r lg:pr-4",
-            "h-auto lg:h-[calc(100vh-theme(spacing.16)-4rem)]",
-            "overflow-y-auto scrollbar-none"
+            "col-span-1 border-border/80 p-4 lg:border-r",
+            "max-h-[420px] lg:max-h-none lg:h-full lg:overflow-y-auto scrollbar-none"
           )}
         >
-          <LocationStreamPanel
+          <LocationHierarchyRail
             rows={initialRows}
-            selectedId={selectedLocation?.id ?? null}
-            onSelect={setSelectedId}
+            selectedId={selectedId}
+            onSelect={handleSelect}
             centralHqLocationId={moduleContext.centralHqLocationId}
           />
         </aside>
 
-        <section className="col-span-1 min-h-[420px] w-full p-4 sm:p-6 lg:col-span-8">
-          {selectedLocation ? (
+        <section className="col-span-1 min-h-[520px] p-4 sm:p-6 lg:col-span-2">
+          {canvasMode === "form" ? (
+            <LocationProvisionForm
+              rows={initialRows}
+              governance={moduleContext.governance}
+              editingLocation={editingLocation}
+              onDiscard={handleDiscard}
+              onSaved={handleSaved}
+            />
+          ) : canvasMode === "detail" && selectedLocation ? (
             <LocationDetailViewport
               location={selectedLocation}
               centralHqLocationId={moduleContext.centralHqLocationId}
@@ -111,32 +141,12 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
               onReactivate={handleReactivate}
             />
           ) : (
-            <div className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
-              <p className="text-sm font-medium">No operational locations</p>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Create your first location or complete onboarding to seed the home site.
-              </p>
-              {moduleContext.canManage && canAdd && (
-                <Button className="mt-4" onClick={openCreate}>
-                  <Plus className="h-4 w-4" />
-                  Create location
-                </Button>
-              )}
-            </div>
+            <LocationPristineCanvas canProvision={canProvision} onProvision={openProvision} />
           )}
         </section>
       </div>
 
-      <LocationDrawerForm
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        rows={initialRows}
-        governance={moduleContext.governance}
-        editingLocation={editingLocation}
-        onSaved={(locationId) => setSelectedId(locationId)}
-      />
-
-      {isPending && <span className="sr-only">Updating location…</span>}
+      {isPending && <span className="sr-only">Updating facility node…</span>}
     </>
   );
 }

@@ -12,6 +12,7 @@ export type LocationRow = {
   presence_type: PresenceEnvironment;
   is_administrative_office: boolean;
   is_commercial_storefront: boolean;
+  is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
   pos_terminal_count: number;
   address_line1: string;
@@ -39,6 +40,7 @@ export type LocationTopologyRow = {
   presence_type: PresenceEnvironment;
   is_administrative_office: boolean;
   is_commercial_storefront: boolean;
+  is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
   pos_terminal_count: number;
   is_active: boolean;
@@ -85,6 +87,7 @@ export type LocationFormValues = {
   contact_phone: string;
   is_administrative_office: boolean;
   is_commercial_storefront: boolean;
+  is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
   pos_terminal_count: number;
   location_tax_identifier: string;
