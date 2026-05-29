@@ -12,6 +12,7 @@ export type CatalogSearchRow = {
   default_sku: string | null;
   selling_price: number | string | null;
   purchase_price: number | string | null;
+  is_active: boolean | null;
 };
 
 function toNumber(value: unknown): number | null {
@@ -57,6 +58,9 @@ function matchesClause(row: CatalogSearchRow, clause: AstClause): boolean {
 
   switch (operator) {
     case "EQ":
+      if (field === "is_active") {
+        return Boolean(raw) === Boolean(value);
+      }
       return String(raw ?? "").toLowerCase() === String(value).toLowerCase();
     case "IN":
       return Array.isArray(value)

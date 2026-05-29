@@ -91,7 +91,7 @@ export async function ensureProductTag(name: string, tagGroup?: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/items");
+  revalidatePath("/inventory/items");
   return { success: true as const, tagId: data as string };
 }
 
@@ -155,8 +155,8 @@ export async function saveProductMasterProfile(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/items");
-  revalidatePath("/items/categories");
+  revalidatePath("/inventory/items");
+  revalidatePath("/inventory/categories");
 
   const itemId = data as string;
   const detail = await fetchProductDetail(supabase, tenantId, itemId);
@@ -205,7 +205,7 @@ export async function saveItemVariant(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/items");
+  revalidatePath("/inventory/items");
   return { success: true as const, variantId: data as string };
 }
 
@@ -223,7 +223,7 @@ export async function deleteItemVariant(variantId: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/items");
+  revalidatePath("/inventory/items");
   return { success: true as const };
 }
 
@@ -255,7 +255,7 @@ export async function saveItemMedia(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/items");
+  revalidatePath("/inventory/items");
   return { success: true as const, mediaId: data as string };
 }
 
@@ -277,7 +277,7 @@ export async function deleteItemMedia(mediaId: string, storagePath?: string) {
     await supabase.storage.from("product-media").remove([storagePath.trim()]);
   }
 
-  revalidatePath("/items");
+  revalidatePath("/inventory/items");
   return { success: true as const };
 }
 

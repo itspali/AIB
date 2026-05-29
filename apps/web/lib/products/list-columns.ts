@@ -19,6 +19,7 @@ export const PRODUCT_LIST_COLUMN_IDS = [
   "selling_price",
   "purchase_price",
   "supplier_name",
+  "stock_on_hand",
   "created_at",
   "updated_at",
 ] as const;
@@ -69,6 +70,13 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
   { id: "selling_price", label: "Selling price", defaultVisible: false, align: "right", group: "Pricing" },
   { id: "purchase_price", label: "Purchase price", defaultVisible: false, align: "right", group: "Pricing" },
   { id: "supplier_name", label: "Supplier", defaultVisible: false, group: "Pricing" },
+  {
+    id: "stock_on_hand",
+    label: "Stock on hand",
+    defaultVisible: true,
+    align: "right",
+    group: "Inventory",
+  },
   { id: "created_at", label: "Created", defaultVisible: false, group: "Timestamps" },
   { id: "updated_at", label: "Updated", defaultVisible: true, group: "Timestamps" },
 ];

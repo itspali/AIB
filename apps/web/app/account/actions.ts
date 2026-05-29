@@ -14,7 +14,7 @@ export async function updateUserDutyStatus(status: DutyStatus) {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard");
-  revalidatePath("/items/categories");
+  revalidatePath("/inventory/categories");
   revalidatePath("/account");
   return { success: true as const };
 }
@@ -52,7 +52,7 @@ export async function updateUserProfile(values: {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard");
-  revalidatePath("/items/categories");
+  revalidatePath("/inventory/categories");
   revalidatePath("/account");
   return { success: true as const };
 }

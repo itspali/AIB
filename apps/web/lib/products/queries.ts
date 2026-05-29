@@ -324,7 +324,8 @@ function mapValuations(rows: ValuationRow[] | null | undefined): ProductValuatio
 function mapListRow(
   row: ItemRow,
   commerce?: { selling_price: string | null; purchase_price: string | null; supplier_name: string | null },
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  stockOnHand?: string | null
 ): ProductListRow | null {
   if (!isItemClassification(row.classification)) return null;
   const variant = pickDefaultVariant(row.item_variants);
@@ -354,6 +355,7 @@ function mapListRow(
     selling_price: commerce?.selling_price ?? null,
     purchase_price: commerce?.purchase_price ?? null,
     supplier_name: commerce?.supplier_name ?? null,
+    stock_on_hand: stockOnHand ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -529,6 +531,35 @@ async function fetchProductVariants(
   return data as VariantRow[];
 }
 
+async function fetchAggregateStockByItemId(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemIds: string[]
+): Promise<Map<string, string>> {
+  const totals = new Map<string, string>();
+  if (!itemIds.length) return totals;
+
+  const { data, error } = await supabase
+    .from("item_valuations")
+    .select("item_id, total_quantity_on_hand")
+    .eq("tenant_id", tenantId)
+    .in("item_id", itemIds);
+
+  if (error || !data?.length) return totals;
+
+  const sums = new Map<string, number>();
+  for (const row of data as Array<{ item_id: string; total_quantity_on_hand: number | string }>) {
+    const current = sums.get(row.item_id) ?? 0;
+    sums.set(row.item_id, current + Number(row.total_quantity_on_hand));
+  }
+
+  for (const [itemId, total] of sums) {
+    totals.set(itemId, formatDecimal(total, "0"));
+  }
+
+  return totals;
+}
+
 export async function fetchProductListRows(
   supabase: SupabaseClient,
   tenantId: string,
@@ -564,13 +595,21 @@ export async function fetchProductListRows(
 
   const rows = data as ItemRow[];
   const itemIds = rows.map((row) => row.id);
-  const [commerceByItem, imagesByItem] = await Promise.all([
+  const [commerceByItem, imagesByItem, stockByItem] = await Promise.all([
     fetchListCommerceByItemId(supabase, tenantId, itemIds),
     fetchListPrimaryImagesByItemId(supabase, tenantId, rows),
+    fetchAggregateStockByItemId(supabase, tenantId, itemIds),
   ]);
 
   const mapped = rows
-    .map((row) => mapListRow(row, commerceByItem.get(row.id), imagesByItem.get(row.id)))
+    .map((row) =>
+      mapListRow(
+        row,
+        commerceByItem.get(row.id),
+        imagesByItem.get(row.id),
+        stockByItem.get(row.id) ?? "0"
+      )
+    )
     .filter((row): row is ProductListRow => row !== null);
 
   return permissions

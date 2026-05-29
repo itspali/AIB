@@ -27,7 +27,8 @@ function useApplyShortcutLabel() {
   return label;
 }
 
-export function OmnibarCommandDialog() {  const {
+export function OmnibarCommandDialog() {
+  const {
     commandOpen,
     scope,
     focusInput,
@@ -75,6 +76,11 @@ export function OmnibarCommandDialog() {  const {
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top))] md:pt-[8vh]"
       role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          cancelCommandPalette();
+        }
+      }}
     >
       <div
         className="flex max-h-[min(85vh,640px)] min-h-[min(520px,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl shadow-primary/10 backdrop-blur-xl"
@@ -141,7 +147,8 @@ export function OmnibarCommandDialog() {  const {
             >
               {isExecuting ? "Applying…" : "Apply"}
               {!isExecuting ? <ShortcutKey>{applyShortcutLabel}</ShortcutKey> : null}
-            </Button>          </div>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

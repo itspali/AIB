@@ -56,8 +56,8 @@ export async function saveSystemCategory(values: SystemCategoryFormValues) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/items/categories");
-  revalidatePath("/items");
+  revalidatePath("/inventory/categories");
+  revalidatePath("/inventory/items");
   return { success: true as const, categoryId: data as string };
 }
 
@@ -104,7 +104,7 @@ async function updateSystemCategory(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/items/categories");
-  revalidatePath("/items");
+  revalidatePath("/inventory/categories");
+  revalidatePath("/inventory/items");
   return { success: true as const, categoryId: data.id as string };
 }

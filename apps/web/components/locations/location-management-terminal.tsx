@@ -10,7 +10,7 @@ import { LocationHierarchyRail } from "@/components/locations/location-hierarchy
 import { LocationModuleHeader } from "@/components/locations/location-module-header";
 import { LocationPristineCanvas } from "@/components/locations/location-pristine-canvas";
 import { LocationProvisionForm } from "@/components/locations/location-provision-form";
-import { SavedViewsListLayout } from "@/components/search/saved-views-list-layout";
+import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { Button } from "@/components/ui/button";
 import { canAddLocation } from "@/lib/locations/governance";
 import type { LocationModuleContext, LocationRow } from "@/lib/locations/types";
@@ -103,13 +103,16 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
         )}
       </div>
 
-      <SavedViewsListLayout>
-        <div
-          className={cn(
-            "grid min-h-[calc(100vh-theme(spacing.16)-12rem)] grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-0",
-            "surface-panel overflow-hidden"
-          )}
-        >
+      <div className="mb-3">
+        <ModuleViewSelect triggerClassName="w-full sm:w-[10rem]" />
+      </div>
+
+      <div
+        className={cn(
+          "grid min-h-[calc(100vh-theme(spacing.16)-12rem)] grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-0",
+          "surface-panel overflow-hidden"
+        )}
+      >
         <aside
           className={cn(
             "col-span-1 border-border/80 p-4 lg:border-r",
@@ -149,8 +152,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
             <LocationPristineCanvas canProvision={canProvision} onProvision={openProvision} />
           )}
         </section>
-        </div>
-      </SavedViewsListLayout>
+      </div>
 
       {isPending && <span className="sr-only">Updating facility node…</span>}
     </>

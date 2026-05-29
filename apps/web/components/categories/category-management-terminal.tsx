@@ -7,7 +7,7 @@ import { CategoryDrawerForm } from "@/components/categories/category-drawer-form
 import { CategoryEmptyState } from "@/components/categories/category-empty-state";
 import { CategoryTreePanel } from "@/components/categories/category-tree-panel";
 import { CatalogSubNav } from "@/components/products/catalog-sub-nav";
-import { SavedViewsListLayout } from "@/components/search/saved-views-list-layout";
+import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
 import { cn } from "@/lib/utils";
@@ -39,9 +39,9 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
     <>
       <header className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between md:mb-5">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Category Directory</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Categories</h1>
           <p className="mt-1 text-sm text-muted-foreground md:hidden">
-            Configure hierarchical product categories and inherited attribute templates.
+            Configure hierarchical item categories and inherited attribute templates.
           </p>
           <CatalogSubNav active="categories" />
         </div>
@@ -52,8 +52,11 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
         </Button>
       </header>
 
-      <SavedViewsListLayout>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-0">
+      <div className="mb-3">
+        <ModuleViewSelect triggerClassName="w-full sm:w-[10rem]" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-0">
         <aside
           className={cn(
             "col-span-1 lg:col-span-4",
@@ -79,8 +82,7 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
             />
           )}
         </section>
-        </div>
-      </SavedViewsListLayout>
+      </div>
 
       <CategoryDrawerForm
         open={drawerOpen}

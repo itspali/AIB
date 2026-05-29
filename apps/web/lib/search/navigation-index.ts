@@ -8,13 +8,13 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Items",
-    href: "/items",
-    keywords: ["items", "products", "catalog", "sku", "master"],
+    href: "/inventory/items",
+    keywords: ["items", "products", "catalog", "sku", "master", "inventory"],
   },
   {
     label: "Categories",
-    href: "/items/categories",
-    keywords: ["categories", "taxonomy", "classification"],
+    href: "/inventory/categories",
+    keywords: ["categories", "taxonomy", "classification", "inventory"],
   },
   {
     label: "Inventory Locations",

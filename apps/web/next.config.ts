@@ -4,6 +4,12 @@ const isWindows = process.platform === "win32";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return [
+      { source: "/items", destination: "/inventory/items", permanent: true },
+      { source: "/items/categories", destination: "/inventory/categories", permanent: true },
+    ];
+  },
   experimental: {
     // Avoid SegmentViewNode React Client Manifest errors during HMR on Windows.
     devtoolSegmentExplorer: false,

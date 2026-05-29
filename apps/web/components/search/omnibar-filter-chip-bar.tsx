@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { updateCustomModuleView } from "@/app/search/views/actions";
+import { useState } from "react";
 import { FilterChipRow } from "@/components/search/filter-chip-row";
-import { SaveViewSheet } from "@/components/search/custom-view-sidebar";
+import { SaveViewSheet } from "@/components/search/save-view-sheet";
+import { UpdateViewSheet } from "@/components/search/update-view-sheet";
 import { useOmnibarContext } from "@/components/search/omnibar-provider";
 import { Button } from "@/components/ui/button";
 import { isSavedViewsScope } from "@/lib/search/views/module-view-registry";
-import { extractStructuralAst } from "@/lib/search/views/saved-view-utils";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -27,42 +25,19 @@ export function OmnibarFilterChipBar({ className, wrapperClassName }: Props) {
     permissions,
     activeSavedViewId,
     isSavedViewDirty,
-    setActiveSavedViewSnapshot,
+    editActiveViewCriteria,
     notifySavedViewsChanged,
   } = useOmnibarContext();
 
   const [saveOpen, setSaveOpen] = useState(false);
-  const [isUpdating, startUpdateTransition] = useTransition();
+  const [updateOpen, setUpdateOpen] = useState(false);
 
   const chips = activeAst.filter((clause) => clause.kind !== "text");
-  const canManageViews = isSavedViewsScope(scope) && activeFilterCount > 0 && appliedQuery.trim().length > 0;
-
-  const handleUpdateView = () => {
-    if (!activeSavedViewId) return;
-
-    startUpdateTransition(async () => {
-      const result = await updateCustomModuleView({
-        id: activeSavedViewId,
-        rawSearchText: appliedQuery.trim(),
-        compiledAst: extractStructuralAst(activeAst),
-      });
-
-      if (!result.ok || !result.view) {
-        toast.error(result.error ?? "Unable to update view.");
-        return;
-      }
-
-      setActiveSavedViewSnapshot({
-        id: result.view.id,
-        module_name: result.view.module_name,
-        view_name: result.view.view_name,
-        raw_search_text: result.view.raw_search_text,
-        compiled_ast: result.view.compiled_ast,
-      });
-      notifySavedViewsChanged();
-      toast.success("View updated.");
-    });
-  };
+  const canManageViews =
+    isSavedViewsScope(scope) &&
+    activeFilterCount > 0 &&
+    appliedQuery.trim().length > 0 &&
+    !permissions?.throttled;
 
   if (!chips.length && !permissions?.throttled) return null;
 
@@ -92,16 +67,26 @@ export function OmnibarFilterChipBar({ className, wrapperClassName }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            {canManageViews && isSavedViewDirty && activeSavedViewId ? (
+            {canManageViews && activeSavedViewId && !isSavedViewDirty ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 text-xs"
+                onClick={editActiveViewCriteria}
+              >
+                Update view
+              </Button>
+            ) : null}
+            {canManageViews && activeSavedViewId && isSavedViewDirty ? (
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 className="h-7 shrink-0 text-xs"
-                disabled={isUpdating}
-                onClick={handleUpdateView}
+                onClick={() => setUpdateOpen(true)}
               >
-                Update view
+                Save changes
               </Button>
             ) : null}
             {canManageViews && !activeSavedViewId ? (
@@ -145,6 +130,11 @@ export function OmnibarFilterChipBar({ className, wrapperClassName }: Props) {
         open={saveOpen}
         onOpenChange={setSaveOpen}
         onSaved={() => notifySavedViewsChanged()}
+      />
+      <UpdateViewSheet
+        open={updateOpen}
+        onOpenChange={setUpdateOpen}
+        onUpdated={() => notifySavedViewsChanged()}
       />
     </>
   );

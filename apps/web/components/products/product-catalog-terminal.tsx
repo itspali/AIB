@@ -120,11 +120,11 @@ export function ProductCatalogTerminal({
       <div className="canvas-scroll-endpad">
         <header className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between md:mb-5">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Product Master Catalog</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Items</h1>
             <p className="mt-1 text-sm text-muted-foreground md:hidden">
-              Manage product identities, master SKUs, and statutory logistics parameters.
+              Manage item master profiles, classifications, and stock balances.
             </p>
-            <CatalogSubNav active="products" />
+            <CatalogSubNav active="items" />
           </div>
           <Button onClick={openCreate} className="shrink-0">
             <Plus className="h-4 w-4" />

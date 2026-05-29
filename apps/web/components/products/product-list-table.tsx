@@ -41,6 +41,14 @@ function SortIndicator({
   return <ArrowDown className="h-3.5 w-3.5 text-primary" aria-hidden />;
 }
 
+const ROW_DIVIDER_SHADOW = "shadow-[inset_0_-1px_0_0_hsl(var(--border))]";
+const FROZEN_LAST_CELL_SHADOW =
+  "shadow-[inset_0_-1px_0_0_hsl(var(--border)),inset_-2px_0_0_0_hsl(var(--primary)/0.5)]";
+
+function rowDividerClass(isLastFrozenColumn: boolean) {
+  return isLastFrozenColumn ? FROZEN_LAST_CELL_SHADOW : ROW_DIVIDER_SHADOW;
+}
+
 export function ProductListTable({
   products,
   columns,
@@ -82,33 +90,38 @@ export function ProductListTable({
       return { className: "", style: undefined };
     }
 
-    const isLastFrozen = index === effectiveFrozenCount - 1;
-
     return {
       className: cn(
-        "sticky z-10",
-        variant === "header" &&
-          "bg-[color-mix(in_srgb,hsl(var(--muted))_40%,hsl(var(--background)))]",
-        variant === "body" &&
-          (selected
-            ? "bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
-            : "bg-background group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
-        isLastFrozen && "border-r-2 border-primary/50"
+        "sticky",
+        variant === "header" && "z-20 bg-[color-mix(in_srgb,hsl(var(--muted))_40%,hsl(var(--background)))]",
+        variant === "body" && "z-10",
+        variant === "body" && !selected && "bg-background"
       ),
       style: { left: stickyOffsets[index] ?? 0 },
     };
   };
 
+  const bodyCellHoverClass = (selected: boolean, isLastFrozenColumn: boolean) =>
+    cn(
+      "border-b-0",
+      rowDividerClass(isLastFrozenColumn),
+      selected
+        ? "bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
+        : "group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"
+    );
+
   return (
     <div className="surface-inset overflow-x-auto">
       <table className="w-full min-w-[720px] bg-background text-sm">
         <thead>
-          <tr className="bg-muted/40 text-left [&>th]:border-b [&>th]:border-border">
+          <tr className="bg-muted/40 text-left">
             {columns.map((columnId, index) => {
               const column = getColumnDef(columnId);
               const sortable = isSortableColumn(columnId);
               const isActiveSort = sortable && sortField === columnId;
               const sticky = getStickyCellProps(index, "header", false);
+              const isLastFrozenColumn =
+                effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
 
               return (
                 <th
@@ -117,7 +130,8 @@ export function ProductListTable({
                     headerRefs.current[index] = element;
                   }}
                   className={cn(
-                    "whitespace-nowrap p-0 font-medium text-muted-foreground",
+                    "whitespace-nowrap border-b-0 p-0 font-medium text-muted-foreground",
+                    rowDividerClass(isLastFrozenColumn),
                     column.align === "center" && "text-center",
                     column.align === "right" && "text-right",
                     sticky.className
@@ -170,12 +184,14 @@ export function ProductListTable({
                   }
                 }}
                 className={cn(
-                  "group cursor-pointer transition-colors duration-200 hover:bg-accent/40 [&>td]:border-b [&>td]:border-border last:[&>td]:border-b-0",
-                  selected && "bg-primary/5 ring-1 ring-inset ring-primary/20"
+                  "group cursor-pointer last:[&>td]:shadow-none",
+                  selected && "ring-1 ring-inset ring-primary/20"
                 )}
               >
                 {columns.map((columnId, index) => {
                   const sticky = getStickyCellProps(index, "body", selected);
+                  const isLastFrozenColumn =
+                    effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
                   return (
                     <td
                       key={columnId}
@@ -184,6 +200,7 @@ export function ProductListTable({
                         productListCellClassName(columnId),
                         getColumnDef(columnId).align === "center" && "text-center",
                         getColumnDef(columnId).align === "right" && "text-right",
+                        bodyCellHoverClass(selected, isLastFrozenColumn),
                         sticky.className
                       )}
                       style={sticky.style}

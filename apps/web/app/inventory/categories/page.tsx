@@ -7,7 +7,7 @@ import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { CategoryManagementTerminal } from "@/components/categories/category-management-terminal";
 
-export default async function CategoriesPage() {
+export default async function InventoryCategoriesPage() {
   const supabase = await createClient();
   const tenantId = await getTenantIdFromSession(supabase);
 

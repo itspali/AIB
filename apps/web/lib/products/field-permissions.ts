@@ -115,6 +115,7 @@ const ROW_FIELD_MAP: Partial<Record<ProductFieldKey, keyof ProductListRow>> = {
   selling_price: "selling_price",
   purchase_price: "purchase_price",
   supplier_name: "supplier_name",
+  stock_on_hand: "stock_on_hand",
   created_at: "created_at",
   updated_at: "updated_at",
 };

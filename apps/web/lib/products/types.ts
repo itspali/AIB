@@ -24,6 +24,7 @@ export type ProductListRow = {
   selling_price: string | null;
   purchase_price: string | null;
   supplier_name: string | null;
+  stock_on_hand: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -355,6 +356,11 @@ export const defaultProductFormValues: ProductMasterFormValues = {
 };
 
 export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
+  const stockTotal = detail.valuations.reduce(
+    (sum, row) => sum + Number(row.total_quantity_on_hand),
+    0
+  );
+
   return {
     id: detail.id,
     name: detail.name,
@@ -377,6 +383,7 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
     selling_price: detail.selling_price || null,
     purchase_price: detail.purchase_price || null,
     supplier_name: detail.supplier_name,
+    stock_on_hand: String(stockTotal),
     created_at: detail.created_at,
     updated_at: detail.updated_at,
   };

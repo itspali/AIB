@@ -263,3 +263,115 @@ export async function deleteCustomModuleView(id: string): Promise<CustomModuleVi
     return { ok: false, error: message };
   }
 }
+
+export async function getDefaultCustomModuleView(
+  moduleName: string
+): Promise<CustomModuleViewActionResult> {
+  try {
+    if (!assertRegisteredModuleName(moduleName)) {
+      return { ok: false, error: "Unsupported module for saved views." };
+    }
+
+    const { supabase, tenantId, userId } = await getSessionContext();
+    const { data, error } = await supabase
+      .from("custom_module_views")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .eq("module_name", moduleName)
+      .eq("is_system_default", true)
+      .maybeSingle();
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    if (!data) {
+      return { ok: true, views: [] };
+    }
+
+    return { ok: true, view: mapViewRow(data) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to load default view.";
+    return { ok: false, error: message };
+  }
+}
+
+export async function setCustomModuleViewDefault(id: string): Promise<CustomModuleViewActionResult> {
+  try {
+    const { supabase, tenantId, userId } = await getSessionContext();
+
+    const { data: target, error: fetchError } = await supabase
+      .from("custom_module_views")
+      .select("id, module_name")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      return { ok: false, error: fetchError.message };
+    }
+    if (!target) {
+      return { ok: false, error: "Saved view not found." };
+    }
+
+    const moduleName = String(target.module_name);
+
+    const { error: clearError } = await supabase
+      .from("custom_module_views")
+      .update({ is_system_default: false })
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .eq("module_name", moduleName);
+
+    if (clearError) {
+      return { ok: false, error: clearError.message };
+    }
+
+    const { data, error: setError } = await supabase
+      .from("custom_module_views")
+      .update({ is_system_default: true })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (setError) {
+      return { ok: false, error: setError.message };
+    }
+
+    return { ok: true, view: mapViewRow(data) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to set default view.";
+    return { ok: false, error: message };
+  }
+}
+
+export async function clearCustomModuleViewDefault(
+  moduleName: string
+): Promise<CustomModuleViewActionResult> {
+  try {
+    if (!assertRegisteredModuleName(moduleName)) {
+      return { ok: false, error: "Unsupported module for saved views." };
+    }
+
+    const { supabase, tenantId, userId } = await getSessionContext();
+    const { error } = await supabase
+      .from("custom_module_views")
+      .update({ is_system_default: false })
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId)
+      .eq("module_name", moduleName);
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to clear default view.";
+    return { ok: false, error: message };
+  }
+}

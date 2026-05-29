@@ -7,7 +7,7 @@ import {
   parseCreatedAfterDate,
   parseCreatedInTemporal,
 } from "@/lib/search/compiler/temporal";
-import { isNumericFilterField } from "@/lib/search/permissions/field-labels";
+import { isNumericFilterField, isBooleanFilterField } from "@/lib/search/permissions/field-labels";
 import type { AstClause, ResolvedFieldDictEntry } from "@/lib/search/types";
 
 type CompareOp = "FIELD_GT" | "FIELD_GTE" | "FIELD_LT" | "FIELD_LTE" | "GT" | "GTE" | "LT" | "LTE";
@@ -264,6 +264,40 @@ function parseSubstringPredicate(
   return null;
 }
 
+function parseBooleanLiteral(raw: string): boolean | null {
+  const normalized = raw.trim().toLowerCase();
+  if (["true", "yes", "active", "enabled"].includes(normalized)) return true;
+  if (["false", "no", "inactive", "disabled"].includes(normalized)) return false;
+  return null;
+}
+
+function parseActiveStatusClause(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  if (!fieldDict.some((entry) => entry.key === "is_active")) return null;
+
+  const normalized = clause.trim().toLowerCase();
+  const patterns: { pattern: RegExp; value: boolean }[] = [
+    { pattern: /^(?:active|active\s+items?)$/, value: true },
+    { pattern: /^(?:inactive|inactive\s+items?)$/, value: false },
+    { pattern: /^is\s+active$/, value: true },
+    { pattern: /^is\s+inactive$/, value: false },
+    { pattern: /^status\s+is\s+active$/, value: true },
+    { pattern: /^status\s+is\s+inactive$/, value: false },
+    { pattern: /^status\s+active$/, value: true },
+    { pattern: /^status\s+inactive$/, value: false },
+  ];
+
+  for (const { pattern, value } of patterns) {
+    if (pattern.test(normalized)) {
+      return { kind: "predicate", field: "is_active", operator: "EQ", value };
+    }
+  }
+
+  return null;
+}
+
 function parseSimplePredicate(
   clause: string,
   fieldDict: ResolvedFieldDictEntry[]
@@ -277,6 +311,16 @@ function parseSimplePredicate(
     if (eqMatch?.[1]) {
       const value = eqMatch[1].trim();
       if (INCOMPLETE_VALUE_TOKENS.test(value)) return null;
+      if (entry.field === "is_active") {
+        const boolValue = parseBooleanLiteral(value);
+        if (boolValue === null) return null;
+        return {
+          kind: "predicate",
+          field: entry.field,
+          operator: "EQ",
+          value: boolValue,
+        };
+      }
       return {
         kind: "predicate",
         field: entry.field,
@@ -333,6 +377,7 @@ export function parseClause(
   if (!normalized) return { clause: null, unparsedToken: null };
 
   const parsers = [
+    () => parseActiveStatusClause(normalized, fieldDict),
     () => parseFieldCompare(normalized, fieldDict),
     () => parseNumericBetween(normalized, fieldDict),
     () => parseNumericPredicate(normalized, fieldDict),

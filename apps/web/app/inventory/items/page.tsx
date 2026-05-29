@@ -11,7 +11,7 @@ import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ProductCatalogTerminal } from "@/components/products/product-catalog-terminal";
 
-export default async function ItemsPage() {
+export default async function InventoryItemsPage() {
   const supabase = await createClient();
   const tenantId = await getTenantIdFromSession(supabase);
 

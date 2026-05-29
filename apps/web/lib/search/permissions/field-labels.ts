@@ -49,6 +49,13 @@ export function getPredicateCompareOperatorLabel(operator: FilterOperator): stri
   return PREDICATE_COMPARE_OPERATOR_LABELS[operator] ?? operator.toLowerCase();
 }
 
+/** Fields compared as booleans in native filters. */
+export const BOOLEAN_FILTER_FIELDS = new Set<string>(["is_active"]);
+
+export function isBooleanFilterField(fieldKey: string): boolean {
+  return BOOLEAN_FILTER_FIELDS.has(fieldKey);
+}
+
 export function isNumericFilterField(fieldKey: string): boolean {
   return NUMERIC_FILTER_FIELDS.has(fieldKey);
 }

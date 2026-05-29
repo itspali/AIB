@@ -2,6 +2,22 @@ import type { FieldRegistryEntry, FilterScope } from "@/lib/search/types";
 
 export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
   {
+    key: "classification",
+    synonyms: [
+      "classification",
+      "item type",
+      "raw material",
+      "work in progress",
+      "wip",
+      "finished good",
+      "service overhead",
+      "service",
+      "kit bundle",
+    ],
+    sensitivity: "standard",
+    scopes: ["items"],
+  },
+  {
     key: "purchase_price",
     synonyms: ["purchase price", "purchase_price", "buying price", "purchase cost", "cost price"],
     sensitivity: "financial",
@@ -46,6 +62,12 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
   {
     key: "default_sku",
     synonyms: ["sku", "default sku", "default_sku"],
+    sensitivity: "standard",
+    scopes: ["items"],
+  },
+  {
+    key: "is_active",
+    synonyms: ["active status", "item status", "status", "is active", "is inactive"],
     sensitivity: "standard",
     scopes: ["items"],
   },

@@ -94,6 +94,16 @@ export function renderProductListCell(
       );
     case "supplier_name":
       return product.supplier_name ?? "—";
+    case "stock_on_hand": {
+      const qty = product.stock_on_hand;
+      if (qty == null || qty.trim() === "") return "—";
+      const parsed = Number(qty);
+      return (
+        <span className="tabular-nums">
+          {Number.isFinite(parsed) ? parsed.toLocaleString() : qty}
+        </span>
+      );
+    }
     case "created_at":
       return (
         <span className="text-muted-foreground tabular-nums">{formatDate(product.created_at)}</span>
@@ -127,7 +137,11 @@ export function productListCellClassName(columnId: ProductListColumnId): string 
   ) {
     return "text-center";
   }
-  if (columnId === "selling_price" || columnId === "purchase_price") {
+  if (
+    columnId === "selling_price" ||
+    columnId === "purchase_price" ||
+    columnId === "stock_on_hand"
+  ) {
     return "text-right tabular-nums";
   }
   return "";

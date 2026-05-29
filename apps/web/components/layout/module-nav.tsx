@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  Tags,
   Truck,
 } from "lucide-react";
 
@@ -26,18 +25,18 @@ export type ModuleNavItem = {
 
 export const moduleNavItems: ModuleNavItem[] = [
   { href: "/dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard },
+  { href: "/procurement", label: "Procurement", shortLabel: "Procure", icon: ShoppingCart },
   {
-    href: "/items",
-    label: "Product Catalog",
-    shortLabel: "Catalog",
-    icon: Tags,
+    href: "/inventory/items",
+    label: "Inventory",
+    shortLabel: "Inv",
+    icon: Package,
     children: [
-      { href: "/items", label: "Products" },
-      { href: "/items/categories", label: "Categories" },
+      { href: "/inventory/items", label: "Items" },
+      { href: "/inventory/categories", label: "Categories" },
+      { href: "/inventory/locations", label: "Locations" },
     ],
   },
-  { href: "/procurement", label: "Procurement", shortLabel: "Procure", icon: ShoppingCart },
-  { href: "/inventory", label: "Inventory", shortLabel: "Stock", icon: Package },
   { href: "/sales", label: "Sales", shortLabel: "Sales", icon: CreditCard },
   { href: "/logistics", label: "Logistics", shortLabel: "Ship", icon: Truck },
   { href: "/financials", label: "Financials", shortLabel: "Finance", icon: Boxes },

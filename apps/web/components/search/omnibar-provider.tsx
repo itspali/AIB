@@ -17,6 +17,7 @@ import {
   logSearchTelemetry,
   resolveSearchFieldPermissions,
 } from "@/app/search/actions";
+import { getDefaultCustomModuleView } from "@/app/search/views/actions";
 import { compileFilterQuery } from "@/lib/search/compiler/compile";
 import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
@@ -42,8 +43,12 @@ import type {
   SearchFieldPermissions,
 } from "@/lib/search/types";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
-import { isSavedViewDirty } from "@/lib/search/views/saved-view-utils";
-import { isSavedViewsScope } from "@/lib/search/views/module-view-registry";
+import {
+  extractStructuralAst,
+  isSavedViewDirty,
+  normalizeSavedViewQuery,
+} from "@/lib/search/views/saved-view-utils";
+import { isSavedViewsScope, getModuleViewDefinition } from "@/lib/search/views/module-view-registry";
 import type { OperatorProfile } from "@/lib/user/types";
 
 type OmnibarContextValue = {
@@ -86,6 +91,8 @@ type OmnibarContextValue = {
   activeSavedView: SavedViewSnapshot | null;
   isSavedViewDirty: boolean;
   loadSavedView: (view: CustomModuleView) => void;
+  loadSavedViewAndEdit: (view: CustomModuleView) => void;
+  editActiveViewCriteria: () => void;
   clearActiveSavedView: () => void;
   setActiveSavedViewSnapshot: (view: SavedViewSnapshot | null) => void;
   notifySavedViewsChanged: () => void;
@@ -118,6 +125,9 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const [modalDraftSegments, setModalDraftSegments] = useState<string[]>([]);
   const [activeSavedView, setActiveSavedView] = useState<SavedViewSnapshot | null>(null);
   const [savedViewsRevision, setSavedViewsRevision] = useState(0);
+  const [openPaletteAfterViewLoad, setOpenPaletteAfterViewLoad] = useState(false);
+  const defaultLoadedForScopeRef = useRef<Set<FilterScope>>(new Set());
+  const routeScopeRef = useRef<FilterScope>(scope);
 
   const userId = operatorProfile?.userId ?? null;
   const cacheTenantId = tenantId ?? "session";
@@ -139,7 +149,19 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
 
   useEffect(() => {
     if (scopePinnedToAll) return;
-    setScopeState(resolveScopeFromPath(pathname));
+    const nextScope = resolveScopeFromPath(pathname);
+    if (routeScopeRef.current !== nextScope) {
+      setRawQuery("");
+      setAppliedQuery("");
+      setCompileResult(null);
+      setFilteredItemIds(null);
+      setActiveSavedView(null);
+      setModalDraftSegments([]);
+      setOpenPaletteAfterViewLoad(false);
+      setModuleFilterRevision((value) => value + 1);
+      routeScopeRef.current = nextScope;
+    }
+    setScopeState(nextScope);
   }, [pathname, scopePinnedToAll]);
 
   const setScope = useCallback(
@@ -183,6 +205,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     setFilteredItemIds(null);
     setModalDraftSegments([]);
     setActiveSavedView(null);
+    setOpenPaletteAfterViewLoad(false);
     setModuleFilterRevision((value) => value + 1);
   }, []);
 
@@ -242,6 +265,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       if (!trimmed) {
         setCompileResult(null);
         setFilteredItemIds(null);
+        setActiveSavedView(null);
         setModuleFilterRevision((value) => value + 1);
         return;
       }
@@ -249,6 +273,19 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       const fieldDict = buildFieldDict(activeScope, permissions);
       const compiled = compileFilterQuery(trimmed, activeScope, fieldDict);
       setCompileResult(compiled);
+      setActiveSavedView((previous) => {
+        if (!previous) return previous;
+        if (
+          normalizeSavedViewQuery(trimmed) !== normalizeSavedViewQuery(previous.raw_search_text)
+        ) {
+          return previous;
+        }
+        return {
+          ...previous,
+          raw_search_text: trimmed,
+          compiled_ast: extractStructuralAst(compiled.ast),
+        };
+      });
 
       const structuralClauses = compiled.ast.filter((clause) => clause.kind !== "text");
       if (structuralClauses.length > 0) {
@@ -354,6 +391,49 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     [scope, runAppliedFilter]
   );
 
+  const loadSavedViewAndEdit = useCallback(
+    (view: CustomModuleView) => {
+      setOpenPaletteAfterViewLoad(true);
+      loadSavedView(view);
+    },
+    [loadSavedView]
+  );
+
+  const editActiveViewCriteria = useCallback(() => {
+    openCommandPalette();
+  }, [openCommandPalette]);
+
+  useEffect(() => {
+    if (!openPaletteAfterViewLoad || !compileResult || !activeSavedView) return;
+    if (
+      normalizeSavedViewQuery(appliedQuery) !==
+      normalizeSavedViewQuery(activeSavedView.raw_search_text)
+    ) {
+      return;
+    }
+
+    setOpenPaletteAfterViewLoad(false);
+    openCommandPalette();
+  }, [openPaletteAfterViewLoad, compileResult, appliedQuery, activeSavedView, openCommandPalette]);
+
+  useEffect(() => {
+    if (!permissions || !isSavedViewsScope(scope)) return;
+    if (defaultLoadedForScopeRef.current.has(scope)) return;
+    if (appliedQuery.trim().length > 0) return;
+
+    const moduleDef = getModuleViewDefinition(scope);
+    if (!moduleDef) return;
+
+    defaultLoadedForScopeRef.current.add(scope);
+
+    void getDefaultCustomModuleView(moduleDef.moduleName).then((result) => {
+      if (!result.ok) return;
+      if (result.view) {
+        loadSavedView(result.view);
+      }
+    });
+  }, [scope, permissions, appliedQuery, loadSavedView]);
+
   const applyModalFilters = useCallback(() => {
     if (!permissions) return;
     const fieldDict = buildFieldDict(scope, permissions);
@@ -374,6 +454,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       setAppliedQuery("");
       setCompileResult(null);
       setFilteredItemIds(null);
+      setActiveSavedView(null);
       setModuleFilterRevision((value) => value + 1);
       return;
     }
@@ -413,6 +494,9 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
 
       setRawQuery("");
       setAppliedQuery(nextQuery);
+      if (!nextQuery.trim()) {
+        setActiveSavedView(null);
+      }
       void runAppliedFilter(nextQuery, scope);
     },
     [compileResult, scope, runAppliedFilter]
@@ -486,6 +570,8 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       activeSavedView,
       isSavedViewDirty: savedViewDirty,
       loadSavedView,
+      loadSavedViewAndEdit,
+      editActiveViewCriteria,
       clearActiveSavedView,
       setActiveSavedViewSnapshot,
       notifySavedViewsChanged,
@@ -524,6 +610,8 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       activeSavedView,
       savedViewDirty,
       loadSavedView,
+      loadSavedViewAndEdit,
+      editActiveViewCriteria,
       clearActiveSavedView,
       setActiveSavedViewSnapshot,
       notifySavedViewsChanged,
@@ -535,11 +623,12 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        event.stopPropagation();
         if (!commandOpen) openCommandPalette();
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [commandOpen, openCommandPalette]);
 
   return <OmnibarContext.Provider value={value}>{children}</OmnibarContext.Provider>;

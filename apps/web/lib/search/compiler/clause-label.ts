@@ -2,6 +2,7 @@ import {
   getFieldCompareOperatorLabel,
   getFieldDisplayLabel,
   getPredicateCompareOperatorLabel,
+  isBooleanFilterField,
   isNumericFilterField,
 } from "@/lib/search/permissions/field-labels";
 import type { AstClause } from "@/lib/search/types";
@@ -81,6 +82,13 @@ export function clauseToLabelParts(clause: AstClause): ClauseLabelPart[] {
     }
 
     if (clause.operator === "EQ") {
+      if (isBooleanFilterField(clause.field)) {
+        return [
+          fieldPart(clause.field),
+          operatorPart("is"),
+          valuePart(clause.value === true || clause.value === "true" ? "active" : "inactive"),
+        ];
+      }
       return [
         fieldPart(clause.field),
         operatorPart("is"),

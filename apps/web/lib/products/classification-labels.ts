@@ -12,10 +12,10 @@ export type ItemClassification = (typeof ITEM_CLASSIFICATIONS)[number];
 const LABELS: Record<ItemClassification, string> = {
   PHYSICAL_GOOD: "Physical Good",
   RAW_MATERIAL: "Raw Material",
-  WIP_ASSEMBLY: "WIP Assembly",
+  WIP_ASSEMBLY: "Work In Progress",
   FINISHED_GOOD: "Finished Good",
   KIT_BUNDLE: "Kit / Bundle",
-  SERVICE: "Service",
+  SERVICE: "Service / Overhead",
 };
 
 export function classificationLabel(value: ItemClassification): string {

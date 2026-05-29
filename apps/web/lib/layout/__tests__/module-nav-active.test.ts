@@ -6,26 +6,32 @@ import {
   isModuleNavItemActive,
 } from "@/lib/layout/module-nav-active";
 
-const catalogItem = moduleNavItems.find((item) => item.href === "/items")!;
+const inventoryItem = moduleNavItems.find((item) => item.href === "/inventory/items")!;
 
 describe("module-nav-active", () => {
-  it("highlights Product Catalog on products and categories routes", () => {
-    expect(isModuleNavItemActive(catalogItem, "/items")).toBe(true);
-    expect(isModuleNavItemActive(catalogItem, "/items/categories")).toBe(true);
-    expect(isModuleNavItemActive(catalogItem, "/dashboard")).toBe(false);
+  it("highlights Inventory on items, categories, and locations routes", () => {
+    expect(isModuleNavItemActive(inventoryItem, "/inventory/items")).toBe(true);
+    expect(isModuleNavItemActive(inventoryItem, "/inventory/categories")).toBe(true);
+    expect(isModuleNavItemActive(inventoryItem, "/inventory/locations")).toBe(true);
+    expect(isModuleNavItemActive(inventoryItem, "/dashboard")).toBe(false);
   });
 
-  it("selects the longest matching catalog child", () => {
-    expect(getActiveModuleNavChild(catalogItem, "/items")?.label).toBe("Products");
-    expect(getActiveModuleNavChild(catalogItem, "/items/categories")?.label).toBe("Categories");
+  it("selects the longest matching inventory child", () => {
+    expect(getActiveModuleNavChild(inventoryItem, "/inventory/items")?.label).toBe("Items");
+    expect(getActiveModuleNavChild(inventoryItem, "/inventory/categories")?.label).toBe(
+      "Categories"
+    );
+    expect(getActiveModuleNavChild(inventoryItem, "/inventory/locations/topology")?.label).toBe(
+      "Locations"
+    );
   });
 
-  it("does not mark Products active on the categories route", () => {
-    const products = catalogItem.children!.find((child) => child.label === "Products")!;
-    const categories = catalogItem.children!.find((child) => child.label === "Categories")!;
+  it("does not mark Items active on the categories route", () => {
+    const items = inventoryItem.children!.find((child) => child.label === "Items")!;
+    const categories = inventoryItem.children!.find((child) => child.label === "Categories")!;
 
-    expect(isModuleNavChildActive(products, "/items", catalogItem)).toBe(true);
-    expect(isModuleNavChildActive(products, "/items/categories", catalogItem)).toBe(false);
-    expect(isModuleNavChildActive(categories, "/items/categories", catalogItem)).toBe(true);
+    expect(isModuleNavChildActive(items, "/inventory/items", inventoryItem)).toBe(true);
+    expect(isModuleNavChildActive(items, "/inventory/categories", inventoryItem)).toBe(false);
+    expect(isModuleNavChildActive(categories, "/inventory/categories", inventoryItem)).toBe(true);
   });
 });

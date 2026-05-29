@@ -25,6 +25,7 @@ const FULL_PERMISSIONS: SearchFieldPermissions = {
     "city",
     "location_type",
     "code",
+    "is_active",
   ],
   throttled: false,
 };
@@ -41,6 +42,30 @@ const SPEC_QUERY =
   "purchase price is more than the sales price created in the first week of May having HSN number 12345 having category test whose base UOM is pieces or liters";
 
 describe("items native filter compiler", () => {
+  it("compiles compact field-compare phrasing from the spec", () => {
+    const fieldDict = buildFieldDict("items", FULL_PERMISSIONS);
+
+    const compact = compileFilterQuery("purchase price > sales price", "items", fieldDict);
+    expect(compact.ast).toContainEqual({
+      kind: "field_compare",
+      left: "purchase_price",
+      operator: "FIELD_GT",
+      right: "selling_price",
+    });
+
+    const buying = compileFilterQuery(
+      "buying price is more than selling price",
+      "items",
+      fieldDict
+    );
+    expect(buying.ast).toContainEqual({
+      kind: "field_compare",
+      left: "purchase_price",
+      operator: "FIELD_GT",
+      right: "selling_price",
+    });
+  });
+
   it("compiles the architecture spec example into accurate AST parameters", () => {
     const fieldDict = buildFieldDict("items", FULL_PERMISSIONS);
     const referenceDate = new Date("2026-05-29T12:00:00.000Z");
@@ -329,6 +354,85 @@ describe("items native filter compiler", () => {
     expect(isDraftReadyFilterClause("category electronics", fieldDict)).toBe(true);
   });
 
+  it("compiles active and inactive item status filters", () => {
+    const fieldDict = buildFieldDict("items", FULL_PERMISSIONS);
+
+    const active = compileFilterQuery("active", "items", fieldDict);
+    expect(active.ast).toContainEqual({
+      kind: "predicate",
+      field: "is_active",
+      operator: "EQ",
+      value: true,
+    });
+
+    const inactive = compileFilterQuery("inactive items", "items", fieldDict);
+    expect(inactive.ast).toContainEqual({
+      kind: "predicate",
+      field: "is_active",
+      operator: "EQ",
+      value: false,
+    });
+
+    const status = compileFilterQuery("status is active", "items", fieldDict);
+    expect(status.ast).toContainEqual({
+      kind: "predicate",
+      field: "is_active",
+      operator: "EQ",
+      value: true,
+    });
+
+    const explicit = compileFilterQuery("active status is inactive", "items", fieldDict);
+    expect(explicit.ast).toContainEqual({
+      kind: "predicate",
+      field: "is_active",
+      operator: "EQ",
+      value: false,
+    });
+  });
+
+  it("filters catalog rows in memory by active status", () => {
+    const rows = [
+      {
+        item_id: "1",
+        name: "Active item",
+        description: null,
+        category_id: null,
+        category_name: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: null,
+        created_at: null,
+        default_sku: null,
+        selling_price: null,
+        purchase_price: null,
+        is_active: true,
+      },
+      {
+        item_id: "2",
+        name: "Inactive item",
+        description: null,
+        category_id: null,
+        category_name: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: null,
+        created_at: null,
+        default_sku: null,
+        selling_price: null,
+        purchase_price: null,
+        is_active: false,
+      },
+    ];
+
+    const activeIds = filterCatalogRowsInMemory(rows, [
+      { kind: "predicate", field: "is_active", operator: "EQ", value: true },
+    ]);
+    expect(activeIds).toEqual(["1"]);
+
+    const inactiveIds = filterCatalogRowsInMemory(rows, [
+      { kind: "predicate", field: "is_active", operator: "EQ", value: false },
+    ]);
+    expect(inactiveIds).toEqual(["2"]);
+  });
+
   it("filters catalog rows in memory with ILIKE", () => {
     const rows = [
       {
@@ -343,6 +447,7 @@ describe("items native filter compiler", () => {
         default_sku: null,
         selling_price: null,
         purchase_price: null,
+        is_active: true,
       },
       {
         item_id: "2",
@@ -356,6 +461,7 @@ describe("items native filter compiler", () => {
         default_sku: null,
         selling_price: null,
         purchase_price: null,
+        is_active: true,
       },
     ];
 

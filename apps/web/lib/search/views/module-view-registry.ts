@@ -52,3 +52,16 @@ export function assertRegisteredModuleName(moduleName: string): boolean {
 export function scopeFromModuleName(moduleName: string): FilterScope | null {
   return MODULE_VIEW_REGISTRY.find((entry) => entry.moduleName === moduleName)?.scope ?? null;
 }
+
+const ALL_VIEW_LABELS: Partial<Record<FilterScope, string>> = {
+  items: "All items",
+  categories: "All categories",
+  locations: "All locations",
+};
+
+export function getAllViewLabel(scope: FilterScope): string {
+  return ALL_VIEW_LABELS[scope] ?? "All";
+}
+
+/** Sentinel value for the toolbar view select when no saved view is active. */
+export const MODULE_VIEW_ALL = "__all__" as const;

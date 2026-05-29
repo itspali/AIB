@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  getAllViewLabel,
   getModuleViewDefinition,
   isSavedViewsScope,
   assertRegisteredModuleName,
+  MODULE_VIEW_ALL,
 } from "@/lib/search/views/module-view-registry";
 import {
   extractStructuralAst,
@@ -30,6 +32,8 @@ describe("module-view-registry", () => {
     expect(assertRegisteredModuleName("items")).toBe(true);
     expect(assertRegisteredModuleName("procurement")).toBe(false);
     expect(getModuleViewDefinition("items")?.moduleName).toBe("items");
+    expect(getAllViewLabel("items")).toBe("All items");
+    expect(MODULE_VIEW_ALL).toBe("__all__");
   });
 });
 

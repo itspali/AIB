@@ -7,7 +7,6 @@ import { ProductListCompact } from "@/components/products/product-list-compact";
 import { ProductListSkeleton } from "@/components/products/product-list-skeleton";
 import { ProductListTable } from "@/components/products/product-list-table";
 import { ProductListToolbar } from "@/components/products/product-list-toolbar";
-import { SavedViewsListLayout } from "@/components/search/saved-views-list-layout";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
@@ -202,8 +201,8 @@ export function ProductStreamPanel({
   ) : displayedProducts.length === 0 ? (
     <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
       {products.length === 0
-        ? "No product profiles yet. Create your first master profile to populate the catalog."
-        : "No products match the current filter."}
+        ? "No items yet. Create your first item profile to populate the catalog."
+        : "No items match the current filter."}
     </p>
   ) : prefs.viewMode === "compact" ? (
     <ProductListCompact
@@ -229,9 +228,8 @@ export function ProductStreamPanel({
   );
 
   return (
-    <SavedViewsListLayout>
-      <div className="space-y-3">
-        <ProductListToolbar
+    <div className="space-y-3">
+      <ProductListToolbar
           categoryFilter={categoryFilter}
           onCategoryFilterChange={setCategoryFilter}
           categoryOptions={categoryOptions}
@@ -245,8 +243,7 @@ export function ProductStreamPanel({
           isSavingPrefs={isSavingPrefs}
         />
 
-        {listContent}
-      </div>
-    </SavedViewsListLayout>
+      {listContent}
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { LayoutList, Loader2, Table2 } from "lucide-react";
+import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,7 @@ export function ProductListToolbar({
   return (
     <div className="space-y-3">
       <div className="flex w-full flex-nowrap items-center gap-2">
+        <ModuleViewSelect triggerClassName="w-[8.5rem] shrink-0" />
         <div className="min-w-0 flex-1">
           <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
             <SelectTrigger className="h-8 w-full [&>span]:truncate">

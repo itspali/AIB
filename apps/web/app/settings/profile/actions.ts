@@ -11,7 +11,7 @@ const REVALIDATE_PATHS = [
   "/settings/profile",
   "/account",
   "/dashboard",
-  "/items/categories",
+  "/inventory/categories",
 ];
 
 function revalidateProfilePaths() {
