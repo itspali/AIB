@@ -5,6 +5,7 @@ import {
   getOrderedVisibleColumns,
   PRODUCT_LIST_PREFS_VERSION,
   resolveCardGridColumns,
+  resolvePrefsOnMount,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
 
@@ -108,6 +109,38 @@ describe("product list prefs migration", () => {
       "classification",
     ]);
     expect(parsed.cardGridColumns.desktop).toBe(4);
+  });
+});
+
+describe("resolvePrefsOnMount", () => {
+  it("prefers local prefs when clientRevision is newer", () => {
+    const defaults = getDefaultProductListPrefs();
+    const server = { ...defaults, viewMode: "table" as const, clientRevision: 1 };
+    const local = { ...defaults, viewMode: "compact" as const, clientRevision: 3 };
+
+    const resolved = resolvePrefsOnMount(server, local);
+
+    expect(resolved.viewMode).toBe("compact");
+    expect(resolved.clientRevision).toBe(3);
+  });
+
+  it("prefers server prefs when local revision is stale or absent", () => {
+    const defaults = getDefaultProductListPrefs();
+    const server = { ...defaults, viewMode: "table" as const, clientRevision: 5 };
+    const staleLocal = { ...defaults, viewMode: "compact" as const, clientRevision: 2 };
+
+    expect(resolvePrefsOnMount(server, staleLocal).viewMode).toBe("table");
+    expect(resolvePrefsOnMount(server, null).viewMode).toBe("table");
+    expect(resolvePrefsOnMount(null, staleLocal).viewMode).toBe("compact");
+    expect(resolvePrefsOnMount(null, null).viewMode).toBe("table");
+  });
+
+  it("uses server when revisions are equal", () => {
+    const defaults = getDefaultProductListPrefs();
+    const server = { ...defaults, viewMode: "table" as const, clientRevision: 2 };
+    const local = { ...defaults, viewMode: "compact" as const, clientRevision: 2 };
+
+    expect(resolvePrefsOnMount(server, local).viewMode).toBe("table");
   });
 });
 

@@ -302,6 +302,5 @@ export async function saveProductListUserPrefs(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/items");
   return { success: true as const };
 }

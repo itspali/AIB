@@ -23,6 +23,7 @@ type Props = {
   onChange: (prefs: ProductListPrefs) => void;
   fieldPermissions: ProductFieldPermissions;
   detectedDeviceClass: DeviceClass;
+  disabled?: boolean;
 };
 
 export function ProductListColumnSettings({
@@ -30,6 +31,7 @@ export function ProductListColumnSettings({
   onChange,
   fieldPermissions,
   detectedDeviceClass,
+  disabled = false,
 }: Props) {
   const [editingLayout, setEditingLayout] = useState<ColumnSettingsLayout>(prefs.viewMode);
   const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
@@ -77,6 +79,7 @@ export function ProductListColumnSettings({
       onCardGridColumnsChange={(columns) =>
         onChange(setCardGridColumnsSlice(prefs, editingDevice as DeviceClass, columns))
       }
+      disabled={disabled}
     />
   );
 }

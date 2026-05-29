@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -8,6 +7,7 @@ import { toast } from "sonner";
 import { getProductDetail } from "@/app/items/actions";
 import { ProductDrawerForm } from "@/components/products/product-drawer-form";
 import type { ProductFormMode } from "@/components/products/product-master-form";
+import { CatalogSubNav } from "@/components/products/catalog-sub-nav";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
@@ -118,31 +118,18 @@ export function ProductCatalogTerminal({
   return (
     <>
       <div className="canvas-scroll-endpad">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <header className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between md:mb-5">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight">Product Master Catalog</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground md:hidden">
               Manage product identities, master SKUs, and statutory logistics parameters.
             </p>
-            <nav className="mt-3 flex gap-2 text-sm" aria-label="Catalog sub-navigation">
-              <Link
-                href="/items"
-                className="rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary"
-                aria-current="page"
-              >
-                Products
-              </Link>
-              <Link
-                href="/items/categories"
-                className="rounded-md px-2.5 py-1 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
-              >
-                Categories
-              </Link>
-            </nav>
+            <CatalogSubNav active="products" />
           </div>
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} className="shrink-0">
             <Plus className="h-4 w-4" />
-            Create New Item Profile
+            <span className="sm:hidden">New profile</span>
+            <span className="hidden sm:inline">Create New Item Profile</span>
           </Button>
         </header>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutList, Table2 } from "lucide-react";
+import { LayoutList, Loader2, Table2 } from "lucide-react";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,8 @@ type Props = {
   detectedDeviceClass: DeviceClass;
   resultCount: number;
   totalCount: number;
+  prefsHydrated?: boolean;
+  isSavingPrefs?: boolean;
 };
 
 export function ProductListToolbar({
@@ -43,8 +45,13 @@ export function ProductListToolbar({
   detectedDeviceClass,
   resultCount,
   totalCount,
+  prefsHydrated = true,
+  isSavingPrefs = false,
 }: Props) {
+  const controlsDisabled = !prefsHydrated || isSavingPrefs;
+
   const setViewMode = (viewMode: ProductListViewMode) => {
+    if (controlsDisabled || prefs.viewMode === viewMode) return;
     onPrefsChange({ ...prefs, viewMode });
   };
 
@@ -77,6 +84,7 @@ export function ProductListToolbar({
           {prefs.viewMode === "compact" ? (
             <Select
               value={sortValue}
+              disabled={controlsDisabled}
               onValueChange={(value) => {
                 const option = PRODUCT_LIST_SORT_OPTIONS.find(
                   (entry) => sortOptionKey(entry.field, entry.direction) === value
@@ -108,30 +116,43 @@ export function ProductListToolbar({
               </SelectContent>
             </Select>
           ) : null}
-          <div className="inline-flex rounded-md border border-border p-0.5">
+          <div
+            className="inline-flex rounded-md border border-border p-0.5"
+            aria-busy={isSavingPrefs}
+          >
             <Button
               type="button"
               size="sm"
               variant={prefs.viewMode === "table" ? "secondary" : "ghost"}
               className="h-8 w-8 p-0"
+              disabled={controlsDisabled}
               onClick={() => setViewMode("table")}
               title="Table view"
               aria-label="Table view"
               aria-pressed={prefs.viewMode === "table"}
             >
-              <Table2 className="h-4 w-4" />
+              {isSavingPrefs && prefs.viewMode === "table" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Table2 className="h-4 w-4" />
+              )}
             </Button>
             <Button
               type="button"
               size="sm"
               variant={prefs.viewMode === "compact" ? "secondary" : "ghost"}
               className="h-8 w-8 p-0"
+              disabled={controlsDisabled}
               onClick={() => setViewMode("compact")}
               title="Compact view"
               aria-label="Compact view"
               aria-pressed={prefs.viewMode === "compact"}
             >
-              <LayoutList className="h-4 w-4" />
+              {isSavingPrefs && prefs.viewMode === "compact" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LayoutList className="h-4 w-4" />
+              )}
             </Button>
           </div>
           <ProductListColumnSettings
@@ -139,18 +160,18 @@ export function ProductListToolbar({
             onChange={onPrefsChange}
             fieldPermissions={fieldPermissions}
             detectedDeviceClass={detectedDeviceClass}
+            disabled={controlsDisabled}
           />
+          {isSavingPrefs ? (
+            <span className="hidden text-xs text-muted-foreground sm:inline">Saving layout…</span>
+          ) : null}
         </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
         Showing {resultCount} of {totalCount} product{totalCount === 1 ? "" : "s"}.
-        {prefs.viewMode === "table"
-          ? " Click column headers to sort."
-          : " Use the sort control above."}{" "}
-        Use the header omnibar for native filters.
+        {prefs.viewMode === "table" ? " Click column headers to sort." : " Use the sort control above."}
       </p>
     </div>
   );
 }
-

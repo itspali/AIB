@@ -79,7 +79,11 @@ export async function executeModuleFilter(
   const security = scanQueryForSecuritySignatures(rawQuery, `${tenantId}:${userId}`);
   if (security.flagged) {
     await logFilterViolation(supabase, tenantId, userId, scope, rawQuery, security.reasons, "throttle");
-    return { ok: false, error: "Search temporarily restricted due to security policy." };
+    return {
+      ok: false,
+      error: "Search temporarily restricted due to security policy.",
+      throttled: true,
+    };
   }
 
   const permissions = await resolveSearchFieldPermissionsFromSession(
@@ -89,7 +93,11 @@ export async function executeModuleFilter(
     role
   );
   if (permissions.throttled) {
-    return { ok: false, error: "Search temporarily restricted due to security policy." };
+    return {
+      ok: false,
+      error: "Search temporarily restricted due to security policy.",
+      throttled: true,
+    };
   }
 
   const validation = validateFilterAst(ast, scope, permissions);

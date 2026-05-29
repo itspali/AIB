@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { saveProductListUserPrefs } from "@/app/items/actions";
 import { ProductListCompact } from "@/components/products/product-list-compact";
+import { ProductListSkeleton } from "@/components/products/product-list-skeleton";
 import { ProductListTable } from "@/components/products/product-list-table";
 import { ProductListToolbar } from "@/components/products/product-list-toolbar";
+import { SavedViewsListLayout } from "@/components/search/saved-views-list-layout";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
@@ -13,11 +15,12 @@ import type { CategoryRow } from "@/lib/categories/types";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import { redactProductListRow } from "@/lib/products/field-permissions";
 import {
-  getDefaultProductListPrefs,
+  bumpProductListPrefsRevision,
   loadProductListPrefs,
-  mergeInitialProductListPrefs,
-  saveProductListPrefs,
   resolveCardGridColumns,
+  resolvePrefsOnMount,
+  saveProductListPrefs,
+  shouldPersistPrefsImmediately,
   type ProductListPrefs,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
@@ -47,38 +50,64 @@ export function ProductStreamPanel({
   const omnibar = useOptionalOmnibarContext();
   const { deviceClass } = useDeviceClass();
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [prefs, setPrefs] = useState<ProductListPrefs>(getDefaultProductListPrefs);
+  const initialListPrefsRef = useRef(initialListPrefs);
+  const hydratedRef = useRef(false);
+  const [prefs, setPrefs] = useState<ProductListPrefs>(() =>
+    resolvePrefsOnMount(initialListPrefs, null)
+  );
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasPersistedRef = useRef(false);
+  const prevPrefsRef = useRef(prefs);
 
   useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
     const localPrefs = loadProductListPrefs();
-    setPrefs(mergeInitialProductListPrefs(initialListPrefs, localPrefs));
+    setPrefs(resolvePrefsOnMount(initialListPrefsRef.current, localPrefs));
     setPrefsHydrated(true);
-  }, [initialListPrefs]);
+  }, []);
 
-  const persistPrefs = useCallback(async (nextPrefs: ProductListPrefs) => {
+  const persistToServer = useCallback(async (nextPrefs: ProductListPrefs) => {
+    setIsSavingPrefs(true);
     saveProductListPrefs(nextPrefs);
-
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
-
-    saveTimerRef.current = setTimeout(async () => {
+    try {
       const result = await saveProductListUserPrefs(nextPrefs);
       if ("error" in result) {
         toast.error(result.error ?? "Unable to save list layout preferences.");
         return;
       }
-      hasPersistedRef.current = true;
-    }, PREFS_SAVE_DEBOUNCE_MS);
+    } finally {
+      setIsSavingPrefs(false);
+    }
   }, []);
 
   useEffect(() => {
     if (!prefsHydrated) return;
-    persistPrefs(prefs);
-  }, [persistPrefs, prefs, prefsHydrated]);
+
+    const previous = prevPrefsRef.current;
+    if (previous === prefs) return;
+
+    prevPrefsRef.current = prefs;
+    saveProductListPrefs(prefs);
+
+    if (shouldPersistPrefsImmediately(previous, prefs)) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      void persistToServer(prefs);
+      return;
+    }
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      void persistToServer(prefs);
+    }, PREFS_SAVE_DEBOUNCE_MS);
+  }, [persistToServer, prefs, prefsHydrated]);
 
   useEffect(() => {
     return () => {
@@ -86,14 +115,15 @@ export function ProductStreamPanel({
     };
   }, []);
 
-  useEffect(() => {
-    if (!prefsHydrated || hasPersistedRef.current || initialListPrefs) return;
-    void saveProductListUserPrefs(prefs).then((result) => {
-      if (!("error" in result)) {
-        hasPersistedRef.current = true;
-      }
-    });
-  }, [initialListPrefs, prefs, prefsHydrated]);
+  const handlePrefsChange = useCallback(
+    (next: ProductListPrefs | ((current: ProductListPrefs) => ProductListPrefs)) => {
+      setPrefs((current) => {
+        const resolved = typeof next === "function" ? next(current) : next;
+        return bumpProductListPrefsRevision(resolved);
+      });
+    },
+    []
+  );
 
   useEffect(() => {
     if (omnibar?.scopePinnedToAll) {
@@ -167,48 +197,56 @@ export function ProductStreamPanel({
     [deviceClass, prefs]
   );
 
-  return (
-    <div className="space-y-3">
-      <ProductListToolbar
-        categoryFilter={categoryFilter}
-        onCategoryFilterChange={setCategoryFilter}
-        categoryOptions={categoryOptions}
-        prefs={prefs}
-        onPrefsChange={setPrefs}
-        fieldPermissions={fieldPermissions}
-        detectedDeviceClass={deviceClass}
-        resultCount={displayedProducts.length}
-        totalCount={products.length}
-      />
+  const listContent = !prefsHydrated ? (
+    <ProductListSkeleton viewMode={prefs.viewMode} />
+  ) : displayedProducts.length === 0 ? (
+    <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+      {products.length === 0
+        ? "No product profiles yet. Create your first master profile to populate the catalog."
+        : "No products match the current filter."}
+    </p>
+  ) : prefs.viewMode === "compact" ? (
+    <ProductListCompact
+      products={displayedProducts}
+      columns={visibleColumns}
+      gridColumns={cardGridColumns}
+      selectedId={selectedId}
+      onSelect={onSelect}
+    />
+  ) : (
+    <ProductListTable
+      products={displayedProducts}
+      columns={visibleColumns}
+      selectedId={selectedId}
+      sortField={prefs.sortField}
+      sortDirection={prefs.sortDirection}
+      frozenColumnCount={prefs.frozenColumnCount}
+      onSortChange={(sortField, sortDirection) =>
+        handlePrefsChange((current) => ({ ...current, sortField, sortDirection }))
+      }
+      onSelect={onSelect}
+    />
+  );
 
-      {displayedProducts.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          {products.length === 0
-            ? "No product profiles yet. Create your first master profile to populate the catalog."
-            : "No products match the current filter."}
-        </p>
-      ) : prefs.viewMode === "compact" ? (
-        <ProductListCompact
-          products={displayedProducts}
-          columns={visibleColumns}
-          gridColumns={cardGridColumns}
-          selectedId={selectedId}
-          onSelect={onSelect}
+  return (
+    <SavedViewsListLayout>
+      <div className="space-y-3">
+        <ProductListToolbar
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={setCategoryFilter}
+          categoryOptions={categoryOptions}
+          prefs={prefs}
+          onPrefsChange={handlePrefsChange}
+          fieldPermissions={fieldPermissions}
+          detectedDeviceClass={deviceClass}
+          resultCount={displayedProducts.length}
+          totalCount={products.length}
+          prefsHydrated={prefsHydrated}
+          isSavingPrefs={isSavingPrefs}
         />
-      ) : (
-        <ProductListTable
-          products={displayedProducts}
-          columns={visibleColumns}
-          selectedId={selectedId}
-          sortField={prefs.sortField}
-          sortDirection={prefs.sortDirection}
-          frozenColumnCount={prefs.frozenColumnCount}
-          onSortChange={(sortField, sortDirection) =>
-            setPrefs((current) => ({ ...current, sortField, sortDirection }))
-          }
-          onSelect={onSelect}
-        />
-      )}
-    </div>
+
+        {listContent}
+      </div>
+    </SavedViewsListLayout>
   );
 }

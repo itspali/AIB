@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { CategoryDetailViewport } from "@/components/categories/category-detail-viewport";
 import { CategoryDrawerForm } from "@/components/categories/category-drawer-form";
 import { CategoryEmptyState } from "@/components/categories/category-empty-state";
 import { CategoryTreePanel } from "@/components/categories/category-tree-panel";
+import { CatalogSubNav } from "@/components/products/catalog-sub-nav";
+import { SavedViewsListLayout } from "@/components/search/saved-views-list-layout";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
 import { cn } from "@/lib/utils";
@@ -36,35 +37,23 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
 
   return (
     <>
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <header className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between md:mb-5">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Category Directory</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground md:hidden">
             Configure hierarchical product categories and inherited attribute templates.
           </p>
-          <nav className="mt-3 flex gap-2 text-sm" aria-label="Catalog sub-navigation">
-            <Link
-              href="/items"
-              className="rounded-md px-2.5 py-1 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
-            >
-              Products
-            </Link>
-            <Link
-              href="/items/categories"
-              className="rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary"
-              aria-current="page"
-            >
-              Categories
-            </Link>
-          </nav>
+          <CatalogSubNav active="categories" />
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="shrink-0">
           <Plus className="h-4 w-4" />
-          Create Product Category
+          <span className="sm:hidden">New category</span>
+          <span className="hidden sm:inline">Create Product Category</span>
         </Button>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-0">
+      <SavedViewsListLayout>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-0">
         <aside
           className={cn(
             "col-span-1 lg:col-span-4",
@@ -90,7 +79,8 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
             />
           )}
         </section>
-      </div>
+        </div>
+      </SavedViewsListLayout>
 
       <CategoryDrawerForm
         open={drawerOpen}

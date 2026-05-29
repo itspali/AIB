@@ -7,6 +7,7 @@ export default defineConfig({
     include: [
       "lib/search/__tests__/**/*.test.ts",
       "lib/products/__tests__/**/*.test.ts",
+      "lib/layout/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

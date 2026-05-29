@@ -21,20 +21,15 @@ export function useDeviceClass(): {
   isTablet: boolean;
   isDesktop: boolean;
 } {
-  const [deviceClass, setDeviceClass] = useState<DeviceClass>(() => readDeviceClass());
+  // Keep SSR and first client render aligned; sync to viewport after mount.
+  const [deviceClass, setDeviceClass] = useState<DeviceClass>("desktop");
 
   useEffect(() => {
     const tabletMedia = window.matchMedia(TABLET_MEDIA);
     const desktopMedia = window.matchMedia(DESKTOP_MEDIA);
 
     const sync = () => {
-      if (desktopMedia.matches) {
-        setDeviceClass("desktop");
-      } else if (tabletMedia.matches) {
-        setDeviceClass("tablet");
-      } else {
-        setDeviceClass("mobile");
-      }
+      setDeviceClass(readDeviceClass());
     };
 
     sync();

@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { OmnibarCommandDialog } from "@/components/search/omnibar-command-dialog";
 import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
-import { OmnibarSearchTrigger } from "@/components/search/omnibar-search-trigger";
+import { Omnibar } from "@/components/search/omnibar";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function TopUtilityStrip({
           </div>
 
           <div className="hidden min-w-0 md:block">
-            {omnibar ? <OmnibarSearchTrigger /> : null}
+            {omnibar ? <Omnibar variant="inline" /> : null}
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-1.5 justify-self-end">

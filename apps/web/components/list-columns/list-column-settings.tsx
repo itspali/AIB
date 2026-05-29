@@ -42,6 +42,7 @@ type Props<TId extends string> = {
   onFrozenColumnCountChange?: (count: 0 | 1 | 2 | 3) => void;
   cardGridColumns?: CardGridColumnCount;
   onCardGridColumnsChange?: (count: CardGridColumnCount) => void;
+  disabled?: boolean;
 };
 
 const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
@@ -65,6 +66,7 @@ export function ListColumnSettings<TId extends string>({
   onFrozenColumnCountChange,
   cardGridColumns = 1,
   onCardGridColumnsChange,
+  disabled = false,
 }: Props<TId>) {
   const dragIdRef = useRef<TId | null>(null);
   const [dragOverId, setDragOverId] = useState<TId | null>(null);
@@ -115,6 +117,7 @@ export function ListColumnSettings<TId extends string>({
           className="h-8 w-8 p-0"
           title="Column settings"
           aria-label="Column settings"
+          disabled={disabled}
         >
           <Columns3 className="h-4 w-4" />
         </Button>

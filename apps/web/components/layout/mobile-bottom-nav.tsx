@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { moduleNavItems } from "@/components/layout/module-nav";
+import { isModuleNavItemActive } from "@/lib/layout/module-nav-active";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
@@ -14,8 +15,9 @@ export function MobileBottomNav() {
       className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-background/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
     >
       <div className="grid h-14 grid-cols-6">
-        {moduleNavItems.map(({ href, label, shortLabel, icon: Icon }) => {
-          const active = pathname === href;
+        {moduleNavItems.map((item) => {
+          const { href, label, shortLabel, icon: Icon } = item;
+          const active = isModuleNavItemActive(item, pathname);
           return (
             <Link
               key={href}

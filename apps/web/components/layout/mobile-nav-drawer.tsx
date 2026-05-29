@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { moduleNavItems } from "@/components/layout/module-nav";
+import { isModuleNavItemActive } from "@/lib/layout/module-nav-active";
 import {
   Sheet,
   SheetContent,
@@ -11,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { MobileDrawerNavGroup } from "@/components/layout/module-nav-menu";
 
 type MobileNavDrawerProps = {
   open: boolean;
@@ -29,12 +31,25 @@ export function MobileNavDrawer({ open, onOpenChange, orgName }: MobileNavDrawer
           <SheetDescription className="text-xs">Module navigation</SheetDescription>
         </SheetHeader>
         <nav aria-label="Mobile module navigation" className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-          {moduleNavItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
+          {moduleNavItems.map((item) => {
+            if (item.children?.length) {
+              return (
+                <MobileDrawerNavGroup
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  onNavigate={() => onOpenChange(false)}
+                />
+              );
+            }
+
+            const active = isModuleNavItemActive(item, pathname);
+            const Icon = item.icon;
+
             return (
               <Link
-                key={href}
-                href={href}
+                key={item.href}
+                href={item.href}
                 onClick={() => onOpenChange(false)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -43,7 +58,7 @@ export function MobileNavDrawer({ open, onOpenChange, orgName }: MobileNavDrawer
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                <span>{label}</span>
+                <span>{item.label}</span>
               </Link>
             );
           })}

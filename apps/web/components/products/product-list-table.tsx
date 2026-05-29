@@ -87,12 +87,13 @@ export function ProductListTable({
     return {
       className: cn(
         "sticky z-10",
-        variant === "header" && "bg-muted/95 backdrop-blur-sm",
+        variant === "header" &&
+          "bg-[color-mix(in_srgb,hsl(var(--muted))_40%,hsl(var(--background)))]",
         variant === "body" &&
           (selected
-            ? "bg-primary/5 group-hover:bg-primary/5"
-            : "bg-background group-hover:bg-accent/40"),
-        isLastFrozen && "shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]"
+            ? "bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
+            : "bg-background group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
+        isLastFrozen && "border-r-2 border-primary/50"
       ),
       style: { left: stickyOffsets[index] ?? 0 },
     };
@@ -100,9 +101,9 @@ export function ProductListTable({
 
   return (
     <div className="surface-inset overflow-x-auto">
-      <table className="w-full min-w-[720px] text-sm">
+      <table className="w-full min-w-[720px] bg-background text-sm">
         <thead>
-          <tr className="border-b border-border bg-muted/40 text-left">
+          <tr className="bg-muted/40 text-left [&>th]:border-b [&>th]:border-border">
             {columns.map((columnId, index) => {
               const column = getColumnDef(columnId);
               const sortable = isSortableColumn(columnId);
@@ -169,7 +170,7 @@ export function ProductListTable({
                   }
                 }}
                 className={cn(
-                  "group cursor-pointer border-b border-border transition-colors duration-200 last:border-0 hover:bg-accent/40",
+                  "group cursor-pointer transition-colors duration-200 hover:bg-accent/40 [&>td]:border-b [&>td]:border-border last:[&>td]:border-b-0",
                   selected && "bg-primary/5 ring-1 ring-inset ring-primary/20"
                 )}
               >

@@ -87,10 +87,41 @@ export type TelemetryPayload = {
 
 export type ModuleFilterResult =
   | { ok: true; itemIds: string[]; executionMs: number }
-  | { ok: false; error: string; field?: string };
+  | { ok: false; error: string; field?: string; throttled?: boolean };
 
 export type NavigationIndexEntry = {
   label: string;
   href: string;
   keywords: string[];
 };
+
+export type CustomModuleView = {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  module_name: string;
+  view_name: string;
+  raw_search_text: string;
+  compiled_ast: AstClause[];
+  is_system_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SaveCustomModuleViewPayload = {
+  moduleName: string;
+  viewName: string;
+  rawSearchText: string;
+  compiledAst: AstClause[];
+};
+
+export type UpdateCustomModuleViewPayload = {
+  id: string;
+  viewName?: string;
+  rawSearchText?: string;
+  compiledAst?: AstClause[];
+};
+
+export type CustomModuleViewActionResult =
+  | { ok: true; view?: CustomModuleView; views?: CustomModuleView[] }
+  | { ok: false; error: string };

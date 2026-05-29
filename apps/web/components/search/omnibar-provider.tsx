@@ -20,6 +20,7 @@ import {
 import { compileFilterQuery } from "@/lib/search/compiler/compile";
 import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
+import { validateFilterAst } from "@/lib/search/executor/validate-ast";
 import {
   getCachedSearchPermissions,
   invalidateSearchPermissions,
@@ -36,9 +37,13 @@ import {
 import type {
   AstClause,
   CompileResult,
+  CustomModuleView,
   FilterScope,
   SearchFieldPermissions,
 } from "@/lib/search/types";
+import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
+import { isSavedViewDirty } from "@/lib/search/views/saved-view-utils";
+import { isSavedViewsScope } from "@/lib/search/views/module-view-registry";
 import type { OperatorProfile } from "@/lib/user/types";
 
 type OmnibarContextValue = {
@@ -77,6 +82,14 @@ type OmnibarContextValue = {
   isExecuting: boolean;
   moduleFilterRevision: number;
   refreshSearchPermissions: () => Promise<void>;
+  activeSavedViewId: string | null;
+  activeSavedView: SavedViewSnapshot | null;
+  isSavedViewDirty: boolean;
+  loadSavedView: (view: CustomModuleView) => void;
+  clearActiveSavedView: () => void;
+  setActiveSavedViewSnapshot: (view: SavedViewSnapshot | null) => void;
+  notifySavedViewsChanged: () => void;
+  savedViewsRevision: number;
 };
 
 const OmnibarContext = createContext<OmnibarContextValue | null>(null);
@@ -103,6 +116,8 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const [moduleFilterRevision, setModuleFilterRevision] = useState(0);
   const [commandOpen, setCommandOpen] = useState(false);
   const [modalDraftSegments, setModalDraftSegments] = useState<string[]>([]);
+  const [activeSavedView, setActiveSavedView] = useState<SavedViewSnapshot | null>(null);
+  const [savedViewsRevision, setSavedViewsRevision] = useState(0);
 
   const userId = operatorProfile?.userId ?? null;
   const cacheTenantId = tenantId ?? "session";
@@ -138,6 +153,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
         setAppliedQuery("");
         setCompileResult(null);
         setFilteredItemIds(null);
+        setActiveSavedView(null);
         setModuleFilterRevision((value) => value + 1);
         return;
       }
@@ -148,12 +164,25 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     [scope]
   );
 
+  const clearActiveSavedView = useCallback(() => {
+    setActiveSavedView(null);
+  }, []);
+
+  const setActiveSavedViewSnapshot = useCallback((view: SavedViewSnapshot | null) => {
+    setActiveSavedView(view);
+  }, []);
+
+  const notifySavedViewsChanged = useCallback(() => {
+    setSavedViewsRevision((value) => value + 1);
+  }, []);
+
   const clearFilters = useCallback(() => {
     setRawQuery("");
     setAppliedQuery("");
     setCompileResult(null);
     setFilteredItemIds(null);
     setModalDraftSegments([]);
+    setActiveSavedView(null);
     setModuleFilterRevision((value) => value + 1);
   }, []);
 
@@ -221,6 +250,21 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       const compiled = compileFilterQuery(trimmed, activeScope, fieldDict);
       setCompileResult(compiled);
 
+      const structuralClauses = compiled.ast.filter((clause) => clause.kind !== "text");
+      if (structuralClauses.length > 0) {
+        const validation = validateFilterAst(compiled.ast, activeScope, permissions);
+        if (!validation.ok) {
+          toast.error(
+            validation.error === "FORBIDDEN_FIELD"
+              ? "Filter uses fields you are not permitted to access."
+              : "Unable to apply native filter."
+          );
+          setFilteredItemIds(null);
+          setModuleFilterRevision((value) => value + 1);
+          return;
+        }
+      }
+
       void logSearchTelemetry({
         scope: activeScope,
         rawQuery: trimmed,
@@ -232,6 +276,15 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
           userId ? `${cacheTenantId}:${userId}` : undefined
         ).flagged,
       });
+
+      const security = scanQueryForSecuritySignatures(
+        trimmed,
+        userId ? `${cacheTenantId}:${userId}` : undefined
+      );
+      if (security.flagged && userId) {
+        setThrottledSearch(userId, cacheTenantId, true);
+        setPermissions((current) => (current ? { ...current, throttled: true } : current));
+      }
 
       if (activeScope !== "items") {
         setFilteredItemIds(null);
@@ -253,6 +306,16 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
         const result = await executeModuleFilter(activeScope, compiled.ast, trimmed);
         if (!result.ok) {
           setFilteredItemIds(null);
+          if (result.throttled && userId) {
+            setThrottledSearch(userId, cacheTenantId, true);
+            setPermissions((current) =>
+              current ? { ...current, throttled: true } : current
+            );
+            setCachedSearchPermissions(userId, cacheTenantId, {
+              ...(permissions ?? { financialVisible: false, allowedFields: [], throttled: true }),
+              throttled: true,
+            });
+          }
           toast.error(result.error ?? "Unable to apply native filter.");
           return;
         }
@@ -263,6 +326,32 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       }
     },
     [permissions, userId, cacheTenantId]
+  );
+
+  const loadSavedView = useCallback(
+    (view: CustomModuleView) => {
+      const viewScope = view.module_name as FilterScope;
+      if (!isSavedViewsScope(viewScope)) return;
+
+      if (scope !== viewScope) {
+        setScopePinnedToAll(false);
+        setScopeState(viewScope);
+      }
+
+      const snapshot: SavedViewSnapshot = {
+        id: view.id,
+        module_name: view.module_name,
+        view_name: view.view_name,
+        raw_search_text: view.raw_search_text,
+        compiled_ast: view.compiled_ast,
+      };
+
+      setActiveSavedView(snapshot);
+      setRawQuery("");
+      setAppliedQuery(view.raw_search_text);
+      void runAppliedFilter(view.raw_search_text, viewScope);
+    },
+    [scope, runAppliedFilter]
   );
 
   const applyModalFilters = useCallback(() => {
@@ -334,6 +423,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const activeAst = compileResult?.ast ?? [];
   const activeFilterCount = activeAst.filter((clause) => clause.kind !== "text").length;
   const hasActiveFilters = activeFilterCount > 0 || appliedQuery.trim().length > 0;
+  const savedViewDirty = isSavedViewDirty(activeSavedView, appliedQuery, activeAst);
 
   const modalDraftCompile = useMemo(() => {
     if (!permissions || modalDraftSegments.length === 0) return null;
@@ -392,6 +482,14 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       isExecuting,
       moduleFilterRevision,
       refreshSearchPermissions,
+      activeSavedViewId: activeSavedView?.id ?? null,
+      activeSavedView,
+      isSavedViewDirty: savedViewDirty,
+      loadSavedView,
+      clearActiveSavedView,
+      setActiveSavedViewSnapshot,
+      notifySavedViewsChanged,
+      savedViewsRevision,
     }),
     [
       rawQuery,
@@ -423,6 +521,13 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       isExecuting,
       moduleFilterRevision,
       refreshSearchPermissions,
+      activeSavedView,
+      savedViewDirty,
+      loadSavedView,
+      clearActiveSavedView,
+      setActiveSavedViewSnapshot,
+      notifySavedViewsChanged,
+      savedViewsRevision,
     ]
   );
 

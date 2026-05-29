@@ -35,6 +35,7 @@ export type CardGridColumnsByDevice = Record<DeviceClass, CardGridColumnCount>;
 
 export type ProductListPrefs = {
   prefsVersion: number;
+  clientRevision: number;
   viewMode: ProductListViewMode;
   columnPrefs: ProductListColumnPrefsByContext;
   cardGridColumns: CardGridColumnsByDevice;
@@ -170,6 +171,7 @@ function parseFrozenColumnCount(value: unknown): ProductListFrozenColumnCount {
 export function getDefaultProductListPrefs(): ProductListPrefs {
   return clampCardGridColumns({
     prefsVersion: PRODUCT_LIST_PREFS_VERSION,
+    clientRevision: 0,
     viewMode: "table",
     sortField: DEFAULT_PRODUCT_LIST_SORT_FIELD,
     sortDirection: DEFAULT_PRODUCT_LIST_SORT_DIRECTION,
@@ -183,7 +185,15 @@ type LegacyFlatProductListPrefs = Partial<ProductListPrefs> & {
   columnOrder?: unknown;
   visibleColumns?: unknown;
   cardGridColumns?: unknown;
+  clientRevision?: unknown;
 };
+
+function parseClientRevision(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+  return 0;
+}
 
 function isLegacyFlatPrefs(parsed: LegacyFlatProductListPrefs): boolean {
   return (
@@ -318,6 +328,7 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
 
   return clampCardGridColumns({
     prefsVersion: PRODUCT_LIST_PREFS_VERSION,
+    clientRevision: parseClientRevision(parsed.clientRevision),
     viewMode,
     sortField,
     sortDirection,
@@ -327,17 +338,16 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
   });
 }
 
-export function loadProductListPrefs(): ProductListPrefs {
-  const defaults = getDefaultProductListPrefs();
-  if (typeof window === "undefined") return defaults;
+export function loadProductListPrefs(): ProductListPrefs | null {
+  if (typeof window === "undefined") return null;
 
   try {
     const raw = localStorage.getItem(PRODUCT_LIST_COLUMN_REGISTRY.storageKey);
-    if (!raw) return defaults;
+    if (!raw) return null;
 
     return coerceProductListPrefs(JSON.parse(raw));
   } catch {
-    return defaults;
+    return null;
   }
 }
 
@@ -407,11 +417,51 @@ export function getOrderedVisibleColumns(
   return getOrderedVisibleListColumns(getColumnPrefsSlice(prefs, viewMode, deviceClass));
 }
 
+export function bumpProductListPrefsRevision(prefs: ProductListPrefs): ProductListPrefs {
+  return {
+    ...prefs,
+    clientRevision: (prefs.clientRevision ?? 0) + 1,
+  };
+}
+
+export function resolvePrefsOnMount(
+  serverPrefs: ProductListPrefs | null | undefined,
+  localPrefs: ProductListPrefs | null | undefined
+): ProductListPrefs {
+  const server = serverPrefs ? coerceProductListPrefs(serverPrefs) : null;
+  const local = localPrefs ? coerceProductListPrefs(localPrefs) : null;
+
+  if (!server && !local) return getDefaultProductListPrefs();
+  if (!server && local) return local;
+  if (server && !local) return server;
+
+  const resolvedLocal = local!;
+  const resolvedServer = server!;
+  const localRevision = resolvedLocal.clientRevision ?? 0;
+  const serverRevision = resolvedServer.clientRevision ?? 0;
+
+  if (localRevision > serverRevision) return resolvedLocal;
+  return resolvedServer;
+}
+
 export function mergeInitialProductListPrefs(
   serverPrefs: ProductListPrefs | null | undefined,
   localPrefs: ProductListPrefs | null | undefined
 ): ProductListPrefs {
-  if (serverPrefs) return coerceProductListPrefs(serverPrefs);
-  if (localPrefs) return coerceProductListPrefs(localPrefs);
-  return getDefaultProductListPrefs();
+  return resolvePrefsOnMount(serverPrefs, localPrefs ?? null);
+}
+
+export function shouldPersistPrefsImmediately(
+  previous: ProductListPrefs,
+  next: ProductListPrefs
+): boolean {
+  if (previous.viewMode !== next.viewMode) return true;
+  if (previous.frozenColumnCount !== next.frozenColumnCount) return true;
+  if (previous.sortField !== next.sortField || previous.sortDirection !== next.sortDirection) {
+    return true;
+  }
+  if (JSON.stringify(previous.cardGridColumns) !== JSON.stringify(next.cardGridColumns)) {
+    return true;
+  }
+  return false;
 }

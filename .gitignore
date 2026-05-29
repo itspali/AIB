@@ -22,3 +22,6 @@ go-bin/
 *.log
 .vscode/
 .cursor/
+
+# Supabase CLI local link/cache (must not be committed)
+supabase/.temp/
