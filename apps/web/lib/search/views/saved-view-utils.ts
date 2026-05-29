@@ -4,6 +4,23 @@ export function extractStructuralAst(ast: AstClause[]): AstClause[] {
   return ast.filter((clause) => clause.kind !== "text");
 }
 
+export function savedViewNeedsNativeFilter(ast: AstClause[]): boolean {
+  return extractStructuralAst(ast).length > 0;
+}
+
+export function buildCopyViewName(baseName: string, existingNames: string[]): string {
+  const normalized = new Set(existingNames.map((name) => name.trim().toLowerCase()));
+  const root = baseName.trim() || "View";
+  let candidate = `${root} copy`;
+  if (!normalized.has(candidate.toLowerCase())) return candidate;
+
+  let index = 2;
+  while (normalized.has(`${root} copy ${index}`.toLowerCase())) {
+    index += 1;
+  }
+  return `${root} copy ${index}`;
+}
+
 export function serializeStructuralAst(ast: AstClause[]): string {
   return JSON.stringify(extractStructuralAst(ast));
 }

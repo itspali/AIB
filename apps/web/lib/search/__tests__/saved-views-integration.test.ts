@@ -3,6 +3,7 @@ import { compileFilterQuery } from "@/lib/search/compiler/compile";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
 import { validateFilterAst } from "@/lib/search/executor/validate-ast";
 import {
+  buildCopyViewName,
   extractStructuralAst,
   isSavedViewDirty,
   normalizeSavedViewQuery,
@@ -147,5 +148,13 @@ describe("saved views integration", () => {
     expect(isSavedViewsScope("locations")).toBe(true);
     expect(isSavedViewsScope("all")).toBe(false);
     expect(isSavedViewsScope("settings")).toBe(false);
+  });
+
+  it("builds unique copy names for save-as-new", () => {
+    expect(buildCopyViewName("Test Items", [])).toBe("Test Items copy");
+    expect(buildCopyViewName("Test Items", ["Test Items copy"])).toBe("Test Items copy 2");
+    expect(
+      buildCopyViewName("Test Items", ["Test Items copy", "Test Items copy 2"])
+    ).toBe("Test Items copy 3");
   });
 });

@@ -1,52 +1,37 @@
 import { flattenSynonyms, resolveSynonymField } from "@/lib/search/compiler/synonyms";
+import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
 import { matchNavigationIndex } from "@/lib/search/navigation-index";
 import { getFieldDisplayLabel } from "@/lib/search/permissions/field-labels";
-import type { FilterScope, OmnibarHint, ResolvedFieldDictEntry } from "@/lib/search/types";
+import {
+  findOperatorOption,
+  getDateRelativePeriodOptions,
+  getOperatorsForField,
+  getValuePartForOperator,
+  type FieldOperatorOption,
+} from "@/lib/search/permissions/field-operators";
+import type {
+  FilterScope,
+  FilterValueOption,
+  OmnibarHint,
+  ResolvedFieldDictEntry,
+} from "@/lib/search/types";
 
 const CLAUSE_DELIMITER =
   /\s*,\s*|\s+and\s+|\s+having\s+|\s+whose\s+|\s+where\s+|\s+(?=created\b)/gi;
 
-const OPERATOR_HINTS: OmnibarHint[] = [
-  { label: "contains", insertText: "contains ", kind: "operator" },
-  { label: "is", insertText: "is ", kind: "operator" },
-  { label: "like", insertText: "like ", kind: "operator" },
-  { label: ">", insertText: "> ", kind: "operator" },
-  { label: "is more than", insertText: "is more than ", kind: "operator" },
-  { label: "and", insertText: " and ", kind: "operator" },
-  { label: "having", insertText: " having ", kind: "operator" },
+const CONNECTOR_HINTS: OmnibarHint[] = [
+  { label: "AND — add another condition", insertText: " and ", kind: "operator" },
+  { label: "OR — combine values", insertText: " or ", kind: "operator" },
 ];
 
-const ITEMS_EXAMPLES: OmnibarHint[] = [
-  { label: "name contains …", insertText: "name contains ", kind: "example" },
-  {
-    label: "purchase price > sales price",
-    insertText: "purchase price > sales price",
-    kind: "example",
-  },
-  {
-    label: "selling price >= 100",
-    insertText: "selling price >= 100",
-    kind: "example",
-  },
-  {
-    label: "selling price between 500 and 1000",
-    insertText: "selling price between 500 and 1000",
-    kind: "example",
-  },
-  { label: "category …", insertText: "category ", kind: "example" },
-  { label: "sku …", insertText: "sku ", kind: "example" },
-];
+export type HintPhase = "field" | "operator" | "value" | "connector";
 
-const LOCATIONS_EXAMPLES: OmnibarHint[] = [
-  { label: "name contains …", insertText: "name contains ", kind: "example" },
-  { label: "city …", insertText: "city ", kind: "example" },
-  { label: "code …", insertText: "code ", kind: "example" },
-];
-
-const CATEGORIES_EXAMPLES: OmnibarHint[] = [
-  { label: "name contains …", insertText: "name contains ", kind: "example" },
-  { label: "category …", insertText: "category ", kind: "example" },
-];
+export type SegmentAnalysis = {
+  phase: HintPhase;
+  fieldKey?: string;
+  operator?: FieldOperatorOption;
+  valuePrefix?: string;
+};
 
 function getActiveSegment(query: string, cursor: number) {
   const before = query.slice(0, cursor);
@@ -65,8 +50,13 @@ function getActiveSegment(query: string, cursor: number) {
   };
 }
 
+const sortedFieldHintCache = new WeakMap<ResolvedFieldDictEntry[], OmnibarHint[]>();
+
 function flattenFieldSynonyms(fieldDict: ResolvedFieldDictEntry[]): OmnibarHint[] {
-  return fieldDict
+  const cached = sortedFieldHintCache.get(fieldDict);
+  if (cached) return cached;
+
+  const hints = fieldDict
     .map((entry) => {
       const label = getFieldDisplayLabel(entry.key);
       return {
@@ -76,21 +66,19 @@ function flattenFieldSynonyms(fieldDict: ResolvedFieldDictEntry[]): OmnibarHint[
       };
     })
     .sort((a, b) => a.label.localeCompare(b.label));
+
+  sortedFieldHintCache.set(fieldDict, hints);
+  return hints;
 }
 
-function filterFieldHints(
-  fieldHints: OmnibarHint[],
-  token: string
-): OmnibarHint[] {
+function filterFieldHints(fieldHints: OmnibarHint[], token: string): OmnibarHint[] {
   const q = token.trim().toLowerCase();
-  if (!q) return fieldHints.slice(0, 8);
+  if (!q) return fieldHints;
 
-  return fieldHints
-    .filter(
-      (hint) =>
-        hint.label.toLowerCase().includes(q) || q.includes(hint.label.toLowerCase())
-    )
-    .slice(0, 8);
+  return fieldHints.filter(
+    (hint) =>
+      hint.label.toLowerCase().includes(q) || q.includes(hint.label.toLowerCase())
+  );
 }
 
 function matchFieldPrefix(segment: string, fieldDict: ResolvedFieldDictEntry[]) {
@@ -100,24 +88,49 @@ function matchFieldPrefix(segment: string, fieldDict: ResolvedFieldDictEntry[]) 
       return {
         field: entry.field,
         synonym: entry.synonym,
-        remainder: normalized.slice(entry.synonym.length).trim(),
+        remainder: normalized.slice(entry.synonym.length).trimStart(),
       };
     }
   }
   return null;
 }
 
-function getExamplesForScope(scope: FilterScope): OmnibarHint[] {
-  switch (scope) {
-    case "items":
-      return ITEMS_EXAMPLES;
-    case "locations":
-      return LOCATIONS_EXAMPLES;
-    case "categories":
-      return CATEGORIES_EXAMPLES;
-    default:
-      return [];
-  }
+function operatorHintsForField(fieldKey: string, filterPrefix?: string): OmnibarHint[] {
+  const operators = getOperatorsForField(fieldKey);
+  const q = filterPrefix?.trim().toLowerCase() ?? "";
+
+  return operators
+    .filter((option) => {
+      if (!q) return true;
+      return option.aliases.some((alias) => alias.startsWith(q));
+    })
+    .map((option) => ({
+      label: option.label,
+      insertText: option.insertText,
+      kind: "operator" as const,
+    }));
+}
+
+type ParsedOperator = {
+  option: FieldOperatorOption;
+  valuePart: string;
+};
+
+function parseOperatorFromRemainder(
+  fieldKey: string,
+  remainder: string
+): ParsedOperator | "partial" | null {
+  const trimmed = remainder.trim();
+  if (!trimmed) return null;
+
+  const match = findOperatorOption(fieldKey, trimmed);
+  if (match === "partial") return "partial";
+  if (!match) return null;
+
+  return {
+    option: match,
+    valuePart: getValuePartForOperator(fieldKey, trimmed),
+  };
 }
 
 function getCompareTargetHints(
@@ -135,14 +148,123 @@ function getCompareTargetHints(
         hint.label.toLowerCase().includes(q) || q.includes(hint.label.toLowerCase())
       );
     })
-    .slice(0, 6);
+    .slice(0, 8);
+}
+
+function resolveValuePrefix(segmentText: string, fieldDict: ResolvedFieldDictEntry[]): string {
+  const fieldMatch = matchFieldPrefix(segmentText, fieldDict);
+  if (!fieldMatch) return "";
+  return getValuePartForOperator(fieldMatch.field, fieldMatch.remainder);
+}
+
+function valueHintsFromCatalog(
+  options: FilterValueOption[],
+  valuePrefix: string
+): OmnibarHint[] {
+  const q = valuePrefix.trim().toLowerCase();
+  return options
+    .filter((option) => {
+      if (!q) return true;
+      return (
+        option.label.toLowerCase().includes(q) ||
+        option.value.toLowerCase().includes(q)
+      );
+    })
+    .slice(0, 10)
+    .map((option) => ({
+      label: option.label,
+      insertText: option.value,
+      kind: "value" as const,
+    }));
+}
+
+export function analyzeActiveSegment(
+  query: string,
+  cursor: number,
+  fieldDict: ResolvedFieldDictEntry[],
+  valueOptions: FilterValueOption[] = []
+): SegmentAnalysis {
+  const { segmentText } = getActiveSegment(query, cursor);
+  const trimmedSegment = segmentText.trim();
+
+  if (!trimmedSegment) {
+    return { phase: "field" };
+  }
+
+  const resolvedFieldPhrase = matchFieldPrefix(trimmedSegment, fieldDict);
+  if (resolvedFieldPhrase) {
+    const { field: fieldKey, remainder } = resolvedFieldPhrase;
+
+    if (!remainder) {
+      return { phase: "operator", fieldKey };
+    }
+
+    const operatorParse = parseOperatorFromRemainder(fieldKey, remainder);
+    if (operatorParse === "partial") {
+      return { phase: "operator", fieldKey };
+    }
+
+    if (operatorParse) {
+      const { option, valuePart } = operatorParse;
+
+      const compareMatch = valuePart.match(
+        /^(?:>|>=|<=|<|is\s+more\s+than|is\s+greater\s+than|is\s+less\s+than|is\s+at\s+least|is\s+at\s+most)\s*(.*)$/i
+      );
+      if (compareMatch && ["GT", "GTE", "LT", "LTE"].includes(option.operator)) {
+        return { phase: "value", fieldKey, operator: option, valuePrefix: compareMatch[1] ?? "" };
+      }
+
+      if (option.valueMode === "boolean" && !valuePart.trim()) {
+        return { phase: "value", fieldKey, operator: option, valuePrefix: "" };
+      }
+
+      if (option.valueMode === "none" && !valuePart.trim()) {
+        return { phase: "connector", fieldKey, operator: option, valuePrefix: "" };
+      }
+
+      if (valuePart.trim()) {
+        const catalogHints = valueHintsFromCatalog(valueOptions, valuePart);
+        if (catalogHints.length > 0) {
+          return { phase: "value", fieldKey, operator: option, valuePrefix: valuePart };
+        }
+
+        if (isDraftReadyFilterClause(trimmedSegment, fieldDict)) {
+          return { phase: "connector" };
+        }
+      }
+
+      return { phase: "value", fieldKey, operator: option, valuePrefix: valuePart };
+    }
+  }
+
+  if (isDraftReadyFilterClause(trimmedSegment, fieldDict)) {
+    return { phase: "connector" };
+  }
+
+  return { phase: "field" };
+}
+
+export function getHintPhaseTitle(phase: HintPhase, scope: FilterScope): string {
+  switch (phase) {
+    case "field":
+      return scope === "all" ? "Navigation" : "Fields";
+    case "operator":
+      return "Operators";
+    case "value":
+      return "Values";
+    case "connector":
+      return "Add condition";
+    default:
+      return "Suggestions";
+  }
 }
 
 export function buildOmnibarHints(
   query: string,
   cursor: number,
   scope: FilterScope,
-  fieldDict: ResolvedFieldDictEntry[]
+  fieldDict: ResolvedFieldDictEntry[],
+  options?: { valueOptions?: FilterValueOption[]; analysis?: SegmentAnalysis }
 ): OmnibarHint[] {
   if (scope === "all") {
     return matchNavigationIndex(query).map((entry) => ({
@@ -158,31 +280,54 @@ export function buildOmnibarHints(
   const { segmentText } = getActiveSegment(query, cursor);
   const trimmedSegment = segmentText.trim();
   const fieldHints = flattenFieldSynonyms(fieldDict);
+  const catalog = options?.valueOptions ?? [];
+  const analysis =
+    options?.analysis ?? analyzeActiveSegment(query, cursor, fieldDict, catalog);
 
-  if (!trimmedSegment) {
-    return getExamplesForScope(scope).slice(0, 6);
+  if (analysis.phase === "connector") {
+    return CONNECTOR_HINTS;
   }
 
-  const resolvedFieldPhrase = matchFieldPrefix(trimmedSegment, fieldDict);
-  if (resolvedFieldPhrase) {
-    const { field: resolvedField, remainder } = resolvedFieldPhrase;
-
-    if (!remainder) {
-      return OPERATOR_HINTS.slice(0, 8);
+  if (analysis.phase === "field") {
+    if (!trimmedSegment) {
+      return fieldHints;
     }
-
-    const compareMatch = remainder.match(
-      /^(?:>|>=|<=|<|is\s+more\s+than|is\s+greater\s+than|is\s+less\s+than|is\s+at\s+least|is\s+at\s+most)\s*(.*)$/i
-    );
-    if (compareMatch) {
-      return getCompareTargetHints(fieldDict, resolvedField, compareMatch[1] ?? "");
-    }
-
-    if (/^(?:contains|like|includes|is|starts\s+with)\b/i.test(remainder)) {
-      return [];
-    }
-
     return filterFieldHints(fieldHints, trimmedSegment);
+  }
+
+  if (analysis.phase === "operator" && analysis.fieldKey) {
+    const resolvedFieldPhrase = matchFieldPrefix(trimmedSegment, fieldDict);
+    const remainder = resolvedFieldPhrase?.remainder ?? "";
+    return operatorHintsForField(analysis.fieldKey, remainder);
+  }
+
+  if (analysis.phase === "value" && analysis.fieldKey && analysis.operator) {
+    const { fieldKey, operator, valuePrefix = "" } = analysis;
+
+    if (["GT", "GTE", "LT", "LTE"].includes(operator.operator)) {
+      const compareHints = getCompareTargetHints(fieldDict, fieldKey, valuePrefix);
+      if (compareHints.length > 0) {
+        return compareHints;
+      }
+    }
+
+    if (operator.valueMode === "boolean") {
+      return [
+        { label: "Active", insertText: "active", kind: "value" },
+        { label: "Inactive", insertText: "inactive", kind: "value" },
+      ];
+    }
+
+    if (operator.valueMode === "relative_period") {
+      return valueHintsFromCatalog(getDateRelativePeriodOptions(), valuePrefix);
+    }
+
+    const catalog = options?.valueOptions ?? [];
+    if (catalog.length > 0) {
+      const hints = valueHintsFromCatalog(catalog, valuePrefix);
+      if (hints.length > 0) return hints;
+    }
+    return [];
   }
 
   return filterFieldHints(fieldHints, trimmedSegment);
@@ -191,16 +336,12 @@ export function buildOmnibarHints(
 export function applyHintToQuery(
   query: string,
   cursor: number,
-  hint: OmnibarHint
+  hint: OmnibarHint,
+  fieldDict: ResolvedFieldDictEntry[] = []
 ): { nextQuery: string; nextCursor: number } {
   const { segmentStart, segmentText } = getActiveSegment(query, cursor);
   const beforeSegment = query.slice(0, segmentStart);
   const afterCursor = query.slice(cursor);
-
-  if (hint.kind === "example") {
-    const nextQuery = beforeSegment + hint.insertText;
-    return { nextQuery, nextCursor: nextQuery.length };
-  }
 
   if (hint.kind === "navigation") {
     return { nextQuery: hint.insertText, nextCursor: hint.insertText.length };
@@ -212,12 +353,34 @@ export function applyHintToQuery(
     return { nextQuery, nextCursor: beforeSegment.length + nextSegment.length };
   }
 
+  if (hint.kind === "value") {
+    const valuePrefix = resolveValuePrefix(segmentText, fieldDict);
+    let nextSegment = segmentText;
+
+    if (valuePrefix) {
+      const idx = segmentText.toLowerCase().lastIndexOf(valuePrefix.toLowerCase());
+      if (idx >= 0) {
+        nextSegment = segmentText.slice(0, idx) + hint.insertText;
+      } else {
+        nextSegment = segmentText + hint.insertText;
+      }
+    } else {
+      nextSegment = segmentText + hint.insertText;
+    }
+
+    const nextQuery = beforeSegment + nextSegment + afterCursor;
+    return {
+      nextQuery,
+      nextCursor: beforeSegment.length + nextSegment.length,
+    };
+  }
+
   if (hint.kind === "operator") {
-    const trimmed = segmentText.trimEnd();
-    const needsSpace = trimmed.length > 0 && !/\s$/.test(segmentText);
-    const operatorText = (needsSpace ? " " : "") + hint.insertText;
-    const nextQuery =
-      beforeSegment + segmentText + operatorText + afterCursor;
+    const insertText = hint.insertText;
+    const needsLeadingSpace =
+      segmentText.length > 0 && !/\s$/.test(segmentText) && !insertText.startsWith(" ");
+    const operatorText = (needsLeadingSpace ? " " : "") + insertText;
+    const nextQuery = beforeSegment + segmentText + operatorText + afterCursor;
     return {
       nextQuery,
       nextCursor: beforeSegment.length + segmentText.length + operatorText.length,

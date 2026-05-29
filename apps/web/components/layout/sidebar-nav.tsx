@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { moduleNavItems, type ModuleNavItem } from "@/components/layout/module-nav";
@@ -23,7 +23,55 @@ import {
 import { cn } from "@/lib/utils";
 
 const navLinkClass =
-  "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "group flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-normal transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const collapsedNavControlClass =
+  "flex h-10 w-full items-center justify-center rounded-lg px-2 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+export function sidebarWidthClass(collapsed: boolean): string {
+  return collapsed ? "w-16" : "w-64";
+}
+
+export function SidebarHeaderToggleColumn({
+  branding,
+}: {
+  branding?: React.ReactNode;
+}) {
+  const { sidebarCollapsed, setSidebarCollapsed } = useOnboardingContext();
+
+  return (
+    <div
+      className={cn(
+        "flex h-16 shrink-0 items-center gap-1 border-r border-white/10 bg-card/40 p-2 transition-all duration-200",
+        sidebarWidthClass(sidebarCollapsed),
+        sidebarCollapsed ? "justify-center" : "min-w-0"
+      )}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        className={cn(
+          "flex h-10 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          sidebarCollapsed
+            ? "w-full px-2"
+            : "shrink-0 px-3"
+        )}
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!sidebarCollapsed}
+      >
+        {sidebarCollapsed ? (
+          <PanelLeftOpen className="h-4 w-4 shrink-0" aria-hidden />
+        ) : (
+          <PanelLeftClose className="h-4 w-4 shrink-0" aria-hidden />
+        )}
+      </Button>
+      {!sidebarCollapsed && branding ? (
+        <div className="min-w-0 flex-1 overflow-hidden">{branding}</div>
+      ) : null}
+    </div>
+  );
+}
 
 const childLinkClass =
   "flex items-center rounded-md py-2 pl-9 pr-3 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -55,7 +103,7 @@ function SidebarNavGroup({
             type="button"
             variant="ghost"
             className={cn(
-              "h-10 w-full justify-center px-2",
+              collapsedNavControlClass,
               groupActive && "nav-glow-active bg-primary/10 text-primary"
             )}
             title={item.label}
@@ -180,7 +228,7 @@ function SidebarNavLink({
       className={cn(
         navLinkClass,
         active && "nav-glow-active bg-primary/10 text-primary",
-        collapsed && "justify-center px-2"
+        collapsed && "justify-center px-2 h-10 py-0"
       )}
       title={collapsed ? item.label : undefined}
     >
@@ -203,19 +251,11 @@ export function SidebarNav() {
   return (
     <aside
       className={cn(
-        "hidden h-full shrink-0 flex-col border-r border-white/10 bg-card/40 backdrop-blur-xl transition-all duration-200 md:flex",
-        sidebarCollapsed ? "w-16" : "w-64"
+        "flex h-full shrink-0 flex-col border-r border-white/10 bg-card/40 backdrop-blur-xl transition-all duration-200",
+        sidebarWidthClass(sidebarCollapsed)
       )}
     >
-      {!sidebarCollapsed && (
-        <div className="border-b border-white/10 px-4 py-4">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Modules
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground/70">ERP command rail</p>
-        </div>
-      )}
-      <nav aria-label="Module navigation" className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+      <nav aria-label="Module navigation" className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 pt-3">
         {moduleNavItems.map((item) =>
           item.children?.length ? (
             <SidebarNavGroup

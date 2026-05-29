@@ -24,6 +24,7 @@ type Props = {
   fieldPermissions: ProductFieldPermissions;
   detectedDeviceClass: DeviceClass;
   disabled?: boolean;
+  isSaving?: boolean;
 };
 
 export function ProductListColumnSettings({
@@ -32,6 +33,7 @@ export function ProductListColumnSettings({
   fieldPermissions,
   detectedDeviceClass,
   disabled = false,
+  isSaving = false,
 }: Props) {
   const [editingLayout, setEditingLayout] = useState<ColumnSettingsLayout>(prefs.viewMode);
   const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
@@ -80,6 +82,7 @@ export function ProductListColumnSettings({
         onChange(setCardGridColumnsSlice(prefs, editingDevice as DeviceClass, columns))
       }
       disabled={disabled}
+      isSaving={isSaving}
     />
   );
 }

@@ -3,14 +3,29 @@
 import { Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { listFilterValueOptions } from "@/app/search/actions";
 import { HintDrawer } from "@/components/search/hint-drawer";
 import { OmnibarScopeSelect } from "@/components/search/omnibar-scope-select";
 import { useOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
 import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
-import { applyHintToQuery, buildOmnibarHints } from "@/lib/search/hints/build-hints";
-import type { OmnibarHint } from "@/lib/search/types";
+import {
+  analyzeActiveSegment,
+  applyHintToQuery,
+  buildOmnibarHints,
+  getHintPhaseTitle,
+} from "@/lib/search/hints/build-hints";
+import {
+  getCachedValueOptions,
+  getStaticValueOptions,
+  setCachedValueOptions,
+} from "@/lib/search/value-option-cache";
+import { getRecentSearches } from "@/lib/search/recent-searches";
+import type { FilterValueOption, OmnibarHint } from "@/lib/search/types";
 import { cn } from "@/lib/utils";
+
+const VALUE_OPTION_DEBOUNCE_MS = 150;
+const LIVE_PREVIEW_DEBOUNCE_MS = 300;
 
 type Props = {
   className?: string;
@@ -31,24 +46,124 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
     submitFilter,
     addDraftCriterion,
     hasPendingFilter,
+    filterError,
     permissions,
+    recentSearchesRevision,
+    applyQueryDirect,
+    setInlinePreview,
   } = useOmnibarContext();
 
   const [focused, setFocused] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [activeHintIndex, setActiveHintIndex] = useState(0);
+  const [valueOptions, setValueOptions] = useState<FilterValueOption[]>([]);
+  const [valueOptionsLoading, setValueOptionsLoading] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  const supportsRecent = scope !== "all" && scope !== "settings";
+
+  useEffect(() => {
+    if (!focused || !supportsRecent) return;
+    setRecentSearches(getRecentSearches(scope));
+  }, [focused, scope, supportsRecent, recentSearchesRevision]);
+
+  useEffect(() => {
+    if (variant !== "inline") return;
+    const handle = window.setTimeout(() => {
+      setInlinePreview(rawQuery);
+    }, LIVE_PREVIEW_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [rawQuery, variant, setInlinePreview]);
 
   const fieldDict = useMemo(() => {
     if (!permissions) return [];
     return buildFieldDict(scope, permissions);
   }, [permissions, scope]);
 
+  const segmentAnalysis = useMemo(() => {
+    if (!permissions) return { phase: "field" as const };
+    return analyzeActiveSegment(rawQuery, cursor, fieldDict, valueOptions);
+  }, [permissions, rawQuery, cursor, fieldDict, valueOptions]);
+
+  useEffect(() => {
+    const fieldKey = segmentAnalysis.fieldKey;
+    if (!focused || segmentAnalysis.phase !== "value" || !fieldKey) {
+      setValueOptions([]);
+      setValueOptionsLoading(false);
+      return;
+    }
+
+    const staticOptions = getStaticValueOptions(scope, fieldKey);
+    if (staticOptions) {
+      setValueOptions(staticOptions);
+      setValueOptionsLoading(false);
+      return;
+    }
+
+    const cached = getCachedValueOptions(scope, fieldKey);
+    if (cached) {
+      setValueOptions(cached);
+      setValueOptionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setValueOptionsLoading(true);
+    const timer = window.setTimeout(() => {
+      void listFilterValueOptions(scope, fieldKey).then((result) => {
+        if (cancelled) return;
+        const options = result.ok ? result.options : [];
+        if (result.ok) setCachedValueOptions(scope, fieldKey, options);
+        setValueOptions(options);
+        setValueOptionsLoading(false);
+      });
+    }, VALUE_OPTION_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [focused, scope, segmentAnalysis.fieldKey, segmentAnalysis.phase]);
+
+  const showRecent =
+    variant === "inline" &&
+    focused &&
+    supportsRecent &&
+    rawQuery.trim().length === 0 &&
+    recentSearches.length > 0;
+
   const hintItems = useMemo(() => {
     if (!focused || !permissions) return [];
-    return buildOmnibarHints(rawQuery, cursor, scope, fieldDict);
-  }, [focused, permissions, rawQuery, cursor, scope, fieldDict]);
+    if (showRecent) {
+      return recentSearches.map<OmnibarHint>((query) => ({
+        label: query,
+        insertText: query,
+        kind: "recent",
+        query,
+      }));
+    }
+    return buildOmnibarHints(rawQuery, cursor, scope, fieldDict, {
+      valueOptions,
+      analysis: segmentAnalysis,
+    });
+  }, [
+    focused,
+    permissions,
+    showRecent,
+    recentSearches,
+    rawQuery,
+    cursor,
+    scope,
+    fieldDict,
+    valueOptions,
+    segmentAnalysis,
+  ]);
 
+  const inValuePhase = focused && !showRecent && segmentAnalysis.phase === "value";
+  const showValueLoading = inValuePhase && valueOptionsLoading;
+  const showValueEmpty = inValuePhase && !valueOptionsLoading && hintItems.length === 0;
   const showHints = focused && hintItems.length > 0;
+  const showDrawer = showHints || showValueLoading || showValueEmpty;
 
   useEffect(() => {
     if (activeHintIndex >= hintItems.length) {
@@ -63,7 +178,13 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
       return;
     }
 
-    const { nextQuery, nextCursor } = applyHintToQuery(rawQuery, cursor, hint);
+    if (hint.kind === "recent" && hint.query) {
+      applyQueryDirect(hint.query);
+      setFocused(false);
+      return;
+    }
+
+    const { nextQuery, nextCursor } = applyHintToQuery(rawQuery, cursor, hint, fieldDict);
     setRawQuery(nextQuery);
     setCursor(nextCursor);
     setActiveHintIndex(0);
@@ -121,8 +242,9 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
     submitFilter();
   };
 
-  const hintTitle =
-    scope === "all" ? "Navigation" : scope === "settings" ? "Suggestions" : "Native filter hints";
+  const hintTitle = showRecent
+    ? "Recent searches"
+    : getHintPhaseTitle(segmentAnalysis.phase, scope);
 
   return (
     <div className={cn("relative w-full", className)}>
@@ -131,7 +253,8 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
           "flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 shadow-sm backdrop-blur-md transition-all duration-200 dark:shadow-glow-sm",
           mobile ? "h-11" : "h-10",
           focused && "border-primary/40 ring-2 ring-primary/20",
-          hasPendingFilter && "border-amber-500/40"
+          hasPendingFilter && "border-amber-500/40",
+          filterError && "border-destructive/60 ring-2 ring-destructive/20"
         )}
       >
         <OmnibarScopeSelect scope={scope} options={scopeOptions} onScopeChange={setScope} />
@@ -156,7 +279,8 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
           placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           aria-label="Context-aware search and filter"
-          aria-expanded={showHints}
+          aria-invalid={filterError ? true : undefined}
+          aria-expanded={showDrawer}
           aria-haspopup="listbox"
           aria-controls={showHints ? "omnibar-hint-listbox" : undefined}
           aria-activedescendant={
@@ -178,19 +302,25 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
         )}
       </div>
 
-      {variant === "dialog" ? (
+      {filterError ? (
+        <p className="mt-1 text-[11px] text-destructive" role="alert">
+          {filterError}
+        </p>
+      ) : variant === "dialog" ? (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          ↑↓ suggestions · Enter adds a complete filter · Tab inserts suggestion · Ctrl+Enter to apply
+          Pick a field, operator, and value · AND/OR to extend · Enter adds criterion · Ctrl+Enter to apply
         </p>
       ) : null}
 
-      {showHints ? (
+      {showDrawer ? (
         <HintDrawer
           hints={hintItems}
           activeIndex={activeHintIndex}
           onSelect={applyHint}
           onHighlight={setActiveHintIndex}
           title={hintTitle}
+          loading={showValueLoading}
+          emptyMessage={showValueEmpty ? "Type a value, then press Enter" : undefined}
         />
       ) : null}
     </div>

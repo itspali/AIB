@@ -81,6 +81,30 @@ export function clauseToLabelParts(clause: AstClause): ClauseLabelPart[] {
       ];
     }
 
+    if (clause.operator === "NOT_ILIKE") {
+      return [
+        fieldPart(clause.field),
+        operatorPart("not contains"),
+        valuePart(String(clause.value)),
+      ];
+    }
+
+    if (clause.operator === "IS_NULL") {
+      return [fieldPart(clause.field), operatorPart("is empty")];
+    }
+
+    if (clause.operator === "IS_NOT_NULL") {
+      return [fieldPart(clause.field), operatorPart("is not empty")];
+    }
+
+    if (clause.operator === "NEQ") {
+      return [
+        fieldPart(clause.field),
+        operatorPart("is not"),
+        valuePart(String(clause.value)),
+      ];
+    }
+
     if (clause.operator === "EQ") {
       if (isBooleanFilterField(clause.field)) {
         return [

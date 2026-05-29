@@ -15,6 +15,9 @@ const ALLOWED_OPERATORS = new Set([
   "FIELD_LT",
   "FIELD_LTE",
   "ILIKE",
+  "NOT_ILIKE",
+  "IS_NULL",
+  "IS_NOT_NULL",
 ]);
 
 export type ValidateAstResult =

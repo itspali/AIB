@@ -20,6 +20,7 @@ import {
   resolvePrefsOnMount,
   saveProductListPrefs,
   shouldPersistPrefsImmediately,
+  didColumnSettingsChange,
   type ProductListPrefs,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
@@ -56,6 +57,8 @@ export function ProductStreamPanel({
   );
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
+  const [isSavingColumnPrefs, setIsSavingColumnPrefs] = useState(false);
+  const savingColumnPrefsRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevPrefsRef = useRef(prefs);
 
@@ -69,6 +72,7 @@ export function ProductStreamPanel({
 
   const persistToServer = useCallback(async (nextPrefs: ProductListPrefs) => {
     setIsSavingPrefs(true);
+    setIsSavingColumnPrefs(savingColumnPrefsRef.current);
     saveProductListPrefs(nextPrefs);
     try {
       const result = await saveProductListUserPrefs(nextPrefs);
@@ -78,6 +82,8 @@ export function ProductStreamPanel({
       }
     } finally {
       setIsSavingPrefs(false);
+      setIsSavingColumnPrefs(false);
+      savingColumnPrefsRef.current = false;
     }
   }, []);
 
@@ -89,6 +95,7 @@ export function ProductStreamPanel({
 
     prevPrefsRef.current = prefs;
     saveProductListPrefs(prefs);
+    savingColumnPrefsRef.current = didColumnSettingsChange(previous, prefs);
 
     if (shouldPersistPrefsImmediately(previous, prefs)) {
       if (saveTimerRef.current) {
@@ -150,18 +157,24 @@ export function ProductStreamPanel({
       rows = rows.filter((product) => product.category_id === categoryFilter);
     }
 
-    if (!omnibar?.appliedQuery.trim()) {
-      return rows;
+    if (omnibar?.appliedQuery.trim()) {
+      const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
+
+      if (hasStructuralFilter && omnibar.filteredItemIds) {
+        rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
+      } else if (!hasStructuralFilter && omnibar.residualText) {
+        rows = applyFallbackTextFilter(
+          rows.map((row) => ({ ...row, description: null })),
+          omnibar.residualText
+        );
+      }
     }
 
-    const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
-
-    if (hasStructuralFilter && omnibar.filteredItemIds) {
-      rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
-    } else if (!hasStructuralFilter && omnibar.residualText) {
+    // Live, uncommitted text preview as the user types in the inline bar.
+    if (omnibar?.inlinePreviewText) {
       rows = applyFallbackTextFilter(
         rows.map((row) => ({ ...row, description: null })),
-        omnibar.residualText
+        omnibar.inlinePreviewText
       );
     }
 
@@ -173,6 +186,7 @@ export function ProductStreamPanel({
     omnibar?.filteredItemIds,
     omnibar?.activeAst,
     omnibar?.residualText,
+    omnibar?.inlinePreviewText,
   ]);
 
   const displayedProducts = useMemo(
@@ -241,6 +255,7 @@ export function ProductStreamPanel({
           totalCount={products.length}
           prefsHydrated={prefsHydrated}
           isSavingPrefs={isSavingPrefs}
+          isSavingColumnPrefs={isSavingColumnPrefs}
         />
 
       {listContent}

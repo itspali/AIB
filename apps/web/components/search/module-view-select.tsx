@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Check, ChevronDown, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   deleteCustomModuleView,
@@ -184,11 +184,13 @@ export function ModuleViewSelect({ className, triggerClassName }: Props) {
     clearActiveSavedView,
     setActiveSavedViewSnapshot,
     notifySavedViewsChanged,
+    isExecuting,
   } = omnibar;
 
   const allLabel = getAllViewLabel(scope);
   const viewMatchesFilters = activeSavedViewId != null && hasActiveFilters;
   const isAllSelected = !viewMatchesFilters;
+  const isFilterLoading = isExecuting && hasActiveFilters;
 
   const displayLabel =
     viewMatchesFilters && activeView
@@ -288,13 +290,19 @@ export function ModuleViewSelect({ className, triggerClassName }: Props) {
             type="button"
             variant="outline"
             disabled={isLoading}
+            aria-busy={isFilterLoading}
             className={cn(
               "h-8 justify-between gap-2 px-3 font-normal shadow-sm [&>span]:truncate",
               triggerClassName ?? "w-[9.5rem]"
             )}
-            aria-label="Saved filter view"
+            aria-label={isFilterLoading ? "Loading saved view filters" : "Saved filter view"}
           >
-            <span className="truncate">{displayLabel}</span>
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
+              {isFilterLoading ? (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+              ) : null}
+              <span className="truncate">{displayLabel}</span>
+            </span>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
           </Button>
         </DropdownMenuTrigger>

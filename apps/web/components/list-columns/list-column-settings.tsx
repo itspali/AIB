@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Columns3, GripVertical } from "lucide-react";
+import { Columns3, GripVertical, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,6 +43,7 @@ type Props<TId extends string> = {
   cardGridColumns?: CardGridColumnCount;
   onCardGridColumnsChange?: (count: CardGridColumnCount) => void;
   disabled?: boolean;
+  isSaving?: boolean;
 };
 
 const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
@@ -67,6 +68,7 @@ export function ListColumnSettings<TId extends string>({
   cardGridColumns = 1,
   onCardGridColumnsChange,
   disabled = false,
+  isSaving = false,
 }: Props<TId>) {
   const dragIdRef = useRef<TId | null>(null);
   const [dragOverId, setDragOverId] = useState<TId | null>(null);
@@ -117,9 +119,14 @@ export function ListColumnSettings<TId extends string>({
           className="h-8 w-8 p-0"
           title="Column settings"
           aria-label="Column settings"
+          aria-busy={isSaving}
           disabled={disabled}
         >
-          <Columns3 className="h-4 w-4" />
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Columns3 className="h-4 w-4" aria-hidden />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

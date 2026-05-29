@@ -11,6 +11,7 @@ import { LocationModuleHeader } from "@/components/locations/location-module-hea
 import { LocationPristineCanvas } from "@/components/locations/location-pristine-canvas";
 import { LocationProvisionForm } from "@/components/locations/location-provision-form";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
+import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
 import { Button } from "@/components/ui/button";
 import { canAddLocation } from "@/lib/locations/governance";
 import type { LocationModuleContext, LocationRow } from "@/lib/locations/types";
@@ -103,8 +104,9 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
         )}
       </div>
 
-      <div className="mb-3">
+      <div className="mb-3 space-y-2">
         <ModuleViewSelect triggerClassName="w-full sm:w-[10rem]" />
+        <OmnibarFilterChipBar variant="inline" />
       </div>
 
       <div

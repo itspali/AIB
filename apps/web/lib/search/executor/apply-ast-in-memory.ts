@@ -62,10 +62,16 @@ function matchesClause(row: CatalogSearchRow, clause: AstClause): boolean {
         return Boolean(raw) === Boolean(value);
       }
       return String(raw ?? "").toLowerCase() === String(value).toLowerCase();
+    case "NEQ":
+      return String(raw ?? "").toLowerCase() !== String(value).toLowerCase();
     case "IN":
       return Array.isArray(value)
         ? value.some((entry) => String(raw ?? "").toLowerCase() === String(entry).toLowerCase())
         : false;
+    case "IS_NULL":
+      return raw === null || raw === undefined || String(raw).trim() === "";
+    case "IS_NOT_NULL":
+      return raw !== null && raw !== undefined && String(raw).trim() !== "";
     case "GT": {
       const numeric = toNumber(raw);
       const threshold = toNumber(value);
@@ -113,6 +119,14 @@ function matchesClause(row: CatalogSearchRow, clause: AstClause): boolean {
         return haystack.startsWith(needle.slice(1).toLowerCase());
       }
       return haystack.includes(needle.toLowerCase());
+    }
+    case "NOT_ILIKE": {
+      const needle = String(value);
+      const haystack = String(raw ?? "").toLowerCase();
+      if (needle.startsWith("^")) {
+        return !haystack.startsWith(needle.slice(1).toLowerCase());
+      }
+      return !haystack.includes(needle.toLowerCase());
     }
     default:
       return true;

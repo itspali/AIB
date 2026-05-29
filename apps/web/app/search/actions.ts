@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
 import {
@@ -9,16 +10,18 @@ import {
 import { executeItemsFilterRpc, normalizeItemsAst } from "@/lib/search/executor/supabase-items";
 import { validateFilterAst } from "@/lib/search/executor/validate-ast";
 import { scanQueryForSecuritySignatures } from "@/lib/search/telemetry/signatures";
+import { fetchFilterValueOptions } from "@/lib/search/filter-value-catalog";
 import type {
   AstClause,
   FilterScope,
+  FilterValueOption,
   ModuleFilterResult,
   SearchFieldPermissions,
   TelemetryPayload,
 } from "@/lib/search/types";
 import type { UserRole } from "@/lib/user/types";
 
-async function getSessionContext() {
+const getSessionContext = cache(async () => {
   const { supabase, tenantId } = await requireTenantId();
   const {
     data: { user },
@@ -34,6 +37,31 @@ async function getSessionContext() {
 
   const role = (userRow?.role as UserRole | undefined) ?? "STAFF";
   return { supabase, tenantId, userId: user.id, role };
+});
+
+async function insertTelemetryRow(
+  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  tenantId: string,
+  userId: string,
+  payload: TelemetryPayload,
+  securityFlag: boolean
+) {
+  const { error } = await supabase.from("search_telemetry_logs").insert({
+    tenant_id: tenantId,
+    user_id: userId,
+    scope: payload.scope,
+    raw_query: payload.rawQuery,
+    unparsed_tokens: payload.unparsedTokens,
+    ast_json: payload.ast,
+    compile_micros: payload.compileMicros,
+    execution_ms: payload.executionMs ?? null,
+    performance_warning: payload.performanceWarning ?? (payload.executionMs ?? 0) > 50,
+    security_flag: payload.securityFlag ?? securityFlag,
+  });
+
+  if (error) {
+    console.warn("[search] telemetry insert skipped:", error.message);
+  }
 }
 
 export async function resolveSearchFieldPermissions(): Promise<SearchFieldPermissions> {
@@ -67,7 +95,8 @@ async function logFilterViolation(
 export async function executeModuleFilter(
   scope: FilterScope,
   ast: AstClause[],
-  rawQuery: string
+  rawQuery: string,
+  telemetry?: TelemetryPayload
 ): Promise<ModuleFilterResult> {
   if (scope !== "items") {
     return { ok: true, itemIds: [], executionMs: 0 };
@@ -77,7 +106,7 @@ export async function executeModuleFilter(
   const { supabase, tenantId, userId, role } = await getSessionContext();
 
   const security = scanQueryForSecuritySignatures(rawQuery, `${tenantId}:${userId}`);
-  if (security.flagged) {
+  if (security.shouldThrottle) {
     await logFilterViolation(supabase, tenantId, userId, scope, rawQuery, security.reasons, "throttle");
     return {
       ok: false,
@@ -123,17 +152,30 @@ export async function executeModuleFilter(
     const itemIds = await executeItemsFilterRpc(supabase, tenantId, normalizedAst);
     const executionMs = Math.round(performance.now() - started);
 
-    if (executionMs > 50) {
-      await logSearchTelemetry({
-        scope,
-        rawQuery,
-        unparsedTokens: [],
-        ast,
-        compileMicros: 0,
-        executionMs,
-        performanceWarning: true,
-        securityFlag: false,
-      });
+    if (telemetry) {
+      await insertTelemetryRow(
+        supabase,
+        tenantId,
+        userId,
+        { ...telemetry, executionMs, performanceWarning: executionMs > 50 },
+        security.flagged
+      );
+    } else if (executionMs > 50) {
+      await insertTelemetryRow(
+        supabase,
+        tenantId,
+        userId,
+        {
+          scope,
+          rawQuery,
+          unparsedTokens: [],
+          ast,
+          compileMicros: 0,
+          executionMs,
+          performanceWarning: true,
+        },
+        security.flagged
+      );
     }
 
     return { ok: true, itemIds, executionMs };
@@ -148,25 +190,23 @@ export async function logSearchTelemetry(payload: TelemetryPayload): Promise<voi
   try {
     const { supabase, tenantId, userId } = await getSessionContext();
     const security = scanQueryForSecuritySignatures(payload.rawQuery, `${tenantId}:${userId}`);
-
-    const { error } = await supabase.from("search_telemetry_logs").insert({
-      tenant_id: tenantId,
-      user_id: userId,
-      scope: payload.scope,
-      raw_query: payload.rawQuery,
-      unparsed_tokens: payload.unparsedTokens,
-      ast_json: payload.ast,
-      compile_micros: payload.compileMicros,
-      execution_ms: payload.executionMs ?? null,
-      performance_warning: payload.performanceWarning ?? (payload.executionMs ?? 0) > 50,
-      security_flag: payload.securityFlag ?? security.flagged,
-    });
-
-    if (error) {
-      console.warn("[search] telemetry insert skipped:", error.message);
-    }
+    await insertTelemetryRow(supabase, tenantId, userId, payload, security.flagged);
   } catch (error) {
     console.warn("[search] telemetry logging failed:", error);
+  }
+}
+
+export async function listFilterValueOptions(
+  scope: FilterScope,
+  fieldKey: string
+): Promise<{ ok: true; options: FilterValueOption[] } | { ok: false; error: string }> {
+  try {
+    const { supabase, tenantId } = await getSessionContext();
+    const options = await fetchFilterValueOptions(supabase, tenantId, scope, fieldKey);
+    return { ok: true, options };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to load filter values.";
+    return { ok: false, error: message };
   }
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Clock, Sparkles } from "lucide-react";
 import { FilterChipRow } from "@/components/search/filter-chip-row";
 import { Omnibar } from "@/components/search/omnibar";
 import { useOmnibarContext } from "@/components/search/omnibar-provider";
 import { getScopeLabel } from "@/lib/search/scopes";
+import { clearRecentSearches, getRecentSearches } from "@/lib/search/recent-searches";
 import { Button } from "@/components/ui/button";
 
 function ShortcutKey({ children }: { children: React.ReactNode }) {
@@ -39,10 +40,26 @@ export function OmnibarCommandDialog() {
     cancelCommandPalette,
     canApplyModal,
     isExecuting,
+    recentSearchesRevision,
+    loadRecentSearchIntoDraft,
   } = useOmnibarContext();
 
   const applyShortcutLabel = useApplyShortcutLabel();
   const draftChips = modalDraftAst.filter((clause) => clause.kind !== "text");
+
+  const supportsRecent = scope !== "all" && scope !== "settings";
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!commandOpen || !supportsRecent) {
+      setRecentSearches([]);
+      return;
+    }
+    setRecentSearches(getRecentSearches(scope));
+  }, [commandOpen, scope, supportsRecent, recentSearchesRevision]);
+
+  const showRecent = supportsRecent && draftChips.length === 0 && recentSearches.length > 0;
+
   useEffect(() => {
     if (!commandOpen) return;
     const id = window.requestAnimationFrame(() => focusInput());
@@ -83,7 +100,7 @@ export function OmnibarCommandDialog() {
       }}
     >
       <div
-        className="flex max-h-[min(85vh,640px)] min-h-[min(520px,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl shadow-primary/10 backdrop-blur-xl"
+        className="flex max-h-[min(85vh,640px)] min-h-[min(480px,85vh)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl shadow-primary/10 backdrop-blur-xl"
         role="dialog"
         aria-label="Search and filter"
         aria-modal="true"
@@ -112,7 +129,11 @@ export function OmnibarCommandDialog() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-[120px] shrink-0 overflow-y-auto border-b border-border/60 bg-muted/20 px-4 py-3">
+          <div className="shrink-0 border-b border-border/60 px-4 py-3">
+            <Omnibar variant="dialog" />
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto bg-muted/20 px-4 py-3">
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Criteria to apply ({draftChips.length})
             </p>
@@ -120,20 +141,47 @@ export function OmnibarCommandDialog() {
               <FilterChipRow ast={modalDraftAst} onRemove={removeDraftCriterionAt} />
             ) : (
               <p className="text-xs text-muted-foreground">
-                No criteria yet. Add filters below, then click Apply.
+                No criteria yet. Build filters above, then Apply.
               </p>
             )}
-          </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <Omnibar variant="dialog" />
+            {showRecent ? (
+              <div className="mt-4 border-t border-border/60 pt-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    Recent searches
+                  </p>
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => {
+                      clearRecentSearches(scope);
+                      setRecentSearches([]);
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {recentSearches.map((query) => (
+                    <button
+                      key={query}
+                      type="button"
+                      className="truncate rounded-md border border-border/60 bg-background/40 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                      onClick={() => loadRecentSearchIntoDraft(query)}
+                      title={query}
+                    >
+                      {query}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="shrink-0 border-t border-border/60 bg-card/95 px-4 py-3">
-          <p className="mb-3 text-xs text-muted-foreground">
-            ↑↓ suggestions · Enter to insert or add criterion · Ctrl+Enter to apply
-          </p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={cancelCommandPalette}>
               Cancel

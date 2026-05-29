@@ -6,8 +6,11 @@ import {
 import {
   parseCreatedAfterDate,
   parseCreatedInTemporal,
+  parseDateTimeBounds,
+  parseRelativeTemporal,
 } from "@/lib/search/compiler/temporal";
 import { isNumericFilterField, isBooleanFilterField } from "@/lib/search/permissions/field-labels";
+import { getFieldMetadata } from "@/lib/search/permissions/field-metadata";
 import type { AstClause, ResolvedFieldDictEntry } from "@/lib/search/types";
 
 type CompareOp = "FIELD_GT" | "FIELD_GTE" | "FIELD_LT" | "FIELD_LTE" | "GT" | "GTE" | "LT" | "LTE";
@@ -135,12 +138,15 @@ function parseHavingLiteral(
 
   const categoryMatch = clause.match(/^category\s+(.+)$/i);
   if (categoryMatch?.[1]) {
-    return {
-      kind: "predicate",
-      field: "category_name",
-      operator: "EQ",
-      value: categoryMatch[1].trim(),
-    };
+    const remainder = categoryMatch[1].trim();
+    if (!/^name\b/i.test(remainder)) {
+      return {
+        kind: "predicate",
+        field: "category_name",
+        operator: "EQ",
+        value: remainder,
+      };
+    }
   }
 
   return null;
@@ -168,11 +174,127 @@ function parseInClause(clause: string, fieldDict: ResolvedFieldDictEntry[]): Ast
   };
 }
 
-function parseTemporalClause(
+function parseNullabilityPredicate(
   clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  for (const entry of flattenSynonyms(fieldDict)) {
+    const synonym = escapeRegex(entry.synonym);
+    if (new RegExp(`^${synonym}\\s+is\\s+empty$`, "i").test(clause.trim())) {
+      return { kind: "predicate", field: entry.field, operator: "IS_NULL", value: null };
+    }
+    if (new RegExp(`^${synonym}\\s+is\\s+not\\s+empty$`, "i").test(clause.trim())) {
+      return { kind: "predicate", field: entry.field, operator: "IS_NOT_NULL", value: null };
+    }
+  }
+  return null;
+}
+
+function parseNumericFixedPredicate(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  for (const entry of flattenSynonyms(fieldDict)) {
+    if (!isNumericFilterField(entry.field)) continue;
+    const synonym = escapeRegex(entry.synonym);
+    if (new RegExp(`^${synonym}\\s+is\\s+zero$`, "i").test(clause.trim())) {
+      return { kind: "predicate", field: entry.field, operator: "EQ", value: 0 };
+    }
+    if (new RegExp(`^${synonym}\\s+is\\s+less\\s+than\\s+zero$`, "i").test(clause.trim())) {
+      return { kind: "predicate", field: entry.field, operator: "LT", value: 0 };
+    }
+  }
+  return null;
+}
+
+function parseNegatedPredicate(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  const match = clause.match(/^(.+?)\s+is\s+not\s+(.+)$/i);
+  if (!match?.[1] || !match[2]) return null;
+
+  const value = match[2].trim();
+  if (!value || /\s+or\s+/i.test(value) || /^empty$/i.test(value)) return null;
+
+  const resolved = resolveSynonymFieldsInPhrase(match[1], fieldDict);
+  if (!resolved) return null;
+
+  return {
+    kind: "predicate",
+    field: resolved.field,
+    operator: "NEQ",
+    value,
+  };
+}
+
+function parseDateFieldClause(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[],
   referenceDate?: Date,
   timezone?: string
 ): AstClause | null {
+  for (const entry of flattenSynonyms(fieldDict)) {
+    if (getFieldMetadata(entry.field).valueType !== "date") continue;
+
+    const synonym = escapeRegex(entry.synonym);
+
+    const inMatch = clause.match(new RegExp(`^${synonym}\\s+in\\s+(.+)$`, "i"));
+    if (inMatch?.[1]) {
+      const bounds = parseRelativeTemporal(inMatch[1], referenceDate, timezone);
+      if (bounds) {
+        return {
+          kind: "predicate",
+          field: entry.field,
+          operator: "BETWEEN",
+          value: [bounds.start, bounds.end],
+        };
+      }
+    }
+
+    const beforeMatch = clause.match(new RegExp(`^${synonym}\\s+before\\s+(.+)$`, "i"));
+    if (beforeMatch?.[1]) {
+      const parsed = parseDateTimeBounds(beforeMatch[1], referenceDate, timezone);
+      if (typeof parsed === "string") {
+        return { kind: "predicate", field: entry.field, operator: "LT", value: parsed };
+      }
+    }
+
+    const afterMatch = clause.match(new RegExp(`^${synonym}\\s+after\\s+(.+)$`, "i"));
+    if (afterMatch?.[1]) {
+      const parsed = parseDateTimeBounds(afterMatch[1], referenceDate, timezone);
+      if (typeof parsed === "string") {
+        return { kind: "predicate", field: entry.field, operator: "GTE", value: parsed };
+      }
+      if (parsed && typeof parsed === "object") {
+        return {
+          kind: "predicate",
+          field: entry.field,
+          operator: "BETWEEN",
+          value: [parsed.start, parsed.end],
+        };
+      }
+    }
+
+    const betweenMatch = clause.match(
+      new RegExp(`^${synonym}\\s+between\\s+(.+?)\\s+and\\s+(.+)$`, "i")
+    );
+    if (betweenMatch?.[1] && betweenMatch[2]) {
+      const start = parseDateTimeBounds(betweenMatch[1], referenceDate, timezone);
+      const end = parseDateTimeBounds(betweenMatch[2], referenceDate, timezone);
+      const startValue = typeof start === "string" ? start : start?.start;
+      const endValue = typeof end === "string" ? end : end?.end;
+      if (startValue && endValue) {
+        return {
+          kind: "predicate",
+          field: entry.field,
+          operator: "BETWEEN",
+          value: [startValue, endValue],
+        };
+      }
+    }
+  }
+
   const bounds = parseCreatedInTemporal(clause, referenceDate, timezone);
   if (bounds) {
     return {
@@ -196,6 +318,15 @@ function parseTemporalClause(
   return null;
 }
 
+function parseTemporalClause(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[],
+  referenceDate?: Date,
+  timezone?: string
+): AstClause | null {
+  return parseDateFieldClause(clause, fieldDict, referenceDate, timezone);
+}
+
 const TEXT_SUBSTRING_FIELDS = new Set(["name", "default_sku"]);
 
 function escapeRegex(value: string): string {
@@ -208,12 +339,22 @@ function parseSubstringPredicate(
 ): AstClause | null {
   for (const entry of flattenSynonyms(fieldDict)) {
     const synonym = escapeRegex(entry.synonym);
+    const metadata = getFieldMetadata(entry.field);
+
+    const notContainsMatch = clause.match(
+      new RegExp(`^${synonym}\\s+(?:does not contain|not contains)\\s+(.+)$`, "i")
+    );
+    if (notContainsMatch?.[1]) {
+      return {
+        kind: "predicate",
+        field: entry.field,
+        operator: "NOT_ILIKE",
+        value: notContainsMatch[1].trim(),
+      };
+    }
 
     const explicitMatch = clause.match(
-      new RegExp(
-        `^${synonym}\\s+(?:contains|like|includes)\\s+(.+)$`,
-        "i"
-      )
+      new RegExp(`^${synonym}\\s+(?:contains|like|includes)\\s+(.+)$`, "i")
     );
     if (explicitMatch?.[1]) {
       return {
@@ -236,22 +377,26 @@ function parseSubstringPredicate(
       };
     }
 
-    if (!TEXT_SUBSTRING_FIELDS.has(entry.field)) continue;
+    if (metadata.valueType !== "text") continue;
 
     const isMatch = clause.match(new RegExp(`^${synonym}\\s+is\\s+(.+)$`, "i"));
     if (isMatch?.[1] && !/\s+or\s+/i.test(isMatch[1])) {
+      const value = isMatch[1].trim();
+      if (/^(?:not|empty)/i.test(value)) continue;
       return {
         kind: "predicate",
         field: entry.field,
         operator: "ILIKE",
-        value: isMatch[1].trim(),
+        value,
       };
     }
+
+    if (!TEXT_SUBSTRING_FIELDS.has(entry.field)) continue;
 
     const bareMatch = clause.match(new RegExp(`^${synonym}\\s+(.+)$`, "i"));
     if (bareMatch?.[1]) {
       const value = bareMatch[1].trim();
-      if (/^(?:contains|like|includes|starts)\b/i.test(value)) continue;
+      if (/^(?:contains|like|includes|starts|does|not)\b/i.test(value)) continue;
       return {
         kind: "predicate",
         field: entry.field,
@@ -333,10 +478,10 @@ function parseSimplePredicate(
 }
 
 const INCOMPLETE_VALUE_TOKENS =
-  /^(?:contains|like|includes|is|starts(?:\s+with)?|more|less|greater|at\s+least|at\s+most|between|having|and|or)$/i;
+  /^(?:contains|like|includes|is|starts(?:\s+with)?|more|less|greater|at\s+least|at\s+most|between|before|after|having|and|or|not|empty|zero)$/i;
 
 const TRAILING_INCOMPLETE_CLAUSE =
-  /\b(?:contains|like|includes|is|starts\s+with|more\s+than|less\s+than|at\s+least|at\s+most|between|having|and|or)$/i;
+  /\b(?:contains|like|includes|is|starts\s+with|does|not|more\s+than|less\s+than|at\s+least|at\s+most|before|after|between|having|and|or|empty|zero)$/i;
 
 const TRAILING_COMPARE_OPERATOR = /(?:>=|<=|>|<)\s*$/;
 
@@ -379,10 +524,13 @@ export function parseClause(
   const parsers = [
     () => parseActiveStatusClause(normalized, fieldDict),
     () => parseFieldCompare(normalized, fieldDict),
+    () => parseNullabilityPredicate(normalized, fieldDict),
+    () => parseNumericFixedPredicate(normalized, fieldDict),
     () => parseNumericBetween(normalized, fieldDict),
     () => parseNumericPredicate(normalized, fieldDict),
-    () => parseTemporalClause(normalized, options?.referenceDate, options?.timezone),
+    () => parseTemporalClause(normalized, fieldDict, options?.referenceDate, options?.timezone),
     () => parseHavingLiteral(normalized, fieldDict),
+    () => parseNegatedPredicate(normalized, fieldDict),
     () => parseInClause(normalized, fieldDict),
     () => parseSubstringPredicate(normalized, fieldDict),
     () => parseSimplePredicate(normalized, fieldDict),

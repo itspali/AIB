@@ -2,6 +2,7 @@
 
 import { LayoutList, Loader2, Table2 } from "lucide-react";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
+import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ type Props = {
   totalCount: number;
   prefsHydrated?: boolean;
   isSavingPrefs?: boolean;
+  isSavingColumnPrefs?: boolean;
 };
 
 export function ProductListToolbar({
@@ -48,6 +50,7 @@ export function ProductListToolbar({
   totalCount,
   prefsHydrated = true,
   isSavingPrefs = false,
+  isSavingColumnPrefs = false,
 }: Props) {
   const controlsDisabled = !prefsHydrated || isSavingPrefs;
 
@@ -163,12 +166,12 @@ export function ProductListToolbar({
             fieldPermissions={fieldPermissions}
             detectedDeviceClass={detectedDeviceClass}
             disabled={controlsDisabled}
+            isSaving={isSavingColumnPrefs}
           />
-          {isSavingPrefs ? (
-            <span className="hidden text-xs text-muted-foreground sm:inline">Saving layout…</span>
-          ) : null}
         </div>
       </div>
+
+      <OmnibarFilterChipBar variant="inline" />
 
       <p className="text-xs text-muted-foreground">
         Showing {resultCount} of {totalCount} product{totalCount === 1 ? "" : "s"}.

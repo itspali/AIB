@@ -46,19 +46,26 @@ export async function executeItemsFilterRpc(
   return filterCatalogRowsInMemory((rows ?? []) as CatalogSearchRow[], ast);
 }
 
-export async function resolveCategoryNameToId(
+export async function resolveCategoryNamesToIds(
   supabase: SupabaseClient,
   tenantId: string,
-  categoryName: string
-): Promise<string | null> {
-  const { data } = await supabase
+  categoryName: string,
+  mode: "exact" | "contains" = "exact"
+): Promise<string[]> {
+  let query = supabase
     .from("item_categories")
     .select("id")
-    .eq("tenant_id", tenantId)
-    .ilike("name", categoryName)
-    .maybeSingle();
+    .eq("tenant_id", tenantId);
 
-  return data?.id ?? null;
+  if (mode === "contains") {
+    const pattern = categoryName.replace(/[%_]/g, "");
+    query = query.ilike("name", `%${pattern}%`);
+  } else {
+    query = query.ilike("name", categoryName);
+  }
+
+  const { data } = await query;
+  return (data ?? []).map((row) => row.id as string);
 }
 
 export async function normalizeItemsAst(
@@ -69,19 +76,41 @@ export async function normalizeItemsAst(
   const normalized: AstClause[] = [];
 
   for (const clause of ast) {
-    if (clause.kind === "predicate" && clause.field === "category_name" && clause.operator === "EQ") {
-      const categoryId = await resolveCategoryNameToId(
-        supabase,
-        tenantId,
-        String(clause.value)
-      );
-      if (categoryId) {
-        normalized.push({
-          kind: "predicate",
-          field: "category_id",
-          operator: "EQ",
-          value: categoryId,
-        });
+    if (clause.kind === "predicate" && clause.field === "category_name") {
+      if (clause.operator === "EQ") {
+        const categoryIds = await resolveCategoryNamesToIds(
+          supabase,
+          tenantId,
+          String(clause.value),
+          "exact"
+        );
+        if (categoryIds.length === 1) {
+          normalized.push({
+            kind: "predicate",
+            field: "category_id",
+            operator: "EQ",
+            value: categoryIds[0],
+          });
+          continue;
+        }
+        if (categoryIds.length > 1) {
+          normalized.push({
+            kind: "predicate",
+            field: "category_id",
+            operator: "IN",
+            value: categoryIds,
+          });
+          continue;
+        }
+      }
+
+      if (clause.operator === "ILIKE") {
+        normalized.push(clause);
+        continue;
+      }
+
+      if (clause.operator === "IN" && Array.isArray(clause.value)) {
+        normalized.push(clause);
         continue;
       }
     }

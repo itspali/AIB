@@ -13,7 +13,10 @@ export type FilterOperator =
   | "FIELD_GTE"
   | "FIELD_LT"
   | "FIELD_LTE"
-  | "ILIKE";
+  | "ILIKE"
+  | "NOT_ILIKE"
+  | "IS_NULL"
+  | "IS_NOT_NULL";
 
 export type AstPredicate = {
   kind: "predicate";
@@ -45,16 +48,63 @@ export type CompileResult = {
   clauseSegments: string[];
 };
 
-export type OmnibarHintKind = "field" | "operator" | "example" | "navigation";
+export type OmnibarHintKind =
+  | "field"
+  | "operator"
+  | "example"
+  | "navigation"
+  | "value"
+  | "recent";
 
 export type OmnibarHint = {
   label: string;
   insertText: string;
   kind: OmnibarHintKind;
   href?: string;
+  query?: string;
 };
 
 export type FieldSensitivity = "standard" | "financial";
+
+export type FieldValueType =
+  | "text"
+  | "number"
+  | "boolean"
+  | "date"
+  | "enum"
+  | "fieldRef"
+  | "image";
+
+export type FieldValueSource =
+  | "categories"
+  | "classifications"
+  | "uom"
+  | "locationTypes"
+  | "cities";
+
+export type FieldMetadata = {
+  valueType: FieldValueType;
+  allowedOperators: FilterOperator[];
+  valueSource?: FieldValueSource;
+  supportsMultiValue?: boolean;
+  supportsBetween?: boolean;
+  supportsCompound?: boolean;
+};
+
+export type CriterionDraftPart = {
+  operator: FilterOperator;
+  value: unknown;
+};
+
+export type CriterionDraft = {
+  field: string;
+  parts: CriterionDraftPart[];
+};
+
+export type FilterValueOption = {
+  value: string;
+  label: string;
+};
 
 export type FieldRegistryEntry = {
   key: string;

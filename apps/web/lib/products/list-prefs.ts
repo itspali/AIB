@@ -465,3 +465,15 @@ export function shouldPersistPrefsImmediately(
   }
   return false;
 }
+
+export function didColumnSettingsChange(
+  previous: ProductListPrefs,
+  next: ProductListPrefs
+): boolean {
+  if (previous.frozenColumnCount !== next.frozenColumnCount) return true;
+  if (JSON.stringify(previous.columnPrefs) !== JSON.stringify(next.columnPrefs)) return true;
+  if (JSON.stringify(previous.cardGridColumns) !== JSON.stringify(next.cardGridColumns)) {
+    return true;
+  }
+  return false;
+}

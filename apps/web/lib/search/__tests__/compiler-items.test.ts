@@ -149,7 +149,16 @@ describe("items native filter compiler", () => {
   it("flags malicious SQL signatures", () => {
     const scan = scanQueryForSecuritySignatures("name test; drop table items");
     expect(scan.flagged).toBe(true);
-    expect(scan.reasons).toContain("statement_terminator");
+    expect(scan.reasons).toContain("sql_drop");
+    expect(scan.shouldThrottle).toBe(true);
+  });
+
+  it("does not throttle routine native filter queries", () => {
+    const scan = scanQueryForSecuritySignatures(
+      "name contains widget and category name is electronics and created at in today",
+      "tenant:user"
+    );
+    expect(scan.shouldThrottle).toBe(false);
   });
 
   it("parses substring queries with contains operator", () => {
@@ -352,6 +361,15 @@ describe("items native filter compiler", () => {
     expect(isDraftReadyFilterClause("selling price >=", fieldDict)).toBe(false);
     expect(isDraftReadyFilterClause("category", fieldDict)).toBe(false);
     expect(isDraftReadyFilterClause("category electronics", fieldDict)).toBe(true);
+    expect(isDraftReadyFilterClause("category name is electronics", fieldDict)).toBe(true);
+
+    const categoryNameIs = compileFilterQuery("category name is electronics", "items", fieldDict);
+    expect(categoryNameIs.ast).toContainEqual({
+      kind: "predicate",
+      field: "category_name",
+      operator: "EQ",
+      value: "electronics",
+    });
   });
 
   it("compiles active and inactive item status filters", () => {
