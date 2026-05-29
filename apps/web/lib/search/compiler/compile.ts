@@ -1,7 +1,7 @@
-import { clauseToLabel, parseClause } from "@/lib/search/compiler/parser";
 import { collectResidualSegments, segmentClauses } from "@/lib/search/compiler/tokenizer";
-import type {
-  AstClause,
+import { clauseToLabel } from "@/lib/search/compiler/clause-label";
+import { expandNumericRangeSegment, parseClause } from "@/lib/search/compiler/parser";
+import type {  AstClause,
   CompileResult,
   FilterScope,
   ResolvedFieldDictEntry,
@@ -19,15 +19,19 @@ export function compileFilterQuery(
   options?: CompileOptions
 ): CompileResult {
   const started = performance.now();
-  const segments = segmentClauses(query);
+  const segments = segmentClauses(query).flatMap(expandNumericRangeSegment);
   const ast: AstClause[] = [];
   const unparsedTokens: string[] = [];
+  const clauseSegments: string[] = [];
   const consumed = new Set<number>();
 
   segments.forEach((segment, index) => {
     const { clause, unparsedToken } = parseClause(segment, fieldDict, options);
     if (clause) {
       ast.push(clause);
+      if (clause.kind !== "text") {
+        clauseSegments.push(segment);
+      }
       consumed.add(index);
       return;
     }
@@ -46,6 +50,7 @@ export function compileFilterQuery(
     unparsedTokens: [...unparsedTokens, ...(residualText ? [residualText] : [])],
     compileMicros,
     residualText,
+    clauseSegments,
   };
 }
 

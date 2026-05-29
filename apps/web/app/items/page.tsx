@@ -4,6 +4,8 @@ import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchCategoryRows } from "@/lib/categories/queries";
 import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
+import { resolveProductFieldPermissions } from "@/lib/products/field-permissions-server";
+import { loadUserProductListPrefs } from "@/lib/products/list-prefs-server";
 import { fetchProductListRows } from "@/lib/products/queries";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -22,14 +24,27 @@ export default async function ItemsPage() {
 
   const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
 
-  const [products, categories, catalogContext, approvalAlertCount, operatorProfile] =
-    await Promise.all([
-      fetchProductListRows(supabase, tenantId),
-      fetchCategoryRows(supabase, tenantId),
-      fetchProductCatalogContext(supabase, tenantId),
-      fetchApprovalAlertCount(supabase, tenantId),
-      fetchOperatorProfileForSession(supabase, orgName),
-    ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const operatorProfile = await fetchOperatorProfileForSession(supabase, orgName);
+
+  const fieldPermissions = await resolveProductFieldPermissions(
+    supabase,
+    tenantId,
+    operatorProfile?.role ?? "STAFF"
+  );
+
+  const initialListPrefs =
+    user != null ? await loadUserProductListPrefs(supabase, user.id, tenantId) : null;
+
+  const [products, categories, catalogContext, approvalAlertCount] = await Promise.all([
+    fetchProductListRows(supabase, tenantId, fieldPermissions),
+    fetchCategoryRows(supabase, tenantId),
+    fetchProductCatalogContext(supabase, tenantId),
+    fetchApprovalAlertCount(supabase, tenantId),
+  ]);
 
   return (
     <DashboardShell
@@ -43,6 +58,8 @@ export default async function ItemsPage() {
         initialProducts={products}
         categories={categories}
         catalogContext={catalogContext}
+        fieldPermissions={fieldPermissions}
+        initialListPrefs={initialListPrefs}
       />
     </DashboardShell>
   );

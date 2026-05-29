@@ -18,6 +18,7 @@ import {
   resolveSearchFieldPermissions,
 } from "@/app/search/actions";
 import { compileFilterQuery } from "@/lib/search/compiler/compile";
+import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
 import {
   getCachedSearchPermissions,
@@ -26,7 +27,6 @@ import {
   setThrottledSearch,
 } from "@/lib/search/permissions/session-cache";
 import { scanQueryForSecuritySignatures } from "@/lib/search/telemetry/signatures";
-import { matchNavigationIndex } from "@/lib/search/navigation-index";
 import {
   getScopePlaceholder,
   resolveScopeFromPath,
@@ -37,7 +37,6 @@ import type {
   AstClause,
   CompileResult,
   FilterScope,
-  NavigationIndexEntry,
   SearchFieldPermissions,
 } from "@/lib/search/types";
 import type { OperatorProfile } from "@/lib/user/types";
@@ -58,9 +57,21 @@ type OmnibarContextValue = {
   residualText: string;
   filteredItemIds: Set<string> | null;
   permissions: SearchFieldPermissions | null;
-  fieldHints: string[];
-  navigationMatches: NavigationIndexEntry[];
   clearFilters: () => void;
+  removeClauseAt: (index: number) => void;
+  hasActiveFilters: boolean;
+  activeFilterCount: number;
+  commandOpen: boolean;
+  setCommandOpen: (open: boolean) => void;
+  openCommandPalette: () => void;
+  closeCommandPalette: () => void;
+  cancelCommandPalette: () => void;
+  modalDraftAst: AstClause[];
+  addDraftCriterion: () => void;
+  removeDraftCriterionAt: (index: number) => void;
+  clearModalDraft: () => void;
+  applyModalFilters: () => void;
+  canApplyModal: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   focusInput: () => void;
   isExecuting: boolean;
@@ -90,6 +101,8 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const [filteredItemIds, setFilteredItemIds] = useState<Set<string> | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [moduleFilterRevision, setModuleFilterRevision] = useState(0);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [modalDraftSegments, setModalDraftSegments] = useState<string[]>([]);
 
   const userId = operatorProfile?.userId ?? null;
   const cacheTenantId = tenantId ?? "session";
@@ -140,11 +153,48 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     setAppliedQuery("");
     setCompileResult(null);
     setFilteredItemIds(null);
+    setModalDraftSegments([]);
     setModuleFilterRevision((value) => value + 1);
   }, []);
 
   const focusInput = useCallback(() => {
     inputRef.current?.focus();
+  }, []);
+
+  const openCommandPalette = useCallback(() => {
+    setModalDraftSegments(
+      compileResult?.clauseSegments ? [...compileResult.clauseSegments] : []
+    );
+    setRawQuery("");
+    setCommandOpen(true);
+  }, [compileResult?.clauseSegments]);
+
+  const closeCommandPalette = useCallback(() => {
+    setCommandOpen(false);
+    setModalDraftSegments([]);
+    setRawQuery("");
+  }, []);
+
+  const cancelCommandPalette = useCallback(() => {
+    closeCommandPalette();
+  }, [closeCommandPalette]);
+
+  const clearModalDraft = useCallback(() => {
+    setModalDraftSegments([]);
+    setRawQuery("");
+  }, []);
+
+  const addDraftCriterion = useCallback(() => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed || !permissions) return;
+    const fieldDict = buildFieldDict(scope, permissions);
+    if (!isDraftReadyFilterClause(trimmed, fieldDict)) return;
+    setModalDraftSegments((segments) => [...segments, trimmed]);
+    setRawQuery("");
+  }, [rawQuery, permissions, scope]);
+
+  const removeDraftCriterionAt = useCallback((index: number) => {
+    setModalDraftSegments((segments) => segments.filter((_, i) => i !== index));
   }, []);
 
   const refreshSearchPermissions = useCallback(async () => {
@@ -215,23 +265,95 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     [permissions, userId, cacheTenantId]
   );
 
+  const applyModalFilters = useCallback(() => {
+    if (!permissions) return;
+    const fieldDict = buildFieldDict(scope, permissions);
+    const segments = modalDraftSegments.filter((segment) =>
+      isDraftReadyFilterClause(segment, fieldDict)
+    );
+    const pending = rawQuery.trim();
+    if (pending && isDraftReadyFilterClause(pending, fieldDict)) {
+      segments.push(pending);
+    }
+
+    const nextQuery = segments.join(" and ");
+    setRawQuery("");
+    setModalDraftSegments([]);
+    setCommandOpen(false);
+
+    if (!nextQuery) {
+      setAppliedQuery("");
+      setCompileResult(null);
+      setFilteredItemIds(null);
+      setModuleFilterRevision((value) => value + 1);
+      return;
+    }
+
+    setAppliedQuery(nextQuery);
+    void runAppliedFilter(nextQuery, scope);
+  }, [modalDraftSegments, rawQuery, scope, runAppliedFilter, permissions]);
+
   const submitFilter = useCallback(() => {
     const trimmed = rawQuery.trim();
-    setAppliedQuery(trimmed);
-    void runAppliedFilter(trimmed, scope);
-  }, [rawQuery, scope, runAppliedFilter]);
+    if (!trimmed) return;
 
-  const hasPendingFilter = rawQuery.trim() !== appliedQuery.trim();
+    const nextQuery = appliedQuery.trim()
+      ? `${appliedQuery.trim()} and ${trimmed}`
+      : trimmed;
 
-  const fieldHints = useMemo(() => {
+    setAppliedQuery(nextQuery);
+    setRawQuery("");
+    void runAppliedFilter(nextQuery, scope);
+  }, [rawQuery, appliedQuery, scope, runAppliedFilter]);
+
+  const removeClauseAt = useCallback(
+    (index: number) => {
+      if (!compileResult) return;
+
+      const segments = [...compileResult.clauseSegments];
+      if (index < 0 || index >= segments.length) return;
+
+      segments.splice(index, 1);
+      const textClause = compileResult.ast.find((clause) => clause.kind === "text");
+      let nextQuery = segments.join(" and ");
+      if (textClause?.kind === "text" && textClause.value.trim()) {
+        nextQuery = nextQuery
+          ? `${nextQuery} ${textClause.value.trim()}`
+          : textClause.value.trim();
+      }
+
+      setRawQuery("");
+      setAppliedQuery(nextQuery);
+      void runAppliedFilter(nextQuery, scope);
+    },
+    [compileResult, scope, runAppliedFilter]
+  );
+
+  const hasPendingFilter = rawQuery.trim().length > 0;
+
+  const activeAst = compileResult?.ast ?? [];
+  const activeFilterCount = activeAst.filter((clause) => clause.kind !== "text").length;
+  const hasActiveFilters = activeFilterCount > 0 || appliedQuery.trim().length > 0;
+
+  const modalDraftCompile = useMemo(() => {
+    if (!permissions || modalDraftSegments.length === 0) return null;
+    const fieldDict = buildFieldDict(scope, permissions);
+    return compileFilterQuery(modalDraftSegments.join(" and "), scope, fieldDict);
+  }, [modalDraftSegments, permissions, scope]);
+
+  const modalDraftAst = modalDraftCompile?.ast ?? [];
+
+  const fieldDict = useMemo(() => {
     if (!permissions) return [];
-    return buildFieldDict(scope, permissions).flatMap((entry) => entry.synonyms);
+    return buildFieldDict(scope, permissions);
   }, [permissions, scope]);
 
-  const navigationMatches = useMemo(() => {
-    if (scope !== "all") return [];
-    return matchNavigationIndex(appliedQuery || rawQuery);
-  }, [scope, appliedQuery, rawQuery]);
+  const canApplyModal = useMemo(() => {
+    if (!fieldDict.length) return false;
+    const pending = rawQuery.trim();
+    if (pending && isDraftReadyFilterClause(pending, fieldDict)) return true;
+    return modalDraftSegments.some((segment) => isDraftReadyFilterClause(segment, fieldDict));
+  }, [fieldDict, rawQuery, modalDraftSegments]);
 
   const value = useMemo<OmnibarContextValue>(
     () => ({
@@ -246,13 +368,25 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       placeholder: getScopePlaceholder(scope),
       scopeOptions: Object.values(SCOPE_DEFINITIONS),
       compileResult,
-      activeAst: compileResult?.ast ?? [],
+      activeAst,
       residualText: compileResult?.residualText ?? "",
       filteredItemIds,
       permissions,
-      fieldHints,
-      navigationMatches,
       clearFilters,
+      removeClauseAt,
+      hasActiveFilters,
+      activeFilterCount,
+      commandOpen,
+      setCommandOpen,
+      openCommandPalette,
+      closeCommandPalette,
+      cancelCommandPalette,
+      modalDraftAst,
+      addDraftCriterion,
+      removeDraftCriterionAt,
+      clearModalDraft,
+      applyModalFilters,
+      canApplyModal,
       inputRef,
       focusInput,
       isExecuting,
@@ -268,11 +402,23 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       setScope,
       scopePinnedToAll,
       compileResult,
+      activeAst,
       filteredItemIds,
       permissions,
-      fieldHints,
-      navigationMatches,
       clearFilters,
+      removeClauseAt,
+      hasActiveFilters,
+      activeFilterCount,
+      commandOpen,
+      openCommandPalette,
+      closeCommandPalette,
+      cancelCommandPalette,
+      modalDraftAst,
+      addDraftCriterion,
+      removeDraftCriterionAt,
+      clearModalDraft,
+      applyModalFilters,
+      canApplyModal,
       focusInput,
       isExecuting,
       moduleFilterRevision,
@@ -284,12 +430,12 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        focusInput();
+        if (!commandOpen) openCommandPalette();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [focusInput]);
+  }, [commandOpen, openCommandPalette]);
 
   return <OmnibarContext.Provider value={value}>{children}</OmnibarContext.Provider>;
 }

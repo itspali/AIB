@@ -13,8 +13,14 @@ function matchPredicate(row: Record<string, unknown>, clause: Extract<AstClause,
       return Array.isArray(value)
         ? value.some((entry) => String(raw ?? "").toLowerCase() === String(entry).toLowerCase())
         : false;
-    case "ILIKE":
-      return String(raw ?? "").toLowerCase().includes(String(value).toLowerCase());
+    case "ILIKE": {
+      const needle = String(value);
+      const haystack = String(raw ?? "").toLowerCase();
+      if (needle.startsWith("^")) {
+        return haystack.startsWith(needle.slice(1).toLowerCase());
+      }
+      return haystack.includes(needle.toLowerCase());
+    }
     case "GTE":
       return new Date(String(raw)).getTime() >= new Date(String(value)).getTime();
     case "LTE":

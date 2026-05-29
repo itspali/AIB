@@ -280,3 +280,28 @@ export async function deleteItemMedia(mediaId: string, storagePath?: string) {
   revalidatePath("/items");
   return { success: true as const };
 }
+
+export async function saveProductListUserPrefs(raw: unknown) {
+  const { supabase } = await requireTenantId();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { coerceProductListPrefs } = await import("@/lib/products/list-prefs");
+  const prefs = coerceProductListPrefs(raw);
+
+  const { error } = await supabase.rpc("save_user_product_list_prefs", {
+    p_prefs: prefs,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_user_product_list_prefs") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/items");
+  return { success: true as const };
+}

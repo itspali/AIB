@@ -1,14 +1,16 @@
 import { execSync, spawn } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, renameSync, rmSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const port = 3000;
+const isWindows = process.platform === "win32";
 
 function killPort(targetPort) {
   try {
-    if (process.platform === "win32") {
+    if (isWindows) {
       const output = execSync(`netstat -ano | findstr :${targetPort}`, {
         encoding: "utf8",
         stdio: ["pipe", "pipe", "ignore"],
@@ -24,7 +26,7 @@ function killPort(targetPort) {
 
       for (const pid of pids) {
         try {
-          execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
+          execSync(`taskkill /PID ${pid} /F /T`, { stdio: "ignore" });
           console.log(`Stopped process ${pid} on port ${targetPort}`);
         } catch {
           /* process may already be gone */
@@ -42,26 +44,58 @@ function killPort(targetPort) {
   }
 }
 
+async function removePath(targetPath) {
+  if (!existsSync(targetPath)) return;
+
+  if (isWindows) {
+    const trashPath = `${targetPath}.delete-${Date.now()}`;
+    try {
+      renameSync(targetPath, trashPath);
+      targetPath = trashPath;
+    } catch {
+      /* fall back to direct removal */
+    }
+  }
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      rmSync(targetPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
+      if (!existsSync(targetPath)) return;
+    } catch {
+      /* Windows may still be releasing handles */
+    }
+    await delay(400);
+  }
+
+  if (existsSync(targetPath)) {
+    console.warn(`Warning: could not fully remove ${targetPath.replace(webRoot, ".")}`);
+  }
+}
+
 killPort(port);
+await delay(isWindows ? 800 : 200);
 
 const cachePaths = [
   join(webRoot, ".next"),
   join(webRoot, "node_modules", ".cache"),
+  join(webRoot, "tsconfig.tsbuildinfo"),
 ];
 
 for (const cachePath of cachePaths) {
-  if (existsSync(cachePath)) {
-    rmSync(cachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  await removePath(cachePath);
+  if (!existsSync(cachePath)) {
     console.log(`Removed ${cachePath.replace(webRoot, ".")}`);
   }
 }
 
+await delay(isWindows ? 800 : 200);
+
 console.log(`Starting next dev on port ${port}...`);
 
-const child = spawn("npm run dev", {
+const child = spawn("npx", ["next", "dev", "--port", String(port)], {
   cwd: webRoot,
   stdio: "inherit",
-  shell: true,
+  shell: isWindows,
 });
 
 child.on("exit", (code) => {

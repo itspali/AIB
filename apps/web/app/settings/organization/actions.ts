@@ -9,6 +9,13 @@ import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { buildNamingSequencesPayload } from "@/lib/naming/sequences";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
+import {
+  buildDefaultProductFieldsAccessMatrix,
+  parseTenantProductFieldsAccess,
+  PRODUCT_FIELD_KEYS,
+  type TenantProductFieldsAccess,
+} from "@/lib/products/field-permissions";
+import type { UserRole } from "@/lib/user/types";
 
 const ORGANIZATION_PATHS = ["/settings/organization", "/dashboard"];
 
@@ -193,5 +200,65 @@ export async function revokeOrganizationSettingsDelegate(userId: string) {
   }
 
   revalidatePath("/settings/organization");
+  return { success: true as const };
+}
+
+const PRODUCT_FIELD_ROLES: UserRole[] = ["OWNER", "ADMIN", "MANAGER", "STAFF"];
+
+function sanitizeProductFieldsAccess(raw: unknown): TenantProductFieldsAccess {
+  const source =
+    raw && typeof raw === "object"
+      ? (parseTenantProductFieldsAccess(raw) ?? (raw as TenantProductFieldsAccess))
+      : {};
+
+  const defaults = buildDefaultProductFieldsAccessMatrix();
+  const sanitized: TenantProductFieldsAccess = {};
+
+  for (const role of PRODUCT_FIELD_ROLES) {
+    const roleAccess: Partial<Record<(typeof PRODUCT_FIELD_KEYS)[number], boolean>> = {};
+    for (const field of PRODUCT_FIELD_KEYS) {
+      const value = source[role]?.[field];
+      roleAccess[field] =
+        typeof value === "boolean" ? value : (defaults[role]?.[field] ?? true);
+    }
+    sanitized[role] = roleAccess;
+  }
+
+  return sanitized;
+}
+
+export async function saveProductFieldsAccess(raw: unknown) {
+  if (!raw || typeof raw !== "object") {
+    return { error: "Invalid product field access matrix." };
+  }
+
+  const accessMatrix = sanitizeProductFieldsAccess(raw);
+
+  const { supabase, tenantId } = await requireTenantId();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const settingsAccess = await resolveOrganizationSettingsAccess(supabase, user.id, tenantId);
+  if (!settingsAccess.isOwner) {
+    return { error: "Only workspace owners can edit product field access." };
+  }
+
+  const { error } = await supabase.rpc("patch_tenant_metadata_json", {
+    p_patch: { product_fields_access: accessMatrix },
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("patch_tenant_metadata_json") };
+    }
+    return { error: error.message };
+  }
+
+  for (const path of ORGANIZATION_PATHS) {
+    revalidatePath(path);
+  }
+
   return { success: true as const };
 }

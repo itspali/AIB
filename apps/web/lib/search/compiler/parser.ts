@@ -7,9 +7,24 @@ import {
   parseCreatedAfterDate,
   parseCreatedInTemporal,
 } from "@/lib/search/compiler/temporal";
+import { isNumericFilterField } from "@/lib/search/permissions/field-labels";
 import type { AstClause, ResolvedFieldDictEntry } from "@/lib/search/types";
 
 type CompareOp = "FIELD_GT" | "FIELD_GTE" | "FIELD_LT" | "FIELD_LTE" | "GT" | "GTE" | "LT" | "LTE";
+
+const NUMERIC_LITERAL = String.raw`([\d,]+(?:\.\d+)?)`;
+
+const NUMERIC_COMPARE_PHRASES: { pattern: RegExp; operator: CompareOp }[] = [
+  { pattern: new RegExp(`^(.+?)\\s+is\\s+more\\s+than\\s+${NUMERIC_LITERAL}$`, "i"), operator: "GT" },
+  { pattern: new RegExp(`^(.+?)\\s+is\\s+greater\\s+than\\s+${NUMERIC_LITERAL}$`, "i"), operator: "GT" },
+  { pattern: new RegExp(`^(.+?)\\s+is\\s+less\\s+than\\s+${NUMERIC_LITERAL}$`, "i"), operator: "LT" },
+  { pattern: new RegExp(`^(.+?)\\s+is\\s+at\\s+least\\s+${NUMERIC_LITERAL}$`, "i"), operator: "GTE" },
+  { pattern: new RegExp(`^(.+?)\\s+is\\s+at\\s+most\\s+${NUMERIC_LITERAL}$`, "i"), operator: "LTE" },
+  { pattern: new RegExp(`^(.+?)\\s*>=\\s*${NUMERIC_LITERAL}$`, "i"), operator: "GTE" },
+  { pattern: new RegExp(`^(.+?)\\s*<=\\s*${NUMERIC_LITERAL}$`, "i"), operator: "LTE" },
+  { pattern: new RegExp(`^(.+?)\\s*>\\s*${NUMERIC_LITERAL}$`, "i"), operator: "GT" },
+  { pattern: new RegExp(`^(.+?)\\s*<\\s*${NUMERIC_LITERAL}$`, "i"), operator: "LT" },
+];
 
 const FIELD_COMPARE_PHRASES: { pattern: RegExp; operator: CompareOp }[] = [
   { pattern: /^(.+?)\s+is\s+more\s+than\s+(?:the\s+)?(.+)$/i, operator: "FIELD_GT" },
@@ -42,6 +57,66 @@ function parseFieldCompare(
   }
 
   return null;
+}
+
+function parseNumericLiteral(raw: string): number | null {
+  const normalized = raw.replace(/,/g, "").trim();
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseNumericPredicate(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  if (!fieldDict.length) return null;
+
+  for (const { pattern, operator } of NUMERIC_COMPARE_PHRASES) {
+    const match = clause.trim().match(pattern);
+    if (!match?.[1] || !match[2]) continue;
+
+    const field = resolveSynonymField(match[1], fieldDict);
+    const value = parseNumericLiteral(match[2]);
+    if (!field || !isNumericFilterField(field) || value === null) continue;
+
+    return { kind: "predicate", field, operator, value };
+  }
+
+  return null;
+}
+
+function parseNumericBetween(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  const match = clause
+    .trim()
+    .match(new RegExp(`^(.+?)\\s+(?:is\\s+)?between\\s+${NUMERIC_LITERAL}\\s+and\\s+${NUMERIC_LITERAL}$`, "i"));
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+
+  const field = resolveSynonymField(match[1], fieldDict);
+  const min = parseNumericLiteral(match[2]);
+  const max = parseNumericLiteral(match[3]);
+  if (!field || !isNumericFilterField(field) || min === null || max === null) return null;
+
+  return {
+    kind: "predicate",
+    field,
+    operator: "BETWEEN",
+    value: min <= max ? [min, max] : [max, min],
+  };
+}
+
+/** Expands "field more than X but less than Y" into two comparable segments. */
+export function expandNumericRangeSegment(segment: string): string[] {
+  const match = segment
+    .trim()
+    .match(new RegExp(`^(.+?)\\s+(?:is\\s+)?more\\s+than\\s+${NUMERIC_LITERAL}\\s+but\\s+less\\s+than\\s+${NUMERIC_LITERAL}$`, "i"));
+  if (!match?.[1] || !match[2] || !match[3]) return [segment];
+
+  const field = match[1].trim();
+  return [`${field} > ${match[2]}`, `${field} < ${match[3]}`];
 }
 
 function parseHavingLiteral(
@@ -121,6 +196,74 @@ function parseTemporalClause(
   return null;
 }
 
+const TEXT_SUBSTRING_FIELDS = new Set(["name", "default_sku"]);
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseSubstringPredicate(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[]
+): AstClause | null {
+  for (const entry of flattenSynonyms(fieldDict)) {
+    const synonym = escapeRegex(entry.synonym);
+
+    const explicitMatch = clause.match(
+      new RegExp(
+        `^${synonym}\\s+(?:contains|like|includes)\\s+(.+)$`,
+        "i"
+      )
+    );
+    if (explicitMatch?.[1]) {
+      return {
+        kind: "predicate",
+        field: entry.field,
+        operator: "ILIKE",
+        value: explicitMatch[1].trim(),
+      };
+    }
+
+    const startsWithMatch = clause.match(
+      new RegExp(`^${synonym}\\s+starts\\s+with\\s+(.+)$`, "i")
+    );
+    if (startsWithMatch?.[1]) {
+      return {
+        kind: "predicate",
+        field: entry.field,
+        operator: "ILIKE",
+        value: `^${startsWithMatch[1].trim()}`,
+      };
+    }
+
+    if (!TEXT_SUBSTRING_FIELDS.has(entry.field)) continue;
+
+    const isMatch = clause.match(new RegExp(`^${synonym}\\s+is\\s+(.+)$`, "i"));
+    if (isMatch?.[1] && !/\s+or\s+/i.test(isMatch[1])) {
+      return {
+        kind: "predicate",
+        field: entry.field,
+        operator: "ILIKE",
+        value: isMatch[1].trim(),
+      };
+    }
+
+    const bareMatch = clause.match(new RegExp(`^${synonym}\\s+(.+)$`, "i"));
+    if (bareMatch?.[1]) {
+      const value = bareMatch[1].trim();
+      if (/^(?:contains|like|includes|starts)\b/i.test(value)) continue;
+      return {
+        kind: "predicate",
+        field: entry.field,
+        operator: "ILIKE",
+        value,
+      };
+    }
+  }
+
+  return null;
+}
+
 function parseSimplePredicate(
   clause: string,
   fieldDict: ResolvedFieldDictEntry[]
@@ -132,15 +275,53 @@ function parseSimplePredicate(
   for (const entry of flattenSynonyms(fieldDict)) {
     const eqMatch = clause.match(new RegExp(`^${entry.synonym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+(?:is\\s+)?(.+)$`, "i"));
     if (eqMatch?.[1]) {
+      const value = eqMatch[1].trim();
+      if (INCOMPLETE_VALUE_TOKENS.test(value)) return null;
       return {
         kind: "predicate",
         field: entry.field,
         operator: "EQ",
-        value: eqMatch[1].trim(),
+        value,
       };
     }
   }
   return null;
+}
+
+const INCOMPLETE_VALUE_TOKENS =
+  /^(?:contains|like|includes|is|starts(?:\s+with)?|more|less|greater|at\s+least|at\s+most|between|having|and|or)$/i;
+
+const TRAILING_INCOMPLETE_CLAUSE =
+  /\b(?:contains|like|includes|is|starts\s+with|more\s+than|less\s+than|at\s+least|at\s+most|between|having|and|or)$/i;
+
+const TRAILING_COMPARE_OPERATOR = /(?:>=|<=|>|<)\s*$/;
+
+/** True when the clause text ends mid-expression (operator/field with no value yet). */
+export function isIncompleteFilterClause(clause: string): boolean {
+  const normalized = clause.trim();
+  if (!normalized) return true;
+  if (TRAILING_INCOMPLETE_CLAUSE.test(normalized)) return true;
+  if (TRAILING_COMPARE_OPERATOR.test(normalized)) return true;
+  return false;
+}
+
+/** True when a clause is complete enough to add as a modal draft criterion or apply. */
+export function isDraftReadyFilterClause(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[],
+  options?: { referenceDate?: Date; timezone?: string }
+): boolean {
+  const normalized = clause.trim();
+  if (!normalized || isIncompleteFilterClause(normalized)) return false;
+  return parseClause(normalized, fieldDict, options).clause !== null;
+}
+
+export function isParseableFilterClause(
+  clause: string,
+  fieldDict: ResolvedFieldDictEntry[],
+  options?: { referenceDate?: Date; timezone?: string }
+): boolean {
+  return parseClause(clause, fieldDict, options).clause !== null;
 }
 
 export function parseClause(
@@ -153,9 +334,12 @@ export function parseClause(
 
   const parsers = [
     () => parseFieldCompare(normalized, fieldDict),
+    () => parseNumericBetween(normalized, fieldDict),
+    () => parseNumericPredicate(normalized, fieldDict),
     () => parseTemporalClause(normalized, options?.referenceDate, options?.timezone),
     () => parseHavingLiteral(normalized, fieldDict),
     () => parseInClause(normalized, fieldDict),
+    () => parseSubstringPredicate(normalized, fieldDict),
     () => parseSimplePredicate(normalized, fieldDict),
   ];
 
@@ -165,18 +349,4 @@ export function parseClause(
   }
 
   return { clause: null, unparsedToken: normalized };
-}
-
-export function clauseToLabel(clause: AstClause): string {
-  if (clause.kind === "text") return clause.value;
-  if (clause.kind === "field_compare") {
-    return `${clause.left} ${clause.operator.replace("FIELD_", "").toLowerCase()} ${clause.right}`;
-  }
-  if (clause.operator === "IN" && Array.isArray(clause.value)) {
-    return `${clause.field} in ${clause.value.join(", ")}`;
-  }
-  if (clause.operator === "BETWEEN" && Array.isArray(clause.value)) {
-    return `${clause.field} between ${clause.value[0]} – ${clause.value[1]}`;
-  }
-  return `${clause.field} ${clause.operator.toLowerCase()} ${String(clause.value)}`;
 }

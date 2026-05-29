@@ -10,6 +10,7 @@ import {
   type SearchFinancialFieldsMode,
   type TenantLocationOption,
 } from "@/lib/organization/types";
+import { parseTenantProductFieldsAccess } from "@/lib/products/field-permissions";
 
 const DELEGATE_REGISTRY_KEY = "allow_organization_settings_modification";
 
@@ -70,6 +71,11 @@ export async function fetchOrganizationSettingsSnapshot(
   if (tenantError || !tenant) return null;
 
   const parsed = mapTenantRowToSnapshotParts(tenant as Record<string, unknown>);
+  const tenantMetadata =
+    tenant.metadata_json && typeof tenant.metadata_json === "object"
+      ? (tenant.metadata_json as Record<string, unknown>)
+      : {};
+  const productFieldsAccess = parseTenantProductFieldsAccess(tenantMetadata.product_fields_access);
 
   let allowLineItemDiscounts = true;
   let accountingPeriodClosingDate: string | null = null;
@@ -184,6 +190,7 @@ export async function fetchOrganizationSettingsSnapshot(
     allow_line_item_discounts: allowLineItemDiscounts,
     accounting_period_closing_date: accountingPeriodClosingDate,
     search_financial_fields_mode: searchFinancialFieldsMode,
+    product_fields_access: productFieldsAccess,
     delegates,
     locations: (locations ?? []) as TenantLocationOption[],
     eligible_delegate_users: (eligibleUsers ?? []).filter((user) => !delegateIdSet.has(user.id)),

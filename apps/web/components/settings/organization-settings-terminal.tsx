@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { saveOrganizationSettings } from "@/app/settings/organization/actions";
 import { FormSectionNav } from "@/components/settings/form-section-nav";
 import { OrganizationAdvancedSection } from "@/components/settings/organization-advanced-section";
+import { ProductFieldAccessMatrix } from "@/components/settings/product-field-access-matrix";
 import { OrganizationBillingFiscalSection } from "@/components/settings/organization-billing-fiscal-section";
 import { OrganizationGovernanceRail } from "@/components/settings/organization-governance-rail";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
@@ -187,21 +188,29 @@ export function OrganizationSettingsTerminal({
           </div>
 
           {showAdvanced && (
-            <OrganizationAdvancedSection
-              form={form}
-              tenantId={tenantId}
-              sectionIds={{
-                brand: ORG_SETTINGS_SECTION_IDS.brand,
-                location: ORG_SETTINGS_SECTION_IDS.location,
-                naming: ORG_SETTINGS_SECTION_IDS.naming,
-                accounting: ORG_SETTINGS_SECTION_IDS.accounting,
-              }}
-              logoPreviewUrl={logoPreviewUrl}
-              locations={snapshot.locations}
-              documentSequences={snapshot.document_sequences}
-              snapshot={snapshot}
-              disabled={fieldsDisabled}
-            />
+            <>
+              <OrganizationAdvancedSection
+                form={form}
+                tenantId={tenantId}
+                sectionIds={{
+                  brand: ORG_SETTINGS_SECTION_IDS.brand,
+                  location: ORG_SETTINGS_SECTION_IDS.location,
+                  naming: ORG_SETTINGS_SECTION_IDS.naming,
+                  accounting: ORG_SETTINGS_SECTION_IDS.accounting,
+                }}
+                logoPreviewUrl={logoPreviewUrl}
+                locations={snapshot.locations}
+                documentSequences={snapshot.document_sequences}
+                snapshot={snapshot}
+                disabled={fieldsDisabled}
+              />
+              {access.isOwner ? (
+                <ProductFieldAccessMatrix
+                  initialAccess={snapshot.product_fields_access}
+                  disabled={false}
+                />
+              ) : null}
+            </>
           )}
         </main>
 

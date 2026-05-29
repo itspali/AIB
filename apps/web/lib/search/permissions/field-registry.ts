@@ -3,13 +3,13 @@ import type { FieldRegistryEntry, FilterScope } from "@/lib/search/types";
 export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
   {
     key: "purchase_price",
-    synonyms: ["purchase price", "buying price", "purchase cost", "cost price"],
+    synonyms: ["purchase price", "purchase_price", "buying price", "purchase cost", "cost price"],
     sensitivity: "financial",
     scopes: ["items"],
   },
   {
     key: "selling_price",
-    synonyms: ["selling price", "sales price", "sale price", "retail price"],
+    synonyms: ["selling price", "selling_price", "sales price", "sale price", "retail price"],
     sensitivity: "financial",
     scopes: ["items"],
   },
@@ -21,7 +21,7 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
   },
   {
     key: "category_name",
-    synonyms: ["category"],
+    synonyms: ["category name", "category"],
     sensitivity: "standard",
     scopes: ["items", "categories"],
   },
@@ -45,7 +45,7 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
   },
   {
     key: "default_sku",
-    synonyms: ["sku", "default sku"],
+    synonyms: ["sku", "default sku", "default_sku"],
     sensitivity: "standard",
     scopes: ["items"],
   },
@@ -73,3 +73,6 @@ export function getFieldsForScope(scope: FilterScope): FieldRegistryEntry[] {
   if (scope === "all" || scope === "settings") return [];
   return SEARCH_FIELD_REGISTRY.filter((entry) => entry.scopes.includes(scope));
 }
+
+/** Fields that support numeric literal comparisons (>, >=, between, etc.). */
+export const NUMERIC_FILTER_FIELDS = new Set<string>(["purchase_price", "selling_price"]);

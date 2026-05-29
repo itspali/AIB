@@ -41,6 +41,17 @@ export type CompileResult = {
   unparsedTokens: string[];
   compileMicros: number;
   residualText: string;
+  /** Source segment text for each structural (non-text) AST clause, in order. */
+  clauseSegments: string[];
+};
+
+export type OmnibarHintKind = "field" | "operator" | "example" | "navigation";
+
+export type OmnibarHint = {
+  label: string;
+  insertText: string;
+  kind: OmnibarHintKind;
+  href?: string;
 };
 
 export type FieldSensitivity = "standard" | "financial";

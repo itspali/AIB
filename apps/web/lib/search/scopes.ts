@@ -58,3 +58,7 @@ export function getScopePlaceholder(scope: FilterScope): string {
 export function getScopeLabel(scope: FilterScope): string {
   return SCOPE_DEFINITIONS[scope].label;
 }
+
+export function getScopeTriggerLabel(scope: FilterScope): string {
+  return `Search & filter (${SCOPE_DEFINITIONS[scope].label})…`;
+}

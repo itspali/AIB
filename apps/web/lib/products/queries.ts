@@ -2,7 +2,9 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isItemClassification } from "@/lib/products/classification-labels";
+import { redactProductListRows } from "@/lib/products/field-permissions";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
+import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
 import { isTaxCategory } from "@/lib/products/tax-options";
 import { parseCustomFields } from "@/lib/products/sku-mask";
 import type {
@@ -319,25 +321,178 @@ function mapValuations(rows: ValuationRow[] | null | undefined): ProductValuatio
   }));
 }
 
-function mapListRow(row: ItemRow): ProductListRow | null {
+function mapListRow(
+  row: ItemRow,
+  commerce?: { selling_price: string | null; purchase_price: string | null; supplier_name: string | null },
+  imageUrl?: string | null
+): ProductListRow | null {
   if (!isItemClassification(row.classification)) return null;
   const variant = pickDefaultVariant(row.item_variants);
+  const taxCategory = isTaxCategory(row.default_tax_category)
+    ? row.default_tax_category
+    : "STANDARD";
 
   return {
     id: row.id,
     name: row.name,
+    image_url: imageUrl ?? null,
+    description: row.description,
     classification: row.classification,
     base_unit_of_measure: row.base_unit_of_measure,
     category_id: row.category_id,
     category_name: resolveCategoryName(row.item_categories),
+    hsn_sac_code: row.hsn_sac_code,
+    has_variants: row.has_variants,
+    default_tax_category: taxCategory,
     is_active: row.is_active,
     is_purchasable: row.is_purchasable,
     is_salable: row.is_salable,
+    is_returnable: row.is_returnable,
     default_variant_id: variant?.id ?? null,
     default_sku: variant?.sku ?? null,
+    barcode: variant?.barcode ?? null,
+    selling_price: commerce?.selling_price ?? null,
+    purchase_price: commerce?.purchase_price ?? null,
+    supplier_name: commerce?.supplier_name ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+function groupPriceEntriesByItem(
+  rows: Array<PriceBookEntryRow & { item_id: string }> | null | undefined
+): Map<string, PriceBookEntryRow[]> {
+  const grouped = new Map<string, PriceBookEntryRow[]>();
+  for (const row of rows ?? []) {
+    const list = grouped.get(row.item_id) ?? [];
+    list.push(row);
+    grouped.set(row.item_id, list);
+  }
+  return grouped;
+}
+
+function groupSupplierItemsByItem(
+  rows: Array<SupplierItemRow & { item_id: string }> | null | undefined
+): Map<string, SupplierItemRow[]> {
+  const grouped = new Map<string, SupplierItemRow[]>();
+  for (const row of rows ?? []) {
+    const list = grouped.get(row.item_id) ?? [];
+    list.push(row);
+    grouped.set(row.item_id, list);
+  }
+  return grouped;
+}
+
+async function fetchListPrimaryImagesByItemId(
+  supabase: SupabaseClient,
+  tenantId: string,
+  rows: ItemRow[]
+): Promise<Map<string, string | null>> {
+  const images = new Map<string, string | null>();
+  if (!rows.length) return images;
+
+  const itemIds = rows.map((row) => row.id);
+  const { data, error } = await supabase
+    .from("item_media")
+    .select("item_id, variant_id, storage_url, sort_order, is_primary")
+    .eq("tenant_id", tenantId)
+    .in("item_id", itemIds);
+
+  if (error || !data?.length) {
+    for (const itemId of itemIds) images.set(itemId, null);
+    return images;
+  }
+
+  const mediaByItem = new Map<string, MediaRow[]>();
+  for (const row of data as MediaRow[]) {
+    const list = mediaByItem.get(row.item_id) ?? [];
+    list.push(row);
+    mediaByItem.set(row.item_id, list);
+  }
+
+  const storagePathByItem = new Map<string, string>();
+  for (const row of rows) {
+    const defaultVariantId = pickDefaultVariant(row.item_variants)?.id ?? null;
+    const storagePath = pickPrimaryImageStoragePath(mediaByItem.get(row.id) ?? [], defaultVariantId);
+    if (storagePath) {
+      storagePathByItem.set(row.id, storagePath);
+    } else {
+      images.set(row.id, null);
+    }
+  }
+
+  const signedUrls = await resolveProductMediaSignedUrls(
+    supabase,
+    [...new Set(storagePathByItem.values())]
+  );
+
+  for (const [itemId, storagePath] of storagePathByItem) {
+    images.set(itemId, signedUrls.get(storagePath) ?? null);
+  }
+
+  return images;
+}
+
+async function fetchListCommerceByItemId(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemIds: string[]
+): Promise<
+  Map<string, { selling_price: string | null; purchase_price: string | null; supplier_name: string | null }>
+> {
+  const commerce = new Map<
+    string,
+    { selling_price: string | null; purchase_price: string | null; supplier_name: string | null }
+  >();
+  if (!itemIds.length) return commerce;
+
+  const [{ data: priceEntries }, { data: supplierItems }] = await Promise.all([
+    supabase
+      .from("price_book_entries")
+      .select(
+        `
+        item_id,
+        price,
+        uom_code,
+        min_quantity,
+        price_books ( id, is_active, created_at )
+      `
+      )
+      .eq("tenant_id", tenantId)
+      .in("item_id", itemIds),
+    supabase
+      .from("supplier_items")
+      .select(
+        `
+        item_id,
+        supplier_id,
+        supplier_price,
+        is_preferred,
+        entities ( name )
+      `
+      )
+      .eq("tenant_id", tenantId)
+      .in("item_id", itemIds),
+  ]);
+
+  const pricesByItem = groupPriceEntriesByItem(
+    priceEntries as Array<PriceBookEntryRow & { item_id: string }> | null
+  );
+  const suppliersByItem = groupSupplierItemsByItem(
+    supplierItems as Array<SupplierItemRow & { item_id: string }> | null
+  );
+
+  for (const itemId of itemIds) {
+    const priceEntry = pickDefaultPriceEntry(pricesByItem.get(itemId));
+    const preferredSupplier = pickPreferredSupplier(suppliersByItem.get(itemId));
+    commerce.set(itemId, {
+      selling_price: priceEntry ? formatDecimal(priceEntry.price) : null,
+      purchase_price: preferredSupplier ? formatDecimal(preferredSupplier.supplier_price) : null,
+      supplier_name: preferredSupplier ? resolveEntityName(preferredSupplier.entities) : null,
+    });
+  }
+
+  return commerce;
 }
 
 const VARIANT_DETAIL_SELECT = `
@@ -376,7 +531,8 @@ async function fetchProductVariants(
 
 export async function fetchProductListRows(
   supabase: SupabaseClient,
-  tenantId: string
+  tenantId: string,
+  permissions?: { allowedFields: readonly string[] }
 ): Promise<ProductListRow[]> {
   const { data, error } = await supabase
     .from("items")
@@ -384,16 +540,21 @@ export async function fetchProductListRows(
       `
       id,
       name,
+      description,
       classification,
       base_unit_of_measure,
       category_id,
+      hsn_sac_code,
+      has_variants,
+      default_tax_category,
+      is_returnable,
       is_purchasable,
       is_salable,
       is_active,
       created_at,
       updated_at,
       item_categories ( name ),
-      ${ITEM_VARIANTS_EMBED} ( id, sku, created_at )
+      ${ITEM_VARIANTS_EMBED} ( id, sku, barcode, created_at )
     `
     )
     .eq("tenant_id", tenantId)
@@ -401,9 +562,20 @@ export async function fetchProductListRows(
 
   if (error || !data) return [];
 
-  return (data as ItemRow[])
-    .map(mapListRow)
+  const rows = data as ItemRow[];
+  const itemIds = rows.map((row) => row.id);
+  const [commerceByItem, imagesByItem] = await Promise.all([
+    fetchListCommerceByItemId(supabase, tenantId, itemIds),
+    fetchListPrimaryImagesByItemId(supabase, tenantId, rows),
+  ]);
+
+  const mapped = rows
+    .map((row) => mapListRow(row, commerceByItem.get(row.id), imagesByItem.get(row.id)))
     .filter((row): row is ProductListRow => row !== null);
+
+  return permissions
+    ? redactProductListRows(mapped, permissions.allowedFields)
+    : mapped;
 }
 
 export async function fetchProductDetail(

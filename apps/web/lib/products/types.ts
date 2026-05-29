@@ -1,18 +1,29 @@
 import type { ItemClassification } from "@/lib/products/classification-labels";
+import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import type { TaxCategory } from "@/lib/products/tax-options";
 
 export type ProductListRow = {
   id: string;
   name: string;
+  image_url: string | null;
+  description: string | null;
   classification: ItemClassification;
   base_unit_of_measure: string;
   category_id: string | null;
   category_name: string | null;
+  hsn_sac_code: string | null;
+  has_variants: boolean;
+  default_tax_category: TaxCategory;
   is_active: boolean;
   is_purchasable: boolean;
   is_salable: boolean;
+  is_returnable: boolean;
   default_variant_id: string | null;
   default_sku: string | null;
+  barcode: string | null;
+  selling_price: string | null;
+  purchase_price: string | null;
+  supplier_name: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -347,15 +358,25 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
   return {
     id: detail.id,
     name: detail.name,
+    image_url: pickPrimaryImagePreviewUrl(detail.media, detail.variant_id),
+    description: detail.description,
     classification: detail.classification,
     base_unit_of_measure: detail.base_unit_of_measure,
     category_id: detail.category_id,
     category_name: detail.category_name,
+    hsn_sac_code: detail.hsn_sac_code,
+    has_variants: detail.has_variants,
+    default_tax_category: detail.default_tax_category,
     is_active: detail.is_active,
     is_purchasable: detail.is_purchasable,
     is_salable: detail.is_salable,
+    is_returnable: detail.is_returnable,
     default_variant_id: detail.variant_id,
     default_sku: detail.sku,
+    barcode: detail.barcode,
+    selling_price: detail.selling_price || null,
+    purchase_price: detail.purchase_price || null,
+    supplier_name: detail.supplier_name,
     created_at: detail.created_at,
     updated_at: detail.updated_at,
   };

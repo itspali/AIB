@@ -4,7 +4,10 @@ import path from "path";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["lib/search/__tests__/**/*.test.ts"],
+    include: [
+      "lib/search/__tests__/**/*.test.ts",
+      "lib/products/__tests__/**/*.test.ts",
+    ],
   },
   resolve: {
     alias: {

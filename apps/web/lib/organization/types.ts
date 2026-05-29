@@ -5,6 +5,7 @@ import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
 import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import { parseNamingSequences } from "@/lib/naming/sequences";
+import type { TenantProductFieldsAccess } from "@/lib/products/field-permissions";
 
 export type { NamingSequenceEntry };
 
@@ -82,6 +83,7 @@ export type OrganizationSettingsSnapshot = {
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string | null;
   search_financial_fields_mode: SearchFinancialFieldsMode;
+  product_fields_access: TenantProductFieldsAccess | null;
   delegates: OrganizationDelegateRow[];
   locations: TenantLocationOption[];
   eligible_delegate_users: Array<{ id: string; first_name: string; last_name: string; email: string }>;

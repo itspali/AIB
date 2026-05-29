@@ -62,18 +62,54 @@ function matchesClause(row: CatalogSearchRow, clause: AstClause): boolean {
       return Array.isArray(value)
         ? value.some((entry) => String(raw ?? "").toLowerCase() === String(entry).toLowerCase())
         : false;
-    case "GTE":
+    case "GT": {
+      const numeric = toNumber(raw);
+      const threshold = toNumber(value);
+      return numeric !== null && threshold !== null && numeric > threshold;
+    }
+    case "GTE": {
+      const numeric = toNumber(raw);
+      const threshold = toNumber(value);
+      if (numeric !== null && threshold !== null) {
+        return numeric >= threshold;
+      }
       return new Date(String(raw)).getTime() >= new Date(String(value)).getTime();
-    case "LTE":
+    }
+    case "LT": {
+      const numeric = toNumber(raw);
+      const threshold = toNumber(value);
+      return numeric !== null && threshold !== null && numeric < threshold;
+    }
+    case "LTE": {
+      const numeric = toNumber(raw);
+      const threshold = toNumber(value);
+      if (numeric !== null && threshold !== null) {
+        return numeric <= threshold;
+      }
       return new Date(String(raw)).getTime() <= new Date(String(value)).getTime();
+    }
     case "BETWEEN":
       if (!Array.isArray(value) || value.length !== 2) return true;
-      return (
-        new Date(String(raw)).getTime() >= new Date(String(value[0])).getTime() &&
-        new Date(String(raw)).getTime() <= new Date(String(value[1])).getTime()
-      );
-    case "ILIKE":
-      return String(raw ?? "").toLowerCase().includes(String(value).toLowerCase());
+      {
+        const numeric = toNumber(raw);
+        const min = toNumber(value[0]);
+        const max = toNumber(value[1]);
+        if (numeric !== null && min !== null && max !== null) {
+          return numeric >= min && numeric <= max;
+        }
+        return (
+          new Date(String(raw)).getTime() >= new Date(String(value[0])).getTime() &&
+          new Date(String(raw)).getTime() <= new Date(String(value[1])).getTime()
+        );
+      }
+    case "ILIKE": {
+      const needle = String(value);
+      const haystack = String(raw ?? "").toLowerCase();
+      if (needle.startsWith("^")) {
+        return haystack.startsWith(needle.slice(1).toLowerCase());
+      }
+      return haystack.includes(needle.toLowerCase());
+    }
     default:
       return true;
   }
