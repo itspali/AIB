@@ -1,27 +1,49 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  filterCatalogRowsInMemory,
+  type CatalogSearchRow,
+} from "@/lib/search/executor/apply-ast-in-memory";
 import type { AstClause } from "@/lib/search/types";
+
+const VIEW_NAME = "product_catalog_search_rows";
 
 export async function executeItemsFilterRpc(
   supabase: SupabaseClient,
+  tenantId: string,
   ast: AstClause[]
 ): Promise<string[]> {
   const structural = ast.filter((c) => c.kind !== "text");
-  if (!structural.length) return [];
+  if (!structural.length && !ast.some((c) => c.kind === "text")) return [];
 
   const { data, error } = await supabase.rpc("execute_product_filter", {
     p_ast: structural,
   });
-  if (error) throw error;
 
-  if (Array.isArray(data)) {
-    if (data.length === 0) return [];
-    if (typeof data[0] === "string") return data as string[];
-    return (data as { item_id: string }[]).map((row) => row.item_id);
+  if (!error) {
+    if (Array.isArray(data)) {
+      if (data.length === 0) return [];
+      if (typeof data[0] === "string") return data as string[];
+      return (data as { item_id: string }[]).map((row) => row.item_id);
+    }
+    return [];
   }
 
-  return [];
+  console.warn("[search] RPC execute_product_filter failed, using view fallback:", error.message);
+
+  const { data: rows, error: viewError } = await supabase
+    .from(VIEW_NAME)
+    .select(
+      "item_id, name, description, category_id, category_name, hsn_sac_code, base_unit_of_measure, created_at, default_sku, selling_price, purchase_price"
+    )
+    .eq("tenant_id", tenantId);
+
+  if (viewError) {
+    throw new Error(viewError.message);
+  }
+
+  return filterCatalogRowsInMemory((rows ?? []) as CatalogSearchRow[], ast);
 }
 
 export async function resolveCategoryNameToId(

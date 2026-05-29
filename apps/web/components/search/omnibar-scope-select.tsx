@@ -18,7 +18,13 @@ type Props = {
 
 export function OmnibarScopeSelect({ scope, options, onScopeChange }: Props) {
   return (
-    <Select value={scope} onValueChange={(value) => onScopeChange(value as FilterScope)}>
+    <Select
+      value={scope}
+      onValueChange={(value) => {
+        const next = value as FilterScope;
+        if (next !== scope) onScopeChange(next);
+      }}
+    >
       <SelectTrigger className="h-7 w-[7.5rem] shrink-0 border-0 bg-background/50 px-2 text-xs shadow-none focus:ring-0">
         <SelectValue />
       </SelectTrigger>

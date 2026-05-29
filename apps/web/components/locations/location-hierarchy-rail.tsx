@@ -25,18 +25,17 @@ export function LocationHierarchyRail({
   const tree = useMemo(() => buildLocationTreeFromRows(rows), [rows]);
 
   const filteredTree = useMemo(() => {
+    const query = omnibar?.appliedQuery?.trim() ?? "";
+    if (!query) return tree;
+
     if (omnibar?.scope === "locations" && omnibar.activeAst.length) {
       const filteredRows = filterLocationsByAst(rows, omnibar.activeAst);
       const filteredIds = new Set(filteredRows.map((row) => row.id));
       return filterLocationTopologyTree(tree, "").filter((node) => filteredIds.has(node.id));
     }
 
-    const query =
-      omnibar?.scope === "locations"
-        ? omnibar.residualText || omnibar.debouncedQuery
-        : omnibar?.residualText ?? "";
     return filterLocationTopologyTree(tree, query);
-  }, [tree, rows, omnibar?.scope, omnibar?.activeAst, omnibar?.residualText, omnibar?.debouncedQuery]);
+  }, [tree, rows, omnibar?.scope, omnibar?.appliedQuery, omnibar?.activeAst]);
 
   useEffect(() => {
     setExpandedIds((prev) => {

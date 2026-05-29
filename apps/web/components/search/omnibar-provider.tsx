@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   executeModuleFilter,
   logSearchTelemetry,
@@ -41,12 +42,12 @@ import type {
 } from "@/lib/search/types";
 import type { OperatorProfile } from "@/lib/user/types";
 
-const DEBOUNCE_MS = 150;
-
 type OmnibarContextValue = {
   rawQuery: string;
   setRawQuery: (value: string) => void;
-  debouncedQuery: string;
+  appliedQuery: string;
+  submitFilter: () => void;
+  hasPendingFilter: boolean;
   scope: FilterScope;
   setScope: (scope: FilterScope) => void;
   scopePinnedToAll: boolean;
@@ -81,7 +82,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [rawQuery, setRawQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
   const [scope, setScopeState] = useState<FilterScope>(() => resolveScopeFromPath(pathname));
   const [scopePinnedToAll, setScopePinnedToAll] = useState(false);
   const [permissions, setPermissions] = useState<SearchFieldPermissions | null>(null);
@@ -113,31 +114,30 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     setScopeState(resolveScopeFromPath(pathname));
   }, [pathname, scopePinnedToAll]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(rawQuery), DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [rawQuery]);
-
   const setScope = useCallback(
     (nextScope: FilterScope) => {
+      if (nextScope === scope) return;
+
       if (nextScope === "all") {
         setScopePinnedToAll(true);
+        setScopeState("all");
         setRawQuery("");
-        setDebouncedQuery("");
+        setAppliedQuery("");
         setCompileResult(null);
         setFilteredItemIds(null);
         setModuleFilterRevision((value) => value + 1);
-      } else {
-        setScopePinnedToAll(false);
-        setScopeState(nextScope);
+        return;
       }
+
+      setScopePinnedToAll(false);
+      setScopeState(nextScope);
     },
-    []
+    [scope]
   );
 
   const clearFilters = useCallback(() => {
     setRawQuery("");
-    setDebouncedQuery("");
+    setAppliedQuery("");
     setCompileResult(null);
     setFilteredItemIds(null);
     setModuleFilterRevision((value) => value + 1);
@@ -155,62 +155,73 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     setCachedSearchPermissions(userId, cacheTenantId, resolved);
   }, [userId, cacheTenantId]);
 
-  useEffect(() => {
-    if (!permissions) return;
+  const runAppliedFilter = useCallback(
+    async (query: string, activeScope: FilterScope) => {
+      if (!permissions) return;
 
-    const security = scanQueryForSecuritySignatures(
-      debouncedQuery,
-      userId ? `${cacheTenantId}:${userId}` : undefined
-    );
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setCompileResult(null);
+        setFilteredItemIds(null);
+        setModuleFilterRevision((value) => value + 1);
+        return;
+      }
 
-    if (security.flagged && userId) {
-      setThrottledSearch(userId, cacheTenantId, true);
-      setPermissions((current) =>
-        current ? { ...current, throttled: true } : current
-      );
-    }
+      const fieldDict = buildFieldDict(activeScope, permissions);
+      const compiled = compileFilterQuery(trimmed, activeScope, fieldDict);
+      setCompileResult(compiled);
 
-    const fieldDict = buildFieldDict(scope, permissions);
-    const compiled = compileFilterQuery(debouncedQuery, scope, fieldDict);
-    setCompileResult(compiled);
+      void logSearchTelemetry({
+        scope: activeScope,
+        rawQuery: trimmed,
+        unparsedTokens: compiled.unparsedTokens,
+        ast: compiled.ast,
+        compileMicros: compiled.compileMicros,
+        securityFlag: scanQueryForSecuritySignatures(
+          trimmed,
+          userId ? `${cacheTenantId}:${userId}` : undefined
+        ).flagged,
+      });
 
-    void logSearchTelemetry({
-      scope,
-      rawQuery: debouncedQuery,
-      unparsedTokens: compiled.unparsedTokens,
-      ast: compiled.ast,
-      compileMicros: compiled.compileMicros,
-      securityFlag: security.flagged,
-    });
+      if (activeScope !== "items") {
+        setFilteredItemIds(null);
+        setModuleFilterRevision((value) => value + 1);
+        return;
+      }
 
-    if (scope !== "items" || !debouncedQuery.trim()) {
-      setFilteredItemIds(null);
-      return;
-    }
+      const structural = compiled.ast.some((clause) => clause.kind !== "text");
+      const textOnly = !structural && compiled.residualText.trim().length > 0;
 
-    const structural = compiled.ast.some((clause) => clause.kind !== "text");
-    if (!structural && !compiled.residualText.trim()) {
-      setFilteredItemIds(null);
-      return;
-    }
+      if (!structural && !textOnly) {
+        setFilteredItemIds(null);
+        setModuleFilterRevision((value) => value + 1);
+        return;
+      }
 
-    setIsExecuting(true);
-    void executeModuleFilter(scope, compiled.ast, debouncedQuery)
-      .then((result) => {
+      setIsExecuting(true);
+      try {
+        const result = await executeModuleFilter(activeScope, compiled.ast, trimmed);
         if (!result.ok) {
-          if (result.error.includes("restricted") && userId) {
-            setThrottledSearch(userId, cacheTenantId, true);
-            setPermissions((current) =>
-              current ? { ...current, throttled: true } : current
-            );
-          }
-          setFilteredItemIds(new Set());
+          setFilteredItemIds(null);
+          toast.error(result.error ?? "Unable to apply native filter.");
           return;
         }
         setFilteredItemIds(new Set(result.itemIds));
-      })
-      .finally(() => setIsExecuting(false));
-  }, [debouncedQuery, scope, permissions, userId, cacheTenantId]);
+      } finally {
+        setIsExecuting(false);
+        setModuleFilterRevision((value) => value + 1);
+      }
+    },
+    [permissions, userId, cacheTenantId]
+  );
+
+  const submitFilter = useCallback(() => {
+    const trimmed = rawQuery.trim();
+    setAppliedQuery(trimmed);
+    void runAppliedFilter(trimmed, scope);
+  }, [rawQuery, scope, runAppliedFilter]);
+
+  const hasPendingFilter = rawQuery.trim() !== appliedQuery.trim();
 
   const fieldHints = useMemo(() => {
     if (!permissions) return [];
@@ -219,14 +230,16 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
 
   const navigationMatches = useMemo(() => {
     if (scope !== "all") return [];
-    return matchNavigationIndex(debouncedQuery);
-  }, [scope, debouncedQuery]);
+    return matchNavigationIndex(appliedQuery || rawQuery);
+  }, [scope, appliedQuery, rawQuery]);
 
   const value = useMemo<OmnibarContextValue>(
     () => ({
       rawQuery,
       setRawQuery,
-      debouncedQuery,
+      appliedQuery,
+      submitFilter,
+      hasPendingFilter,
       scope,
       setScope,
       scopePinnedToAll,
@@ -248,7 +261,9 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     }),
     [
       rawQuery,
-      debouncedQuery,
+      appliedQuery,
+      submitFilter,
+      hasPendingFilter,
       scope,
       setScope,
       scopePinnedToAll,
@@ -271,13 +286,10 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
         event.preventDefault();
         focusInput();
       }
-      if (event.key === "Enter" && scope === "all" && navigationMatches[0]) {
-        router.push(navigationMatches[0].href);
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [focusInput, navigationMatches, router, scope]);
+  }, [focusInput]);
 
   return <OmnibarContext.Provider value={value}>{children}</OmnibarContext.Provider>;
 }

@@ -53,29 +53,30 @@ export function ProductStreamPanel({ products, categories, selectedId, onSelect 
       rows = rows.filter((product) => product.category_id === categoryFilter);
     }
 
-    if (omnibar?.filteredItemIds) {
-      rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
+    if (!omnibar?.appliedQuery.trim()) {
+      return rows;
     }
 
-    if (omnibar?.residualText) {
+    const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
+
+    if (hasStructuralFilter && omnibar.filteredItemIds) {
+      rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
+    } else if (!hasStructuralFilter && omnibar.residualText) {
       rows = applyFallbackTextFilter(
         rows.map((row) => ({ ...row, description: null })),
         omnibar.residualText
       );
-    } else if (omnibar?.debouncedQuery && !omnibar.filteredItemIds) {
-      const q = omnibar.debouncedQuery.trim().toLowerCase();
-      if (q) {
-        rows = rows.filter(
-          (product) =>
-            product.name.toLowerCase().includes(q) ||
-            (product.default_sku?.toLowerCase().includes(q) ?? false) ||
-            (product.category_name?.toLowerCase().includes(q) ?? false)
-        );
-      }
     }
 
     return rows;
-  }, [products, categoryFilter, omnibar?.filteredItemIds, omnibar?.residualText, omnibar?.debouncedQuery]);
+  }, [
+    products,
+    categoryFilter,
+    omnibar?.appliedQuery,
+    omnibar?.filteredItemIds,
+    omnibar?.activeAst,
+    omnibar?.residualText,
+  ]);
 
   const visibleColumns = useMemo(() => getOrderedVisibleColumns(prefs), [prefs]);
 

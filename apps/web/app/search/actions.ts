@@ -8,7 +8,8 @@ import {
 } from "@/lib/search/permissions/resolve-permissions-server";
 import { executeItemsFilterRpc, normalizeItemsAst } from "@/lib/search/executor/supabase-items";
 import { validateFilterAst } from "@/lib/search/executor/validate-ast";
-import { scanQueryForSecuritySignatures } from "@/lib/search/telemetry/signatures";import type {
+import { scanQueryForSecuritySignatures } from "@/lib/search/telemetry/signatures";
+import type {
   AstClause,
   FilterScope,
   ModuleFilterResult,
@@ -111,7 +112,7 @@ export async function executeModuleFilter(
 
   try {
     const normalizedAst = await normalizeItemsAst(supabase, tenantId, validation.ast);
-    const itemIds = await executeItemsFilterRpc(supabase, normalizedAst);
+    const itemIds = await executeItemsFilterRpc(supabase, tenantId, normalizedAst);
     const executionMs = Math.round(performance.now() - started);
 
     if (executionMs > 50) {
@@ -128,8 +129,10 @@ export async function executeModuleFilter(
     }
 
     return { ok: true, itemIds, executionMs };
-  } catch {
-    return { ok: false, error: "Unable to execute native filter." };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to execute native filter.";
+    console.error("[search] executeModuleFilter failed:", message);
+    return { ok: false, error: message };
   }
 }
 

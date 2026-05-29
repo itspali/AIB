@@ -24,12 +24,10 @@ export function LocationTopologyExplorer({ rows, selectedId, onSelect }: Props) 
 
   const tree = useMemo(() => buildLocationTopologyTree(rows), [rows]);
   const filteredTree = useMemo(() => {
-    const query =
-      omnibar?.scope === "locations"
-        ? omnibar.residualText || omnibar.debouncedQuery
-        : omnibar?.residualText ?? "";
+    const query = omnibar?.appliedQuery?.trim() ?? "";
+    if (!query) return tree;
     return filterLocationTopologyTree(tree, query);
-  }, [tree, omnibar?.scope, omnibar?.residualText, omnibar?.debouncedQuery]);
+  }, [tree, omnibar?.appliedQuery]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {

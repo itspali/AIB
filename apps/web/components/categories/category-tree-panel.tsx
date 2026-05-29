@@ -19,18 +19,17 @@ export function CategoryTreePanel({ rows, selectedId, onSelect }: Props) {
 
   const tree = useMemo(() => buildCategoryTree(rows), [rows]);
   const filteredTree = useMemo(() => {
+    const query = omnibar?.appliedQuery?.trim() ?? "";
+    if (!query) return tree;
+
     if (omnibar?.scope === "categories" && omnibar.activeAst.length) {
       const filteredRows = filterCategoriesByAst(rows, omnibar.activeAst);
       const filteredIds = new Set(filteredRows.map((row) => row.id));
       return filterCategoryTree(tree, "").filter((node) => filteredIds.has(node.id));
     }
 
-    const query =
-      omnibar?.scope === "categories"
-        ? omnibar.residualText || omnibar.debouncedQuery
-        : omnibar?.residualText ?? "";
     return filterCategoryTree(tree, query);
-  }, [tree, rows, omnibar?.scope, omnibar?.activeAst, omnibar?.residualText, omnibar?.debouncedQuery]);
+  }, [tree, rows, omnibar?.scope, omnibar?.appliedQuery, omnibar?.activeAst]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {

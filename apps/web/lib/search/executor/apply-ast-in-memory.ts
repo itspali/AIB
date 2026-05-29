@@ -1,0 +1,93 @@
+import type { AstClause } from "@/lib/search/types";
+
+export type CatalogSearchRow = {
+  item_id: string;
+  name: string | null;
+  description: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  hsn_sac_code: string | null;
+  base_unit_of_measure: string | null;
+  created_at: string | null;
+  default_sku: string | null;
+  selling_price: number | string | null;
+  purchase_price: number | string | null;
+};
+
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function matchesClause(row: CatalogSearchRow, clause: AstClause): boolean {
+  if (clause.kind === "text") {
+    const q = clause.value.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (row.name?.toLowerCase().includes(q) ?? false) ||
+      (row.description?.toLowerCase().includes(q) ?? false) ||
+      (row.default_sku?.toLowerCase().includes(q) ?? false)
+    );
+  }
+
+  if (clause.kind === "field_compare") {
+    const left = toNumber(row[clause.left as keyof CatalogSearchRow]);
+    const right = toNumber(row[clause.right as keyof CatalogSearchRow]);
+    if (left === null || right === null) return false;
+
+    switch (clause.operator) {
+      case "FIELD_GT":
+        return left > right;
+      case "FIELD_GTE":
+        return left >= right;
+      case "FIELD_LT":
+        return left < right;
+      case "FIELD_LTE":
+        return left <= right;
+      default:
+        return true;
+    }
+  }
+
+  if (clause.kind !== "predicate") return true;
+
+  const { field, operator, value } = clause;
+  const raw = row[field as keyof CatalogSearchRow];
+
+  switch (operator) {
+    case "EQ":
+      return String(raw ?? "").toLowerCase() === String(value).toLowerCase();
+    case "IN":
+      return Array.isArray(value)
+        ? value.some((entry) => String(raw ?? "").toLowerCase() === String(entry).toLowerCase())
+        : false;
+    case "GTE":
+      return new Date(String(raw)).getTime() >= new Date(String(value)).getTime();
+    case "LTE":
+      return new Date(String(raw)).getTime() <= new Date(String(value)).getTime();
+    case "BETWEEN":
+      if (!Array.isArray(value) || value.length !== 2) return true;
+      return (
+        new Date(String(raw)).getTime() >= new Date(String(value[0])).getTime() &&
+        new Date(String(raw)).getTime() <= new Date(String(value[1])).getTime()
+      );
+    case "ILIKE":
+      return String(raw ?? "").toLowerCase().includes(String(value).toLowerCase());
+    default:
+      return true;
+  }
+}
+
+export function filterCatalogRowsInMemory(
+  rows: CatalogSearchRow[],
+  ast: AstClause[]
+): string[] {
+  const structural = ast.filter((clause) => clause.kind !== "text");
+  const textClauses = ast.filter((clause) => clause.kind === "text");
+
+  return rows
+    .filter((row) => structural.every((clause) => matchesClause(row, clause)))
+    .filter((row) => textClauses.every((clause) => matchesClause(row, clause)))
+    .map((row) => row.item_id);
+}

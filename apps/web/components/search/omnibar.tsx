@@ -25,17 +25,25 @@ export function Omnibar({ className, mobile = false }: Props) {
     clearFilters,
     inputRef,
     fieldHints,
-    debouncedQuery,
+    submitFilter,
+    hasPendingFilter,
+    isExecuting,
   } = useOmnibarContext();
 
   const [focused, setFocused] = useState(false);
-  const showHints = focused && debouncedQuery.trim().length > 0;
+  const showHints = focused && rawQuery.trim().length > 0;
 
   const hintItems = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
+    const q = rawQuery.trim().toLowerCase();
     if (!q) return fieldHints.slice(0, 8);
     return fieldHints.filter((hint) => hint.includes(q) || q.includes(hint)).slice(0, 8);
-  }, [debouncedQuery, fieldHints]);
+  }, [rawQuery, fieldHints]);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    submitFilter();
+  };
 
   return (
     <div className={cn("relative w-full", className)}>
@@ -43,7 +51,8 @@ export function Omnibar({ className, mobile = false }: Props) {
         className={cn(
           "flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 shadow-sm backdrop-blur-md transition-all duration-200 dark:shadow-glow-sm",
           mobile ? "h-11" : "h-10",
-          focused && "border-primary/40 ring-2 ring-primary/20"
+          focused && "border-primary/40 ring-2 ring-primary/20",
+          hasPendingFilter && "border-amber-500/40"
         )}
       >
         <OmnibarScopeSelect scope={scope} options={scopeOptions} onScopeChange={setScope} />
@@ -53,6 +62,7 @@ export function Omnibar({ className, mobile = false }: Props) {
           type="search"
           value={rawQuery}
           onChange={(event) => setRawQuery(event.target.value)}
+          onKeyDown={handleKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => window.setTimeout(() => setFocused(false), 150)}
           placeholder={placeholder}
@@ -72,6 +82,12 @@ export function Omnibar({ className, mobile = false }: Props) {
           <Sparkles className="hidden h-3.5 w-3.5 text-primary/60 lg:block" />
         )}
       </div>
+
+      {scope === "items" && (hasPendingFilter || isExecuting) ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {isExecuting ? "Applying filter…" : "Press Enter to apply native filter"}
+        </p>
+      ) : null}
 
       {compileResult?.ast.length ? (
         <FilterChipRow ast={compileResult.ast} className="mt-2" />
