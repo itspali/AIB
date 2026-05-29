@@ -12,7 +12,6 @@ SELECT
     i.hsn_sac_code,
     i.base_unit_of_measure,
     i.created_at,
-    i.is_active,
     iv.sku AS default_sku,
     (
         SELECT pbe.price
@@ -34,7 +33,8 @@ SELECT
           AND si.item_id = i.id
         ORDER BY si.is_preferred DESC, si.supplier_id ASC
         LIMIT 1
-    ) AS purchase_price
+    ) AS purchase_price,
+    i.is_active
 FROM public.items i
 LEFT JOIN public.item_categories ic
     ON ic.tenant_id = i.tenant_id
