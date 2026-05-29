@@ -355,6 +355,9 @@ const VARIANT_DETAIL_SELECT = `
   is_active
 `;
 
+/** Disambiguate composite tenant FK — PostgREST rejects bare `item_variants` embeds. */
+const ITEM_VARIANTS_EMBED = "item_variants!item_variants_item_tenant_fk";
+
 async function fetchProductVariants(
   supabase: SupabaseClient,
   tenantId: string,
@@ -390,7 +393,7 @@ export async function fetchProductListRows(
       created_at,
       updated_at,
       item_categories ( name ),
-      item_variants ( id, sku, created_at )
+      ${ITEM_VARIANTS_EMBED} ( id, sku, created_at )
     `
     )
     .eq("tenant_id", tenantId)
@@ -429,7 +432,7 @@ export async function fetchProductDetail(
       created_at,
       updated_at,
       item_categories ( name ),
-      item_variants (
+      ${ITEM_VARIANTS_EMBED} (
         ${VARIANT_DETAIL_SELECT}
       )
     `
