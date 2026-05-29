@@ -24,6 +24,7 @@ export default async function OnboardingPage() {
       progressPercent={snapshot.progressPercent}
       onboardingMode
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <div className="space-y-4 md:space-y-8 min-w-0">
         <TenantProfileCard tenant={snapshot.tenant} progressPercent={snapshot.progressPercent} />

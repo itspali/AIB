@@ -7,6 +7,7 @@ import {
   type DocumentSequenceRow,
   type OrganizationDelegateRow,
   type OrganizationSettingsSnapshot,
+  type SearchFinancialFieldsMode,
   type TenantLocationOption,
 } from "@/lib/organization/types";
 
@@ -43,7 +44,7 @@ export async function fetchOrganizationSettingsSnapshot(
       .eq("tenant_id", tenantId)
       .eq("scope_level", "TENANT_GLOBAL")
       .is("target_reference_id", null)
-      .in("registry_key", ["SALES_SETTINGS", "FINANCIAL_SETTINGS"]),
+      .in("registry_key", ["SALES_SETTINGS", "FINANCIAL_SETTINGS", "SEARCH_SETTINGS"]),
     supabase
       .from("workspace_control_registry")
       .select("target_reference_id, created_at, configuration_metadata")
@@ -72,6 +73,7 @@ export async function fetchOrganizationSettingsSnapshot(
 
   let allowLineItemDiscounts = true;
   let accountingPeriodClosingDate: string | null = null;
+  let searchFinancialFieldsMode: SearchFinancialFieldsMode = "role_default";
 
   for (const row of registryRows ?? []) {
     const meta = row.configuration_metadata as Record<string, unknown>;
@@ -82,6 +84,13 @@ export async function fetchOrganizationSettingsSnapshot(
     }
     if (row.registry_key === "FINANCIAL_SETTINGS") {
       accountingPeriodClosingDate = toDateOnly(meta?.accounting_period_closing_date);
+    }
+    if (row.registry_key === "SEARCH_SETTINGS") {
+      if (meta?.search_financial_fields_visible === true) {
+        searchFinancialFieldsMode = "enabled";
+      } else if (meta?.search_financial_fields_visible === false) {
+        searchFinancialFieldsMode = "disabled";
+      }
     }
   }
 
@@ -174,6 +183,7 @@ export async function fetchOrganizationSettingsSnapshot(
     document_sequences: (documentSequences ?? []) as DocumentSequenceRow[],
     allow_line_item_discounts: allowLineItemDiscounts,
     accounting_period_closing_date: accountingPeriodClosingDate,
+    search_financial_fields_mode: searchFinancialFieldsMode,
     delegates,
     locations: (locations ?? []) as TenantLocationOption[],
     eligible_delegate_users: (eligibleUsers ?? []).filter((user) => !delegateIdSet.has(user.id)),

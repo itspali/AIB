@@ -105,6 +105,31 @@ export async function saveOrganizationSettings(raw: unknown) {
     }
   }
 
+  if (values.search_financial_fields_mode === "role_default") {
+    const { error: clearError } = await supabase.rpc("clear_tenant_workspace_control", {
+      p_registry_key: "SEARCH_SETTINGS",
+    });
+    if (clearError) {
+      if (isMissingRpcError(clearError)) {
+        return { error: formatRpcDeployError("clear_tenant_workspace_control") };
+      }
+      return { error: clearError.message };
+    }
+  } else {
+    const { error: searchError } = await supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: "SEARCH_SETTINGS",
+      p_metadata_patch: {
+        search_financial_fields_visible: values.search_financial_fields_mode === "enabled",
+      },
+    });
+    if (searchError) {
+      if (isMissingRpcError(searchError)) {
+        return { error: formatRpcDeployError("upsert_tenant_workspace_control") };
+      }
+      return { error: searchError.message };
+    }
+  }
+
   for (const path of ORGANIZATION_PATHS) {
     revalidatePath(path);
   }

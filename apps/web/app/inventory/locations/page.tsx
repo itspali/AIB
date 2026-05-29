@@ -41,6 +41,7 @@ export default async function LocationsPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <LocationManagementTerminal initialRows={rows} moduleContext={moduleContext} />
     </DashboardShell>

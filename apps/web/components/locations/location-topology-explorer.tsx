@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { LocationTopologyNodeRow } from "@/components/locations/location-topology-node";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import {
   buildLocationTopologyTree,
   collectDefaultExpandedIds,
@@ -18,13 +17,19 @@ type Props = {
 };
 
 export function LocationTopologyExplorer({ rows, selectedId, onSelect }: Props) {
-  const [query, setQuery] = useState("");
+  const omnibar = useOptionalOmnibarContext();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
     collectDefaultExpandedIds(rows)
   );
 
   const tree = useMemo(() => buildLocationTopologyTree(rows), [rows]);
-  const filteredTree = useMemo(() => filterLocationTopologyTree(tree, query), [tree, query]);
+  const filteredTree = useMemo(() => {
+    const query =
+      omnibar?.scope === "locations"
+        ? omnibar.residualText || omnibar.debouncedQuery
+        : omnibar?.residualText ?? "";
+    return filterLocationTopologyTree(tree, query);
+  }, [tree, omnibar?.scope, omnibar?.residualText, omnibar?.debouncedQuery]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -42,17 +47,8 @@ export function LocationTopologyExplorer({ rows, selectedId, onSelect }: Props) 
           Enterprise Topology Explorer
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Expand nodes to traverse Global HQ through regional zones. Hover for node metadata.
+          Expand nodes to traverse Global HQ through regional zones. Filter via header omnibar.
         </p>
-      </div>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search topology…"
-          className="pl-9"
-        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {filteredTree.length === 0 ? (

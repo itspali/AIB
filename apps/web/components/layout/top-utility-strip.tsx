@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Command, Menu, Search, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
+import { Omnibar } from "@/components/search/omnibar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { OperatorProfile } from "@/lib/user/types";
-import { cn } from "@/lib/utils";
 
 type TopUtilityStripProps = {
   orgName: string;
@@ -26,30 +26,8 @@ export function TopUtilityStrip({
   onMobileMenuOpen,
   operatorProfile = null,
 }: TopUtilityStripProps) {
-  const [commandOpen, setCommandOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const commandRef = useRef<HTMLButtonElement>(null);
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (profileOpen) return;
-        setCommandOpen(false);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setCommandOpen(true);
-        commandRef.current?.focus();
-      }
-    },
-    [profileOpen]
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   return (
     <>
@@ -81,23 +59,8 @@ export function TopUtilityStrip({
           )}
         </div>
 
-        <div className="absolute left-1/2 hidden w-full max-w-lg -translate-x-1/2 px-20 md:block">
-          <button
-            ref={commandRef}
-            type="button"
-            onClick={() => setCommandOpen(true)}
-            className={cn(
-              "flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-card/60 px-4 text-sm text-muted-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:shadow-glow-sm",
-              commandOpen && "border-primary/40 ring-2 ring-primary/20"
-            )}
-            aria-label="Search commands"
-          >
-            <Search className="h-4 w-4 shrink-0 text-primary/70" />
-            <span className="flex-1 text-left">Search modules, actions, records…</span>
-            <kbd className="hidden items-center gap-0.5 rounded-md border border-white/10 bg-background/60 px-1.5 py-0.5 text-[10px] font-medium lg:inline-flex">
-              <Command className="h-3 w-3" />K
-            </kbd>
-          </button>
+        <div className="absolute left-1/2 hidden w-full max-w-2xl -translate-x-1/2 px-16 md:block lg:px-20">
+          <Omnibar />
         </div>
 
         <div className="relative flex shrink-0 items-center gap-1.5 overflow-visible">
@@ -105,10 +68,10 @@ export function TopUtilityStrip({
             variant="ghost"
             size="sm"
             className="md:hidden"
-            onClick={() => setCommandOpen(true)}
-            aria-label="Search commands"
+            onClick={() => setMobileSearchOpen(true)}
+            aria-label="Open search"
           >
-            <Search className="h-4 w-4" />
+            <span className="text-xs font-medium">Search</span>
           </Button>
 
           {approvalAlertCount > 0 ? (
@@ -149,52 +112,19 @@ export function TopUtilityStrip({
         </div>
       </header>
 
-      {commandOpen && (
+      {mobileSearchOpen && !profileOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[12vh]"
-          onClick={() => setCommandOpen(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileSearchOpen(false)}
           role="presentation"
         >
           <div
-            className="mx-4 w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-card/95 shadow-2xl shadow-primary/10 backdrop-blur-xl"
-            onClick={(e) => e.stopPropagation()}
+            className="border-b border-border bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]"
+            onClick={(event) => event.stopPropagation()}
             role="dialog"
-            aria-label="Command search"
+            aria-label="Mobile search"
           >
-            <div className="border-b border-white/10 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Command Palette</span>
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-background/60 px-3 py-2.5">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <input
-                  autoFocus
-                  type="search"
-                  placeholder="Jump to Procurement, Inventory, Sales…"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                />
-                <kbd className="rounded border border-white/10 bg-muted px-1.5 py-0.5 text-[10px]">
-                  Esc
-                </kbd>
-              </div>
-              <div className="mt-4 space-y-1">
-                {["Dashboard", "Procurement", "Inventory", "Sales", "Financials"].map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors duration-200 hover:bg-white/5 hover:text-foreground"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Full navigation wiring ships in the next release — layout and shortcuts are ready.
-              </p>
-            </div>
+            <Omnibar mobile />
           </div>
         </div>
       )}

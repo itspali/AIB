@@ -328,6 +328,35 @@ export function OrganizationAdvancedSection({
           }
         />
         <div className="space-y-2">
+          <Label className="text-sm font-medium text-muted-foreground">
+            Financial fields in header native filters
+          </Label>
+          <Select
+            value={watch("search_financial_fields_mode")}
+            disabled={disabled}
+            onValueChange={(value) =>
+              setValue(
+                "search_financial_fields_mode",
+                value as OrganizationSettingsFormValues["search_financial_fields_mode"],
+                { shouldDirty: true }
+              )
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="role_default">Role defaults (managers and above)</SelectItem>
+              <SelectItem value="enabled">Enabled for all users</SelectItem>
+              <SelectItem value="disabled">Disabled for all users</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Controls whether purchase price and selling price tokens appear in the header omnibar
+            native filter engine for STAFF and other roles.
+          </p>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="accounting_period_closing_date" className="text-sm font-medium text-muted-foreground">
             Fiscal period closing lockout
           </Label>

@@ -44,7 +44,13 @@ import {
   type ProductValuationSnapshot,
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
-import { PRODUCT_FORM_SECTIONS, PRODUCT_SECTION_IDS } from "@/lib/products/section-nav";
+import { PRODUCT_FORM_SECTIONS, PRODUCT_SECTION_IDS, type ProductSectionId } from "@/lib/products/section-nav";
+import {
+  loadProductSectionOrder,
+  saveProductSectionOrder,
+  sectionFlexOrder,
+  sortSectionsByOrder,
+} from "@/lib/products/section-prefs";
 import { useFormSectionSpy } from "@/lib/settings/form-section-spy";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +66,9 @@ type Props = {
   initialValues?: ProductMasterFormValues;
   layout?: "canvas" | "drawer";
   mode?: ProductFormMode;
+  formId?: string;
+  hideDrawerFooter?: boolean;
+  onPendingChange?: (pending: boolean) => void;
   onCancel: () => void;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
@@ -110,6 +119,9 @@ export function ProductMasterForm({
   initialValues,
   layout = "canvas",
   mode = "create",
+  formId,
+  hideDrawerFooter = false,
+  onPendingChange,
   onCancel,
   onSaved,
   onExtensionsChanged,
@@ -117,6 +129,7 @@ export function ProductMasterForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
+  const [sectionOrder, setSectionOrder] = useState<ProductSectionId[]>(() => loadProductSectionOrder());
   const moduleHeaderRef = useRef<HTMLDivElement>(null);
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const isDrawer = layout === "drawer";
@@ -160,10 +173,44 @@ export function ProductMasterForm({
   }, [categories, categoryId]);
 
   const visibleSections = useMemo(
-    () => PRODUCT_FORM_SECTIONS.filter((section) => !section.advanced || showAdvanced),
-    [showAdvanced]
+    () =>
+      PRODUCT_FORM_SECTIONS.filter((section) => {
+        if (section.advanced && !showAdvanced) return false;
+        if (section.requiresItem && !itemId) return false;
+        return true;
+      }),
+    [showAdvanced, itemId]
   );
-  const sectionIds = useMemo(() => visibleSections.map((section) => section.id), [visibleSections]);
+  const visibleSectionIds = useMemo(
+    () => visibleSections.map((section) => section.id),
+    [visibleSections]
+  );
+  const orderedVisibleSections = useMemo(
+    () => sortSectionsByOrder(visibleSections, sectionOrder),
+    [visibleSections, sectionOrder]
+  );
+  const sectionIds = useMemo(
+    () => orderedVisibleSections.map((section) => section.id),
+    [orderedVisibleSections]
+  );
+  const getDrawerSectionOrder = useCallback(
+    (sectionId: ProductSectionId) =>
+      isDrawer ? sectionFlexOrder(sectionId, sectionOrder, visibleSectionIds) : undefined,
+    [isDrawer, sectionOrder, visibleSectionIds]
+  );
+  const handleSectionOrderChange = useCallback(
+    (visibleOrderedIds: string[]) => {
+      setSectionOrder((current) => {
+        const visibleSet = new Set(visibleSectionIds);
+        let visibleIdx = 0;
+        return current.map((id) => {
+          if (!visibleSet.has(id)) return id;
+          return visibleOrderedIds[visibleIdx++] as ProductSectionId;
+        });
+      });
+    },
+    [visibleSectionIds]
+  );
   const { activeId, scrollToSection } = useFormSectionSpy(sectionIds, {
     headerRef: moduleHeaderRef,
     scrollRootRef: isDrawer ? scrollRootRef : undefined,
@@ -201,8 +248,18 @@ export function ProductMasterForm({
   );
 
   useEffect(() => {
+    onPendingChange?.(isPending);
+  }, [isPending, onPendingChange]);
+
+  useEffect(() => {
     setTagOptions(catalogContext.tags);
   }, [catalogContext.tags]);
+
+  useEffect(() => {
+    if (isDrawer) {
+      saveProductSectionOrder(sectionOrder);
+    }
+  }, [isDrawer, sectionOrder]);
 
   useEffect(() => {
     const nextValues =
@@ -247,28 +304,29 @@ export function ProductMasterForm({
 
   return (
     <form
+      id={formId}
       onSubmit={handleSubmit(onSubmit)}
       className={cn(isDrawer ? "flex h-full min-h-0 flex-col" : "space-y-6")}
     >
-      {isDrawer && (
-        <div
-          ref={moduleHeaderRef}
-          className="shrink-0 border-b border-border/60 bg-background pb-3"
-        >
-          <FormSectionNav
-            sections={visibleSections}
-            activeId={activeId}
-            onSelect={handleSectionSelect}
-          />
-        </div>
-      )}
-
       <div
         ref={scrollRootRef}
-        className={cn(
-          isDrawer ? "min-h-0 flex-1 space-y-6 overflow-y-auto py-1" : "space-y-6"
-        )}
+        className={cn(isDrawer ? "min-h-0 flex-1 overflow-y-auto" : "space-y-6")}
       >
+        {isDrawer && (
+          <div
+            ref={moduleHeaderRef}
+            className="sticky top-0 z-10 border-b border-border/60 bg-background/95 pb-3 pt-1 backdrop-blur-sm"
+          >
+            <FormSectionNav
+              sections={orderedVisibleSections}
+              activeId={activeId}
+              onSelect={handleSectionSelect}
+              onSectionOrderChange={handleSectionOrderChange}
+            />
+          </div>
+        )}
+
+        <div className={cn(isDrawer ? "flex flex-col gap-6 px-0.5 py-1" : "space-y-6 px-0.5 py-1")}>
       {!isDrawer && (
         <div>
           <h2 className="text-xl font-semibold">
@@ -281,7 +339,11 @@ export function ProductMasterForm({
         </div>
       )}
 
-      <section id={PRODUCT_SECTION_IDS.essentials} className="surface-panel space-y-4 scroll-mt-4">
+      <section
+        id={PRODUCT_SECTION_IDS.essentials}
+        style={isDrawer ? { order: getDrawerSectionOrder(PRODUCT_SECTION_IDS.essentials) } : undefined}
+        className="surface-panel space-y-4 scroll-mt-4"
+      >
         <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Essential Product Attributes
         </h3>
@@ -422,7 +484,11 @@ export function ProductMasterForm({
         </div>
       </section>
 
-      <section id={PRODUCT_SECTION_IDS.commerce} className="surface-panel space-y-4 scroll-mt-4">
+      <section
+        id={PRODUCT_SECTION_IDS.commerce}
+        style={isDrawer ? { order: getDrawerSectionOrder(PRODUCT_SECTION_IDS.commerce) } : undefined}
+        className="surface-panel space-y-4 scroll-mt-4"
+      >
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Commerce &amp; Costing
@@ -601,6 +667,10 @@ export function ProductMasterForm({
         )}
       </section>
 
+      <div
+        style={isDrawer ? { order: getDrawerSectionOrder(PRODUCT_SECTION_IDS.advanced) } : undefined}
+        className={cn(isDrawer && "flex flex-col gap-6")}
+      >
       <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
         <div>
           <p className="text-sm font-medium">Show Advanced Parameters</p>
@@ -860,6 +930,7 @@ export function ProductMasterForm({
           />
         </section>
       )}
+      </div>
 
       {!isDrawer && itemId && (
         <>
@@ -889,23 +960,35 @@ export function ProductMasterForm({
 
       {isDrawer && itemId && (
         <>
-          <ProductVariantPanel
-            itemId={itemId}
-            variants={variants}
-            categoryTemplates={categoryTemplates}
-            skuMask={skuMask}
-            baseSku={masterSku}
-            readOnly={readOnly}
-            onChanged={() => onExtensionsChanged?.()}
-          />
-          <ProductMediaGallery
-            tenantId={tenantId}
-            itemId={itemId}
-            variants={variants}
-            media={media}
-            readOnly={readOnly}
-            onChanged={() => onExtensionsChanged?.()}
-          />
+          <section
+            id={PRODUCT_SECTION_IDS.variants}
+            style={{ order: getDrawerSectionOrder(PRODUCT_SECTION_IDS.variants) }}
+            className="scroll-mt-4"
+          >
+            <ProductVariantPanel
+              itemId={itemId}
+              variants={variants}
+              categoryTemplates={categoryTemplates}
+              skuMask={skuMask}
+              baseSku={masterSku}
+              readOnly={readOnly}
+              onChanged={() => onExtensionsChanged?.()}
+            />
+          </section>
+          <section
+            id={PRODUCT_SECTION_IDS.media}
+            style={{ order: getDrawerSectionOrder(PRODUCT_SECTION_IDS.media) }}
+            className="scroll-mt-4"
+          >
+            <ProductMediaGallery
+              tenantId={tenantId}
+              itemId={itemId}
+              variants={variants}
+              media={media}
+              readOnly={readOnly}
+              onChanged={() => onExtensionsChanged?.()}
+            />
+          </section>
         </>
       )}
 
@@ -914,9 +997,10 @@ export function ProductMasterForm({
           Save the product profile first to manage additional variants and upload images.
         </section>
       )}
+        </div>
       </div>
 
-      {mode !== "view" && (
+      {mode !== "view" && !(isDrawer && hideDrawerFooter) && (
       <div
         className={cn(
           isDrawer

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ type Props = {
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const INITIAL_MEDIA_COUNT = 2;
 
 function scopeLabel(scope: MediaScope, variants: ProductVariantSnapshot[]): string {
   if (scope === "parent") return "Product (parent)";
@@ -63,12 +64,22 @@ export function ProductMediaGallery({
   const [scope, setScope] = useState<MediaScope>("parent");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showAllMedia, setShowAllMedia] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const scopedMedia = useMemo(
     () => filterMediaForScope(media, scope).sort((a, b) => a.sort_order - b.sort_order),
     [media, scope]
   );
+
+  useEffect(() => {
+    setShowAllMedia(false);
+  }, [scope]);
+
+  const hiddenMediaCount = Math.max(0, scopedMedia.length - INITIAL_MEDIA_COUNT);
+  const visibleMedia = showAllMedia
+    ? scopedMedia
+    : scopedMedia.slice(0, INITIAL_MEDIA_COUNT);
 
   const variantIdForScope = scope === "parent" ? null : scope;
 
@@ -178,6 +189,10 @@ export function ProductMediaGallery({
     });
   };
 
+  const handleUploadInput = (file: File | undefined) => {
+    if (file) void uploadFile(file);
+  };
+
   return (
     <section className="surface-panel space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -217,97 +232,62 @@ export function ProductMediaGallery({
         Viewing images for: <span className="font-medium text-foreground">{scopeLabel(scope, variants)}</span>
       </p>
 
-      {!readOnly && (
-        <div
-          className={cn(
-            "surface-inset flex flex-col items-center justify-center gap-3 border-dashed px-4 py-6 text-center transition-colors duration-200",
-            !isUploading && !isPending && "hover:border-primary/40 hover:bg-muted/30",
-            (isUploading || isPending) && "opacity-50"
-          )}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (readOnly || isUploading || isPending) return;
-            const file = event.dataTransfer.files?.[0];
-            if (file) void uploadFile(file);
-          }}
-        >
-          <Upload className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Drag and drop product images</p>
-            <p className="text-xs text-muted-foreground">JPEG, PNG, or WebP up to 5MB</p>
-          </div>
-          <label className="cursor-pointer text-sm font-medium text-primary hover:underline">
-            Browse files
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              disabled={readOnly || isUploading || isPending}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void uploadFile(file);
-              }}
-            />
-          </label>
-          {isUploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
-          {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
-        </div>
-      )}
-
-      {scopedMedia.length === 0 ? (
+      {readOnly && scopedMedia.length === 0 ? (
         <p className="text-sm text-muted-foreground">No images uploaded for this scope yet.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {scopedMedia.map((entry) => (
-            <article key={entry.id} className="surface-inset overflow-hidden">
-              <div className="relative aspect-[4/3] bg-muted/30">
-                {entry.preview_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={entry.preview_url}
-                    alt="Product media"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    Preview unavailable
-                  </div>
-                )}
-                {entry.is_primary && (
-                  <Badge className="absolute left-2 top-2" variant="active">
-                    Primary
-                  </Badge>
-                )}
-              </div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
+            {visibleMedia.map((entry) => (
+              <article key={entry.id} className="surface-inset flex min-w-0 flex-col gap-2 overflow-hidden p-2">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted/30">
+                  {entry.preview_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={entry.preview_url}
+                      alt="Product media"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                      N/A
+                    </div>
+                  )}
+                  {entry.is_primary && (
+                    <Badge className="absolute left-1.5 top-1.5 px-1.5 py-0 text-[10px]" variant="active">
+                      Primary
+                    </Badge>
+                  )}
+                </div>
 
-              <div className="space-y-3 p-4">
                 {!readOnly && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Button
                       type="button"
                       size="sm"
-                      variant={entry.is_primary ? "default" : "outline"}
+                      variant={entry.is_primary ? "secondary" : "outline"}
+                      className="h-7 min-w-0 flex-1 px-2 text-[11px]"
                       disabled={isPending || entry.is_primary}
+                      title={entry.is_primary ? "Primary image" : "Set as primary image"}
                       onClick={() => updateMedia(entry, { is_primary: true })}
                     >
-                      <Star className="h-4 w-4" />
-                      Set primary
+                      <Star className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{entry.is_primary ? "Primary" : "Set primary"}</span>
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-8 w-8 px-0 text-destructive hover:text-destructive"
+                      className="h-7 w-7 shrink-0 px-0 text-destructive hover:text-destructive"
+                      title="Delete image"
                       disabled={isPending}
                       onClick={() => removeMedia(entry)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <VisibilityRow
                     label="Storefront"
                     description="Show on B2C/B2B storefront renderers"
@@ -336,12 +316,97 @@ export function ProductMediaGallery({
                     }
                   />
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))}
+
+            {!readOnly && (
+              <MediaUploadTile
+                disabled={isPending || isUploading}
+                isUploading={isUploading}
+                onUploadFile={handleUploadInput}
+              />
+            )}
+          </div>
+
+          {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+
+          {hiddenMediaCount > 0 && !showAllMedia && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setShowAllMedia(true)}
+            >
+              Show {hiddenMediaCount} more
+            </Button>
+          )}
+
+          {showAllMedia && hiddenMediaCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              onClick={() => setShowAllMedia(false)}
+            >
+              Show less
+            </Button>
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+function MediaUploadTile({
+  disabled,
+  isUploading,
+  onUploadFile,
+}: {
+  disabled: boolean;
+  isUploading: boolean;
+  onUploadFile: (file: File | undefined) => void;
+}) {
+  return (
+    <article className="surface-inset flex min-w-0 flex-col gap-2 overflow-hidden p-2">
+      <label
+        className={cn(
+          "relative flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-muted/20 px-2 text-center transition-colors",
+          !disabled && "hover:border-primary/40 hover:bg-muted/30",
+          disabled && "cursor-not-allowed opacity-50"
+        )}
+        title="JPEG, PNG, or WebP up to 5MB"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          if (disabled) return;
+          onUploadFile(event.dataTransfer.files?.[0]);
+        }}
+      >
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          disabled={disabled}
+          onChange={(event) => {
+            onUploadFile(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        {isUploading ? (
+          <p className="text-[11px] text-muted-foreground">Uploading…</p>
+        ) : (
+          <>
+            <Upload className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">Add image</span>
+          </>
+        )}
+      </label>
+      <p className="text-center text-[10px] leading-tight text-muted-foreground">
+        Drop or browse
+      </p>
+    </article>
   );
 }
 
@@ -359,12 +424,17 @@ function VisibilityRow({
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-      <div>
-        <p className="text-xs font-medium">{label}</p>
-        <p className="text-[11px] text-muted-foreground">{description}</p>
-      </div>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
+    <div
+      className="flex items-center justify-between gap-2 rounded-sm px-0.5 py-0.5"
+      title={description}
+    >
+      <p className="truncate text-xs font-medium leading-none">{label}</p>
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        className="scale-90"
+        onCheckedChange={onCheckedChange}
+      />
     </div>
   );
 }

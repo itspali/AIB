@@ -29,8 +29,10 @@ type RightDrawerProps = {
   /** When false, children manage their own scroll regions (e.g. sticky nav + footer). */
   scrollable?: boolean;
   bodyRef?: RefObject<HTMLDivElement | null>;
-  /** Module-specific actions rendered before expand/close (e.g. Edit). */
+  /** Module-specific actions rendered before close (e.g. Edit, Save). */
   headerActions?: React.ReactNode;
+  /** On desktop, keep the page interactive so users can browse records behind the drawer. */
+  allowBackgroundInteraction?: boolean;
 };
 
 function readStoredWidth(): DrawerWidth {
@@ -69,9 +71,11 @@ export function RightDrawer({
   scrollable = true,
   bodyRef,
   headerActions,
+  allowBackgroundInteraction = true,
 }: RightDrawerProps) {
   const [widthPct, setWidthPct] = useState<DrawerWidth>(40);
   const isDesktopDrawer = useDesktopDrawerLayout();
+  const isPeekMode = allowBackgroundInteraction && isDesktopDrawer;
 
   useEffect(() => {
     setWidthPct(readStoredWidth());
@@ -95,9 +99,16 @@ export function RightDrawer({
     : { width: "100vw", maxWidth: "100vw" };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange} modal={!isPeekMode}>
       <SheetContent
         side="right"
+        showOverlay={!isPeekMode}
+        onPointerDownOutside={(event) => {
+          if (isPeekMode) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          if (isPeekMode) event.preventDefault();
+        }}
         className={cn(
           "flex h-full flex-col border-l border-border/80 p-0 dark:border-white/10 [&>button:last-of-type]:hidden",
           !isDesktopDrawer && "w-full max-w-full sm:max-w-full",
@@ -106,21 +117,13 @@ export function RightDrawer({
         style={panelStyle}
       >
         <SheetHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/80 px-4 py-4 dark:border-white/10 sm:px-6">
-          <div className="min-w-0 flex-1">
-            <SheetTitle className="truncate text-left text-lg font-semibold sm:text-xl">
-              {title}
-            </SheetTitle>
-            <SheetDescription className="sr-only">
-              {description ?? title}
-            </SheetDescription>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {headerActions}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             {isDesktopDrawer && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
+                className="shrink-0"
                 onClick={cycleWidth}
                 title={`Panel width ${widthPct}% — click to resize`}
                 aria-label={`Resize drawer, currently ${widthPct} percent width`}
@@ -129,6 +132,17 @@ export function RightDrawer({
                 <span className="text-xs tabular-nums">{widthPct}%</span>
               </Button>
             )}
+            <div className="min-w-0 flex-1">
+              <SheetTitle className="truncate text-left text-lg font-semibold sm:text-xl">
+                {title}
+              </SheetTitle>
+              <SheetDescription className="sr-only">
+                {description ?? title}
+              </SheetDescription>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {headerActions}
             <Button
               type="button"
               variant="ghost"

@@ -36,6 +36,7 @@ export default async function ItemsPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <ProductCatalogTerminal
         tenantId={tenantId}

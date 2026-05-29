@@ -40,6 +40,7 @@ export default async function OrganizationSettingsPage() {
         orgName={orgName}
         approvalAlertCount={approvalAlertCount}
         operatorProfile={operatorProfile}
+        tenantId={tenantId}
       >
         <AdministrativeAccessDeniedView />
       </DashboardShell>
@@ -53,6 +54,7 @@ export default async function OrganizationSettingsPage() {
         orgName={orgName}
         approvalAlertCount={approvalAlertCount}
         operatorProfile={operatorProfile}
+        tenantId={tenantId}
       >
         <p className="text-sm text-muted-foreground">Unable to load organization settings.</p>
       </DashboardShell>
@@ -66,6 +68,7 @@ export default async function OrganizationSettingsPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <OrganizationSettingsTerminal
         snapshot={snapshot}

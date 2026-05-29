@@ -39,6 +39,7 @@ export default async function ProfileSettingsPage() {
         orgName={orgName}
         approvalAlertCount={approvalAlertCount}
         operatorProfile={operatorProfile}
+        tenantId={tenantId}
       >
         <p className="text-sm text-muted-foreground">Unable to load your profile settings.</p>
       </DashboardShell>
@@ -52,6 +53,7 @@ export default async function ProfileSettingsPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <ProfileSettingsTerminal
         snapshot={profileSnapshot}

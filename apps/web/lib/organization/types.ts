@@ -45,6 +45,8 @@ export type TenantLocationOption = {
   code: string;
 };
 
+export type SearchFinancialFieldsMode = "role_default" | "enabled" | "disabled";
+
 export type OrganizationSettingsSnapshot = {
   tenant_id: string;
   name: string;
@@ -79,6 +81,7 @@ export type OrganizationSettingsSnapshot = {
   document_sequences: DocumentSequenceRow[];
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string | null;
+  search_financial_fields_mode: SearchFinancialFieldsMode;
   delegates: OrganizationDelegateRow[];
   locations: TenantLocationOption[];
   eligible_delegate_users: Array<{ id: string; first_name: string; last_name: string; email: string }>;
@@ -113,6 +116,7 @@ export type OrganizationSettingsFormValues = {
   credit_control_enforcement: CreditControlEnforcement;
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string;
+  search_financial_fields_mode: SearchFinancialFieldsMode;
   show_advanced: boolean;
 };
 
@@ -181,6 +185,7 @@ export function snapshotToFormValues(
     accounting_period_closing_date: snapshot.accounting_period_closing_date
       ? snapshot.accounting_period_closing_date.slice(0, 10)
       : "",
+    search_financial_fields_mode: snapshot.search_financial_fields_mode,
     show_advanced: Boolean(
       snapshot.logo_url ||
         snapshot.secondary_phone ||
@@ -194,7 +199,8 @@ export function snapshotToFormValues(
         !snapshot.accounting_config.multi_currency_enabled ||
         snapshot.accounting_config.credit_control_enforcement !== "STRICT" ||
         !snapshot.allow_line_item_discounts ||
-        snapshot.accounting_period_closing_date
+        snapshot.accounting_period_closing_date ||
+        snapshot.search_financial_fields_mode !== "role_default"
     ),
   };
 }

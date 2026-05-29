@@ -31,6 +31,7 @@ export default async function CategoriesPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <CategoryManagementTerminal initialRows={rows} />
     </DashboardShell>

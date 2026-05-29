@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { CategoryTreeNodeRow } from "@/components/categories/category-tree-node";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import type { CategoryRow, CategoryTreeNode } from "@/lib/categories/types";
 import { buildCategoryTree, filterCategoryTree } from "@/lib/categories/tree";
+import { filterCategoriesByAst } from "@/lib/search/executor/client-scopes";
 
 type Props = {
   rows: CategoryRow[];
@@ -14,11 +14,23 @@ type Props = {
 };
 
 export function CategoryTreePanel({ rows, selectedId, onSelect }: Props) {
-  const [query, setQuery] = useState("");
+  const omnibar = useOptionalOmnibarContext();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   const tree = useMemo(() => buildCategoryTree(rows), [rows]);
-  const filteredTree = useMemo(() => filterCategoryTree(tree, query), [tree, query]);
+  const filteredTree = useMemo(() => {
+    if (omnibar?.scope === "categories" && omnibar.activeAst.length) {
+      const filteredRows = filterCategoriesByAst(rows, omnibar.activeAst);
+      const filteredIds = new Set(filteredRows.map((row) => row.id));
+      return filterCategoryTree(tree, "").filter((node) => filteredIds.has(node.id));
+    }
+
+    const query =
+      omnibar?.scope === "categories"
+        ? omnibar.residualText || omnibar.debouncedQuery
+        : omnibar?.residualText ?? "";
+    return filterCategoryTree(tree, query);
+  }, [tree, rows, omnibar?.scope, omnibar?.activeAst, omnibar?.residualText, omnibar?.debouncedQuery]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -31,15 +43,9 @@ export function CategoryTreePanel({ rows, selectedId, onSelect }: Props) {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search categories…"
-          className="pl-9"
-        />
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Filter categories using the header omnibar.
+      </p>
       <div className="min-h-0 flex-1 space-y-1">
         {filteredTree.length === 0 ? (
           <p className="px-2 py-4 text-sm text-muted-foreground">

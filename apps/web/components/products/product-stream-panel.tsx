@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ProductListCompact } from "@/components/products/product-list-compact";
 import { ProductListTable } from "@/components/products/product-list-table";
 import { ProductListToolbar } from "@/components/products/product-list-toolbar";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
 import type { CategoryRow } from "@/lib/categories/types";
+import { applyFallbackTextFilter } from "@/lib/search/executor/apply-fallback-text";
 import {
   getOrderedVisibleColumns,
   loadProductListPrefs,
@@ -22,13 +24,19 @@ type Props = {
 };
 
 export function ProductStreamPanel({ products, categories, selectedId, onSelect }: Props) {
-  const [query, setQuery] = useState("");
+  const omnibar = useOptionalOmnibarContext();
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [prefs, setPrefs] = useState<ProductListPrefs>(() => loadProductListPrefs());
 
   useEffect(() => {
     saveProductListPrefs(prefs);
   }, [prefs]);
+
+  useEffect(() => {
+    if (omnibar?.scopePinnedToAll) {
+      setCategoryFilter("all");
+    }
+  }, [omnibar?.scopePinnedToAll, omnibar?.moduleFilterRevision]);
 
   const categoryOptions = useMemo(() => {
     const tree = buildCategoryTree(categories);
@@ -39,30 +47,41 @@ export function ProductStreamPanel({ products, categories, selectedId, onSelect 
   }, [categories]);
 
   const filteredProducts = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    let rows = products;
 
-    return products.filter((product) => {
-      if (categoryFilter !== "all" && product.category_id !== categoryFilter) {
-        return false;
-      }
+    if (categoryFilter !== "all") {
+      rows = rows.filter((product) => product.category_id === categoryFilter);
+    }
 
-      if (!q) return true;
+    if (omnibar?.filteredItemIds) {
+      rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
+    }
 
-      return (
-        product.name.toLowerCase().includes(q) ||
-        (product.default_sku?.toLowerCase().includes(q) ?? false) ||
-        (product.category_name?.toLowerCase().includes(q) ?? false)
+    if (omnibar?.residualText) {
+      rows = applyFallbackTextFilter(
+        rows.map((row) => ({ ...row, description: null })),
+        omnibar.residualText
       );
-    });
-  }, [products, query, categoryFilter]);
+    } else if (omnibar?.debouncedQuery && !omnibar.filteredItemIds) {
+      const q = omnibar.debouncedQuery.trim().toLowerCase();
+      if (q) {
+        rows = rows.filter(
+          (product) =>
+            product.name.toLowerCase().includes(q) ||
+            (product.default_sku?.toLowerCase().includes(q) ?? false) ||
+            (product.category_name?.toLowerCase().includes(q) ?? false)
+        );
+      }
+    }
+
+    return rows;
+  }, [products, categoryFilter, omnibar?.filteredItemIds, omnibar?.residualText, omnibar?.debouncedQuery]);
 
   const visibleColumns = useMemo(() => getOrderedVisibleColumns(prefs), [prefs]);
 
   return (
     <div className="space-y-3">
       <ProductListToolbar
-        query={query}
-        onQueryChange={setQuery}
         categoryFilter={categoryFilter}
         onCategoryFilterChange={setCategoryFilter}
         categoryOptions={categoryOptions}

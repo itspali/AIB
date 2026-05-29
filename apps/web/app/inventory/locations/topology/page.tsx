@@ -54,6 +54,7 @@ export default async function LocationTopologyPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <LocationTopologyTerminal
         topologyRows={topologyRows}

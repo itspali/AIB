@@ -43,9 +43,15 @@ export function ProductListColumnSettings({ prefs, onChange }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 w-8 p-0"
+          title="Column settings"
+          aria-label="Column settings"
+        >
           <Columns3 className="h-4 w-4" />
-          Columns
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">

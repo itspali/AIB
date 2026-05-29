@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 import { ProductFormSkeleton } from "@/components/products/product-form-skeleton";
 import {
@@ -11,6 +12,8 @@ import { RightDrawer } from "@/components/ui/right-drawer";
 import type { CategoryRow } from "@/lib/categories/types";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import { detailToFormValues, type ProductCatalogContext, type ProductDetailSnapshot } from "@/lib/products/types";
+
+const PRODUCT_DRAWER_FORM_ID = "product-drawer-form";
 
 type Props = {
   open: boolean;
@@ -54,6 +57,14 @@ export function ProductDrawerForm({
   onSaved,
   onExtensionsChanged,
 }: Props) {
+  const [isFormPending, setIsFormPending] = useState(false);
+
+  useEffect(() => {
+    if (!open || mode !== "edit") {
+      setIsFormPending(false);
+    }
+  }, [open, mode]);
+
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
     onSaved(itemId, savedDetail);
     if (mode === "create") {
@@ -100,6 +111,27 @@ export function ProductDrawerForm({
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
+        ) : mode === "edit" ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isFormPending}
+              onClick={handleCancel}
+            >
+              Discard
+            </Button>
+            <Button
+              type="submit"
+              form={PRODUCT_DRAWER_FORM_ID}
+              size="sm"
+              disabled={isFormPending}
+              title="Save (Cmd/Ctrl + Enter)"
+            >
+              Save
+            </Button>
+          </>
         ) : null
       }
     >
@@ -110,6 +142,9 @@ export function ProductDrawerForm({
           key={detail?.id ? `${detail.id}-${mode}` : `create-${open}`}
           layout="drawer"
           mode={mode}
+          formId={mode === "edit" ? PRODUCT_DRAWER_FORM_ID : undefined}
+          hideDrawerFooter={mode === "edit"}
+          onPendingChange={mode === "edit" ? setIsFormPending : undefined}
           tenantId={tenantId}
           categories={categories}
           catalogContext={catalogContext}

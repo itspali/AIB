@@ -38,6 +38,7 @@ export default async function DashboardPage() {
       orgName={orgName}
       approvalAlertCount={approvalAlertCount}
       operatorProfile={operatorProfile}
+      tenantId={tenantId}
     >
       <div className="canvas-scroll-endpad">
         <CommandHubHeader approvalAlertCount={approvalAlertCount} />

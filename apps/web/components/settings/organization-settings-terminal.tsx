@@ -10,6 +10,7 @@ import { FormSectionNav } from "@/components/settings/form-section-nav";
 import { OrganizationAdvancedSection } from "@/components/settings/organization-advanced-section";
 import { OrganizationBillingFiscalSection } from "@/components/settings/organization-billing-fiscal-section";
 import { OrganizationGovernanceRail } from "@/components/settings/organization-governance-rail";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { OrganizationIdentitySection } from "@/components/settings/organization-identity-section";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +45,7 @@ export function OrganizationSettingsTerminal({
   logoPreviewUrl,
 }: Props) {
   const router = useRouter();
+  const omnibar = useOptionalOmnibarContext();
   const moduleHeaderRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -101,6 +103,7 @@ export function OrganizationSettingsTerminal({
       }
       toast.success("Workspace Governance Profiles Synchronized Safely");
       setIsEditing(false);
+      await omnibar?.refreshSearchPermissions();
       router.refresh();
     });
   });

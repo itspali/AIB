@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { LocationHierarchyNodeRow } from "@/components/locations/location-hierarchy-node";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildLocationTreeFromRows, filterLocationTopologyTree } from "@/lib/locations/topology";
 import type { LocationRow } from "@/lib/locations/types";
+import { filterLocationsByAst } from "@/lib/search/executor/client-scopes";
 
 type Props = {
   rows: LocationRow[];
@@ -20,10 +20,23 @@ export function LocationHierarchyRail({
   onSelect,
   centralHqLocationId,
 }: Props) {
-  const [query, setQuery] = useState("");
+  const omnibar = useOptionalOmnibarContext();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const tree = useMemo(() => buildLocationTreeFromRows(rows), [rows]);
-  const filteredTree = useMemo(() => filterLocationTopologyTree(tree, query), [tree, query]);
+
+  const filteredTree = useMemo(() => {
+    if (omnibar?.scope === "locations" && omnibar.activeAst.length) {
+      const filteredRows = filterLocationsByAst(rows, omnibar.activeAst);
+      const filteredIds = new Set(filteredRows.map((row) => row.id));
+      return filterLocationTopologyTree(tree, "").filter((node) => filteredIds.has(node.id));
+    }
+
+    const query =
+      omnibar?.scope === "locations"
+        ? omnibar.residualText || omnibar.debouncedQuery
+        : omnibar?.residualText ?? "";
+    return filterLocationTopologyTree(tree, query);
+  }, [tree, rows, omnibar?.scope, omnibar?.activeAst, omnibar?.residualText, omnibar?.debouncedQuery]);
 
   useEffect(() => {
     setExpandedIds((prev) => {
@@ -48,26 +61,14 @@ export function LocationHierarchyRail({
           Reporting Directory
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Recursive facility tree ordered by parent_location_id hierarchy.
+          Recursive facility tree ordered by parent_location_id hierarchy. Filter via header omnibar.
         </p>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter facilities in real time…"
-          className="pl-9"
-        />
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none">
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         {filteredTree.length === 0 ? (
           <p className="px-2 py-4 text-sm text-muted-foreground">
-            {rows.length === 0
-              ? "No facility nodes provisioned yet."
-              : "No facilities match your search filter."}
+            {rows.length === 0 ? "No locations yet." : "No locations match your search."}
           </p>
         ) : (
           filteredTree.map((node) => (

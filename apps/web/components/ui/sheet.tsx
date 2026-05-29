@@ -27,14 +27,16 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 type SheetContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   side?: "left" | "right";
+  /** When false, omits the dimmed backdrop so underlying content stays interactive. */
+  showOverlay?: boolean;
 };
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = "left", className, children, ...props }, ref) => (
+>(({ side = "left", className, children, showOverlay = true, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    {showOverlay && <SheetOverlay />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

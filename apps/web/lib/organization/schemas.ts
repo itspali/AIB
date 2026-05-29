@@ -60,6 +60,7 @@ export const organizationSettingsSchema = z.object({
   credit_control_enforcement: z.enum(CREDIT_CONTROL_OPTIONS),
   allow_line_item_discounts: z.boolean(),
   accounting_period_closing_date: z.string().trim(),
+  search_financial_fields_mode: z.enum(["role_default", "enabled", "disabled"]),
   show_advanced: z.boolean(),
 });
 
