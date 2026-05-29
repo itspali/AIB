@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState, type RefObject } from "react";
 import { Maximize2, X } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -17,11 +23,14 @@ type RightDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  description?: string;
   children: React.ReactNode;
   className?: string;
   /** When false, children manage their own scroll regions (e.g. sticky nav + footer). */
   scrollable?: boolean;
   bodyRef?: RefObject<HTMLDivElement | null>;
+  /** Module-specific actions rendered before expand/close (e.g. Edit). */
+  headerActions?: React.ReactNode;
 };
 
 function readStoredWidth(): DrawerWidth {
@@ -54,10 +63,12 @@ export function RightDrawer({
   open,
   onOpenChange,
   title,
+  description,
   children,
   className,
   scrollable = true,
   bodyRef,
+  headerActions,
 }: RightDrawerProps) {
   const [widthPct, setWidthPct] = useState<DrawerWidth>(40);
   const isDesktopDrawer = useDesktopDrawerLayout();
@@ -95,10 +106,16 @@ export function RightDrawer({
         style={panelStyle}
       >
         <SheetHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/80 px-4 py-4 dark:border-white/10 sm:px-6">
-          <SheetTitle className="min-w-0 flex-1 truncate text-left text-lg font-semibold sm:text-xl">
-            {title}
-          </SheetTitle>
+          <div className="min-w-0 flex-1">
+            <SheetTitle className="truncate text-left text-lg font-semibold sm:text-xl">
+              {title}
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              {description ?? title}
+            </SheetDescription>
+          </div>
           <div className="flex shrink-0 items-center gap-1">
+            {headerActions}
             {isDesktopDrawer && (
               <Button
                 type="button"

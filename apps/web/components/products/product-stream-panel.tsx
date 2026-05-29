@@ -1,18 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { ProductSummaryCard } from "@/components/products/product-summary-card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useEffect, useMemo, useState } from "react";
+import { ProductListCompact } from "@/components/products/product-list-compact";
+import { ProductListTable } from "@/components/products/product-list-table";
+import { ProductListToolbar } from "@/components/products/product-list-toolbar";
 import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
 import type { CategoryRow } from "@/lib/categories/types";
+import {
+  getOrderedVisibleColumns,
+  loadProductListPrefs,
+  saveProductListPrefs,
+  type ProductListPrefs,
+} from "@/lib/products/list-prefs";
 import type { ProductListRow } from "@/lib/products/types";
 
 type Props = {
@@ -25,6 +24,11 @@ type Props = {
 export function ProductStreamPanel({ products, categories, selectedId, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [prefs, setPrefs] = useState<ProductListPrefs>(() => loadProductListPrefs());
+
+  useEffect(() => {
+    saveProductListPrefs(prefs);
+  }, [prefs]);
 
   const categoryOptions = useMemo(() => {
     const tree = buildCategoryTree(categories);
@@ -52,48 +56,43 @@ export function ProductStreamPanel({ products, categories, selectedId, onSelect 
     });
   }, [products, query, categoryFilter]);
 
+  const visibleColumns = useMemo(() => getOrderedVisibleColumns(prefs), [prefs]);
+
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search name, SKU, or category…"
-          className="pl-9"
+      <ProductListToolbar
+        query={query}
+        onQueryChange={setQuery}
+        categoryFilter={categoryFilter}
+        onCategoryFilterChange={setCategoryFilter}
+        categoryOptions={categoryOptions}
+        prefs={prefs}
+        onPrefsChange={setPrefs}
+        resultCount={filteredProducts.length}
+        totalCount={products.length}
+      />
+
+      {filteredProducts.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          {products.length === 0
+            ? "No product profiles yet. Create your first master profile to populate the catalog."
+            : "No products match the current filter."}
+        </p>
+      ) : prefs.viewMode === "compact" ? (
+        <ProductListCompact
+          products={filteredProducts}
+          columns={visibleColumns}
+          selectedId={selectedId}
+          onSelect={onSelect}
         />
-      </div>
-
-      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-        <SelectTrigger>
-          <SelectValue placeholder="Filter by category" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All categories</SelectItem>
-          {categoryOptions.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <div className="space-y-2">
-        {filteredProducts.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-            No products match the current filter.
-          </p>
-        ) : (
-          filteredProducts.map((product) => (
-            <ProductSummaryCard
-              key={product.id}
-              product={product}
-              selected={selectedId === product.id}
-              onSelect={onSelect}
-            />
-          ))
-        )}
-      </div>
+      ) : (
+        <ProductListTable
+          products={filteredProducts}
+          columns={visibleColumns}
+          selectedId={selectedId}
+          onSelect={onSelect}
+        />
+      )}
     </div>
   );
 }

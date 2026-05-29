@@ -19,6 +19,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -146,6 +147,9 @@ export function GrantDelegateModalSection({
         <SheetContent side="right" className="w-full sm:max-w-md">
           <SheetHeader>
             <SheetTitle>Grant Setting Access Delegate</SheetTitle>
+            <SheetDescription>
+              Grant edit access to organization settings for an active workspace user.
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
             <div className="space-y-2">

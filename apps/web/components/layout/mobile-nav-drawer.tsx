@@ -4,7 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { moduleNavItems } from "@/components/layout/module-nav";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 type MobileNavDrawerProps = {
   open: boolean;
@@ -20,7 +26,7 @@ export function MobileNavDrawer({ open, onOpenChange, orgName }: MobileNavDrawer
       <SheetContent side="left" className="flex flex-col border-white/10 bg-card/95 p-0 backdrop-blur-xl">
         <SheetHeader className="border-b border-white/10 bg-gradient-to-r from-primary/10 to-transparent px-4 py-4 text-left">
           <SheetTitle className="truncate text-sm font-semibold">{orgName}</SheetTitle>
-          <p className="text-xs text-muted-foreground">Module navigation</p>
+          <SheetDescription className="text-xs">Module navigation</SheetDescription>
         </SheetHeader>
         <nav aria-label="Mobile module navigation" className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
           {moduleNavItems.map(({ href, label, icon: Icon }) => {

@@ -48,6 +48,8 @@ import { PRODUCT_FORM_SECTIONS, PRODUCT_SECTION_IDS } from "@/lib/products/secti
 import { useFormSectionSpy } from "@/lib/settings/form-section-spy";
 import { cn } from "@/lib/utils";
 
+export type ProductFormMode = "create" | "view" | "edit";
+
 type Props = {
   tenantId: string;
   categories: CategoryRow[];
@@ -57,6 +59,7 @@ type Props = {
   media?: ProductMediaSnapshot[];
   initialValues?: ProductMasterFormValues;
   layout?: "canvas" | "drawer";
+  mode?: ProductFormMode;
   onCancel: () => void;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
@@ -106,6 +109,7 @@ export function ProductMasterForm({
   media = [],
   initialValues,
   layout = "canvas",
+  mode = "create",
   onCancel,
   onSaved,
   onExtensionsChanged,
@@ -116,6 +120,8 @@ export function ProductMasterForm({
   const moduleHeaderRef = useRef<HTMLDivElement>(null);
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const isDrawer = layout === "drawer";
+  const readOnly = mode === "view";
+  const fieldDisabled = isPending || readOnly;
 
   const form = useForm<ProductMasterFormValues>({
     resolver: zodResolver(productMasterSchema),
@@ -228,6 +234,7 @@ export function ProductMasterForm({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (readOnly) return;
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
         void handleSubmit(onSubmit)();
@@ -236,7 +243,7 @@ export function ProductMasterForm({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleSubmit, onSubmit]);
+  }, [handleSubmit, onSubmit, readOnly]);
 
   return (
     <form
@@ -286,7 +293,7 @@ export function ProductMasterForm({
             </Label>
             <Select
               value={watch("classification")}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onValueChange={(value) =>
                 setValue("classification", value as ProductMasterFormValues["classification"], {
                   shouldDirty: true,
@@ -313,7 +320,7 @@ export function ProductMasterForm({
             <Label htmlFor="name" className="text-sm font-medium text-muted-foreground">
               Root product name
             </Label>
-            <Input id="name" disabled={isPending} {...register("name")} />
+            <Input id="name" disabled={fieldDisabled} {...register("name")} />
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
 
@@ -321,7 +328,7 @@ export function ProductMasterForm({
             <Label htmlFor="sku" className="text-sm font-medium text-muted-foreground">
               Master variant SKU
             </Label>
-            <Input id="sku" disabled={isPending} className="font-mono" {...register("sku")} />
+            <Input id="sku" disabled={fieldDisabled} className="font-mono" {...register("sku")} />
             {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
           </div>
 
@@ -329,7 +336,7 @@ export function ProductMasterForm({
             <Label htmlFor="barcode" className="text-sm font-medium text-muted-foreground">
               Barcode / GTIN
             </Label>
-            <Input id="barcode" disabled={isPending} className="font-mono" {...register("barcode")} />
+            <Input id="barcode" disabled={fieldDisabled} className="font-mono" {...register("barcode")} />
             {errors.barcode && <p className="text-xs text-destructive">{errors.barcode.message}</p>}
           </div>
 
@@ -339,7 +346,7 @@ export function ProductMasterForm({
             </Label>
             <Select
               value={watch("base_unit_of_measure")}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onValueChange={(value) =>
                 setValue("base_unit_of_measure", value, { shouldDirty: true })
               }
@@ -363,7 +370,7 @@ export function ProductMasterForm({
             </Label>
             <Select
               value={watch("category_id") ?? "none"}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onValueChange={(value) =>
                 setValue("category_id", value === "none" ? null : value, { shouldDirty: true })
               }
@@ -388,7 +395,7 @@ export function ProductMasterForm({
               label="Purchasable"
               description="Allow procurement and purchase order workflows for this item."
               checked={watch("is_purchasable")}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onCheckedChange={(checked) => setValue("is_purchasable", checked, { shouldDirty: true })}
             />
           </div>
@@ -398,7 +405,7 @@ export function ProductMasterForm({
               label="Salable"
               description="Allow sales orders, quotations, and storefront exposure."
               checked={watch("is_salable")}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onCheckedChange={(checked) => setValue("is_salable", checked, { shouldDirty: true })}
             />
           </div>
@@ -408,7 +415,7 @@ export function ProductMasterForm({
               label="Product active"
               description="Inactive products display as archived in the directory stream."
               checked={watch("is_active")}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onCheckedChange={(checked) => setValue("is_active", checked, { shouldDirty: true })}
             />
           </div>
@@ -432,7 +439,7 @@ export function ProductMasterForm({
             </Label>
             <Input
               id="selling_price"
-              disabled={isPending}
+              disabled={fieldDisabled}
               className="text-right font-mono"
               inputMode="decimal"
               placeholder="0.00"
@@ -447,7 +454,7 @@ export function ProductMasterForm({
             <Label className="text-sm font-medium text-muted-foreground">Selling unit</Label>
             <Select
               value={watch("selling_uom")}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onValueChange={(value) => setValue("selling_uom", value, { shouldDirty: true })}
             >
               <SelectTrigger>
@@ -467,7 +474,7 @@ export function ProductMasterForm({
             <Label className="text-sm font-medium text-muted-foreground">Purchase unit</Label>
             <Select
               value={purchaseUom}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onValueChange={(value) => {
                 setValue("purchase_uom", value, { shouldDirty: true });
                 if (value === baseUom) {
@@ -497,7 +504,7 @@ export function ProductMasterForm({
             </Label>
             <Input
               id="purchase_uom_conversion"
-              disabled={isPending || purchaseUom === baseUom}
+              disabled={fieldDisabled || purchaseUom === baseUom}
               className="text-right font-mono"
               inputMode="decimal"
               placeholder="1"
@@ -515,7 +522,7 @@ export function ProductMasterForm({
             <Label className="text-sm font-medium text-muted-foreground">Preferred supplier</Label>
             <Select
               value={watch("supplier_id") ?? "none"}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onValueChange={(value) =>
                 setValue("supplier_id", value === "none" ? null : value, { shouldDirty: true })
               }
@@ -543,7 +550,7 @@ export function ProductMasterForm({
             </Label>
             <Input
               id="purchase_price"
-              disabled={isPending}
+              disabled={fieldDisabled}
               className="text-right font-mono"
               inputMode="decimal"
               placeholder="0.00"
@@ -603,7 +610,7 @@ export function ProductMasterForm({
         </div>
         <Switch
           checked={showAdvanced}
-          disabled={isPending}
+          disabled={fieldDisabled}
           onCheckedChange={(checked) => setValue("show_advanced", checked)}
         />
       </div>
@@ -624,7 +631,7 @@ export function ProductMasterForm({
               </Label>
               <textarea
                 id="description"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 rows={4}
                 className={cn(
                   "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
@@ -643,7 +650,7 @@ export function ProductMasterForm({
               </Label>
               <Select
                 value={watch("default_tax_category")}
-                disabled={isPending}
+                disabled={fieldDisabled}
                 onValueChange={(value) =>
                   setValue(
                     "default_tax_category",
@@ -671,7 +678,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="hsn_sac_code"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 placeholder="e.g. 84713010"
                 {...register("hsn_sac_code")}
@@ -683,7 +690,7 @@ export function ProductMasterForm({
                 label="Multi-variant product"
                 description="Enable additional SKU variants. Use the variant manager below after saving."
                 checked={watch("has_variants")}
-                disabled={isPending}
+                disabled={fieldDisabled}
                 onCheckedChange={(checked) => setValue("has_variants", checked, { shouldDirty: true })}
               />
             </div>
@@ -693,7 +700,7 @@ export function ProductMasterForm({
                 label="Return policy eligibility"
                 description="Allow this product to participate in return workflows."
                 checked={watch("is_returnable")}
-                disabled={isPending}
+                disabled={fieldDisabled}
                 onCheckedChange={(checked) => setValue("is_returnable", checked, { shouldDirty: true })}
               />
             </div>
@@ -703,7 +710,7 @@ export function ProductMasterForm({
                 label="Master variant active"
                 description="Inactive variants remain linked but are excluded from operational flows."
                 checked={watch("variant_is_active")}
-                disabled={isPending}
+                disabled={fieldDisabled}
                 onCheckedChange={(checked) =>
                   setValue("variant_is_active", checked, { shouldDirty: true })
                 }
@@ -716,7 +723,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="dead_weight_kg"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 inputMode="decimal"
                 {...register("dead_weight_kg")}
@@ -729,7 +736,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="weight"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 inputMode="decimal"
                 placeholder="NUMERIC(15,4)"
@@ -743,7 +750,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="volume"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 inputMode="decimal"
                 placeholder="NUMERIC(15,4)"
@@ -757,7 +764,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="length_cm"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 inputMode="decimal"
                 {...register("length_cm")}
@@ -770,7 +777,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="width_cm"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 inputMode="decimal"
                 {...register("width_cm")}
@@ -783,7 +790,7 @@ export function ProductMasterForm({
               </Label>
               <Input
                 id="height_cm"
-                disabled={isPending}
+                disabled={fieldDisabled}
                 className="text-right font-mono"
                 inputMode="decimal"
                 {...register("height_cm")}
@@ -796,7 +803,7 @@ export function ProductMasterForm({
             <VariantAttributeFields
               templates={categoryTemplates}
               values={variantAttributes}
-              disabled={isPending}
+              disabled={fieldDisabled}
               onChange={(key, value) =>
                 setValue(
                   "variant_attributes",
@@ -810,7 +817,7 @@ export function ProductMasterForm({
           <ProductCatalogExtensions
             catalogContext={{ ...catalogContext, tags: tagOptions }}
             categoryTemplates={categoryTemplates}
-            disabled={isPending}
+            disabled={fieldDisabled}
             values={{
               sku_mask: skuMask,
               custom_fields: customFields,
@@ -880,13 +887,36 @@ export function ProductMasterForm({
         </section>
       )}
 
-      {isDrawer && (
+      {isDrawer && itemId && (
+        <>
+          <ProductVariantPanel
+            itemId={itemId}
+            variants={variants}
+            categoryTemplates={categoryTemplates}
+            skuMask={skuMask}
+            baseSku={masterSku}
+            readOnly={readOnly}
+            onChanged={() => onExtensionsChanged?.()}
+          />
+          <ProductMediaGallery
+            tenantId={tenantId}
+            itemId={itemId}
+            variants={variants}
+            media={media}
+            readOnly={readOnly}
+            onChanged={() => onExtensionsChanged?.()}
+          />
+        </>
+      )}
+
+      {isDrawer && !itemId && (
         <section className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-          Variants and images are managed on the product detail view after saving.
+          Save the product profile first to manage additional variants and upload images.
         </section>
       )}
       </div>
 
+      {mode !== "view" && (
       <div
         className={cn(
           isDrawer
@@ -901,6 +931,7 @@ export function ProductMasterForm({
           Save Product Master Profile
         </Button>
       </div>
+      )}
     </form>
   );
 }

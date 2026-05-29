@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -103,6 +104,9 @@ export function MfaSetupModal({ open, onOpenChange, onEnrolled }: Props) {
       <SheetContent side="right" className="w-full max-w-md overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Configure Authenticator App</SheetTitle>
+          <SheetDescription>
+            Scan the QR code with your authenticator app, then enter the verification code.
+          </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-4">

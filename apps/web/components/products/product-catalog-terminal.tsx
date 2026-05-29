@@ -1,19 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { getProductDetail } from "@/app/items/actions";
-import { ProductDetailViewport } from "@/components/products/product-detail-viewport";
 import { ProductDrawerForm } from "@/components/products/product-drawer-form";
-import { ProductEmptyState } from "@/components/products/product-empty-state";
-import { ProductFormSkeleton } from "@/components/products/product-form-skeleton";
+import type { ProductFormMode } from "@/components/products/product-master-form";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
-import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
-import { cn } from "@/lib/utils";
+import {
+  detailToListRow,
+  type ProductCatalogContext,
+  type ProductDetailSnapshot,
+  type ProductListRow,
+} from "@/lib/products/types";
 
 type Props = {
   tenantId: string;
@@ -28,14 +31,19 @@ export function ProductCatalogTerminal({
   categories,
   catalogContext,
 }: Props) {
+  const router = useRouter();
+  const [products, setProducts] = useState(initialProducts);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ProductDetailSnapshot | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingDetail, setEditingDetail] = useState<ProductDetailSnapshot | null>(null);
+  const [drawerMode, setDrawerMode] = useState<ProductFormMode>("create");
   const [isLoadingDetail, startDetailTransition] = useTransition();
-  const [isLoadingEdit, startEditTransition] = useTransition();
 
-  const loadDetail = (itemId: string) => {
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+
+  const loadDetail = (itemId: string, onLoaded?: (snapshot: ProductDetailSnapshot) => void) => {
     startDetailTransition(async () => {
       const result = await getProductDetail(itemId);
       if ("error" in result) {
@@ -43,53 +51,33 @@ export function ProductCatalogTerminal({
         return;
       }
       setDetail(result.detail);
+      onLoaded?.(result.detail);
     });
   };
 
   const openCreate = () => {
-    setEditingDetail(null);
+    setSelectedId(null);
+    setDetail(null);
+    setDrawerMode("create");
     setDrawerOpen(true);
-  };
-
-  const openEdit = () => {
-    if (!selectedId) return;
-
-    if (detail?.id === selectedId) {
-      setEditingDetail(detail);
-      setDrawerOpen(true);
-      return;
-    }
-
-    setEditingDetail(null);
-    setDrawerOpen(true);
-
-    startEditTransition(async () => {
-      const result = await getProductDetail(selectedId);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to load product profile.");
-        setDrawerOpen(false);
-        return;
-      }
-      setEditingDetail(result.detail);
-    });
   };
 
   const handleSelect = (productId: string) => {
     setSelectedId(productId);
     setDetail(null);
+    setDrawerMode("view");
+    setDrawerOpen(true);
     loadDetail(productId);
   };
 
   const handleDrawerOpenChange = (open: boolean) => {
     setDrawerOpen(open);
     if (!open) {
-      setEditingDetail(null);
+      setDrawerMode("create");
+      setDetail(null);
+      setSelectedId(null);
     }
   };
-
-  const categoryTemplates = detail?.category_id
-    ? categories.find((category) => category.id === detail.category_id)?.attribute_templates ?? []
-    : [];
 
   const refreshDetail = () => {
     if (!selectedId) return;
@@ -98,13 +86,23 @@ export function ProductCatalogTerminal({
 
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
     setSelectedId(itemId);
-    setEditingDetail(null);
+    setDrawerMode("view");
+
     if (savedDetail) {
       setDetail(savedDetail);
-      return;
+      setProducts((current) => {
+        const nextRow = detailToListRow(savedDetail);
+        const index = current.findIndex((row) => row.id === itemId);
+        if (index < 0) return [...current, nextRow].sort((a, b) => a.name.localeCompare(b.name));
+        const next = [...current];
+        next[index] = nextRow;
+        return next.sort((a, b) => a.name.localeCompare(b.name));
+      });
+    } else {
+      loadDetail(itemId);
     }
-    setDetail(null);
-    loadDetail(itemId);
+
+    router.refresh();
   };
 
   return (
@@ -138,56 +136,26 @@ export function ProductCatalogTerminal({
           </Button>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-0">
-          <aside
-            className={cn(
-              "col-span-1 lg:col-span-4",
-              "border-border lg:border-r lg:pr-4",
-              "h-auto lg:h-[calc(100vh-theme(spacing.16)-4rem)]",
-              "overflow-y-auto scrollbar-none"
-            )}
-          >
-            <ProductStreamPanel
-              products={initialProducts}
-              categories={categories}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-            />
-          </aside>
-
-          <section className="col-span-1 min-h-[420px] w-full p-4 sm:p-6 lg:col-span-8">
-            {isLoadingDetail && <ProductFormSkeleton />}
-
-            {detail && !isLoadingDetail && (
-              <ProductDetailViewport
-                tenantId={tenantId}
-                product={detail}
-                catalogContext={catalogContext}
-                categoryTemplates={categoryTemplates}
-                onEdit={openEdit}
-                onExtensionsChanged={refreshDetail}
-              />
-            )}
-
-            {!detail && !isLoadingDetail && (
-              <ProductEmptyState
-                onCreate={openCreate}
-                hasExistingProducts={initialProducts.length > 0}
-              />
-            )}
-          </section>
-        </div>
+        <ProductStreamPanel
+          products={products}
+          categories={categories}
+          selectedId={drawerOpen ? selectedId : null}
+          onSelect={handleSelect}
+        />
       </div>
 
       <ProductDrawerForm
         open={drawerOpen}
+        mode={drawerMode}
         onOpenChange={handleDrawerOpenChange}
+        onModeChange={setDrawerMode}
         tenantId={tenantId}
         categories={categories}
         catalogContext={catalogContext}
-        editingDetail={editingDetail}
-        isLoadingEdit={isLoadingEdit}
+        detail={detail}
+        isLoading={isLoadingDetail && drawerMode !== "create"}
         onSaved={handleSaved}
+        onExtensionsChanged={refreshDetail}
       />
     </>
   );

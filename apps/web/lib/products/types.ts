@@ -342,3 +342,21 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   tag_ids: [],
   storefront_visibility: [],
 };
+
+export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
+  return {
+    id: detail.id,
+    name: detail.name,
+    classification: detail.classification,
+    base_unit_of_measure: detail.base_unit_of_measure,
+    category_id: detail.category_id,
+    category_name: detail.category_name,
+    is_active: detail.is_active,
+    is_purchasable: detail.is_purchasable,
+    is_salable: detail.is_salable,
+    default_variant_id: detail.variant_id,
+    default_sku: detail.sku,
+    created_at: detail.created_at,
+    updated_at: detail.updated_at,
+  };
+}
