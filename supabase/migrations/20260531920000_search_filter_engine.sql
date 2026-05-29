@@ -1,4 +1,132 @@
--- Fix field-compare filters to treat NULL prices as non-matching (not pass-through).
+-- Migration: search_filter_engine (20260531920000 — after product catalog extensions)
+-- Native filter search view, RPC executor, telemetry tables, and SEARCH_SETTINGS registry seed.
+
+CREATE OR REPLACE VIEW public.product_catalog_search_rows
+WITH (security_invoker = true) AS
+SELECT
+    i.id AS item_id,
+    i.tenant_id,
+    i.name,
+    i.description,
+    i.category_id,
+    ic.name AS category_name,
+    i.hsn_sac_code,
+    i.base_unit_of_measure,
+    i.created_at,
+    iv.sku AS default_sku,
+    (
+        SELECT pbe.price
+        FROM public.price_book_entries pbe
+        INNER JOIN public.price_books pb
+            ON pb.id = pbe.price_book_id
+            AND pb.tenant_id = pbe.tenant_id
+        WHERE pbe.tenant_id = i.tenant_id
+          AND pbe.item_id = i.id
+          AND pb.is_active = TRUE
+          AND pbe.min_quantity = 1
+        ORDER BY pb.created_at ASC
+        LIMIT 1
+    ) AS selling_price,
+    (
+        SELECT si.supplier_price
+        FROM public.supplier_items si
+        WHERE si.tenant_id = i.tenant_id
+          AND si.item_id = i.id
+        ORDER BY si.is_preferred DESC, si.supplier_id ASC
+        LIMIT 1
+    ) AS purchase_price
+FROM public.items i
+LEFT JOIN public.item_categories ic
+    ON ic.tenant_id = i.tenant_id
+    AND ic.id = i.category_id
+LEFT JOIN LATERAL (
+    SELECT v.sku
+    FROM public.item_variants v
+    WHERE v.tenant_id = i.tenant_id
+      AND v.item_id = i.id
+    ORDER BY v.created_at ASC
+    LIMIT 1
+) iv ON TRUE;
+
+CREATE INDEX IF NOT EXISTS product_catalog_search_rows_tenant_created_idx
+    ON public.items (tenant_id, created_at);
+
+CREATE INDEX IF NOT EXISTS product_catalog_search_rows_tenant_hsn_idx
+    ON public.items (tenant_id, hsn_sac_code);
+
+CREATE INDEX IF NOT EXISTS product_catalog_search_rows_tenant_uom_idx
+    ON public.items (tenant_id, base_unit_of_measure);
+
+CREATE TABLE IF NOT EXISTS public.search_telemetry_logs (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    user_id             UUID NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
+    scope               TEXT NOT NULL,
+    raw_query           TEXT NOT NULL DEFAULT '',
+    unparsed_tokens     TEXT[] NOT NULL DEFAULT '{}'::text[],
+    ast_json            JSONB NOT NULL DEFAULT '[]'::jsonb,
+    compile_micros      INTEGER NOT NULL DEFAULT 0,
+    execution_ms        INTEGER,
+    performance_warning BOOLEAN NOT NULL DEFAULT FALSE,
+    security_flag       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS search_telemetry_logs_tenant_created_idx
+    ON public.search_telemetry_logs (tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.search_filter_violations (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    user_id             UUID NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
+    scope               TEXT NOT NULL,
+    raw_query_hash      TEXT NOT NULL,
+    attempted_fields    TEXT[] NOT NULL DEFAULT '{}'::text[],
+    severity            TEXT NOT NULL CHECK (severity IN ('reject', 'throttle')),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS search_filter_violations_tenant_created_idx
+    ON public.search_filter_violations (tenant_id, created_at DESC);
+
+ALTER TABLE public.search_telemetry_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.search_filter_violations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS search_telemetry_logs_tenant_insert ON public.search_telemetry_logs;
+DROP POLICY IF EXISTS search_telemetry_logs_tenant_select ON public.search_telemetry_logs;
+DROP POLICY IF EXISTS search_filter_violations_tenant_insert ON public.search_filter_violations;
+DROP POLICY IF EXISTS search_filter_violations_tenant_select ON public.search_filter_violations;
+
+CREATE POLICY search_telemetry_logs_tenant_insert
+    ON public.search_telemetry_logs FOR INSERT TO authenticated
+    WITH CHECK (
+        tenant_id = private.current_tenant_id()
+        AND user_id = auth.uid()
+    );
+
+CREATE POLICY search_telemetry_logs_tenant_select
+    ON public.search_telemetry_logs FOR SELECT TO authenticated
+    USING (
+        tenant_id = private.current_tenant_id()
+        AND (
+            user_id = auth.uid()
+            OR private.current_user_role() IN ('OWNER'::public.user_role, 'ADMIN'::public.user_role)
+        )
+    );
+
+CREATE POLICY search_filter_violations_tenant_insert
+    ON public.search_filter_violations FOR INSERT TO authenticated
+    WITH CHECK (
+        tenant_id = private.current_tenant_id()
+        AND user_id = auth.uid()
+    );
+
+CREATE POLICY search_filter_violations_tenant_select
+    ON public.search_filter_violations FOR SELECT TO authenticated
+    USING (
+        tenant_id = private.current_tenant_id()
+        AND private.current_user_role() IN ('OWNER'::public.user_role, 'ADMIN'::public.user_role)
+    );
 
 CREATE OR REPLACE FUNCTION public.execute_product_filter(p_ast jsonb)
 RETURNS TABLE(item_id uuid)
@@ -113,3 +241,9 @@ BEGIN
       );
 END;
 $$;
+
+GRANT SELECT ON public.product_catalog_search_rows TO authenticated;
+GRANT EXECUTE ON FUNCTION public.execute_product_filter(jsonb) TO authenticated;
+
+COMMENT ON FUNCTION public.execute_product_filter IS
+    'Parameterized native filter executor for product catalog AST clauses.';

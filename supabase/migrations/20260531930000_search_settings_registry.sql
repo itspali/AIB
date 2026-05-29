@@ -1,4 +1,5 @@
 -- Allow SEARCH_SETTINGS in tenant workspace control upsert/clear for omnibar financial field RBAC.
+-- Version 20260531930000 — must run after search_filter_engine (20260531920000).
 
 CREATE OR REPLACE FUNCTION private.clear_tenant_workspace_control(p_registry_key TEXT)
 RETURNS VOID
