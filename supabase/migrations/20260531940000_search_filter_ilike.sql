@@ -8,7 +8,6 @@ SET search_path = public
 AS $$
 DECLARE
     v_tenant_id uuid;
-    v_value text;
 BEGIN
     v_tenant_id := (auth.jwt() -> 'app_metadata' ->> 'tenant_id')::uuid;
     IF v_tenant_id IS NULL THEN
@@ -106,12 +105,11 @@ BEGIN
                             WHEN 'name' THEN
                                 CASE clause ->> 'operator'
                                     WHEN 'ILIKE' THEN
-                                        v_value := clause ->> 'value';
                                         CASE
-                                            WHEN v_value LIKE '^%' THEN
-                                                lower(pcsr.name) LIKE lower(substring(v_value from 2)) || '%'
+                                            WHEN (clause ->> 'value') LIKE '^%' THEN
+                                                lower(pcsr.name) LIKE lower(substring(clause ->> 'value' from 2)) || '%'
                                             ELSE
-                                                lower(pcsr.name) LIKE '%' || lower(v_value) || '%'
+                                                lower(pcsr.name) LIKE '%' || lower(clause ->> 'value') || '%'
                                         END
                                     WHEN 'EQ' THEN
                                         lower(pcsr.name) LIKE '%' || lower(clause ->> 'value') || '%'
@@ -120,12 +118,11 @@ BEGIN
                             WHEN 'default_sku' THEN
                                 CASE clause ->> 'operator'
                                     WHEN 'ILIKE' THEN
-                                        v_value := clause ->> 'value';
                                         CASE
-                                            WHEN v_value LIKE '^%' THEN
-                                                lower(pcsr.default_sku) LIKE lower(substring(v_value from 2)) || '%'
+                                            WHEN (clause ->> 'value') LIKE '^%' THEN
+                                                lower(pcsr.default_sku) LIKE lower(substring(clause ->> 'value' from 2)) || '%'
                                             ELSE
-                                                lower(pcsr.default_sku) LIKE '%' || lower(v_value) || '%'
+                                                lower(pcsr.default_sku) LIKE '%' || lower(clause ->> 'value') || '%'
                                         END
                                     WHEN 'EQ' THEN
                                         lower(pcsr.default_sku) LIKE '%' || lower(clause ->> 'value') || '%'
