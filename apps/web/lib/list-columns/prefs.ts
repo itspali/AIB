@@ -1,9 +1,49 @@
+import { columnSupportsWrapControl, isTextWrapMode, type TextWrapMode } from "@/lib/display/text-wrap";
 import type { ListColumnPrefs, ListColumnRegistry } from "@/lib/list-columns/types";
 import {
+  getColumnDef,
   getDefaultColumnOrder,
   getDefaultVisibleColumns,
   isColumnId,
 } from "@/lib/list-columns/types";
+
+function normalizeColumnWrapModes<TId extends string>(
+  registry: ListColumnRegistry<TId>,
+  raw?: Partial<Record<TId, string>> | null
+): Partial<Record<TId, TextWrapMode>> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+
+  const result: Partial<Record<TId, TextWrapMode>> = {};
+  for (const [columnId, mode] of Object.entries(raw) as [TId, string][]) {
+    if (!isColumnId(registry, columnId) || !isTextWrapMode(mode)) continue;
+    const column = getColumnDef(registry, columnId);
+    if (!columnSupportsWrapControl(column.valueKind)) continue;
+    result[columnId] = mode;
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+const USER_COLUMN_WIDTH_MIN_PX = 48;
+const USER_COLUMN_WIDTH_MAX_PX = 640;
+
+function normalizeColumnWidths<TId extends string>(
+  registry: ListColumnRegistry<TId>,
+  raw?: Partial<Record<TId, number>> | null
+): Partial<Record<TId, number>> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+
+  const result: Partial<Record<TId, number>> = {};
+  for (const [columnId, width] of Object.entries(raw) as [TId, number][]) {
+    if (!isColumnId(registry, columnId)) continue;
+    if (typeof width !== "number" || !Number.isFinite(width)) continue;
+    result[columnId] = Math.round(
+      Math.max(USER_COLUMN_WIDTH_MIN_PX, Math.min(width, USER_COLUMN_WIDTH_MAX_PX))
+    );
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
 
 export function getDefaultListColumnPrefs<TId extends string>(
   registry: ListColumnRegistry<TId>
@@ -34,6 +74,8 @@ export function normalizeListColumnPrefs<TId extends string>(
   return {
     columnOrder,
     visibleColumns: visibleColumns.length ? visibleColumns : defaults.visibleColumns,
+    columnWrapModes: normalizeColumnWrapModes(registry, prefs?.columnWrapModes),
+    columnWidths: normalizeColumnWidths(registry, prefs?.columnWidths),
   };
 }
 

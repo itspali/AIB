@@ -328,6 +328,7 @@ CREATE TABLE item_variants (
     width_cm            NUMERIC(8, 2) NOT NULL DEFAULT 0.00,
     height_cm           NUMERIC(8, 2) NOT NULL DEFAULT 0.00,
     dead_weight_kg      NUMERIC(10, 3) NOT NULL DEFAULT 0.000,
+    price               NUMERIC(15, 4),
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -82,7 +82,7 @@ describe("product list prefs migration", () => {
     };
 
     const migrated = coerceProductListPrefs(v2);
-    expect(migrated.prefsVersion).toBe(3);
+    expect(migrated.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
     expect(migrated.cardGridColumns.desktop).toBe("auto");
     expect(getOrderedVisibleColumns(migrated, "compact", "tablet")).toEqual(["name", "default_sku"]);
   });
@@ -114,6 +114,31 @@ describe("product list prefs migration", () => {
       "classification",
     ]);
     expect(parsed.cardGridColumns.desktop).toBe(4);
+  });
+
+  it("preserves column wrap mode overrides for text columns", () => {
+    const defaults = getDefaultProductListPrefs();
+    const custom = {
+      ...defaults,
+      columnPrefs: {
+        ...defaults.columnPrefs,
+        table: {
+          ...defaults.columnPrefs.table,
+          desktop: {
+            ...defaults.columnPrefs.table.desktop,
+            columnWrapModes: {
+              description: "wrap",
+              default_sku: "wrap",
+            },
+          },
+        },
+      },
+    };
+
+    const parsed = coerceProductListPrefs(custom);
+    expect(parsed.columnPrefs.table.desktop.columnWrapModes).toEqual({
+      description: "wrap",
+    });
   });
 });
 
@@ -201,6 +226,16 @@ describe("resolveCardGridColumns", () => {
     expect(prefs.cardGridColumns.mobile).toBe(1);
     expect(prefs.cardGridColumns.tablet).toBe(2);
     expect(prefs.cardGridColumns.desktop).toBe(4);
+  });
+
+  it("defaults showVariants to false and coerces persisted true", () => {
+    expect(getDefaultProductListPrefs().showVariants).toBe(false);
+    expect(
+      coerceProductListPrefs({
+        ...getDefaultProductListPrefs(),
+        showVariants: true,
+      }).showVariants
+    ).toBe(true);
   });
 });
 

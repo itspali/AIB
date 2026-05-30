@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type OnboardingContextValue = {
   sidebarCollapsed: boolean;
@@ -20,6 +20,11 @@ export function OnboardingProvider({
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isOnboardingComplete, setOnboardingComplete] = useState(initialComplete);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
+    if (mq.matches) setSidebarCollapsed(true);
+  }, []);
 
   const value = useMemo(
     () => ({

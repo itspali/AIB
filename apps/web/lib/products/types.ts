@@ -27,6 +27,10 @@ export type ProductListRow = {
   stock_on_hand: string | null;
   created_at: string;
   updated_at: string;
+  /** Populated when loading from variant-expanded list projection. */
+  variant_id?: string | null;
+  variant_attributes?: Record<string, unknown> | null;
+  variant_is_active?: boolean;
 };
 
 export type ProductTagSnapshot = {
@@ -79,6 +83,7 @@ export type ProductVariantSnapshot = {
   height_cm: string;
   is_active: boolean;
   is_master: boolean;
+  price: string;
   created_at: string;
 };
 
@@ -99,6 +104,7 @@ export type ProductMediaSnapshot = {
 export type ProductDetailSnapshot = {
   id: string;
   name: string;
+  code: string | null;
   description: string | null;
   classification: ItemClassification;
   base_unit_of_measure: string;
@@ -153,6 +159,7 @@ export type ItemVariantFormValues = {
   width_cm: string;
   height_cm: string;
   is_active: boolean;
+  price: string;
   variant_attributes: Record<string, string>;
 };
 
@@ -168,6 +175,7 @@ export const defaultVariantFormValues = (itemId: string): ItemVariantFormValues 
   width_cm: "0",
   height_cm: "0",
   is_active: true,
+  price: "",
   variant_attributes: {},
 });
 
@@ -193,6 +201,7 @@ export function variantSnapshotToFormValues(
     width_cm: variant.width_cm,
     height_cm: variant.height_cm,
     is_active: variant.is_active,
+    price: variant.price && variant.price !== "0" ? variant.price : "",
     variant_attributes: variantAttributes,
   };
 }
@@ -386,5 +395,7 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
     stock_on_hand: String(stockTotal),
     created_at: detail.created_at,
     updated_at: detail.updated_at,
+    variant_id: detail.variant_id,
+    variant_is_active: detail.variant_is_active,
   };
 }

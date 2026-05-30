@@ -32,6 +32,7 @@ export const itemVariantSchema = z.object({
   width_cm: nonNegativeDecimal(2),
   height_cm: nonNegativeDecimal(2),
   is_active: z.boolean(),
+  price: nonNegativeDecimal(4, true),
   variant_attributes: z.record(z.string(), z.string()),
 });
 

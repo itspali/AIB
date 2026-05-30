@@ -14,9 +14,14 @@ import {
   resolveProductFieldPermissions,
 } from "@/lib/products/field-permissions-server";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
-import { fetchProductListByIds, fetchProductListPage } from "@/lib/products/list-queries";
+import {
+  fetchProductListByIds,
+  fetchProductListPage,
+} from "@/lib/products/list-queries";
+import { coerceProductListPrefs, resolveProductListExpandVariants } from "@/lib/products/list-prefs";
 import type { ProductListRow } from "@/lib/products/types";
 import type { UserRole } from "@/lib/user/types";
+import type { ProductListPrefs } from "@/lib/products/list-prefs";
 
 export type ProductCatalogInitialState = {
   products: ProductListRow[];
@@ -41,8 +46,14 @@ export async function resolveProductCatalogInitialState(
   supabase: SupabaseClient,
   tenantId: string,
   userId: string,
-  operatorRole: UserRole
+  operatorRole: UserRole,
+  listPrefs?: ProductListPrefs | null
 ): Promise<ProductCatalogInitialState> {
+  const coercedPrefs = listPrefs ? coerceProductListPrefs(listPrefs) : null;
+  const expandVariants = coercedPrefs
+    ? resolveProductListExpandVariants(coercedPrefs.showVariants, coercedPrefs.viewMode)
+    : false;
+
   const [fieldPermissions, searchPermissions, defaultView] = await Promise.all([
     resolveProductFieldPermissions(supabase, tenantId, operatorRole),
     resolveSearchFieldPermissionsFromSession(supabase, tenantId, userId, operatorRole),
@@ -52,6 +63,7 @@ export async function resolveProductCatalogInitialState(
   if (!defaultView) {
     const page = await fetchProductListPage(supabase, tenantId, fieldPermissions, {
       includeImages: false,
+      expandVariants,
     });
     return {
       products: page.rows,
@@ -73,6 +85,7 @@ export async function resolveProductCatalogInitialState(
         const itemIds = await executeItemsFilterRpc(supabase, tenantId, normalizedAst);
         const page = await fetchProductListByIds(supabase, tenantId, itemIds, fieldPermissions, {
           includeImages: false,
+          expandVariants,
         });
         return {
           products: page.rows,
@@ -90,6 +103,7 @@ export async function resolveProductCatalogInitialState(
 
   const page = await fetchProductListPage(supabase, tenantId, fieldPermissions, {
     includeImages: false,
+    expandVariants,
   });
   return {
     products: page.rows,

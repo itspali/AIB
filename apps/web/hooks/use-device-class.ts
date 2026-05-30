@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { DeviceClass } from "@/lib/products/list-prefs";
+import {
+  DESKTOP_MIN_WIDTH_PX,
+  readDeviceClassFromViewportWidth,
+  TABLET_MIN_WIDTH_PX,
+  type DeviceClass,
+} from "@/lib/layout/device-class";
 
 export type { DeviceClass };
 
-const TABLET_MEDIA = "(min-width: 768px)";
-const DESKTOP_MEDIA = "(min-width: 1024px)";
-
 function readDeviceClass(): DeviceClass {
   if (typeof window === "undefined") return "desktop";
-  if (window.matchMedia(DESKTOP_MEDIA).matches) return "desktop";
-  if (window.matchMedia(TABLET_MEDIA).matches) return "tablet";
-  return "mobile";
+  return readDeviceClassFromViewportWidth(window.innerWidth);
 }
 
 export function useDeviceClass(): {
@@ -25,8 +25,8 @@ export function useDeviceClass(): {
   const [deviceClass, setDeviceClass] = useState<DeviceClass>("desktop");
 
   useEffect(() => {
-    const tabletMedia = window.matchMedia(TABLET_MEDIA);
-    const desktopMedia = window.matchMedia(DESKTOP_MEDIA);
+    const tabletMedia = window.matchMedia(`(min-width: ${TABLET_MIN_WIDTH_PX}px)`);
+    const desktopMedia = window.matchMedia(`(min-width: ${DESKTOP_MIN_WIDTH_PX}px)`);
 
     const sync = () => {
       setDeviceClass(readDeviceClass());

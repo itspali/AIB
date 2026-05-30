@@ -66,6 +66,29 @@ describe("sortProductListRows", () => {
       "Old",
     ]);
   });
+
+  it("secondary-sorts by sku when showVariants is enabled", () => {
+    const rows = [
+      row({
+        id: "1",
+        name: "Shirt",
+        default_sku: "SKU-Z",
+        variant_id: "v2",
+      }),
+      row({
+        id: "1",
+        name: "Shirt",
+        default_sku: "SKU-A",
+        variant_id: "v1",
+      }),
+    ];
+
+    expect(
+      sortProductListRows(rows, "name", "asc", { showVariants: true }).map(
+        (entry) => entry.default_sku
+      )
+    ).toEqual(["SKU-A", "SKU-Z"]);
+  });
 });
 
 describe("toggleColumnSort", () => {

@@ -2,6 +2,16 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import type { DeviceClass } from "@/lib/layout/device-class";
+import {
+  getColumnResizeBounds,
+  mergeColumnCellStyles,
+  resolveColumnWidthSpec,
+  resolveColumnWidthStyles,
+} from "@/lib/list-columns/sizing";
+import type { TextWrapMode } from "@/lib/display/text-wrap";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import type { ProductListFrozenColumnCount } from "@/lib/products/list-prefs";
 import {
@@ -11,6 +21,11 @@ import {
   type ProductListSortField,
 } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
+import {
+  formatVariantAttributesSubline,
+  isProductListRowInactive,
+  productListRowKey,
+} from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 import {
   productListCellClassName,
@@ -21,13 +36,24 @@ import {
 type Props = {
   products: ProductListRow[];
   columns: ProductListColumnId[];
+  columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
+  columnWidths?: Partial<Record<ProductListColumnId, number>>;
+  deviceClass: DeviceClass;
+  showVariants?: boolean;
   selectedId: string | null;
+  bulkSelectedIds: Set<string>;
+  pageAllSelected: boolean;
+  pageSomeSelected: boolean;
   sortField: ProductListSortField;
   sortDirection: ProductListSortDirection;
   frozenColumnCount: ProductListFrozenColumnCount;
   freezeColumnsAuto?: boolean;
   onSortChange: (field: ProductListSortField, direction: ProductListSortDirection) => void;
+  onColumnWidthChange?: (columnId: ProductListColumnId, width: number | null) => void;
   onSelect: (productId: string) => void;
+  onBulkRowToggle: (rowKey: string, checked: boolean) => void;
+  onBulkPageToggle: (checked: boolean) => void;
+  onImageClick?: (product: ProductListRow) => void;
 };
 
 function SortIndicator({
@@ -67,18 +93,32 @@ function rowEdgeClass(isLastFrozenColumn = false) {
 export function ProductListTable({
   products,
   columns,
+  columnWrapModes,
+  columnWidths,
+  deviceClass,
+  showVariants = false,
   selectedId,
+  bulkSelectedIds,
+  pageAllSelected,
+  pageSomeSelected,
   sortField,
   sortDirection,
   frozenColumnCount,
   freezeColumnsAuto = false,
   onSortChange,
+  onColumnWidthChange,
   onSelect,
+  onBulkRowToggle,
+  onBulkPageToggle,
+  onImageClick,
 }: Props) {
   const headerRefs = useRef<(HTMLTableCellElement | null)[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [stickyOffsets, setStickyOffsets] = useState<number[]>([]);
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
+  const [previewWidths, setPreviewWidths] = useState<
+    Partial<Record<ProductListColumnId, number>>
+  >({});
 
   const effectiveFrozenCount = useMemo(() => {
     const requested = Math.min(
@@ -120,18 +160,43 @@ export function ProductListTable({
       left += headerRefs.current[index]?.offsetWidth ?? 0;
     }
     setStickyOffsets(offsets);
-  }, [columns, effectiveFrozenCount, products.length]);
+  }, [columnWidths, columnWrapModes, columns, deviceClass, effectiveFrozenCount, previewWidths, products.length]);
 
-  const getStickyCellProps = (index: number, variant: "header" | "body") => {
+  const getUserWidthPx = (columnId: ProductListColumnId) =>
+    previewWidths[columnId] ?? columnWidths?.[columnId];
+
+  const resolveWidthStyles = (columnId: ProductListColumnId) => {
+    const column = getColumnDef(columnId);
+    const wrapMode = columnWrapModes?.[columnId] ?? "truncate";
+    return resolveColumnWidthStyles(column, deviceClass, wrapMode, getUserWidthPx(columnId));
+  };
+
+  const getHeaderWidthPx = (columnId: ProductListColumnId, index: number) => {
+    const userWidth = getUserWidthPx(columnId);
+    if (userWidth != null) return userWidth;
+
+    const measured = headerRefs.current[index]?.offsetWidth;
+    if (measured && measured > 0) return measured;
+
+    const column = getColumnDef(columnId);
+    const wrapMode = columnWrapModes?.[columnId] ?? "truncate";
+    const spec = resolveColumnWidthSpec(column, deviceClass, wrapMode);
+    const preferred = spec.preferred ?? spec.min ?? spec.max;
+    return typeof preferred === "number" ? preferred : 120;
+  };
+
+  const getStickyCellProps = (index: number, variant: "header" | "body", columnId: ProductListColumnId) => {
+    const widthStyles = resolveWidthStyles(columnId);
+
     if (effectiveFrozenCount === 0 || index >= effectiveFrozenCount) {
-      return { className: "", style: undefined };
+      return { className: "", style: widthStyles };
     }
 
     const zIndex = (variant === "header" ? 20 : 10) + index;
 
     return {
       className: "sticky",
-      style: { left: stickyOffsets[index] ?? 0, zIndex },
+      style: mergeColumnCellStyles({ left: stickyOffsets[index] ?? 0, zIndex }, widthStyles),
     };
   };
 
@@ -159,18 +224,28 @@ export function ProductListTable({
     cn(ROW_DIVIDER, isFrozen && FROZEN_CELL_BG, isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW);
 
   return (
-    <div
-      ref={scrollContainerRef}
-      className="surface-inset overflow-x-auto [scrollbar-gutter:stable]"
-    >
-      <table className="w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm [&_td]:box-border [&_th]:box-border">
+    <div className="relative">
+      <div
+        ref={scrollContainerRef}
+        className="surface-inset overflow-x-auto [scrollbar-gutter:stable]"
+      >
+        <table className="w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm [&_td]:box-border [&_th]:box-border">
         <thead>
           <tr className="bg-muted/40 text-left">
+            <th className={cn("w-10 p-0 font-medium text-muted-foreground", ROW_DIVIDER)}>
+              <div className="flex items-center justify-center p-2.5">
+                <Checkbox
+                  checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                  onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
+                  aria-label="Select all items on this page"
+                />
+              </div>
+            </th>
             {columns.map((columnId, index) => {
               const column = getColumnDef(columnId);
               const sortable = isSortableColumn(columnId);
               const isActiveSort = sortable && sortField === columnId;
-              const sticky = getStickyCellProps(index, "header");
+              const sticky = getStickyCellProps(index, "header", columnId);
               const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
               const isLastFrozenColumn =
                 effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
@@ -182,7 +257,7 @@ export function ProductListTable({
                     headerRefs.current[index] = element;
                   }}
                   className={cn(
-                    "whitespace-nowrap p-0 font-medium text-muted-foreground",
+                    "relative whitespace-nowrap p-0 font-medium text-muted-foreground",
                     sticky.className,
                     headerCellClass(isFrozen, isLastFrozenColumn),
                     column.align === "center" && "text-center",
@@ -216,6 +291,25 @@ export function ProductListTable({
                   ) : (
                     <span className="block p-2.5">{column.label}</span>
                   )}
+                  {onColumnWidthChange ? (
+                    <ListColumnResizeHandle
+                      ariaLabel={`Resize ${column.label} column`}
+                      getWidth={() => getHeaderWidthPx(columnId, index)}
+                      minWidth={getColumnResizeBounds(column, deviceClass).min}
+                      maxWidth={getColumnResizeBounds(column, deviceClass).max}
+                      onPreview={(width) =>
+                        setPreviewWidths((current) => ({ ...current, [columnId]: width }))
+                      }
+                      onCommit={(width) => {
+                        setPreviewWidths((current) => {
+                          const next = { ...current };
+                          delete next[columnId];
+                          return next;
+                        });
+                        onColumnWidthChange(columnId, width);
+                      }}
+                    />
+                  ) : null}
                 </th>
               );
             })}
@@ -223,11 +317,14 @@ export function ProductListTable({
         </thead>
         <tbody>
           {products.map((product, rowIndex) => {
+            const rowKey = productListRowKey(product, showVariants);
             const selected = selectedId === product.id;
+            const bulkSelected = bulkSelectedIds.has(rowKey);
             const isLastRow = rowIndex === products.length - 1;
+            const rowInactive = isProductListRowInactive(product, showVariants);
             return (
               <tr
-                key={product.id}
+                key={rowKey}
                 tabIndex={0}
                 role="button"
                 onClick={() => onSelect(product.id)}
@@ -239,12 +336,37 @@ export function ProductListTable({
                 }}
                 className={cn(
                   "group cursor-pointer transition-colors duration-[25ms]",
+                  rowInactive && "opacity-50",
                   selected && "ring-1 ring-inset ring-primary/20"
                 )}
               >
+                <td
+                  className={cn(
+                    "w-10 p-0",
+                    !isLastRow && ROW_DIVIDER,
+                    "transition-colors duration-[25ms]",
+                    "group-hover:bg-[hsl(214_28%_96%)] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"
+                  )}
+                >
+                  <div
+                    className="flex items-center justify-center p-2.5"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={bulkSelected}
+                      onCheckedChange={(checked) =>
+                        onBulkRowToggle(rowKey, checked === true)
+                      }
+                      aria-label={`Select ${product.name}${
+                        product.default_sku ? ` (${product.default_sku})` : ""
+                      }`}
+                    />
+                  </div>
+                </td>
                 {columns.map((columnId, index) => {
                   const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
-                  const sticky = getStickyCellProps(index, "body");
+                  const sticky = getStickyCellProps(index, "body", columnId);
                   const isLastFrozenColumn =
                     effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
                   return (
@@ -252,7 +374,7 @@ export function ProductListTable({
                       key={columnId}
                       className={cn(
                         "overflow-visible",
-                        columnId === "image" ? "p-1" : "max-w-[240px] p-2.5",
+                        columnId === "image" ? "p-1" : "p-2.5",
                         productListCellClassName(columnId),
                         getColumnDef(columnId).align === "center" && "text-center",
                         getColumnDef(columnId).align === "right" && "text-right",
@@ -261,8 +383,16 @@ export function ProductListTable({
                       )}
                       style={sticky.style}
                     >
-                      <div className={productListCellWrapClassName(columnId)}>
-                        {renderProductListCell(columnId, product)}
+                      <div
+                        className={productListCellWrapClassName(
+                          columnId,
+                          columnWrapModes?.[columnId] ?? "truncate"
+                        )}
+                      >
+                        {renderProductListCell(columnId, product, {
+                          onImageClick,
+                          showVariants,
+                        })}
                       </div>
                     </td>
                   );
@@ -272,6 +402,11 @@ export function ProductListTable({
           })}
         </tbody>
       </table>
+      </div>
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent"
+        aria-hidden
+      />
     </div>
   );
 }

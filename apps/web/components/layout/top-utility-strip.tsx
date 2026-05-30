@@ -22,6 +22,7 @@ type TopUtilityStripProps = {
   operatorProfile?: OperatorProfile | null;
   embedded?: boolean;
   showSidebarToggle?: boolean;
+  onOpenMobileNav?: () => void;
 };
 
 export function TopUtilityStrip({
@@ -32,12 +33,14 @@ export function TopUtilityStrip({
   operatorProfile = null,
   embedded = false,
   showSidebarToggle = false,
+  onOpenMobileNav,
 }: TopUtilityStripProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const omnibar = useOptionalOmnibarContext();
   const { sidebarCollapsed } = useOnboardingContext();
 
-  const orgInSidebarColumn = embedded && showSidebarToggle && !sidebarCollapsed;
+  const orgInSidebarColumn =
+    embedded && showSidebarToggle && !sidebarCollapsed;
 
   const orgBranding = (
     <div className="flex min-w-0 items-center gap-2 md:gap-3">
@@ -116,7 +119,7 @@ export function TopUtilityStrip({
 
   const headerContent = (
     <>
-      {!orgInSidebarColumn ? orgBranding : null}
+      <div className={cn(orgInSidebarColumn && "md:hidden")}>{orgBranding}</div>
 
       <div
         className={cn(
@@ -146,6 +149,7 @@ export function TopUtilityStrip({
       {embedded && showSidebarToggle ? (
         <SidebarHeaderToggleColumn
           branding={orgInSidebarColumn ? orgBranding : undefined}
+          onOpenMobileNav={onOpenMobileNav}
         />
       ) : null}
 

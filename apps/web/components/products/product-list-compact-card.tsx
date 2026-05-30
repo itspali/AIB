@@ -3,12 +3,15 @@
 import { Package } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   buildCompactCardSubline,
   formatCompactCardSubline,
 } from "@/lib/products/compact-card-subline";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
+import type { TextWrapMode } from "@/lib/display/text-wrap";
+import { textWrapModeClassName } from "@/lib/display/text-wrap";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import { getColumnDef } from "@/lib/products/list-columns";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
@@ -161,11 +164,24 @@ function renderCompactChip(columnId: ProductListColumnId, product: ProductListRo
 type CardProps = {
   product: ProductListRow;
   columns: ProductListColumnId[];
+  columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
   selected: boolean;
+  bulkSelected: boolean;
   onSelect: (productId: string) => void;
+  onBulkToggle: (productId: string, checked: boolean) => void;
+  onImageClick?: (product: ProductListRow) => void;
 };
 
-export function ProductListCompactCard({ product, columns, selected, onSelect }: CardProps) {
+export function ProductListCompactCard({
+  product,
+  columns,
+  columnWrapModes,
+  selected,
+  bulkSelected,
+  onSelect,
+  onBulkToggle,
+  onImageClick,
+}: CardProps) {
   const showImage = columns.includes("image");
   const showName = columns.includes("name");
   const showSku = columns.includes("default_sku");
@@ -181,19 +197,60 @@ export function ProductListCompactCard({ product, columns, selected, onSelect }:
   );
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(product.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(product.id);
+        }
+      }}
       className={cn(
-        "surface-panel h-full w-full rounded-xl p-3 text-left transition-colors duration-200 sm:p-4",
+        "surface-panel h-full w-full cursor-pointer rounded-xl p-3 text-left transition-colors duration-200 sm:p-4",
         "hover:border-primary/30 hover:bg-accent/20",
+        !product.is_active && "opacity-50",
         selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
       )}
     >
+      <div className="mb-2 flex items-center gap-2">
+        <Checkbox
+          checked={bulkSelected}
+          onCheckedChange={(checked) => onBulkToggle(product.id, checked === true)}
+          onClick={(event) => event.stopPropagation()}
+          aria-label={`Select ${product.name}`}
+        />
+      </div>
       <div className="flex h-full gap-3">
         {showImage ? (
           <div className="shrink-0">
-            {product.image_url ? (
+            {product.image_url && onImageClick ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onImageClick(product);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onImageClick(product);
+                  }
+                }}
+                className="inline-flex cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label={`View images for ${product.name}`}
+              >
+                <img
+                  src={product.image_url}
+                  alt=""
+                  className="h-14 w-14 rounded-lg border border-border object-cover bg-muted sm:h-16 sm:w-16"
+                  loading="lazy"
+                />
+              </span>
+            ) : product.image_url ? (
               <img
                 src={product.image_url}
                 alt=""
@@ -213,7 +270,15 @@ export function ProductListCompactCard({ product, columns, selected, onSelect }:
 
         <div className="min-w-0 flex-1 space-y-1.5">
           {showName ? (
-            <p className="truncate text-base font-semibold leading-tight text-foreground">
+            <p
+              className={cn(
+                "text-base font-semibold leading-tight text-foreground",
+                textWrapModeClassName(
+                  columnWrapModes?.name ?? "truncate",
+                  getColumnDef("name").valueKind
+                )
+              )}
+            >
               {product.name}
             </p>
           ) : null}
@@ -236,7 +301,17 @@ export function ProductListCompactCard({ product, columns, selected, onSelect }:
           ) : null}
 
           {showDescription ? (
-            <p className="line-clamp-1 text-xs text-muted-foreground">{product.description}</p>
+            <p
+              className={cn(
+                "text-xs text-muted-foreground",
+                textWrapModeClassName(
+                  columnWrapModes?.description ?? "line-clamp-1",
+                  getColumnDef("description").valueKind
+                )
+              )}
+            >
+              {product.description}
+            </p>
           ) : null}
 
           {chipColumns.length > 0 ? (
@@ -250,6 +325,6 @@ export function ProductListCompactCard({ product, columns, selected, onSelect }:
           ) : null}
         </div>
       </div>
-    </button>
+    </div>
   );
 }

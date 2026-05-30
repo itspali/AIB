@@ -22,6 +22,7 @@ type VariantRow = {
   sku: string;
   barcode: string | null;
   variant_attributes: Record<string, unknown> | null;
+  is_master?: boolean;
   created_at: string;
   dead_weight_kg: number | string | null;
   weight: number | string | null;
@@ -30,11 +31,13 @@ type VariantRow = {
   width_cm: number | string | null;
   height_cm: number | string | null;
   is_active: boolean;
+  price: number | string | null;
 };
 
 type ItemRow = {
   id: string;
   name: string;
+  code: string | null;
   description: string | null;
   classification: string;
   base_unit_of_measure: string;
@@ -99,6 +102,8 @@ function resolveLocationName(raw: ValuationRow["tenant_locations"]): string {
 
 function pickDefaultVariant(variants: VariantRow[] | null | undefined): VariantRow | null {
   if (!variants?.length) return null;
+  const master = variants.find((variant) => variant.is_master);
+  if (master) return master;
   return [...variants].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )[0];
@@ -256,7 +261,8 @@ function mapVariantRow(row: VariantRow, masterVariantId: string): ProductVariant
     width_cm: formatDecimal(row.width_cm, "0"),
     height_cm: formatDecimal(row.height_cm, "0"),
     is_active: row.is_active,
-    is_master: row.id === masterVariantId,
+    is_master: row.is_master ?? row.id === masterVariantId,
+    price: formatDecimal(row.price, "0"),
     created_at: row.created_at,
   };
 }
@@ -502,6 +508,7 @@ const VARIANT_DETAIL_SELECT = `
   sku,
   barcode,
   variant_attributes,
+  is_master,
   created_at,
   dead_weight_kg,
   weight,
@@ -509,7 +516,8 @@ const VARIANT_DETAIL_SELECT = `
   length_cm,
   width_cm,
   height_cm,
-  is_active
+  is_active,
+  price
 `;
 
 /** Disambiguate composite tenant FK — PostgREST rejects bare `item_variants` embeds. */
@@ -586,7 +594,7 @@ export async function fetchProductListRows(
       created_at,
       updated_at,
       item_categories ( name ),
-      ${ITEM_VARIANTS_EMBED} ( id, sku, barcode, created_at )
+      ${ITEM_VARIANTS_EMBED} ( id, sku, barcode, is_master, created_at )
     `
     )
     .eq("tenant_id", tenantId)
@@ -632,6 +640,7 @@ export async function fetchProductDetail(
       `
       id,
       name,
+      code,
       description,
       classification,
       base_unit_of_measure,
@@ -733,7 +742,8 @@ export async function fetchProductDetail(
   const sortedVariants = [...(row.item_variants ?? [])].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
-  const masterVariantId = sortedVariants[0]?.id ?? variant.id;
+  const masterVariantId =
+    sortedVariants.find((entry) => entry.is_master)?.id ?? sortedVariants[0]?.id ?? variant.id;
   const variants = sortedVariants.map((entry) => mapVariantRow(entry, masterVariantId));
 
   const priceEntry = pickDefaultPriceEntry(priceEntries as PriceBookEntryRow[] | null);
@@ -755,6 +765,7 @@ export async function fetchProductDetail(
   return {
     id: row.id,
     name: row.name,
+    code: row.code,
     description: row.description,
     classification: row.classification,
     base_unit_of_measure: row.base_unit_of_measure,

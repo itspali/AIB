@@ -3,6 +3,9 @@
 import { Pencil } from "lucide-react";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
+import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
+import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
+import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import { Badge } from "@/components/ui/badge";
@@ -160,8 +163,27 @@ export function ProductDetailViewport({
         variants={product.variants}
         categoryTemplates={categoryTemplates}
         skuMask={product.sku_mask}
-        baseSku={product.sku}
+        baseSku={product.code ?? product.sku}
         onChanged={() => onExtensionsChanged?.()}
+      />
+
+      {product.variants.length > 0 && (
+        <VariantAssortmentMatrix itemId={product.id} variants={product.variants} />
+      )}
+
+      {product.variants.length > 0 && (
+        <VariantChannelAvailabilityMatrix itemId={product.id} variants={product.variants} />
+      )}
+
+      <PriceBookEntryEditor
+        itemId={product.id}
+        variants={product.variants}
+        uomCodes={Array.from(
+          new Set([
+            product.base_unit_of_measure,
+            ...product.alternate_uoms.map((row) => row.uom_code),
+          ])
+        ).filter(Boolean)}
       />
 
       {(product.sku_mask ||

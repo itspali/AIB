@@ -1,4 +1,15 @@
+import type { TextWrapMode } from "@/lib/display/text-wrap";
+import type { ResponsiveColumnWidths } from "@/lib/list-columns/sizing";
+
 export type ListColumnAlign = "left" | "right" | "center";
+
+export type ListColumnValueKind =
+  | "text"
+  | "multiline"
+  | "code"
+  | "number"
+  | "boolean"
+  | "date";
 
 export type ListColumnDef<TId extends string = string> = {
   id: TId;
@@ -9,6 +20,13 @@ export type ListColumnDef<TId extends string = string> = {
   group?: string;
   /** Permission key for role-based visibility (defaults to column id). */
   permissionKey?: string;
+  /** Drives wrap controls in the column selector for text-like columns. */
+  valueKind?: ListColumnValueKind;
+  defaultWrapMode?: TextWrapMode;
+  /** Responsive min/max/preferred widths for table cells (per device tier). */
+  widths?: ResponsiveColumnWidths;
+  /** Extra min-width pixels when wrap mode is line-clamp-2 or wrap. */
+  wrapWidthBoost?: number;
 };
 
 export type ListColumnRegistry<TId extends string = string> = {
@@ -20,6 +38,9 @@ export type ListColumnRegistry<TId extends string = string> = {
 export type ListColumnPrefs<TId extends string = string> = {
   columnOrder: TId[];
   visibleColumns: TId[];
+  columnWrapModes?: Partial<Record<TId, TextWrapMode>>;
+  /** User-resized column widths in pixels (table view, per device slice). */
+  columnWidths?: Partial<Record<TId, number>>;
 };
 
 export function getDefaultColumnOrder<TId extends string>(

@@ -606,7 +606,6 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       if (filteredItemIds !== null) {
         setFilteredItemIds(new Set(filteredItemIds));
         setIsExecuting(false);
-        setModuleFilterRevision((value) => value + 1);
       } else if (viewScope === "items" && savedViewNeedsNativeFilter(view.compiled_ast)) {
         setFilteredItemIds(null);
         setIsExecuting(true);

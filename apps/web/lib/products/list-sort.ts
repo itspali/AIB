@@ -230,12 +230,17 @@ function compareRows(
 export function sortProductListRows(
   rows: ProductListRow[],
   field: ProductListSortField,
-  direction: ProductListSortDirection
+  direction: ProductListSortDirection,
+  options?: { showVariants?: boolean }
 ): ProductListRow[] {
+  const showVariants = options?.showVariants ?? false;
   return [...rows].sort((a, b) => {
     const primary = compareRows(a, b, field, direction);
     if (primary !== 0) return primary;
-    return compareStrings(a.name, b.name, "asc");
+    const byName = compareStrings(a.name, b.name, "asc");
+    if (byName !== 0) return byName;
+    if (!showVariants) return 0;
+    return compareStrings(a.default_sku ?? "", b.default_sku ?? "", "asc");
   });
 }
 

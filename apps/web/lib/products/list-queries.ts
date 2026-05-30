@@ -9,7 +9,8 @@ import type { ProductListRow } from "@/lib/products/types";
 
 import { PRODUCT_LIST_PAGE_SIZE } from "@/lib/products/list-page-size";
 
-const LIST_VIEW = "product_list_workspace_rows";
+const MASTER_LIST_VIEW = "product_list_workspace_rows";
+const VARIANT_LIST_VIEW = "product_list_workspace_variant_rows";
 const DEFAULT_PAGE_SIZE = PRODUCT_LIST_PAGE_SIZE;
 
 type ListViewRow = {
@@ -38,6 +39,9 @@ type ListViewRow = {
   supplier_name: string | null;
   stock_on_hand: number | string | null;
   primary_image_storage_path: string | null;
+  variant_id?: string | null;
+  variant_attributes?: Record<string, unknown> | null;
+  variant_is_active?: boolean;
 };
 
 export type ProductListPage = {
@@ -46,6 +50,21 @@ export type ProductListPage = {
   pageSize: number;
   hasMore: boolean;
 };
+
+export type ProductListFetchOptions = {
+  offset?: number;
+  limit?: number;
+  includeImages?: boolean;
+  itemIds?: string[];
+  expandVariants?: boolean;
+};
+
+function listViewRowImageKey(row: ListViewRow, expandVariants: boolean): string {
+  if (expandVariants && row.variant_id) {
+    return `${row.id}:${row.variant_id}`;
+  }
+  return row.id;
+}
 
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
   if (value === null || value === undefined || value === "") return fallback;
@@ -84,39 +103,46 @@ function mapListViewRow(row: ListViewRow, imageUrl: string | null): ProductListR
     stock_on_hand: formatDecimal(row.stock_on_hand, "0"),
     created_at: row.created_at,
     updated_at: row.updated_at,
+    variant_id: row.variant_id ?? null,
+    variant_attributes: row.variant_attributes ?? null,
+    variant_is_active: row.variant_is_active,
   };
 }
 
 async function signPrimaryImages(
   supabase: SupabaseClient,
   rows: ListViewRow[],
-  includeImages: boolean
+  includeImages: boolean,
+  expandVariants: boolean
 ): Promise<Map<string, string | null>> {
   const images = new Map<string, string | null>();
   if (!includeImages) {
-    for (const row of rows) images.set(row.id, null);
+    for (const row of rows) {
+      images.set(listViewRowImageKey(row, expandVariants), null);
+    }
     return images;
   }
 
-  const pathByItem = new Map<string, string>();
+  const pathByKey = new Map<string, string>();
   for (const row of rows) {
+    const key = listViewRowImageKey(row, expandVariants);
     const path = row.primary_image_storage_path?.trim();
     if (!path) {
-      images.set(row.id, null);
+      images.set(key, null);
       continue;
     }
     if (path.startsWith("http://") || path.startsWith("https://")) {
-      images.set(row.id, path);
+      images.set(key, path);
       continue;
     }
-    pathByItem.set(row.id, path);
+    pathByKey.set(key, path);
   }
 
-  const uniquePaths = [...new Set(pathByItem.values())];
+  const uniquePaths = [...new Set(pathByKey.values())];
   const signedUrls = await resolveProductMediaSignedUrls(supabase, uniquePaths);
 
-  for (const [itemId, path] of pathByItem) {
-    images.set(itemId, signedUrls.get(path) ?? null);
+  for (const [key, path] of pathByKey) {
+    images.set(key, signedUrls.get(path) ?? null);
   }
 
   return images;
@@ -132,13 +158,17 @@ function applyPermissions(
 async function fetchListViewRows(
   supabase: SupabaseClient,
   tenantId: string,
-  options: { offset: number; limit: number; itemIds?: string[] }
+  options: { offset: number; limit: number; itemIds?: string[]; expandVariants?: boolean }
 ): Promise<{ rows: ListViewRow[]; totalCount: number }> {
+  const listView = options.expandVariants ? VARIANT_LIST_VIEW : MASTER_LIST_VIEW;
+
   let query = supabase
-    .from(LIST_VIEW)
+    .from(listView)
     .select("*", { count: "exact" })
     .eq("tenant_id", tenantId)
-    .order("name");
+    .order("name")
+    .order("default_sku")
+    .order("variant_id");
 
   if (options.itemIds?.length) {
     query = query.in("id", options.itemIds);
@@ -149,7 +179,10 @@ async function fetchListViewRows(
   const { data, error, count } = await query;
 
   if (error) {
-    console.warn("[products] product_list_workspace_rows unavailable, using legacy list query:", error.message);
+    console.warn(
+      `[products] ${listView} unavailable, using legacy list query:`,
+      error.message
+    );
     return { rows: [], totalCount: 0 };
   }
 
@@ -162,11 +195,19 @@ async function fetchListViewRows(
 export async function mapListViewRowsToProductList(
   supabase: SupabaseClient,
   viewRows: ListViewRow[],
-  options?: { includeImages?: boolean }
+  options?: { includeImages?: boolean; expandVariants?: boolean }
 ): Promise<ProductListRow[]> {
-  const imageUrls = await signPrimaryImages(supabase, viewRows, options?.includeImages ?? false);
+  const expandVariants = options?.expandVariants ?? false;
+  const imageUrls = await signPrimaryImages(
+    supabase,
+    viewRows,
+    options?.includeImages ?? false,
+    expandVariants
+  );
   return viewRows
-    .map((row) => mapListViewRow(row, imageUrls.get(row.id) ?? null))
+    .map((row) =>
+      mapListViewRow(row, imageUrls.get(listViewRowImageKey(row, expandVariants)) ?? null)
+    )
     .filter((row): row is ProductListRow => row !== null);
 }
 
@@ -174,19 +215,16 @@ export async function fetchProductListPage(
   supabase: SupabaseClient,
   tenantId: string,
   permissions?: { allowedFields: readonly string[] },
-  options?: {
-    offset?: number;
-    limit?: number;
-    includeImages?: boolean;
-    itemIds?: string[];
-  }
+  options?: ProductListFetchOptions
 ): Promise<ProductListPage> {
   const offset = options?.offset ?? 0;
   const limit = options?.limit ?? DEFAULT_PAGE_SIZE;
+  const expandVariants = options?.expandVariants ?? false;
   const { rows: viewRows, totalCount } = await fetchListViewRows(supabase, tenantId, {
     offset,
     limit,
     itemIds: options?.itemIds,
+    expandVariants,
   });
 
   if (!viewRows.length && totalCount === 0) {
@@ -218,6 +256,7 @@ export async function fetchProductListPage(
 
   const mapped = await mapListViewRowsToProductList(supabase, viewRows, {
     includeImages: options?.includeImages,
+    expandVariants,
   });
 
   return {
@@ -236,18 +275,29 @@ function chunkIds<T>(values: T[], size: number): T[][] {
   return chunks;
 }
 
+function sortFilteredListRows(rows: ProductListRow[], itemOrder: Map<string, number>): void {
+  rows.sort((a, b) => {
+    const byId = (itemOrder.get(a.id) ?? 0) - (itemOrder.get(b.id) ?? 0);
+    if (byId !== 0) return byId;
+    const bySku = (a.default_sku ?? "").localeCompare(b.default_sku ?? "");
+    if (bySku !== 0) return bySku;
+    return (a.variant_id ?? "").localeCompare(b.variant_id ?? "");
+  });
+}
+
 export async function fetchProductListByIds(
   supabase: SupabaseClient,
   tenantId: string,
   itemIds: string[],
   permissions?: { allowedFields: readonly string[] },
-  options?: { includeImages?: boolean }
+  options?: Pick<ProductListFetchOptions, "includeImages" | "expandVariants">
 ): Promise<ProductListPage> {
   const uniqueIds = [...new Set(itemIds.filter(Boolean))];
   if (!uniqueIds.length) {
     return { rows: [], totalCount: 0, pageSize: 0, hasMore: false };
   }
 
+  const expandVariants = options?.expandVariants ?? false;
   const chunks = chunkIds(uniqueIds, DEFAULT_PAGE_SIZE);
   const rows: ProductListRow[] = [];
 
@@ -255,21 +305,18 @@ export async function fetchProductListByIds(
     const page = await fetchProductListPage(supabase, tenantId, permissions, {
       itemIds: idChunk,
       includeImages: options?.includeImages,
+      expandVariants,
     });
     rows.push(...page.rows);
   }
 
   const order = new Map(uniqueIds.map((id, index) => [id, index]));
-  rows.sort((a, b) => {
-    const byId = (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
-    if (byId !== 0) return byId;
-    return a.name.localeCompare(b.name);
-  });
+  sortFilteredListRows(rows, order);
 
   return {
     rows,
-    totalCount: uniqueIds.length,
-    pageSize: uniqueIds.length,
+    totalCount: rows.length,
+    pageSize: rows.length,
     hasMore: false,
   };
 }

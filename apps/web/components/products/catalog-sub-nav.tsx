@@ -7,11 +7,15 @@ export type CatalogSubNavTab = "items" | "categories";
 
 type Props = {
   active: CatalogSubNavTab;
+  className?: string;
 };
 
-export function CatalogSubNav({ active }: Props) {
+export function CatalogSubNav({ active, className }: Props) {
   return (
-    <nav className="mt-3 flex gap-2 text-sm md:hidden" aria-label="Inventory sub-navigation">
+    <nav
+      className={cn("mt-3 flex gap-2 text-sm md:hidden", className)}
+      aria-label="Inventory sub-navigation"
+    >
       <Link
         href="/inventory/items"
         prefetch={false}

@@ -12,6 +12,13 @@ import {
   Table2,
   X,
 } from "lucide-react";
+import {
+  columnSupportsWrapControl,
+  defaultWrapModeForValueKind,
+  TEXT_WRAP_MODE_LABELS,
+  TEXT_WRAP_MODES,
+  type TextWrapMode,
+} from "@/lib/display/text-wrap";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -152,6 +159,27 @@ export function ListColumnSettings<TId extends string>({
     onChange({ ...prefs, visibleColumns });
   };
 
+  const setWrapMode = (columnId: TId, wrapMode: TextWrapMode) => {
+    onChange({
+      ...prefs,
+      columnWrapModes: {
+        ...prefs.columnWrapModes,
+        [columnId]: wrapMode,
+      },
+    });
+  };
+
+  const effectiveWrapMode = (columnId: TId): TextWrapMode => {
+    const column = getColumnDef(registry, columnId);
+    const override = prefs.columnWrapModes?.[columnId];
+    if (override) return override;
+    if (column.defaultWrapMode) return column.defaultWrapMode;
+    if (column.valueKind) {
+      return defaultWrapModeForValueKind(column.valueKind, editingLayout);
+    }
+    return "truncate";
+  };
+
   const editingLabel = `${editingLayout === "table" ? "Table" : "Card"} · ${DEVICE_LABEL[editingDevice]}`;
 
   return (
@@ -176,7 +204,7 @@ export function ListColumnSettings<TId extends string>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-80"
+        className="w-[22rem]"
         onPointerDownOutside={(event) => {
           if (dragIdRef.current) event.preventDefault();
         }}
@@ -433,6 +461,29 @@ export function ListColumnSettings<TId extends string>({
                     </span>
                   ) : null}
                 </div>
+                {visible && columnSupportsWrapControl(column.valueKind) ? (
+                  <Select
+                    value={effectiveWrapMode(columnId)}
+                    disabled={disabled}
+                    onValueChange={(value) => setWrapMode(columnId, value as TextWrapMode)}
+                  >
+                    <SelectTrigger
+                      className="h-7 w-[5.75rem] shrink-0 px-2 py-0 text-xs [&>span]:truncate [&>svg]:h-3.5 [&>svg]:w-3.5"
+                      aria-label={`Text wrap for ${column.label}`}
+                      title="Text wrap"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {TEXT_WRAP_MODES.map((mode) => (
+                        <SelectItem key={mode} value={mode} className="text-xs">
+                          {TEXT_WRAP_MODE_LABELS[mode]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
               </div>
             );
           })}

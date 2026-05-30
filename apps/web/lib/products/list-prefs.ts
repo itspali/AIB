@@ -4,6 +4,7 @@ import {
   normalizeListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import { DEVICE_CLASSES, type DeviceClass } from "@/lib/layout/device-class";
 import {
   PRODUCT_LIST_COLUMN_REGISTRY,
   type ProductListColumnId,
@@ -16,8 +17,9 @@ import {
   type ProductListSortField,
 } from "@/lib/products/list-sort";
 
+export type { DeviceClass } from "@/lib/layout/device-class";
+
 export type ProductListViewMode = "table" | "compact";
-export type DeviceClass = "mobile" | "tablet" | "desktop";
 export type CardGridColumnCount = 1 | 2 | 3 | 4;
 
 export type ProductListFrozenColumnCount = 0 | 1 | 2 | 3;
@@ -26,9 +28,7 @@ export const AUTO_LAYOUT_PREF = "auto" as const;
 export type CardGridColumnPref = CardGridColumnCount | typeof AUTO_LAYOUT_PREF;
 export type FrozenColumnPref = ProductListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const PRODUCT_LIST_PREFS_VERSION = 3;
-
-const DEVICE_CLASSES: readonly DeviceClass[] = ["mobile", "tablet", "desktop"];
+export const PRODUCT_LIST_PREFS_VERSION = 5;
 
 export type ProductListColumnPrefsByContext = Record<
   ProductListViewMode,
@@ -46,6 +46,8 @@ export type ProductListPrefs = {
   sortField: ProductListSortField;
   sortDirection: ProductListSortDirection;
   frozenColumnCount: FrozenColumnPref;
+  /** When true, table view lists one row per variant for multi-variant items. */
+  showVariants: boolean;
 };
 
 const TABLE_MOBILE_VISIBLE: ProductListColumnId[] = [
@@ -165,6 +167,13 @@ export function resolveFrozenColumnCount(
   return prefs.frozenColumnCount;
 }
 
+export function resolveProductListExpandVariants(
+  showVariants: boolean,
+  viewMode: ProductListViewMode
+): boolean {
+  return showVariants && viewMode === "table";
+}
+
 function parseCardGridColumnPref(
   value: unknown,
   fallback: CardGridColumnPref
@@ -228,6 +237,7 @@ export function getDefaultProductListPrefs(): ProductListPrefs {
     frozenColumnCount: AUTO_LAYOUT_PREF,
     columnPrefs: getDefaultProductListColumnPrefsByContext(),
     cardGridColumns: getDefaultCardGridColumns(),
+    showVariants: false,
   });
 }
 
@@ -248,6 +258,7 @@ function parseClientRevision(value: unknown): number {
 function isLegacyFlatPrefs(parsed: LegacyFlatProductListPrefs): boolean {
   return (
     parsed.prefsVersion !== PRODUCT_LIST_PREFS_VERSION &&
+    parsed.prefsVersion !== 3 &&
     parsed.prefsVersion !== 2 &&
     (Array.isArray(parsed.columnOrder) || Array.isArray(parsed.visibleColumns))
   );
@@ -375,6 +386,7 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     parsed.prefsVersion === PRODUCT_LIST_PREFS_VERSION
       ? parseCardGridColumns(parsed.cardGridColumns)
       : getDefaultCardGridColumns();
+  const showVariants = parsed.showVariants === true;
 
   return clampCardGridColumns({
     prefsVersion: PRODUCT_LIST_PREFS_VERSION,
@@ -385,6 +397,7 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     frozenColumnCount,
     columnPrefs,
     cardGridColumns,
+    showVariants,
   });
 }
 
@@ -519,6 +532,7 @@ export function shouldPersistPrefsImmediately(
   next: ProductListPrefs
 ): boolean {
   if (previous.viewMode !== next.viewMode) return true;
+  if (previous.showVariants !== next.showVariants) return true;
   if (previous.frozenColumnCount !== next.frozenColumnCount) return true;
   if (previous.sortField !== next.sortField || previous.sortDirection !== next.sortDirection) {
     return true;

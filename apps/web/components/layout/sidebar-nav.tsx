@@ -34,27 +34,36 @@ export function sidebarWidthClass(collapsed: boolean): string {
 
 export function SidebarHeaderToggleColumn({
   branding,
+  onOpenMobileNav,
 }: {
   branding?: React.ReactNode;
+  onOpenMobileNav?: () => void;
 }) {
   const { sidebarCollapsed, setSidebarCollapsed } = useOnboardingContext();
 
   return (
     <div
       className={cn(
-        "flex h-16 shrink-0 items-center gap-1 border-r border-white/10 bg-card/40 p-2 transition-all duration-200",
-        sidebarWidthClass(sidebarCollapsed),
-        sidebarCollapsed ? "justify-center" : "min-w-0"
+        "flex h-16 w-16 shrink-0 items-center gap-1 border-r border-white/10 bg-card/40 p-2 transition-all duration-200",
+        sidebarCollapsed ? "md:justify-center" : "md:min-w-0",
+        sidebarCollapsed ? "md:w-16" : "md:w-64"
       )}
     >
       <Button
         type="button"
         variant="ghost"
+        className="flex h-10 w-full items-center justify-center rounded-lg px-2 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        onClick={onOpenMobileNav}
+        aria-label="Open module navigation"
+      >
+        <PanelLeftOpen className="h-4 w-4 shrink-0" aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
         className={cn(
-          "flex h-10 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          sidebarCollapsed
-            ? "w-full px-2"
-            : "shrink-0 px-3"
+          "hidden h-10 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex",
+          sidebarCollapsed ? "w-full px-2" : "shrink-0 px-3"
         )}
         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
         aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -67,7 +76,7 @@ export function SidebarHeaderToggleColumn({
         )}
       </Button>
       {!sidebarCollapsed && branding ? (
-        <div className="min-w-0 flex-1 overflow-hidden">{branding}</div>
+        <div className="hidden min-w-0 flex-1 overflow-hidden md:block">{branding}</div>
       ) : null}
     </div>
   );
@@ -254,7 +263,7 @@ export function SidebarNav() {
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col border-r border-white/10 bg-card/40 backdrop-blur-xl transition-all duration-200",
+        "hidden h-full shrink-0 flex-col border-r border-white/10 bg-card/40 backdrop-blur-xl transition-all duration-200 md:flex",
         sidebarWidthClass(sidebarCollapsed)
       )}
     >

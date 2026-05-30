@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopUtilityStrip } from "@/components/layout/top-utility-strip";
 import { OmnibarProvider } from "@/components/search/omnibar-provider";
@@ -29,6 +31,7 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const { isOnboardingComplete } = useOnboardingContext();
   const showModuleNav = isOnboardingComplete && !onboardingMode;
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const isOnboardingLayout = onboardingMode || !isOnboardingComplete;
 
@@ -44,6 +47,7 @@ export function DashboardShell({
             operatorProfile={operatorProfile}
             embedded
             showSidebarToggle={showModuleNav}
+            onOpenMobileNav={showModuleNav ? () => setMobileNavOpen(true) : undefined}
           />
         </div>
         <div className="flex min-h-0 flex-1">
@@ -71,6 +75,13 @@ export function DashboardShell({
           </main>
         </div>
         {showModuleNav && <MobileBottomNav />}
+        {showModuleNav ? (
+          <MobileNavDrawer
+            open={mobileNavOpen}
+            onOpenChange={setMobileNavOpen}
+            orgName={orgName}
+          />
+        ) : null}
       </div>
     </OmnibarProvider>
   );

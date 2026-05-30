@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { Copy, FilterX, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
   listCustomModuleViews,
@@ -26,6 +27,9 @@ type Props = {
   wrapperClassName?: string;
   variant?: "header" | "inline";
 };
+
+const filterActionIconButtonClass =
+  "h-8 w-8 shrink-0 p-0 focus-visible:ring-1 focus-visible:ring-ring";
 
 export function OmnibarFilterChipBar({
   className,
@@ -184,31 +188,37 @@ export function OmnibarFilterChipBar({
 
         <div
           className={cn(
-            "flex min-h-8 w-full items-center justify-between gap-3",
+            "flex min-h-8 w-full items-center gap-2",
             variant === "header" && "mx-auto max-w-2xl",
             className
           )}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Active filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-            </span>
-            {chips.length > 0 ? (
-              <FilterChipRow ast={activeAst} onRemove={removeClauseAt} className="min-w-0 flex-1" />
-            ) : null}
-          </div>
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+          </span>
+          {chips.length > 0 ? (
+            <FilterChipRow
+              ast={activeAst}
+              onRemove={removeClauseAt}
+              className="min-w-0 flex-1"
+            />
+          ) : (
+            <div className="min-w-0 flex-1" />
+          )}
 
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5">
             {canManageViews && activeSavedViewId && !isSavedViewDirty ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 shrink-0 text-xs"
+                className={filterActionIconButtonClass}
                 disabled={isPending}
                 onClick={persistActiveViewUpdate}
+                title="Update view"
+                aria-label="Update view"
               >
-                Update view
+                <Save className="h-4 w-4" />
               </Button>
             ) : null}
             {canManageViews && activeSavedViewId && isSavedViewDirty ? (
@@ -216,11 +226,13 @@ export function OmnibarFilterChipBar({
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="h-7 shrink-0 text-xs"
+                className={filterActionIconButtonClass}
                 disabled={isPending}
                 onClick={persistActiveViewUpdate}
+                title="Save changes"
+                aria-label="Save changes"
               >
-                Save changes
+                <Save className="h-4 w-4" />
               </Button>
             ) : null}
             {canManageViews && !activeSavedViewId ? (
@@ -228,34 +240,26 @@ export function OmnibarFilterChipBar({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 shrink-0 text-xs"
+                className={filterActionIconButtonClass}
                 onClick={() => setSaveOpen(true)}
+                title="Save view"
+                aria-label="Save view"
               >
-                Save view
+                <Save className="h-4 w-4" />
               </Button>
             ) : null}
-            {canManageViews && activeSavedViewId && !isSavedViewDirty ? (
+            {canManageViews && activeSavedViewId ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 shrink-0 text-xs"
+                className={filterActionIconButtonClass}
                 disabled={isPending}
                 onClick={persistSaveAsNew}
+                title="Save as new"
+                aria-label="Save as new"
               >
-                Save as new
-              </Button>
-            ) : null}
-            {canManageViews && activeSavedViewId && isSavedViewDirty ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 shrink-0 text-xs"
-                disabled={isPending}
-                onClick={persistSaveAsNew}
-              >
-                Save as new
+                <Copy className="h-4 w-4" />
               </Button>
             ) : null}
             {chips.length > 0 ? (
@@ -263,11 +267,13 @@ export function OmnibarFilterChipBar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 shrink-0 text-xs text-muted-foreground"
+                className={cn(filterActionIconButtonClass, "text-muted-foreground")}
                 onClick={clearFilters}
                 disabled={isPending}
+                title="Clear all filters"
+                aria-label="Clear all filters"
               >
-                Clear all
+                <FilterX className="h-4 w-4" />
               </Button>
             ) : null}
           </div>

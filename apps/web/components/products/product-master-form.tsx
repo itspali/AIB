@@ -755,14 +755,12 @@ export function ProductMasterForm({
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <SwitchRow
-                label="Multi-variant product"
-                description="Enable additional SKU variants. Use the variant manager below after saving."
-                checked={watch("has_variants")}
-                disabled={fieldDisabled}
-                onCheckedChange={(checked) => setValue("has_variants", checked, { shouldDirty: true })}
-              />
+            <div className="sm:col-span-2 rounded-lg border border-border px-4 py-3">
+              <p className="text-sm font-medium">Multi-variant product</p>
+              <p className="text-xs text-muted-foreground">
+                Automatic. This flag is derived from the number of variants — add SKU variants in
+                the variant manager after saving and it turns on by itself.
+              </p>
             </div>
 
             <div className="sm:col-span-2">
