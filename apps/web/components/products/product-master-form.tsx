@@ -1,11 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { saveProductMasterProfile } from "@/app/items/actions";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
@@ -22,21 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { parentSelectOptions } from "@/lib/categories/tree";
 import type { CategoryRow } from "@/lib/categories/types";
-import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import {
   ITEM_CLASSIFICATIONS,
   classificationLabel,
 } from "@/lib/products/classification-labels";
-import { productMasterSchema } from "@/lib/products/schemas";
 import {
   TAX_CATEGORY_OPTIONS,
   taxCategoryLabel,
 } from "@/lib/products/tax-options";
 import { UOM_OPTIONS } from "@/lib/products/uom-options";
 import {
-  defaultProductFormValues,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
   type ProductMasterFormValues,
@@ -44,6 +35,8 @@ import {
   type ProductValuationSnapshot,
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
+import { useProductForm } from "@/lib/products/use-product-form";
+import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { PRODUCT_FORM_SECTIONS, PRODUCT_SECTION_IDS, type ProductSectionId } from "@/lib/products/section-nav";
 import {
   PRODUCT_VARIANT_STRATEGIES,
@@ -58,7 +51,7 @@ import {
 import { useFormSectionSpy } from "@/lib/settings/form-section-spy";
 import { cn } from "@/lib/utils";
 
-export type ProductFormMode = "create" | "view" | "edit";
+export type { ProductFormMode };
 
 type Props = {
   tenantId: string;
@@ -130,22 +123,34 @@ export function ProductMasterForm({
   onSaved,
   onExtensionsChanged,
 }: Props) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
   const [sectionOrder, setSectionOrder] = useState<ProductSectionId[]>(() => loadProductSectionOrder());
   const moduleHeaderRef = useRef<HTMLDivElement>(null);
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const isDrawer = layout === "drawer";
-  const readOnly = mode === "view";
-  const fieldDisabled = isPending || readOnly;
 
-  const form = useForm<ProductMasterFormValues>({
-    resolver: zodResolver(productMasterSchema),
-    defaultValues: initialValues ?? {
-      ...defaultProductFormValues,
-      storefront_visibility: mergeStorefrontVisibility(catalogContext.storefronts, []),
-    },
+  const {
+    form,
+    readOnly,
+    isPending,
+    fieldDisabled,
+    submit,
+    onSubmit,
+    itemId,
+    categoryId,
+    variantStrategy,
+    isMultiSku,
+    baseUom,
+    purchaseUom,
+    categoryTemplates,
+    categoryOptions,
+  } = useProductForm({
+    categories,
+    catalogContext,
+    initialValues,
+    mode,
+    onSaved,
+    onPendingChange,
   });
 
   const {
@@ -157,12 +162,6 @@ export function ProductMasterForm({
   } = form;
 
   const showAdvanced = watch("show_advanced");
-  const itemId = watch("item_id");
-  const categoryId = watch("category_id");
-  const variantStrategy = watch("variant_strategy");
-  const isMultiSku = variantStrategy === "MULTI_SKU";
-  const baseUom = watch("base_unit_of_measure");
-  const purchaseUom = watch("purchase_uom");
   const variantAttributes = watch("variant_attributes");
   const skuMask = watch("sku_mask");
   const masterSku = watch("sku");
@@ -170,13 +169,6 @@ export function ProductMasterForm({
   const alternateUoms = watch("alternate_uoms");
   const tagIds = watch("tag_ids");
   const storefrontVisibility = watch("storefront_visibility");
-  const categoryOptions = parentSelectOptions(categories).filter((option) => option.id !== null);
-  const previousBaseUomRef = useRef(baseUom);
-
-  const categoryTemplates = useMemo(() => {
-    if (!categoryId) return [];
-    return categories.find((category) => category.id === categoryId)?.attribute_templates ?? [];
-  }, [categories, categoryId]);
 
   const visibleSections = useMemo(
     () =>
@@ -235,32 +227,6 @@ export function ProductMasterForm({
     [scrollToSection, setValue, showAdvanced]
   );
 
-  const onSubmit = useCallback(
-    (values: ProductMasterFormValues) => {
-      startTransition(async () => {
-        const result = await saveProductMasterProfile(values);
-
-        if ("error" in result) {
-          toast.error(result.error ?? "Unable to save product profile.");
-          return;
-        }
-
-        toast.success(
-          values.variant_strategy === "MULTI_SKU" && !values.item_id
-            ? "Style saved. Use Variant Management to generate sellable SKUs."
-            : "Product master profile saved successfully"
-        );
-        onSaved(result.itemId, result.detail ?? null);
-        router.refresh();
-      });
-    },
-    [onSaved, router]
-  );
-
-  useEffect(() => {
-    onPendingChange?.(isPending);
-  }, [isPending, onPendingChange]);
-
   useEffect(() => {
     setTagOptions(catalogContext.tags);
   }, [catalogContext.tags]);
@@ -272,52 +238,17 @@ export function ProductMasterForm({
   }, [isDrawer, sectionOrder]);
 
   useEffect(() => {
-    const nextValues =
-      initialValues ??
-      ({
-        ...defaultProductFormValues,
-        storefront_visibility: mergeStorefrontVisibility(catalogContext.storefronts, []),
-      } satisfies ProductMasterFormValues);
-    form.reset(nextValues);
-    previousBaseUomRef.current = nextValues.base_unit_of_measure;
-  }, [initialValues, form, catalogContext.storefronts]);
-
-  useEffect(() => {
-    if (itemId || !categoryId) return;
-    const category = categories.find((entry) => entry.id === categoryId);
-    if (!category) return;
-    setValue("variant_strategy", category.default_variant_strategy, { shouldDirty: true });
-  }, [categoryId, categories, itemId, setValue]);
-
-  useEffect(() => {
-    if (previousBaseUomRef.current === baseUom) return;
-
-    const sellingUom = form.getValues("selling_uom");
-    const currentPurchaseUom = form.getValues("purchase_uom");
-
-    if (sellingUom === previousBaseUomRef.current) {
-      setValue("selling_uom", baseUom, { shouldDirty: true });
-    }
-    if (currentPurchaseUom === previousBaseUomRef.current) {
-      setValue("purchase_uom", baseUom, { shouldDirty: true });
-      setValue("purchase_uom_conversion", "1", { shouldDirty: true });
-    }
-
-    previousBaseUomRef.current = baseUom;
-  }, [baseUom, form, setValue]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (readOnly) return;
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
-        void handleSubmit(onSubmit)();
+        submit();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleSubmit, onSubmit, readOnly]);
+  }, [readOnly, submit]);
 
   return (
     <form
