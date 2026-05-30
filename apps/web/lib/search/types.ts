@@ -84,7 +84,7 @@ export type FieldValueSource =
 
 export type FieldMetadata = {
   valueType: FieldValueType;
-  allowedOperators: FilterOperator[];
+  allowedOperators?: FilterOperator[];
   valueSource?: FieldValueSource;
   supportsMultiValue?: boolean;
   supportsBetween?: boolean;

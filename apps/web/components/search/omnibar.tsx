@@ -1,14 +1,13 @@
 "use client";
 
 import { Search, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { listFilterValueOptions } from "@/app/search/actions";
 import { HintDrawer } from "@/components/search/hint-drawer";
 import { OmnibarScopeSelect } from "@/components/search/omnibar-scope-select";
 import { useOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
-import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
 import {
   analyzeActiveSegment,
   applyHintToQuery,
@@ -33,7 +32,11 @@ type Props = {
   variant?: "inline" | "dialog";
 };
 
-export function Omnibar({ className, mobile = false, variant = "inline" }: Props) {
+export function Omnibar({
+  className,
+  mobile = false,
+  variant = "inline",
+}: Props) {
   const router = useRouter();
   const {
     rawQuery,
@@ -56,6 +59,7 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
   const [focused, setFocused] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [activeHintIndex, setActiveHintIndex] = useState(0);
+  const [hasNavigatedHint, setHasNavigatedHint] = useState(false);
   const [valueOptions, setValueOptions] = useState<FilterValueOption[]>([]);
   const [valueOptionsLoading, setValueOptionsLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -171,41 +175,49 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
     }
   }, [activeHintIndex, hintItems.length]);
 
-  const applyHint = (hint: OmnibarHint) => {
-    if (hint.kind === "navigation" && hint.href) {
-      router.push(hint.href);
-      setFocused(false);
-      return;
-    }
+  const applyHint = useCallback(
+    (hint: OmnibarHint) => {
+      if (hint.kind === "navigation" && hint.href) {
+        router.push(hint.href);
+        setFocused(false);
+        return;
+      }
 
-    if (hint.kind === "recent" && hint.query) {
-      applyQueryDirect(hint.query);
-      setFocused(false);
-      return;
-    }
+      if (hint.kind === "recent" && hint.query) {
+        applyQueryDirect(hint.query);
+        setFocused(false);
+        return;
+      }
 
-    const { nextQuery, nextCursor } = applyHintToQuery(rawQuery, cursor, hint, fieldDict);
-    setRawQuery(nextQuery);
-    setCursor(nextCursor);
-    setActiveHintIndex(0);
-    window.requestAnimationFrame(() => {
-      const input = inputRef.current;
-      if (!input) return;
-      input.focus();
-      input.setSelectionRange(nextCursor, nextCursor);
-    });
-  };
+      const { nextQuery, nextCursor } = applyHintToQuery(rawQuery, cursor, hint, fieldDict);
+      setRawQuery(nextQuery);
+      setCursor(nextCursor);
+      setActiveHintIndex(0);
+      setHasNavigatedHint(false);
+      window.requestAnimationFrame(() => {
+        const input = inputRef.current;
+        if (!input) return;
+        input.focus();
+        input.setSelectionRange(nextCursor, nextCursor);
+      });
+    },
+    [applyQueryDirect, cursor, fieldDict, inputRef, rawQuery, router, setRawQuery]
+  );
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    const highlightedHint = showHints ? hintItems[activeHintIndex] : undefined;
+
     if (showHints && hintItems.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
         setActiveHintIndex((value) => (value + 1) % hintItems.length);
+        setHasNavigatedHint(true);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
         setActiveHintIndex((value) => (value - 1 + hintItems.length) % hintItems.length);
+        setHasNavigatedHint(true);
         return;
       }
       if (event.key === "Tab") {
@@ -213,30 +225,31 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
         applyHint(hintItems[activeHintIndex]!);
         return;
       }
-      if (event.key === "Enter") {
-        event.preventDefault();
-        const trimmed = rawQuery.trim();
-        const shouldAddDraft =
-          variant === "dialog" &&
-          trimmed.length > 0 &&
-          isDraftReadyFilterClause(trimmed, fieldDict);
-        if (shouldAddDraft) {
-          addDraftCriterion();
-          return;
-        }
-        applyHint(hintItems[activeHintIndex]!);
-        return;
-      }
-      return;
     }
 
     if (event.key !== "Enter") return;
     event.preventDefault();
+
+    // If the user explicitly navigated to a hint (e.g. an AND/OR connector),
+    // Enter applies that hint instead of committing/submitting.
+    if (hasNavigatedHint && highlightedHint) {
+      applyHint(highlightedHint);
+      return;
+    }
+
     if (variant === "dialog") {
-      const trimmed = rawQuery.trim();
-      if (trimmed && isDraftReadyFilterClause(trimmed, fieldDict)) {
-        addDraftCriterion();
-      }
+      // Commit the current input as one or more chips (compound queries are split
+      // into a chip per clause). Fall back to applying the top hint when nothing
+      // is committable yet (i.e. an incomplete clause being autocompleted).
+      if (addDraftCriterion()) return;
+      if (highlightedHint) applyHint(highlightedHint);
+      return;
+    }
+
+    // Inline variant: Enter on an empty box applies a highlighted recent search;
+    // otherwise it submits the current query (which handles compound clauses).
+    if (rawQuery.trim().length === 0 && highlightedHint) {
+      applyHint(highlightedHint);
       return;
     }
     submitFilter();
@@ -269,6 +282,7 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
             setRawQuery(event.target.value);
             setCursor(event.target.selectionStart ?? event.target.value.length);
             setActiveHintIndex(0);
+            setHasNavigatedHint(false);
           }}
           onSelect={(event) => {
             setCursor(event.currentTarget.selectionStart ?? rawQuery.length);
@@ -302,16 +316,6 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
         )}
       </div>
 
-      {filterError ? (
-        <p className="mt-1 text-[11px] text-destructive" role="alert">
-          {filterError}
-        </p>
-      ) : variant === "dialog" ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Pick a field, operator, and value · AND/OR to extend · Enter adds criterion · Ctrl+Enter to apply
-        </p>
-      ) : null}
-
       {showDrawer ? (
         <HintDrawer
           hints={hintItems}
@@ -321,7 +325,18 @@ export function Omnibar({ className, mobile = false, variant = "inline" }: Props
           title={hintTitle}
           loading={showValueLoading}
           emptyMessage={showValueEmpty ? "Type a value, then press Enter" : undefined}
+          placement={variant === "dialog" ? "stacked" : "dropdown"}
         />
+      ) : null}
+
+      {filterError ? (
+        <p className="mt-1 text-[11px] text-destructive" role="alert">
+          {filterError}
+        </p>
+      ) : variant === "dialog" ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Tab autocompletes · AND/OR to extend · Enter adds criterion · Ctrl+Enter to apply
+        </p>
       ) : null}
     </div>
   );

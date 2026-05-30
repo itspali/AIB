@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import type { OmnibarHint } from "@/lib/search/types";
 import { cn } from "@/lib/utils";
 
-type Props = {
+export type OmnibarHintDrawerProps = {
   hints: OmnibarHint[];
   activeIndex: number;
   onSelect: (hint: OmnibarHint) => void;
@@ -13,6 +14,11 @@ type Props = {
   title?: string;
   loading?: boolean;
   emptyMessage?: string;
+};
+
+type Props = OmnibarHintDrawerProps & {
+  placement?: "dropdown" | "stacked" | "panel";
+  panelContainer?: HTMLElement | null;
 };
 
 export function HintDrawer({
@@ -23,6 +29,8 @@ export function HintDrawer({
   title = "Suggestions",
   loading = false,
   emptyMessage,
+  placement = "dropdown",
+  panelContainer = null,
 }: Props) {
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -33,9 +41,28 @@ export function HintDrawer({
     active?.scrollIntoView({ block: "nearest" });
   }, [activeIndex, hints]);
 
+  const shellClassName = cn(
+    "overflow-hidden bg-card/95 backdrop-blur-xl",
+    placement === "dropdown" &&
+      "absolute left-0 right-0 top-full z-[60] mt-1 rounded-xl border border-border p-2 shadow-lg",
+    placement === "stacked" &&
+      "relative z-[60] mt-1 rounded-xl border border-border p-2 shadow-lg",
+    placement === "panel" &&
+      "shrink-0 border-t border-border/60 px-4 py-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)]"
+  );
+
+  const renderShell = (body: ReactNode) => {
+    const node = <div className={shellClassName}>{body}</div>;
+    if (placement === "panel") {
+      if (panelContainer) return createPortal(node, panelContainer);
+      return node;
+    }
+    return node;
+  };
+
   if (loading) {
-    return (
-      <div className="absolute left-0 right-0 top-full z-[60] mt-1 overflow-hidden rounded-xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur-xl">
+    return renderShell(
+      <>
         <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {title}
         </p>
@@ -43,31 +70,34 @@ export function HintDrawer({
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Loading suggestions…
         </div>
-      </div>
+      </>
     );
   }
 
   if (hints.length === 0) {
     if (!emptyMessage) return null;
-    return (
-      <div className="absolute left-0 right-0 top-full z-[60] mt-1 overflow-hidden rounded-xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur-xl">
+    return renderShell(
+      <>
         <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {title}
         </p>
         <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyMessage}</p>
-      </div>
+      </>
     );
   }
 
-  return (
-    <div className="absolute left-0 right-0 top-full z-[60] mt-1 overflow-hidden rounded-xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur-xl">
+  return renderShell(
+    <>
       <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {title}
       </p>
       <ul
         ref={listRef}
         id="omnibar-hint-listbox"
-        className="max-h-48 space-y-0.5 overflow-y-auto"
+        className={cn(
+          "space-y-0.5 overflow-y-auto",
+          placement === "dropdown" || placement === "stacked" ? "max-h-48" : "max-h-40"
+        )}
         role="listbox"
       >
         {hints.map((hint, index) => (
@@ -113,6 +143,6 @@ export function HintDrawer({
           </li>
         ))}
       </ul>
-    </div>
+    </>
   );
 }

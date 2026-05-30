@@ -22,7 +22,7 @@ type Props = {
   onModeChange: (mode: ProductFormMode) => void;
   tenantId: string;
   categories: CategoryRow[];
-  catalogContext: ProductCatalogContext;
+  catalogContext: ProductCatalogContext | null;
   detail?: ProductDetailSnapshot | null;
   isLoading?: boolean;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
@@ -83,7 +83,7 @@ export function ProductDrawerForm({
   };
 
   const initialValues =
-    detail && mode !== "create"
+    catalogContext && detail && mode !== "create"
       ? {
           ...detailToFormValues(detail),
           storefront_visibility: mergeStorefrontVisibility(
@@ -135,7 +135,7 @@ export function ProductDrawerForm({
         ) : null
       }
     >
-      {!open ? null : isLoading ? (
+      {!open || !catalogContext ? null : isLoading ? (
         <ProductFormSkeleton />
       ) : (
         <ProductMasterForm

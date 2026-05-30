@@ -14,6 +14,7 @@ export function CatalogSubNav({ active }: Props) {
     <nav className="mt-3 flex gap-2 text-sm md:hidden" aria-label="Inventory sub-navigation">
       <Link
         href="/inventory/items"
+        prefetch={false}
         className={cn(
           "rounded-md px-2.5 py-1 transition-colors duration-200",
           active === "items"
@@ -26,6 +27,7 @@ export function CatalogSubNav({ active }: Props) {
       </Link>
       <Link
         href="/inventory/categories"
+        prefetch={false}
         className={cn(
           "rounded-md px-2.5 py-1 transition-colors duration-200",
           active === "categories"

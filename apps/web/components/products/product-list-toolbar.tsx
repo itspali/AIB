@@ -18,6 +18,7 @@ import {
   PRODUCT_LIST_SORT_OPTIONS,
   sortOptionKey,
 } from "@/lib/products/list-sort";
+import { cn } from "@/lib/utils";
 type CategoryOption = {
   id: string;
   label: string;
@@ -122,14 +123,19 @@ export function ProductListToolbar({
             </Select>
           ) : null}
           <div
-            className="inline-flex rounded-md border border-border p-0.5"
+            className="inline-flex rounded-md border border-border bg-muted p-0.5"
             aria-busy={isSavingPrefs}
           >
             <Button
               type="button"
               size="sm"
-              variant={prefs.viewMode === "table" ? "secondary" : "ghost"}
-              className="h-8 w-8 p-0"
+              variant="ghost"
+              className={cn(
+                "h-8 w-8 p-0 focus-visible:ring-1 focus-visible:ring-ring",
+                prefs.viewMode === "table"
+                  ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
               disabled={controlsDisabled}
               onClick={() => setViewMode("table")}
               title="Table view"
@@ -145,8 +151,13 @@ export function ProductListToolbar({
             <Button
               type="button"
               size="sm"
-              variant={prefs.viewMode === "compact" ? "secondary" : "ghost"}
-              className="h-8 w-8 p-0"
+              variant="ghost"
+              className={cn(
+                "h-8 w-8 p-0 focus-visible:ring-1 focus-visible:ring-ring",
+                prefs.viewMode === "compact"
+                  ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
               disabled={controlsDisabled}
               onClick={() => setViewMode("compact")}
               title="Compact view"

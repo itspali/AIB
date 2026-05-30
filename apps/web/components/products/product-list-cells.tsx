@@ -2,6 +2,7 @@
 
 import { Package } from "lucide-react";
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
@@ -20,6 +21,20 @@ function formatBoolean(value: boolean): ReactNode {
     <span className={cn("text-xs font-medium", value ? "text-emerald-600" : "text-muted-foreground")}>
       {value ? "Yes" : "No"}
     </span>
+  );
+}
+
+function formatActiveStatus(value: boolean): ReactNode {
+  return (
+    <Badge
+      variant={value ? "completed" : "locked"}
+      className={cn(
+        "shrink-0 whitespace-nowrap ring-0",
+        value ? "border border-emerald-500/30" : "border border-border"
+      )}
+    >
+      {value ? "Active" : "Inactive"}
+    </Badge>
   );
 }
 
@@ -77,7 +92,7 @@ export function renderProductListCell(
     case "default_tax_category":
       return taxCategoryLabel(product.default_tax_category);
     case "is_active":
-      return formatBoolean(product.is_active);
+      return formatActiveStatus(product.is_active);
     case "is_purchasable":
       return formatBoolean(product.is_purchasable);
     case "is_salable":
@@ -117,6 +132,13 @@ export function renderProductListCell(
   }
 }
 
+export function productListCellWrapClassName(columnId: ProductListColumnId): string {
+  if (columnId === "image" || columnId === "is_active") {
+    return columnId === "is_active" ? "flex justify-center overflow-visible" : "";
+  }
+  return "truncate";
+}
+
 export function productListCellClassName(columnId: ProductListColumnId): string {
   if (columnId === "image") {
     return "w-12 max-w-[48px] p-1 text-center";
@@ -128,8 +150,10 @@ export function productListCellClassName(columnId: ProductListColumnId): string 
   ) {
     return "font-mono text-xs";
   }
+  if (columnId === "is_active") {
+    return "w-24 min-w-24 text-center";
+  }
   if (
-    columnId === "is_active" ||
     columnId === "is_purchasable" ||
     columnId === "is_salable" ||
     columnId === "is_returnable" ||

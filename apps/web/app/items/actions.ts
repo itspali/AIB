@@ -1,7 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
+import {
+  fetchProductListByIds,
+  fetchProductListPage,
+  PRODUCT_LIST_PAGE_SIZE,
+} from "@/lib/products/list-queries";
+import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { fetchProductDetail } from "@/lib/products/queries";
+import { resolveSessionProductFieldPermissions } from "@/lib/products/field-permissions-server";
 import { productMasterSchema } from "@/lib/products/schemas";
 import { buildCustomFieldsPayload } from "@/lib/products/sku-mask";
 import type { ProductMasterInput } from "@/lib/products/schemas";
@@ -169,6 +177,69 @@ export async function getProductDetail(itemId: string) {
   const detail = await fetchProductDetail(supabase, tenantId, itemId);
   if (!detail) return { error: "Product profile not found." };
   return { detail };
+}
+
+export async function getProductCatalogContext() {
+  const { supabase, tenantId } = await requireTenantId();
+  const catalogContext = await fetchProductCatalogContext(supabase, tenantId);
+  return { catalogContext };
+}
+
+export async function fetchMoreProductListRows(offset: number) {
+  const { supabase, tenantId } = await requireTenantId();
+  const permissions = await resolveSessionProductFieldPermissions(supabase, tenantId);
+
+  return fetchProductListPage(supabase, tenantId, permissions ?? undefined, {
+    offset,
+    limit: PRODUCT_LIST_PAGE_SIZE,
+    includeImages: false,
+  });
+}
+
+export async function fetchProductListByFilterIds(itemIds: string[]) {
+  const { supabase, tenantId } = await requireTenantId();
+  const permissions = await resolveSessionProductFieldPermissions(supabase, tenantId);
+
+  return fetchProductListByIds(supabase, tenantId, itemIds, permissions ?? undefined, {
+    includeImages: false,
+  });
+}
+
+export async function hydrateProductListImageUrls(itemIds: string[]) {
+  const uniqueIds = [...new Set(itemIds.filter(Boolean))];
+  if (!uniqueIds.length) return { imageUrls: {} as Record<string, string | null> };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data, error } = await supabase
+    .from("product_list_workspace_rows")
+    .select("id, primary_image_storage_path")
+    .eq("tenant_id", tenantId)
+    .in("id", uniqueIds);
+
+  if (error || !data?.length) {
+    return { imageUrls: {} as Record<string, string | null> };
+  }
+
+  const rows = data as Array<{ id: string; primary_image_storage_path: string | null }>;
+  const imageUrls: Record<string, string | null> = {};
+  const pathByItem = new Map<string, string>();
+
+  for (const row of rows) {
+    const path = row.primary_image_storage_path?.trim();
+    if (!path) continue;
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      imageUrls[row.id] = path;
+      continue;
+    }
+    pathByItem.set(row.id, path);
+  }
+
+  const signedUrls = await resolveProductMediaSignedUrls(supabase, [...pathByItem.values()]);
+  for (const [itemId, path] of pathByItem) {
+    imageUrls[itemId] = signedUrls.get(path) ?? null;
+  }
+
+  return { imageUrls };
 }
 
 export async function saveItemVariant(raw: unknown) {

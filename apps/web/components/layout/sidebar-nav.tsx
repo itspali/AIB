@@ -126,6 +126,7 @@ function SidebarNavGroup({
               <DropdownMenuItem key={child.href} asChild>
                 <Link
                   href={child.href}
+                  prefetch={false}
                   className={cn(childActive && "bg-primary/10 text-primary font-medium")}
                 >
                   {child.label}
@@ -150,6 +151,7 @@ function SidebarNavGroup({
       >
         <Link
           href={activeChild?.href ?? children[0]?.href ?? item.href}
+          prefetch={false}
           aria-current={groupActive && !expanded ? "page" : undefined}
           className={cn(
             navLinkClass,
@@ -191,6 +193,7 @@ function SidebarNavGroup({
               <Link
                 key={child.href}
                 href={child.href}
+                prefetch={false}
                 aria-current={childActive ? "page" : undefined}
                 className={cn(
                   childLinkClass,

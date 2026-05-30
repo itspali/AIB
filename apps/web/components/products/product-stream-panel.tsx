@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveProductListUserPrefs } from "@/app/items/actions";
+import { Button } from "@/components/ui/button";
+import { hydrateProductListImageUrls, saveProductListUserPrefs } from "@/app/items/actions";
 import { ProductListCompact } from "@/components/products/product-list-compact";
 import { ProductListSkeleton } from "@/components/products/product-list-skeleton";
 import { ProductListTable } from "@/components/products/product-list-table";
@@ -16,7 +18,9 @@ import { redactProductListRow } from "@/lib/products/field-permissions";
 import {
   bumpProductListPrefsRevision,
   loadProductListPrefs,
+  AUTO_LAYOUT_PREF,
   resolveCardGridColumns,
+  resolveFrozenColumnCount,
   resolvePrefsOnMount,
   saveProductListPrefs,
   shouldPersistPrefsImmediately,
@@ -32,20 +36,34 @@ const PREFS_SAVE_DEBOUNCE_MS = 500;
 
 type Props = {
   products: ProductListRow[];
+  totalCount?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  structuralFilterResolved?: boolean;
+  isLoadingStructuralFilter?: boolean;
   categories: CategoryRow[];
   selectedId: string | null;
   fieldPermissions: ProductFieldPermissions;
   initialListPrefs?: ProductListPrefs | null;
   onSelect: (productId: string) => void;
+  onImagesHydrated?: (imageUrls: Record<string, string | null>) => void;
 };
 
 export function ProductStreamPanel({
   products,
+  totalCount = products.length,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  structuralFilterResolved = false,
+  isLoadingStructuralFilter = false,
   categories,
   selectedId,
   fieldPermissions,
   initialListPrefs,
   onSelect,
+  onImagesHydrated,
 }: Props) {
   const omnibar = useOptionalOmnibarContext();
   const { deviceClass } = useDeviceClass();
@@ -66,7 +84,11 @@ export function ProductStreamPanel({
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     const localPrefs = loadProductListPrefs();
-    setPrefs(resolvePrefsOnMount(initialListPrefsRef.current, localPrefs));
+    const hydrated = resolvePrefsOnMount(initialListPrefsRef.current, localPrefs);
+    // Sync the comparison ref so the save effect does not treat hydration as a
+    // user edit (which would fire a needless saveProductListUserPrefs action).
+    prevPrefsRef.current = hydrated;
+    setPrefs(hydrated);
     setPrefsHydrated(true);
   }, []);
 
@@ -160,7 +182,7 @@ export function ProductStreamPanel({
     if (omnibar?.appliedQuery.trim()) {
       const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
 
-      if (hasStructuralFilter && omnibar.filteredItemIds) {
+      if (hasStructuralFilter && !structuralFilterResolved && omnibar.filteredItemIds) {
         rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
       } else if (!hasStructuralFilter && omnibar.residualText) {
         rows = applyFallbackTextFilter(
@@ -187,6 +209,7 @@ export function ProductStreamPanel({
     omnibar?.activeAst,
     omnibar?.residualText,
     omnibar?.inlinePreviewText,
+    structuralFilterResolved,
   ]);
 
   const displayedProducts = useMemo(
@@ -205,12 +228,48 @@ export function ProductStreamPanel({
     [deviceClass, fieldPermissions.allowedFields, prefs]
   );
 
+  const shouldHydrateImages = useMemo(
+    () => prefs.viewMode === "compact" || visibleColumns.includes("image"),
+    [prefs.viewMode, visibleColumns]
+  );
+
+  const imageHydrationKeyRef = useRef("");
+
+  useEffect(() => {
+    if (!shouldHydrateImages || !onImagesHydrated || !prefsHydrated) return;
+
+    const pendingIds = products
+      .filter((row) => row.image_url == null)
+      .map((row) => row.id);
+    if (!pendingIds.length) return;
+
+    const hydrationKey = pendingIds.join(",");
+    if (imageHydrationKeyRef.current === hydrationKey) return;
+    imageHydrationKeyRef.current = hydrationKey;
+
+    let cancelled = false;
+    void (async () => {
+      const result = await hydrateProductListImageUrls(pendingIds);
+      if (cancelled) return;
+      onImagesHydrated(result.imageUrls);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onImagesHydrated, prefsHydrated, products, shouldHydrateImages]);
+
   const cardGridColumns = useMemo(
     () => resolveCardGridColumns(prefs, deviceClass),
     [deviceClass, prefs]
   );
 
-  const listContent = !prefsHydrated ? (
+  const frozenColumnCount = useMemo(
+    () => resolveFrozenColumnCount(prefs, deviceClass),
+    [deviceClass, prefs]
+  );
+
+  const listContent = !prefsHydrated || isLoadingStructuralFilter ? (
     <ProductListSkeleton viewMode={prefs.viewMode} />
   ) : displayedProducts.length === 0 ? (
     <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
@@ -233,7 +292,8 @@ export function ProductStreamPanel({
       selectedId={selectedId}
       sortField={prefs.sortField}
       sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
+      frozenColumnCount={frozenColumnCount}
+      freezeColumnsAuto={prefs.frozenColumnCount === AUTO_LAYOUT_PREF}
       onSortChange={(sortField, sortDirection) =>
         handlePrefsChange((current) => ({ ...current, sortField, sortDirection }))
       }
@@ -252,13 +312,34 @@ export function ProductStreamPanel({
           fieldPermissions={fieldPermissions}
           detectedDeviceClass={deviceClass}
           resultCount={displayedProducts.length}
-          totalCount={products.length}
+          totalCount={totalCount}
           prefsHydrated={prefsHydrated}
           isSavingPrefs={isSavingPrefs}
           isSavingColumnPrefs={isSavingColumnPrefs}
         />
 
       {listContent}
+
+      {hasMore && onLoadMore ? (
+        <div className="flex justify-center pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isLoadingMore}
+            onClick={() => onLoadMore()}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Loading…
+              </>
+            ) : (
+              `Load more (${Math.max(totalCount - products.length, 0)} remaining)`
+            )}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

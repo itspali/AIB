@@ -87,7 +87,7 @@ type OmnibarContextValue = {
   closeCommandPalette: () => void;
   cancelCommandPalette: () => void;
   modalDraftAst: AstClause[];
-  addDraftCriterion: () => void;
+  addDraftCriterion: () => boolean;
   addDraftCriterionFromBuilder: (draft: CriterionDraft) => boolean;
   removeDraftCriterionAt: (index: number) => void;
   clearModalDraft: () => void;
@@ -111,6 +111,13 @@ type OmnibarContextValue = {
   setActiveSavedViewSnapshot: (view: SavedViewSnapshot | null) => void;
   notifySavedViewsChanged: () => void;
   savedViewsRevision: number;
+  isDefaultViewBootstrapping: boolean;
+  resolvingDefaultView: CustomModuleView | null;
+  hydrateModuleViewFromServer: (
+    view: SavedViewSnapshot,
+    filteredItemIds: string[] | null
+  ) => void;
+  markDefaultViewResolvedOnServer: (scope: FilterScope) => void;
 };
 
 const OmnibarContext = createContext<OmnibarContextValue | null>(null);
@@ -143,9 +150,18 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const [savedViewsRevision, setSavedViewsRevision] = useState(0);
   const [recentSearchesRevision, setRecentSearchesRevision] = useState(0);
   const [openPaletteAfterViewLoad, setOpenPaletteAfterViewLoad] = useState(false);
-  const defaultLoadedForScopeRef = useRef<Set<FilterScope>>(new Set());
+  const defaultFetchResultRef = useRef<CustomModuleView | null | undefined>(undefined);
+  const defaultAppliedRef = useRef(false);
+  const defaultFetchScopeRef = useRef<FilterScope | null>(null);
+  const appliedQueryRef = useRef(appliedQuery);
+  appliedQueryRef.current = appliedQuery;
   const routeScopeRef = useRef<FilterScope>(scope);
   const runRequestIdRef = useRef(0);
+
+  const [isDefaultViewBootstrapping, setIsDefaultViewBootstrapping] = useState(() =>
+    isSavedViewsScope(resolveScopeFromPath(pathname))
+  );
+  const [resolvingDefaultView, setResolvingDefaultView] = useState<CustomModuleView | null>(null);
 
   const userId = operatorProfile?.userId ?? null;
   const cacheTenantId = tenantId ?? "session";
@@ -182,6 +198,11 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       setOpenPaletteAfterViewLoad(false);
       setIsExecuting(false);
       setModuleFilterRevision((value) => value + 1);
+      defaultFetchScopeRef.current = null;
+      defaultFetchResultRef.current = undefined;
+      defaultAppliedRef.current = false;
+      setResolvingDefaultView(null);
+      setIsDefaultViewBootstrapping(isSavedViewsScope(nextScope));
       routeScopeRef.current = nextScope;
     }
     setScopeState(nextScope);
@@ -267,11 +288,20 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
 
   const addDraftCriterion = useCallback(() => {
     const trimmed = rawQuery.trim();
-    if (!trimmed || !permissions) return;
+    if (!trimmed || !permissions) return false;
     const fieldDict = buildFieldDict(scope, permissions);
-    if (!isDraftReadyFilterClause(trimmed, fieldDict)) return;
-    setModalDraftSegments((segments) => [...segments, trimmed]);
+
+    // Split compound input (e.g. "X and Y") into one chip per clause via the
+    // compiler, which keeps OR-combined values inside a single clause.
+    const compiled = compileFilterQuery(trimmed, scope, fieldDict);
+    const segments = compiled.clauseSegments.filter((segment) =>
+      isDraftReadyFilterClause(segment, fieldDict)
+    );
+    if (segments.length === 0) return false;
+
+    setModalDraftSegments((current) => [...current, ...segments]);
     setRawQuery("");
+    return true;
   }, [rawQuery, permissions, scope]);
 
   const addDraftCriterionFromBuilder = useCallback(
@@ -538,23 +568,180 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     openCommandPalette();
   }, [openPaletteAfterViewLoad, compileResult, appliedQuery, activeSavedView, openCommandPalette]);
 
+  const finishDefaultViewBootstrap = useCallback(() => {
+    setIsDefaultViewBootstrapping(false);
+    setResolvingDefaultView(null);
+  }, []);
+
+  const compileSavedViewQuery = useCallback(
+    (view: SavedViewSnapshot, viewScope: FilterScope) => {
+      if (!permissions) return;
+      const fieldDict = buildFieldDict(viewScope, permissions);
+      setCompileResult(compileFilterQuery(view.raw_search_text, viewScope, fieldDict));
+    },
+    [permissions]
+  );
+
+  const hydrateModuleViewFromServer = useCallback(
+    (view: SavedViewSnapshot, filteredItemIds: string[] | null) => {
+      const viewScope = view.module_name as FilterScope;
+      if (!isSavedViewsScope(viewScope)) return;
+
+      defaultFetchScopeRef.current = viewScope;
+      defaultFetchResultRef.current = null;
+      defaultAppliedRef.current = true;
+
+      if (scope !== viewScope) {
+        setScopePinnedToAll(false);
+        setScopeState(viewScope);
+      }
+
+      setActiveSavedView(view);
+      setRawQuery("");
+      setAppliedQuery(view.raw_search_text);
+      setFilterError(null);
+      setInlinePreviewText(null);
+      setOpenPaletteAfterViewLoad(false);
+
+      if (filteredItemIds !== null) {
+        setFilteredItemIds(new Set(filteredItemIds));
+        setIsExecuting(false);
+        setModuleFilterRevision((value) => value + 1);
+      } else if (viewScope === "items" && savedViewNeedsNativeFilter(view.compiled_ast)) {
+        setFilteredItemIds(null);
+        setIsExecuting(true);
+        void runAppliedFilter(view.raw_search_text, viewScope);
+      } else {
+        setFilteredItemIds(null);
+        setIsExecuting(false);
+        void runAppliedFilter(view.raw_search_text, viewScope);
+      }
+
+      compileSavedViewQuery(view, viewScope);
+      finishDefaultViewBootstrap();
+    },
+    [scope, runAppliedFilter, compileSavedViewQuery, finishDefaultViewBootstrap]
+  );
+
+  const markDefaultViewResolvedOnServer = useCallback(
+    (resolvedScope: FilterScope) => {
+      defaultFetchScopeRef.current = resolvedScope;
+      defaultFetchResultRef.current = null;
+      defaultAppliedRef.current = true;
+      finishDefaultViewBootstrap();
+    },
+    [finishDefaultViewBootstrap]
+  );
+
+  const tryApplyDefaultViewRef = useRef<() => void>(() => {});
+
+  const tryApplyDefaultView = useCallback(() => {
+    if (!isSavedViewsScope(scope)) {
+      finishDefaultViewBootstrap();
+      return;
+    }
+    if (appliedQueryRef.current.trim().length > 0) {
+      finishDefaultViewBootstrap();
+      return;
+    }
+
+    const fetchResult = defaultFetchResultRef.current;
+    if (fetchResult === undefined) {
+      setIsDefaultViewBootstrapping(true);
+      return;
+    }
+    if (fetchResult === null) {
+      finishDefaultViewBootstrap();
+      return;
+    }
+    if (!permissions) {
+      setIsDefaultViewBootstrapping(true);
+      setResolvingDefaultView(fetchResult);
+      return;
+    }
+    if (defaultAppliedRef.current) {
+      return;
+    }
+
+    defaultAppliedRef.current = true;
+    setResolvingDefaultView(fetchResult);
+    loadSavedView(fetchResult);
+  }, [scope, permissions, loadSavedView, finishDefaultViewBootstrap]);
+
+  tryApplyDefaultViewRef.current = tryApplyDefaultView;
+
   useEffect(() => {
-    if (!permissions || !isSavedViewsScope(scope)) return;
-    if (defaultLoadedForScopeRef.current.has(scope)) return;
-    if (appliedQuery.trim().length > 0) return;
+    if (!isDefaultViewBootstrapping) return;
+    if (!defaultAppliedRef.current) return;
+
+    if (!activeSavedView) return;
+    if (isExecuting) return;
+
+    const needsNativeFilter =
+      scope === "items" && savedViewNeedsNativeFilter(activeSavedView.compiled_ast);
+    if (needsNativeFilter && appliedQuery.trim() && filteredItemIds === null) {
+      return;
+    }
+
+    finishDefaultViewBootstrap();
+  }, [
+    isDefaultViewBootstrapping,
+    activeSavedView,
+    isExecuting,
+    appliedQuery,
+    filteredItemIds,
+    scope,
+    finishDefaultViewBootstrap,
+  ]);
+
+  useEffect(() => {
+    if (!isSavedViewsScope(scope)) {
+      defaultFetchResultRef.current = null;
+      defaultFetchScopeRef.current = null;
+      defaultAppliedRef.current = false;
+      finishDefaultViewBootstrap();
+      return;
+    }
+    if (appliedQueryRef.current.trim().length > 0) {
+      finishDefaultViewBootstrap();
+      return;
+    }
+    if (defaultAppliedRef.current && defaultFetchScopeRef.current === scope) {
+      return;
+    }
+    if (defaultFetchScopeRef.current === scope) {
+      tryApplyDefaultViewRef.current();
+      return;
+    }
 
     const moduleDef = getModuleViewDefinition(scope);
-    if (!moduleDef) return;
+    if (!moduleDef) {
+      defaultFetchResultRef.current = null;
+      finishDefaultViewBootstrap();
+      return;
+    }
 
-    defaultLoadedForScopeRef.current.add(scope);
+    defaultFetchScopeRef.current = scope;
+    defaultFetchResultRef.current = undefined;
+    defaultAppliedRef.current = false;
+    setResolvingDefaultView(null);
+    setIsDefaultViewBootstrapping(true);
 
     void getDefaultCustomModuleView(moduleDef.moduleName).then((result) => {
-      if (!result.ok) return;
-      if (result.view) {
-        loadSavedView(result.view);
-      }
+      if (defaultFetchScopeRef.current !== scope) return;
+      defaultFetchResultRef.current =
+        result.ok && result.view ? result.view : null;
+      tryApplyDefaultViewRef.current();
     });
-  }, [scope, permissions, appliedQuery, loadSavedView]);
+  }, [scope, finishDefaultViewBootstrap]);
+
+  useEffect(() => {
+    tryApplyDefaultViewRef.current();
+    if (permissions && activeSavedView && defaultAppliedRef.current && !compileResult) {
+      const viewScope = activeSavedView.module_name as FilterScope;
+      compileSavedViewQuery(activeSavedView, viewScope);
+    }
+  }, [permissions, tryApplyDefaultView, activeSavedView, compileResult, compileSavedViewQuery]);
 
   const applyModalFilters = useCallback(() => {
     if (!permissions) return;
@@ -563,8 +750,12 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       isDraftReadyFilterClause(segment, fieldDict)
     );
     const pending = rawQuery.trim();
-    if (pending && isDraftReadyFilterClause(pending, fieldDict)) {
-      segments.push(pending);
+    if (pending) {
+      // Pending input may be a compound clause; split it into individual clauses.
+      const compiled = compileFilterQuery(pending, scope, fieldDict);
+      for (const segment of compiled.clauseSegments) {
+        if (isDraftReadyFilterClause(segment, fieldDict)) segments.push(segment);
+      }
     }
 
     const nextQuery = segments.join(" and ");
@@ -686,9 +877,18 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const canApplyModal = useMemo(() => {
     if (!fieldDict.length) return false;
     const pending = rawQuery.trim();
-    if (pending && isDraftReadyFilterClause(pending, fieldDict)) return true;
+    if (pending) {
+      const compiled = compileFilterQuery(pending, scope, fieldDict);
+      if (
+        compiled.clauseSegments.some((segment) =>
+          isDraftReadyFilterClause(segment, fieldDict)
+        )
+      ) {
+        return true;
+      }
+    }
     return modalDraftSegments.some((segment) => isDraftReadyFilterClause(segment, fieldDict));
-  }, [fieldDict, rawQuery, modalDraftSegments]);
+  }, [fieldDict, scope, rawQuery, modalDraftSegments]);
 
   const value = useMemo<OmnibarContextValue>(
     () => ({
@@ -744,6 +944,10 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       setActiveSavedViewSnapshot,
       notifySavedViewsChanged,
       savedViewsRevision,
+      isDefaultViewBootstrapping,
+      resolvingDefaultView,
+      hydrateModuleViewFromServer,
+      markDefaultViewResolvedOnServer,
     }),
     [
       rawQuery,
@@ -791,6 +995,10 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       setActiveSavedViewSnapshot,
       notifySavedViewsChanged,
       savedViewsRevision,
+      isDefaultViewBootstrapping,
+      resolvingDefaultView,
+      hydrateModuleViewFromServer,
+      markDefaultViewResolvedOnServer,
     ]
   );
 

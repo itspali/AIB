@@ -297,26 +297,16 @@ export async function getDefaultCustomModuleView(
   }
 }
 
-export async function setCustomModuleViewDefault(id: string): Promise<CustomModuleViewActionResult> {
+export async function setCustomModuleViewDefault(
+  id: string,
+  moduleName: string
+): Promise<CustomModuleViewActionResult> {
   try {
+    if (!assertRegisteredModuleName(moduleName)) {
+      return { ok: false, error: "Unsupported module for saved views." };
+    }
+
     const { supabase, tenantId, userId } = await getSessionContext();
-
-    const { data: target, error: fetchError } = await supabase
-      .from("custom_module_views")
-      .select("id, module_name")
-      .eq("id", id)
-      .eq("tenant_id", tenantId)
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (fetchError) {
-      return { ok: false, error: fetchError.message };
-    }
-    if (!target) {
-      return { ok: false, error: "Saved view not found." };
-    }
-
-    const moduleName = String(target.module_name);
 
     const { error: clearError } = await supabase
       .from("custom_module_views")
@@ -335,11 +325,15 @@ export async function setCustomModuleViewDefault(id: string): Promise<CustomModu
       .eq("id", id)
       .eq("tenant_id", tenantId)
       .eq("user_id", userId)
+      .eq("module_name", moduleName)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (setError) {
       return { ok: false, error: setError.message };
+    }
+    if (!data) {
+      return { ok: false, error: "Saved view not found." };
     }
 
     return { ok: true, view: mapViewRow(data) };

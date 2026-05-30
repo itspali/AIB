@@ -5,6 +5,7 @@ import {
   getOrderedVisibleColumns,
   PRODUCT_LIST_PREFS_VERSION,
   resolveCardGridColumns,
+  resolveFrozenColumnCount,
   resolvePrefsOnMount,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
@@ -22,7 +23,11 @@ describe("product list prefs migration", () => {
     const migrated = coerceProductListPrefs(legacy);
 
     expect(migrated.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
-    expect(migrated.cardGridColumns).toEqual({ mobile: 1, tablet: 2, desktop: 2 });
+    expect(migrated.cardGridColumns).toEqual({
+      mobile: "auto",
+      tablet: "auto",
+      desktop: "auto",
+    });
     expect(getOrderedVisibleColumns(migrated, "table", "desktop")).toEqual([
       "name",
       "default_sku",
@@ -78,7 +83,7 @@ describe("product list prefs migration", () => {
 
     const migrated = coerceProductListPrefs(v2);
     expect(migrated.prefsVersion).toBe(3);
-    expect(migrated.cardGridColumns.desktop).toBe(2);
+    expect(migrated.cardGridColumns.desktop).toBe("auto");
     expect(getOrderedVisibleColumns(migrated, "compact", "tablet")).toEqual(["name", "default_sku"]);
   });
 
@@ -171,9 +176,18 @@ describe("resolveVisibleColumns", () => {
 describe("resolveCardGridColumns", () => {
   it("clamps desktop preference on smaller devices", () => {
     const prefs = getDefaultProductListPrefs();
-    prefs.cardGridColumns = { mobile: 1, tablet: 2, desktop: 4 };
+    prefs.cardGridColumns = { mobile: "auto", tablet: "auto", desktop: 4 };
 
     expect(resolveCardGridColumns(prefs, "desktop")).toBe(4);
+    expect(resolveCardGridColumns(prefs, "tablet")).toBe(2);
+    expect(resolveCardGridColumns(prefs, "mobile")).toBe(1);
+  });
+
+  it("resolves auto card columns from detected device class", () => {
+    const prefs = getDefaultProductListPrefs();
+    prefs.cardGridColumns = { mobile: "auto", tablet: "auto", desktop: "auto" };
+
+    expect(resolveCardGridColumns(prefs, "desktop")).toBe(2);
     expect(resolveCardGridColumns(prefs, "tablet")).toBe(2);
     expect(resolveCardGridColumns(prefs, "mobile")).toBe(1);
   });
@@ -187,5 +201,23 @@ describe("resolveCardGridColumns", () => {
     expect(prefs.cardGridColumns.mobile).toBe(1);
     expect(prefs.cardGridColumns.tablet).toBe(2);
     expect(prefs.cardGridColumns.desktop).toBe(4);
+  });
+});
+
+describe("resolveFrozenColumnCount", () => {
+  it("forces zero frozen columns on mobile", () => {
+    const prefs = { ...getDefaultProductListPrefs(), frozenColumnCount: 2 as const };
+
+    expect(resolveFrozenColumnCount(prefs, "mobile")).toBe(0);
+    expect(resolveFrozenColumnCount(prefs, "tablet")).toBe(2);
+    expect(resolveFrozenColumnCount(prefs, "desktop")).toBe(2);
+  });
+
+  it("resolves auto frozen columns from detected device class", () => {
+    const prefs = { ...getDefaultProductListPrefs(), frozenColumnCount: "auto" as const };
+
+    expect(resolveFrozenColumnCount(prefs, "mobile")).toBe(0);
+    expect(resolveFrozenColumnCount(prefs, "tablet")).toBe(1);
+    expect(resolveFrozenColumnCount(prefs, "desktop")).toBe(2);
   });
 });

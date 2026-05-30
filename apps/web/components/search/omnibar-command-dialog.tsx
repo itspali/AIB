@@ -129,11 +129,13 @@ export function OmnibarCommandDialog() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 border-b border-border/60 px-4 py-3">
+          <div className="relative z-10 shrink-0 border-b border-border/60 px-4 py-3">
             <Omnibar variant="dialog" />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-muted/20 px-4 py-3">
+          <div className="min-h-0 flex-1" aria-hidden />
+
+          <div className="mt-auto shrink-0 overflow-y-auto border-t border-border/60 bg-muted/20 px-4 py-3">
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Criteria to apply ({draftChips.length})
             </p>

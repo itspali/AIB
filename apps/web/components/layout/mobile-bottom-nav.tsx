@@ -22,6 +22,7 @@ export function MobileBottomNav() {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               aria-label={label}
               aria-current={active ? "page" : undefined}
               className={cn(

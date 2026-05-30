@@ -22,6 +22,10 @@ export type CardGridColumnCount = 1 | 2 | 3 | 4;
 
 export type ProductListFrozenColumnCount = 0 | 1 | 2 | 3;
 
+export const AUTO_LAYOUT_PREF = "auto" as const;
+export type CardGridColumnPref = CardGridColumnCount | typeof AUTO_LAYOUT_PREF;
+export type FrozenColumnPref = ProductListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
+
 export const PRODUCT_LIST_PREFS_VERSION = 3;
 
 const DEVICE_CLASSES: readonly DeviceClass[] = ["mobile", "tablet", "desktop"];
@@ -31,7 +35,7 @@ export type ProductListColumnPrefsByContext = Record<
   Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>
 >;
 
-export type CardGridColumnsByDevice = Record<DeviceClass, CardGridColumnCount>;
+export type CardGridColumnsByDevice = Record<DeviceClass, CardGridColumnPref>;
 
 export type ProductListPrefs = {
   prefsVersion: number;
@@ -41,7 +45,7 @@ export type ProductListPrefs = {
   cardGridColumns: CardGridColumnsByDevice;
   sortField: ProductListSortField;
   sortDirection: ProductListSortDirection;
-  frozenColumnCount: ProductListFrozenColumnCount;
+  frozenColumnCount: FrozenColumnPref;
 };
 
 const TABLE_MOBILE_VISIBLE: ProductListColumnId[] = [
@@ -100,10 +104,32 @@ function buildContextPrefs(visibleIds: ProductListColumnId[]): ListColumnPrefs<P
 
 export function getDefaultCardGridColumns(): CardGridColumnsByDevice {
   return {
-    mobile: 1,
-    tablet: 2,
-    desktop: 2,
+    mobile: AUTO_LAYOUT_PREF,
+    tablet: AUTO_LAYOUT_PREF,
+    desktop: AUTO_LAYOUT_PREF,
   };
+}
+
+export function getAutoCardGridColumns(deviceClass: DeviceClass): CardGridColumnCount {
+  switch (deviceClass) {
+    case "mobile":
+      return 1;
+    case "tablet":
+      return 2;
+    case "desktop":
+      return 2;
+  }
+}
+
+export function getAutoFrozenColumnCount(deviceClass: DeviceClass): ProductListFrozenColumnCount {
+  switch (deviceClass) {
+    case "mobile":
+      return 0;
+    case "tablet":
+      return 1;
+    case "desktop":
+      return 2;
+  }
 }
 
 export function getMaxCardGridColumns(deviceClass: DeviceClass): CardGridColumnCount {
@@ -123,10 +149,27 @@ export function resolveCardGridColumns(
 ): CardGridColumnCount {
   const max = getMaxCardGridColumns(deviceClass);
   const requested = prefs.cardGridColumns[deviceClass];
-  return (Math.min(requested, max) as CardGridColumnCount) || 1;
+  const resolved =
+    requested === AUTO_LAYOUT_PREF ? getAutoCardGridColumns(deviceClass) : requested;
+  return (Math.min(resolved, max) as CardGridColumnCount) || 1;
 }
 
-function parseCardGridColumnCount(value: unknown, fallback: CardGridColumnCount): CardGridColumnCount {
+export function resolveFrozenColumnCount(
+  prefs: ProductListPrefs,
+  deviceClass: DeviceClass
+): ProductListFrozenColumnCount {
+  if (deviceClass === "mobile") return 0;
+  if (prefs.frozenColumnCount === AUTO_LAYOUT_PREF) {
+    return getAutoFrozenColumnCount(deviceClass);
+  }
+  return prefs.frozenColumnCount;
+}
+
+function parseCardGridColumnPref(
+  value: unknown,
+  fallback: CardGridColumnPref
+): CardGridColumnPref {
+  if (value === AUTO_LAYOUT_PREF) return AUTO_LAYOUT_PREF;
   if (value === 1 || value === 2 || value === 3 || value === 4) return value;
   return fallback;
 }
@@ -138,9 +181,15 @@ export function clampCardGridColumns(prefs: ProductListPrefs): ProductListPrefs 
   for (const deviceClass of DEVICE_CLASSES) {
     const max = getMaxCardGridColumns(deviceClass);
     const raw = prefs.cardGridColumns?.[deviceClass] ?? defaults[deviceClass];
-    cardGridColumns[deviceClass] = parseCardGridColumnCount(
+    if (raw === AUTO_LAYOUT_PREF) {
+      cardGridColumns[deviceClass] = AUTO_LAYOUT_PREF;
+      continue;
+    }
+    cardGridColumns[deviceClass] = parseCardGridColumnPref(
       Math.min(raw, max),
-      defaults[deviceClass]
+      defaults[deviceClass] === AUTO_LAYOUT_PREF
+        ? getAutoCardGridColumns(deviceClass)
+        : (defaults[deviceClass] as CardGridColumnCount)
     );
   }
 
@@ -163,7 +212,8 @@ export function getDefaultProductListColumnPrefsByContext(): ProductListColumnPr
   };
 }
 
-function parseFrozenColumnCount(value: unknown): ProductListFrozenColumnCount {
+function parseFrozenColumnCount(value: unknown): FrozenColumnPref {
+  if (value === AUTO_LAYOUT_PREF) return AUTO_LAYOUT_PREF;
   if (value === 1 || value === 2 || value === 3) return value;
   return 0;
 }
@@ -175,7 +225,7 @@ export function getDefaultProductListPrefs(): ProductListPrefs {
     viewMode: "table",
     sortField: DEFAULT_PRODUCT_LIST_SORT_FIELD,
     sortDirection: DEFAULT_PRODUCT_LIST_SORT_DIRECTION,
-    frozenColumnCount: 0,
+    frozenColumnCount: AUTO_LAYOUT_PREF,
     columnPrefs: getDefaultProductListColumnPrefsByContext(),
     cardGridColumns: getDefaultCardGridColumns(),
   });
@@ -299,9 +349,9 @@ function parseCardGridColumns(raw: unknown): CardGridColumnsByDevice {
 
   const parsed = raw as Partial<CardGridColumnsByDevice>;
   return {
-    mobile: 1,
-    tablet: parseCardGridColumnCount(parsed.tablet, defaults.tablet),
-    desktop: parseCardGridColumnCount(parsed.desktop, defaults.desktop),
+    mobile: parseCardGridColumnPref(parsed.mobile, defaults.mobile),
+    tablet: parseCardGridColumnPref(parsed.tablet, defaults.tablet),
+    desktop: parseCardGridColumnPref(parsed.desktop, defaults.desktop),
   };
 }
 
@@ -396,10 +446,23 @@ export function setColumnPrefsSlice(
 export function setCardGridColumnsSlice(
   prefs: ProductListPrefs,
   deviceClass: DeviceClass,
-  columns: CardGridColumnCount
+  columns: CardGridColumnPref
 ): ProductListPrefs {
+  if (columns === AUTO_LAYOUT_PREF) {
+    return {
+      ...prefs,
+      cardGridColumns: {
+        ...prefs.cardGridColumns,
+        [deviceClass]: AUTO_LAYOUT_PREF,
+      },
+    };
+  }
+
   const max = getMaxCardGridColumns(deviceClass);
-  const clamped = parseCardGridColumnCount(Math.min(columns, max), 1);
+  const clamped = parseCardGridColumnPref(
+    Math.min(columns, max),
+    getAutoCardGridColumns(deviceClass)
+  ) as CardGridColumnCount;
   return clampCardGridColumns({
     ...prefs,
     cardGridColumns: {

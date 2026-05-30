@@ -13,7 +13,7 @@ function sampleRow(): ProductListRow {
     name: "Widget",
     description: "A widget",
     image_url: "https://example.com/widget.jpg",
-    classification: "PRODUCT",
+    classification: "PHYSICAL_GOOD",
     base_unit_of_measure: "PCS",
     category_id: null,
     category_name: "Hardware",
@@ -30,6 +30,7 @@ function sampleRow(): ProductListRow {
     selling_price: "99.00",
     purchase_price: "50.00",
     supplier_name: "Acme Supply",
+    stock_on_hand: "0",
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-02T00:00:00.000Z",
   };

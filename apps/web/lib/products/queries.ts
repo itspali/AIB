@@ -563,7 +563,8 @@ async function fetchAggregateStockByItemId(
 export async function fetchProductListRows(
   supabase: SupabaseClient,
   tenantId: string,
-  permissions?: { allowedFields: readonly string[] }
+  permissions?: { allowedFields: readonly string[] },
+  options?: { includeImages?: boolean }
 ): Promise<ProductListRow[]> {
   const { data, error } = await supabase
     .from("items")
@@ -595,9 +596,12 @@ export async function fetchProductListRows(
 
   const rows = data as ItemRow[];
   const itemIds = rows.map((row) => row.id);
+  const includeImages = options?.includeImages ?? true;
   const [commerceByItem, imagesByItem, stockByItem] = await Promise.all([
     fetchListCommerceByItemId(supabase, tenantId, itemIds),
-    fetchListPrimaryImagesByItemId(supabase, tenantId, rows),
+    includeImages
+      ? fetchListPrimaryImagesByItemId(supabase, tenantId, rows)
+      : Promise.resolve(new Map<string, string | null>()),
     fetchAggregateStockByItemId(supabase, tenantId, itemIds),
   ]);
 

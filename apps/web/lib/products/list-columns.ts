@@ -51,7 +51,7 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     defaultVisible: false,
     group: "Units & tax",
   },
-  { id: "is_active", label: "Active", defaultVisible: true, align: "center", group: "Status" },
+  { id: "is_active", label: "Status", defaultVisible: true, align: "center", group: "Status" },
   {
     id: "is_purchasable",
     label: "Purchasable",

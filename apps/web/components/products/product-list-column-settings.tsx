@@ -10,7 +10,6 @@ import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import { PRODUCT_LIST_COLUMN_REGISTRY } from "@/lib/products/list-columns";
 import {
   getColumnPrefsSlice,
-  resolveCardGridColumns,
   setCardGridColumnsSlice,
   setColumnPrefsSlice,
   type DeviceClass,
@@ -72,12 +71,11 @@ export function ProductListColumnSettings({
           )
         )
       }
-      showFreezeControl={prefs.viewMode === "table"}
       frozenColumnCount={prefs.frozenColumnCount}
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
-      cardGridColumns={resolveCardGridColumns(prefs, editingDevice as DeviceClass)}
+      cardGridColumns={prefs.cardGridColumns[editingDevice as DeviceClass]}
       onCardGridColumnsChange={(columns) =>
         onChange(setCardGridColumnsSlice(prefs, editingDevice as DeviceClass, columns))
       }

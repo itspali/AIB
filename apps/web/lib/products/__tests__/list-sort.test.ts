@@ -6,7 +6,7 @@ function row(partial: Partial<ProductListRow> & Pick<ProductListRow, "id" | "nam
   return {
     description: null,
     image_url: null,
-    classification: "PRODUCT",
+    classification: "PHYSICAL_GOOD",
     base_unit_of_measure: "PCS",
     category_id: null,
     category_name: null,
@@ -23,6 +23,7 @@ function row(partial: Partial<ProductListRow> & Pick<ProductListRow, "id" | "nam
     selling_price: null,
     purchase_price: null,
     supplier_name: null,
+    stock_on_hand: "0",
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...partial,

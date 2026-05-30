@@ -319,6 +319,7 @@ describe("items native filter compiler", () => {
         default_sku: null,
         selling_price: 80,
         purchase_price: null,
+        is_active: true,
       },
       {
         item_id: "2",
@@ -332,6 +333,7 @@ describe("items native filter compiler", () => {
         default_sku: null,
         selling_price: 750,
         purchase_price: null,
+        is_active: true,
       },
     ];
 

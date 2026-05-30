@@ -37,15 +37,44 @@ export async function getProductMediaSignedUrl(
 
 export async function resolveProductMediaSignedUrls(
   supabase: SupabaseClient,
-  storagePaths: string[]
+  storagePaths: string[],
+  expiresIn = 3600
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
-  await Promise.all(
-    storagePaths.map(async (path) => {
-      const url = await getProductMediaSignedUrl(supabase, path);
-      if (url) map.set(path, url);
-    })
+  const uniquePaths = [...new Set(storagePaths.map((path) => path.trim()).filter(Boolean))];
+  if (!uniquePaths.length) return map;
+
+  const remoteUrls = uniquePaths.filter(
+    (path) => path.startsWith("http://") || path.startsWith("https://")
   );
+  for (const path of remoteUrls) {
+    map.set(path, path);
+  }
+
+  const bucketPaths = uniquePaths.filter(
+    (path) => !path.startsWith("http://") && !path.startsWith("https://")
+  );
+  if (!bucketPaths.length) return map;
+
+  const { data, error } = await supabase.storage
+    .from(PRODUCT_MEDIA_BUCKET)
+    .createSignedUrls(bucketPaths, expiresIn);
+
+  if (error || !data?.length) {
+    await Promise.all(
+      bucketPaths.map(async (path) => {
+        const url = await getProductMediaSignedUrl(supabase, path, expiresIn);
+        if (url) map.set(path, url);
+      })
+    );
+    return map;
+  }
+
+  for (const entry of data) {
+    if (!entry.path || !entry.signedUrl || entry.error) continue;
+    map.set(entry.path, entry.signedUrl);
+  }
+
   return map;
 }
 
