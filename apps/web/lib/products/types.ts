@@ -1,4 +1,11 @@
 import type { ItemClassification } from "@/lib/products/classification-labels";
+import type {
+  ItemCostingMethod,
+  ItemSource,
+  ItemStatus,
+  ItemTrackingMode,
+  ItemType,
+} from "@/lib/products/item-model";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import type { TaxCategory } from "@/lib/products/tax-options";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
@@ -121,6 +128,16 @@ export type ProductDetailSnapshot = {
   is_salable: boolean;
   has_variants: boolean;
   variant_strategy: ProductVariantStrategy;
+  item_type: ItemType;
+  track_inventory: boolean;
+  status: ItemStatus;
+  needs_review: boolean;
+  source: ItemSource;
+  costing_method: ItemCostingMethod;
+  standard_cost: string;
+  tracking_mode: ItemTrackingMode;
+  is_bundle: boolean;
+  price_is_tax_inclusive: boolean;
   default_tax_category: TaxCategory;
   is_returnable: boolean;
   is_active: boolean;
@@ -255,6 +272,15 @@ export type ProductMasterFormValues = {
     store_price_book_id: string | null;
   }>;
   variant_strategy: ProductVariantStrategy;
+  item_type: ItemType;
+  track_inventory: boolean;
+  status: ItemStatus;
+  needs_review: boolean;
+  costing_method: ItemCostingMethod;
+  standard_cost: string;
+  tracking_mode: ItemTrackingMode;
+  is_bundle: boolean;
+  price_is_tax_inclusive: boolean;
 };
 
 export function detailToFormValues(detail: ProductDetailSnapshot): ProductMasterFormValues {
@@ -283,6 +309,15 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     hsn_sac_code: detail.hsn_sac_code ?? "",
     has_variants: detail.has_variants,
     variant_strategy: detail.variant_strategy,
+    item_type: detail.item_type,
+    track_inventory: detail.track_inventory,
+    status: detail.status,
+    needs_review: detail.needs_review,
+    costing_method: detail.costing_method,
+    standard_cost: detail.standard_cost,
+    tracking_mode: detail.tracking_mode,
+    is_bundle: detail.is_bundle,
+    price_is_tax_inclusive: detail.price_is_tax_inclusive,
     default_tax_category: detail.default_tax_category,
     is_returnable: detail.is_returnable,
     dead_weight_kg: detail.dead_weight_kg,
@@ -372,6 +407,15 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   tag_ids: [],
   storefront_visibility: [],
   variant_strategy: "SINGLE_SKU",
+  item_type: "PHYSICAL",
+  track_inventory: true,
+  status: "ACTIVE",
+  needs_review: false,
+  costing_method: "WEIGHTED_AVG",
+  standard_cost: "",
+  tracking_mode: "NONE",
+  is_bundle: false,
+  price_is_tax_inclusive: false,
 };
 
 export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {

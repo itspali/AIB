@@ -152,6 +152,15 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_tag_ids: values.tag_ids,
     p_storefront_items: buildStorefrontItemsPayload(values),
     p_variant_strategy: values.variant_strategy,
+    p_item_type: values.item_type,
+    p_track_inventory: values.track_inventory,
+    p_status: values.status,
+    p_needs_review: values.needs_review,
+    p_costing_method: values.costing_method,
+    p_standard_cost: parseOptionalDecimal(values.standard_cost),
+    p_tracking_mode: values.tracking_mode,
+    p_is_bundle: values.is_bundle,
+    p_price_is_tax_inclusive: values.price_is_tax_inclusive,
   });
 
   if (error) {

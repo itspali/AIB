@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { ITEM_CLASSIFICATIONS } from "@/lib/products/classification-labels";
 import { alternateUomRowSchema, customFieldRowSchema, storefrontVisibilityRowSchema } from "@/lib/products/catalog-schemas";
+import {
+  ITEM_COSTING_METHODS,
+  ITEM_STATUSES,
+  ITEM_TRACKING_MODES,
+  ITEM_TYPES,
+} from "@/lib/products/item-model";
 import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
 import { UOM_OPTIONS } from "@/lib/products/uom-options";
 import { PRODUCT_VARIANT_STRATEGIES } from "@/lib/products/variant-strategy";
@@ -35,6 +41,15 @@ export const productMasterSchema = z.object({
   base_unit_of_measure: z.enum(UOM_OPTIONS),
   category_id: z.string().uuid().nullable(),
   variant_strategy: z.enum(PRODUCT_VARIANT_STRATEGIES),
+  item_type: z.enum(ITEM_TYPES),
+  track_inventory: z.boolean(),
+  status: z.enum(ITEM_STATUSES),
+  needs_review: z.boolean(),
+  costing_method: z.enum(ITEM_COSTING_METHODS),
+  standard_cost: nonNegativeDecimal(4, true),
+  tracking_mode: z.enum(ITEM_TRACKING_MODES),
+  is_bundle: z.boolean(),
+  price_is_tax_inclusive: z.boolean(),
   is_purchasable: z.boolean(),
   is_salable: z.boolean(),
   is_active: z.boolean(),
@@ -79,6 +94,19 @@ export const productMasterSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["supplier_id"],
       message: "Select a preferred supplier when entering a purchase rate",
+    });
+  }
+
+  if (
+    values.item_type === "PHYSICAL" &&
+    values.track_inventory &&
+    values.costing_method === "STANDARD" &&
+    !values.standard_cost.trim()
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["standard_cost"],
+      message: "Standard cost is required when using the Standard costing method",
     });
   }
 

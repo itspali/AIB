@@ -4,6 +4,7 @@ export const ITEM_CLASSIFICATIONS = [
   "WIP_ASSEMBLY",
   "FINISHED_GOOD",
   "KIT_BUNDLE",
+  "CONSUMABLE",
   "SERVICE",
 ] as const;
 
@@ -15,6 +16,7 @@ const LABELS: Record<ItemClassification, string> = {
   WIP_ASSEMBLY: "Work In Progress",
   FINISHED_GOOD: "Finished Good",
   KIT_BUNDLE: "Kit / Bundle",
+  CONSUMABLE: "Consumable",
   SERVICE: "Service / Overhead",
 };
 

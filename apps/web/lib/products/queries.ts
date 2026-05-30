@@ -2,6 +2,18 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isItemClassification } from "@/lib/products/classification-labels";
+import {
+  isItemCostingMethod,
+  isItemSource,
+  isItemStatus,
+  isItemTrackingMode,
+  isItemType,
+  type ItemCostingMethod,
+  type ItemSource,
+  type ItemStatus,
+  type ItemTrackingMode,
+  type ItemType,
+} from "@/lib/products/item-model";
 import { redactProductListRows } from "@/lib/products/field-permissions";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
@@ -49,6 +61,16 @@ type ItemRow = {
   is_salable: boolean;
   has_variants: boolean;
   variant_strategy?: string;
+  item_type?: string | null;
+  track_inventory?: boolean | null;
+  status?: string | null;
+  needs_review?: boolean | null;
+  source?: string | null;
+  costing_method?: string | null;
+  standard_cost?: number | string | null;
+  tracking_mode?: string | null;
+  is_bundle?: boolean | null;
+  price_is_tax_inclusive?: boolean | null;
   default_tax_category: string;
   is_returnable: boolean;
   is_active: boolean;
@@ -657,6 +679,16 @@ export async function fetchProductDetail(
       is_salable,
       has_variants,
       variant_strategy,
+      item_type,
+      track_inventory,
+      status,
+      needs_review,
+      source,
+      costing_method,
+      standard_cost,
+      tracking_mode,
+      is_bundle,
+      price_is_tax_inclusive,
       default_tax_category,
       is_returnable,
       is_active,
@@ -786,6 +818,22 @@ export async function fetchProductDetail(
     variant_strategy: isProductVariantStrategy(row.variant_strategy ?? "")
       ? (row.variant_strategy as ProductVariantStrategy)
       : "SINGLE_SKU",
+    item_type: isItemType(row.item_type ?? "")
+      ? (row.item_type as ItemType)
+      : "PHYSICAL",
+    track_inventory: row.track_inventory ?? true,
+    status: isItemStatus(row.status ?? "") ? (row.status as ItemStatus) : "ACTIVE",
+    needs_review: row.needs_review ?? false,
+    source: isItemSource(row.source ?? "") ? (row.source as ItemSource) : "MANUAL",
+    costing_method: isItemCostingMethod(row.costing_method ?? "")
+      ? (row.costing_method as ItemCostingMethod)
+      : "WEIGHTED_AVG",
+    standard_cost: formatDecimal(row.standard_cost, ""),
+    tracking_mode: isItemTrackingMode(row.tracking_mode ?? "")
+      ? (row.tracking_mode as ItemTrackingMode)
+      : "NONE",
+    is_bundle: row.is_bundle ?? false,
+    price_is_tax_inclusive: row.price_is_tax_inclusive ?? false,
     default_tax_category: taxCategory,
     is_returnable: row.is_returnable,
     is_active: row.is_active,

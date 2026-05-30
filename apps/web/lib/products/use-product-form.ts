@@ -17,6 +17,7 @@ import {
   type ProductMasterFormValues,
 } from "@/lib/products/types";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import type { ItemType } from "@/lib/products/item-model";
 
 export type ProductFormMode = "create" | "view" | "edit";
 
@@ -56,6 +57,8 @@ export type UseProductFormResult = {
   categoryId: string | null;
   variantStrategy: ProductVariantStrategy;
   isMultiSku: boolean;
+  itemType: ItemType;
+  isPhysical: boolean;
   baseUom: string;
   purchaseUom: string;
   categoryTemplates: AttributeTemplateEntry[];
@@ -103,6 +106,8 @@ export function useProductForm({
   const categoryId = watch("category_id");
   const variantStrategy = watch("variant_strategy");
   const isMultiSku = variantStrategy === "MULTI_SKU";
+  const itemType = watch("item_type");
+  const isPhysical = itemType === "PHYSICAL";
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
   const previousBaseUomRef = useRef(baseUom);
@@ -164,7 +169,24 @@ export function useProductForm({
     const category = categories.find((entry) => entry.id === categoryId);
     if (!category) return;
     setValue("variant_strategy", category.default_variant_strategy, { shouldDirty: true });
+    if (category.default_item_type) {
+      setValue("item_type", category.default_item_type, { shouldDirty: true });
+    }
   }, [categoryId, categories, itemId, setValue]);
+
+  // Non-physical items cannot hold stock, lot/serial tracking, or multi-SKU styles.
+  useEffect(() => {
+    if (itemType === "PHYSICAL") return;
+    if (form.getValues("track_inventory")) {
+      setValue("track_inventory", false, { shouldDirty: true });
+    }
+    if (form.getValues("tracking_mode") !== "NONE") {
+      setValue("tracking_mode", "NONE", { shouldDirty: true });
+    }
+    if (form.getValues("variant_strategy") === "MULTI_SKU") {
+      setValue("variant_strategy", "SINGLE_SKU", { shouldDirty: true });
+    }
+  }, [itemType, form, setValue]);
 
   useEffect(() => {
     if (previousBaseUomRef.current === baseUom) return;
@@ -196,6 +218,8 @@ export function useProductForm({
     categoryId,
     variantStrategy,
     isMultiSku,
+    itemType,
+    isPhysical,
     baseUom,
     purchaseUom,
     categoryTemplates,

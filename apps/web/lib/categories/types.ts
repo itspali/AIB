@@ -1,4 +1,5 @@
 import type { AttributeFieldType } from "@/lib/categories/attribute-types";
+import type { ItemType } from "@/lib/products/item-model";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
 export type AttributeTemplateEntry = {
@@ -16,6 +17,7 @@ export type CategoryRow = {
   is_active: boolean;
   attribute_templates: AttributeTemplateEntry[];
   default_variant_strategy: ProductVariantStrategy;
+  default_item_type?: ItemType;
   created_at: string;
   updated_at: string;
 };

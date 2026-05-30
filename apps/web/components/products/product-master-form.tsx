@@ -23,6 +23,16 @@ import {
   classificationLabel,
 } from "@/lib/products/classification-labels";
 import {
+  ITEM_COSTING_METHODS,
+  ITEM_STATUSES,
+  ITEM_TRACKING_MODES,
+  ITEM_TYPES,
+  itemCostingMethodLabel,
+  itemStatusLabel,
+  itemTrackingModeLabel,
+  itemTypeLabel,
+} from "@/lib/products/item-model";
+import {
   TAX_CATEGORY_OPTIONS,
   taxCategoryLabel,
 } from "@/lib/products/tax-options";
@@ -140,6 +150,8 @@ export function ProductMasterForm({
     categoryId,
     variantStrategy,
     isMultiSku,
+    itemType,
+    isPhysical,
     baseUom,
     purchaseUom,
     categoryTemplates,
@@ -162,6 +174,13 @@ export function ProductMasterForm({
   } = form;
 
   const showAdvanced = watch("show_advanced");
+  const status = watch("status");
+  const trackInventory = watch("track_inventory");
+  const costingMethod = watch("costing_method");
+  const trackingMode = watch("tracking_mode");
+  const isBundle = watch("is_bundle");
+  const priceIsTaxInclusive = watch("price_is_tax_inclusive");
+  const needsReview = watch("needs_review");
   const variantAttributes = watch("variant_attributes");
   const skuMask = watch("sku_mask");
   const masterSku = watch("sku");
@@ -297,6 +316,69 @@ export function ProductMasterForm({
         </h3>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Item type</Label>
+            <Select
+              value={itemType}
+              disabled={fieldDisabled}
+              onValueChange={(value) =>
+                setValue("item_type", value as ProductMasterFormValues["item_type"], {
+                  shouldDirty: true,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ITEM_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {itemTypeLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!isPhysical && (
+              <p className="text-xs text-muted-foreground">
+                Non-physical items are single-SKU and do not hold stock.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Lifecycle status</Label>
+            <Select
+              value={status}
+              disabled={fieldDisabled}
+              onValueChange={(value) =>
+                setValue("status", value as ProductMasterFormValues["status"], {
+                  shouldDirty: true,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ITEM_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {itemStatusLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {needsReview && (
+            <div className="sm:col-span-2 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/30">
+              <p className="font-medium text-amber-800 dark:text-amber-300">Needs review</p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-300/70">
+                This item was quick-created and may be missing details. Complete it, then clear the
+                flag below.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2 sm:col-span-2">
             <Label className="text-sm font-medium text-muted-foreground">
               Product classification type
@@ -622,6 +704,75 @@ export function ProductMasterForm({
               </span>
             </div>
           </div>
+
+          {isPhysical && (
+            <div className="sm:col-span-2">
+              <SwitchRow
+                label="Track inventory"
+                description="Maintain stock balances and ledger movements for this item."
+                checked={trackInventory}
+                disabled={fieldDisabled}
+                onCheckedChange={(checked) => setValue("track_inventory", checked, { shouldDirty: true })}
+              />
+            </div>
+          )}
+
+          {isPhysical && trackInventory && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">Costing method</Label>
+              <Select
+                value={costingMethod}
+                disabled={fieldDisabled}
+                onValueChange={(value) =>
+                  setValue("costing_method", value as ProductMasterFormValues["costing_method"], {
+                    shouldDirty: true,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ITEM_COSTING_METHODS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {itemCostingMethodLabel(value)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {isPhysical && trackInventory && costingMethod === "STANDARD" && (
+            <div className="space-y-2">
+              <Label htmlFor="standard_cost" className="text-sm font-medium text-muted-foreground">
+                Standard cost ({catalogContext.base_currency})
+              </Label>
+              <Input
+                id="standard_cost"
+                disabled={fieldDisabled}
+                className="text-right font-mono"
+                inputMode="decimal"
+                placeholder="0.00"
+                {...register("standard_cost")}
+              />
+              {errors.standard_cost && (
+                <p className="text-xs text-destructive">{errors.standard_cost.message}</p>
+              )}
+            </div>
+          )}
+
+          <div className="sm:col-span-2">
+            <SwitchRow
+              label="Prices are tax inclusive"
+              description="Treat the selling rate as inclusive of tax for this item."
+              checked={priceIsTaxInclusive}
+              disabled={fieldDisabled}
+              onCheckedChange={(checked) =>
+                setValue("price_is_tax_inclusive", checked, { shouldDirty: true })
+              }
+            />
+          </div>
         </div>
 
         {valuations.length > 0 && (
@@ -775,7 +926,59 @@ export function ProductMasterForm({
               />
             </div>
 
-            {!isMultiSku && (
+            {isPhysical && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Batch / serial tracking
+                </Label>
+                <Select
+                  value={trackingMode}
+                  disabled={fieldDisabled}
+                  onValueChange={(value) =>
+                    setValue("tracking_mode", value as ProductMasterFormValues["tracking_mode"], {
+                      shouldDirty: true,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ITEM_TRACKING_MODES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {itemTrackingModeLabel(value)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="sm:col-span-2">
+              <SwitchRow
+                label="Bundle / kit"
+                description="This item is fulfilled from a bill of materials rather than its own stock."
+                checked={isBundle}
+                disabled={fieldDisabled}
+                onCheckedChange={(checked) => setValue("is_bundle", checked, { shouldDirty: true })}
+              />
+            </div>
+
+            {needsReview && (
+              <div className="sm:col-span-2">
+                <SwitchRow
+                  label="Needs review"
+                  description="Flagged for catalog completion. Turn off once details are verified."
+                  checked={needsReview}
+                  disabled={fieldDisabled}
+                  onCheckedChange={(checked) =>
+                    setValue("needs_review", checked, { shouldDirty: true })
+                  }
+                />
+              </div>
+            )}
+
+            {!isMultiSku && isPhysical && (
               <>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="dead_weight_kg" className="text-sm font-medium text-muted-foreground">
@@ -860,7 +1063,7 @@ export function ProductMasterForm({
             )}
           </div>
 
-          {!isMultiSku && (
+          {!isMultiSku && isPhysical && (
             <div className="space-y-3 border-t border-border pt-4">
               <h4 className="text-sm font-medium">Category variant attributes</h4>
               <VariantAttributeFields
