@@ -3,6 +3,7 @@ import {
   formatVariantAttributesSubline,
   isProductListRowInactive,
   productListRowKey,
+  resolveBulkSelectionItemIds,
 } from "@/lib/products/list-row-key";
 import type { ProductListRow } from "@/lib/products/types";
 
@@ -60,6 +61,26 @@ describe("formatVariantAttributesSubline", () => {
 
   it("returns null for empty attributes", () => {
     expect(formatVariantAttributesSubline({})).toBeNull();
+  });
+});
+
+describe("resolveBulkSelectionItemIds", () => {
+  it("passes through item ids in master mode", () => {
+    const row = sampleRow();
+    expect(
+      resolveBulkSelectionItemIds(["item-1", "item-2"], [row], false)
+    ).toEqual(["item-1", "item-2"]);
+  });
+
+  it("maps variant row keys to parent item ids in expanded mode", () => {
+    const rows = [
+      sampleRow({ variant_id: "variant-1" }),
+      sampleRow({ variant_id: "variant-2", default_sku: "SKU-2" }),
+    ];
+
+    expect(
+      resolveBulkSelectionItemIds(["variant-1", "variant-2"], rows, true)
+    ).toEqual(["item-1"]);
   });
 });
 

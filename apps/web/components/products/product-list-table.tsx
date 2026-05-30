@@ -383,15 +383,11 @@ export function ProductListTable({
                       )}
                       style={sticky.style}
                     >
-                      <div
-                        className={productListCellWrapClassName(
-                          columnId,
-                          columnWrapModes?.[columnId] ?? "truncate"
-                        )}
-                      >
+                      <div className={productListCellWrapClassName(columnId)}>
                         {renderProductListCell(columnId, product, {
                           onImageClick,
                           showVariants,
+                          wrapMode: columnWrapModes?.[columnId],
                         })}
                       </div>
                     </td>

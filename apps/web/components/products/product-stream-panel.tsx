@@ -364,7 +364,6 @@ export function ProductStreamPanel({
 
   const bulkSelectionCount = bulkSelectAllMatching ? totalCount : bulkSelectedIds.size;
   const showBulkToolbar =
-    !effectiveExpandVariants &&
     bulkSelectionCount > 0 &&
     onBulkClearSelection &&
     onBulkSelectAllMatching &&

@@ -4,6 +4,24 @@ export function productListRowKey(row: ProductListRow, showVariants: boolean): s
   return showVariants && row.variant_id ? row.variant_id : row.id;
 }
 
+/** Maps list row selection keys to parent item ids for item-level bulk RPCs. */
+export function resolveBulkSelectionItemIds(
+  selectedRowKeys: Iterable<string>,
+  products: ProductListRow[],
+  expandVariants: boolean
+): string[] {
+  const keys = [...selectedRowKeys];
+  if (!expandVariants) {
+    return [...new Set(keys)];
+  }
+
+  const rowKeyToItemId = new Map(
+    products.map((row) => [productListRowKey(row, true), row.id] as const)
+  );
+
+  return [...new Set(keys.map((key) => rowKeyToItemId.get(key) ?? key))];
+}
+
 export function formatVariantAttributesSubline(
   attributes: Record<string, unknown> | null | undefined
 ): string | null {

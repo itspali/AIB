@@ -117,7 +117,7 @@ export function ProductBulkActionToolbar({
   return (
     <div
       className={listControlShellClassName(
-        "animate-in fade-in slide-in-from-top-2 duration-200"
+        "sticky top-0 z-30 animate-in fade-in slide-in-from-top-2 duration-200 backdrop-blur-sm supports-[backdrop-filter]:bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))]"
       )}
       role="toolbar"
       aria-label="Bulk item actions"

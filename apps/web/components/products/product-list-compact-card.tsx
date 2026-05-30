@@ -10,8 +10,8 @@ import {
 } from "@/lib/products/compact-card-subline";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
+import { resolveProductListCellTextWrapClass } from "@/components/products/product-list-cells";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
-import { textWrapModeClassName } from "@/lib/display/text-wrap";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import { getColumnDef } from "@/lib/products/list-columns";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
@@ -280,17 +280,20 @@ export function ProductListCompactCard({
               <p
                 className={cn(
                   "text-base font-semibold leading-tight text-foreground",
-                  textWrapModeClassName(
-                    columnWrapModes?.name ?? "truncate",
-                    getColumnDef("name").valueKind
+                  resolveProductListCellTextWrapClass(
+                    "name",
+                    columnWrapModes?.name,
+                    "compact"
                   )
                 )}
               >
                 {product.name}
               </p>
-              <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
-                {productListRowKindLabel(rowKind)}
-              </Badge>
+              {rowKind !== "single" ? (
+                <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
+                  {productListRowKindLabel(rowKind)}
+                </Badge>
+              ) : null}
             </div>
           ) : null}
 
@@ -315,9 +318,10 @@ export function ProductListCompactCard({
             <p
               className={cn(
                 "text-xs text-muted-foreground",
-                textWrapModeClassName(
-                  columnWrapModes?.description ?? "line-clamp-1",
-                  getColumnDef("description").valueKind
+                resolveProductListCellTextWrapClass(
+                  "description",
+                  columnWrapModes?.description,
+                  "compact"
                 )
               )}
             >

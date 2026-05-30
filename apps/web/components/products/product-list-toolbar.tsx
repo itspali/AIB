@@ -145,7 +145,7 @@ export function ProductListToolbar({
           ) : null}
           <div className="flex shrink-0 items-center gap-2">
             <div
-              className="inline-flex rounded-md border border-border bg-muted p-0.5"
+              className="inline-flex h-8 items-center rounded-md border border-border bg-muted p-0.5"
               aria-busy={isSavingPrefs}
             >
               <Button
@@ -153,7 +153,7 @@ export function ProductListToolbar({
                 size="sm"
                 variant="ghost"
                 className={cn(
-                  "h-8 w-8 p-0 focus-visible:ring-1 focus-visible:ring-ring",
+                  "h-7 w-7 p-0 focus-visible:ring-1 focus-visible:ring-ring",
                   prefs.viewMode === "table"
                     ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
                     : "text-muted-foreground hover:text-foreground"
@@ -175,7 +175,7 @@ export function ProductListToolbar({
                 size="sm"
                 variant="ghost"
                 className={cn(
-                  "h-8 w-8 p-0 focus-visible:ring-1 focus-visible:ring-ring",
+                  "h-7 w-7 p-0 focus-visible:ring-1 focus-visible:ring-ring",
                   prefs.viewMode === "compact"
                     ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
                     : "text-muted-foreground hover:text-foreground"

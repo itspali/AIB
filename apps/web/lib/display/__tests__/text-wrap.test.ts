@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveProductListCellTextWrapClass,
+} from "@/components/products/product-list-cells";
+import {
   defaultWrapModeForValueKind,
   textWrapModeClassName,
 } from "@/lib/display/text-wrap";
@@ -27,5 +30,10 @@ describe("column wrap resolution", () => {
   it("defaults text columns to truncate", () => {
     expect(defaultWrapModeForValueKind("text", "table")).toBe("truncate");
     expect(textWrapModeClassName("wrap", "multiline")).toContain("pre-wrap");
+  });
+
+  it("applies wrap classes on the text element for table cells", () => {
+    expect(resolveProductListCellTextWrapClass("description", "wrap")).toContain("pre-wrap");
+    expect(resolveProductListCellTextWrapClass("name", "line-clamp-2")).toContain("line-clamp-2");
   });
 });

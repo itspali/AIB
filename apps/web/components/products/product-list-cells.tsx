@@ -3,7 +3,9 @@
 import type { ReactNode } from "react";
 import { Package } from "lucide-react";
 import {
-  textWrapModeCellClassName,
+  columnSupportsWrapControl,
+  defaultWrapModeForValueKind,
+  textWrapModeClassName,
   type TextWrapMode,
 } from "@/lib/display/text-wrap";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
@@ -48,14 +50,47 @@ function formatActiveStatus(value: boolean): ReactNode {
   );
 }
 
-function displayText(value: string | null): ReactNode {
+export function resolveProductListCellTextWrapClass(
+  columnId: ProductListColumnId,
+  wrapMode?: TextWrapMode,
+  viewMode: "table" | "compact" = "table"
+): string {
+  const column = getColumnDef(columnId);
+  if (!columnSupportsWrapControl(column.valueKind)) {
+    return "truncate";
+  }
+
+  const mode =
+    wrapMode ??
+    column.defaultWrapMode ??
+    defaultWrapModeForValueKind(column.valueKind!, viewMode);
+
+  return textWrapModeClassName(mode, column.valueKind);
+}
+
+function wrappedTextValue(
+  value: string | null,
+  wrapClass: string,
+  options?: { muted?: boolean; block?: boolean }
+): ReactNode {
   if (!value?.trim()) return "—";
-  return value;
+  return (
+    <span
+      className={cn(
+        options?.block && "block",
+        options?.muted && "text-muted-foreground",
+        wrapClass
+      )}
+    >
+      {value}
+    </span>
+  );
 }
 
 type RenderProductListCellOptions = {
   onImageClick?: (product: ProductListRow) => void;
   showVariants?: boolean;
+  wrapMode?: TextWrapMode;
 };
 
 export function renderProductListCell(
@@ -105,13 +140,28 @@ export function renderProductListCell(
         ? formatVariantAttributesSubline(product.variant_attributes)
         : null;
       const rowKind = resolveProductListRowKind(product, options?.showVariants ?? false);
+      const wrapMode = options?.wrapMode ?? "truncate";
+      const nameWrapClass = resolveProductListCellTextWrapClass("name", wrapMode);
+      const nameRowClass =
+        wrapMode === "wrap"
+          ? "flex flex-wrap items-center gap-2"
+          : "flex min-w-0 items-center gap-2";
+      const nameTextClass =
+        wrapMode === "wrap"
+          ? cn("font-medium", nameWrapClass)
+          : cn("min-w-0 flex-1 font-medium", nameWrapClass);
+
       return (
         <div className={cn(subline && product.has_variants && "border-l-2 border-border/70 pl-2.5")}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{displayText(product.name)}</span>
-            <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
-              {productListRowKindLabel(rowKind)}
-            </Badge>
+          <div className={nameRowClass}>
+            <span className={nameTextClass}>
+              {product.name?.trim() ? product.name : "—"}
+            </span>
+            {rowKind !== "single" ? (
+              <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
+                {productListRowKindLabel(rowKind)}
+              </Badge>
+            ) : null}
           </div>
           {subline ? (
             <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
@@ -132,12 +182,21 @@ export function renderProductListCell(
         <span className="font-mono text-muted-foreground">{product.barcode ?? "—"}</span>
       );
     case "classification":
-      return classificationLabel(product.classification);
-    case "category_name":
-      return displayText(product.category_name);
-    case "description":
       return (
-        <span className="text-muted-foreground">{displayText(product.description)}</span>
+        <span className={resolveProductListCellTextWrapClass("classification", options?.wrapMode)}>
+          {classificationLabel(product.classification)}
+        </span>
+      );
+    case "category_name":
+      return wrappedTextValue(
+        product.category_name,
+        resolveProductListCellTextWrapClass("category_name", options?.wrapMode)
+      );
+    case "description":
+      return wrappedTextValue(
+        product.description,
+        resolveProductListCellTextWrapClass("description", options?.wrapMode),
+        { muted: true, block: true }
       );
     case "base_unit_of_measure":
       return <span className="font-mono">{product.base_unit_of_measure}</span>;
@@ -146,7 +205,13 @@ export function renderProductListCell(
     case "has_variants":
       return formatBoolean(product.has_variants);
     case "default_tax_category":
-      return taxCategoryLabel(product.default_tax_category);
+      return (
+        <span
+          className={resolveProductListCellTextWrapClass("default_tax_category", options?.wrapMode)}
+        >
+          {taxCategoryLabel(product.default_tax_category)}
+        </span>
+      );
     case "is_active":
       return formatActiveStatus(product.is_active);
     case "is_purchasable":
@@ -164,7 +229,10 @@ export function renderProductListCell(
         <span className="tabular-nums">{formatOptionalCurrency(product.purchase_price)}</span>
       );
     case "supplier_name":
-      return displayText(product.supplier_name);
+      return wrappedTextValue(
+        product.supplier_name,
+        resolveProductListCellTextWrapClass("supplier_name", options?.wrapMode)
+      );
     case "stock_on_hand": {
       const qty = product.stock_on_hand;
       if (qty == null || qty.trim() === "") return "—";
@@ -188,16 +256,12 @@ export function renderProductListCell(
   }
 }
 
-export function productListCellWrapClassName(
-  columnId: ProductListColumnId,
-  wrapMode: TextWrapMode = "truncate"
-): string {
+export function productListCellWrapClassName(columnId: ProductListColumnId): string {
   if (columnId === "image" || columnId === "is_active") {
     return "flex justify-center overflow-visible";
   }
 
-  const valueKind = getColumnDef(columnId).valueKind;
-  return textWrapModeCellClassName(wrapMode, valueKind);
+  return "min-w-0";
 }
 
 export function productListCellClassName(columnId: ProductListColumnId): string {

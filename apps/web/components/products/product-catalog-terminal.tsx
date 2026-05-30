@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -61,7 +62,10 @@ import {
   coerceProductListPrefs,
   resolveProductListExpandVariants,
 } from "@/lib/products/list-prefs";
-import { productListRowKey } from "@/lib/products/list-row-key";
+import {
+  productListRowKey,
+  resolveBulkSelectionItemIds,
+} from "@/lib/products/list-row-key";
 import { bulkSuccessToastMessage } from "@/lib/products/bulk-schemas";
 import {
   downloadProductListCsv,
@@ -394,11 +398,22 @@ export function ProductCatalogTerminal({
 
     return {
       selectAllMatching: bulkSelectAllMatching,
-      selectedIds: [...bulkSelectedIds],
+      selectedIds: resolveBulkSelectionItemIds(
+        bulkSelectedIds,
+        catalogProducts,
+        expandVariants
+      ),
       filteredItemIds,
       categoryId: categoryFilterId !== "all" ? categoryFilterId : null,
     };
-  }, [bulkSelectAllMatching, bulkSelectedIds, categoryFilterId, omnibar?.filteredItemIds]);
+  }, [
+    bulkSelectAllMatching,
+    bulkSelectedIds,
+    catalogProducts,
+    categoryFilterId,
+    expandVariants,
+    omnibar?.filteredItemIds,
+  ]);
 
   const clearBulkSelection = useCallback(() => {
     setBulkSelectedIds(new Set());
@@ -804,14 +819,6 @@ export function ProductCatalogTerminal({
     });
   };
 
-  const openCreate = () => {
-    setSelectedId(null);
-    setDetail(null);
-    setDrawerMode("create");
-    setDrawerOpen(true);
-    void ensureCatalogContext();
-  };
-
   const handleSelect = (productId: string) => {
     setSelectedId(productId);
     setDetail(null);
@@ -883,9 +890,11 @@ export function ProductCatalogTerminal({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <Button onClick={openCreate} className="shrink-0">
-              <Plus className="h-4 w-4" />
-              New
+            <Button asChild className="shrink-0">
+              <Link href="/inventory/items/new">
+                <Plus className="h-4 w-4" />
+                New
+              </Link>
             </Button>
           </div>
         </header>
