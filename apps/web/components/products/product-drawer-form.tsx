@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 import { ProductFormSkeleton } from "@/components/products/product-form-skeleton";
@@ -102,14 +103,11 @@ export function ProductDrawerForm({
       scrollable={false}
       headerActions={
         mode === "view" && detail ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onModeChange("edit")}
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/inventory/items/${detail.id}/edit`}>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Link>
           </Button>
         ) : mode === "edit" ? (
           <>
