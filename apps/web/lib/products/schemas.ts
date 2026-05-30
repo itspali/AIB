@@ -33,6 +33,7 @@ function nonNegativeDecimal(maxDecimals: number, optional = false) {
 
 export const productMasterSchema = z.object({
   item_id: z.string().uuid().nullable(),
+  updated_at: z.string().nullable(),
   classification: z.enum(ITEM_CLASSIFICATIONS),
   name: z.string().trim().min(1, "Product name is required").max(200),
   description: z.string().trim().max(2000),

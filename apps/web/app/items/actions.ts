@@ -161,14 +161,29 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_tracking_mode: values.tracking_mode,
     p_is_bundle: values.is_bundle,
     p_price_is_tax_inclusive: values.price_is_tax_inclusive,
+    p_expected_updated_at: values.item_id ? values.updated_at : null,
   });
 
   if (error) {
     if (isMissingRpcError(error)) {
       return { error: formatRpcDeployError("save_product_master_profile") };
     }
-    if (error.message.toLowerCase().includes("sku already exists")) {
+    const message = error.message.toLowerCase();
+    if (message.includes("modified by another session")) {
+      return {
+        error:
+          "This item was changed by someone else since you opened it. Reload to get the latest version, then reapply your edits.",
+        conflict: true as const,
+      };
+    }
+    if (message.includes("sku already exists")) {
       return { error: "Master SKU is already assigned to another product in this workspace." };
+    }
+    if (message.includes("cannot change after transactions exist")) {
+      return {
+        error:
+          "Base unit, classification, and item type are locked once this item has transaction history.",
+      };
     }
     return { error: error.message };
   }

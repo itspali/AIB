@@ -232,6 +232,8 @@ export function variantSnapshotToFormValues(
 
 export type ProductMasterFormValues = {
   item_id: string | null;
+  /** Snapshot timestamp for optimistic-lock (stale-write) protection on edit. */
+  updated_at: string | null;
   classification: ItemClassification;
   name: string;
   description: string;
@@ -296,6 +298,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
 
   return {
     item_id: detail.id,
+    updated_at: detail.updated_at,
     classification: detail.classification,
     name: detail.name,
     description: detail.description ?? "",
@@ -372,6 +375,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
 
 export const defaultProductFormValues: ProductMasterFormValues = {
   item_id: null,
+  updated_at: null,
   classification: "FINISHED_GOOD",
   name: "",
   description: "",
