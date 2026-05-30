@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
-import {
-  ProductMasterForm,
-  type ProductFormMode,
-} from "@/components/products/product-master-form";
+import { ProductEditorShell } from "@/components/products/product-editor/product-editor-shell";
+import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
@@ -27,10 +25,10 @@ type Props = {
 };
 
 /**
- * Full-page, deep-linkable presentation of the product master form. Shares the
- * headless useProductForm core (via ProductMasterForm canvas layout) with the
- * drawer peek, and owns the create -> edit redirect so a freshly saved item
- * lands on its own editable URL with variants/media unlocked.
+ * Full-page, deep-linkable presentation of the product master form. Renders the
+ * responsive ProductEditorShell on the shared headless useProductForm core, and
+ * owns the create -> edit redirect so a freshly saved item lands on its own
+ * editable URL with variants/media unlocked.
  */
 export function ProductFormRoute({
   mode,
@@ -88,9 +86,8 @@ export function ProductFormRoute({
         ) : null}
       </div>
 
-      <ProductMasterForm
+      <ProductEditorShell
         key={`${detail?.id ?? "new"}-${mode}`}
-        layout="canvas"
         mode={mode}
         tenantId={tenantId}
         categories={categories}
