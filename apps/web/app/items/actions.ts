@@ -180,6 +180,155 @@ export async function getProductDetail(itemId: string) {
   return { detail };
 }
 
+type ItemEditability = {
+  has_history: boolean;
+  locked_fields: string[];
+};
+
+export async function getItemEditability(itemId: string) {
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("item_editability", { p_item_id: itemId });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("item_editability") };
+    }
+    return { error: error.message };
+  }
+
+  const raw = (data ?? {}) as Partial<ItemEditability>;
+  return {
+    editability: {
+      has_history: Boolean(raw.has_history),
+      locked_fields: Array.isArray(raw.locked_fields) ? raw.locked_fields : [],
+    } satisfies ItemEditability,
+  };
+}
+
+export type SimilarItem = {
+  id: string;
+  name: string;
+  code: string | null;
+  category_id: string | null;
+  similarity: number;
+};
+
+export async function findSimilarItems(
+  name: string,
+  options?: { categoryId?: string | null; limit?: number }
+) {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return { matches: [] as SimilarItem[] };
+
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("find_similar_items", {
+    p_name: trimmed,
+    p_category_id: options?.categoryId ?? null,
+    p_limit: options?.limit ?? 5,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("find_similar_items") };
+    }
+    return { error: error.message };
+  }
+
+  return { matches: (data ?? []) as SimilarItem[] };
+}
+
+type QuickCreateItemInput = {
+  name: string;
+  sku?: string;
+  base_unit_of_measure?: string;
+  selling_price?: string | number | null;
+  category_id?: string | null;
+  doc_type?: "sales" | "purchase";
+};
+
+export type QuickCreatedItem = {
+  itemId: string;
+  variantId: string;
+  name: string;
+  sku: string;
+};
+
+function generateQuickCreateSku(): string {
+  return `QC-${Date.now().toString(36).toUpperCase()}`;
+}
+
+/**
+ * Lean item creation for transaction line "type-to-create" flows.
+ * Always SINGLE_SKU + PHYSICAL so it yields one sellable variant_id,
+ * flagged needs_review so the catalog team can complete it later.
+ */
+export async function quickCreateItem(input: QuickCreateItemInput) {
+  const { supabase, tenantId } = await requireTenantId();
+
+  const name = input.name.trim();
+  if (!name) return { error: "Item name is required" };
+
+  const sku = input.sku?.trim() || generateQuickCreateSku();
+  const sellingPrice =
+    input.selling_price == null || input.selling_price === ""
+      ? null
+      : Number(input.selling_price);
+  if (sellingPrice != null && !Number.isFinite(sellingPrice)) {
+    return { error: "Selling price must be a number" };
+  }
+
+  const { data, error } = await supabase.rpc("save_product_master_profile", {
+    p_name: name,
+    p_sku: sku,
+    p_classification: "PHYSICAL_GOOD",
+    p_base_uom: input.base_unit_of_measure?.trim() || "PCS",
+    p_category_id: input.category_id ?? null,
+    p_is_purchasable: input.doc_type !== "sales",
+    p_is_salable: input.doc_type !== "purchase",
+    p_selling_price: sellingPrice,
+    p_item_type: "PHYSICAL",
+    p_variant_strategy: "SINGLE_SKU",
+    p_source: "QUICK_CREATE",
+    p_needs_review: true,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_product_master_profile") };
+    }
+    if (error.message.toLowerCase().includes("sku already exists")) {
+      return { error: "That product code is already in use." };
+    }
+    return { error: error.message };
+  }
+
+  const itemId = data as string;
+
+  const { data: variantRow, error: variantError } = await supabase
+    .from("item_variants")
+    .select("id, sku")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .eq("is_master", true)
+    .maybeSingle();
+
+  if (variantError || !variantRow) {
+    return { error: variantError?.message ?? "Created item is missing its sellable variant." };
+  }
+
+  revalidatePath("/inventory/items");
+
+  return {
+    success: true as const,
+    item: {
+      itemId,
+      variantId: variantRow.id as string,
+      name,
+      sku: (variantRow.sku as string) ?? sku,
+    } satisfies QuickCreatedItem,
+  };
+}
+
 export async function getProductCatalogContext() {
   const { supabase, tenantId } = await requireTenantId();
   const catalogContext = await fetchProductCatalogContext(supabase, tenantId);
