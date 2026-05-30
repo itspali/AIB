@@ -1,4 +1,5 @@
 import type { AttributeFieldType } from "@/lib/categories/attribute-types";
+import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
 export type AttributeTemplateEntry = {
   key: string;
@@ -14,6 +15,7 @@ export type CategoryRow = {
   parent_id: string | null;
   is_active: boolean;
   attribute_templates: AttributeTemplateEntry[];
+  default_variant_strategy: ProductVariantStrategy;
   created_at: string;
   updated_at: string;
 };
@@ -29,4 +31,5 @@ export type SystemCategoryFormValues = {
   parent_id: string | null;
   is_active: boolean;
   attribute_templates: AttributeTemplateEntry[];
+  default_variant_strategy: ProductVariantStrategy;
 };

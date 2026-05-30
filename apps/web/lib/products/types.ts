@@ -1,6 +1,7 @@
 import type { ItemClassification } from "@/lib/products/classification-labels";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import type { TaxCategory } from "@/lib/products/tax-options";
+import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
 export type ProductListRow = {
   id: string;
@@ -27,10 +28,14 @@ export type ProductListRow = {
   stock_on_hand: string | null;
   created_at: string;
   updated_at: string;
+  variant_strategy?: ProductVariantStrategy;
+  style_code?: string | null;
   /** Populated when loading from variant-expanded list projection. */
   variant_id?: string | null;
   variant_attributes?: Record<string, unknown> | null;
   variant_is_active?: boolean;
+  variant_is_master?: boolean;
+  variant_is_sellable?: boolean;
 };
 
 export type ProductTagSnapshot = {
@@ -83,6 +88,7 @@ export type ProductVariantSnapshot = {
   height_cm: string;
   is_active: boolean;
   is_master: boolean;
+  is_sellable: boolean;
   price: string;
   created_at: string;
 };
@@ -114,6 +120,7 @@ export type ProductDetailSnapshot = {
   is_purchasable: boolean;
   is_salable: boolean;
   has_variants: boolean;
+  variant_strategy: ProductVariantStrategy;
   default_tax_category: TaxCategory;
   is_returnable: boolean;
   is_active: boolean;
@@ -247,6 +254,7 @@ export type ProductMasterFormValues = {
     store_custom_name: string;
     store_price_book_id: string | null;
   }>;
+  variant_strategy: ProductVariantStrategy;
 };
 
 export function detailToFormValues(detail: ProductDetailSnapshot): ProductMasterFormValues {
@@ -274,6 +282,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     is_active: detail.is_active,
     hsn_sac_code: detail.hsn_sac_code ?? "",
     has_variants: detail.has_variants,
+    variant_strategy: detail.variant_strategy,
     default_tax_category: detail.default_tax_category,
     is_returnable: detail.is_returnable,
     dead_weight_kg: detail.dead_weight_kg,
@@ -362,6 +371,7 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   alternate_uoms: [],
   tag_ids: [],
   storefront_visibility: [],
+  variant_strategy: "SINGLE_SKU",
 };
 
 export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {

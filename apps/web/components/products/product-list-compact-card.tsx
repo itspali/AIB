@@ -16,6 +16,11 @@ import type { ProductListColumnId } from "@/lib/products/list-columns";
 import { getColumnDef } from "@/lib/products/list-columns";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
+import {
+  productListRowKindBadgeVariant,
+  productListRowKindLabel,
+  resolveProductListRowKind,
+} from "@/lib/products/variant-strategy";
 import { cn } from "@/lib/utils";
 
 const HEADER_COLUMNS = new Set<ProductListColumnId>([
@@ -54,7 +59,7 @@ function hasDisplayValue(columnId: ProductListColumnId, product: ProductListRow)
     case "is_returnable":
       return true;
     case "default_sku":
-      return Boolean(product.default_sku?.trim());
+      return Boolean(product.style_code?.trim() || product.default_sku?.trim());
     case "barcode":
       return Boolean(product.barcode?.trim());
     case "category_name":
@@ -190,6 +195,7 @@ export function ProductListCompactCard({
     columns.includes("description") && Boolean(product.description?.trim());
 
   const subline = buildCompactCardSubline({ product, showSku, showStatus: showActive });
+  const rowKind = resolveProductListRowKind(product, Boolean(product.variant_id));
 
   const chipColumns = columns.filter(
     (columnId) =>
@@ -270,17 +276,22 @@ export function ProductListCompactCard({
 
         <div className="min-w-0 flex-1 space-y-1.5">
           {showName ? (
-            <p
-              className={cn(
-                "text-base font-semibold leading-tight text-foreground",
-                textWrapModeClassName(
-                  columnWrapModes?.name ?? "truncate",
-                  getColumnDef("name").valueKind
-                )
-              )}
-            >
-              {product.name}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p
+                className={cn(
+                  "text-base font-semibold leading-tight text-foreground",
+                  textWrapModeClassName(
+                    columnWrapModes?.name ?? "truncate",
+                    getColumnDef("name").valueKind
+                  )
+                )}
+              >
+                {product.name}
+              </p>
+              <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
+                {productListRowKindLabel(rowKind)}
+              </Badge>
+            </div>
           ) : null}
 
           {subline ? (

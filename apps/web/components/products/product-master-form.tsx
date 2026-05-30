@@ -46,6 +46,10 @@ import {
 } from "@/lib/products/types";
 import { PRODUCT_FORM_SECTIONS, PRODUCT_SECTION_IDS, type ProductSectionId } from "@/lib/products/section-nav";
 import {
+  PRODUCT_VARIANT_STRATEGIES,
+  variantStrategyLabel,
+} from "@/lib/products/variant-strategy";
+import {
   loadProductSectionOrder,
   saveProductSectionOrder,
   sectionFlexOrder,
@@ -155,6 +159,8 @@ export function ProductMasterForm({
   const showAdvanced = watch("show_advanced");
   const itemId = watch("item_id");
   const categoryId = watch("category_id");
+  const variantStrategy = watch("variant_strategy");
+  const isMultiSku = variantStrategy === "MULTI_SKU";
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
   const variantAttributes = watch("variant_attributes");
@@ -239,7 +245,11 @@ export function ProductMasterForm({
           return;
         }
 
-        toast.success("Product master profile saved successfully");
+        toast.success(
+          values.variant_strategy === "MULTI_SKU" && !values.item_id
+            ? "Style saved. Use Variant Management to generate sellable SKUs."
+            : "Product master profile saved successfully"
+        );
         onSaved(result.itemId, result.detail ?? null);
         router.refresh();
       });
@@ -271,6 +281,13 @@ export function ProductMasterForm({
     form.reset(nextValues);
     previousBaseUomRef.current = nextValues.base_unit_of_measure;
   }, [initialValues, form, catalogContext.storefronts]);
+
+  useEffect(() => {
+    if (itemId || !categoryId) return;
+    const category = categories.find((entry) => entry.id === categoryId);
+    if (!category) return;
+    setValue("variant_strategy", category.default_variant_strategy, { shouldDirty: true });
+  }, [categoryId, categories, itemId, setValue]);
 
   useEffect(() => {
     if (previousBaseUomRef.current === baseUom) return;
@@ -333,8 +350,8 @@ export function ProductMasterForm({
             {initialValues?.item_id ? "Edit Product Master Profile" : "Create Product Master Profile"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Essentials cover identity, commerce flags, and master SKU. Advanced fields map to the
-            full item and variant master schema.
+            Essentials cover identity, commerce flags, and the primary SKU or style code. Advanced
+            fields map to the full item and variant master schema.
           </p>
         </div>
       )}
@@ -379,6 +396,42 @@ export function ProductMasterForm({
           </div>
 
           <div className="space-y-2 sm:col-span-2">
+            <Label className="text-sm font-medium text-muted-foreground">Variant strategy</Label>
+            {itemId ? (
+              <p className="text-sm">{variantStrategyLabel(variantStrategy)}</p>
+            ) : (
+              <Select
+                value={variantStrategy}
+                disabled={fieldDisabled}
+                onValueChange={(value) =>
+                  setValue(
+                    "variant_strategy",
+                    value as ProductMasterFormValues["variant_strategy"],
+                    { shouldDirty: true }
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_VARIANT_STRATEGIES.map((strategy) => (
+                    <SelectItem key={strategy} value={strategy}>
+                      {variantStrategyLabel(strategy)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {isMultiSku && !itemId && (
+              <p className="text-xs text-muted-foreground">
+                Style products use a style code here. Sellable SKUs are created in Variant
+                Management after save.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="name" className="text-sm font-medium text-muted-foreground">
               Root product name
             </Label>
@@ -388,19 +441,21 @@ export function ProductMasterForm({
 
           <div className="space-y-2">
             <Label htmlFor="sku" className="text-sm font-medium text-muted-foreground">
-              Master variant SKU
+              {isMultiSku ? "Style code" : "Master variant SKU"}
             </Label>
             <Input id="sku" disabled={fieldDisabled} className="font-mono" {...register("sku")} />
             {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="barcode" className="text-sm font-medium text-muted-foreground">
-              Barcode / GTIN
-            </Label>
-            <Input id="barcode" disabled={fieldDisabled} className="font-mono" {...register("barcode")} />
-            {errors.barcode && <p className="text-xs text-destructive">{errors.barcode.message}</p>}
-          </div>
+          {!isMultiSku && (
+            <div className="space-y-2">
+              <Label htmlFor="barcode" className="text-sm font-medium text-muted-foreground">
+                Barcode / GTIN
+              </Label>
+              <Input id="barcode" disabled={fieldDisabled} className="font-mono" {...register("barcode")} />
+              {errors.barcode && <p className="text-xs text-destructive">{errors.barcode.message}</p>}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label className="text-sm font-medium text-muted-foreground">
@@ -775,8 +830,12 @@ export function ProductMasterForm({
 
             <div className="sm:col-span-2">
               <SwitchRow
-                label="Master variant active"
-                description="Inactive variants remain linked but are excluded from operational flows."
+                label={isMultiSku ? "Style anchor active" : "Master variant active"}
+                description={
+                  isMultiSku
+                    ? "Inactive style anchors remain linked but sellable SKUs carry operational status."
+                    : "Inactive variants remain linked but are excluded from operational flows."
+                }
                 checked={watch("variant_is_active")}
                 disabled={fieldDisabled}
                 onCheckedChange={(checked) =>
@@ -785,102 +844,108 @@ export function ProductMasterForm({
               />
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="dead_weight_kg" className="text-sm font-medium text-muted-foreground">
-                Variant physical dead weight (kg)
-              </Label>
-              <Input
-                id="dead_weight_kg"
-                disabled={fieldDisabled}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("dead_weight_kg")}
-              />
-            </div>
+            {!isMultiSku && (
+              <>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="dead_weight_kg" className="text-sm font-medium text-muted-foreground">
+                    Variant physical dead weight (kg)
+                  </Label>
+                  <Input
+                    id="dead_weight_kg"
+                    disabled={fieldDisabled}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("dead_weight_kg")}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="weight" className="text-sm font-medium text-muted-foreground">
-                Legacy weight (optional)
-              </Label>
-              <Input
-                id="weight"
-                disabled={fieldDisabled}
-                className="text-right font-mono"
-                inputMode="decimal"
-                placeholder="NUMERIC(15,4)"
-                {...register("weight")}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="weight" className="text-sm font-medium text-muted-foreground">
+                    Legacy weight (optional)
+                  </Label>
+                  <Input
+                    id="weight"
+                    disabled={fieldDisabled}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    placeholder="NUMERIC(15,4)"
+                    {...register("weight")}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="volume" className="text-sm font-medium text-muted-foreground">
-                Volume (optional)
-              </Label>
-              <Input
-                id="volume"
-                disabled={fieldDisabled}
-                className="text-right font-mono"
-                inputMode="decimal"
-                placeholder="NUMERIC(15,4)"
-                {...register("volume")}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="volume" className="text-sm font-medium text-muted-foreground">
+                    Volume (optional)
+                  </Label>
+                  <Input
+                    id="volume"
+                    disabled={fieldDisabled}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    placeholder="NUMERIC(15,4)"
+                    {...register("volume")}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="length_cm" className="text-sm font-medium text-muted-foreground">
-                Length (cm)
-              </Label>
-              <Input
-                id="length_cm"
-                disabled={fieldDisabled}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("length_cm")}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="length_cm" className="text-sm font-medium text-muted-foreground">
+                    Length (cm)
+                  </Label>
+                  <Input
+                    id="length_cm"
+                    disabled={fieldDisabled}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("length_cm")}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="width_cm" className="text-sm font-medium text-muted-foreground">
-                Width (cm)
-              </Label>
-              <Input
-                id="width_cm"
-                disabled={fieldDisabled}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("width_cm")}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="width_cm" className="text-sm font-medium text-muted-foreground">
+                    Width (cm)
+                  </Label>
+                  <Input
+                    id="width_cm"
+                    disabled={fieldDisabled}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("width_cm")}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="height_cm" className="text-sm font-medium text-muted-foreground">
-                Height (cm)
-              </Label>
-              <Input
-                id="height_cm"
-                disabled={fieldDisabled}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("height_cm")}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="height_cm" className="text-sm font-medium text-muted-foreground">
+                    Height (cm)
+                  </Label>
+                  <Input
+                    id="height_cm"
+                    disabled={fieldDisabled}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("height_cm")}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="space-y-3 border-t border-border pt-4">
-            <h4 className="text-sm font-medium">Category variant attributes</h4>
-            <VariantAttributeFields
-              templates={categoryTemplates}
-              values={variantAttributes}
-              disabled={fieldDisabled}
-              onChange={(key, value) =>
-                setValue(
-                  "variant_attributes",
-                  { ...variantAttributes, [key]: value },
-                  { shouldDirty: true }
-                )
-              }
-            />
-          </div>
+          {!isMultiSku && (
+            <div className="space-y-3 border-t border-border pt-4">
+              <h4 className="text-sm font-medium">Category variant attributes</h4>
+              <VariantAttributeFields
+                templates={categoryTemplates}
+                values={variantAttributes}
+                disabled={fieldDisabled}
+                onChange={(key, value) =>
+                  setValue(
+                    "variant_attributes",
+                    { ...variantAttributes, [key]: value },
+                    { shouldDirty: true }
+                  )
+                }
+              />
+            </div>
+          )}
 
           <ProductCatalogExtensions
             catalogContext={{ ...catalogContext, tags: tagOptions }}
@@ -938,6 +1003,7 @@ export function ProductMasterForm({
             categoryTemplates={categoryTemplates}
             skuMask={skuMask}
             baseSku={masterSku}
+            variantStrategy={variantStrategy}
             onChanged={() => onExtensionsChanged?.()}
           />
           <ProductMediaGallery
@@ -969,6 +1035,7 @@ export function ProductMasterForm({
               categoryTemplates={categoryTemplates}
               skuMask={skuMask}
               baseSku={masterSku}
+              variantStrategy={variantStrategy}
               readOnly={readOnly}
               onChanged={() => onExtensionsChanged?.()}
             />

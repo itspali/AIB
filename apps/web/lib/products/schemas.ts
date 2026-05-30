@@ -3,6 +3,7 @@ import { ITEM_CLASSIFICATIONS } from "@/lib/products/classification-labels";
 import { alternateUomRowSchema, customFieldRowSchema, storefrontVisibilityRowSchema } from "@/lib/products/catalog-schemas";
 import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
 import { UOM_OPTIONS } from "@/lib/products/uom-options";
+import { PRODUCT_VARIANT_STRATEGIES } from "@/lib/products/variant-strategy";
 
 const decimalPattern = /^\d+(\.\d+)?$/;
 
@@ -29,10 +30,11 @@ export const productMasterSchema = z.object({
   classification: z.enum(ITEM_CLASSIFICATIONS),
   name: z.string().trim().min(1, "Product name is required").max(200),
   description: z.string().trim().max(2000),
-  sku: z.string().trim().min(1, "Master SKU is required").max(64),
+  sku: z.string().trim().min(1, "Product code is required").max(64),
   barcode: z.string().trim().max(64),
   base_unit_of_measure: z.enum(UOM_OPTIONS),
   category_id: z.string().uuid().nullable(),
+  variant_strategy: z.enum(PRODUCT_VARIANT_STRATEGIES),
   is_purchasable: z.boolean(),
   is_salable: z.boolean(),
   is_active: z.boolean(),

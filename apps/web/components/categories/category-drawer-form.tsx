@@ -23,6 +23,11 @@ import { isDuplicateAttributeKey, normalizeAttributeKey } from "@/lib/categories
 import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
 import { parentSelectOptions } from "@/lib/categories/tree";
+import {
+  PRODUCT_VARIANT_STRATEGIES,
+  variantStrategyLabel,
+  type ProductVariantStrategy,
+} from "@/lib/products/variant-strategy";
 
 type Props = {
   open: boolean;
@@ -37,6 +42,7 @@ type FormState = {
   parent_id: string | null;
   is_active: boolean;
   attribute_templates: AttributeTemplateEntry[];
+  default_variant_strategy: ProductVariantStrategy;
 };
 
 const defaultForm: FormState = {
@@ -44,6 +50,7 @@ const defaultForm: FormState = {
   parent_id: null,
   is_active: true,
   attribute_templates: [],
+  default_variant_strategy: "SINGLE_SKU",
 };
 
 export function CategoryDrawerForm({
@@ -71,6 +78,7 @@ export function CategoryDrawerForm({
         parent_id: editingCategory.parent_id,
         is_active: editingCategory.is_active,
         attribute_templates: editingCategory.attribute_templates.map((entry) => ({ ...entry })),
+        default_variant_strategy: editingCategory.default_variant_strategy,
       });
       setShowAdvanced(editingCategory.attribute_templates.length > 0);
     } else {
@@ -121,6 +129,7 @@ export function CategoryDrawerForm({
         parent_id: form.parent_id,
         is_active: form.is_active,
         attribute_templates: templates.filter((t) => t.key.trim()),
+        default_variant_strategy: form.default_variant_strategy,
       });
 
       if ("error" in result) {
@@ -199,6 +208,37 @@ export function CategoryDrawerForm({
               disabled={isPending}
               onCheckedChange={(checked) => setForm((f) => ({ ...f, is_active: checked }))}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">
+              Default variant strategy
+            </Label>
+            <Select
+              value={form.default_variant_strategy}
+              onValueChange={(value) =>
+                setForm((f) => ({
+                  ...f,
+                  default_variant_strategy: value as ProductVariantStrategy,
+                }))
+              }
+              disabled={isPending}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRODUCT_VARIANT_STRATEGIES.map((strategy) => (
+                  <SelectItem key={strategy} value={strategy}>
+                    {variantStrategyLabel(strategy)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              New products in this category inherit this strategy. Multi-variant style products use a
+              style code only until sellable SKUs are generated.
+            </p>
           </div>
 
           <Separator />

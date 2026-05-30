@@ -7,6 +7,7 @@ import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
 import { isTaxCategory } from "@/lib/products/tax-options";
 import { parseCustomFields } from "@/lib/products/sku-mask";
+import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import type {
   ProductDetailSnapshot,
   ProductListRow,
@@ -23,6 +24,7 @@ type VariantRow = {
   barcode: string | null;
   variant_attributes: Record<string, unknown> | null;
   is_master?: boolean;
+  is_sellable?: boolean;
   created_at: string;
   dead_weight_kg: number | string | null;
   weight: number | string | null;
@@ -46,6 +48,7 @@ type ItemRow = {
   is_purchasable: boolean;
   is_salable: boolean;
   has_variants: boolean;
+  variant_strategy?: string;
   default_tax_category: string;
   is_returnable: boolean;
   is_active: boolean;
@@ -102,9 +105,11 @@ function resolveLocationName(raw: ValuationRow["tenant_locations"]): string {
 
 function pickDefaultVariant(variants: VariantRow[] | null | undefined): VariantRow | null {
   if (!variants?.length) return null;
-  const master = variants.find((variant) => variant.is_master);
+  const sellable = variants.filter((variant) => variant.is_sellable !== false);
+  const pool = sellable.length ? sellable : variants;
+  const master = pool.find((variant) => variant.is_master);
   if (master) return master;
-  return [...variants].sort(
+  return [...pool].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )[0];
 }
@@ -262,6 +267,7 @@ function mapVariantRow(row: VariantRow, masterVariantId: string): ProductVariant
     height_cm: formatDecimal(row.height_cm, "0"),
     is_active: row.is_active,
     is_master: row.is_master ?? row.id === masterVariantId,
+    is_sellable: row.is_sellable ?? true,
     price: formatDecimal(row.price, "0"),
     created_at: row.created_at,
   };
@@ -509,6 +515,7 @@ const VARIANT_DETAIL_SELECT = `
   barcode,
   variant_attributes,
   is_master,
+  is_sellable,
   created_at,
   dead_weight_kg,
   weight,
@@ -649,6 +656,7 @@ export async function fetchProductDetail(
       is_purchasable,
       is_salable,
       has_variants,
+      variant_strategy,
       default_tax_category,
       is_returnable,
       is_active,
@@ -775,6 +783,9 @@ export async function fetchProductDetail(
     is_purchasable: row.is_purchasable,
     is_salable: row.is_salable,
     has_variants: row.has_variants,
+    variant_strategy: isProductVariantStrategy(row.variant_strategy ?? "")
+      ? (row.variant_strategy as ProductVariantStrategy)
+      : "SINGLE_SKU",
     default_tax_category: taxCategory,
     is_returnable: row.is_returnable,
     is_active: row.is_active,

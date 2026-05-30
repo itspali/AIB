@@ -6,6 +6,7 @@ import { redactProductListRows } from "@/lib/products/field-permissions";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { isTaxCategory } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
+import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
 import { PRODUCT_LIST_PAGE_SIZE } from "@/lib/products/list-page-size";
 
@@ -42,6 +43,10 @@ type ListViewRow = {
   variant_id?: string | null;
   variant_attributes?: Record<string, unknown> | null;
   variant_is_active?: boolean;
+  variant_strategy?: string;
+  style_code?: string | null;
+  variant_is_master?: boolean;
+  variant_is_sellable?: boolean;
 };
 
 export type ProductListPage = {
@@ -106,6 +111,12 @@ function mapListViewRow(row: ListViewRow, imageUrl: string | null): ProductListR
     variant_id: row.variant_id ?? null,
     variant_attributes: row.variant_attributes ?? null,
     variant_is_active: row.variant_is_active,
+    variant_strategy: isProductVariantStrategy(row.variant_strategy ?? "")
+      ? (row.variant_strategy as ProductVariantStrategy)
+      : "SINGLE_SKU",
+    style_code: row.style_code ?? null,
+    variant_is_master: row.variant_is_master,
+    variant_is_sellable: row.variant_is_sellable,
   };
 }
 

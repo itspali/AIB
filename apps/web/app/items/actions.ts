@@ -151,6 +151,7 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_alternate_uoms: buildAlternateUomsPayload(values),
     p_tag_ids: values.tag_ids,
     p_storefront_items: buildStorefrontItemsPayload(values),
+    p_variant_strategy: values.variant_strategy,
   });
 
   if (error) {

@@ -36,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import { composeSkuFromMask } from "@/lib/products/sku-mask";
 import { itemVariantSchema } from "@/lib/products/variant-schemas";
+import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import {
   defaultVariantFormValues,
   variantSnapshotToFormValues,
@@ -51,6 +52,7 @@ type Props = {
   categoryTemplates: AttributeTemplateEntry[];
   skuMask?: string;
   baseSku?: string;
+  variantStrategy?: ProductVariantStrategy;
   readOnly?: boolean;
   onChanged: () => void;
 };
@@ -80,12 +82,18 @@ function formatPrice(price: string): string {
   return price;
 }
 
+function masterVariantBadgeLabel(variant: ProductVariantSnapshot): string {
+  if (variant.is_master && variant.is_sellable === false) return "Style anchor";
+  return "Master";
+}
+
 export function ProductVariantPanel({
   itemId,
   variants,
   categoryTemplates,
   skuMask = "",
   baseSku = "",
+  variantStrategy = "SINGLE_SKU",
   readOnly = false,
   onChanged,
 }: Props) {
@@ -116,7 +124,11 @@ export function ProductVariantPanel({
 
   const requestDelete = (variant: ProductVariantSnapshot) => {
     if (variant.is_master) {
-      toast.error("The master variant is edited from the product profile form.");
+      toast.error(
+        variant.is_sellable === false
+          ? "The style anchor is edited from the product profile form."
+          : "The master variant is edited from the product profile form."
+      );
       return;
     }
     setVariantPendingDelete(variant);
@@ -268,8 +280,9 @@ export function ProductVariantPanel({
             Variant Management
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Manage SKU variants beyond the master profile. The master variant is edited in the
-            product form above.
+            {variantStrategy === "MULTI_SKU"
+              ? "Generate and manage sellable SKU variants. The style anchor is edited in the product profile form."
+              : "Manage SKU variants beyond the master profile. The master variant is edited in the product form above."}
           </p>
           {skuMask.trim() && (
             <p className="mt-1 font-mono text-xs text-muted-foreground">SKU mask: {skuMask}</p>
@@ -391,7 +404,11 @@ export function ProductVariantPanel({
                 <td className="p-3">
                   <div className="flex items-center gap-2">
                     <span className="font-mono">{variant.sku}</span>
-                    {variant.is_master && <Badge variant="active">Master</Badge>}
+                    {variant.is_master && (
+                      <Badge variant={variant.is_sellable === false ? "default" : "active"}>
+                        {masterVariantBadgeLabel(variant)}
+                      </Badge>
+                    )}
                   </div>
                 </td>
                 <td className="p-3 font-mono">{variant.barcode ?? "—"}</td>

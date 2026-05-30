@@ -17,9 +17,10 @@ export function buildCompactCardSubline({
   showSku,
   showStatus,
 }: SublineInput): CompactCardSubline | null {
+  const skuLabel = product.style_code ?? product.default_sku;
   const skuPart = showSku
-    ? product.default_sku?.trim()
-      ? product.default_sku.trim()
+    ? skuLabel?.trim()
+      ? skuLabel.trim()
       : "No SKU"
     : null;
   const statusPart = showStatus ? (product.is_active ? "Active" : "Inactive") : null;

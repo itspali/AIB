@@ -44,6 +44,7 @@ export async function saveSystemCategory(values: SystemCategoryFormValues) {
       parent_id: values.parent_id,
       is_active: values.is_active,
       attribute_templates: templates,
+      default_variant_strategy: values.default_variant_strategy,
     });
   }
 
@@ -52,6 +53,7 @@ export async function saveSystemCategory(values: SystemCategoryFormValues) {
     p_parent_id: values.parent_id,
     p_is_active: values.is_active,
     p_attribute_templates: templates,
+    p_default_variant_strategy: values.default_variant_strategy,
   });
 
   if (error) return { error: error.message };
@@ -70,6 +72,7 @@ async function updateSystemCategory(
     parent_id: string | null;
     is_active: boolean;
     attribute_templates: Record<string, unknown>[];
+    default_variant_strategy: SystemCategoryFormValues["default_variant_strategy"];
   }
 ) {
   const { data: rows, error: fetchError } = await supabase
@@ -96,6 +99,7 @@ async function updateSystemCategory(
       parent_id: payload.parent_id,
       is_active: payload.is_active,
       attribute_templates: payload.attribute_templates,
+      default_variant_strategy: payload.default_variant_strategy,
     })
     .eq("id", categoryId)
     .eq("tenant_id", tenantId)

@@ -12,6 +12,11 @@ import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-colu
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
 import { formatVariantAttributesSubline } from "@/lib/products/list-row-key";
+import {
+  productListRowKindBadgeVariant,
+  productListRowKindLabel,
+  resolveProductListRowKind,
+} from "@/lib/products/variant-strategy";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -99,9 +104,15 @@ export function renderProductListCell(
       const subline = options?.showVariants
         ? formatVariantAttributesSubline(product.variant_attributes)
         : null;
+      const rowKind = resolveProductListRowKind(product, options?.showVariants ?? false);
       return (
         <div className={cn(subline && product.has_variants && "border-l-2 border-border/70 pl-2.5")}>
-          <span className="font-medium">{displayText(product.name)}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{displayText(product.name)}</span>
+            <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
+              {productListRowKindLabel(rowKind)}
+            </Badge>
+          </div>
           {subline ? (
             <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
               {subline}
@@ -112,7 +123,9 @@ export function renderProductListCell(
     }
     case "default_sku":
       return (
-        <span className="font-mono text-muted-foreground">{product.default_sku ?? "—"}</span>
+        <span className="font-mono text-muted-foreground">
+          {product.style_code ?? product.default_sku ?? "—"}
+        </span>
       );
     case "barcode":
       return (

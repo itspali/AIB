@@ -8,6 +8,7 @@ import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
+import { variantStrategyLabel } from "@/lib/products/variant-strategy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dashboard/format";
@@ -48,6 +49,7 @@ export function ProductDetailViewport({
   onEdit,
   onExtensionsChanged,
 }: Props) {
+  const isMultiSku = product.variant_strategy === "MULTI_SKU";
   const attributeEntries = Object.entries(product.variant_attributes).filter(
     ([, value]) => value !== null && value !== undefined && String(value).trim() !== ""
   );
@@ -79,13 +81,17 @@ export function ProductDetailViewport({
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Master SKU</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">
+            {isMultiSku ? "Style code" : "Master SKU"}
+          </h3>
           <p className="font-mono text-sm">{product.sku}</p>
         </div>
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Barcode / GTIN</h3>
-          <p className="font-mono text-sm">{product.barcode ?? "—"}</p>
-        </div>
+        {!isMultiSku && (
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground">Barcode / GTIN</h3>
+            <p className="font-mono text-sm">{product.barcode ?? "—"}</p>
+          </div>
+        )}
         <div>
           <h3 className="text-sm font-medium text-muted-foreground">Base unit of measure</h3>
           <p className="text-sm">{product.base_unit_of_measure}</p>
@@ -97,6 +103,10 @@ export function ProductDetailViewport({
         <div>
           <h3 className="text-sm font-medium text-muted-foreground">Default tax category</h3>
           <p className="text-sm">{taxCategoryLabel(product.default_tax_category)}</p>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground">Variant strategy</h3>
+          <p className="text-sm">{variantStrategyLabel(product.variant_strategy)}</p>
         </div>
         <div>
           <h3 className="text-sm font-medium text-muted-foreground">Multi-variant product</h3>
@@ -111,7 +121,9 @@ export function ProductDetailViewport({
           <p className="text-sm">{product.is_returnable ? "Yes" : "No"}</p>
         </div>
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Master variant status</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">
+            {isMultiSku ? "Style anchor status" : "Master variant status"}
+          </h3>
           <p className="text-sm">{product.variant_is_active ? "Active" : "Inactive"}</p>
         </div>
         <div>
@@ -164,6 +176,7 @@ export function ProductDetailViewport({
         categoryTemplates={categoryTemplates}
         skuMask={product.sku_mask}
         baseSku={product.code ?? product.sku}
+        variantStrategy={product.variant_strategy}
         onChanged={() => onExtensionsChanged?.()}
       />
 
