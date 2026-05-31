@@ -18,6 +18,8 @@ type Props = {
   className?: string;
   /** When true, parent owns sticky chrome — bar is scroll-only. */
   embedded?: boolean;
+  /** Compact sizing for tight small-screen headers. */
+  dense?: boolean;
 };
 
 const TAP_MOVE_THRESHOLD_PX = 10;
@@ -29,6 +31,7 @@ export function SectionScrollChipBar({
   barRef: externalBarRef,
   className,
   embedded = false,
+  dense = false,
 }: Props) {
   const internalBarRef = useRef<HTMLDivElement | null>(null);
   const barRef = externalBarRef ?? internalBarRef;
@@ -49,7 +52,8 @@ export function SectionScrollChipBar({
     <div
       ref={barRef}
       className={cn(
-        "chip-scroll-track flex min-h-11 touch-pan-x gap-1 overflow-x-auto overscroll-x-contain",
+        "chip-scroll-track flex touch-pan-x gap-1 overflow-x-auto overscroll-x-contain",
+        dense ? "min-h-8" : "min-h-11",
         embedded
           ? "px-0.5"
           : "sticky top-0 z-20 -mx-1 rounded-lg border border-border bg-background/95 px-1 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden",
@@ -81,10 +85,11 @@ export function SectionScrollChipBar({
               }
             }}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex shrink-0 items-center gap-1.5 rounded-full border px-3 font-medium transition-colors",
+              dense ? "py-0.5 text-[11px]" : "py-1.5 text-xs",
               active
-                ? "border-transparent bg-secondary text-secondary-foreground"
-                : "border-border text-muted-foreground hover:text-foreground"
+                ? "border-primary text-foreground ring-1 ring-inset ring-primary"
+                : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
             )}
           >
             {chip.leading}

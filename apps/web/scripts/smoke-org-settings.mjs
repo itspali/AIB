@@ -365,26 +365,47 @@ async function provisionSmokeTenant(url, anonKey, serviceKey) {
   };
 }
 
-async function createStaffMember(admin, tenantId, locationId, stamp) {
+async function createStaffMember(admin, url, anonKey, tenantId, locationId, stamp) {
   const staffEmail = `smoke-staff-${stamp}@example.com`;
   const staffPassword = "SmokeTest1!";
-  const { data, error } = await admin.auth.admin.createUser({
+
+  const silentResponse = await fetch(`${BASE_URL}/api/signup/silent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: staffEmail, password: staffPassword }),
+  });
+  const silentPayload = await silentResponse.json().catch(() => ({}));
+  if (!silentResponse.ok) {
+    throw new Error(`silent staff signup: ${silentPayload.error ?? silentResponse.status}`);
+  }
+
+  const bootstrapSession = createCookieBackedSupabase(url, anonKey);
+  const { error: signInError } = await bootstrapSession.supabase.auth.signInWithPassword({
     email: staffEmail,
     password: staffPassword,
-    email_confirm: true,
-    app_metadata: {
-      tenant_id: tenantId,
-      role: "STAFF",
-      assigned_location_id: locationId,
-      first_name: "Staff",
-      last_name: "Member",
-    },
   });
-  if (error) throw new Error(`create staff user: ${error.message}`);
+  if (signInError) throw new Error(`staff sign-in after silent signup: ${signInError.message}`);
+
+  const {
+    data: { user },
+  } = await bootstrapSession.supabase.auth.getUser();
+  if (!user) throw new Error("staff auth user missing after silent signup");
+
+  const { error: insertError } = await admin.from("users").insert({
+    id: user.id,
+    tenant_id: tenantId,
+    role: "STAFF",
+    assigned_location_id: locationId,
+    first_name: "Staff",
+    last_name: "Member",
+    email: staffEmail.toLowerCase(),
+  });
+  if (insertError) throw new Error(`insert staff user: ${insertError.message}`);
+
   return {
     staffEmail,
     staffPassword,
-    staffUserId: data.user.id,
+    staffUserId: user.id,
   };
 }
 
@@ -589,6 +610,8 @@ async function main() {
 
     staff = await createStaffMember(
       provisioned.admin,
+      url,
+      anonKey,
       provisioned.tenantId,
       provisioned.locationId,
       Date.now()

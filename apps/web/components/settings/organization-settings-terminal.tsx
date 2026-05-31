@@ -87,12 +87,14 @@ export function OrganizationSettingsTerminal({
   const router = useRouter();
   const omnibar = useOptionalOmnibarContext();
   const formRef = useRef<HTMLFormElement | null>(null);
+  const topBarRef = useRef<HTMLDivElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
-  const sectionsScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRootRef = useRef<HTMLElement | null>(null);
   const sectionRefs = useRef<Partial<Record<OrgSettingsTabId, HTMLDivElement | null>>>({});
   const ignoreSpyUntilRef = useRef(0);
   const [activeSection, setActiveSection] = useState<OrgSettingsTabId>(ORG_SETTINGS_TAB_IDS.identity);
   const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
+  const [stickyOffsets, setStickyOffsets] = useState({ top: 0, chip: 0 });
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -133,21 +135,45 @@ export function OrganizationSettingsTerminal({
     setIsEditing(false);
   };
 
-  const syncSectionScrollRoot = useCallback(() => {
-    setScrollRoot(sectionsScrollRef.current);
+  // Resolve the nearest scrollable ancestor (the dashboard canvas) so the
+  // in-page nav scrolls the page itself rather than a self-contained pane.
+  useLayoutEffect(() => {
+    let el: HTMLElement | null = formRef.current?.parentElement ?? null;
+    while (el) {
+      const overflowY = window.getComputedStyle(el).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") {
+        scrollRootRef.current = el;
+        setScrollRoot(el);
+        return;
+      }
+      el = el.parentElement;
+    }
+    scrollRootRef.current = null;
+    setScrollRoot(null);
   }, []);
 
+  // Measure the sticky header (org-name bar) and the mobile chip bar so the
+  // chip bar can pin directly below the org bar and scroll offsets stay accurate.
   useLayoutEffect(() => {
-    syncSectionScrollRoot();
-  }, [syncSectionScrollRoot]);
-
-  useEffect(() => {
-    const pane = sectionsScrollRef.current;
-    if (!pane) return;
-    const observer = new ResizeObserver(syncSectionScrollRoot);
-    observer.observe(pane);
-    return () => observer.disconnect();
-  }, [syncSectionScrollRoot]);
+    const measure = () => {
+      setStickyOffsets((prev) => {
+        const next = {
+          top: topBarRef.current?.offsetHeight ?? 0,
+          chip: chipBarRef.current?.offsetHeight ?? 0,
+        };
+        return prev.top === next.top && prev.chip === next.chip ? prev : next;
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (topBarRef.current) observer.observe(topBarRef.current);
+    if (chipBarRef.current) observer.observe(chipBarRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [isEditing]);
 
   const registerSection = useCallback(
     (id: OrgSettingsTabId) => (el: HTMLDivElement | null) => {
@@ -162,9 +188,12 @@ export function OrganizationSettingsTerminal({
     const el = sectionRefs.current[id];
     if (!el) return;
 
+    const topBarHeight = topBarRef.current?.offsetHeight ?? 0;
+    const chipBarHeight = chipBarRef.current?.offsetHeight ?? 0;
+    const stickyHeight = topBarHeight + chipBarHeight;
     scrollElementInDashboardRoot(el, {
-      offsetTop: 12,
-      scrollRootRef: sectionsScrollRef,
+      additionalOffset: stickyHeight > 0 ? stickyHeight + 8 : 0,
+      scrollRootRef,
     });
   }, []);
 
@@ -188,12 +217,16 @@ export function OrganizationSettingsTerminal({
         const firstVisible = ORG_SETTINGS_TABS.find((section) => visible.has(section.id));
         if (firstVisible) setActiveSection(firstVisible.id);
       },
-      { root: scrollRoot, rootMargin: "-8px 0px -55% 0px", threshold: 0 }
+      {
+        root: scrollRoot,
+        rootMargin: `-${stickyOffsets.top + stickyOffsets.chip + 16}px 0px -60% 0px`,
+        threshold: 0,
+      }
     );
 
     elements.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [scrollRoot]);
+  }, [scrollRoot, stickyOffsets.top, stickyOffsets.chip]);
 
   const mobileChips = useMemo(
     () =>
@@ -242,8 +275,7 @@ export function OrganizationSettingsTerminal({
     <>
       {!isEditing ? (
         <Button type="button" size="sm" className="md:size-default" onClick={() => setIsEditing(true)}>
-          <span className="md:hidden">Edit</span>
-          <span className="hidden md:inline">Edit organization settings</span>
+          Edit
         </Button>
       ) : (
         <>
@@ -258,10 +290,7 @@ export function OrganizationSettingsTerminal({
             Cancel
           </Button>
           <Button type="submit" size="sm" className="md:size-default" disabled={isPending}>
-            <span className="md:hidden">{isPending ? "Saving…" : "Save"}</span>
-            <span className="hidden md:inline">
-              {isPending ? "Saving…" : "Save organization settings"}
-            </span>
+            {isPending ? "Saving…" : "Save"}
           </Button>
         </>
       )}
@@ -270,80 +299,86 @@ export function OrganizationSettingsTerminal({
 
   return (
     <form ref={formRef} onSubmit={onSubmit} className="canvas-scroll-endpad flex flex-col gap-4 lg:gap-5">
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <div
+        ref={topBarRef}
+        className="sticky top-0 z-30 -mx-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="min-w-0 truncate text-lg font-semibold sm:text-xl">{displayName}</h2>
+          <div className="flex shrink-0 items-center gap-2">{actionButtons}</div>
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <Badge
+            variant={snapshot.is_active ? "completed" : "locked"}
+            className="px-2 py-0 text-[10px] font-medium"
+          >
+            {snapshot.is_active ? "ACTIVE" : "SUSPENDED"}
+          </Badge>
+          <Badge variant="active" className="px-2 py-0 text-[10px] font-medium">
+            {snapshot.status.replace(/_/g, " ")}
+          </Badge>
+          <Badge variant="locked" className="px-2 py-0 text-[10px] font-medium">
+            {snapshot.onboarding_status.replace(/_/g, " ")}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="hidden rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5 lg:block">
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold sm:text-xl">{displayName}</h2>
-              <p className="mt-0.5 text-sm text-muted-foreground">Organization settings</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Created {formatDate(snapshot.created_at)} · Updated {formatDate(snapshot.updated_at)}
-              </p>
-            </div>
-            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant={snapshot.is_active ? "completed" : "locked"}>
-                  {snapshot.is_active ? "ACTIVE" : "SUSPENDED"}
-                </Badge>
-                <Badge variant="active">{snapshot.status.replace(/_/g, " ")}</Badge>
-                <Badge variant="locked">{snapshot.onboarding_status.replace(/_/g, " ")}</Badge>
-              </div>
-              <div className="flex shrink-0 items-center gap-2 md:hidden">{actionButtons}</div>
-            </div>
+          <div className="min-w-0">
+            <p className="text-sm text-muted-foreground">Organization settings</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Created {formatDate(snapshot.created_at)} · Updated {formatDate(snapshot.updated_at)}
+            </p>
           </div>
           <OrganizationPolicySummary snapshot={snapshot} form={form} variant="header" />
         </div>
       </div>
 
+      <OrganizationPolicySummary snapshot={snapshot} form={form} variant="panel" className="lg:hidden" />
+
       <div
-        className={cn(
-          "flex min-h-0 flex-col",
-          "max-lg:min-h-[calc(100dvh-5rem)]",
-          "lg:sticky lg:top-4 lg:z-10 lg:max-h-[calc(100svh-2rem)]"
-        )}
+        ref={chipBarRef}
+        style={{ top: stickyOffsets.top }}
+        className="sticky z-20 -mx-4 border-b border-border bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6 lg:hidden"
       >
-        <div className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
-          <SectionScrollChipBar
-            barRef={chipBarRef}
-            chips={mobileChips}
-            activeId={activeSection}
-            onSelect={(id) => scrollToSection(id as OrgSettingsTabId)}
-            embedded
-            className="px-1 py-2"
-          />
-        </div>
+        <SectionScrollChipBar
+          chips={mobileChips}
+          activeId={activeSection}
+          onSelect={(id) => scrollToSection(id as OrgSettingsTabId)}
+          embedded
+          dense
+        />
+      </div>
 
-        <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start">
-          <nav className="hidden lg:block lg:self-start">
-            <div className="space-y-1">
-              {ORG_SETTINGS_TABS.map((section) => {
-                const Icon = section.icon;
-                const active = activeSection === section.id;
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => scrollToSection(section.id)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                      active
-                        ? "bg-secondary font-medium text-secondary-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className="flex-1 truncate">{section.label}</span>
-                    <OrgSectionStatusDot status={sectionStatus(section.id)} />
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
+      <div className="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-6">
+        <nav className="hidden lg:block">
+          <div className="sticky space-y-1" style={{ top: stickyOffsets.top + 16 }}>
+            {ORG_SETTINGS_TABS.map((section) => {
+              const Icon = section.icon;
+              const active = activeSection === section.id;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => scrollToSection(section.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                    active
+                      ? "bg-secondary font-medium text-secondary-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="flex-1 truncate">{section.label}</span>
+                  <OrgSectionStatusDot status={sectionStatus(section.id)} />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
-          <div
-            ref={sectionsScrollRef}
-            className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain pb-4 max-lg:pb-16 lg:pr-0.5"
-          >
+        <div className="min-w-0 space-y-4">
           <SectionAnchor id={ORG_SETTINGS_TAB_IDS.identity} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.identity)}>
             <OrganizationIdentitySection form={form} disabled={fieldsDisabled} />
           </SectionAnchor>
@@ -397,11 +432,8 @@ export function OrganizationSettingsTerminal({
               disabled={fieldsDisabled}
             />
           </SectionAnchor>
-          </div>
         </div>
       </div>
-
-      <div className="canvas-sticky-footer max-md:!hidden">{actionButtons}</div>
     </form>
   );
 }
