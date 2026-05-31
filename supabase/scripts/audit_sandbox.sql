@@ -4,7 +4,7 @@ SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version
 SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public'
   AND table_name IN (
-    'return_policies','accounts','tax_rate_registry',
+    'return_policies','accounts','tax_codes',
     'storefront_channels','item_variants'
   )
 ORDER BY table_name;
@@ -16,7 +16,7 @@ ORDER BY column_name;
 
 SELECT tablename, policyname FROM pg_policies
 WHERE schemaname = 'public'
-  AND tablename IN ('return_policies','accounts','tax_rate_registry','storefront_channels')
+  AND tablename IN ('return_policies','accounts','tax_codes','storefront_channels')
 ORDER BY tablename, policyname;
 
 SELECT routine_schema, routine_name FROM information_schema.routines
