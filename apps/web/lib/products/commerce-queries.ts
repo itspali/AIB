@@ -14,6 +14,7 @@ export async function fetchProductCatalogContext(
     { data: storefronts },
     { data: priceBooks },
     { data: taxCodes },
+    { data: uoms },
   ] = await Promise.all([
     supabase
       .from("tenants")
@@ -50,6 +51,13 @@ export async function fetchProductCatalogContext(
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("uoms")
+      .select("id, code, name, family, factor_to_base, is_family_base")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("family")
+      .order("factor_to_base"),
   ]);
 
   const accountingConfig =
@@ -82,6 +90,14 @@ export async function fetchProductCatalogContext(
       rate: Number(row.rate),
       kind: row.kind as string,
       is_variable: Boolean(row.is_variable),
+    })),
+    uoms: (uoms ?? []).map((row) => ({
+      id: row.id as string,
+      code: row.code as string,
+      name: row.name as string,
+      family: row.family as string,
+      factor_to_base: Number(row.factor_to_base),
+      is_family_base: Boolean(row.is_family_base),
     })),
   };
 }

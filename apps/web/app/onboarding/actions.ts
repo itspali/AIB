@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { coaTemplateForCountry } from "@/lib/onboarding/locale-presets";
@@ -101,6 +102,11 @@ export async function saveLocation(values: CorporateProfileFormValues) {
 
 export async function deployCoaTemplate() {
   const { supabase, tenantId } = await requireTenantId();
+
+  // Seed a starter set of units of measure so the item catalog has units to
+  // pick from out of the box. Idempotent and best-effort — never blocks the
+  // chart-of-accounts deployment.
+  await supabase.rpc("seed_default_uoms");
 
   const { count, error: countError } = await supabase
     .from("accounts")
@@ -286,6 +292,16 @@ export async function completeOnboarding() {
     }
     return { error: error.message };
   }
+
+  // Stamp the onboarded fast-path cookie now so the redirect to /dashboard and
+  // the first navigations skip the middleware's onboarding DB check.
+  const cookieStore = await cookies();
+  cookieStore.set("aib-onboarded", "1", {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7,
+  });
 
   revalidatePath("/onboarding");
   revalidatePath("/");

@@ -24,13 +24,9 @@ export async function saveLocation(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const access = await resolveLocationManagementAccess(supabase, user.id, tenantId);
+  const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
     return { error: "Administrative privileges required." };
   }
@@ -88,13 +84,9 @@ export async function saveLocation(raw: unknown) {
 }
 
 export async function suggestLocationCode(input: LocationCodeSuggestInput) {
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const access = await resolveLocationManagementAccess(supabase, user.id, tenantId);
+  const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
     return { error: "Administrative privileges required." };
   }
@@ -132,13 +124,9 @@ export async function suggestLocationCode(input: LocationCodeSuggestInput) {
 }
 
 export async function deactivateLocation(locationId: string) {
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const access = await resolveLocationManagementAccess(supabase, user.id, tenantId);
+  const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
     return { error: "Administrative privileges required." };
   }
@@ -162,13 +150,9 @@ export async function deactivateLocation(locationId: string) {
 }
 
 export async function reactivateLocation(locationId: string) {
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const access = await resolveLocationManagementAccess(supabase, user.id, tenantId);
+  const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
     return { error: "Administrative privileges required." };
   }
@@ -197,13 +181,9 @@ export async function saveDomRoutingConfig(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid DOM routing configuration" };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const access = await resolveLocationManagementAccess(supabase, user.id, tenantId);
+  const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
     return { error: "Administrative privileges required." };
   }

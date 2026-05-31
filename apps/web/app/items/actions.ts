@@ -894,10 +894,6 @@ export async function deleteItemMedia(mediaId: string, storagePath?: string) {
 
 export async function saveProductListUserPrefs(raw: unknown) {
   const { supabase } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
 
   const { coerceProductListPrefs } = await import("@/lib/products/list-prefs");
   const prefs = coerceProductListPrefs(raw);

@@ -26,14 +26,9 @@ export async function saveOrganizationSettings(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  if (!user) return { error: "Not authenticated" };
-
-  const access = await resolveOrganizationSettingsAccess(supabase, user.id, tenantId);
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
     return { error: "Administrative privileges required." };
   }
@@ -153,13 +148,9 @@ export async function grantOrganizationSettingsDelegate(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid delegate selection" };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const access = await resolveOrganizationSettingsAccess(supabase, user.id, tenantId);
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.canGrantDelegates) {
     return { error: "Only workspace owners can grant settings access." };
   }
@@ -180,13 +171,9 @@ export async function grantOrganizationSettingsDelegate(raw: unknown) {
 }
 
 export async function revokeOrganizationSettingsDelegate(userId: string) {
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId: actorId } = await requireTenantId();
 
-  const access = await resolveOrganizationSettingsAccess(supabase, user.id, tenantId);
+  const access = await resolveOrganizationSettingsAccess(supabase, actorId, tenantId);
   if (!access.canGrantDelegates) {
     return { error: "Only workspace owners can revoke settings access." };
   }
@@ -237,13 +224,9 @@ export async function saveProductFieldsAccess(raw: unknown) {
 
   const accessMatrix = sanitizeProductFieldsAccess(raw);
 
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
-  const settingsAccess = await resolveOrganizationSettingsAccess(supabase, user.id, tenantId);
+  const settingsAccess = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!settingsAccess.isOwner) {
     return { error: "Only workspace owners can edit product field access." };
   }

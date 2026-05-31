@@ -8,10 +8,13 @@ import {
   ITEM_TYPES,
 } from "@/lib/products/item-model";
 import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
-import { UOM_OPTIONS } from "@/lib/products/uom-options";
 import { PRODUCT_VARIANT_STRATEGIES } from "@/lib/products/variant-strategy";
 
 const decimalPattern = /^\d+(\.\d+)?$/;
+
+// Units are validated against the tenant's managed UOM catalog at the UI/RPC
+// layer, so the schema only enforces a non-empty code here.
+const uomCode = z.string().trim().min(1, "Select a unit of measure").max(32);
 
 function nonNegativeDecimal(maxDecimals: number, optional = false) {
   return z
@@ -39,7 +42,7 @@ export const productMasterSchema = z.object({
   description: z.string().trim().max(2000),
   sku: z.string().trim().min(1, "Product code is required").max(64),
   barcode: z.string().trim().max(64),
-  base_unit_of_measure: z.enum(UOM_OPTIONS),
+  base_unit_of_measure: uomCode,
   category_id: z.string().uuid().nullable(),
   variant_strategy: z.enum(PRODUCT_VARIANT_STRATEGIES),
   item_type: z.enum(ITEM_TYPES),
@@ -68,8 +71,8 @@ export const productMasterSchema = z.object({
   variant_is_active: z.boolean(),
   variant_attributes: z.record(z.string(), z.string()),
   selling_price: nonNegativeDecimal(4, true),
-  selling_uom: z.enum(UOM_OPTIONS),
-  purchase_uom: z.enum(UOM_OPTIONS),
+  selling_uom: uomCode,
+  purchase_uom: uomCode,
   purchase_uom_conversion: nonNegativeDecimal(6),
   purchase_price: nonNegativeDecimal(4, true),
   supplier_id: z.string().uuid().nullable(),

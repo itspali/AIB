@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { ProductCatalogContext, ProductMasterFormValues } from "@/lib/products/types";
 import { suggestSkuMask } from "@/lib/products/sku-mask";
-import { UOM_OPTIONS } from "@/lib/products/uom-options";
+import { resolveUomOptions } from "@/lib/products/uom-options";
 
 type Props = {
   catalogContext: ProductCatalogContext;
@@ -47,6 +47,11 @@ export function ProductCatalogExtensions({
 }: Props) {
   const [newTagName, setNewTagName] = useState("");
   const [isCreatingTag, startCreateTag] = useTransition();
+
+  const alternateUomOptions = resolveUomOptions(catalogContext.uoms).filter(
+    (option) => option.code !== values.base_unit_of_measure
+  );
+  const defaultAlternateUomCode = alternateUomOptions[0]?.code ?? "";
 
   const handleCreateTag = () => {
     const trimmed = newTagName.trim();
@@ -180,11 +185,11 @@ export function ProductCatalogExtensions({
             type="button"
             size="sm"
             variant="outline"
-            disabled={disabled}
+            disabled={disabled || defaultAlternateUomCode === ""}
             onClick={() =>
               onChange("alternate_uoms", [
                 ...values.alternate_uoms,
-                { uom_code: "BOX", conversion_factor: "1" },
+                { uom_code: defaultAlternateUomCode, conversion_factor: "1" },
               ])
             }
           >
@@ -211,9 +216,10 @@ export function ProductCatalogExtensions({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UOM_OPTIONS.filter((code) => code !== values.base_unit_of_measure).map((code) => (
-                      <SelectItem key={code} value={code}>
-                        {code}
+                    {alternateUomOptions.map((option) => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.code}
+                        {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

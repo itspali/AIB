@@ -60,6 +60,11 @@ export function MobileNavDrawer({ open, onOpenChange, orgName }: MobileNavDrawer
                 )}
               >
                 <NavModuleLinkContent icon={Icon} label={item.label} />
+                {item.comingSoon ? (
+                  <span className="ml-auto rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Soon
+                  </span>
+                ) : null}
               </Link>
             );
           })}

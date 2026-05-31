@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
+import { ModuleWorkspace } from "@/components/layout/module-workspace";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopUtilityStrip } from "@/components/layout/top-utility-strip";
 import { OmnibarProvider } from "@/components/search/omnibar-provider";
@@ -71,11 +72,11 @@ export function DashboardShell({
                   : "canvas-workspace-pad"
               )}
             >
-              {children}
+              {isOnboardingLayout ? children : <ModuleWorkspace>{children}</ModuleWorkspace>}
             </div>
           </main>
         </div>
-        {showModuleNav && <MobileBottomNav />}
+        {showModuleNav && <MobileBottomNav onOpenMore={() => setMobileNavOpen(true)} />}
         {showModuleNav ? (
           <MobileNavDrawer
             open={mobileNavOpen}

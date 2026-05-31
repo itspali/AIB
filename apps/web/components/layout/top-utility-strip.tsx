@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { GlobalCreateMenu } from "@/components/layout/global-create-menu";
 import { SidebarHeaderToggleColumn } from "@/components/layout/sidebar-nav";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { OmnibarCommandDialog } from "@/components/search/omnibar-command-dialog";
@@ -80,6 +81,8 @@ export function TopUtilityStrip({
           <Search className="h-4 w-4" />
         </Button>
       ) : null}
+
+      {!hideWorkspaceTools ? <GlobalCreateMenu /> : null}
 
       {approvalAlertCount > 0 && !hideWorkspaceTools ? (
         <Badge

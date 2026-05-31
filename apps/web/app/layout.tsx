@@ -6,7 +6,7 @@ import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-context";
 import { createClient } from "@/lib/supabase/server";
-import { getTenantIdFromSession } from "@/lib/onboarding/status";
+import { getSessionTenantId } from "@/lib/supabase/auth";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
@@ -19,13 +19,15 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const tenantId = await getTenantIdFromSession(supabase);
-  const themeCookie = (await cookies()).get("aib-theme")?.value;
+  const [tenantId, themeCookie] = await Promise.all([
+    getSessionTenantId(),
+    cookies().then((store) => store.get("aib-theme")?.value),
+  ]);
   const isDarkTheme = themeCookie !== "light";
 
   let initialComplete = false;
   if (tenantId) {
+    const supabase = await createClient();
     const { data } = await supabase
       .from("tenants")
       .select("onboarding_status")

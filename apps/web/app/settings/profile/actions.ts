@@ -27,12 +27,7 @@ export async function applyProfileSecurityUpdates(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId, email } = await requireTenantId();
 
   const { error: prefsError } = await supabase.rpc("update_user_preferences", {
     p_timezone: values.timezone,
@@ -54,7 +49,7 @@ export async function applyProfileSecurityUpdates(raw: unknown) {
       phone_number: values.phone_number.trim() || null,
       avatar_url: values.avatar_url.trim() || null,
     })
-    .eq("id", user.id)
+    .eq("id", userId)
     .eq("tenant_id", tenantId);
 
   if (profileError) return { error: profileError.message };
@@ -65,7 +60,6 @@ export async function applyProfileSecurityUpdates(raw: unknown) {
     values.confirm_password.trim();
 
   if (wantsPasswordChange) {
-    const email = user.email;
     if (!email) return { error: "Email not available for password verification" };
 
     const { error: verifyError } = await supabase.auth.signInWithPassword({

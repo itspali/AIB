@@ -92,7 +92,7 @@ await delay(isWindows ? 800 : 200);
 
 console.log(`Starting next dev on port ${port}...`);
 
-const child = spawn("npx", ["next", "dev", "--port", String(port)], {
+const child = spawn("npx", ["next", "dev", "--turbopack", "--port", String(port)], {
   cwd: webRoot,
   stdio: "inherit",
   shell: isWindows,

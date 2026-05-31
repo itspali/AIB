@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readSessionClaims } from "@/lib/supabase/session-claims";
 import type {
   MilestoneStatus,
   OnboardingSnapshot,
@@ -70,25 +71,31 @@ export async function fetchOnboardingSnapshot(
 
   if (tenantError || !tenant) return null;
 
-  const { count: locationCount, data: locations, error: locationError } = await supabase
-    .from("tenant_locations")
-    .select("id, name, tax_registered_name, location_tax_identifier, state, city, country_code", {
-      count: "exact",
-    })
-    .eq("tenant_id", tenantId)
-    .limit(1);
-
-  const accountResult = await safeCount(supabase, "accounts", tenantId);
-  const taxResult = await safeCount(supabase, "tax_codes", tenantId);
-  const channelResult = await safeCount(supabase, "storefront_channels", tenantId);
+  // Run the independent onboarding-step probes concurrently. At cloud latency
+  // each await is a separate round-trip, so serializing them stacked up.
+  const [
+    { count: locationCount, data: locations, error: locationError },
+    accountResult,
+    taxResult,
+    channelResult,
+    { data: policies, error: policiesError },
+  ] = await Promise.all([
+    supabase
+      .from("tenant_locations")
+      .select("id, name, tax_registered_name, location_tax_identifier, state, city, country_code", {
+        count: "exact",
+      })
+      .eq("tenant_id", tenantId)
+      .limit(1),
+    safeCount(supabase, "accounts", tenantId),
+    safeCount(supabase, "tax_codes", tenantId),
+    safeCount(supabase, "storefront_channels", tenantId),
+    supabase.from("return_policies").select("id, policy_name").eq("tenant_id", tenantId),
+  ]);
 
   let returnPolicies: { id: string; policy_name: string }[] = [];
   let policiesMissing = false;
   let policiesRlsDenied = false;
-  const { data: policies, error: policiesError } = await supabase
-    .from("return_policies")
-    .select("id, policy_name")
-    .eq("tenant_id", tenantId);
 
   if (isMissingTableError(policiesError)) {
     policiesMissing = true;
@@ -175,9 +182,6 @@ export function getFirstIncompleteStepId(steps: OnboardingStepState[]): WizardSt
 }
 
 export async function getTenantIdFromSession(supabase: SupabaseClient): Promise<string | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  return (user.app_metadata?.tenant_id as string) ?? null;
+  const claims = await readSessionClaims(supabase);
+  return claims?.tenantId ?? null;
 }

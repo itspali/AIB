@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, LogOut, Settings, Settings2 } from "lucide-react";
+import { Building2, LogOut, Settings } from "lucide-react";
 import { ProfileNavLink, rowClassName } from "@/components/layout/profile-nav-link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -35,10 +35,6 @@ export function UserProfileActions({ profile, onboardingOnly = false, onNavigate
         <>
           <ProfileNavLink href="/settings/profile" icon={Settings} onNavigate={onNavigate}>
             Account Settings &amp; Security
-          </ProfileNavLink>
-
-          <ProfileNavLink href="/settings/organization" icon={Settings2} onNavigate={onNavigate}>
-            Organization Settings
           </ProfileNavLink>
 
           {showWorkspaceSwitch && (

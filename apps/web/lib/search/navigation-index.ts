@@ -7,6 +7,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["dashboard", "home", "overview", "command hub"],
   },
   {
+    label: "Inventory",
+    href: "/inventory",
+    keywords: ["inventory", "overview", "stock", "warehouse"],
+  },
+  {
     label: "Items",
     href: "/inventory/items",
     keywords: ["items", "products", "catalog", "sku", "master", "inventory"],
@@ -27,6 +32,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["topology", "hierarchy", "locations tree"],
   },
   {
+    label: "Units of Measure",
+    href: "/inventory/uom",
+    keywords: ["uom", "units", "measure", "measurement", "conversion", "factor", "inventory"],
+  },
+  {
     label: "Procurement",
     href: "/procurement",
     keywords: ["procurement", "purchase", "suppliers"],
@@ -37,14 +47,19 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["sales", "orders", "customers"],
   },
   {
+    label: "Logistics",
+    href: "/logistics",
+    keywords: ["logistics", "shipments", "transfers", "delivery"],
+  },
+  {
     label: "Financials",
     href: "/financials",
     keywords: ["financials", "finance", "accounting", "ledger"],
   },
   {
-    label: "Profile Settings",
-    href: "/settings/profile",
-    keywords: ["profile", "settings", "account", "user"],
+    label: "Administration",
+    href: "/settings",
+    keywords: ["administration", "admin", "settings", "configuration", "setup"],
   },
   {
     label: "Organization Settings",
@@ -55,6 +70,16 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     label: "Tax Settings",
     href: "/settings/tax",
     keywords: ["tax", "gst", "vat", "tax rule", "tax code", "slab", "rate", "settings"],
+  },
+  {
+    label: "Users & Roles",
+    href: "/settings/users",
+    keywords: ["users", "roles", "team", "members", "access", "rbac", "delegation"],
+  },
+  {
+    label: "Profile Settings",
+    href: "/settings/profile",
+    keywords: ["profile", "settings", "account", "user", "my account"],
   },
 ];
 

@@ -4,15 +4,16 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAvatarSignedUrl } from "@/lib/settings/avatar";
 import { fetchProfileSettingsSnapshot } from "@/lib/settings/queries";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
+import { fetchOnboardingSnapshot } from "@/lib/onboarding/status";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
+import { getSessionClaims } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProfileSettingsPage() {
-  const supabase = await createClient();
-  const tenantId = await getTenantIdFromSession(supabase);
+  const [supabase, claims] = await Promise.all([createClient(), getSessionClaims()]);
 
-  if (!tenantId) redirect("/signup");
+  if (!claims?.tenantId) redirect("/signup");
+  const tenantId = claims.tenantId;
 
   const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
   if (!onboardingSnapshot) redirect("/signup");
@@ -21,16 +22,10 @@ export default async function ProfileSettingsPage() {
 
   const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
   const [operatorProfile, approvalAlertCount, profileSnapshot] = await Promise.all([
     fetchOperatorProfileForSession(supabase, orgName),
     fetchApprovalAlertCount(supabase, tenantId),
-    fetchProfileSettingsSnapshot(supabase, user.id, tenantId),
+    fetchProfileSettingsSnapshot(supabase, claims.userId, tenantId),
   ]);
 
   if (!profileSnapshot) {

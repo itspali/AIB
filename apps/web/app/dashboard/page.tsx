@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
+import { getSessionTenantId } from "@/lib/supabase/auth";
+import { fetchOnboardingSnapshot } from "@/lib/onboarding/status";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -18,8 +19,7 @@ import {
 } from "@/components/dashboard/dashboard-skeletons";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const tenantId = await getTenantIdFromSession(supabase);
+  const [supabase, tenantId] = await Promise.all([createClient(), getSessionTenantId()]);
 
   if (!tenantId) redirect("/signup");
 

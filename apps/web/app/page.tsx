@@ -1,24 +1,21 @@
 import { redirect } from "next/navigation";
 import { MarketingLandingPage } from "@/components/marketing/landing-page";
 import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
-import { getTenantIdFromSession } from "@/lib/onboarding/status";
+import { getSessionClaims } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const claims = await getSessionClaims();
 
-  if (!user) {
+  if (!claims) {
     return <MarketingLandingPage />;
   }
 
-  const tenantId = await getTenantIdFromSession(supabase);
-  if (!tenantId) {
+  if (!claims.tenantId) {
     redirect("/signup?resume=1");
   }
 
-  const route = await resolvePostLoginRoute(supabase, tenantId);
+  const supabase = await createClient();
+  const route = await resolvePostLoginRoute(supabase, claims.tenantId);
   redirect(route);
 }

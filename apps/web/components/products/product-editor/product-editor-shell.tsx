@@ -59,7 +59,7 @@ import {
   itemTypeLabel,
 } from "@/lib/products/item-model";
 import { TAX_CATEGORY_OPTIONS, taxCategoryLabel } from "@/lib/products/tax-options";
-import { UOM_OPTIONS } from "@/lib/products/uom-options";
+import { resolveUomOptions, withUomValue } from "@/lib/products/uom-options";
 import {
   PRODUCT_VARIANT_STRATEGIES,
   variantStrategyLabel,
@@ -388,6 +388,25 @@ export function ProductEditorShell({
         Boolean
       ),
     [baseUom, alternateUoms]
+  );
+
+  const sellingUom = watch("selling_uom");
+
+  const uomOptions = useMemo(
+    () => resolveUomOptions(catalogContext.uoms),
+    [catalogContext.uoms]
+  );
+  const baseUomOptions = useMemo(
+    () => withUomValue(uomOptions, baseUom),
+    [uomOptions, baseUom]
+  );
+  const sellingUomOptions = useMemo(
+    () => withUomValue(uomOptions, sellingUom),
+    [uomOptions, sellingUom]
+  );
+  const purchaseUomOptions = useMemo(
+    () => withUomValue(uomOptions, purchaseUom),
+    [uomOptions, purchaseUom]
   );
 
   const showStatus = !readOnly;
@@ -817,9 +836,10 @@ export function ProductEditorShell({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UOM_OPTIONS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
+                    {baseUomOptions.map((option) => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.code}
+                        {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -920,7 +940,7 @@ export function ProductEditorShell({
 
               <Field label="Selling unit">
                 <Select
-                  value={watch("selling_uom")}
+                  value={sellingUom}
                   disabled={fieldDisabled}
                   onValueChange={(value) => setValue("selling_uom", value, { shouldDirty: true })}
                 >
@@ -928,9 +948,10 @@ export function ProductEditorShell({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UOM_OPTIONS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
+                    {sellingUomOptions.map((option) => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.code}
+                        {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -952,9 +973,10 @@ export function ProductEditorShell({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UOM_OPTIONS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
+                    {purchaseUomOptions.map((option) => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.code}
+                        {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

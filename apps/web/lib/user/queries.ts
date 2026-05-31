@@ -1,8 +1,9 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile";
 import { parseDutyStatus } from "@/lib/user/duty-status";
+import { claimsToUserShape, readSessionClaims } from "@/lib/supabase/auth";
 import type { OperatorProfile, UserRole } from "@/lib/user/types";
 
 function resolveLocationLabel(
@@ -76,18 +77,14 @@ export async function fetchOperatorProfileForSession(
   supabase: SupabaseClient,
   tenantDisplayName = "Workspace"
 ): Promise<OperatorProfile | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const claims = await readSessionClaims(supabase);
 
-  if (!user) return null;
+  if (!claims) return null;
 
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-
-  if (tenantId) {
-    const profile = await fetchOperatorProfile(supabase, user.id, tenantId);
+  if (claims.tenantId) {
+    const profile = await fetchOperatorProfile(supabase, claims.userId, claims.tenantId);
     if (profile) return profile;
   }
 
-  return buildFallbackOperatorProfile(user, tenantDisplayName);
+  return buildFallbackOperatorProfile(claimsToUserShape(claims) as User, tenantDisplayName);
 }

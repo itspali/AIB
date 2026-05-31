@@ -25,12 +25,7 @@ export async function updateUserProfile(values: {
   phone_number: string;
   avatar_url: string;
 }) {
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "Not authenticated" };
+  const { supabase, tenantId, userId } = await requireTenantId();
 
   const first_name = values.first_name.trim();
   const last_name = values.last_name.trim();
@@ -46,7 +41,7 @@ export async function updateUserProfile(values: {
       phone_number: values.phone_number.trim() || null,
       avatar_url: values.avatar_url.trim() || null,
     })
-    .eq("id", user.id)
+    .eq("id", userId)
     .eq("tenant_id", tenantId);
 
   if (error) return { error: error.message };

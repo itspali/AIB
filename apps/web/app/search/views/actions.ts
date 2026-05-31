@@ -20,21 +20,17 @@ import type {
 import type { UserRole } from "@/lib/user/types";
 
 async function getSessionContext() {
-  const { supabase, tenantId } = await requireTenantId();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  const { supabase, tenantId, userId } = await requireTenantId();
 
   const { data: userRow } = await supabase
     .from("users")
     .select("role")
-    .eq("id", user.id)
+    .eq("id", userId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
   const role = (userRow?.role as UserRole | undefined) ?? "STAFF";
-  return { supabase, tenantId, userId: user.id, role };
+  return { supabase, tenantId, userId, role };
 }
 
 function mapViewRow(row: Record<string, unknown>): CustomModuleView {

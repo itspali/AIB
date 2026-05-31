@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { UOM_OPTIONS } from "@/lib/products/uom-options";
 
 export const alternateUomRowSchema = z.object({
-  uom_code: z.enum(UOM_OPTIONS),
+  uom_code: z.string().trim().min(1, "Select a unit of measure").max(32),
   conversion_factor: z
     .string()
     .trim()

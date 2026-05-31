@@ -2,9 +2,10 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { createClient } from "@/lib/supabase/server";
+import { claimsToUserShape, getSessionClaims } from "@/lib/supabase/auth";
 import { fetchOperatorProfile } from "@/lib/user/queries";
 import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile";
 import type { OperatorProfile } from "@/lib/user/types";
@@ -26,13 +27,11 @@ export type ModulePageContext = {
  */
 export async function loadModulePageContext(): Promise<ModulePageContext> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const claims = await getSessionClaims();
 
-  if (!user) redirect("/signup");
+  if (!claims) redirect("/signup");
 
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
+  const tenantId = claims.tenantId;
   if (!tenantId) redirect("/signup");
 
   const [{ data: tenant, error: tenantError }, approvalAlertCount, operatorProfile] =
@@ -43,7 +42,7 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
         .eq("id", tenantId)
         .single(),
       fetchApprovalAlertCount(supabase, tenantId),
-      fetchOperatorProfile(supabase, user.id, tenantId),
+      fetchOperatorProfile(supabase, claims.userId, tenantId),
     ]);
 
   if (tenantError || !tenant) redirect("/signup");
@@ -52,12 +51,12 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
 
   const orgName = tenant.trade_name || tenant.name;
   const resolvedProfile =
-    operatorProfile ?? buildFallbackOperatorProfile(user, orgName);
+    operatorProfile ?? buildFallbackOperatorProfile(claimsToUserShape(claims) as User, orgName);
 
   return {
     supabase,
     tenantId,
-    userId: user.id,
+    userId: claims.userId,
     orgName,
     operatorProfile: resolvedProfile,
     operatorRole: resolvedProfile.role,

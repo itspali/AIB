@@ -6,7 +6,7 @@ import {
   isModuleNavItemActive,
 } from "@/lib/layout/module-nav-active";
 
-const inventoryItem = moduleNavItems.find((item) => item.href === "/inventory/items")!;
+const inventoryItem = moduleNavItems.find((item) => item.href === "/inventory")!;
 
 describe("module-nav-active", () => {
   it("highlights Inventory on items, categories, and locations routes", () => {

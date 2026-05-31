@@ -6,6 +6,7 @@ import {
   parseTenantProductFieldsAccess,
   type ProductFieldPermissions,
 } from "@/lib/products/field-permissions";
+import { readSessionClaims } from "@/lib/supabase/auth";
 import type { UserRole } from "@/lib/user/types";
 
 export async function resolveProductFieldPermissions(
@@ -36,15 +37,13 @@ export async function resolveSessionProductFieldPermissions(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<ProductFieldPermissions | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const claims = await readSessionClaims(supabase);
+  if (!claims) return null;
 
   const { data: userRow } = await supabase
     .from("users")
     .select("role")
-    .eq("id", user.id)
+    .eq("id", claims.userId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
 

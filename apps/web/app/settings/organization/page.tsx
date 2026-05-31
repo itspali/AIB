@@ -7,30 +7,26 @@ import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { getTenantLogoSignedUrl } from "@/lib/organization/logo";
 import { fetchOrganizationSettingsSnapshot } from "@/lib/organization/queries";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot, getTenantIdFromSession } from "@/lib/onboarding/status";
+import { fetchOnboardingSnapshot } from "@/lib/onboarding/status";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
+import { getSessionClaims } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function OrganizationSettingsPage() {
-  const supabase = await createClient();
-  const tenantId = await getTenantIdFromSession(supabase);
+  const [supabase, claims] = await Promise.all([createClient(), getSessionClaims()]);
 
-  if (!tenantId) redirect("/signup");
+  if (!claims?.tenantId) redirect("/signup");
+  const tenantId = claims.tenantId;
 
   const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
   if (!onboardingSnapshot) redirect("/signup");
 
   if (!onboardingSnapshot.isOnboardingComplete) redirect("/onboarding");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
   const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
 
   const [access, operatorProfile, approvalAlertCount] = await Promise.all([
-    resolveOrganizationSettingsAccess(supabase, user.id, tenantId),
+    resolveOrganizationSettingsAccess(supabase, claims.userId, tenantId),
     fetchOperatorProfileForSession(supabase, orgName),
     fetchApprovalAlertCount(supabase, tenantId),
   ]);

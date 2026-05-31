@@ -81,6 +81,14 @@ export type ProductCatalogContext = {
     kind: string;
     is_variable: boolean;
   }>;
+  uoms: Array<{
+    id: string;
+    code: string;
+    name: string;
+    family: string;
+    factor_to_base: number;
+    is_family_base: boolean;
+  }>;
 };
 
 export type ProductValuationSnapshot = {
