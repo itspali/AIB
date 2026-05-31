@@ -55,6 +55,34 @@ function emptyNamingSequences() {
   return Object.fromEntries(NAMING_SEQUENCE_KEYS.map((key) => [key, { prefix: "", digits: "5" }]));
 }
 
+function supportedTimezones() {
+  try {
+    if (typeof Intl !== "undefined" && "supportedValuesOf" in Intl) {
+      const values = Intl.supportedValuesOf("timeZone");
+      if (values.length > 0) return values;
+    }
+  } catch {
+    // ignore
+  }
+  return ["America/Chicago", "America/New_York", "Europe/London", "Asia/Kolkata"];
+}
+
+function normalizeTimezone(value, countryCode) {
+  const candidate = (value ?? "").trim();
+  const supported = supportedTimezones();
+  if (candidate && supported.includes(candidate)) return candidate;
+
+  const byCountry = {
+    US: "America/Chicago",
+    IN: "Asia/Kolkata",
+    GB: "Europe/London",
+    AU: "Australia/Sydney",
+    CA: "America/Toronto",
+  };
+  const fallback = byCountry[countryCode] ?? "America/Chicago";
+  return supported.includes(fallback) ? fallback : supported[0];
+}
+
 function tenantToFormValues(tenant) {
   const accounting =
     tenant.accounting_config && typeof tenant.accounting_config === "object"
@@ -84,7 +112,7 @@ function tenantToFormValues(tenant) {
     billing_zip_postal: tenant.billing_zip_postal ?? "",
     billing_country_code: tenant.billing_country_code ?? "",
     country_code: tenant.country_code ?? "US",
-    timezone: tenant.timezone ?? "America/Chicago",
+    timezone: normalizeTimezone(tenant.timezone, tenant.country_code ?? "US"),
     locale: tenant.locale ?? "en-US",
     base_currency: tenant.base_currency ?? "USD",
     fiscal_year_start_month: String(tenant.fiscal_year_start_month ?? 1),
