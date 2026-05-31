@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Base
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Load Supabase Core CLI
         uses: supabase/setup-cli@v1
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Base
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Load Supabase Core CLI
         uses: supabase/setup-cli@v1
