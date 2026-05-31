@@ -41,7 +41,6 @@ import {
 import { NewItemLinkContent } from "@/components/products/new-item-link-content";
 import { ProductDrawerForm } from "@/components/products/product-drawer-form";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
-import { CatalogSubNav } from "@/components/products/catalog-sub-nav";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
 import {
@@ -872,7 +871,6 @@ export function ProductCatalogTerminal({
     <>
       <div className="canvas-scroll-endpad">
         <header className="mb-4 sm:mb-5 md:mb-5">
-          <CatalogSubNav active="items" className="mb-3 mt-0" />
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-1.5">
               <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">Items</h1>

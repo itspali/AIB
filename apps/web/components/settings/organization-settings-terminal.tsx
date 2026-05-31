@@ -23,7 +23,6 @@ import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-ba
 import { OrganizationIdentitySection } from "@/components/settings/organization-identity-section";
 import { OrganizationLocalizationSection } from "@/components/settings/organization-localization-section";
 import { OrganizationLocationSection } from "@/components/settings/organization-location-section";
-import { OrganizationNamingSection } from "@/components/settings/organization-naming-section";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -408,14 +407,6 @@ export function OrganizationSettingsTerminal({
             <OrganizationLocationSection
               form={form}
               locations={snapshot.locations}
-              disabled={fieldsDisabled}
-            />
-          </SectionAnchor>
-
-          <SectionAnchor id={ORG_SETTINGS_TAB_IDS.numbering} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.numbering)}>
-            <OrganizationNamingSection
-              form={form}
-              documentSequences={snapshot.document_sequences}
               disabled={fieldsDisabled}
             />
           </SectionAnchor>

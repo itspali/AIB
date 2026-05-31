@@ -7,19 +7,6 @@ import { isValidTimezone } from "@/lib/settings/timezone-options";
 
 const phonePattern = /^\+?[0-9\s().-]{7,30}$/;
 
-const namingEntrySchema = z.object({
-  prefix: z.string().trim().max(32),
-  digits: z
-    .string()
-    .trim()
-    .refine((value) => value === "" || /^\d+$/.test(value), "Digits must be numeric")
-    .refine((value) => {
-      if (!value) return true;
-      const parsed = Number(value);
-      return parsed >= 3 && parsed <= 12;
-    }, "Digits must be between 3 and 12"),
-});
-
 export const organizationSettingsSchema = z.object({
   legal_name: z.string().trim().min(1, "Legal entity name is required").max(200),
   trade_name: z.string().trim().max(200),
@@ -61,7 +48,6 @@ export const organizationSettingsSchema = z.object({
   regional_hqs_enabled: z.boolean(),
   central_hq_location_id: z.string().uuid().nullable(),
   restrict_cross_warehouse_transfers: z.boolean(),
-  naming_sequences: z.record(z.string(), namingEntrySchema),
   inventory_valuation_method: z.enum(VALUATION_METHOD_OPTIONS),
   allow_negative_inventory: z.boolean(),
   multi_currency_enabled: z.boolean(),

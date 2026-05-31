@@ -56,6 +56,12 @@ export function isShallowModulePath(item: ModuleNavItem, pathname: string): bool
   return (item.children ?? []).some((child) => child.href === pathname);
 }
 
+/** Default route when activating a module that has section children. */
+export function getModuleNavEntryHref(item: ModuleNavItem): string {
+  if (item.children?.length) return item.children[0].href;
+  return item.href;
+}
+
 export type ModuleBreadcrumb = {
   module: ModuleNavItem;
   section: ModuleNavChild | null;

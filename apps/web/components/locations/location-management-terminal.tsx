@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { deactivateLocation, reactivateLocation } from "@/app/inventory/locations/actions";
+import { deactivateLocation, reactivateLocation } from "@/app/settings/locations/actions";
 import { LocationDetailViewport } from "@/components/locations/location-detail-viewport";
 import { LocationGovernanceBanner } from "@/components/locations/location-governance-banner";
 import { LocationHierarchyRail } from "@/components/locations/location-hierarchy-rail";
@@ -135,7 +135,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
               rows={initialRows}
               governance={moduleContext.governance}
               revenueAccounts={moduleContext.revenueAccounts}
-              tenantNamingDefaults={moduleContext.tenantNamingDefaults}
+              documentSequencesByLocationId={moduleContext.documentSequencesByLocationId}
               editingLocation={editingLocation}
               onDiscard={handleDiscard}
               onSaved={handleSaved}
@@ -146,6 +146,9 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
               centralHqLocationId={moduleContext.centralHqLocationId}
               canManage={moduleContext.canManage}
               revenueAccounts={moduleContext.revenueAccounts}
+              documentSequences={
+                moduleContext.documentSequencesByLocationId[selectedLocation.id] ?? []
+              }
               onEdit={openEdit}
               onDeactivate={handleDeactivate}
               onReactivate={handleReactivate}

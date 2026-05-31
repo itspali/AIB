@@ -72,11 +72,6 @@ export function orgSectionStatus(
     case ORG_SETTINGS_TAB_IDS.locations:
       return snapshot.locations.length > 0 ? "complete" : "empty";
 
-    case ORG_SETTINGS_TAB_IDS.numbering:
-      return Object.values(values.naming_sequences).some((entry) => hasText(entry?.prefix))
-        ? "complete"
-        : "empty";
-
     case ORG_SETTINGS_TAB_IDS.accounting:
       return hasText(values.inventory_valuation_method) &&
         hasText(values.credit_control_enforcement)

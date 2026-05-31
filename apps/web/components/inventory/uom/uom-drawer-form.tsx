@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveUom } from "@/app/inventory/uom/actions";
+import { saveUom } from "@/app/settings/uom/actions";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

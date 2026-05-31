@@ -1,9 +1,9 @@
-import { Truck } from "lucide-react";
+import { Users } from "lucide-react";
 import { ComingSoonModule } from "@/components/layout/coming-soon-module";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
-export default async function LogisticsPage() {
+export default async function SalesCustomersPage() {
   const { orgName, approvalAlertCount, operatorProfile, tenantId } =
     await getModulePageContext();
 
@@ -15,10 +15,10 @@ export default async function LogisticsPage() {
       tenantId={tenantId}
     >
       <ComingSoonModule
-        title="Logistics"
-        description="Coordinate shipments and inter-location stock transfers."
-        icon={Truck}
-        plannedSections={["Shipments", "Transfers"]}
+        title="Customers"
+        description="Manage customer accounts, contacts, and commercial terms."
+        icon={Users}
+        plannedSections={["Accounts", "Contacts", "Credit limits"]}
       />
     </DashboardShell>
   );

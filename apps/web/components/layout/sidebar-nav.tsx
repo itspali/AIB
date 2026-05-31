@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
-  getActiveModuleNavChild,
   isModuleNavChildActive,
   isModuleNavGroupExpanded,
   isModuleNavItemActive,
@@ -84,7 +83,7 @@ export function SidebarHeaderToggleColumn({
 }
 
 const childLinkClass =
-  "flex items-center rounded-md py-2 pl-9 pr-3 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex items-center gap-2 rounded-md py-2 pl-9 pr-3 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function SidebarNavGroup({
   item,
@@ -137,9 +136,17 @@ function SidebarNavGroup({
                 <Link
                   href={child.href}
                   prefetch
-                  className={cn(childActive && "bg-primary/10 text-primary font-medium")}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2",
+                    childActive && "bg-primary/10 font-medium text-primary"
+                  )}
                 >
-                  <NavTextLinkContent>{child.label}</NavTextLinkContent>
+                  <NavTextLinkContent
+                    icon={child.icon}
+                    iconClassName={childActive ? "text-primary" : undefined}
+                  >
+                    {child.label}
+                  </NavTextLinkContent>
                 </Link>
               </DropdownMenuItem>
             );
@@ -149,8 +156,6 @@ function SidebarNavGroup({
     );
   }
 
-  const activeChild = getActiveModuleNavChild(item, pathname);
-
   return (
     <div className="flex flex-col gap-0.5">
       <div
@@ -159,13 +164,15 @@ function SidebarNavGroup({
           groupActive && "bg-primary/5"
         )}
       >
-        <Link
-          href={activeChild?.href ?? children[0]?.href ?? item.href}
-          prefetch
-          aria-current={groupActive && !expanded ? "page" : undefined}
+        <Button
+          type="button"
+          variant="ghost"
+          aria-expanded={expanded}
+          aria-label={expanded ? `Collapse ${item.label} menu` : `Expand ${item.label} menu`}
+          onClick={() => setExpanded((value) => !value)}
           className={cn(
             navLinkClass,
-            "min-w-0 flex-1",
+            "min-w-0 flex-1 justify-start px-3",
             groupActive && "text-primary"
           )}
         >
@@ -177,20 +184,10 @@ function SidebarNavGroup({
               groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
             )}
           />
-        </Link>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mr-1 h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-          onClick={() => setExpanded((value) => !value)}
-          aria-expanded={expanded}
-          aria-label={expanded ? `Collapse ${item.label} menu` : `Expand ${item.label} menu`}
-        >
           {expanded ? (
-            <ChevronDown className="h-4 w-4" aria-hidden />
+            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           ) : (
-            <ChevronRight className="h-4 w-4" aria-hidden />
+            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           )}
         </Button>
       </div>
@@ -212,7 +209,14 @@ function SidebarNavGroup({
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <NavTextLinkContent>{child.label}</NavTextLinkContent>
+                <NavTextLinkContent
+                  icon={child.icon}
+                  iconClassName={
+                    childActive ? "text-primary" : undefined
+                  }
+                >
+                  {child.label}
+                </NavTextLinkContent>
               </Link>
             );
           })}

@@ -3,11 +3,7 @@ import { parseDomRoutingConfig } from "@/lib/locations/dom-routing";
 import type { CreditControlEnforcement } from "@/lib/organization/credit-control-options";
 import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
-import type { NamingSequenceEntry } from "@/lib/naming/sequences";
-import { parseNamingSequences } from "@/lib/naming/sequences";
 import type { TenantProductFieldsAccess } from "@/lib/products/field-permissions";
-
-export type { NamingSequenceEntry };
 
 export type OrganizationAccountingConfig = {
   inventory_valuation_method: string;
@@ -30,6 +26,7 @@ export type DocumentSequenceRow = {
   prefix: string;
   next_value: number;
   padding_length: number;
+  location_id?: string | null;
 };
 
 export type OrganizationDelegateRow = {
@@ -81,8 +78,6 @@ export type OrganizationSettingsSnapshot = {
   base_currency_locked: boolean;
   accounting_config: OrganizationAccountingConfig;
   location_governance_config: OrganizationLocationGovernanceConfig;
-  naming_sequences: Record<string, NamingSequenceEntry>;
-  document_sequences: DocumentSequenceRow[];
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string | null;
   search_financial_fields_mode: SearchFinancialFieldsMode;
@@ -117,7 +112,6 @@ export type OrganizationSettingsFormValues = {
   regional_hqs_enabled: boolean;
   central_hq_location_id: string | null;
   restrict_cross_warehouse_transfers: boolean;
-  naming_sequences: Record<string, NamingSequenceEntry>;
   inventory_valuation_method: string;
   allow_negative_inventory: boolean;
   multi_currency_enabled: boolean;
@@ -187,7 +181,6 @@ export function snapshotToFormValues(
     regional_hqs_enabled: lg.regional_hqs_enabled,
     central_hq_location_id: lg.central_hq_location_id,
     restrict_cross_warehouse_transfers: !lg.consensual_stock_transfers,
-    naming_sequences: snapshot.naming_sequences,
     inventory_valuation_method: snapshot.accounting_config.inventory_valuation_method,
     allow_negative_inventory: snapshot.accounting_config.allow_negative_inventory,
     multi_currency_enabled: snapshot.accounting_config.multi_currency_enabled,
@@ -205,7 +198,6 @@ export function snapshotToFormValues(
         !lg.multi_location_enabled ||
         lg.regional_hqs_enabled ||
         lg.central_hq_location_id ||
-        Object.keys(snapshot.naming_sequences).length > 0 ||
         snapshot.accounting_config.allow_negative_inventory ||
         !snapshot.accounting_config.multi_currency_enabled ||
         snapshot.accounting_config.credit_control_enforcement !== "STRICT" ||
@@ -220,6 +212,5 @@ export function mapTenantRowToSnapshotParts(row: Record<string, unknown>) {
   return {
     accounting_config: parseAccountingConfig(row.accounting_config),
     location_governance_config: parseLocationGovernance(row.location_governance_config),
-    naming_sequences: parseNamingSequences(row.naming_sequences),
   };
 }

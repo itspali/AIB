@@ -33,7 +33,7 @@ export async function saveUom(values: UomFormValues) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory/uom");
+  revalidatePath("/settings/uom");
   return { success: true as const, uomId: uomId as string };
 }
 
@@ -48,7 +48,7 @@ export async function deleteUom(uomId: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory/uom");
+  revalidatePath("/settings/uom");
   return { success: true as const, outcome: (data as string) ?? "DELETED" };
 }
 
@@ -59,6 +59,6 @@ export async function seedDefaultUoms() {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory/uom");
+  revalidatePath("/settings/uom");
   return { success: true as const, created: (data as number) ?? 0 };
 }

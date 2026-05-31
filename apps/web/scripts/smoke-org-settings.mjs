@@ -11,19 +11,6 @@ const BASE_URL = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
 const ORG_SETTINGS_PATH = "/settings/organization";
 const ORG_PAGE_CHUNK = "/_next/static/chunks/app/settings/organization/page.js";
 
-const NAMING_SEQUENCE_KEYS = [
-  "PURCHASE_ORDER",
-  "GOODS_RECEIPT_NOTE",
-  "PURCHASE_INVOICE",
-  "STOCK_TRANSFER",
-  "SALES_QUOTATION",
-  "SALES_ORDER",
-  "SALES_INVOICE",
-  "CUSTOMER_PAYMENT",
-  "SALES_CREDIT_NOTE",
-  "GENERAL_LEDGER",
-];
-
 function loadEnvLocal() {
   try {
     const raw = readFileSync(".env.local", "utf8");
@@ -49,10 +36,6 @@ function loadEnvLocal() {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
-}
-
-function emptyNamingSequences() {
-  return Object.fromEntries(NAMING_SEQUENCE_KEYS.map((key) => [key, { prefix: "", digits: "5" }]));
 }
 
 function supportedTimezones() {
@@ -122,7 +105,6 @@ function tenantToFormValues(tenant) {
     central_hq_location_id:
       typeof lg.central_hq_location_id === "string" ? lg.central_hq_location_id : null,
     restrict_cross_warehouse_transfers: lg.consensual_stock_transfers === false,
-    naming_sequences: emptyNamingSequences(),
     inventory_valuation_method: accounting.inventory_valuation_method ?? "FIFO",
     allow_negative_inventory: Boolean(accounting.allow_negative_inventory),
     multi_currency_enabled: accounting.multi_currency_enabled !== false,
@@ -427,7 +409,6 @@ async function testAuthenticatedPage(cookieHeader, companyName) {
     "org-section-billing-fiscal",
     "org-section-branding",
     "org-section-locations",
-    "org-section-numbering",
     "org-section-accounting",
     "org-section-access",
     "Edit organization settings",

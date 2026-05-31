@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteUom, seedDefaultUoms } from "@/app/inventory/uom/actions";
+import { deleteUom, seedDefaultUoms } from "@/app/settings/uom/actions";
 import { UomDrawerForm } from "@/components/inventory/uom/uom-drawer-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

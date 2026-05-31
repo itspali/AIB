@@ -79,7 +79,7 @@ export async function fetchGettingStartedSnapshot(
       id: "locations",
       title: "Configure warehouse locations",
       description: "Add or refine stock-holding sites beyond your onboarding home location.",
-      href: "/inventory/locations",
+      href: "/settings/locations",
       completed: locationCount >= 2,
     },
   ];

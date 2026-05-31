@@ -6,13 +6,15 @@ import type { LocationCodeSuggestInput, LocationCodeSuggestion } from "@/lib/loc
 import { resolveLocationManagementAccess } from "@/lib/locations/access";
 import { buildDomRoutingPatch } from "@/lib/locations/dom-routing";
 import { buildLocationMetaPatch } from "@/lib/locations/location-meta";
+import { filterLocationFormNamingSequences } from "@/lib/locations/document-numbering";
+import { buildNamingSequencesPayload } from "@/lib/naming/sequences";
 import { DEFAULT_VIRTUAL_LOCATION_CONFIG } from "@/lib/locations/virtual-config";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 const LOCATION_PATHS = [
-  "/inventory/locations",
-  "/inventory/locations/topology",
+  "/settings/locations",
+  "/settings/locations/topology",
   "/settings/organization",
   "/dashboard",
 ];
@@ -31,6 +33,13 @@ export async function saveLocation(raw: unknown) {
     return { error: "Administrative privileges required." };
   }
 
+  const filteredNamingSequences = buildNamingSequencesPayload(
+    filterLocationFormNamingSequences({
+      ...values,
+      naming_sequences: values.naming_sequences ?? {},
+    })
+  );
+
   const locationMeta = buildLocationMetaPatch({
     presence_type: values.presence_type,
     existing_meta: values.existing_location_meta ?? {},
@@ -41,7 +50,7 @@ export async function saveLocation(raw: unknown) {
       values.presence_type === "VIRTUAL"
         ? (values.virtual_configuration ?? DEFAULT_VIRTUAL_LOCATION_CONFIG)
         : undefined,
-    naming_sequences: values.naming_sequences,
+    naming_sequences: filteredNamingSequences,
   });
 
   const { data, error } = await supabase.rpc("save_tenant_location", {

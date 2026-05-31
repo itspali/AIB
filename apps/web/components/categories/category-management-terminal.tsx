@@ -6,7 +6,6 @@ import { CategoryDetailViewport } from "@/components/categories/category-detail-
 import { CategoryDrawerForm } from "@/components/categories/category-drawer-form";
 import { CategoryEmptyState } from "@/components/categories/category-empty-state";
 import { CategoryTreePanel } from "@/components/categories/category-tree-panel";
-import { CatalogSubNav } from "@/components/products/catalog-sub-nav";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
 import { Button } from "@/components/ui/button";
@@ -44,12 +43,10 @@ export function CategoryManagementTerminal({ initialRows }: Props) {
           <p className="mt-1 text-sm text-muted-foreground md:hidden">
             Configure hierarchical item categories and inherited attribute templates.
           </p>
-          <CatalogSubNav active="categories" />
         </div>
-        <Button onClick={openCreate} className="shrink-0">
-          <Plus className="h-4 w-4" />
-          <span className="sm:hidden">New category</span>
-          <span className="hidden sm:inline">Create Product Category</span>
+        <Button onClick={openCreate} className="shrink-0 gap-1.5">
+          <Plus className="h-4 w-4" aria-hidden />
+          New
         </Button>
       </header>
 

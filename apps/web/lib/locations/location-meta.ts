@@ -3,13 +3,16 @@ import { parseNamingSequences } from "@/lib/naming/sequences";
 import type { VirtualLocationConfiguration } from "@/lib/locations/virtual-config";
 import { buildVirtualConfigurationMetadataPatch } from "@/lib/locations/virtual-config";
 
-export function parseLocationNamingSequences(raw: unknown): Record<string, NamingSequenceEntry> {
+export function parseLocationNamingSequences(
+  raw: unknown,
+  keys?: readonly string[]
+): Record<string, NamingSequenceEntry> {
   const root = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const configurationMetadata =
     root.configuration_metadata && typeof root.configuration_metadata === "object"
       ? (root.configuration_metadata as Record<string, unknown>)
       : root;
-  return parseNamingSequences(configurationMetadata.naming_sequences);
+  return parseNamingSequences(configurationMetadata.naming_sequences, keys);
 }
 
 export function buildNamingConfigurationMetadataPatch(
@@ -36,7 +39,7 @@ export type BuildLocationMetaInput = {
   code_generation?: LocationFormValuesCodeGeneration | null;
   code_manually_edited?: boolean;
   virtual_configuration?: VirtualLocationConfiguration;
-  naming_sequences?: Record<string, NamingSequenceEntry>;
+  naming_sequences?: Record<string, { prefix: string; digits: string | number }>;
 };
 
 export function buildLocationMetaPatch(input: BuildLocationMetaInput): Record<string, unknown> {

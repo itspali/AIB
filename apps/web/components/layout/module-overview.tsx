@@ -17,7 +17,7 @@ type Props = {
   cards: ModuleOverviewCard[];
 };
 
-/** Shared module landing layout: title + a grid of section shortcut cards. */
+/** Shared module landing layout: section shortcut cards under the module header. */
 export function ModuleOverview({ title, description, cards }: Props) {
   return (
     <div className="canvas-scroll-endpad">

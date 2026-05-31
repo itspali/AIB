@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { LocationTopologyTerminal } from "@/components/locations/location-topology-terminal";
 import { resolveLocationManagementAccess } from "@/lib/locations/access";
 import { parseDomRoutingConfig } from "@/lib/locations/dom-routing";
 import {
@@ -8,10 +10,10 @@ import {
   fetchLocationTopologyRows,
 } from "@/lib/locations/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
-import { LocationTopologyTerminal } from "@/components/locations/location-topology-terminal";
 
 export default async function LocationTopologyPage() {
-  const { supabase, tenantId, userId } = await getModulePageContext();
+  const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
+    await getModulePageContext();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
 
@@ -30,11 +32,18 @@ export default async function LocationTopologyPage() {
   );
 
   return (
-    <LocationTopologyTerminal
-      topologyRows={topologyRows}
-      locationRows={locationRows}
-      domRouting={domRouting}
-      moduleContext={moduleContext}
-    />
+    <DashboardShell
+      orgName={orgName}
+      approvalAlertCount={approvalAlertCount}
+      operatorProfile={operatorProfile}
+      tenantId={tenantId}
+    >
+      <LocationTopologyTerminal
+        topologyRows={topologyRows}
+        locationRows={locationRows}
+        domRouting={domRouting}
+        moduleContext={moduleContext}
+      />
+    </DashboardShell>
   );
 }

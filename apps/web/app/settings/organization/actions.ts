@@ -6,7 +6,6 @@ import {
   organizationSettingsSchema,
 } from "@/lib/organization/schemas";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
-import { buildNamingSequencesPayload } from "@/lib/naming/sequences";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import {
@@ -66,7 +65,6 @@ export async function saveOrganizationSettings(raw: unknown) {
       central_hq_location_id: values.central_hq_location_id,
       consensual_stock_transfers: !values.restrict_cross_warehouse_transfers,
     },
-    p_naming_sequences: buildNamingSequencesPayload(values.naming_sequences),
   });
 
   if (profileError) {

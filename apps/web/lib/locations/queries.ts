@@ -10,8 +10,7 @@ import type {
   PresenceEnvironment,
   RevenueAccountOption,
 } from "@/lib/locations/types";
-import type { NamingSequenceEntry } from "@/lib/naming/sequences";
-import { parseNamingSequences } from "@/lib/naming/sequences";
+import type { DocumentSequenceRow } from "@/lib/organization/types";
 import { mapTenantRowToSnapshotParts } from "@/lib/organization/types";
 
 function mapLocationRow(row: Record<string, unknown>): LocationRow {
@@ -135,18 +134,35 @@ export async function fetchRevenueAccounts(
   }));
 }
 
-export async function fetchTenantNamingDefaults(
+export async function fetchLocationDocumentSequenceMap(
   supabase: SupabaseClient,
   tenantId: string
-): Promise<Record<string, NamingSequenceEntry>> {
+): Promise<Record<string, DocumentSequenceRow[]>> {
   const { data, error } = await supabase
-    .from("tenants")
-    .select("naming_sequences")
-    .eq("id", tenantId)
-    .maybeSingle();
+    .from("document_sequences")
+    .select("id, voucher_type, prefix, next_value, padding_length, location_id")
+    .eq("tenant_id", tenantId)
+    .not("location_id", "is", null)
+    .order("voucher_type");
 
-  if (error || !data) return parseNamingSequences({});
-  return parseNamingSequences(data.naming_sequences);
+  if (error || !data) return {};
+
+  const grouped: Record<string, DocumentSequenceRow[]> = {};
+  for (const row of data) {
+    const locationId = row.location_id ? String(row.location_id) : null;
+    if (!locationId) continue;
+    const mapped: DocumentSequenceRow = {
+      id: String(row.id),
+      voucher_type: String(row.voucher_type),
+      prefix: String(row.prefix),
+      next_value: Number(row.next_value),
+      padding_length: Number(row.padding_length),
+      location_id: locationId,
+    };
+    grouped[locationId] = [...(grouped[locationId] ?? []), mapped];
+  }
+
+  return grouped;
 }
 
 export async function fetchLocationModuleContext(
@@ -154,10 +170,10 @@ export async function fetchLocationModuleContext(
   tenantId: string,
   canManage: boolean
 ): Promise<LocationModuleContext | null> {
-  const [governance, revenueAccounts, tenantNamingDefaults] = await Promise.all([
+  const [governance, revenueAccounts, documentSequencesByLocationId] = await Promise.all([
     fetchLocationGovernanceSnapshot(supabase, tenantId),
     fetchRevenueAccounts(supabase, tenantId),
-    fetchTenantNamingDefaults(supabase, tenantId),
+    fetchLocationDocumentSequenceMap(supabase, tenantId),
   ]);
   if (!governance) return null;
 
@@ -166,6 +182,6 @@ export async function fetchLocationModuleContext(
     centralHqLocationId: governance.central_hq_location_id,
     canManage,
     revenueAccounts,
-    tenantNamingDefaults,
+    documentSequencesByLocationId,
   };
 }

@@ -7,19 +7,16 @@ import { Label } from "@/components/ui/label";
 
 type Props = {
   values: Record<string, NamingSequenceEntry>;
-  tenantDefaults?: Record<string, NamingSequenceEntry>;
+  keys?: readonly string[];
   disabled?: boolean;
   onChange: (key: string, field: keyof NamingSequenceEntry, value: string) => void;
 };
 
-export function NamingSequenceEditor({ values, tenantDefaults, disabled, onChange }: Props) {
+export function NamingSequenceEditor({ values, keys = NAMING_SEQUENCE_KEYS, disabled, onChange }: Props) {
   return (
     <div className="space-y-3">
-      {NAMING_SEQUENCE_KEYS.map((key) => {
+      {keys.map((key) => {
         const entry = values[key] ?? { prefix: "", digits: "5" };
-        const tenantDefault = tenantDefaults?.[key];
-        const inheritedPrefix = tenantDefault?.prefix?.trim() || "not configured";
-        const inheritedDigits = tenantDefault?.digits?.trim() || "5";
         return (
           <div key={key} className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_2fr_1fr]">
             <div>
@@ -32,11 +29,7 @@ export function NamingSequenceEditor({ values, tenantDefaults, disabled, onChang
                 disabled={disabled}
                 className="font-mono"
                 value={entry.prefix}
-                placeholder={
-                  tenantDefaults
-                    ? `Inherit: ${inheritedPrefix}`
-                    : "e.g. PO-2026-"
-                }
+                placeholder="e.g. PO-2026-"
                 onChange={(event) => onChange(key, "prefix", event.target.value)}
               />
             </div>
@@ -47,7 +40,7 @@ export function NamingSequenceEditor({ values, tenantDefaults, disabled, onChang
                 className="text-right font-mono"
                 inputMode="numeric"
                 value={entry.digits}
-                placeholder={tenantDefaults ? inheritedDigits : "5"}
+                placeholder="5"
                 onChange={(event) => onChange(key, "digits", event.target.value)}
               />
             </div>

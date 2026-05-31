@@ -39,7 +39,7 @@ const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
   { prefix: "/inventory/items", scope: "items" },
   { prefix: "/items/categories", scope: "categories" },
   { prefix: "/items", scope: "items" },
-  { prefix: "/inventory/locations", scope: "locations" },
+  { prefix: "/settings/locations", scope: "locations" },
   { prefix: "/settings", scope: "settings" },
 ];
 

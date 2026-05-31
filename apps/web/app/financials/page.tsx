@@ -18,7 +18,7 @@ export default async function FinancialsPage() {
         title="Financials"
         description="Maintain the chart of accounts, ledgers, and tax filings."
         icon={Boxes}
-        plannedSections={["Overview", "Chart of Accounts", "Ledger", "Tax Filings"]}
+        plannedSections={["Chart of Accounts", "Ledger", "Tax Filings"]}
       />
     </DashboardShell>
   );

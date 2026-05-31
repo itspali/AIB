@@ -155,7 +155,7 @@ New `/settings` (Administration) becomes a first-class module with its own secon
   modules** as tabs plus a **"More" tab** that opens the existing module drawer
   ([mobile-nav-drawer.tsx](../apps/web/components/layout/mobile-nav-drawer.tsx)) containing the
   remaining modules + Administration.
-- In-module secondary nav on mobile uses the horizontal sub-tab bar (§3).
+- In-module section navigation on mobile uses the "More" drawer's expanded module group (no separate in-content section nav).
 - Aligns with DESIGN_SYSTEM §2.1/§2.2 (bottom tab bar + "More" drawer).
 
 ---
@@ -165,10 +165,10 @@ New `/settings` (Administration) becomes a first-class module with its own secon
 | Phase | Deliverable | Status | Key files |
 |-------|-------------|--------|-----------|
 | 1. Nav model | Section-per-module config + `comingSoon`/`mobilePrimary` flags + Administration entry | Done | [module-nav.tsx](../apps/web/components/layout/module-nav.tsx), [module-nav-active.ts](../apps/web/lib/layout/module-nav-active.ts) |
-| 2. Secondary nav | Responsive sub-rail (lg+) + chip-bar (<lg) + breadcrumb wrapper | Done | [module-sub-nav.tsx](../apps/web/components/layout/module-sub-nav.tsx), [module-workspace.tsx](../apps/web/components/layout/module-workspace.tsx), reuse `section-scroll-chip-bar.tsx`, [dashboard-shell.tsx](../apps/web/components/layout/dashboard-shell.tsx) |
+| 2. Secondary nav | Sections live in the left sidebar (expanded module group); no separate in-content section nav or title chrome | Done | [sidebar-nav.tsx](../apps/web/components/layout/sidebar-nav.tsx), [module-nav-active.ts](../apps/web/lib/layout/module-nav-active.ts) |
 | 3. Administration hub | `/settings` overview + sub-rail; Tax/Org/Users/Profile linked; avatar dropdown trimmed; omnibar synced | Done | `app/settings/page.tsx`, `app/settings/users/page.tsx`, [user-profile-actions.tsx](../apps/web/components/layout/user-profile-actions.tsx), [navigation-index.ts](../apps/web/lib/search/navigation-index.ts) |
 | 4. Module landings | Overview pages + Coming-soon shell | Done | `app/{inventory,procurement,sales,logistics,financials}/page.tsx`, [module-overview.tsx](../apps/web/components/layout/module-overview.tsx), [coming-soon-module.tsx](../apps/web/components/layout/coming-soon-module.tsx) |
-| 5. Breadcrumbs + Create | Breadcrumb row + global create menu | Done | [module-workspace.tsx](../apps/web/components/layout/module-workspace.tsx), [global-create-menu.tsx](../apps/web/components/layout/global-create-menu.tsx), [top-utility-strip.tsx](../apps/web/components/layout/top-utility-strip.tsx) |
+| 5. Create | Global create menu in the top strip; each page renders its own title/subtitle + create action | Done | [global-create-menu.tsx](../apps/web/components/layout/global-create-menu.tsx), [top-utility-strip.tsx](../apps/web/components/layout/top-utility-strip.tsx) |
 | 6. Mobile | Bottom-nav "More" tab + drawer Soon badges | Done | [mobile-bottom-nav.tsx](../apps/web/components/layout/mobile-bottom-nav.tsx), [mobile-nav-drawer.tsx](../apps/web/components/layout/mobile-nav-drawer.tsx) |
 | 7. Docs sync | DESIGN_SYSTEM references this IA | Done | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
 
@@ -176,12 +176,11 @@ New `/settings` (Administration) becomes a first-class module with its own secon
 
 - Numbering is configured inside Organization settings, so it is **not** a separate Administration
   route; the Administration overview notes this.
-- The mobile sub-tab bar is intentionally **non-sticky** (scrolls with content) to avoid colliding
-  with pages that own their own `sticky top-0` chrome (e.g. Organization Settings, list bulk bar).
-  The desktop sub-rail is sticky within its own grid column.
-- The secondary nav renders only on **shallow** routes (module root or exact section route); deep
-  detail/editor routes (e.g. `/inventory/items/[id]/edit`) render content only so the frozen
-  full-page editor chrome is untouched.
+- Section navigation is handled entirely by the **left sidebar**: an active module expands to list
+  its sections (Overview/Items/Categories/…) with the active one highlighted. There is no
+  in-content section rail, tab strip, breadcrumb, or persistent module title — this saves vertical
+  space and avoids duplicating the sidebar. Each page renders its own title/subtitle plus its
+  create/New action on the right.
 - Units of Measure and Users & Roles are surfaced as **Coming soon** (no dead links).
 
 ---

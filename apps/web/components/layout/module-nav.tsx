@@ -3,17 +3,29 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Boxes,
+  Building2,
+  ClipboardList,
   CreditCard,
+  FileText,
+  FolderTree,
   LayoutDashboard,
+  MapPin,
   Package,
+  Receipt,
+  Ruler,
+  ScrollText,
   Settings2,
+  Shield,
   ShoppingCart,
   Truck,
+  User,
+  Users,
 } from "lucide-react";
 
 export type ModuleNavChild = {
   href: string;
   label: string;
+  icon: LucideIcon;
   /** Section is planned but not yet built; links to a "coming soon" view. */
   comingSoon?: boolean;
 };
@@ -43,8 +55,17 @@ export const moduleNavItems: ModuleNavItem[] = [
     label: "Procurement",
     shortLabel: "Procure",
     icon: ShoppingCart,
-    comingSoon: true,
     mobilePrimary: true,
+    children: [
+      { href: "/procurement/suppliers", label: "Suppliers", icon: Building2, comingSoon: true },
+      {
+        href: "/procurement/purchase-orders",
+        label: "Purchase Orders",
+        icon: ClipboardList,
+        comingSoon: true,
+      },
+      { href: "/procurement/bills", label: "Bills", icon: ScrollText, comingSoon: true },
+    ],
   },
   {
     href: "/inventory",
@@ -53,11 +74,8 @@ export const moduleNavItems: ModuleNavItem[] = [
     icon: Package,
     mobilePrimary: true,
     children: [
-      { href: "/inventory", label: "Overview" },
-      { href: "/inventory/items", label: "Items" },
-      { href: "/inventory/categories", label: "Categories" },
-      { href: "/inventory/locations", label: "Locations" },
-      { href: "/inventory/uom", label: "Units of Measure" },
+      { href: "/inventory/items", label: "Items", icon: Package },
+      { href: "/inventory/categories", label: "Categories", icon: FolderTree },
     ],
   },
   {
@@ -65,8 +83,13 @@ export const moduleNavItems: ModuleNavItem[] = [
     label: "Sales",
     shortLabel: "Sales",
     icon: CreditCard,
-    comingSoon: true,
     mobilePrimary: true,
+    children: [
+      { href: "/sales/customers", label: "Customers", icon: Users, comingSoon: true },
+      { href: "/sales/quotes", label: "Quotes", icon: FileText, comingSoon: true },
+      { href: "/sales/orders", label: "Orders", icon: ClipboardList, comingSoon: true },
+      { href: "/sales/invoices", label: "Invoices", icon: Receipt, comingSoon: true },
+    ],
   },
   {
     href: "/logistics",
@@ -89,11 +112,12 @@ export const moduleNavItems: ModuleNavItem[] = [
     shortLabel: "Admin",
     icon: Settings2,
     children: [
-      { href: "/settings", label: "Overview" },
-      { href: "/settings/organization", label: "Organization" },
-      { href: "/settings/tax", label: "Tax" },
-      { href: "/settings/users", label: "Users & Roles", comingSoon: true },
-      { href: "/settings/profile", label: "My Account" },
+      { href: "/settings/organization", label: "Organization", icon: Building2 },
+      { href: "/settings/locations", label: "Locations", icon: MapPin },
+      { href: "/settings/uom", label: "Units of Measure", icon: Ruler },
+      { href: "/settings/tax", label: "Tax", icon: Receipt },
+      { href: "/settings/users", label: "Users & Roles", icon: Shield, comingSoon: true },
+      { href: "/settings/profile", label: "My Account", icon: User },
     ],
   },
 ];

@@ -3,7 +3,6 @@ import {
   Building2,
   Calculator,
   Globe2,
-  Hash,
   Network,
   Palette,
   ShieldCheck,
@@ -16,7 +15,6 @@ export const ORG_SETTINGS_TAB_IDS = {
   billingFiscal: "billing-fiscal",
   branding: "branding",
   locations: "locations",
-  numbering: "numbering",
   accounting: "accounting",
   access: "access",
 } as const;
@@ -29,7 +27,6 @@ export const ORG_SETTINGS_SECTION_ELEMENT_IDS: Record<OrgSettingsTabId, string> 
   [ORG_SETTINGS_TAB_IDS.billingFiscal]: "org-section-billing-fiscal",
   [ORG_SETTINGS_TAB_IDS.branding]: "org-section-branding",
   [ORG_SETTINGS_TAB_IDS.locations]: "org-section-locations",
-  [ORG_SETTINGS_TAB_IDS.numbering]: "org-section-numbering",
   [ORG_SETTINGS_TAB_IDS.accounting]: "org-section-accounting",
   [ORG_SETTINGS_TAB_IDS.access]: "org-section-access",
 };
@@ -71,12 +68,6 @@ export const ORG_SETTINGS_TABS: OrgSettingsTabItem[] = [
     label: "Locations",
     shortLabel: "Locations",
     icon: Network,
-  },
-  {
-    id: ORG_SETTINGS_TAB_IDS.numbering,
-    label: "Numbering",
-    shortLabel: "Naming",
-    icon: Hash,
   },
   {
     id: ORG_SETTINGS_TAB_IDS.accounting,

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveLocation } from "@/app/inventory/locations/actions";
+import { saveLocation } from "@/app/settings/locations/actions";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
+import {
+  filterNamingSequencesToKeys,
+  getLocationDocumentNumberingKeys,
+  locationHasDocumentNumbering,
+} from "@/lib/locations/document-numbering";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
+import { LocationNumberingSection } from "@/components/locations/location-numbering-section";
 import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from "@/lib/locations/types";
+import type { DocumentSequenceRow } from "@/lib/organization/types";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import {
@@ -39,9 +46,21 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   rows: LocationRow[];
   governance: OrganizationLocationGovernanceConfig;
+  documentSequencesByLocationId?: Record<string, DocumentSequenceRow[]>;
   editingLocation?: LocationRow | null;
   onSaved: (locationId: string) => void;
 };
+
+function syncNumberingSequences(form: LocationFormValues): LocationFormValues {
+  const keys = getLocationDocumentNumberingKeys(form);
+  return {
+    ...form,
+    naming_sequences: filterNamingSequencesToKeys(
+      { ...emptyNamingSequencesForm(keys), ...form.naming_sequences },
+      keys
+    ),
+  };
+}
 
 const defaultForm: LocationFormValues = {
   location_id: null,
@@ -76,6 +95,7 @@ export function LocationDrawerForm({
   onOpenChange,
   rows,
   governance,
+  documentSequencesByLocationId = {},
   editingLocation = null,
   onSaved,
 }: Props) {
@@ -91,45 +111,52 @@ export function LocationDrawerForm({
     () => eligibleParentLocations(rows, editingLocation?.id ?? null),
     [rows, editingLocation?.id]
   );
+  const numberingKeys = useMemo(() => getLocationDocumentNumberingKeys(form), [form]);
+  const documentSequences = editingLocation
+    ? (documentSequencesByLocationId[editingLocation.id] ?? [])
+    : [];
 
   useEffect(() => {
     if (!open) return;
 
     if (editingLocation) {
-      setForm({
-        location_id: editingLocation.id,
-        name: editingLocation.name,
-        code: editingLocation.code,
-        presence_type: editingLocation.presence_type,
-        parent_location_id: editingLocation.parent_location_id,
-        address_line1: editingLocation.address_line1,
-        address_line2: editingLocation.address_line2 ?? "",
-        city: editingLocation.city,
-        state: editingLocation.state,
-        zip_postal: editingLocation.zip_postal,
-        country_code: editingLocation.country_code as LocationFormValues["country_code"],
-        manager_name: editingLocation.manager_name ?? "",
-        contact_email: editingLocation.contact_email ?? "",
-        contact_phone: editingLocation.contact_phone ?? "",
-        is_administrative_office: editingLocation.is_administrative_office,
-        is_commercial_storefront: editingLocation.is_commercial_storefront,
-        is_manufacturing_floor: editingLocation.is_manufacturing_floor,
-        is_stock_holding: editingLocation.is_stock_holding,
-        pos_terminal_count: editingLocation.pos_terminal_count,
-        location_tax_identifier: editingLocation.location_tax_identifier ?? "",
-        tax_registered_name: editingLocation.tax_registered_name ?? "",
-        show_advanced: Boolean(
-          editingLocation.parent_location_id ||
-            editingLocation.manager_name ||
-            editingLocation.location_tax_identifier ||
-            editingLocation.is_administrative_office ||
-            editingLocation.is_commercial_storefront ||
-            editingLocation.pos_terminal_count > 0
-        ),
-        virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
-        naming_sequences: parseLocationNamingSequences(editingLocation.location_meta),
-        existing_location_meta: editingLocation.location_meta,
-      });
+      const keys = getLocationDocumentNumberingKeys(editingLocation);
+      setForm(
+        syncNumberingSequences({
+          location_id: editingLocation.id,
+          name: editingLocation.name,
+          code: editingLocation.code,
+          presence_type: editingLocation.presence_type,
+          parent_location_id: editingLocation.parent_location_id,
+          address_line1: editingLocation.address_line1,
+          address_line2: editingLocation.address_line2 ?? "",
+          city: editingLocation.city,
+          state: editingLocation.state,
+          zip_postal: editingLocation.zip_postal,
+          country_code: editingLocation.country_code as LocationFormValues["country_code"],
+          manager_name: editingLocation.manager_name ?? "",
+          contact_email: editingLocation.contact_email ?? "",
+          contact_phone: editingLocation.contact_phone ?? "",
+          is_administrative_office: editingLocation.is_administrative_office,
+          is_commercial_storefront: editingLocation.is_commercial_storefront,
+          is_manufacturing_floor: editingLocation.is_manufacturing_floor,
+          is_stock_holding: editingLocation.is_stock_holding,
+          pos_terminal_count: editingLocation.pos_terminal_count,
+          location_tax_identifier: editingLocation.location_tax_identifier ?? "",
+          tax_registered_name: editingLocation.tax_registered_name ?? "",
+          show_advanced: Boolean(
+            editingLocation.parent_location_id ||
+              editingLocation.manager_name ||
+              editingLocation.location_tax_identifier ||
+              editingLocation.is_administrative_office ||
+              editingLocation.is_commercial_storefront ||
+              editingLocation.pos_terminal_count > 0
+          ),
+          virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
+          naming_sequences: parseLocationNamingSequences(editingLocation.location_meta, keys),
+          existing_location_meta: editingLocation.location_meta,
+        })
+      );
     } else {
       setForm(defaultForm);
     }
@@ -151,6 +178,14 @@ export function LocationDrawerForm({
       }
       if (key === "is_commercial_storefront" && value === false) {
         next.pos_terminal_count = 0;
+      }
+      if (
+        key === "presence_type" ||
+        key === "is_stock_holding" ||
+        key === "is_commercial_storefront" ||
+        key === "is_administrative_office"
+      ) {
+        return syncNumberingSequences(next);
       }
       return next;
     });
@@ -289,6 +324,15 @@ export function LocationDrawerForm({
             </div>
           )}
         </div>
+
+        {locationHasDocumentNumbering(form) && (
+          <LocationNumberingSection
+            keys={numberingKeys}
+            value={form.naming_sequences}
+            documentSequences={documentSequences}
+            onChange={(naming_sequences) => updateField("naming_sequences", naming_sequences)}
+          />
+        )}
 
         <Button
           type="button"

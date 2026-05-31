@@ -3,6 +3,10 @@ import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { PRESENCE_ENVIRONMENTS } from "@/lib/locations/types";
 import { DOM_FULFILLMENT_STRATEGIES } from "@/lib/locations/dom-routing";
 import {
+  getLocationDocumentNumberingKeys,
+} from "@/lib/locations/document-numbering";
+import { NAMING_SEQUENCE_KEYS } from "@/lib/organization/naming-options";
+import {
   VIRTUAL_FULFILLMENT_MODES,
   WEBHOOK_VERIFICATION_STATUSES,
 } from "@/lib/locations/virtual-config";
@@ -109,6 +113,23 @@ export const locationFormSchema = z
         message: "POS terminals require a commercial storefront location",
         path: ["pos_terminal_count"],
       });
+    }
+
+    const applicableKeys = new Set(getLocationDocumentNumberingKeys(values));
+    const sequences = values.naming_sequences ?? {};
+    for (const key of Object.keys(sequences)) {
+      if (!NAMING_SEQUENCE_KEYS.includes(key as (typeof NAMING_SEQUENCE_KEYS)[number])) {
+        continue;
+      }
+      const prefix = sequences[key]?.prefix?.trim() ?? "";
+      if (!prefix) continue;
+      if (!applicableKeys.has(key as (typeof NAMING_SEQUENCE_KEYS)[number])) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Document numbering type ${key.replace(/_/g, " ")} is not applicable to this location`,
+          path: ["naming_sequences", key, "prefix"],
+        });
+      }
     }
   });
 

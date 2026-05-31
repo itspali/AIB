@@ -1,4 +1,5 @@
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type { DocumentSequenceRow } from "@/lib/organization/types";
 import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import type {
   RevenueAccountOption,
@@ -77,7 +78,7 @@ export type LocationModuleContext = {
   centralHqLocationId: string | null;
   canManage: boolean;
   revenueAccounts: RevenueAccountOption[];
-  tenantNamingDefaults: Record<string, NamingSequenceEntry>;
+  documentSequencesByLocationId: Record<string, DocumentSequenceRow[]>;
 };
 
 export type LocationFormValues = {

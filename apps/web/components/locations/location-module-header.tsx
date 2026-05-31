@@ -20,7 +20,7 @@ export function LocationModuleHeader({ activeTab }: Props) {
         </p>
         <nav className="mt-3 flex gap-2 text-sm" aria-label="Location module sub-navigation">
           <Link
-            href="/inventory/locations"
+            href="/settings/locations"
             className={cn(
               "rounded-md px-2.5 py-1 transition-colors duration-200",
               activeTab === "directory"
@@ -32,7 +32,7 @@ export function LocationModuleHeader({ activeTab }: Props) {
             Directory
           </Link>
           <Link
-            href="/inventory/locations/topology"
+            href="/settings/locations/topology"
             className={cn(
               "rounded-md px-2.5 py-1 transition-colors duration-200",
               activeTab === "topology"

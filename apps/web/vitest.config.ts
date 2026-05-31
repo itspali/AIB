@@ -9,6 +9,7 @@ export default defineConfig({
       "lib/products/__tests__/**/*.test.ts",
       "lib/layout/__tests__/**/*.test.ts",
       "lib/list-columns/__tests__/**/*.test.ts",
+      "lib/locations/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

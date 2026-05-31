@@ -3,6 +3,7 @@
 import { Building2, Globe2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DocumentSequenceReadout } from "@/components/settings/document-sequence-readout";
 import {
   locationCapabilitySummary,
   detailAdminCapabilityText,
@@ -13,9 +14,14 @@ import {
   tagLabel,
 } from "@/lib/locations/axis-labels";
 import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
+import {
+  getLocationDocumentNumberingKeys,
+  locationHasDocumentNumbering,
+} from "@/lib/locations/document-numbering";
 import type { LocationRow, RevenueAccountOption } from "@/lib/locations/types";
+import type { DocumentSequenceRow } from "@/lib/organization/types";
 import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
-import { hasNamingOverrides, namingOverrideSummary } from "@/lib/naming/sequences";
+import { namingOverrideSummary } from "@/lib/naming/sequences";
 import {
   parseVirtualLocationConfiguration,
   virtualFulfillmentModeLabel,
@@ -28,6 +34,7 @@ type Props = {
   centralHqLocationId: string | null;
   canManage: boolean;
   revenueAccounts?: RevenueAccountOption[];
+  documentSequences?: DocumentSequenceRow[];
   onEdit: () => void;
   onDeactivate: () => void;
   onReactivate: () => void;
@@ -38,6 +45,7 @@ export function LocationDetailViewport({
   centralHqLocationId,
   canManage,
   revenueAccounts = [],
+  documentSequences = [],
   onEdit,
   onDeactivate,
   onReactivate,
@@ -55,10 +63,10 @@ export function LocationDetailViewport({
         (account) => account.id === virtualConfig.default_revenue_clearing_account_id
       )
     : null;
-  const namingSequences = parseLocationNamingSequences(location.location_meta);
-  const namingOverrides = hasNamingOverrides(namingSequences)
-    ? namingOverrideSummary(namingSequences)
-    : [];
+  const numberingKeys = getLocationDocumentNumberingKeys(location);
+  const namingSequences = parseLocationNamingSequences(location.location_meta, numberingKeys);
+  const namingConfigured = namingOverrideSummary(namingSequences, numberingKeys);
+  const showNumbering = locationHasDocumentNumbering(location);
 
   return (
     <div className="space-y-6">
@@ -247,29 +255,36 @@ export function LocationDetailViewport({
         </section>
       )}
 
-      {namingOverrides.length > 0 && (
+      {showNumbering && (
         <section className="surface-panel space-y-4 p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Document Naming Overrides
+              Document Numbering
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              This facility node uses local prefixes instead of organization defaults.
+              Prefixes configured for document types relevant to this facility.
             </p>
           </div>
-          <dl className="space-y-2">
-            {namingOverrides.map((entry) => (
-              <div key={entry.key} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                <dt className="text-muted-foreground">{entry.key.replace(/_/g, " ")}</dt>
-                <dd className="font-mono">
-                  {entry.prefix}
-                  {"{"}
-                  {entry.digits}
-                  {"}"}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          {namingConfigured.length > 0 ? (
+            <dl className="space-y-2">
+              {namingConfigured.map((entry) => (
+                <div key={entry.key} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <dt className="text-muted-foreground">{entry.key.replace(/_/g, " ")}</dt>
+                  <dd className="font-mono">
+                    {entry.prefix}
+                    {"{"}
+                    {entry.digits}
+                    {"}"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No document prefixes configured yet for this facility.
+            </p>
+          )}
+          <DocumentSequenceReadout rows={documentSequences} />
         </section>
       )}
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { saveLocation, suggestLocationCode } from "@/app/inventory/locations/actions";
+import { saveLocation, suggestLocationCode } from "@/app/settings/locations/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,8 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LocationVirtualAdvancedPanel } from "@/components/locations/location-virtual-advanced-panel";
-import { LocationNamingAdvancedPanel } from "@/components/locations/location-naming-advanced-panel";
+import { LocationNumberingSection } from "@/components/locations/location-numbering-section";
 import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
+import {
+  filterNamingSequencesToKeys,
+  getLocationDocumentNumberingKeys,
+  locationHasDocumentNumbering,
+} from "@/lib/locations/document-numbering";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
 import { buildLocationCodeSuggestInput } from "@/lib/locations/code-generation";
 import {
@@ -34,9 +39,9 @@ import {
   PRESENCE_ENVIRONMENTS,
   type LocationFormValues,
   type LocationRow,
-  type NamingSequenceEntry,
   type RevenueAccountOption,
 } from "@/lib/locations/types";
+import type { DocumentSequenceRow } from "@/lib/organization/types";
 import { emptyNamingSequencesForm, hasNamingOverrides } from "@/lib/naming/sequences";
 import {
   DEFAULT_VIRTUAL_LOCATION_CONFIG,
@@ -50,11 +55,22 @@ type Props = {
   rows: LocationRow[];
   governance: OrganizationLocationGovernanceConfig;
   revenueAccounts: RevenueAccountOption[];
-  tenantNamingDefaults: Record<string, NamingSequenceEntry>;
+  documentSequencesByLocationId: Record<string, DocumentSequenceRow[]>;
   editingLocation?: LocationRow | null;
   onDiscard: () => void;
   onSaved: (locationId: string) => void;
 };
+
+function syncNumberingSequences(form: LocationFormValues): LocationFormValues {
+  const keys = getLocationDocumentNumberingKeys(form);
+  return {
+    ...form,
+    naming_sequences: filterNamingSequencesToKeys(
+      { ...emptyNamingSequencesForm(keys), ...form.naming_sequences },
+      keys
+    ),
+  };
+}
 
 const defaultForm: LocationFormValues = {
   location_id: null,
@@ -99,7 +115,7 @@ export function LocationProvisionForm({
   rows,
   governance,
   revenueAccounts,
-  tenantNamingDefaults,
+  documentSequencesByLocationId,
   editingLocation = null,
   onDiscard,
   onSaved,
@@ -118,13 +134,22 @@ export function LocationProvisionForm({
     () => eligibleParentLocations(rows, editingLocation?.id ?? null),
     [rows, editingLocation?.id]
   );
+  const numberingKeys = useMemo(() => getLocationDocumentNumberingKeys(form), [form]);
+  const documentSequences = editingLocation
+    ? (documentSequencesByLocationId[editingLocation.id] ?? [])
+    : [];
 
   useEffect(() => {
     if (editingLocation) {
       codeManuallyEditedRef.current = true;
       lastSuggestionRef.current = null;
-      const namingSequences = parseLocationNamingSequences(editingLocation.location_meta);
-      setForm({
+      const numberingKeysForLocation = getLocationDocumentNumberingKeys(editingLocation);
+      const namingSequences = parseLocationNamingSequences(
+        editingLocation.location_meta,
+        numberingKeysForLocation
+      );
+      setForm(
+        syncNumberingSequences({
         location_id: editingLocation.id,
         name: editingLocation.name,
         code: editingLocation.code,
@@ -157,12 +182,18 @@ export function LocationProvisionForm({
             editingLocation.pos_terminal_count > 0 ||
             editingLocation.address_line2 ||
             editingLocation.presence_type === "VIRTUAL" ||
-            hasNamingOverrides(namingSequences)
+            hasNamingOverrides(
+              filterNamingSequencesToKeys(
+                namingSequences,
+                getLocationDocumentNumberingKeys(editingLocation)
+              )
+            )
         ),
         virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
         naming_sequences: namingSequences,
         existing_location_meta: editingLocation.location_meta,
-      });
+        })
+      );
     } else {
       codeManuallyEditedRef.current = false;
       lastSuggestionRef.current = null;
@@ -269,6 +300,14 @@ export function LocationProvisionForm({
         codeManuallyEditedRef.current = true;
         next.code_manually_edited = true;
         next.code_generation = lastSuggestionRef.current;
+      }
+      if (
+        key === "presence_type" ||
+        key === "is_stock_holding" ||
+        key === "is_commercial_storefront" ||
+        key === "is_administrative_office"
+      ) {
+        return syncNumberingSequences(next);
       }
       return next;
     });
@@ -405,8 +444,8 @@ export function LocationProvisionForm({
             <p className="text-sm font-medium">Show Advanced Parameters</p>
             <p className="text-xs text-muted-foreground">
               {isVirtual
-                ? "Reveal digital integration hooks, sales channel controls, document naming, and virtual DOM routing."
-                : "Reveal address mapping, inventory rules, POS registry, document naming, and manufacturing controls."}
+                ? "Reveal digital integration hooks, sales channel controls, and virtual DOM routing."
+                : "Reveal address mapping, inventory rules, POS registry, and manufacturing controls."}
             </p>
           </div>
           <Switch
@@ -580,12 +619,16 @@ export function LocationProvisionForm({
               </>
             )}
 
-            <LocationNamingAdvancedPanel
-              value={form.naming_sequences}
-              tenantDefaults={tenantNamingDefaults}
-              onChange={(naming_sequences) => updateField("naming_sequences", naming_sequences)}
-            />
           </div>
+        )}
+
+        {locationHasDocumentNumbering(form) && (
+          <LocationNumberingSection
+            keys={numberingKeys}
+            value={form.naming_sequences}
+            documentSequences={documentSequences}
+            onChange={(naming_sequences) => updateField("naming_sequences", naming_sequences)}
+          />
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}

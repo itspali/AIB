@@ -6,7 +6,7 @@ import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavModuleLinkContent } from "@/components/layout/nav-link-content";
 import { moduleNavItems } from "@/components/layout/module-nav";
-import { isModuleNavItemActive } from "@/lib/layout/module-nav-active";
+import { isModuleNavItemActive, getModuleNavEntryHref } from "@/lib/layout/module-nav-active";
 
 type Props = {
   onOpenMore?: () => void;
@@ -24,11 +24,12 @@ export function MobileBottomNav({ onOpenMore }: Props) {
     >
       <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${cellCount}, minmax(0, 1fr))` }}>
         {primaryItems.map((item) => {
-          const { href, label, shortLabel, icon: Icon } = item;
+          const { label, shortLabel, icon: Icon } = item;
+          const href = getModuleNavEntryHref(item);
           const active = isModuleNavItemActive(item, pathname);
           return (
             <Link
-              key={href}
+              key={item.href}
               href={href}
               prefetch
               aria-label={label}

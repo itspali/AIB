@@ -26,7 +26,6 @@ const FIELD_TAB: Partial<Record<keyof OrganizationSettingsFormValues, OrgSetting
   regional_hqs_enabled: ORG_SETTINGS_TAB_IDS.locations,
   central_hq_location_id: ORG_SETTINGS_TAB_IDS.locations,
   restrict_cross_warehouse_transfers: ORG_SETTINGS_TAB_IDS.locations,
-  naming_sequences: ORG_SETTINGS_TAB_IDS.numbering,
   inventory_valuation_method: ORG_SETTINGS_TAB_IDS.accounting,
   allow_negative_inventory: ORG_SETTINGS_TAB_IDS.accounting,
   multi_currency_enabled: ORG_SETTINGS_TAB_IDS.accounting,

@@ -8,8 +8,8 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Inventory",
-    href: "/inventory",
-    keywords: ["inventory", "overview", "stock", "warehouse"],
+    href: "/inventory/items",
+    keywords: ["inventory", "stock", "warehouse", "items"],
   },
   {
     label: "Items",
@@ -23,28 +23,63 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Inventory Locations",
-    href: "/inventory/locations",
+    href: "/settings/locations",
     keywords: ["inventory", "locations", "warehouses", "facilities"],
   },
   {
     label: "Location Topology",
-    href: "/inventory/locations/topology",
+    href: "/settings/locations/topology",
     keywords: ["topology", "hierarchy", "locations tree"],
   },
   {
     label: "Units of Measure",
-    href: "/inventory/uom",
+    href: "/settings/uom",
     keywords: ["uom", "units", "measure", "measurement", "conversion", "factor", "inventory"],
   },
   {
     label: "Procurement",
-    href: "/procurement",
+    href: "/procurement/suppliers",
     keywords: ["procurement", "purchase", "suppliers"],
   },
   {
+    label: "Suppliers",
+    href: "/procurement/suppliers",
+    keywords: ["suppliers", "vendors", "procurement"],
+  },
+  {
+    label: "Purchase Orders",
+    href: "/procurement/purchase-orders",
+    keywords: ["purchase orders", "po", "procurement", "buying"],
+  },
+  {
+    label: "Bills",
+    href: "/procurement/bills",
+    keywords: ["bills", "supplier invoices", "accounts payable", "procurement"],
+  },
+  {
     label: "Sales",
-    href: "/sales",
+    href: "/sales/customers",
     keywords: ["sales", "orders", "customers"],
+  },
+  {
+    label: "Customers",
+    href: "/sales/customers",
+    keywords: ["customers", "accounts", "crm", "sales"],
+  },
+  {
+    label: "Quotes",
+    href: "/sales/quotes",
+    keywords: ["quotes", "quotations", "proposals", "sales"],
+  },
+  {
+    label: "Sales Orders",
+    href: "/sales/orders",
+    keywords: ["sales orders", "orders", "order management", "sales"],
+  },
+  {
+    label: "Sales Invoices",
+    href: "/sales/invoices",
+    keywords: ["invoices", "billing", "accounts receivable", "sales"],
   },
   {
     label: "Logistics",
@@ -58,7 +93,7 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Administration",
-    href: "/settings",
+    href: "/settings/organization",
     keywords: ["administration", "admin", "settings", "configuration", "setup"],
   },
   {

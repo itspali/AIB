@@ -81,7 +81,7 @@ export function OrganizationLocationSection({ form, locations, disabled }: Props
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Link
-          href="/inventory/locations"
+          href="/settings/locations"
           className="rounded-lg border border-border px-4 py-3 text-sm transition-colors duration-200 hover:bg-accent"
         >
           <p className="font-medium">Manage locations</p>
@@ -90,7 +90,7 @@ export function OrganizationLocationSection({ form, locations, disabled }: Props
           </p>
         </Link>
         <Link
-          href="/inventory/locations/topology"
+          href="/settings/locations/topology"
           className="rounded-lg border border-border px-4 py-3 text-sm transition-colors duration-200 hover:bg-accent"
         >
           <p className="font-medium">Topology explorer</p>

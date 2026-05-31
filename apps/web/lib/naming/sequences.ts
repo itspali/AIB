@@ -21,17 +21,23 @@ export const namingSequenceEntrySchema = z.object({
 
 export const locationNamingSequencesSchema = z.record(z.string(), namingSequenceEntrySchema);
 
-export function emptyNamingSequencesForm(): Record<string, NamingSequenceEntry> {
+export function emptyNamingSequencesForm(
+  keys: readonly string[] = NAMING_SEQUENCE_KEYS
+): Record<string, NamingSequenceEntry> {
   return Object.fromEntries(
-    NAMING_SEQUENCE_KEYS.map((key) => [key, { prefix: "", digits: "5" }])
+    keys.map((key) => [key, { prefix: "", digits: "5" }])
   ) as Record<string, NamingSequenceEntry>;
 }
 
-export function parseNamingSequences(raw: unknown): Record<string, NamingSequenceEntry> {
-  const base = emptyNamingSequencesForm();
+export function parseNamingSequences(
+  raw: unknown,
+  keys: readonly string[] = NAMING_SEQUENCE_KEYS
+): Record<string, NamingSequenceEntry> {
+  const base = emptyNamingSequencesForm(keys);
   if (!raw || typeof raw !== "object") return base;
 
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!keys.includes(key)) continue;
     if (!value || typeof value !== "object") continue;
     const entry = value as Record<string, unknown>;
     base[key] = {
@@ -61,10 +67,15 @@ export function hasNamingOverrides(sequences: Record<string, NamingSequenceEntry
 }
 
 export function namingOverrideSummary(
-  sequences: Record<string, NamingSequenceEntry>
+  sequences: Record<string, NamingSequenceEntry>,
+  keys?: readonly string[]
 ): Array<{ key: string; prefix: string; digits: string }> {
+  const allowed = keys ? new Set(keys) : null;
   return Object.entries(sequences)
-    .filter(([, entry]) => entry.prefix.trim().length > 0)
+    .filter(([key, entry]) => {
+      if (allowed && !allowed.has(key)) return false;
+      return entry.prefix.trim().length > 0;
+    })
     .map(([key, entry]) => ({
       key,
       prefix: entry.prefix.trim(),

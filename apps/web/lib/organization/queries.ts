@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import {
   mapTenantRowToSnapshotParts,
-  type DocumentSequenceRow,
   type OrganizationDelegateRow,
   type OrganizationSettingsSnapshot,
   type SearchFinancialFieldsMode,
@@ -25,7 +24,6 @@ export async function fetchOrganizationSettingsSnapshot(
 ): Promise<OrganizationSettingsSnapshot | null> {
   const [
     { data: tenant, error: tenantError },
-    { data: documentSequences },
     { data: registryRows },
     { data: delegateRows },
     { data: locations },
@@ -34,11 +32,6 @@ export async function fetchOrganizationSettingsSnapshot(
     itemValuationsProbe,
   ] = await Promise.all([
     supabase.from("tenants").select("*").eq("id", tenantId).maybeSingle(),
-    supabase
-      .from("document_sequences")
-      .select("id, voucher_type, prefix, next_value, padding_length")
-      .eq("tenant_id", tenantId)
-      .order("voucher_type"),
     supabase
       .from("workspace_control_registry")
       .select("registry_key, configuration_metadata")
@@ -188,8 +181,6 @@ export async function fetchOrganizationSettingsSnapshot(
       (itemValuationsProbe.data?.length ?? 0) > 0,
     accounting_config: parsed.accounting_config,
     location_governance_config: parsed.location_governance_config,
-    naming_sequences: parsed.naming_sequences,
-    document_sequences: (documentSequences ?? []) as DocumentSequenceRow[],
     allow_line_item_discounts: allowLineItemDiscounts,
     accounting_period_closing_date: accountingPeriodClosingDate,
     search_financial_fields_mode: searchFinancialFieldsMode,

@@ -39,18 +39,29 @@ export function NavModuleLinkContent({
 type TextLinkProps = {
   children: React.ReactNode;
   className?: string;
+  icon?: LucideIcon;
+  iconClassName?: string;
 };
 
-/** Text-only nav link content with a leading spinner while pending. */
-export function NavTextLinkContent({ children, className }: TextLinkProps) {
+/** Nav link label with optional icon; icon becomes a spinner while pending. */
+export function NavTextLinkContent({
+  children,
+  className,
+  icon: Icon,
+  iconClassName,
+}: TextLinkProps) {
   const { pending } = useLinkStatus();
   return (
     <span
-      className={cn("inline-flex items-center gap-2", pending && "opacity-80", className)}
+      className={cn("inline-flex min-w-0 items-center gap-2", pending && "opacity-80", className)}
       aria-busy={pending || undefined}
     >
-      {pending ? <Spinner className="size-3.5 border-[1.5px]" /> : null}
-      {children}
+      {pending ? (
+        <Spinner className={cn("size-4 shrink-0", iconClassName)} />
+      ) : Icon ? (
+        <Icon className={cn("size-4 shrink-0 text-muted-foreground", iconClassName)} aria-hidden />
+      ) : null}
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   );
 }
