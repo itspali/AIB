@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LinkPendingStatus } from "@/components/ui/link-pending-status";
 
 type Props = {
   escapeHref?: string;
@@ -18,7 +19,9 @@ export function AdministrativeAccessDeniedView({ escapeHref = "/dashboard" }: Pr
         explicitly delegated administrators.
       </p>
       <Button asChild className="mt-6">
-        <Link href={escapeHref}>Return to Dashboard</Link>
+        <Link href={escapeHref} prefetch>
+          <LinkPendingStatus>Return to Dashboard</LinkPendingStatus>
+        </Link>
       </Button>
     </div>
   );

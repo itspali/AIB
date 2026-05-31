@@ -19,10 +19,11 @@ type Props = {
   returnPolicies: { id: string; policy_name: string }[];
   defaultValues?: Partial<ChannelFormValues>;
   showAdvanced: boolean;
+  onDraftChange?: (values: ChannelFormValues) => void;
 };
 
 export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepChannels(
-  { completed, channelCount, returnPolicies, defaultValues, showAdvanced },
+  { completed, channelCount, returnPolicies, defaultValues, showAdvanced, onDraftChange },
   ref
 ) {
   const [values, setValues] = useState<ChannelFormValues>({
@@ -34,6 +35,14 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
     new_policy_name: "",
     return_window_days: "30",
   });
+
+  const updateValues = (patch: Partial<ChannelFormValues>) => {
+    setValues((prev) => {
+      const next = { ...prev, ...patch };
+      onDraftChange?.(next);
+      return next;
+    });
+  };
 
   useImperativeHandle(ref, () => ({
     submit: async () => saveChannel(values),
@@ -54,7 +63,7 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
           <Label>Channel Name</Label>
           <Input
             value={values.name}
-            onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+            onChange={(e) => updateValues({ name: e.target.value })}
             placeholder="Main Storefront"
           />
         </div>
@@ -62,7 +71,7 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
           <Label>Slug</Label>
           <Input
             value={values.slug}
-            onChange={(e) => setValues((v) => ({ ...v, slug: e.target.value }))}
+            onChange={(e) => updateValues({ slug: e.target.value })}
             placeholder="main-store"
           />
         </div>
@@ -70,7 +79,7 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
           <Label>Channel Type</Label>
           <Select
             value={values.channel_type}
-            onValueChange={(v) => setValues((prev) => ({ ...prev, channel_type: v }))}
+            onValueChange={(v) => updateValues({ channel_type: v })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -88,7 +97,7 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
             <Label>Domain URL</Label>
             <Input
               value={values.domain_url}
-              onChange={(e) => setValues((v) => ({ ...v, domain_url: e.target.value }))}
+              onChange={(e) => updateValues({ domain_url: e.target.value })}
               placeholder="https://shop.example.com"
             />
           </div>
@@ -98,7 +107,7 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
           {returnPolicies.length > 0 ? (
             <Select
               value={values.return_policy_id}
-              onValueChange={(v) => setValues((prev) => ({ ...prev, return_policy_id: v }))}
+              onValueChange={(v) => updateValues({ return_policy_id: v })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select return policy" />
@@ -116,12 +125,12 @@ export const StepChannels = forwardRef<StepSubmitHandle, Props>(function StepCha
               <Input
                 placeholder="New policy name"
                 value={values.new_policy_name}
-                onChange={(e) => setValues((v) => ({ ...v, new_policy_name: e.target.value }))}
+                onChange={(e) => updateValues({ new_policy_name: e.target.value })}
               />
               <Input
                 placeholder="Return window (days)"
                 value={values.return_window_days}
-                onChange={(e) => setValues((v) => ({ ...v, return_window_days: e.target.value }))}
+                onChange={(e) => updateValues({ return_window_days: e.target.value })}
               />
             </div>
           )}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPendingStatus } from "@/components/ui/link-pending-status";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
 
 type Props = {
@@ -12,8 +13,12 @@ export function LocationGovernanceBanner({ governance }: Props) {
         <p className="font-medium">Enterprise topology mode active</p>
         <p className="mt-1 text-muted-foreground">
           Regional hierarchy and DOM routing controls are enabled. Adjust governance in{" "}
-          <Link href="/settings/organization" className="text-primary underline-offset-4 hover:underline">
-            Organization Settings
+          <Link
+            href="/settings/organization"
+            prefetch
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            <LinkPendingStatus spinnerClassName="h-3 w-3">Organization Settings</LinkPendingStatus>
           </Link>
           .
         </p>
@@ -27,8 +32,12 @@ export function LocationGovernanceBanner({ governance }: Props) {
         <p className="font-medium">Single-location workspace</p>
         <p className="mt-1 text-muted-foreground">
           Enable multi-location in{" "}
-          <Link href="/settings/organization" className="text-primary underline-offset-4 hover:underline">
-            Organization Settings
+          <Link
+            href="/settings/organization"
+            prefetch
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            <LinkPendingStatus spinnerClassName="h-3 w-3">Organization Settings</LinkPendingStatus>
           </Link>{" "}
           to add branches and configure topology.
         </p>

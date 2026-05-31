@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { fetchActiveTaxRateOptions, type TaxRateOption } from "@/app/items/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -184,7 +184,7 @@ export function ProductBulkJurisdictionDialog({
             disabled={!canSubmit}
             onClick={() => onSubmit({ category_id: categoryId, tax_rate_id: taxRateId })}
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isPending ? <Spinner /> : null}
             Apply sync
           </Button>
         </DialogFooter>

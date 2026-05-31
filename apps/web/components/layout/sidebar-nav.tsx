@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
+import { NavModuleLinkContent, NavTextLinkContent } from "@/components/layout/nav-link-content";
 import { moduleNavItems, type ModuleNavItem } from "@/components/layout/module-nav";
 import {
   DropdownMenu,
@@ -135,10 +136,10 @@ function SidebarNavGroup({
               <DropdownMenuItem key={child.href} asChild>
                 <Link
                   href={child.href}
-                  prefetch={false}
+                  prefetch
                   className={cn(childActive && "bg-primary/10 text-primary font-medium")}
                 >
-                  {child.label}
+                  <NavTextLinkContent>{child.label}</NavTextLinkContent>
                 </Link>
               </DropdownMenuItem>
             );
@@ -160,7 +161,7 @@ function SidebarNavGroup({
       >
         <Link
           href={activeChild?.href ?? children[0]?.href ?? item.href}
-          prefetch={false}
+          prefetch
           aria-current={groupActive && !expanded ? "page" : undefined}
           className={cn(
             navLinkClass,
@@ -168,14 +169,14 @@ function SidebarNavGroup({
             groupActive && "text-primary"
           )}
         >
-          <Icon
-            className={cn(
-              "h-4 w-4 shrink-0 transition-colors duration-200",
+          <NavModuleLinkContent
+            icon={Icon}
+            label={<span className="truncate">{item.label}</span>}
+            iconClassName={cn(
+              "transition-colors duration-200",
               groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
             )}
-            aria-hidden
           />
-          <span className="truncate">{item.label}</span>
         </Link>
         <Button
           type="button"
@@ -202,7 +203,7 @@ function SidebarNavGroup({
               <Link
                 key={child.href}
                 href={child.href}
-                prefetch={false}
+                prefetch
                 aria-current={childActive ? "page" : undefined}
                 className={cn(
                   childLinkClass,
@@ -211,7 +212,7 @@ function SidebarNavGroup({
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {child.label}
+                <NavTextLinkContent>{child.label}</NavTextLinkContent>
               </Link>
             );
           })}
@@ -236,6 +237,7 @@ function SidebarNavLink({
   return (
     <Link
       href={item.href}
+      prefetch
       aria-current={active ? "page" : undefined}
       className={cn(
         navLinkClass,
@@ -244,14 +246,15 @@ function SidebarNavLink({
       )}
       title={collapsed ? item.label : undefined}
     >
-      <Icon
-        className={cn(
-          "h-4 w-4 shrink-0 transition-colors duration-200",
+      <NavModuleLinkContent
+        icon={Icon}
+        label={item.label}
+        showLabel={!collapsed}
+        iconClassName={cn(
+          "transition-colors duration-200",
           active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
         )}
-        aria-hidden
       />
-      {!collapsed && <span>{item.label}</span>}
     </Link>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { NavTextLinkContent } from "@/components/layout/nav-link-content";
 import type { ModuleNavItem } from "@/components/layout/module-nav";
 import {
   isModuleNavChildActive,
@@ -38,6 +39,7 @@ export function MobileDrawerNavGroup({
           <Link
             key={child.href}
             href={child.href}
+            prefetch
             onClick={onNavigate}
             aria-current={childActive ? "page" : undefined}
             className={cn(
@@ -45,7 +47,7 @@ export function MobileDrawerNavGroup({
               childActive && "nav-glow-active bg-primary/10 text-primary"
             )}
           >
-            {child.label}
+            <NavTextLinkContent>{child.label}</NavTextLinkContent>
           </Link>
         );
       })}

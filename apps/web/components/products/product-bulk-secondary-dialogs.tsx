@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { getProductCatalogContext } from "@/app/items/actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,7 +63,7 @@ function BulkDialogShell({
             Cancel
           </Button>
           <Button type="button" disabled={!canSubmit || isPending} onClick={() => onSubmit()}>
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isPending ? <Spinner /> : null}
             Apply
           </Button>
         </DialogFooter>

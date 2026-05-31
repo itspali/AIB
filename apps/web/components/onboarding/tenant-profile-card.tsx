@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { humanOnboardingStatus } from "@/lib/onboarding/locale-presets";
 import type { TenantProfile } from "@/lib/onboarding/types";
 
 type TenantProfileCardProps = {
@@ -7,6 +8,8 @@ type TenantProfileCardProps = {
 };
 
 export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCardProps) {
+  const statusLabel = humanOnboardingStatus(tenant.onboarding_status, progressPercent);
+
   return (
     <Card className="border-neutral-200 bg-neutral-50/50">
       <CardHeader className="pb-4">
@@ -14,7 +17,7 @@ export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCard
           {tenant.trade_name || tenant.name}
         </CardTitle>
         <CardDescription className="text-sm text-muted-foreground">
-          Complete your corporate profile and milestone setup to launch the AIB Smart ERP workspace.
+          Complete the setup checklist below to launch your AIB Smart ERP workspace.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -32,13 +35,13 @@ export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCard
             <dd>{tenant.tax_identifier || "—"}</dd>
           </div>
           <div>
-            <dt className="font-medium text-muted-foreground">Onboarding Status</dt>
-            <dd className="capitalize">{tenant.onboarding_status.replace(/_/g, " ").toLowerCase()}</dd>
+            <dt className="font-medium text-muted-foreground">Setup Status</dt>
+            <dd>{statusLabel}</dd>
           </div>
         </dl>
         <div>
           <div className="mb-2 flex justify-between text-sm">
-            <span className="font-medium text-muted-foreground">Tenant readiness</span>
+            <span className="font-medium text-muted-foreground">Setup progress</span>
             <span>{progressPercent}%</span>
           </div>
           <div className="h-2 w-full rounded-full bg-secondary">
@@ -47,6 +50,12 @@ export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCard
               style={{ width: `${progressPercent}%` }}
             />
           </div>
+          {progressPercent >= 100 && tenant.onboarding_status !== "GO_LIVE_READY" && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              All milestones complete. Use <span className="font-medium">Complete Setup &amp; Launch</span> on
+              the final step to open your workspace.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

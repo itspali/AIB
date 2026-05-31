@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { STANDARD_COA_TEMPLATE } from "@/lib/onboarding/coa-template";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import type {
@@ -9,6 +10,20 @@ import type {
   OnboardingDraft,
   TaxRateRow,
 } from "@/lib/onboarding/types";
+
+const channelSchema = z.object({
+  name: z.string().trim().min(1, "Channel name is required"),
+  slug: z
+    .string()
+    .trim()
+    .min(1, "Slug is required")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens"),
+  channel_type: z.string().min(1, "Channel type is required"),
+  domain_url: z.string().optional(),
+  return_policy_id: z.string().optional(),
+  new_policy_name: z.string().optional(),
+  return_window_days: z.string().optional(),
+});
 
 export async function saveCorporateProfile(values: CorporateProfileFormValues) {
   const { supabase } = await requireTenantId();
@@ -44,6 +59,17 @@ export async function saveLocation(values: CorporateProfileFormValues) {
 export async function deployCoaTemplate() {
   const { supabase, tenantId } = await requireTenantId();
 
+  const { count, error: countError } = await supabase
+    .from("accounts")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  if (countError) return { error: countError.message };
+  if ((count ?? 0) > 0) {
+    revalidatePath("/onboarding");
+    return { success: true as const, count: count ?? 0, alreadyDeployed: true as const };
+  }
+
   const rows = STANDARD_COA_TEMPLATE.map((a) => ({
     tenant_id: tenantId,
     ...a,
@@ -58,6 +84,17 @@ export async function deployCoaTemplate() {
 
 export async function saveTaxRates(rows: TaxRateRow[]) {
   const { supabase, tenantId } = await requireTenantId();
+
+  const { count, error: countError } = await supabase
+    .from("tax_rate_registry")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  if (countError) return { error: countError.message };
+  if ((count ?? 0) > 0) {
+    revalidatePath("/onboarding");
+    return { success: true as const, alreadySaved: true as const };
+  }
 
   const payload = rows
     .filter((r) => r.tax_component_name.trim())
@@ -80,17 +117,38 @@ export async function saveTaxRates(rows: TaxRateRow[]) {
 }
 
 export async function saveChannel(values: ChannelFormValues) {
+  const parsed = channelSchema.safeParse(values);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid channel details" };
+  }
+
   const { supabase, tenantId } = await requireTenantId();
+  const data = parsed.data;
 
-  let returnPolicyId = values.return_policy_id;
+  const { count, error: countError } = await supabase
+    .from("storefront_channels")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
 
-  if (!returnPolicyId && values.new_policy_name) {
+  if (countError) return { error: countError.message };
+  if ((count ?? 0) > 0) {
+    revalidatePath("/onboarding");
+    return { success: true as const, alreadySaved: true as const };
+  }
+
+  let returnPolicyId = data.return_policy_id;
+
+  if (!returnPolicyId && !data.new_policy_name?.trim()) {
+    return { error: "Add a return policy name or select an existing policy" };
+  }
+
+  if (!returnPolicyId && data.new_policy_name) {
     const { data: policy, error: policyError } = await supabase
       .from("return_policies")
       .insert({
         tenant_id: tenantId,
-        policy_name: values.new_policy_name,
-        return_window_days: parseInt(values.return_window_days || "30", 10),
+        policy_name: data.new_policy_name.trim(),
+        return_window_days: parseInt(data.return_window_days || "30", 10),
       })
       .select("id")
       .single();
@@ -101,10 +159,10 @@ export async function saveChannel(values: ChannelFormValues) {
 
   const { error } = await supabase.from("storefront_channels").insert({
     tenant_id: tenantId,
-    name: values.name,
-    slug: values.slug,
-    channel_type: values.channel_type,
-    domain_url: values.domain_url || null,
+    name: data.name,
+    slug: data.slug,
+    channel_type: data.channel_type,
+    domain_url: data.domain_url || null,
     return_policy_id: returnPolicyId || null,
   });
 
@@ -133,19 +191,27 @@ export async function saveDraft(draft: OnboardingDraft) {
     .eq("id", tenantId);
 
   if (error) return { error: error.message };
-  revalidatePath("/onboarding");
   return { success: true as const };
 }
 
 export async function completeOnboarding() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase } = await requireTenantId();
 
-  const { error } = await supabase
-    .from("tenants")
-    .update({ onboarding_status: "GO_LIVE_READY" })
-    .eq("id", tenantId);
+  const { error } = await supabase.rpc("complete_onboarding");
 
-  if (error) return { error: error.message };
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes("complete onboarding requires")) {
+      return { error: error.message };
+    }
+    if (message.includes("function") && message.includes("does not exist")) {
+      return {
+        error:
+          "Launch validation is unavailable. Deploy migration 20260544000000_onboarding_signup_improvements.sql, then retry.",
+      };
+    }
+    return { error: error.message };
+  }
 
   revalidatePath("/onboarding");
   revalidatePath("/");

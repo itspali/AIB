@@ -1,7 +1,6 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 
 type Props = {
@@ -19,37 +18,7 @@ export function AdvancedParametersPanel({ enabled, onEnabledChange, children }: 
         </Label>
         <Switch id="advanced-toggle" checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
-      {enabled && (
-        <>
-          {children}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
-          <div className="space-y-2 rounded-md border p-3">
-            <p className="font-medium">Currency Exchange Rates</p>
-            <p className="text-muted-foreground text-xs">
-              Configure daily spot pairs and contract-fixed B2B overrides after go-live.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="From (USD)" disabled />
-              <Input placeholder="To (INR)" disabled />
-            </div>
-          </div>
-          <div className="space-y-2 rounded-md border p-3">
-            <p className="font-medium">Document Sequences</p>
-            <p className="text-muted-foreground text-xs">
-              Voucher prefix and padding managed via workspace control registry post-launch.
-            </p>
-            <Input placeholder="Auto-configured on first transaction" disabled />
-          </div>
-          <div className="space-y-2 rounded-md border p-3 md:col-span-2">
-            <p className="font-medium">Inventory Buffer Thresholds</p>
-            <p className="text-muted-foreground text-xs">
-              Min/max/reorder gates unlock after product catalog seeding in Inventory module.
-            </p>
-            <Input placeholder="Available after catalog setup" disabled />
-          </div>
-        </div>
-        </>
-      )}
+      {enabled ? children : null}
     </div>
   );
 }

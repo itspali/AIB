@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import {
   fetchProductMediaGallery,
@@ -129,7 +130,7 @@ export function ProductListImageGallery({
 
           <div className="relative flex min-h-0 flex-1 items-center justify-center px-14">
             {isLoading ? (
-              <Loader2 className="h-8 w-8 animate-spin text-white/80" aria-hidden />
+              <Spinner className="size-8 text-white/80" />
             ) : activeSlide ? (
               <img
                 src={activeSlide.url}

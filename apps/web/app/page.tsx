@@ -7,7 +7,7 @@ export default async function HomePage() {
   const supabase = await createClient();
   const tenantId = await getTenantIdFromSession(supabase);
 
-  if (!tenantId) redirect("/signup");
+  if (!tenantId) redirect("/login");
 
   const route = await resolvePostLoginRoute(supabase, tenantId);
   redirect(route);

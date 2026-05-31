@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { hydrateProductListImageUrls, saveProductListUserPrefs } from "@/app/items/actions";
@@ -471,7 +471,7 @@ export function ProductStreamPanel({
           >
             {isLoadingMore ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <Spinner />
                 Loading…
               </>
             ) : (

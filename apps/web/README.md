@@ -25,7 +25,7 @@ Open [http://localhost:3000](http://localhost:3000).
 3. RPC `initialize_new_tenant` seeds `tenants` + OWNER `users` row
 4. Post-login routing: zero locations → `/onboarding`; complete tenant → `/dashboard`
 
-**Note:** Signup requires an immediate auth session. Disable email confirmation in Supabase Auth for local dev, or confirm email before the RPC runs.
+**Note:** Signup supports email confirmation via `/auth/callback`. Users without a tenant are sent to `/signup?resume=1` to finish workspace setup. For local dev, `SUPABASE_SERVICE_ROLE_KEY` avoids auth rate limits.
 
 ## Onboarding Flow
 
@@ -37,3 +37,5 @@ Open [http://localhost:3000](http://localhost:3000).
 4. Storefront channels & return policies
 
 Completing all steps enables **Complete Setup & Launch Workspace** (`onboarding_status = GO_LIVE_READY`).
+
+After launch, the dashboard shows a dismissible **Getting started** checklist (first product, categories, org review, locations).

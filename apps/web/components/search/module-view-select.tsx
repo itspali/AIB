@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check, ChevronDown, Loader2, Pencil, Star, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Star, Trash2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import {
   clearCustomModuleViewDefault,
@@ -471,7 +472,7 @@ export function ModuleViewSelect({ className, triggerClassName }: Props) {
           >
             <span className="flex min-w-0 items-center gap-1.5 truncate">
               {isFilterLoading || isDefaultViewBootstrapping ? (
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                <Spinner className="size-3.5 border-[1.5px]" />
               ) : null}
               <span className="truncate">{displayLabel}</span>
             </span>

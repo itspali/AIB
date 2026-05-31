@@ -18,6 +18,7 @@ type TopUtilityStripProps = {
   orgName: string;
   progressPercent?: number;
   showProgress?: boolean;
+  hideWorkspaceTools?: boolean;
   approvalAlertCount?: number;
   operatorProfile?: OperatorProfile | null;
   embedded?: boolean;
@@ -29,6 +30,7 @@ export function TopUtilityStrip({
   orgName,
   progressPercent = 0,
   showProgress = false,
+  hideWorkspaceTools = false,
   approvalAlertCount = 0,
   operatorProfile = null,
   embedded = false,
@@ -79,7 +81,7 @@ export function TopUtilityStrip({
         </Button>
       ) : null}
 
-      {approvalAlertCount > 0 ? (
+      {approvalAlertCount > 0 && !hideWorkspaceTools ? (
         <Badge
           variant="action_required"
           className="gap-1.5 border border-amber-500/20 shadow-sm transition-colors duration-200"
@@ -89,7 +91,7 @@ export function TopUtilityStrip({
           <span className="hidden md:inline">Approvals</span>
           <span className="tabular-nums">{approvalAlertCount}</span>
         </Badge>
-      ) : (
+      ) : hideWorkspaceTools ? null : (
         <Badge variant="locked" className="hidden md:inline-flex">
           All clear
         </Badge>
@@ -101,6 +103,7 @@ export function TopUtilityStrip({
         <UserProfileMenu
           key={`${operatorProfile.userId}-${operatorProfile.firstName}-${operatorProfile.lastName}-${operatorProfile.avatarUrl ?? ""}`}
           profile={operatorProfile}
+          onboardingOnly={hideWorkspaceTools}
           onOpenChange={setProfileOpen}
         />
       ) : (
@@ -127,7 +130,7 @@ export function TopUtilityStrip({
           embedded ? "min-w-0 flex-1" : undefined
         )}
       >
-        {omnibar ? <OmnibarSearchTrigger /> : null}
+        {omnibar && !hideWorkspaceTools ? <OmnibarSearchTrigger /> : null}
       </div>
 
       {headerActions}
@@ -173,7 +176,7 @@ export function TopUtilityStrip({
         </div>
       )}
 
-      {omnibar && !profileOpen ? <OmnibarCommandDialog /> : null}
+      {omnibar && !profileOpen && !hideWorkspaceTools ? <OmnibarCommandDialog /> : null}
     </>
   );
 }

@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ProductFormBackLinkContent } from "@/components/products/product-form-back-link-content";import { ProductFormEditLinkContent } from "@/components/products/product-form-edit-link-content";
 import { ProductEditorShell } from "@/components/products/product-editor/product-editor-shell";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { Button } from "@/components/ui/button";
-import type { CategoryRow } from "@/lib/categories/types";
+import { useRouteTransition } from "@/lib/navigation/use-route-transition";import type { CategoryRow } from "@/lib/categories/types";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import {
   detailToFormValues,
@@ -22,6 +21,7 @@ type Props = {
   categories: CategoryRow[];
   catalogContext: ProductCatalogContext;
   detail?: ProductDetailSnapshot | null;
+  lockedFields?: string[];
 };
 
 /**
@@ -36,8 +36,9 @@ export function ProductFormRoute({
   categories,
   catalogContext,
   detail = null,
+  lockedFields = [],
 }: Props) {
-  const router = useRouter();
+  const { push, replace, refresh, isPending: isNavigating } = useRouteTransition();
 
   const initialValues =
     detail && mode !== "create"
@@ -52,16 +53,16 @@ export function ProductFormRoute({
 
   const handleSaved = (itemId: string) => {
     if (mode === "create") {
-      router.replace(`${ITEMS_HREF}/${itemId}/edit`);
+      replace(`${ITEMS_HREF}/${itemId}/edit`);
     }
   };
 
   const handleCancel = () => {
     if (mode === "edit" && detail) {
-      router.push(`${ITEMS_HREF}/${detail.id}`);
+      push(`${ITEMS_HREF}/${detail.id}`);
       return;
     }
-    router.push(ITEMS_HREF);
+    push(ITEMS_HREF);
   };
 
   const backHref =
@@ -71,16 +72,14 @@ export function ProductFormRoute({
     <div className="canvas-scroll-endpad">
       <div className="mb-4 flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" asChild>
-          <Link href={backHref}>
-            <ArrowLeft className="h-4 w-4" />
-            Back
+          <Link href={backHref} prefetch>
+            <ProductFormBackLinkContent />
           </Link>
         </Button>
         {mode === "view" && detail ? (
           <Button size="sm" asChild>
-            <Link href={`${ITEMS_HREF}/${detail.id}/edit`}>
-              <Pencil className="h-4 w-4" />
-              Edit
+            <Link href={`${ITEMS_HREF}/${detail.id}/edit`} prefetch>
+              <ProductFormEditLinkContent />
             </Link>
           </Button>
         ) : null}
@@ -92,13 +91,16 @@ export function ProductFormRoute({
         tenantId={tenantId}
         categories={categories}
         catalogContext={catalogContext}
+        detail={detail}
         valuations={detail?.valuations}
         variants={detail?.variants}
         media={detail?.media}
         initialValues={initialValues}
+        lockedFields={lockedFields}
         onCancel={handleCancel}
         onSaved={handleSaved}
-        onExtensionsChanged={() => router.refresh()}
+        isNavigatePending={isNavigating}
+        onExtensionsChanged={() => refresh()}
       />
     </div>
   );

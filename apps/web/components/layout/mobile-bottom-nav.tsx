@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { NavModuleLinkContent } from "@/components/layout/nav-link-content";
 import { moduleNavItems } from "@/components/layout/module-nav";
 import { isModuleNavItemActive } from "@/lib/layout/module-nav-active";
 
@@ -22,7 +23,7 @@ export function MobileBottomNav() {
             <Link
               key={href}
               href={href}
-              prefetch={false}
+              prefetch
               aria-label={label}
               aria-current={active ? "page" : undefined}
               className={cn(
@@ -36,8 +37,12 @@ export function MobileBottomNav() {
                   aria-hidden
                 />
               )}
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{shortLabel}</span>
+              <NavModuleLinkContent
+                icon={Icon}
+                label={<span className="truncate">{shortLabel}</span>}
+                labelClassName="truncate"
+                iconClassName="shrink-0"
+              />
             </Link>
           );
         })}

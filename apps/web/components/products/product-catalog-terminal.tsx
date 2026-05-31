@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Info, Plus } from "lucide-react";
+import { Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   bulkAdjustItemPricing,
@@ -38,8 +38,9 @@ import {
   ProductBulkTagsDialog,
   ProductBulkTaxCategoryDialog,
 } from "@/components/products/product-bulk-secondary-dialogs";
+import { NewItemLinkContent } from "@/components/products/new-item-link-content";
 import { ProductDrawerForm } from "@/components/products/product-drawer-form";
-import type { ProductFormMode } from "@/components/products/product-master-form";
+import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { CatalogSubNav } from "@/components/products/catalog-sub-nav";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
@@ -891,9 +892,8 @@ export function ProductCatalogTerminal({
               </DropdownMenu>
             </div>
             <Button asChild className="shrink-0">
-              <Link href="/inventory/items/new">
-                <Plus className="h-4 w-4" />
-                New
+              <Link href="/inventory/items/new" prefetch>
+                <NewItemLinkContent />
               </Link>
             </Button>
           </div>

@@ -14,5 +14,8 @@ export function WizardStepBadge({ status }: { status: WizardNavStatus }) {
   if (status === "ACTIVE") {
     return <Badge variant="active">ACTIVE</Badge>;
   }
+  if (status === "PENDING") {
+    return <Badge variant="action_required">NEXT</Badge>;
+  }
   return <Badge variant="locked">LOCKED</Badge>;
 }

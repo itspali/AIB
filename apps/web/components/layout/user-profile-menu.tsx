@@ -9,10 +9,11 @@ import type { DutyStatus, OperatorProfile } from "@/lib/user/types";
 
 type Props = {
   profile: OperatorProfile;
+  onboardingOnly?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
-export function UserProfileMenu({ profile, onOpenChange }: Props) {
+export function UserProfileMenu({ profile, onboardingOnly = false, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [dutyStatus, setDutyStatus] = useState<DutyStatus>(profile.dutyStatus);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,7 +77,11 @@ export function UserProfileMenu({ profile, onOpenChange }: Props) {
           <div className="my-2 border-t border-border/80 dark:border-white/10" />
           <UserProfileControls profile={liveProfile} onDutyStatusChange={setDutyStatus} />
           <div className="my-2 border-t border-border/80 dark:border-white/10" />
-          <UserProfileActions profile={liveProfile} onNavigate={() => setMenuOpen(false)} />
+          <UserProfileActions
+            profile={liveProfile}
+            onboardingOnly={onboardingOnly}
+            onNavigate={() => setMenuOpen(false)}
+          />
         </div>
       )}
     </div>

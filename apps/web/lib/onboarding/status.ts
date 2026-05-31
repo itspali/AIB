@@ -72,7 +72,9 @@ export async function fetchOnboardingSnapshot(
 
   const { count: locationCount, data: locations, error: locationError } = await supabase
     .from("tenant_locations")
-    .select("id, name, tax_registered_name, location_tax_identifier, state, city", { count: "exact" })
+    .select("id, name, tax_registered_name, location_tax_identifier, state, city, country_code", {
+      count: "exact",
+    })
     .eq("tenant_id", tenantId)
     .limit(1);
 

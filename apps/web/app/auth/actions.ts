@@ -9,7 +9,7 @@ export async function getPostLoginRoute() {
   const tenantId = await getTenantIdFromSession(supabase);
 
   if (!tenantId) {
-    return { redirectTo: "/onboarding" as const };
+    return { redirectTo: "/signup?resume=1" as const };
   }
 
   const redirectTo = await resolvePostLoginRoute(supabase, tenantId);

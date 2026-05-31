@@ -6,7 +6,9 @@ import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { CommandHubHeader } from "@/components/dashboard/command-hub-header";
+import { GettingStartedChecklist } from "@/components/dashboard/getting-started-checklist";
 import { MetricGaugeGrid } from "@/components/dashboard/metric-gauge-grid";
+import { fetchGettingStartedSnapshot } from "@/lib/dashboard/getting-started";
 import { ControlPanelSection } from "@/components/dashboard/control-panel-section";
 import { TaxPolicySection } from "@/components/dashboard/tax-policy-section";
 import {
@@ -28,9 +30,10 @@ export default async function DashboardPage() {
 
   const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
 
-  const [approvalAlertCount, operatorProfile] = await Promise.all([
+  const [approvalAlertCount, operatorProfile, gettingStarted] = await Promise.all([
     fetchApprovalAlertCount(supabase, tenantId),
     fetchOperatorProfileForSession(supabase, orgName),
+    fetchGettingStartedSnapshot(supabase, tenantId),
   ]);
 
   return (
@@ -42,6 +45,8 @@ export default async function DashboardPage() {
     >
       <div className="canvas-scroll-endpad">
         <CommandHubHeader approvalAlertCount={approvalAlertCount} />
+
+        <GettingStartedChecklist snapshot={gettingStarted} />
 
         <Suspense fallback={<MetricGaugeSkeleton />}>
           <MetricGaugeGrid />

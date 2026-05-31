@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -166,7 +167,7 @@ export function ProductBulkActionToolbar({
 
         <div className="flex shrink-0 items-center gap-2 md:hidden">
           {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Processing bulk action" />
+            <Spinner className="text-muted-foreground" label="Processing bulk action" />
           ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -239,7 +240,7 @@ export function ProductBulkActionToolbar({
             </DropdownMenu>
           ) : null}
           {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Processing bulk action" />
+            <Spinner className="text-muted-foreground" label="Processing bulk action" />
           ) : null}
         </div>
       </div>

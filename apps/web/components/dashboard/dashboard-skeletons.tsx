@@ -63,3 +63,34 @@ export function TaxPolicyGridSkeleton() {
     </HubPanel>
   );
 }
+
+export function DashboardPageSkeleton() {
+  return (
+    <div className="canvas-scroll-endpad" aria-busy="true" aria-label="Loading dashboard">
+      <div className="mb-8 space-y-3">
+        <Skeleton className="h-8 w-56 shimmer" />
+        <Skeleton className="h-4 w-72 shimmer" />
+      </div>
+      <MetricGaugeSkeleton />
+      <ControlPanelSkeleton />
+      <TaxPolicyGridSkeleton />
+    </div>
+  );
+}
+
+export function SettingsPageSkeleton() {
+  return (
+    <div className="canvas-scroll-endpad" aria-busy="true" aria-label="Loading settings">
+      <div className="mb-6 space-y-2">
+        <Skeleton className="h-8 w-48 shimmer" />
+        <Skeleton className="h-4 w-96 max-w-full shimmer" />
+      </div>
+      <div className="space-y-4">
+        <Skeleton className="h-12 w-full shimmer rounded-lg" />
+        <Skeleton className="h-12 w-full shimmer rounded-lg" />
+        <Skeleton className="h-32 w-full shimmer rounded-lg" />
+        <Skeleton className="h-12 w-full shimmer rounded-lg" />
+      </div>
+    </div>
+  );
+}

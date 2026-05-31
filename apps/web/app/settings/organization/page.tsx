@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { OrgSettingsReviewTracker } from "@/components/dashboard/org-settings-review-tracker";
 import { AdministrativeAccessDeniedView } from "@/components/settings/administrative-access-denied-view";
 import { OrganizationSettingsTerminal } from "@/components/settings/organization-settings-terminal";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -70,6 +71,7 @@ export default async function OrganizationSettingsPage() {
       operatorProfile={operatorProfile}
       tenantId={tenantId}
     >
+      <OrgSettingsReviewTracker />
       <OrganizationSettingsTerminal
         snapshot={snapshot}
         access={access}

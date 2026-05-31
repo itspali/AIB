@@ -5,13 +5,13 @@ import {
   Columns3,
   GripVertical,
   LayoutList,
-  Loader2,
   Monitor,
   Smartphone,
   Tablet,
   Table2,
   X,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   columnSupportsWrapControl,
   defaultWrapModeForValueKind,
@@ -196,7 +196,7 @@ export function ListColumnSettings<TId extends string>({
           disabled={disabled}
         >
           {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            <Spinner />
           ) : (
             <Columns3 className="h-4 w-4" aria-hidden />
           )}

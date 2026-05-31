@@ -11,6 +11,9 @@ type Props = {
   maxWidth: number;
   onCommit: (width: number | null) => void;
   onPreview: (width: number) => void;
+  onAutoFit?: () => void;
+  /** Keeps the handle within the header cell stacking context (below sticky frozen columns). */
+  className?: string;
 };
 
 export function ListColumnResizeHandle({
@@ -21,6 +24,8 @@ export function ListColumnResizeHandle({
   maxWidth,
   onCommit,
   onPreview,
+  onAutoFit,
+  className,
 }: Props) {
   const clamp = useCallback(
     (width: number) => Math.round(Math.max(minWidth, Math.min(width, maxWidth))),
@@ -57,6 +62,10 @@ export function ListColumnResizeHandle({
     event.preventDefault();
     event.stopPropagation();
     if (disabled) return;
+    if (onAutoFit) {
+      onAutoFit();
+      return;
+    }
     onCommit(null);
   };
 
@@ -64,17 +73,18 @@ export function ListColumnResizeHandle({
     <button
       type="button"
       aria-label={ariaLabel}
-      title="Drag to resize. Double-click to reset."
+      title="Drag to resize. Double-click to fit content."
       disabled={disabled}
       onMouseDown={startDrag}
       onDoubleClick={handleDoubleClick}
       onClick={(event) => event.stopPropagation()}
       className={cn(
-        "absolute inset-y-0 right-0 z-30 w-2 translate-x-1/2 touch-none",
+        "absolute inset-y-0 right-0 z-[1] w-2 translate-x-1/2 touch-none",
         "cursor-col-resize border-0 bg-transparent p-0",
         "after:absolute after:inset-y-2 after:right-1/2 after:w-px after:translate-x-1/2 after:bg-border/80",
         "hover:after:bg-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        disabled && "pointer-events-none opacity-0"
+        disabled && "pointer-events-none opacity-0",
+        className
       )}
     />
   );

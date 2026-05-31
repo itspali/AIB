@@ -2,7 +2,7 @@ export type MilestoneStatus = "COMPLETED" | "ACTION_REQUIRED" | "LOCKED";
 
 export type WizardStepId = "locations" | "coa" | "tax" | "channels";
 
-export type WizardNavStatus = "DONE" | "ACTIVE" | "LOCKED";
+export type WizardNavStatus = "DONE" | "ACTIVE" | "PENDING" | "LOCKED";
 
 export type TenantProfile = {
   id: string;
@@ -22,6 +22,7 @@ export type PrimaryLocation = {
   location_tax_identifier: string | null;
   state: string;
   city: string;
+  country_code?: string;
 };
 
 export type OnboardingStepState = {

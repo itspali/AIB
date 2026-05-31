@@ -62,7 +62,9 @@ const W_CODE = columnWidths({
 });
 
 const W_BOOLEAN = columnWidths({
-  default: { min: 80, max: 96 },
+  default: { min: 80, max: 132 },
+  tablet: { min: 88, max: 140 },
+  desktop: { min: 88, max: 148 },
 });
 
 const W_STATUS = columnWidths({

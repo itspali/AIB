@@ -43,6 +43,7 @@ export function DashboardShell({
             orgName={orgName}
             progressPercent={progressPercent}
             showProgress={isOnboardingLayout}
+            hideWorkspaceTools={isOnboardingLayout}
             approvalAlertCount={showModuleNav ? approvalAlertCount : 0}
             operatorProfile={operatorProfile}
             embedded

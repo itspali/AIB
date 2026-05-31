@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { listFilterValueOptions } from "@/app/search/actions";
 import { useOmnibarContext } from "@/components/search/omnibar-provider";
@@ -95,7 +96,7 @@ function ValueEditor({
       <div className="space-y-2">
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Spinner className="size-3.5 border-[1.5px]" />
             Loading options…
           </div>
         ) : null}

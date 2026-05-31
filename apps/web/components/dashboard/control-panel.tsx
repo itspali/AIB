@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Settings2 } from "lucide-react";
 import { HubPanel, HubSectionHeading } from "@/components/dashboard/hub-panel";
 import { Button } from "@/components/ui/button";
+import { LinkPendingStatus } from "@/components/ui/link-pending-status";
 
 export function ControlPanel() {
   return (
@@ -21,7 +22,9 @@ export function ControlPanel() {
             delegated admin access from the centralized organization settings workspace.
           </p>
           <Button asChild className="mt-4" variant="outline">
-            <Link href="/settings/organization">Open Organization Settings</Link>
+            <Link href="/settings/organization" prefetch>
+              <LinkPendingStatus>Open Organization Settings</LinkPendingStatus>
+            </Link>
           </Button>
         </div>
       </HubPanel>

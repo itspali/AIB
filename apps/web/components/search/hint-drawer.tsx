@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import type { OmnibarHint } from "@/lib/search/types";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +67,7 @@ export function HintDrawer({
           {title}
         </p>
         <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Spinner className="size-3.5 border-[1.5px]" />
           Loading suggestions…
         </div>
       </>

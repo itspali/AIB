@@ -5,6 +5,9 @@ import { createAdminClient, getServiceRoleKeyMismatch } from "@/lib/supabase/adm
 const authSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+  companyName: z.string().min(1).optional(),
+  adminName: z.string().min(1).optional(),
+  countryCode: z.string().length(2).optional(),
 });
 
 export async function POST(request: Request) {
@@ -23,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ useClientSignUp: true });
   }
 
-  const { email, password } = parsed.data;
+  const { email, password, companyName, adminName, countryCode } = parsed.data;
 
   const { error } = await admin.auth.admin.createUser({
     email,
@@ -34,6 +37,9 @@ export async function POST(request: Request) {
     },
     user_metadata: {
       signup_pending: true,
+      ...(companyName ? { company_name: companyName } : {}),
+      ...(adminName ? { admin_name: adminName } : {}),
+      ...(countryCode ? { country_code: countryCode.toUpperCase() } : {}),
     },
   });
 

@@ -8,21 +8,27 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import type { FieldErrors } from "react-hook-form";
 import {
   Boxes,
   ChevronRight,
   Layers,
   ListTree,
+  Lock,
   Package,
   Sparkles,
   Tag,
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { findSimilarItems, type SimilarItem } from "@/app/items/actions";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
+import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
+import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
+import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,6 +75,7 @@ import type {
   ProductValuationSnapshot,
   ProductVariantSnapshot,
 } from "@/lib/products/types";
+import { formatDate } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 
 type SectionId = "overview" | "pricing" | "inventory" | "variants" | "media" | "catalog";
@@ -124,14 +131,18 @@ type Props = {
   tenantId: string;
   categories: CategoryRow[];
   catalogContext: ProductCatalogContext;
+  detail?: ProductDetailSnapshot | null;
   valuations?: ProductValuationSnapshot[];
   variants?: ProductVariantSnapshot[];
   media?: ProductMediaSnapshot[];
   initialValues?: ProductMasterFormValues;
   mode?: ProductFormMode;
+  /** Fields locked server-side because the item has transactional history. */
+  lockedFields?: string[];
   onCancel: () => void;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
+  isNavigatePending?: boolean;
 };
 
 function formatMoney(amount: string, currency: string): string {
@@ -165,6 +176,7 @@ function Field({
   error,
   hint,
   full,
+  locked,
   children,
 }: {
   label: string;
@@ -172,14 +184,26 @@ function Field({
   error?: string;
   hint?: string;
   full?: boolean;
+  locked?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className={cn("min-w-0 space-y-2", full && "sm:col-span-2")}>
-      <Label htmlFor={htmlFor} className="text-sm font-medium text-muted-foreground">
-        {label}
-      </Label>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={htmlFor} className="text-sm font-medium text-muted-foreground">
+          {label}
+        </Label>
+        {locked ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground ring-1 ring-border">
+            <Lock className="h-2.5 w-2.5" aria-hidden />
+            Locked
+          </span>
+        ) : null}
+      </div>
       {children}
+      {locked && !error ? (
+        <p className="text-xs text-muted-foreground">Locked because transactions exist for this item.</p>
+      ) : null}
       {hint && !error ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
@@ -260,18 +284,25 @@ export function ProductEditorShell({
   tenantId,
   categories,
   catalogContext,
+  detail = null,
   valuations = [],
   variants = [],
   media = [],
   initialValues,
   mode = "create",
+  lockedFields = [],
   onCancel,
   onSaved,
   onExtensionsChanged,
+  isNavigatePending = false,
 }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>("overview");
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
   const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
+  const [duplicates, setDuplicates] = useState<SimilarItem[]>([]);
+
+  const lockedSet = useMemo(() => new Set(lockedFields), [lockedFields]);
+  const isLocked = useCallback((field: string) => lockedSet.has(field), [lockedSet]);
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
@@ -319,9 +350,43 @@ export function ProductEditorShell({
   const purchasePrice = watch("purchase_price");
   const standardCost = watch("standard_cost");
 
+  const categoryId = watch("category_id");
+
   useEffect(() => {
     setTagOptions(catalogContext.tags);
   }, [catalogContext.tags]);
+
+  // Best-effort duplicate detection while creating a new item.
+  useEffect(() => {
+    if (itemId || readOnly) {
+      setDuplicates([]);
+      return;
+    }
+    const trimmed = (name ?? "").trim();
+    if (trimmed.length < 2) {
+      setDuplicates([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      const result = await findSimilarItems(trimmed, { categoryId, limit: 5 });
+      if (!cancelled && "matches" in result) setDuplicates(result.matches ?? []);
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [name, categoryId, itemId, readOnly]);
+
+  const priceBookUomCodes = useMemo(
+    () =>
+      Array.from(new Set([baseUom, ...(alternateUoms ?? []).map((row) => row.uom_code)])).filter(
+        Boolean
+      ),
+    [baseUom, alternateUoms]
+  );
+
+  const showStatus = !readOnly;
 
   // Resolve the nearest scrollable ancestor (the dashboard canvas) as the
   // IntersectionObserver root; falls back to the viewport.
@@ -486,6 +551,11 @@ export function ProductEditorShell({
             <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
               {sku?.trim() ? sku : "—"}
             </p>
+            {detail ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Created {formatDate(detail.created_at)} · Updated {formatDate(detail.updated_at)}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
@@ -518,7 +588,7 @@ export function ProductEditorShell({
                   : "border-border text-muted-foreground hover:text-foreground"
               )}
             >
-              <StatusDot status={sectionStatus(section.id)} />
+              {showStatus ? <StatusDot status={sectionStatus(section.id)} /> : null}
               {section.label}
             </button>
           );
@@ -546,7 +616,7 @@ export function ProductEditorShell({
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="flex-1 truncate">{section.label}</span>
-                  <StatusDot status={sectionStatus(section.id)} />
+                  {showStatus ? <StatusDot status={sectionStatus(section.id)} /> : null}
                 </button>
               );
             })}
@@ -560,32 +630,63 @@ export function ProductEditorShell({
             title="Overview"
             description="Identity, type, and how this item behaves across the workspace."
             registerRef={registerSection("overview")}
-            onNext={scrollToSection}
+            onNext={readOnly ? undefined : scrollToSection}
           >
             {/* AI assist slot (wiring lands in the next phase) */}
-            <div className="mb-5 rounded-xl border border-dashed border-indigo-300/60 bg-indigo-50/50 p-4 dark:border-indigo-500/30 dark:bg-indigo-950/20">
-              <div className="flex items-start gap-3">
-                <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">Describe it, we&apos;ll draft it</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Add a few words about the product and AI will suggest the name, description,
-                    and other fields. Coming soon.
-                  </p>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      placeholder="e.g. red cotton round-neck t-shirt, sizes S–XL"
-                      disabled
-                      className="flex-1"
-                    />
-                    <Button type="button" variant="outline" disabled title="Coming soon">
-                      <Sparkles className="h-4 w-4" />
-                      Suggest
-                    </Button>
+            {!readOnly && (
+              <div className="mb-5 rounded-xl border border-dashed border-indigo-300/60 bg-indigo-50/50 p-4 dark:border-indigo-500/30 dark:bg-indigo-950/20">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Describe it, we&apos;ll draft it</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Add a few words about the product and AI will suggest the name, description,
+                      and other fields. Coming soon.
+                    </p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        placeholder="e.g. red cotton round-neck t-shirt, sizes S–XL"
+                        disabled
+                        className="flex-1"
+                      />
+                      <Button type="button" variant="outline" disabled title="Coming soon">
+                        <Sparkles className="h-4 w-4" />
+                        Suggest
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {!readOnly && duplicates.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/30">
+                <p className="font-medium text-amber-800 dark:text-amber-300">
+                  Possible duplicate{duplicates.length > 1 ? "s" : ""}
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {duplicates.map((match) => (
+                    <li key={match.id} className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate text-amber-800 dark:text-amber-300">
+                        {match.name}
+                        {match.code ? (
+                          <span className="ml-1 font-mono text-xs text-amber-700/70 dark:text-amber-300/60">
+                            {match.code}
+                          </span>
+                        ) : null}
+                      </span>
+                      <Link
+                        href={`/inventory/items/${match.id}`}
+                        prefetch
+                        className="shrink-0 text-xs font-medium text-amber-900 underline-offset-2 hover:underline dark:text-amber-200"
+                      >
+                        Open
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {needsReview && (
               <div className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/30">
@@ -597,10 +698,10 @@ export function ProductEditorShell({
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Item type">
+              <Field label="Item type" locked={isLocked("item_type")}>
                 <Select
                   value={itemType}
-                  disabled={fieldDisabled}
+                  disabled={fieldDisabled || isLocked("item_type")}
                   onValueChange={(value) =>
                     setValue("item_type", value as ProductMasterFormValues["item_type"], {
                       shouldDirty: true,
@@ -643,10 +744,10 @@ export function ProductEditorShell({
                 </Select>
               </Field>
 
-              <Field label="Classification">
+              <Field label="Classification" locked={isLocked("classification")}>
                 <Select
                   value={watch("classification")}
-                  disabled={fieldDisabled}
+                  disabled={fieldDisabled || isLocked("classification")}
                   onValueChange={(value) =>
                     setValue("classification", value as ProductMasterFormValues["classification"], {
                       shouldDirty: true,
@@ -708,10 +809,10 @@ export function ProductEditorShell({
                 <Input id="sku" disabled={fieldDisabled} className="font-mono" {...register("sku")} />
               </Field>
 
-              <Field label="Base unit of measure">
+              <Field label="Base unit of measure" locked={isLocked("base_unit_of_measure")}>
                 <Select
                   value={baseUom}
-                  disabled={fieldDisabled}
+                  disabled={fieldDisabled || isLocked("base_unit_of_measure")}
                   onValueChange={(value) => setValue("base_unit_of_measure", value, { shouldDirty: true })}
                 >
                   <SelectTrigger>
@@ -801,7 +902,7 @@ export function ProductEditorShell({
             title="Pricing & Tax"
             description="List price, purchase terms, and statutory tax attributes."
             registerRef={registerSection("pricing")}
-            onNext={scrollToSection}
+            onNext={readOnly ? undefined : scrollToSection}
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
@@ -960,6 +1061,18 @@ export function ProductEditorShell({
                 }
               />
             </div>
+
+            {itemId && (
+              <div className="mt-6 border-t border-border pt-5">
+                <h4 className="mb-3 text-sm font-medium">Price book entries</h4>
+                <PriceBookEntryEditor
+                  itemId={itemId}
+                  variants={variants}
+                  uomCodes={priceBookUomCodes}
+                  readOnly={readOnly}
+                />
+              </div>
+            )}
           </SectionBlock>
 
           <SectionBlock
@@ -967,15 +1080,19 @@ export function ProductEditorShell({
             title="Inventory & Costing"
             description="Stock tracking, valuation, identifiers, and physical attributes."
             registerRef={registerSection("inventory")}
-            onNext={scrollToSection}
+            onNext={readOnly ? undefined : scrollToSection}
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {isPhysical ? (
                 <ToggleRow
                   label="Track inventory"
-                  description="Maintain stock balances and ledger movements."
+                  description={
+                    isLocked("track_inventory")
+                      ? "Locked — transactions exist for this item."
+                      : "Maintain stock balances and ledger movements."
+                  }
                   checked={trackInventory}
-                  disabled={fieldDisabled}
+                  disabled={fieldDisabled || isLocked("track_inventory")}
                   onCheckedChange={(checked) => setValue("track_inventory", checked, { shouldDirty: true })}
                 />
               ) : (
@@ -1027,10 +1144,10 @@ export function ProductEditorShell({
               )}
 
               {isPhysical && (
-                <Field label="Batch / serial tracking">
+                <Field label="Batch / serial tracking" locked={isLocked("tracking_mode")}>
                   <Select
                     value={trackingMode}
-                    disabled={fieldDisabled}
+                    disabled={fieldDisabled || isLocked("tracking_mode")}
                     onValueChange={(value) =>
                       setValue("tracking_mode", value as ProductMasterFormValues["tracking_mode"], {
                         shouldDirty: true,
@@ -1161,7 +1278,7 @@ export function ProductEditorShell({
                 : "Category-driven attributes and any additional SKUs."
             }
             registerRef={registerSection("variants")}
-            onNext={scrollToSection}
+            onNext={readOnly ? undefined : scrollToSection}
           >
             {itemId ? (
               <div className="space-y-6">
@@ -1192,6 +1309,16 @@ export function ProductEditorShell({
                   readOnly={readOnly}
                   onChanged={() => onExtensionsChanged?.()}
                 />
+                {variants.length > 0 && (
+                  <VariantAssortmentMatrix itemId={itemId} variants={variants} readOnly={readOnly} />
+                )}
+                {variants.length > 0 && (
+                  <VariantChannelAvailabilityMatrix
+                    itemId={itemId}
+                    variants={variants}
+                    readOnly={readOnly}
+                  />
+                )}
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
@@ -1205,7 +1332,7 @@ export function ProductEditorShell({
             title="Media"
             description="Images shown across storefront, catalog, and documents."
             registerRef={registerSection("media")}
-            onNext={scrollToSection}
+            onNext={readOnly ? undefined : scrollToSection}
           >
             {itemId ? (
               <ProductMediaGallery
@@ -1280,10 +1407,15 @@ export function ProductEditorShell({
       {/* Sticky action bar — reachable on every device */}
       {!readOnly && (
         <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={onCancel}>
-            Cancel
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isPending || isNavigatePending}
+            onClick={onCancel}
+          >
+            {isNavigatePending ? "Leaving…" : "Cancel"}
           </Button>
-          <Button type="submit" disabled={isPending} title="Save (Cmd/Ctrl + Enter)">
+          <Button type="submit" disabled={isPending || isNavigatePending} title="Save (Cmd/Ctrl + Enter)">
             {isPending ? "Saving…" : "Save item"}
           </Button>
         </div>

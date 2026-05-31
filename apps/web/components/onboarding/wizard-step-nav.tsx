@@ -21,7 +21,7 @@ function getNavStatus(step: OnboardingStepState, activeStepId: WizardStepId): Wi
   if (step.id === activeStepId) return "ACTIVE";
   if (step.status === "LOCKED") return "LOCKED";
   if (step.completed) return "DONE";
-  return "LOCKED";
+  return "PENDING";
 }
 
 function canSelectStep(step: OnboardingStepState, activeStepId: WizardStepId): boolean {

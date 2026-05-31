@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NavTextLinkContent } from "@/components/layout/nav-link-content";
 import { cn } from "@/lib/utils";
 
 export type CatalogSubNavTab = "items" | "categories";
@@ -18,7 +19,7 @@ export function CatalogSubNav({ active, className }: Props) {
     >
       <Link
         href="/inventory/items"
-        prefetch={false}
+        prefetch
         className={cn(
           "rounded-md px-2.5 py-1 transition-colors duration-200",
           active === "items"
@@ -27,11 +28,11 @@ export function CatalogSubNav({ active, className }: Props) {
         )}
         aria-current={active === "items" ? "page" : undefined}
       >
-        Items
+        <NavTextLinkContent>Items</NavTextLinkContent>
       </Link>
       <Link
         href="/inventory/categories"
-        prefetch={false}
+        prefetch
         className={cn(
           "rounded-md px-2.5 py-1 transition-colors duration-200",
           active === "categories"
@@ -40,7 +41,7 @@ export function CatalogSubNav({ active, className }: Props) {
         )}
         aria-current={active === "categories" ? "page" : undefined}
       >
-        Categories
+        <NavTextLinkContent>Categories</NavTextLinkContent>
       </Link>
     </nav>
   );

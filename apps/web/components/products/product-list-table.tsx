@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
 import type { DeviceClass } from "@/lib/layout/device-class";
@@ -32,6 +32,7 @@ import {
   productListCellWrapClassName,
   renderProductListCell,
 } from "@/components/products/product-list-cells";
+import { resolveProductListColumnAutoWidth } from "@/lib/products/resolve-list-column-auto-width";
 
 type Props = {
   products: ProductListRow[];
@@ -85,9 +86,18 @@ const FROZEN_EDGE_SHADOW =
   "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.08)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
 const HEADER_HOVER =
   "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
+/** Sticky header tiers — must stay above scrolling header cells (z-0) and their resize handles. */
+const SELECTION_COLUMN_Z_HEADER = 50;
+const FROZEN_HEADER_Z_BASE = 40;
+const SELECTION_COLUMN_Z_BODY = 15;
+const FROZEN_BODY_Z_BASE = 10;
 
 function rowEdgeClass(isLastFrozenColumn = false) {
   return isLastFrozenColumn ? FROZEN_EDGE_SHADOW : undefined;
+}
+
+function selectionColumnEdgeClass(showEdge: boolean) {
+  return showEdge ? FROZEN_EDGE_SHADOW : undefined;
 }
 
 export function ProductListTable({
@@ -113,6 +123,7 @@ export function ProductListTable({
   onImageClick,
 }: Props) {
   const headerRefs = useRef<(HTMLTableCellElement | null)[]>([]);
+  const selectionColumnRef = useRef<HTMLTableCellElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [stickyOffsets, setStickyOffsets] = useState<number[]>([]);
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
@@ -153,7 +164,7 @@ export function ProductListTable({
       return;
     }
 
-    let left = 0;
+    let left = selectionColumnRef.current?.offsetWidth ?? 40;
     const offsets: number[] = [];
     for (let index = 0; index < effectiveFrozenCount; index += 1) {
       offsets.push(left);
@@ -192,10 +203,14 @@ export function ProductListTable({
       return { className: "", style: widthStyles };
     }
 
-    const zIndex = (variant === "header" ? 20 : 10) + index;
+    // Leftmost frozen columns stack above columns to their right so resize never
+    // covers a previous header.
+    const stackOrder = effectiveFrozenCount - 1 - index;
+    const zIndex =
+      (variant === "header" ? FROZEN_HEADER_Z_BASE : FROZEN_BODY_Z_BASE) + stackOrder;
 
     return {
-      className: "sticky",
+      className: "sticky isolate overflow-hidden",
       style: mergeColumnCellStyles({ left: stickyOffsets[index] ?? 0, zIndex }, widthStyles),
     };
   };
@@ -223,6 +238,46 @@ export function ProductListTable({
   const headerCellClass = (isFrozen: boolean, isLastFrozenColumn: boolean) =>
     cn(ROW_DIVIDER, isFrozen && FROZEN_CELL_BG, isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW);
 
+  const selectionColumnShowsEdge =
+    hasHorizontalScroll && effectiveFrozenCount === 0;
+
+  const selectionHeaderClass = cn(
+    ROW_DIVIDER,
+    FROZEN_CELL_BG,
+    selectionColumnEdgeClass(selectionColumnShowsEdge)
+  );
+
+  const selectionBodyClass = (selected: boolean, isLastRow: boolean) =>
+    cn(
+      "w-10 p-0",
+      !isLastRow && ROW_DIVIDER,
+      "transition-colors duration-[25ms]",
+      selectionColumnEdgeClass(selectionColumnShowsEdge),
+      selected
+        ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
+        : cn(FROZEN_CELL_BG, FROZEN_CELL_HOVER)
+    );
+
+  const handleColumnAutoFit = useCallback(
+    (columnId: ProductListColumnId, index: number) => {
+      if (!onColumnWidthChange) return;
+      const width = resolveProductListColumnAutoWidth({
+        columnId,
+        products,
+        deviceClass,
+        showVariants,
+        headerElement: headerRefs.current[index],
+      });
+      setPreviewWidths((current) => {
+        const next = { ...current };
+        delete next[columnId];
+        return next;
+      });
+      onColumnWidthChange(columnId, width);
+    },
+    [deviceClass, onColumnWidthChange, products, showVariants]
+  );
+
   return (
     <div className="relative">
       <div
@@ -232,7 +287,14 @@ export function ProductListTable({
         <table className="w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm [&_td]:box-border [&_th]:box-border">
         <thead>
           <tr className="bg-muted/40 text-left">
-            <th className={cn("w-10 p-0 font-medium text-muted-foreground", ROW_DIVIDER)}>
+            <th
+              ref={selectionColumnRef}
+              className={cn(
+                "sticky left-0 isolate overflow-hidden w-10 p-0 font-medium text-muted-foreground",
+                selectionHeaderClass
+              )}
+              style={{ zIndex: SELECTION_COLUMN_Z_HEADER }}
+            >
               <div className="flex items-center justify-center p-2.5">
                 <Checkbox
                   checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
@@ -257,13 +319,16 @@ export function ProductListTable({
                     headerRefs.current[index] = element;
                   }}
                   className={cn(
-                    "relative whitespace-nowrap p-0 font-medium text-muted-foreground",
+                    "relative overflow-hidden p-0 font-medium text-muted-foreground",
                     sticky.className,
                     headerCellClass(isFrozen, isLastFrozenColumn),
                     column.align === "center" && "text-center",
                     column.align === "right" && "text-right"
                   )}
-                  style={sticky.style}
+                  style={mergeColumnCellStyles(
+                    sticky.style,
+                    !isFrozen ? { zIndex: columns.length - index } : {}
+                  )}
                 >
                   {sortable ? (
                     <button
@@ -273,7 +338,7 @@ export function ProductListTable({
                         onSortChange(next.field, next.direction);
                       }}
                       className={cn(
-                        "inline-flex w-full items-center gap-1.5 p-2.5 transition-colors duration-[25ms] hover:text-foreground",
+                        "inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden p-2.5 transition-colors duration-[25ms] hover:text-foreground",
                         HEADER_HOVER,
                         column.align === "center" && "justify-center",
                         column.align === "right" && "justify-end",
@@ -285,11 +350,13 @@ export function ProductListTable({
                           : ""
                       }`}
                     >
-                      <span>{column.label}</span>
-                      <SortIndicator active={isActiveSort} direction={sortDirection} />
+                      <span className="truncate">{column.label}</span>
+                      <span className="shrink-0">
+                        <SortIndicator active={isActiveSort} direction={sortDirection} />
+                      </span>
                     </button>
                   ) : (
-                    <span className="block p-2.5">{column.label}</span>
+                    <span className="block truncate p-2.5">{column.label}</span>
                   )}
                   {onColumnWidthChange ? (
                     <ListColumnResizeHandle
@@ -308,6 +375,7 @@ export function ProductListTable({
                         });
                         onColumnWidthChange(columnId, width);
                       }}
+                      onAutoFit={() => handleColumnAutoFit(columnId, index)}
                     />
                   ) : null}
                 </th>
@@ -341,12 +409,8 @@ export function ProductListTable({
                 )}
               >
                 <td
-                  className={cn(
-                    "w-10 p-0",
-                    !isLastRow && ROW_DIVIDER,
-                    "transition-colors duration-[25ms]",
-                    "group-hover:bg-[hsl(214_28%_96%)] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"
-                  )}
+                  className={cn("sticky left-0 isolate", selectionBodyClass(selected, isLastRow))}
+                  style={{ zIndex: SELECTION_COLUMN_Z_BODY }}
                 >
                   <div
                     className="flex items-center justify-center p-2.5"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -151,7 +151,7 @@ export function ProductBulkPricingDialog({
             disabled={isPending || !value.trim()}
             onClick={() => onSubmit({ target, mode, value: value.trim() })}
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isPending ? <Spinner /> : null}
             Apply adjustment
           </Button>
         </DialogFooter>

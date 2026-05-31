@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { NavModuleLinkContent } from "@/components/layout/nav-link-content";
 import { moduleNavItems } from "@/components/layout/module-nav";
 import { isModuleNavItemActive } from "@/lib/layout/module-nav-active";
 import {
@@ -50,6 +51,7 @@ export function MobileNavDrawer({ open, onOpenChange, orgName }: MobileNavDrawer
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 onClick={() => onOpenChange(false)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -57,8 +59,7 @@ export function MobileNavDrawer({ open, onOpenChange, orgName }: MobileNavDrawer
                   active && "nav-glow-active bg-primary/10 text-primary"
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                <span>{item.label}</span>
+                <NavModuleLinkContent icon={Icon} label={item.label} />
               </Link>
             );
           })}

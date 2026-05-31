@@ -32,8 +32,10 @@ export async function updateSession(request: NextRequest) {
   const isOnboarding = pathname.startsWith("/onboarding");
   const isLogin = pathname.startsWith("/login");
   const isSignup = pathname.startsWith("/signup");
+  const isAuthCallback = pathname.startsWith("/auth/callback");
+  const isLegal = pathname.startsWith("/legal");
   const isSignupApi = pathname.startsWith("/api/signup");
-  const isPublicAuth = isLogin || isSignup || isSignupApi;
+  const isPublicAuth = isLogin || isSignup || isSignupApi || isAuthCallback || isLegal;
   const isServerAction = request.method === "POST" && request.headers.has("next-action");
 
   if (isSignupApi) {

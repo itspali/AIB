@@ -13,13 +13,19 @@ export default async function EditItemPage({
   const { id } = await params;
   const { supabase, tenantId } = await getModulePageContext();
 
-  const [categories, catalogContext, detail] = await Promise.all([
+  const [categories, catalogContext, detail, editability] = await Promise.all([
     fetchCategoryRows(supabase, tenantId),
     fetchProductCatalogContext(supabase, tenantId),
     fetchProductDetail(supabase, tenantId, id),
+    supabase.rpc("item_editability", { p_item_id: id }),
   ]);
 
   if (!detail) notFound();
+
+  const editabilityData = editability.data as { locked_fields?: unknown } | null;
+  const lockedFields = Array.isArray(editabilityData?.locked_fields)
+    ? (editabilityData.locked_fields as string[])
+    : [];
 
   return (
     <ProductFormRoute
@@ -28,6 +34,7 @@ export default async function EditItemPage({
       categories={categories}
       catalogContext={catalogContext}
       detail={detail}
+      lockedFields={lockedFields}
     />
   );
 }

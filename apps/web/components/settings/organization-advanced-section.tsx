@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { UseFormReturn } from "react-hook-form";
+import { LinkPendingStatus } from "@/components/ui/link-pending-status";
 import { DocumentSequenceReadout } from "@/components/settings/document-sequence-readout";
 import { NamingSequenceEditor } from "@/components/settings/naming-sequence-editor";
 import { OrganizationLogoUploader } from "@/components/settings/organization-logo-uploader";
@@ -200,8 +201,12 @@ export function OrganizationAdvancedSection({
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Edit routing logic in the{" "}
-              <Link href="/inventory/locations/topology" className="text-primary underline-offset-4 hover:underline">
-                topology explorer
+              <Link
+                href="/inventory/locations/topology"
+                prefetch
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                <LinkPendingStatus spinnerClassName="h-3 w-3">topology explorer</LinkPendingStatus>
               </Link>
               .
             </p>

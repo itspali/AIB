@@ -1,20 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Pencil } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { ProductFormEditLinkContent } from "@/components/products/product-form-edit-link-content";
 import { ProductFormSkeleton } from "@/components/products/product-form-skeleton";
-import {
-  ProductMasterForm,
-  type ProductFormMode,
-} from "@/components/products/product-master-form";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import type { CategoryRow } from "@/lib/categories/types";
-import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
-import { detailToFormValues, type ProductCatalogContext, type ProductDetailSnapshot } from "@/lib/products/types";
+import { formatDate } from "@/lib/dashboard/format";
+import { classificationLabel } from "@/lib/products/classification-labels";
+import { itemStatusLabel, itemTypeLabel } from "@/lib/products/item-model";
+import { taxCategoryLabel } from "@/lib/products/tax-options";
+import { variantStrategyLabel } from "@/lib/products/variant-strategy";
+import type { ProductFormMode } from "@/lib/products/use-product-form";
+import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
 
-const PRODUCT_DRAWER_FORM_ID = "product-drawer-form";
+const ITEMS_HREF = "/inventory/items";
 
 type Props = {
   open: boolean;
@@ -30,130 +32,112 @@ type Props = {
   onExtensionsChanged?: () => void;
 };
 
-function drawerTitle(mode: ProductFormMode, detail: ProductDetailSnapshot | null | undefined): string {
-  if (mode === "create") return "Create Product Master Profile";
-  return detail?.name ?? "Product Master Profile";
+function formatMoney(amount: string | null | undefined, currency: string): string {
+  const parsed = Number(amount);
+  if (!amount || !Number.isFinite(parsed)) return "—";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(parsed);
 }
 
-function drawerDescription(mode: ProductFormMode): string {
-  if (mode === "create") {
-    return "Define a new product master profile with SKUs, costing, and compliance fields.";
-  }
-  if (mode === "edit") {
-    return "Update product identity, commerce parameters, and logistics attributes.";
-  }
-  return "Review product identity, commerce parameters, and logistics attributes.";
+function Fact({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className={mono ? "truncate font-mono text-sm" : "truncate text-sm"}>{value}</p>
+    </div>
+  );
 }
 
+/**
+ * Read-only quick peek for the item catalog. Heavy create/edit lives on the
+ * deep-linkable routes (ProductEditorShell); this drawer just surfaces the key
+ * facts and links out to the full editor.
+ */
 export function ProductDrawerForm({
   open,
-  mode,
   onOpenChange,
-  onModeChange,
-  tenantId,
-  categories,
   catalogContext,
   detail = null,
   isLoading = false,
-  onSaved,
-  onExtensionsChanged,
 }: Props) {
-  const [isFormPending, setIsFormPending] = useState(false);
-
-  useEffect(() => {
-    if (!open || mode !== "edit") {
-      setIsFormPending(false);
-    }
-  }, [open, mode]);
-
-  const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
-    onSaved(itemId, savedDetail);
-    if (mode === "create") {
-      onOpenChange(false);
-      return;
-    }
-    onModeChange("view");
-  };
-
-  const handleCancel = () => {
-    if (mode === "edit") {
-      onModeChange("view");
-      return;
-    }
-    onOpenChange(false);
-  };
-
-  const initialValues =
-    catalogContext && detail && mode !== "create"
-      ? {
-          ...detailToFormValues(detail),
-          storefront_visibility: mergeStorefrontVisibility(
-            catalogContext.storefronts,
-            detailToFormValues(detail).storefront_visibility
-          ),
-        }
-      : undefined;
+  const currency = catalogContext?.base_currency ?? "USD";
+  const isMultiSku = detail?.variant_strategy === "MULTI_SKU";
 
   return (
     <RightDrawer
       open={open}
       onOpenChange={onOpenChange}
-      title={drawerTitle(mode, detail)}
-      description={drawerDescription(mode)}
-      scrollable={false}
+      title={detail?.name ?? "Item"}
+      description={detail?.sku ? detail.sku : "Quick view"}
+      scrollable
       headerActions={
-        mode === "view" && detail ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/inventory/items/${detail.id}/edit`}>
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Link>
-          </Button>
-        ) : mode === "edit" ? (
+        detail ? (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={isFormPending}
-              onClick={handleCancel}
-            >
-              Discard
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`${ITEMS_HREF}/${detail.id}`} prefetch>
+                <ExternalLink className="h-4 w-4" />
+                Open
+              </Link>
             </Button>
-            <Button
-              type="submit"
-              form={PRODUCT_DRAWER_FORM_ID}
-              size="sm"
-              disabled={isFormPending}
-              title="Save (Cmd/Ctrl + Enter)"
-            >
-              Save
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${ITEMS_HREF}/${detail.id}/edit`} prefetch>
+                <ProductFormEditLinkContent />
+              </Link>
             </Button>
           </>
         ) : null
       }
     >
-      {!open || !catalogContext ? null : isLoading ? (
+      {!open ? null : isLoading || !detail ? (
         <ProductFormSkeleton />
       ) : (
-        <ProductMasterForm
-          key={detail?.id ? `${detail.id}-${mode}` : `create-${open}`}
-          layout="drawer"
-          mode={mode}
-          formId={mode === "edit" ? PRODUCT_DRAWER_FORM_ID : undefined}
-          hideDrawerFooter={mode === "edit"}
-          onPendingChange={mode === "edit" ? setIsFormPending : undefined}
-          tenantId={tenantId}
-          categories={categories}
-          catalogContext={catalogContext}
-          valuations={detail?.valuations}
-          variants={detail?.variants}
-          media={detail?.media}
-          initialValues={initialValues}
-          onCancel={handleCancel}
-          onSaved={handleSaved}
-          onExtensionsChanged={onExtensionsChanged}
-        />
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="active">{itemTypeLabel(detail.item_type)}</Badge>
+            <Badge variant={detail.status === "ACTIVE" ? "completed" : "locked"}>
+              {itemStatusLabel(detail.status)}
+            </Badge>
+            <Badge variant="default">{classificationLabel(detail.classification)}</Badge>
+            <Badge variant="default">{variantStrategyLabel(detail.variant_strategy)}</Badge>
+            {detail.needs_review ? <Badge variant="action_required">Needs review</Badge> : null}
+            {!detail.is_active ? <Badge variant="locked">Inactive</Badge> : null}
+          </div>
+
+          {detail.description ? (
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">{detail.description}</p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-4">
+            <Fact label={isMultiSku ? "Style code" : "Master SKU"} value={detail.sku} mono />
+            <Fact label="Base unit" value={detail.base_unit_of_measure} />
+            <Fact label="Category" value={detail.category_name ?? "Uncategorized"} />
+            <Fact label="Tax category" value={taxCategoryLabel(detail.default_tax_category)} />
+            <Fact
+              label="Selling rate"
+              value={`${formatMoney(detail.selling_price, currency)} / ${detail.selling_uom}`}
+              mono
+            />
+            <Fact label="Purchase rate" value={formatMoney(detail.purchase_price, currency)} mono />
+            <Fact label="Preferred supplier" value={detail.supplier_name ?? "—"} />
+            <Fact label="HSN / SAC" value={detail.hsn_sac_code ?? "—"} mono />
+            <Fact
+              label="Purchasable"
+              value={detail.is_purchasable ? "Yes" : "No"}
+            />
+            <Fact label="Salable" value={detail.is_salable ? "Yes" : "No"} />
+            <Fact label="Variants" value={String(detail.variants.length)} />
+            <Fact label="Media" value={String(detail.media.length)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+            <Fact label="Created" value={formatDate(detail.created_at)} />
+            <Fact label="Updated" value={formatDate(detail.updated_at)} />
+          </div>
+        </div>
       )}
     </RightDrawer>
   );

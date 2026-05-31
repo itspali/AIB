@@ -1,44 +1,33 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveTaxRates } from "@/app/onboarding/actions";
+import { defaultTaxRatesForCountry } from "@/lib/onboarding/locale-presets";
 import type { StepSubmitHandle, TaxRateRow } from "@/lib/onboarding/types";
-
-const DEFAULT_ROWS: TaxRateRow[] = [
-  {
-    tax_component_name: "CGST_9",
-    tax_percentage: "9.00",
-    active_from_date: new Date().toISOString().slice(0, 10),
-    legal_compliance_code: "HSN",
-  },
-  {
-    tax_component_name: "SGST_9",
-    tax_percentage: "9.00",
-    active_from_date: new Date().toISOString().slice(0, 10),
-    legal_compliance_code: "HSN",
-  },
-  {
-    tax_component_name: "IGST_18",
-    tax_percentage: "18.00",
-    active_from_date: new Date().toISOString().slice(0, 10),
-    legal_compliance_code: "HSN",
-  },
-];
 
 type Props = {
   completed: boolean;
   taxRateCount: number;
   initialRows?: TaxRateRow[];
+  countryCode?: string;
   showAdvanced: boolean;
+  onDraftChange?: (rows: TaxRateRow[]) => void;
 };
 
 export const StepTaxRegistry = forwardRef<StepSubmitHandle, Props>(function StepTaxRegistry(
-  { completed, taxRateCount, initialRows, showAdvanced },
+  { completed, taxRateCount, initialRows, countryCode = "US", showAdvanced, onDraftChange },
   ref
 ) {
-  const [rows, setRows] = useState<TaxRateRow[]>(initialRows?.length ? initialRows : DEFAULT_ROWS);
+  const presetRows = useMemo(
+    () => defaultTaxRatesForCountry(countryCode),
+    [countryCode]
+  );
+
+  const [rows, setRows] = useState<TaxRateRow[]>(
+    initialRows?.length ? initialRows : presetRows
+  );
 
   useImperativeHandle(ref, () => ({
     submit: async () => saveTaxRates(rows),
@@ -47,17 +36,25 @@ export const StepTaxRegistry = forwardRef<StepSubmitHandle, Props>(function Step
   if (completed) {
     return (
       <p className="text-sm text-muted-foreground">
-        {taxRateCount} active tax component{taxRateCount === 1 ? "" : "s"} registered for statutory returns.
+        {taxRateCount} active tax component{taxRateCount === 1 ? "" : "s"} registered for statutory
+        returns.
       </p>
     );
   }
 
   const updateRow = (index: number, field: keyof TaxRateRow, value: string) => {
-    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+    setRows((prev) => {
+      const next = prev.map((r, i) => (i === index ? { ...r, [field]: value } : r));
+      onDraftChange?.(next);
+      return next;
+    });
   };
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Presets are based on your country ({countryCode}). Adjust rates before saving.
+      </p>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
@@ -118,14 +115,18 @@ export const StepTaxRegistry = forwardRef<StepSubmitHandle, Props>(function Step
         variant="outline"
         size="sm"
         onClick={() =>
-          setRows((prev) => [
-            ...prev,
-            {
-              tax_component_name: "",
-              tax_percentage: "0.00",
-              active_from_date: new Date().toISOString().slice(0, 10),
-            },
-          ])
+          setRows((prev) => {
+            const next = [
+              ...prev,
+              {
+                tax_component_name: "",
+                tax_percentage: "0.00",
+                active_from_date: new Date().toISOString().slice(0, 10),
+              },
+            ];
+            onDraftChange?.(next);
+            return next;
+          })
         }
       >
         Add Tax Row

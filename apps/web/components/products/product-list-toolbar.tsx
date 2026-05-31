@@ -1,6 +1,7 @@
 "use client";
 
-import { LayoutList, Loader2, Table2 } from "lucide-react";
+import { LayoutList, Table2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
@@ -165,7 +166,7 @@ export function ProductListToolbar({
                 aria-pressed={prefs.viewMode === "table"}
               >
                 {isSavingPrefs && prefs.viewMode === "table" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner />
                 ) : (
                   <Table2 className="h-4 w-4" />
                 )}
@@ -187,7 +188,7 @@ export function ProductListToolbar({
                 aria-pressed={prefs.viewMode === "compact"}
               >
                 {isSavingPrefs && prefs.viewMode === "compact" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner />
                 ) : (
                   <LayoutList className="h-4 w-4" />
                 )}
