@@ -51,6 +51,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     href: "/settings/organization",
     keywords: ["organization", "company", "tenant", "workspace"],
   },
+  {
+    label: "Tax Settings",
+    href: "/settings/tax",
+    keywords: ["tax", "gst", "vat", "tax rule", "tax code", "slab", "rate", "settings"],
+  },
 ];
 
 export function matchNavigationIndex(query: string): NavigationIndexEntry[] {
