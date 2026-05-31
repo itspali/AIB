@@ -17,7 +17,7 @@ jobs:
       - name: Load Supabase Core CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.102.0
 
       - name: Link & Push Migrations to AIB Sandbox
         run: |
@@ -37,7 +37,7 @@ jobs:
       - name: Load Supabase Core CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.102.0
 
       - name: Link & Push Migrations to AIB Production
         run: |
