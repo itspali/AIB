@@ -50,12 +50,6 @@ export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCard
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          {progressPercent >= 100 && tenant.onboarding_status !== "GO_LIVE_READY" && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              All milestones complete. Use <span className="font-medium">Complete Setup &amp; Launch</span> on
-              the final step to open your workspace.
-            </p>
-          )}
         </div>
       </CardContent>
     </Card>

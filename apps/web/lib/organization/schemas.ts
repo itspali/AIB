@@ -3,6 +3,7 @@ import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { CREDIT_CONTROL_OPTIONS } from "@/lib/organization/credit-control-options";
 import { CURRENCY_OPTIONS } from "@/lib/organization/currency-options";
 import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
+import { isValidTimezone } from "@/lib/settings/timezone-options";
 
 const phonePattern = /^\+?[0-9\s().-]{7,30}$/;
 
@@ -43,6 +44,13 @@ export const organizationSettingsSchema = z.object({
   billing_state: z.string().trim().max(100),
   billing_zip_postal: z.string().trim().max(20),
   billing_country_code: z.enum(COUNTRY_OPTIONS).or(z.literal("")),
+  country_code: z.enum(COUNTRY_OPTIONS).or(z.literal("")),
+  timezone: z
+    .string()
+    .trim()
+    .min(1, "Select a workspace timezone")
+    .refine((value) => isValidTimezone(value), "Select a valid timezone"),
+  locale: z.string().trim().min(2, "Select a locale").max(10),
   base_currency: z.enum(CURRENCY_OPTIONS),
   fiscal_year_start_month: z
     .string()

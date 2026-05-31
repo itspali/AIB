@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { STANDARD_COA_TEMPLATE } from "@/lib/onboarding/coa-template";
+import { coaTemplateForCountry } from "@/lib/onboarding/locale-presets";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import type {
   ChannelFormValues,
@@ -24,6 +25,48 @@ const channelSchema = z.object({
   new_policy_name: z.string().optional(),
   return_window_days: z.string().optional(),
 });
+
+type TenantOnboardingStatus =
+  | "ACCOUNT_CREATED"
+  | "ORGANIZATION_CONFIGURED"
+  | "DATABASE_SEEDED"
+  | "COMPLIANCE_VERIFIED"
+  | "GO_LIVE_READY";
+
+async function resolveTenantCountryCode(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<string> {
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("metadata_json")
+    .eq("id", tenantId)
+    .single();
+
+  const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
+  const draft = metadata.onboarding_draft as OnboardingDraft | undefined;
+  const fromDraft = draft?.corporateProfile?.country_code || draft?.location?.country_code;
+  if (fromDraft) return fromDraft.toUpperCase();
+
+  const { data: location } = await supabase
+    .from("tenant_locations")
+    .select("country_code")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (location?.country_code) return String(location.country_code).toUpperCase();
+  return "US";
+}
+
+async function updateOnboardingStatus(
+  supabase: SupabaseClient,
+  tenantId: string,
+  status: TenantOnboardingStatus
+) {
+  await supabase.from("tenants").update({ onboarding_status: status }).eq("id", tenantId);
+}
 
 export async function saveCorporateProfile(values: CorporateProfileFormValues) {
   const { supabase } = await requireTenantId();
@@ -66,11 +109,15 @@ export async function deployCoaTemplate() {
 
   if (countError) return { error: countError.message };
   if ((count ?? 0) > 0) {
+    await updateOnboardingStatus(supabase, tenantId, "DATABASE_SEEDED");
     revalidatePath("/onboarding");
     return { success: true as const, count: count ?? 0, alreadyDeployed: true as const };
   }
 
-  const rows = STANDARD_COA_TEMPLATE.map((a) => ({
+  const countryCode = await resolveTenantCountryCode(supabase, tenantId);
+  const { template } = coaTemplateForCountry(countryCode);
+
+  const rows = template.map((a) => ({
     tenant_id: tenantId,
     ...a,
   }));
@@ -78,6 +125,7 @@ export async function deployCoaTemplate() {
   const { error } = await supabase.from("accounts").insert(rows);
   if (error) return { error: error.message };
 
+  await updateOnboardingStatus(supabase, tenantId, "DATABASE_SEEDED");
   revalidatePath("/onboarding");
   return { success: true as const, count: rows.length };
 }
@@ -92,6 +140,7 @@ export async function saveTaxRates(rows: TaxRateRow[]) {
 
   if (countError) return { error: countError.message };
   if ((count ?? 0) > 0) {
+    await updateOnboardingStatus(supabase, tenantId, "COMPLIANCE_VERIFIED");
     revalidatePath("/onboarding");
     return { success: true as const, alreadySaved: true as const };
   }
@@ -112,6 +161,7 @@ export async function saveTaxRates(rows: TaxRateRow[]) {
   const { error } = await supabase.from("tax_rate_registry").insert(payload);
   if (error) return { error: error.message };
 
+  await updateOnboardingStatus(supabase, tenantId, "COMPLIANCE_VERIFIED");
   revalidatePath("/onboarding");
   return { success: true as const };
 }

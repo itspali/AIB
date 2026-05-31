@@ -120,25 +120,25 @@ export async function fetchOnboardingSnapshot(
   const steps: OnboardingStepState[] = [
     {
       id: "locations",
-      title: "Corporate Profile & Location Network",
+      title: "Company & location",
       status: stepStatus(step1Complete),
       completed: step1Complete,
     },
     {
       id: "coa",
-      title: "Unified Chart of Accounts Initialization",
+      title: "Chart of accounts",
       status: stepStatus(step2Complete),
       completed: step2Complete,
     },
     {
       id: "tax",
-      title: "Statutory Tax & Policy Slabs Registry",
+      title: "Tax rates",
       status: stepStatus(step3Complete, !step2Complete),
       completed: step3Complete,
     },
     {
       id: "channels",
-      title: "Omnichannel Commercial Channels & Policies",
+      title: "Sales channels",
       status: stepStatus(step4Complete, !step3Complete),
       completed: step4Complete,
     },

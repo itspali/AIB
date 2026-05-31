@@ -1,5 +1,101 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Building2,
+  Calculator,
+  Globe2,
+  Hash,
+  Network,
+  Palette,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
+
+export const ORG_SETTINGS_TAB_IDS = {
+  identity: "identity",
+  regional: "regional",
+  billingFiscal: "billing-fiscal",
+  branding: "branding",
+  locations: "locations",
+  numbering: "numbering",
+  accounting: "accounting",
+  access: "access",
+} as const;
+
+export type OrgSettingsTabId = (typeof ORG_SETTINGS_TAB_IDS)[keyof typeof ORG_SETTINGS_TAB_IDS];
+
+export const ORG_SETTINGS_SECTION_ELEMENT_IDS: Record<OrgSettingsTabId, string> = {
+  [ORG_SETTINGS_TAB_IDS.identity]: "org-section-identity",
+  [ORG_SETTINGS_TAB_IDS.regional]: "org-section-regional",
+  [ORG_SETTINGS_TAB_IDS.billingFiscal]: "org-section-billing-fiscal",
+  [ORG_SETTINGS_TAB_IDS.branding]: "org-section-branding",
+  [ORG_SETTINGS_TAB_IDS.locations]: "org-section-locations",
+  [ORG_SETTINGS_TAB_IDS.numbering]: "org-section-numbering",
+  [ORG_SETTINGS_TAB_IDS.accounting]: "org-section-accounting",
+  [ORG_SETTINGS_TAB_IDS.access]: "org-section-access",
+};
+
+export type OrgSettingsTabItem = {
+  id: OrgSettingsTabId;
+  label: string;
+  shortLabel: string;
+  icon: LucideIcon;
+};
+
+export const ORG_SETTINGS_TABS: OrgSettingsTabItem[] = [
+  {
+    id: ORG_SETTINGS_TAB_IDS.identity,
+    label: "Identity",
+    shortLabel: "Identity",
+    icon: Building2,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.regional,
+    label: "Regional",
+    shortLabel: "Regional",
+    icon: Globe2,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.billingFiscal,
+    label: "Billing & Fiscal",
+    shortLabel: "Billing",
+    icon: Wallet,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.branding,
+    label: "Branding",
+    shortLabel: "Brand",
+    icon: Palette,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.locations,
+    label: "Locations",
+    shortLabel: "Locations",
+    icon: Network,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.numbering,
+    label: "Numbering",
+    shortLabel: "Naming",
+    icon: Hash,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.accounting,
+    label: "Accounting",
+    shortLabel: "Accounting",
+    icon: Calculator,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.access,
+    label: "Access",
+    shortLabel: "Access",
+    icon: ShieldCheck,
+  },
+];
+
+/** @deprecated Use ORG_SETTINGS_TAB_IDS — kept for any lingering scroll-spy references */
 export const ORG_SETTINGS_SECTION_IDS = {
   identity: "org-section-identity",
+  localization: "org-section-localization",
   billing: "org-section-billing",
   fiscal: "org-section-fiscal",
   brand: "org-section-brand",
@@ -7,51 +103,3 @@ export const ORG_SETTINGS_SECTION_IDS = {
   naming: "org-section-naming",
   accounting: "org-section-accounting",
 } as const;
-
-export type OrgSettingsSectionId =
-  (typeof ORG_SETTINGS_SECTION_IDS)[keyof typeof ORG_SETTINGS_SECTION_IDS];
-
-export type OrgSettingsSectionNavItem = {
-  id: OrgSettingsSectionId;
-  label: string;
-  shortLabel?: string;
-  advanced?: boolean;
-};
-
-export const ORG_SETTINGS_SECTIONS: OrgSettingsSectionNavItem[] = [
-  {
-    id: ORG_SETTINGS_SECTION_IDS.identity,
-    label: "Legal & Contact Identity",
-    shortLabel: "Identity",
-  },
-  { id: ORG_SETTINGS_SECTION_IDS.billing, label: "Billing Address", shortLabel: "Billing" },
-  {
-    id: ORG_SETTINGS_SECTION_IDS.fiscal,
-    label: "Fiscal Engine Rules",
-    shortLabel: "Fiscal",
-  },
-  {
-    id: ORG_SETTINGS_SECTION_IDS.brand,
-    label: "Brand & Web",
-    shortLabel: "Brand",
-    advanced: true,
-  },
-  {
-    id: ORG_SETTINGS_SECTION_IDS.location,
-    label: "Location Governance",
-    shortLabel: "Locations",
-    advanced: true,
-  },
-  {
-    id: ORG_SETTINGS_SECTION_IDS.naming,
-    label: "Document Naming",
-    shortLabel: "Naming",
-    advanced: true,
-  },
-  {
-    id: ORG_SETTINGS_SECTION_IDS.accounting,
-    label: "Accounting & Controls",
-    shortLabel: "Accounting",
-    advanced: true,
-  },
-];

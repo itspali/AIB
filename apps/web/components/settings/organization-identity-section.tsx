@@ -1,29 +1,29 @@
 "use client";
 
 import type { UseFormReturn } from "react-hook-form";
+import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { OrganizationSettingsFormValues } from "@/lib/organization/types";
 
 type Props = {
   form: UseFormReturn<OrganizationSettingsFormValues>;
-  sectionId: string;
   disabled?: boolean;
 };
 
-export function OrganizationIdentitySection({ form, sectionId, disabled }: Props) {
+export function OrganizationIdentitySection({ form, disabled }: Props) {
   const {
     register,
     formState: { errors },
   } = form;
 
   return (
-    <section id={sectionId} className="surface-panel scroll-mt-40 space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Legal &amp; Contact Identity
-      </h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2">
+    <OrgSettingsSection
+      title="Legal & Contact Identity"
+      description="Registered entity names, statutory identifiers, and primary contact channels."
+    >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-2 md:col-span-2 lg:col-span-2">
           <Label htmlFor="legal_name" className="text-sm font-medium text-muted-foreground">
             Formal legal entity name
           </Label>
@@ -33,7 +33,7 @@ export function OrganizationIdentitySection({ form, sectionId, disabled }: Props
           )}
         </div>
 
-        <div className="space-y-2 sm:col-span-2">
+        <div className="space-y-2">
           <Label htmlFor="trade_name" className="text-sm font-medium text-muted-foreground">
             Operating trade name
           </Label>
@@ -87,6 +87,6 @@ export function OrganizationIdentitySection({ form, sectionId, disabled }: Props
           )}
         </div>
       </div>
-    </section>
+    </OrgSettingsSection>
   );
 }

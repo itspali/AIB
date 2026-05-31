@@ -29,22 +29,26 @@ export function WizardFooter({
   const router = useRouter();
   const { setOnboardingComplete } = useOnboardingContext();
 
-  const isStep4 = activeStepId === "channels";
-  const showLaunch = isStep4 && canLaunch;
+  const isChannelsStep = activeStepId === "channels";
+  const showLaunchOnly = isChannelsStep && stepCompleted && canLaunch;
+
+  const launchWorkspace = () => {
+    startTransition(async () => {
+      const result = await completeOnboarding();
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setOnboardingComplete(true);
+      toast.success("Welcome to your live AIB Smart ERP workspace!");
+      router.push("/dashboard");
+      router.refresh();
+    });
+  };
 
   const handlePrimary = () => {
-    if (showLaunch) {
-      startTransition(async () => {
-        const result = await completeOnboarding();
-        if (result.error) {
-          toast.error(result.error);
-          return;
-        }
-        setOnboardingComplete(true);
-        toast.success("Welcome to your live AIB Smart ERP workspace!");
-        router.push("/dashboard");
-        router.refresh();
-      });
+    if (showLaunchOnly) {
+      launchWorkspace();
       return;
     }
 
@@ -64,16 +68,24 @@ export function WizardFooter({
         toast.error(result.error);
         return;
       }
+
+      if (isChannelsStep) {
+        launchWorkspace();
+        return;
+      }
+
       router.refresh();
       onContinue();
     });
   };
 
-  const primaryLabel = showLaunch
-    ? "Complete Setup & Launch Workspace"
+  const primaryLabel = showLaunchOnly
+    ? "Launch workspace"
     : stepCompleted
       ? "Continue"
-      : "Save & Continue";
+      : isChannelsStep
+        ? "Save & launch workspace"
+        : "Save & Continue";
 
   return (
     <div className="mt-6 flex flex-col-reverse gap-3 border-t pt-4 md:mt-8 md:flex-row md:items-center md:justify-between md:pt-6">
@@ -92,7 +104,7 @@ export function WizardFooter({
       )}
       <Button
         type="button"
-        disabled={pending || (showLaunch && !canLaunch)}
+        disabled={pending || (showLaunchOnly && !canLaunch)}
         size="lg"
         onClick={handlePrimary}
         className="w-full md:ml-auto md:w-auto"

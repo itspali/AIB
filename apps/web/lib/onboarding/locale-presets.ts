@@ -1,4 +1,10 @@
 import type { TaxRateRow } from "@/lib/onboarding/types";
+import {
+  INDIA_COA_TEMPLATE,
+  US_COA_TEMPLATE,
+  VAT_COA_TEMPLATE,
+  type CoaAccountTemplate,
+} from "@/lib/onboarding/coa-template";
 
 export type SupportedCountryCode = "US" | "IN" | "GB" | "AU" | "CA";
 
@@ -60,13 +66,29 @@ export function defaultTaxRatesForCountry(countryCode: string): TaxRateRow[] {
   return GENERIC_TAX_DEFAULTS.map((row) => ({ ...row }));
 }
 
+export function coaTemplateForCountry(countryCode: string): {
+  template: CoaAccountTemplate[];
+  label: string;
+} {
+  const code = countryCode.toUpperCase();
+  if (code === "IN") {
+    return { template: INDIA_COA_TEMPLATE.map((row) => ({ ...row })), label: "India GST compliance" };
+  }
+  if (code === "US") {
+    return { template: US_COA_TEMPLATE.map((row) => ({ ...row })), label: "United States standard" };
+  }
+  return { template: VAT_COA_TEMPLATE.map((row) => ({ ...row })), label: "International VAT standard" };
+}
+
 export function usesIndiaCoaTemplate(countryCode: string): boolean {
   return countryCode.toUpperCase() === "IN";
 }
 
 export function humanOnboardingStatus(status: string, progressPercent: number): string {
   if (status === "GO_LIVE_READY") return "Ready to operate";
-  if (progressPercent >= 100) return "Review and launch";
+  if (status === "COMPLIANCE_VERIFIED") return "Final step — sales channels";
+  if (status === "DATABASE_SEEDED") return "Tax and compliance setup";
   if (status === "ORGANIZATION_CONFIGURED") return "Financial setup in progress";
+  if (progressPercent >= 100) return "Launching workspace";
   return "Workspace setup in progress";
 }

@@ -34,6 +34,9 @@ CREATE TABLE tenants (
     
     -- --- Global Localization & Compliance Infrastructure ---
     base_currency VARCHAR(3) DEFAULT 'USD',         -- System Base Ledger Consolidation Currency Code (ISO 4217)
+    country_code VARCHAR(2),                        -- ISO 3166-1 alpha-2 operating jurisdiction (drives COA + tax templates)
+    timezone TEXT NOT NULL DEFAULT 'UTC',           -- IANA workspace default timezone for timestamps and fiscal cutoffs
+    locale VARCHAR(10) NOT NULL DEFAULT 'en-US',    -- BCP-47 locale tag for number, date, and currency formatting
     tax_identifier VARCHAR(50),                     -- Corporate Tax Registration Id (VAT, GST, EIN)
     legal_registration_number TEXT,                 -- Government Incorporation Certificate Identification
     fiscal_year_start_month SMALLINT DEFAULT 1      -- Baseline month configuration offset for accounting loops (1 to 12)

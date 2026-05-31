@@ -5,10 +5,10 @@ import { WizardStepBadge } from "@/components/onboarding/wizard-step-badge";
 import type { OnboardingStepState, WizardNavStatus, WizardStepId } from "@/lib/onboarding/types";
 
 const STEP_SHORT_LABELS: Record<WizardStepId, string> = {
-  locations: "Corporate Profile",
-  coa: "Chart of Accounts",
-  tax: "Tax Registry",
-  channels: "Channels",
+  locations: "Company & location",
+  coa: "Chart of accounts",
+  tax: "Tax rates",
+  channels: "Sales channels",
 };
 
 type Props = {

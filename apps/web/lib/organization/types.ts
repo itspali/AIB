@@ -65,6 +65,9 @@ export type OrganizationSettingsSnapshot = {
   billing_state: string | null;
   billing_zip_postal: string | null;
   billing_country_code: string | null;
+  country_code: string | null;
+  timezone: string;
+  locale: string;
   base_currency: OrganizationCurrency;
   fiscal_year_start_month: number;
   logo_url: string | null;
@@ -104,6 +107,9 @@ export type OrganizationSettingsFormValues = {
   billing_state: string;
   billing_zip_postal: string;
   billing_country_code: CountryCode | "";
+  country_code: CountryCode | "";
+  timezone: string;
+  locale: string;
   base_currency: OrganizationCurrency;
   fiscal_year_start_month: string;
   logo_url: string;
@@ -171,6 +177,9 @@ export function snapshotToFormValues(
     billing_state: snapshot.billing_state ?? "",
     billing_zip_postal: snapshot.billing_zip_postal ?? "",
     billing_country_code: (snapshot.billing_country_code as CountryCode | null) ?? "",
+    country_code: (snapshot.country_code as CountryCode | null) ?? "",
+    timezone: snapshot.timezone,
+    locale: snapshot.locale,
     base_currency: snapshot.base_currency,
     fiscal_year_start_month: String(snapshot.fiscal_year_start_month),
     logo_url: snapshot.logo_url ?? "",

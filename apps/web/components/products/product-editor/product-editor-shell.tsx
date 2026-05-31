@@ -26,6 +26,7 @@ import { findSimilarItems, type SimilarItem } from "@/app/items/actions";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
+import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
 import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
@@ -76,6 +77,7 @@ import type {
   ProductVariantSnapshot,
 } from "@/lib/products/types";
 import { formatDate } from "@/lib/dashboard/format";
+import { scrollElementInDashboardRoot } from "@/lib/settings/form-section-spy";
 import { cn } from "@/lib/utils";
 
 type SectionId = "overview" | "pricing" | "inventory" | "variants" | "media" | "catalog";
@@ -306,7 +308,9 @@ export function ProductEditorShell({
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
+  const scrollRootRef = useRef<HTMLElement | null>(null);
   const sectionRefs = useRef<Partial<Record<SectionId, HTMLDivElement | null>>>({});
+  const ignoreSpyUntilRef = useRef(0);
 
   const {
     form,
@@ -395,11 +399,13 @@ export function ProductEditorShell({
     while (el) {
       const overflowY = window.getComputedStyle(el).overflowY;
       if (overflowY === "auto" || overflowY === "scroll") {
+        scrollRootRef.current = el;
         setScrollRoot(el);
         return;
       }
       el = el.parentElement;
     }
+    scrollRootRef.current = null;
     setScrollRoot(null);
   }, []);
 
@@ -413,6 +419,8 @@ export function ProductEditorShell({
     const visible = new Set<string>();
     const observer = new IntersectionObserver(
       (entries) => {
+        if (Date.now() < ignoreSpyUntilRef.current) return;
+
         for (const entry of entries) {
           const id = entry.target.getAttribute("data-section");
           if (!id) continue;
@@ -429,17 +437,17 @@ export function ProductEditorShell({
     return () => observer.disconnect();
   }, [scrollRoot]);
 
-  // Keep the active chip in view on the mobile nav strip.
-  useEffect(() => {
-    const bar = chipBarRef.current;
-    if (!bar) return;
-    const activeChip = bar.querySelector<HTMLElement>(`[data-chip="${activeSection}"]`);
-    activeChip?.scrollIntoView({ inline: "center", block: "nearest" });
-  }, [activeSection]);
-
   const scrollToSection = useCallback((id: SectionId) => {
+    ignoreSpyUntilRef.current = Date.now() + 900;
     setActiveSection(id);
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const el = sectionRefs.current[id];
+    if (!el) return;
+
+    const chipBarHeight = chipBarRef.current?.offsetHeight ?? 0;
+    scrollElementInDashboardRoot(el, {
+      additionalOffset: chipBarHeight > 0 ? chipBarHeight + 8 : 0,
+      scrollRootRef,
+    });
   }, []);
 
   const registerSection = useCallback(
@@ -539,6 +547,16 @@ export function ProductEditorShell({
 
   const skuLabel = isMultiSku ? "Style code" : "Master SKU";
 
+  const mobileChips = useMemo(
+    () =>
+      SECTIONS.map((section) => ({
+        id: section.id,
+        label: section.label,
+        leading: showStatus ? <StatusDot status={sectionStatus(section.id)} /> : undefined,
+      })),
+    [sectionStatus, showStatus]
+  );
+
   return (
     <form ref={formRef} onSubmit={handleSave} className="flex flex-col gap-4">
       {/* Summary header */}
@@ -568,32 +586,12 @@ export function ProductEditorShell({
         </div>
       </div>
 
-      {/* Mobile / tablet sticky scroll-spy strip */}
-      <div
-        ref={chipBarRef}
-        className="sticky top-0 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-lg border border-border bg-background/95 px-1 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"
-      >
-        {SECTIONS.map((section) => {
-          const active = activeSection === section.id;
-          return (
-            <button
-              key={section.id}
-              type="button"
-              data-chip={section.id}
-              onClick={() => scrollToSection(section.id)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                active
-                  ? "border-transparent bg-secondary text-secondary-foreground"
-                  : "border-border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {showStatus ? <StatusDot status={sectionStatus(section.id)} /> : null}
-              {section.label}
-            </button>
-          );
-        })}
-      </div>
+      <SectionScrollChipBar
+        barRef={chipBarRef}
+        chips={mobileChips}
+        activeId={activeSection}
+        onSelect={(id) => scrollToSection(id as SectionId)}
+      />
 
       <div className="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-6">
         {/* Desktop scroll-spy rail */}

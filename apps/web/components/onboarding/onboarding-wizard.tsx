@@ -135,6 +135,7 @@ export function OnboardingWizard({ snapshot }: Props) {
               ref={coaRef}
               completed={stepMap.coa.completed}
               accountCount={snapshot.accountCount}
+              countryCode={resolvedCountryCode}
             />
           )}
 

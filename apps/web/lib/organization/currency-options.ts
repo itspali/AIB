@@ -1,6 +1,17 @@
 export const CURRENCY_OPTIONS = ["USD", "INR", "EUR", "GBP"] as const;
 export type OrganizationCurrency = (typeof CURRENCY_OPTIONS)[number];
 
+export const CURRENCY_LABELS: Record<OrganizationCurrency, string> = {
+  USD: "US Dollar",
+  INR: "Indian Rupee",
+  EUR: "Euro",
+  GBP: "British Pound",
+};
+
+export function currencyLabel(code: string): string {
+  return CURRENCY_LABELS[code as OrganizationCurrency] ?? code;
+}
+
 export const FISCAL_MONTH_OPTIONS = [
   { value: 1, label: "January" },
   { value: 2, label: "February" },

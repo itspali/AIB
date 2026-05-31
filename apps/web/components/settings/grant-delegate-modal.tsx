@@ -37,14 +37,12 @@ type Props = {
   delegates: OrganizationDelegateRow[];
   eligibleUsers: EligibleUser[];
   canGrantDelegates: boolean;
-  showAdvanced: boolean;
 };
 
 export function GrantDelegateModalSection({
   delegates,
   eligibleUsers,
   canGrantDelegates,
-  showAdvanced,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -81,14 +79,6 @@ export function GrantDelegateModalSection({
       router.refresh();
     });
   };
-
-  if (!showAdvanced) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Enable advanced parameters to manage settings access delegates.
-      </p>
-    );
-  }
 
   return (
     <div className="space-y-3">

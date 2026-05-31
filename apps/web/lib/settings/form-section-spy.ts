@@ -13,6 +13,49 @@ function getAnchorLine(headerRef: RefObject<HTMLElement | null>): number {
   return headerRef.current?.getBoundingClientRect().bottom ?? 120;
 }
 
+export type ScrollInDashboardRootOptions = {
+  /** Base offset from the top of the dashboard scrollport (default 96). */
+  offsetTop?: number;
+  /** Extra clearance for sticky in-page nav (e.g. mobile chip bar height). */
+  additionalOffset?: number;
+  scrollRootRef?: RefObject<HTMLElement | null>;
+};
+
+export function scrollChipIntoCenter(container: HTMLElement, chip: HTMLElement) {
+  const chipLeft = chip.offsetLeft;
+  const chipWidth = chip.offsetWidth;
+  const containerWidth = container.clientWidth;
+  const targetLeft = chipLeft - containerWidth / 2 + chipWidth / 2;
+
+  container.scrollTo({
+    left: Math.max(0, targetLeft),
+    behavior: "smooth",
+  });
+}
+
+export function scrollElementInDashboardRoot(
+  element: HTMLElement,
+  options: ScrollInDashboardRootOptions = {}
+) {
+  const {
+    offsetTop = 96,
+    additionalOffset = 0,
+    scrollRootRef,
+  } = options;
+  const scrollRoot = resolveScrollRoot(scrollRootRef);
+  if (!scrollRoot) {
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const totalOffset = offsetTop + additionalOffset;
+  const anchorLine = scrollRoot.getBoundingClientRect().top + totalOffset;
+  const targetScrollTop =
+    scrollRoot.scrollTop + (element.getBoundingClientRect().top - anchorLine);
+
+  scrollRoot.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "smooth" });
+}
+
 export function scrollToFormSection(
   sectionId: string,
   headerRef: RefObject<HTMLElement | null>,
