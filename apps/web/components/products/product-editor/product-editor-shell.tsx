@@ -1014,7 +1014,42 @@ export function ProductEditorShell({
                 />
               </Field>
 
-              <Field label="Default tax category">
+              <Field label="Tax rule" full>
+                <Select
+                  value={watch("tax_code_id") ?? "none"}
+                  disabled={fieldDisabled}
+                  onValueChange={(value) =>
+                    setValue("tax_code_id", value === "none" ? null : value, {
+                      shouldDirty: true,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No tax rule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No tax rule (use fallback bucket)</SelectItem>
+                    {catalogContext.tax_codes.map((code) => (
+                      <SelectItem key={code.id} value={code.id}>
+                        {code.name}
+                        {code.is_variable ? " (slab)" : ` (${code.rate}%)`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {catalogContext.tax_codes.length === 0 ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    No tax rules yet. Create them under Settings → Tax Settings to drive live
+                    tax on this product.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Drives the rate applied on sales and purchase lines (flat or slab).
+                  </p>
+                )}
+              </Field>
+
+              <Field label="Default tax category (fallback)">
                 <Select
                   value={watch("default_tax_category")}
                   disabled={fieldDisabled}

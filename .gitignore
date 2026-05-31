@@ -16,6 +16,7 @@ build/
 .next/
 out/
 go-bin/
+*.tsbuildinfo
 
 # Hidden System Logs and Tracking Profiles
 .DS_Store

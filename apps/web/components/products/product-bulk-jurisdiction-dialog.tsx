@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchActiveTaxRateOptions, type TaxRateOption } from "@/app/items/actions";
+import { fetchActiveTaxCodeOptions, type TaxCodeOption } from "@/app/items/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,17 +24,10 @@ import type { CategoryRow } from "@/lib/categories/types";
 import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
 import { taxCategoryLabel, type TaxCategory } from "@/lib/products/tax-options";
 
-function isValidStatutoryCode(code: string | null | undefined): boolean {
-  const trimmed = code?.trim() ?? "";
-  if (trimmed.length < 4) return false;
-  const upper = trimmed.toUpperCase();
-  return upper !== "HSN" && upper !== "SAC";
-}
-
-function deriveTaxCategory(percentage: string): TaxCategory {
-  const parsed = Number(percentage);
-  if (!Number.isFinite(parsed) || parsed === 0) return "ZERO_RATED";
-  if (parsed > 0 && parsed < 18) return "REDUCED";
+function deriveTaxCategory(rate: number, kind: string): TaxCategory {
+  if (kind === "EXEMPT") return "EXEMPT";
+  if (kind === "ZERO" || kind === "NIL" || !Number.isFinite(rate) || rate === 0) return "ZERO_RATED";
+  if (rate > 0 && rate < 18) return "REDUCED";
   return "STANDARD";
 }
 
@@ -44,7 +37,7 @@ type Props = {
   categories: CategoryRow[];
   selectedCount: number;
   isPending: boolean;
-  onSubmit: (payload: { category_id: string; tax_rate_id: string }) => void;
+  onSubmit: (payload: { category_id: string; tax_code_id: string }) => void;
 };
 
 export function ProductBulkJurisdictionDialog({
@@ -56,8 +49,8 @@ export function ProductBulkJurisdictionDialog({
   onSubmit,
 }: Props) {
   const [categoryId, setCategoryId] = useState("");
-  const [taxRateId, setTaxRateId] = useState("");
-  const [taxOptions, setTaxOptions] = useState<TaxRateOption[]>([]);
+  const [taxCodeId, setTaxCodeId] = useState("");
+  const [taxOptions, setTaxOptions] = useState<TaxCodeOption[]>([]);
   const [isLoadingTax, setIsLoadingTax] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -69,11 +62,9 @@ export function ProductBulkJurisdictionDialog({
     }));
   }, [categories]);
 
-  const selectedTax = taxOptions.find((row) => row.id === taxRateId) ?? null;
-  const previewHsn = selectedTax?.legal_compliance_code?.trim() ?? "";
-  const previewValid = isValidStatutoryCode(previewHsn);
+  const selectedTax = taxOptions.find((row) => row.id === taxCodeId) ?? null;
   const previewTaxCategory = selectedTax
-    ? taxCategoryLabel(deriveTaxCategory(selectedTax.tax_percentage))
+    ? taxCategoryLabel(deriveTaxCategory(Number(selectedTax.rate), selectedTax.kind))
     : null;
 
   useEffect(() => {
@@ -82,7 +73,7 @@ export function ProductBulkJurisdictionDialog({
     setIsLoadingTax(true);
     setLoadError(null);
     void (async () => {
-      const result = await fetchActiveTaxRateOptions();
+      const result = await fetchActiveTaxCodeOptions();
       if ("error" in result) {
         setLoadError(result.error);
         setTaxOptions([]);
@@ -95,13 +86,13 @@ export function ProductBulkJurisdictionDialog({
   const handleOpenChange = (next: boolean) => {
     if (!next && !isPending) {
       setCategoryId("");
-      setTaxRateId("");
+      setTaxCodeId("");
       setLoadError(null);
     }
     onOpenChange(next);
   };
 
-  const canSubmit = Boolean(categoryId && taxRateId && previewValid && !isPending);
+  const canSubmit = Boolean(categoryId && taxCodeId && !isPending);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -109,7 +100,7 @@ export function ProductBulkJurisdictionDialog({
         <DialogHeader>
           <DialogTitle>Bulk statutory jurisdiction sync</DialogTitle>
           <DialogDescription>
-            Reallocate category and statutory codes for {selectedCount} selected item master
+            Reallocate category and tax rule for {selectedCount} selected item master
             {selectedCount === 1 ? "" : "s"}.
           </DialogDescription>
         </DialogHeader>
@@ -132,19 +123,20 @@ export function ProductBulkJurisdictionDialog({
           </div>
 
           <div className="space-y-2 md:col-span-1">
-            <Label className="text-sm font-medium text-muted-foreground">Tax rate registry</Label>
+            <Label className="text-sm font-medium text-muted-foreground">Tax rule</Label>
             <Select
-              value={taxRateId}
-              onValueChange={setTaxRateId}
+              value={taxCodeId}
+              onValueChange={setTaxCodeId}
               disabled={isPending || isLoadingTax}
             >
               <SelectTrigger>
-                <SelectValue placeholder={isLoadingTax ? "Loading…" : "Select tax component"} />
+                <SelectValue placeholder={isLoadingTax ? "Loading…" : "Select tax rule"} />
               </SelectTrigger>
               <SelectContent>
                 {taxOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
-                    {option.tax_component_name} ({option.tax_percentage}%)
+                    {option.name}
+                    {option.is_variable ? " (slab)" : ` (${Number(option.rate)}%)`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -154,25 +146,22 @@ export function ProductBulkJurisdictionDialog({
 
         {loadError ? <p className="text-xs text-destructive">{loadError}</p> : null}
 
+        {taxOptions.length === 0 && !isLoadingTax && !loadError ? (
+          <p className="text-xs text-muted-foreground">
+            No active tax rules yet. Create one under Settings → Tax Settings first.
+          </p>
+        ) : null}
+
         {selectedTax ? (
           <p className="text-xs text-muted-foreground">
-            {previewValid ? (
+            Items will be bound to{" "}
+            <span className="font-mono text-foreground">{selectedTax.code}</span>
+            {previewTaxCategory ? (
               <>
-                HSN/SAC will be set to{" "}
-                <span className="font-mono text-foreground">{previewHsn}</span>
-                {previewTaxCategory ? (
-                  <>
-                    {" "}
-                    · Tax category → <span className="text-foreground">{previewTaxCategory}</span>
-                  </>
-                ) : null}
+                {" "}
+                · Tax category → <span className="text-foreground">{previewTaxCategory}</span>
               </>
-            ) : (
-              <span className="text-destructive">
-                Selected tax registry row needs a valid statutory code (at least 4 characters, not
-                just HSN/SAC).
-              </span>
-            )}
+            ) : null}
           </p>
         ) : null}
 
@@ -182,7 +171,7 @@ export function ProductBulkJurisdictionDialog({
           </Button>
           <Button
             disabled={!canSubmit}
-            onClick={() => onSubmit({ category_id: categoryId, tax_rate_id: taxRateId })}
+            onClick={() => onSubmit({ category_id: categoryId, tax_code_id: taxCodeId })}
           >
             {isPending ? <Spinner /> : null}
             Apply sync

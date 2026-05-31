@@ -67,7 +67,7 @@ export type BulkPricingInput = z.infer<typeof bulkPricingSchema>;
 
 export const bulkJurisdictionSchema = z.object({
   category_id: z.string().uuid("Select a category."),
-  tax_rate_id: z.string().uuid("Select a tax rate registry entry."),
+  tax_code_id: z.string().uuid("Select a tax rule."),
 });
 
 export type BulkJurisdictionInput = z.infer<typeof bulkJurisdictionSchema>;

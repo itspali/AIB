@@ -57,6 +57,7 @@ export const productMasterSchema = z.object({
   hsn_sac_code: z.string().trim().max(32),
   has_variants: z.boolean(),
   default_tax_category: z.enum(TAX_CATEGORY_OPTIONS),
+  tax_code_id: z.string().uuid().nullable(),
   is_returnable: z.boolean(),
   dead_weight_kg: nonNegativeDecimal(3),
   weight: nonNegativeDecimal(4, true),

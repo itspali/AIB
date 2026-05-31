@@ -192,6 +192,17 @@ export async function saveProductMasterProfile(raw: unknown) {
   revalidatePath("/inventory/categories");
 
   const itemId = data as string;
+
+  // Bind the canonical tax rule via an isolated RPC so we don't have to
+  // re-deploy the large save_product_master_profile signature.
+  const taxCodeResult = await supabase.rpc("set_item_tax_code", {
+    p_item_id: itemId,
+    p_tax_code_id: values.tax_code_id,
+  });
+  if (taxCodeResult.error && !isMissingRpcError(taxCodeResult.error)) {
+    return { error: taxCodeResult.error.message };
+  }
+
   const detail = await fetchProductDetail(supabase, tenantId, itemId);
 
   return { success: true as const, itemId, detail };
@@ -905,32 +916,36 @@ export async function saveProductListUserPrefs(raw: unknown) {
   return { success: true as const };
 }
 
-export type TaxRateOption = {
+export type TaxCodeOption = {
   id: string;
-  tax_component_name: string;
-  tax_percentage: string;
-  legal_compliance_code: string | null;
+  code: string;
+  name: string;
+  rate: string;
+  kind: string;
+  is_variable: boolean;
 };
 
-export async function fetchActiveTaxRateOptions(): Promise<
-  { options: TaxRateOption[] } | { error: string }
+export async function fetchActiveTaxCodeOptions(): Promise<
+  { options: TaxCodeOption[] } | { error: string }
 > {
   const { supabase, tenantId } = await requireTenantId();
 
   const { data, error } = await supabase
-    .from("tax_rate_registry")
-    .select("id, tax_component_name, tax_percentage, legal_compliance_code, active_to_date")
+    .from("tax_codes")
+    .select("id, code, name, rate, kind, is_variable")
     .eq("tenant_id", tenantId)
-    .or("active_to_date.is.null,active_to_date.gt." + new Date().toISOString())
-    .order("tax_component_name");
+    .eq("is_active", true)
+    .order("name");
 
   if (error) return { error: error.message };
 
   const options = (data ?? []).map((row) => ({
     id: row.id as string,
-    tax_component_name: row.tax_component_name as string,
-    tax_percentage: String(row.tax_percentage),
-    legal_compliance_code: (row.legal_compliance_code as string | null) ?? null,
+    code: row.code as string,
+    name: row.name as string,
+    rate: String(row.rate),
+    kind: row.kind as string,
+    is_variable: Boolean(row.is_variable),
   }));
 
   return { options };
@@ -1035,7 +1050,7 @@ export async function bulkSyncItemJurisdiction(
   const { data, error } = await supabase.rpc("bulk_sync_item_jurisdiction", {
     p_item_ids: idsResult.itemIds,
     p_category_id: parsed.data.category_id,
-    p_tax_rate_id: parsed.data.tax_rate_id,
+    p_tax_code_id: parsed.data.tax_code_id,
   });
 
   if (error) {

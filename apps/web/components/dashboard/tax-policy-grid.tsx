@@ -61,7 +61,7 @@ export function TaxPolicyGrid({ rows }: TaxPolicyGridProps) {
       <HubSectionHeading
         step="03"
         title="Policy Slabs Registry"
-        description="Statutory tax components bound to HSN/SAC compliance tokens."
+        description="Active tax rules available to bind to products and order lines."
       />
       <HubPanel accent="violet" icon={Scale}>
         <div className="p-6">
@@ -90,7 +90,7 @@ export function TaxPolicyGrid({ rows }: TaxPolicyGridProps) {
                     </th>
                     <th className="p-3 font-medium text-muted-foreground">Active From</th>
                     <th className="p-3 font-medium text-muted-foreground">Active To</th>
-                    <th className="p-3 font-medium text-muted-foreground">HSN/SAC Token</th>
+                    <th className="p-3 font-medium text-muted-foreground">Tax Code</th>
                   </tr>
                 </thead>
                 <tbody>

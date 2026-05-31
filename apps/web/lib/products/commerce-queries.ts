@@ -13,6 +13,7 @@ export async function fetchProductCatalogContext(
     { data: tags },
     { data: storefronts },
     { data: priceBooks },
+    { data: taxCodes },
   ] = await Promise.all([
     supabase
       .from("tenants")
@@ -43,6 +44,12 @@ export async function fetchProductCatalogContext(
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("tax_codes")
+      .select("id, code, name, rate, kind, is_variable")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
   const accountingConfig =
@@ -68,5 +75,13 @@ export async function fetchProductCatalogContext(
       slug: row.slug,
     })),
     price_books: (priceBooks ?? []).map((row) => ({ id: row.id, name: row.name })),
+    tax_codes: (taxCodes ?? []).map((row) => ({
+      id: row.id as string,
+      code: row.code as string,
+      name: row.name as string,
+      rate: Number(row.rate),
+      kind: row.kind as string,
+      is_variable: Boolean(row.is_variable),
+    })),
   };
 }

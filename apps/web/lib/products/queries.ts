@@ -72,6 +72,7 @@ type ItemRow = {
   is_bundle?: boolean | null;
   price_is_tax_inclusive?: boolean | null;
   default_tax_category: string;
+  tax_code_id?: string | null;
   is_returnable: boolean;
   is_active: boolean;
   custom_fields: Record<string, unknown> | null;
@@ -690,6 +691,7 @@ export async function fetchProductDetail(
       is_bundle,
       price_is_tax_inclusive,
       default_tax_category,
+      tax_code_id,
       is_returnable,
       is_active,
       custom_fields,
@@ -835,6 +837,7 @@ export async function fetchProductDetail(
     is_bundle: row.is_bundle ?? false,
     price_is_tax_inclusive: row.price_is_tax_inclusive ?? false,
     default_tax_category: taxCategory,
+    tax_code_id: row.tax_code_id ?? null,
     is_returnable: row.is_returnable,
     is_active: row.is_active,
     variant_id: variant.id,

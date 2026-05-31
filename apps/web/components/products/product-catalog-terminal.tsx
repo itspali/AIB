@@ -696,7 +696,7 @@ export function ProductCatalogTerminal({
   );
 
   const runBulkJurisdiction = useCallback(
-    (payload: { category_id: string; tax_rate_id: string }) => {
+    (payload: { category_id: string; tax_code_id: string }) => {
       executeBulkAction((target) => bulkSyncItemJurisdiction(target, payload));
     },
     [executeBulkAction]

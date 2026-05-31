@@ -79,7 +79,7 @@ export async function fetchOnboardingSnapshot(
     .limit(1);
 
   const accountResult = await safeCount(supabase, "accounts", tenantId);
-  const taxResult = await safeCount(supabase, "tax_rate_registry", tenantId);
+  const taxResult = await safeCount(supabase, "tax_codes", tenantId);
   const channelResult = await safeCount(supabase, "storefront_channels", tenantId);
 
   let returnPolicies: { id: string; policy_name: string }[] = [];

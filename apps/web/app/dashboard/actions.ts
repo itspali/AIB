@@ -4,19 +4,39 @@ import { revalidatePath } from "next/cache";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import type { TaxRateSlabInput } from "@/lib/dashboard/types";
 
+function toTaxCodeSlug(value: string): string {
+  const slug = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 18);
+  return slug || "TAX";
+}
+
 export async function addTaxRateSlab(input: TaxRateSlabInput) {
   const name = input.tax_component_name?.trim();
   if (!name) return { error: "Component name is required" };
 
   const { supabase, tenantId } = await requireTenantId();
 
-  const { error } = await supabase.from("tax_rate_registry").insert({
+  const pct = Number.parseFloat(input.tax_percentage) || 0;
+
+  const { error } = await supabase.from("tax_codes").insert({
     tenant_id: tenantId,
-    tax_component_name: name,
-    tax_percentage: Number.parseFloat(input.tax_percentage) || 0,
-    active_from_date: new Date(input.active_from_date).toISOString(),
-    active_to_date: input.active_to_date ? new Date(input.active_to_date).toISOString() : null,
-    legal_compliance_code: input.legal_compliance_code?.trim() || null,
+    code: `${toTaxCodeSlug(name)}-${crypto.randomUUID().slice(0, 6)}`,
+    name,
+    kind: pct === 0 ? "ZERO" : "GST",
+    rate: pct,
+    is_inclusive_default: false,
+    is_variable: false,
+    effective_from: input.active_from_date
+      ? new Date(input.active_from_date).toISOString().slice(0, 10)
+      : null,
+    effective_to: input.active_to_date
+      ? new Date(input.active_to_date).toISOString().slice(0, 10)
+      : null,
+    is_active: true,
   });
 
   if (error) return { error: error.message };

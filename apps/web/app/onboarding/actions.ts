@@ -130,11 +130,28 @@ export async function deployCoaTemplate() {
   return { success: true as const, count: rows.length };
 }
 
+function toTaxCodeSlug(value: string): string {
+  const slug = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 18);
+  return slug || "TAX";
+}
+
+function toDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 export async function saveTaxRates(rows: TaxRateRow[]) {
   const { supabase, tenantId } = await requireTenantId();
 
   const { count, error: countError } = await supabase
-    .from("tax_rate_registry")
+    .from("tax_codes")
     .select("*", { count: "exact", head: true })
     .eq("tenant_id", tenantId);
 
@@ -147,18 +164,25 @@ export async function saveTaxRates(rows: TaxRateRow[]) {
 
   const payload = rows
     .filter((r) => r.tax_component_name.trim())
-    .map((r) => ({
-      tenant_id: tenantId,
-      tax_component_name: r.tax_component_name.trim(),
-      tax_percentage: parseFloat(r.tax_percentage) || 0,
-      active_from_date: new Date(r.active_from_date).toISOString(),
-      active_to_date: r.active_to_date ? new Date(r.active_to_date).toISOString() : null,
-      legal_compliance_code: r.legal_compliance_code || null,
-    }));
+    .map((r) => {
+      const pct = parseFloat(r.tax_percentage) || 0;
+      return {
+        tenant_id: tenantId,
+        code: `${toTaxCodeSlug(r.tax_component_name)}-${crypto.randomUUID().slice(0, 6)}`,
+        name: r.tax_component_name.trim(),
+        kind: pct === 0 ? "ZERO" : "GST",
+        rate: pct,
+        is_inclusive_default: false,
+        is_variable: false,
+        effective_from: toDateOnly(r.active_from_date),
+        effective_to: toDateOnly(r.active_to_date),
+        is_active: true,
+      };
+    });
 
   if (payload.length === 0) return { error: "Add at least one tax component" };
 
-  const { error } = await supabase.from("tax_rate_registry").insert(payload);
+  const { error } = await supabase.from("tax_codes").insert(payload);
   if (error) return { error: error.message };
 
   await updateOnboardingStatus(supabase, tenantId, "COMPLIANCE_VERIFIED");

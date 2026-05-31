@@ -197,21 +197,20 @@ export async function fetchTaxRateRegistry(
   tenantId: string
 ): Promise<TaxRateSlabRow[]> {
   const { data, error } = await supabase
-    .from("tax_rate_registry")
-    .select(
-      "id, tax_component_name, tax_percentage, active_from_date, active_to_date, legal_compliance_code"
-    )
+    .from("tax_codes")
+    .select("id, code, name, rate, effective_from, effective_to, is_active")
     .eq("tenant_id", tenantId)
-    .order("active_from_date", { ascending: false });
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
 
   if (error || !data) return [];
 
   return data.map((row) => ({
     id: row.id,
-    tax_component_name: row.tax_component_name,
-    tax_percentage: Number(row.tax_percentage),
-    active_from_date: row.active_from_date,
-    active_to_date: row.active_to_date,
-    legal_compliance_code: row.legal_compliance_code,
+    tax_component_name: row.name,
+    tax_percentage: Number(row.rate),
+    active_from_date: row.effective_from,
+    active_to_date: row.effective_to,
+    legal_compliance_code: row.code,
   }));
 }

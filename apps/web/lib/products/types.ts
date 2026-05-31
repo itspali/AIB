@@ -73,6 +73,14 @@ export type ProductCatalogContext = {
   tags: ProductTagSnapshot[];
   storefronts: Array<{ id: string; name: string; channel_type: string; slug: string }>;
   price_books: Array<{ id: string; name: string }>;
+  tax_codes: Array<{
+    id: string;
+    code: string;
+    name: string;
+    rate: number;
+    kind: string;
+    is_variable: boolean;
+  }>;
 };
 
 export type ProductValuationSnapshot = {
@@ -139,6 +147,7 @@ export type ProductDetailSnapshot = {
   is_bundle: boolean;
   price_is_tax_inclusive: boolean;
   default_tax_category: TaxCategory;
+  tax_code_id: string | null;
   is_returnable: boolean;
   is_active: boolean;
   variant_id: string;
@@ -247,6 +256,7 @@ export type ProductMasterFormValues = {
   hsn_sac_code: string;
   has_variants: boolean;
   default_tax_category: TaxCategory;
+  tax_code_id: string | null;
   is_returnable: boolean;
   dead_weight_kg: string;
   weight: string;
@@ -322,6 +332,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     is_bundle: detail.is_bundle,
     price_is_tax_inclusive: detail.price_is_tax_inclusive,
     default_tax_category: detail.default_tax_category,
+    tax_code_id: detail.tax_code_id,
     is_returnable: detail.is_returnable,
     dead_weight_kg: detail.dead_weight_kg,
     weight: detail.weight,
@@ -389,6 +400,7 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   hsn_sac_code: "",
   has_variants: false,
   default_tax_category: "STANDARD",
+  tax_code_id: null,
   is_returnable: true,
   dead_weight_kg: "0",
   weight: "",
