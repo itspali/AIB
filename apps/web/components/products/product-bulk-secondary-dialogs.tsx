@@ -24,7 +24,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
 import type { CategoryRow } from "@/lib/categories/types";
-import { ITEM_CLASSIFICATIONS, classificationLabel } from "@/lib/products/classification-labels";
+import {
+  ITEM_CLASSIFICATIONS,
+  ITEM_CLASSIFICATIONS_FOR_PICKER,
+  classificationLabel,
+} from "@/lib/products/classification-labels";
 import type { ProductCatalogContext } from "@/lib/products/types";
 import { TAX_CATEGORY_OPTIONS, taxCategoryLabel } from "@/lib/products/tax-options";
 
@@ -143,14 +147,14 @@ export function ProductBulkClassificationDialog({
   onSubmit: (payload: { classification: (typeof ITEM_CLASSIFICATIONS)[number] }) => void;
 }) {
   const [classification, setClassification] =
-    useState<(typeof ITEM_CLASSIFICATIONS)[number]>("PHYSICAL_GOOD");
+    useState<(typeof ITEM_CLASSIFICATIONS)[number]>("FINISHED_GOOD");
 
   return (
     <BulkDialogShell
       open={open}
       onOpenChange={onOpenChange}
       title="Change classification"
-      description={`Update inventory classification for ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}.`}
+      description={`Update supply-chain role for ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}. Non-goods items may reject incompatible values.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit
@@ -169,7 +173,7 @@ export function ProductBulkClassificationDialog({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {ITEM_CLASSIFICATIONS.map((value) => (
+            {ITEM_CLASSIFICATIONS_FOR_PICKER.map((value) => (
               <SelectItem key={value} value={value}>
                 {classificationLabel(value)}
               </SelectItem>
@@ -195,7 +199,7 @@ export function ProductBulkTaxCategoryDialog({
   onSubmit: (payload: { default_tax_category: (typeof TAX_CATEGORY_OPTIONS)[number] }) => void;
 }) {
   const [taxCategory, setTaxCategory] =
-    useState<(typeof TAX_CATEGORY_OPTIONS)[number]>("STANDARD");
+    useState<(typeof TAX_CATEGORY_OPTIONS)[number]>("TAXABLE");
 
   return (
     <BulkDialogShell

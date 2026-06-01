@@ -4,7 +4,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAvatarSignedUrl } from "@/lib/settings/avatar";
 import { fetchProfileSettingsSnapshot } from "@/lib/settings/queries";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot } from "@/lib/onboarding/status";
+import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { getSessionClaims } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -18,7 +18,7 @@ export default async function ProfileSettingsPage() {
   const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
   if (!onboardingSnapshot) redirect("/signup");
 
-  if (!onboardingSnapshot.isOnboardingComplete) redirect("/onboarding");
+  if (!hasWorkspaceAccess(onboardingSnapshot)) redirect("/onboarding");
 
   const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
 

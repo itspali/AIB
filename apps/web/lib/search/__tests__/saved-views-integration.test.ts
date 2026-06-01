@@ -27,11 +27,15 @@ function viewDisplayLabel(input: {
   scope: "items";
   activeSavedViewId: string | null;
   hasActiveFilters: boolean;
+  isSavedViewDirty?: boolean;
   viewName?: string;
   isDefault?: boolean;
 }): string {
   const allLabel = getAllViewLabel(input.scope);
-  const viewMatchesFilters = input.activeSavedViewId != null && input.hasActiveFilters;
+  const viewMatchesFilters =
+    input.activeSavedViewId != null &&
+    input.hasActiveFilters &&
+    !input.isSavedViewDirty;
 
   if (viewMatchesFilters && input.viewName) {
     return `${input.isDefault ? "★ " : ""}${input.viewName}`;
@@ -109,6 +113,18 @@ describe("saved views integration", () => {
         scope: "items",
         activeSavedViewId: null,
         hasActiveFilters: true,
+      })
+    ).toBe("All items (filtered)");
+  });
+
+  it("shows ad-hoc filtered label when filters no longer match the active saved view", () => {
+    expect(
+      viewDisplayLabel({
+        scope: "items",
+        activeSavedViewId: "view-123",
+        hasActiveFilters: true,
+        isSavedViewDirty: true,
+        viewName: "High margin",
       })
     ).toBe("All items (filtered)");
   });

@@ -22,20 +22,26 @@ function todayIsoDate(): string {
 
 const INDIA_TAX_DEFAULTS: TaxRateRow[] = [
   {
-    tax_component_name: "CGST_9",
-    tax_percentage: "9.00",
+    tax_component_name: "GST 5%",
+    tax_percentage: "5.00",
     active_from_date: todayIsoDate(),
     legal_compliance_code: "HSN",
   },
   {
-    tax_component_name: "SGST_9",
-    tax_percentage: "9.00",
+    tax_component_name: "GST 12%",
+    tax_percentage: "12.00",
     active_from_date: todayIsoDate(),
     legal_compliance_code: "HSN",
   },
   {
-    tax_component_name: "IGST_18",
+    tax_component_name: "GST 18%",
     tax_percentage: "18.00",
+    active_from_date: todayIsoDate(),
+    legal_compliance_code: "HSN",
+  },
+  {
+    tax_component_name: "GST 28%",
+    tax_percentage: "28.00",
     active_from_date: todayIsoDate(),
     legal_compliance_code: "HSN",
   },

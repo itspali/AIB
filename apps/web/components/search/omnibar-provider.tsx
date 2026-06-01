@@ -367,7 +367,11 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   );
 
   const runAppliedFilter = useCallback(
-    async (query: string, activeScope: FilterScope) => {
+    async (
+      query: string,
+      activeScope: FilterScope,
+      options?: { savedView?: SavedViewSnapshot }
+    ) => {
       const requestId = ++runRequestIdRef.current;
       setFilterError(null);
 
@@ -389,19 +393,25 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       const fieldDict = buildFieldDict(activeScope, permissions);
       const compiled = compileFilterQuery(trimmed, activeScope, fieldDict);
       setCompileResult(compiled);
-      setActiveSavedView((previous) => {
-        if (!previous) return previous;
-        if (
-          normalizeSavedViewQuery(trimmed) !== normalizeSavedViewQuery(previous.raw_search_text)
-        ) {
-          return previous;
-        }
-        return {
-          ...previous,
+      if (options?.savedView) {
+        setActiveSavedView({
+          ...options.savedView,
           raw_search_text: trimmed,
           compiled_ast: extractStructuralAst(compiled.ast),
-        };
-      });
+        });
+      } else {
+        setActiveSavedView((previous) => {
+          if (!previous) return previous;
+          if (isSavedViewDirty(previous, trimmed, compiled.ast)) {
+            return null;
+          }
+          return {
+            ...previous,
+            raw_search_text: trimmed,
+            compiled_ast: extractStructuralAst(compiled.ast),
+          };
+        });
+      }
 
       const structuralClauses = compiled.ast.filter((clause) => clause.kind !== "text");
       if (structuralClauses.length > 0) {
@@ -529,16 +539,19 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
         compiled_ast: view.compiled_ast,
       };
 
-      setActiveSavedView(snapshot);
       setRawQuery("");
       setAppliedQuery(view.raw_search_text);
+      setFilterError(null);
+      setInlinePreviewText(null);
+      setModalDraftSegments([]);
+      setOpenPaletteAfterViewLoad(false);
 
       if (viewScope === "items" && savedViewNeedsNativeFilter(view.compiled_ast)) {
         setFilteredItemIds(null);
         setIsExecuting(true);
       }
 
-      void runAppliedFilter(view.raw_search_text, viewScope);
+      void runAppliedFilter(view.raw_search_text, viewScope, { savedView: snapshot });
     },
     [scope, runAppliedFilter]
   );
@@ -609,11 +622,11 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       } else if (viewScope === "items" && savedViewNeedsNativeFilter(view.compiled_ast)) {
         setFilteredItemIds(null);
         setIsExecuting(true);
-        void runAppliedFilter(view.raw_search_text, viewScope);
+        void runAppliedFilter(view.raw_search_text, viewScope, { savedView: view });
       } else {
         setFilteredItemIds(null);
         setIsExecuting(false);
-        void runAppliedFilter(view.raw_search_text, viewScope);
+        void runAppliedFilter(view.raw_search_text, viewScope, { savedView: view });
       }
 
       compileSavedViewQuery(view, viewScope);

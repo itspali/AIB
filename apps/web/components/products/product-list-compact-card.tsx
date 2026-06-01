@@ -10,17 +10,22 @@ import {
 } from "@/lib/products/compact-card-subline";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
-import { resolveProductListCellTextWrapClass } from "@/components/products/product-list-cells";
+import { resolveProductListCellTextWrapClass, renderProductListActiveStatus } from "@/components/products/product-list-cells";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import { getColumnDef } from "@/lib/products/list-columns";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
+import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import {
+  productListHasVariantsBadgeLabel,
   productListRowKindBadgeVariant,
   productListRowKindLabel,
-  resolveProductListRowKind,
 } from "@/lib/products/variant-strategy";
+import {
+  isProductListRowInactive,
+  resolveProductListRowActiveStatus,
+} from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 
 const HEADER_COLUMNS = new Set<ProductListColumnId>([
@@ -48,18 +53,25 @@ function MetaChip({
   );
 }
 
-function hasDisplayValue(columnId: ProductListColumnId, product: ProductListRow): boolean {
+function hasDisplayValue(
+  columnId: ProductListColumnId,
+  product: ProductListRow,
+  showVariants = false
+): boolean {
+  const presentation = resolveProductListRowPresentation(product, showVariants);
+
   switch (columnId) {
     case "image":
     case "name":
     case "is_active":
-    case "has_variants":
     case "is_purchasable":
     case "is_salable":
     case "is_returnable":
       return true;
+    case "has_variants":
+      return presentation.showHasVariantsIndicator;
     case "default_sku":
-      return Boolean(product.style_code?.trim() || product.default_sku?.trim());
+      return Boolean(presentation.displaySku);
     case "barcode":
       return Boolean(product.barcode?.trim());
     case "category_name":
@@ -85,7 +97,13 @@ function hasDisplayValue(columnId: ProductListColumnId, product: ProductListRow)
   }
 }
 
-function renderCompactChip(columnId: ProductListColumnId, product: ProductListRow): ReactNode {
+function renderCompactChip(
+  columnId: ProductListColumnId,
+  product: ProductListRow,
+  showVariants: boolean
+): ReactNode {
+  const presentation = resolveProductListRowPresentation(product, showVariants);
+
   switch (columnId) {
     case "classification":
       return (
@@ -124,7 +142,9 @@ function renderCompactChip(columnId: ProductListColumnId, product: ProductListRo
         </MetaChip>
       );
     case "has_variants":
-      return product.has_variants ? <Badge variant="completed">Has variants</Badge> : null;
+      return presentation.showHasVariantsIndicator ? (
+        <Badge variant="completed">{productListHasVariantsBadgeLabel()}</Badge>
+      ) : null;
     case "is_purchasable":
       return product.is_purchasable ? <Badge variant="completed">Purchasable</Badge> : null;
     case "is_salable":
@@ -170,10 +190,11 @@ type CardProps = {
   product: ProductListRow;
   columns: ProductListColumnId[];
   columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
+  showVariants?: boolean;
   selected: boolean;
   bulkSelected: boolean;
   onSelect: (productId: string) => void;
-  onBulkToggle: (productId: string, checked: boolean) => void;
+  onBulkToggle: (checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
 };
 
@@ -181,26 +202,34 @@ export function ProductListCompactCard({
   product,
   columns,
   columnWrapModes,
+  showVariants = false,
   selected,
   bulkSelected,
   onSelect,
   onBulkToggle,
   onImageClick,
 }: CardProps) {
+  const presentation = resolveProductListRowPresentation(product, showVariants);
   const showImage = columns.includes("image");
   const showName = columns.includes("name");
   const showSku = columns.includes("default_sku");
   const showActive = columns.includes("is_active");
   const showDescription =
     columns.includes("description") && Boolean(product.description?.trim());
+  const subline = buildCompactCardSubline({
+    product,
+    showSku,
+    showStatus: false,
+    showVariants,
+  });
+  const rowInactive = isProductListRowInactive(product, showVariants);
+  const rowActive = resolveProductListRowActiveStatus(product, showVariants);
 
-  const subline = buildCompactCardSubline({ product, showSku, showStatus: showActive });
-  const rowKind = resolveProductListRowKind(product, Boolean(product.variant_id));
-
-  const chipColumns = columns.filter(
-    (columnId) =>
-      !HEADER_COLUMNS.has(columnId) && hasDisplayValue(columnId, product)
-  );
+  const chipColumns = columns.filter((columnId) => {
+    if (columnId === "has_variants" && presentation.isExpandedVariantRow) return false;
+    if (columnId === "has_variants" && presentation.showHasVariantsIndicator) return false;
+    return !HEADER_COLUMNS.has(columnId) && hasDisplayValue(columnId, product, showVariants);
+  });
 
   return (
     <div
@@ -216,14 +245,17 @@ export function ProductListCompactCard({
       className={cn(
         "surface-panel h-full w-full cursor-pointer rounded-xl p-3 text-left transition-colors duration-200 sm:p-4",
         "hover:border-primary/30 hover:bg-accent/20",
-        !product.is_active && "opacity-50",
+        presentation.isExpandedVariantRow &&
+          "border border-dashed border-border/80 bg-muted/25 hover:bg-muted/35",
+        presentation.isStyleRow && "bg-background",
+        rowInactive && "opacity-50",
         selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
       )}
     >
       <div className="mb-2 flex items-center gap-2">
         <Checkbox
           checked={bulkSelected}
-          onCheckedChange={(checked) => onBulkToggle(product.id, checked === true)}
+          onCheckedChange={(checked) => onBulkToggle(checked === true)}
           onClick={(event) => event.stopPropagation()}
           aria-label={`Select ${product.name}`}
         />
@@ -276,39 +308,56 @@ export function ProductListCompactCard({
 
         <div className="min-w-0 flex-1 space-y-1.5">
           {showName ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <p
-                className={cn(
-                  "text-base font-semibold leading-tight text-foreground",
-                  resolveProductListCellTextWrapClass(
-                    "name",
-                    columnWrapModes?.name,
-                    "compact"
-                  )
-                )}
-              >
-                {product.name}
-              </p>
-              {rowKind !== "single" ? (
-                <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
-                  {productListRowKindLabel(rowKind)}
-                </Badge>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p
+                  className={cn(
+                    "text-base font-semibold leading-tight text-foreground",
+                    resolveProductListCellTextWrapClass(
+                      "name",
+                      columnWrapModes?.name,
+                      "card"
+                    )
+                  )}
+                >
+                  {product.name?.trim() || "—"}
+                </p>
+                {presentation.isExpandedVariantRow ? (
+                  <Badge
+                    variant={productListRowKindBadgeVariant("variant")}
+                    className="shrink-0"
+                  >
+                    {productListRowKindLabel("variant")}
+                  </Badge>
+                ) : presentation.showHasVariantsIndicator ? (
+                  <Badge
+                    variant={productListRowKindBadgeVariant("style")}
+                    className="shrink-0"
+                  >
+                    {productListHasVariantsBadgeLabel()}
+                  </Badge>
+                ) : null}
+              </div>
+              {presentation.attributeSubline ? (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {presentation.attributeSubline}
+                </p>
               ) : null}
             </div>
+          ) : null}
+
+          {showActive ? <div>{renderProductListActiveStatus(rowActive)}</div> : null}
+
+          {presentation.isExpandedVariantRow && presentation.displaySku ? (
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {presentation.displaySku}
+            </p>
           ) : null}
 
           {subline ? (
             <p className="truncate text-xs text-muted-foreground">
               {subline.skuPart ? (
                 <span className="font-mono">{subline.skuPart}</span>
-              ) : null}
-              {subline.skuPart && subline.statusPart ? (
-                <span aria-hidden="true"> · </span>
-              ) : null}
-              {subline.statusPart ? (
-                <span className={subline.statusActive ? "text-emerald-600 dark:text-emerald-400" : ""}>
-                  {subline.statusPart}
-                </span>
               ) : null}
               <span className="sr-only">{formatCompactCardSubline(subline)}</span>
             </p>
@@ -321,7 +370,7 @@ export function ProductListCompactCard({
                 resolveProductListCellTextWrapClass(
                   "description",
                   columnWrapModes?.description,
-                  "compact"
+                  "card"
                 )
               )}
             >
@@ -332,7 +381,7 @@ export function ProductListCompactCard({
           {chipColumns.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {chipColumns.map((columnId) => {
-                const chip = renderCompactChip(columnId, product);
+                const chip = renderCompactChip(columnId, product, showVariants);
                 if (!chip) return null;
                 return <span key={columnId}>{chip}</span>;
               })}

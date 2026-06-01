@@ -18,21 +18,18 @@ import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { ProductCatalogContext, ProductMasterFormValues } from "@/lib/products/types";
 import { suggestSkuMask } from "@/lib/products/sku-mask";
-import { resolveUomOptions } from "@/lib/products/uom-options";
+import { editorCatalogBlockClass, editorSwitchSize } from "@/lib/products/editor-chrome";
 
 type Props = {
   catalogContext: ProductCatalogContext;
   categoryTemplates: AttributeTemplateEntry[];
+  showSkuMask?: boolean;
   values: Pick<
     ProductMasterFormValues,
-    | "sku_mask"
-    | "custom_fields"
-    | "alternate_uoms"
-    | "tag_ids"
-    | "storefront_visibility"
-    | "base_unit_of_measure"
+    "sku_mask" | "custom_fields" | "tag_ids" | "storefront_visibility"
   >;
   disabled?: boolean;
+  compact?: boolean;
   onChange: <K extends keyof Props["values"]>(key: K, value: Props["values"][K]) => void;
   onTagsChanged?: (tags: ProductCatalogContext["tags"]) => void;
 };
@@ -40,18 +37,15 @@ type Props = {
 export function ProductCatalogExtensions({
   catalogContext,
   categoryTemplates,
+  showSkuMask = false,
   values,
   disabled,
+  compact = false,
   onChange,
   onTagsChanged,
 }: Props) {
   const [newTagName, setNewTagName] = useState("");
   const [isCreatingTag, startCreateTag] = useTransition();
-
-  const alternateUomOptions = resolveUomOptions(catalogContext.uoms).filter(
-    (option) => option.code !== values.base_unit_of_measure
-  );
-  const defaultAlternateUomCode = alternateUomOptions[0]?.code ?? "";
 
   const handleCreateTag = () => {
     const trimmed = newTagName.trim();
@@ -78,36 +72,38 @@ export function ProductCatalogExtensions({
   };
 
   return (
-    <div className="space-y-6 border-t border-border pt-6">
-      <div className="space-y-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h4 className="text-sm font-medium">SKU composition mask</h4>
-            <p className="text-xs text-muted-foreground">
-              Use {"{BASE}"} and attribute keys like {"{Size}"} to auto-compose variant SKUs.
-            </p>
+    <div className={compact ? "space-y-0" : "space-y-6 border-t border-border pt-6"}>
+      {showSkuMask ? (
+        <div className={editorCatalogBlockClass(compact)}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h4 className="text-sm font-medium">SKU composition mask</h4>
+              <p className="text-xs text-muted-foreground">
+                Use {"{BASE}"} and attribute keys like {"{Size}"} to auto-compose variant SKUs.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled || categoryTemplates.length === 0}
+              onClick={() => onChange("sku_mask", suggestSkuMask(categoryTemplates))}
+            >
+              <Wand2 className="h-4 w-4" />
+              Suggest from category
+            </Button>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled || categoryTemplates.length === 0}
-            onClick={() => onChange("sku_mask", suggestSkuMask(categoryTemplates))}
-          >
-            <Wand2 className="h-4 w-4" />
-            Suggest from category
-          </Button>
+          <Input
+            disabled={disabled}
+            className="font-mono"
+            placeholder="{BASE}-{Size}-{Color}"
+            value={values.sku_mask}
+            onChange={(event) => onChange("sku_mask", event.target.value)}
+          />
         </div>
-        <Input
-          disabled={disabled}
-          className="font-mono"
-          placeholder="{BASE}-{Size}-{Color}"
-          value={values.sku_mask}
-          onChange={(event) => onChange("sku_mask", event.target.value)}
-        />
-      </div>
+      ) : null}
 
-      <div className="space-y-3">
+      <div className={editorCatalogBlockClass(compact)}>
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-sm font-medium">Custom fields</h4>
@@ -173,91 +169,7 @@ export function ProductCatalogExtensions({
         )}
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-medium">Alternate units of measure</h4>
-            <p className="text-xs text-muted-foreground">
-              Additional conversion factors beyond the base unit. Purchase unit in Commerce is synced automatically.
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled || defaultAlternateUomCode === ""}
-            onClick={() =>
-              onChange("alternate_uoms", [
-                ...values.alternate_uoms,
-                { uom_code: defaultAlternateUomCode, conversion_factor: "1" },
-              ])
-            }
-          >
-            <Plus className="h-4 w-4" />
-            Add UOM
-          </Button>
-        </div>
-        {values.alternate_uoms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No alternate units configured.</p>
-        ) : (
-          <div className="space-y-2">
-            {values.alternate_uoms.map((row, index) => (
-              <div key={`alternate-uom-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <Select
-                  value={row.uom_code}
-                  disabled={disabled}
-                  onValueChange={(value) => {
-                    const next = [...values.alternate_uoms];
-                    next[index] = { ...next[index], uom_code: value };
-                    onChange("alternate_uoms", next);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {alternateUomOptions.map((option) => (
-                      <SelectItem key={option.code} value={option.code}>
-                        {option.code}
-                        {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  disabled={disabled}
-                  className="font-mono text-right"
-                  inputMode="decimal"
-                  placeholder="Conversion factor"
-                  value={row.conversion_factor}
-                  onChange={(event) => {
-                    const next = [...values.alternate_uoms];
-                    next[index] = { ...next[index], conversion_factor: event.target.value };
-                    onChange("alternate_uoms", next);
-                  }}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  disabled={disabled}
-                  onClick={() =>
-                    onChange(
-                      "alternate_uoms",
-                      values.alternate_uoms.filter((_, rowIndex) => rowIndex !== index)
-                    )
-                  }
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-3">
+      <div className={editorCatalogBlockClass(compact)}>
         <div>
           <h4 className="text-sm font-medium">Discovery tags</h4>
           <p className="text-xs text-muted-foreground">Assign catalog tags for search and storefront filtering.</p>
@@ -304,7 +216,7 @@ export function ProductCatalogExtensions({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className={editorCatalogBlockClass(compact)}>
         <div>
           <h4 className="text-sm font-medium">Storefront channel visibility</h4>
           <p className="text-xs text-muted-foreground">
@@ -324,7 +236,14 @@ export function ProductCatalogExtensions({
               if (!channel) return null;
 
               return (
-                <div key={row.storefront_id} className="rounded-lg border border-border p-4 space-y-3">
+                <div
+                  key={row.storefront_id}
+                  className={
+                    compact
+                      ? "space-y-2.5 border-b border-border/60 pb-3 last:border-b-0 last:pb-0"
+                      : "rounded-lg border border-border p-4 space-y-3"
+                  }
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">{channel.name}</p>
@@ -333,6 +252,7 @@ export function ProductCatalogExtensions({
                     <div className="flex items-center gap-2">
                       <Label className="text-xs text-muted-foreground">Visible</Label>
                       <Switch
+                        size={editorSwitchSize}
                         checked={row.is_visible}
                         disabled={disabled}
                         onCheckedChange={(checked) => {

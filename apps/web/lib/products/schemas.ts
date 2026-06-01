@@ -8,6 +8,11 @@ import {
   ITEM_TYPES,
 } from "@/lib/products/item-model";
 import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
+import {
+  conversionFactorForAlternate,
+  hasCatalogConversionForUnit,
+} from "@/lib/products/item-uom-commerce";
+import { validateItemTypeClassificationPair } from "@/lib/products/item-type-classification";
 import { PRODUCT_VARIANT_STRATEGIES } from "@/lib/products/variant-strategy";
 
 const decimalPattern = /^\d+(\.\d+)?$/;
@@ -63,7 +68,6 @@ export const productMasterSchema = z.object({
   tax_code_id: z.string().uuid().nullable(),
   is_returnable: z.boolean(),
   dead_weight_kg: nonNegativeDecimal(3),
-  weight: nonNegativeDecimal(4, true),
   volume: nonNegativeDecimal(4, true),
   length_cm: nonNegativeDecimal(2),
   width_cm: nonNegativeDecimal(2),
@@ -83,24 +87,48 @@ export const productMasterSchema = z.object({
   tag_ids: z.array(z.string().uuid()),
   storefront_visibility: z.array(storefrontVisibilityRowSchema),
 }).superRefine((values, ctx) => {
-  if (
-    values.purchase_uom !== values.base_unit_of_measure &&
-    (!values.purchase_uom_conversion || Number(values.purchase_uom_conversion) <= 0)
-  ) {
+  const allowLegacyPhysicalGood =
+    values.classification === "PHYSICAL_GOOD" && values.item_type === "PHYSICAL";
+  for (const issue of validateItemTypeClassificationPair(
+    values.item_type,
+    values.classification,
+    values.is_bundle,
+    { allowLegacyPhysicalGood }
+  )) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["purchase_uom_conversion"],
-      message: "Conversion factor is required when purchase unit differs from base unit",
+      path: [issue.path],
+      message: issue.message,
     });
   }
 
-  if (values.purchase_price.trim() && !values.supplier_id) {
+  if (values.purchase_uom !== values.base_unit_of_measure) {
+    const catalogFactor = conversionFactorForAlternate(values.alternate_uoms, values.purchase_uom);
+    const effectiveFactor = catalogFactor ?? values.purchase_uom_conversion;
+    if (!effectiveFactor || Number(effectiveFactor) <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: catalogFactor ? ["purchase_uom"] : ["purchase_uom_conversion"],
+        message: catalogFactor
+          ? "Purchase unit conversion in Catalog alternates must be positive"
+          : "Add this unit under Catalog alternate units with a conversion factor, or enter one here",
+      });
+    }
+  }
+
+  if (
+    values.is_salable &&
+    values.selling_uom !== values.base_unit_of_measure &&
+    !hasCatalogConversionForUnit(values.alternate_uoms, values.base_unit_of_measure, values.selling_uom)
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["supplier_id"],
-      message: "Select a preferred supplier when entering a purchase rate",
+      path: ["selling_uom"],
+      message:
+        "Add the sales unit under Catalog alternate units with a conversion factor before using it as the default sales unit",
     });
   }
+
 
   if (
     values.item_type === "PHYSICAL" &&

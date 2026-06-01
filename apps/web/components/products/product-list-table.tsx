@@ -21,11 +21,7 @@ import {
   type ProductListSortField,
 } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
-import {
-  formatVariantAttributesSubline,
-  isProductListRowInactive,
-  productListRowKey,
-} from "@/lib/products/list-row-key";
+import { isProductListRowInactive, productListRowKey } from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 import {
   productListCellClassName,
@@ -49,6 +45,8 @@ type Props = {
   sortDirection: ProductListSortDirection;
   frozenColumnCount: ProductListFrozenColumnCount;
   freezeColumnsAuto?: boolean;
+  /** Dense table rows with reduced cell padding. */
+  compactRows?: boolean;
   onSortChange: (field: ProductListSortField, direction: ProductListSortDirection) => void;
   onColumnWidthChange?: (columnId: ProductListColumnId, width: number | null) => void;
   onSelect: (productId: string) => void;
@@ -86,7 +84,8 @@ const FROZEN_EDGE_SHADOW =
   "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.08)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
 const HEADER_HOVER =
   "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
-/** Sticky header tiers — must stay above scrolling header cells (z-0) and their resize handles. */
+/** Sticky header tiers — must stay above scrolling header cells and body, below page chrome. */
+const TABLE_HEADER_Z = 10;
 const SELECTION_COLUMN_Z_HEADER = 50;
 const FROZEN_HEADER_Z_BASE = 40;
 const SELECTION_COLUMN_Z_BODY = 15;
@@ -98,6 +97,11 @@ function rowEdgeClass(isLastFrozenColumn = false) {
 
 function selectionColumnEdgeClass(showEdge: boolean) {
   return showEdge ? FROZEN_EDGE_SHADOW : undefined;
+}
+
+function cellPadding(compactRows: boolean, columnId: ProductListColumnId): string {
+  if (columnId === "image") return compactRows ? "p-0.5" : "p-1";
+  return compactRows ? "p-1.5" : "p-2.5";
 }
 
 export function ProductListTable({
@@ -115,6 +119,7 @@ export function ProductListTable({
   sortDirection,
   frozenColumnCount,
   freezeColumnsAuto = false,
+  compactRows = false,
   onSortChange,
   onColumnWidthChange,
   onSelect,
@@ -210,7 +215,10 @@ export function ProductListTable({
       (variant === "header" ? FROZEN_HEADER_Z_BASE : FROZEN_BODY_Z_BASE) + stackOrder;
 
     return {
-      className: "sticky isolate overflow-hidden",
+      className: cn(
+        "sticky isolate overflow-hidden",
+        variant === "header" && "top-0"
+      ),
       style: mergeColumnCellStyles({ left: stickyOffsets[index] ?? 0, zIndex }, widthStyles),
     };
   };
@@ -236,14 +244,19 @@ export function ProductListTable({
     );
 
   const headerCellClass = (isFrozen: boolean, isLastFrozenColumn: boolean) =>
-    cn(ROW_DIVIDER, isFrozen && FROZEN_CELL_BG, isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW);
+    cn(
+      "sticky top-0 bg-muted",
+      ROW_DIVIDER,
+      isFrozen && FROZEN_CELL_BG,
+      isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW
+    );
 
   const selectionColumnShowsEdge =
     hasHorizontalScroll && effectiveFrozenCount === 0;
 
   const selectionHeaderClass = cn(
     ROW_DIVIDER,
-    FROZEN_CELL_BG,
+    "sticky top-0 bg-muted",
     selectionColumnEdgeClass(selectionColumnShowsEdge)
   );
 
@@ -279,23 +292,29 @@ export function ProductListTable({
   );
 
   return (
-    <div className="relative">
-      <div
-        ref={scrollContainerRef}
-        className="surface-inset overflow-x-auto [scrollbar-gutter:stable]"
-      >
-        <table className="w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm [&_td]:box-border [&_th]:box-border">
-        <thead>
-          <tr className="bg-muted/40 text-left">
+    <div className="relative min-h-0 w-full flex-1 basis-0 self-stretch">
+      <div className="absolute inset-0 flex flex-col overflow-hidden border border-border bg-muted/20 shadow-sm [border-radius:0]">
+        <div
+          ref={scrollContainerRef}
+          className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+        >
+          <table
+            className={cn(
+              "w-full min-w-[720px] border-separate border-spacing-0 bg-background [&_td]:box-border [&_th]:box-border",
+              compactRows ? "text-xs" : "text-sm"
+            )}
+          >
+          <thead>
+            <tr className="bg-muted text-left">
             <th
               ref={selectionColumnRef}
               className={cn(
-                "sticky left-0 isolate overflow-hidden w-10 p-0 font-medium text-muted-foreground",
+                "sticky left-0 top-0 isolate overflow-hidden w-10 p-0 font-medium text-muted-foreground",
                 selectionHeaderClass
               )}
               style={{ zIndex: SELECTION_COLUMN_Z_HEADER }}
             >
-              <div className="flex items-center justify-center p-2.5">
+              <div className={cn("flex items-center justify-center", cellPadding(compactRows, "name"))}>
                 <Checkbox
                   checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
                   onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
@@ -319,7 +338,7 @@ export function ProductListTable({
                     headerRefs.current[index] = element;
                   }}
                   className={cn(
-                    "relative overflow-hidden p-0 font-medium text-muted-foreground",
+                    "relative sticky top-0 overflow-hidden p-0 font-medium text-muted-foreground",
                     sticky.className,
                     headerCellClass(isFrozen, isLastFrozenColumn),
                     column.align === "center" && "text-center",
@@ -327,7 +346,7 @@ export function ProductListTable({
                   )}
                   style={mergeColumnCellStyles(
                     sticky.style,
-                    !isFrozen ? { zIndex: columns.length - index } : {}
+                    !isFrozen ? { zIndex: TABLE_HEADER_Z + (columns.length - index) } : {}
                   )}
                 >
                   {sortable ? (
@@ -338,7 +357,8 @@ export function ProductListTable({
                         onSortChange(next.field, next.direction);
                       }}
                       className={cn(
-                        "inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden p-2.5 transition-colors duration-[25ms] hover:text-foreground",
+                        "inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden transition-colors duration-[25ms] hover:text-foreground",
+                        cellPadding(compactRows, columnId),
                         HEADER_HOVER,
                         column.align === "center" && "justify-center",
                         column.align === "right" && "justify-end",
@@ -356,7 +376,9 @@ export function ProductListTable({
                       </span>
                     </button>
                   ) : (
-                    <span className="block truncate p-2.5">{column.label}</span>
+                    <span className={cn("block truncate", cellPadding(compactRows, columnId))}>
+                      {column.label}
+                    </span>
                   )}
                   {onColumnWidthChange ? (
                     <ListColumnResizeHandle
@@ -413,7 +435,10 @@ export function ProductListTable({
                   style={{ zIndex: SELECTION_COLUMN_Z_BODY }}
                 >
                   <div
-                    className="flex items-center justify-center p-2.5"
+                    className={cn(
+                      "flex items-center justify-center",
+                      cellPadding(compactRows, "name")
+                    )}
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                   >
@@ -438,7 +463,7 @@ export function ProductListTable({
                       key={columnId}
                       className={cn(
                         "overflow-visible",
-                        columnId === "image" ? "p-1" : "p-2.5",
+                        cellPadding(compactRows, columnId),
                         productListCellClassName(columnId),
                         getColumnDef(columnId).align === "center" && "text-center",
                         getColumnDef(columnId).align === "right" && "text-right",
@@ -461,12 +486,9 @@ export function ProductListTable({
             );
           })}
         </tbody>
-      </table>
+          </table>
+        </div>
       </div>
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent"
-        aria-hidden
-      />
     </div>
   );
 }

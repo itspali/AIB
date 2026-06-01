@@ -64,7 +64,8 @@ canonical enums currently defined are:
 - `location_operational_type`: `'HEAD_OFFICE'`, `'REGIONAL_HQ'`, `'WAREHOUSE'`, `'MANUFACTURING_PLANT'`, `'RETAIL_OUTLET'`
 
 **Item model** (`item_model_foundation.sql`):
-- `item_type`: `'PHYSICAL'`, `'SERVICE'`, `'DIGITAL'`
+- `item_type` (behavioral): `'PHYSICAL'` (goods — stock/variants), `'SERVICE'`, `'DIGITAL'`. UI label for `PHYSICAL` is **Goods**.
+- `item_classification_type` (supply-chain / reporting role): `'RAW_MATERIAL'`, `'WIP_ASSEMBLY'`, `'FINISHED_GOOD'`, `'CONSUMABLE'`, `'KIT_BUNDLE'`, `'SERVICE'`, `'PHYSICAL_GOOD'` (legacy — hidden from pickers). Must stay consistent with `item_type` (enforced in app + `save_product_master_profile`).
 - `item_status`: `'DRAFT'`, `'ACTIVE'`, `'DISCONTINUED'`, `'ARCHIVED'`
 - `item_source`: `'MANUAL'`, `'QUICK_CREATE'`, `'AI'`, `'IMPORT'`
 - `item_costing_method`: `'FIFO'`, `'WEIGHTED_AVG'`, `'STANDARD'`

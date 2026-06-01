@@ -1,7 +1,48 @@
 import type { ProductListRow } from "@/lib/products/types";
+import type { ProductListRowKind } from "@/lib/products/variant-strategy";
 
 export function productListRowKey(row: ProductListRow, showVariants: boolean): string {
   return showVariants && row.variant_id ? row.variant_id : row.id;
+}
+
+/** True when the row is a sellable variant line in an expanded variant list. */
+export function isVariantChildListRow(row: ProductListRow): boolean {
+  if (!row.variant_id) return false;
+  const strategy = row.variant_strategy ?? "SINGLE_SKU";
+  return strategy === "MULTI_SKU" || Boolean(row.has_variants);
+}
+
+/** Builds a parent/style list row from the first variant row of a multi-variant item. */
+export function toVariantParentListRow(row: ProductListRow): ProductListRow {
+  return {
+    ...row,
+    variant_id: null,
+    variant_attributes: null,
+    variant_is_active: undefined,
+    variant_is_master: undefined,
+    variant_is_sellable: undefined,
+    default_sku: row.style_code?.trim() || row.default_sku,
+  };
+}
+
+/**
+ * Inserts a parent row immediately before the first variant row of each multi-variant item.
+ * Used when variants are expanded so parent cards/rows can show the "Has variants" badge
+ * while variant rows keep their own presentation.
+ */
+export function injectVariantParentRows(rows: ProductListRow[]): ProductListRow[] {
+  const result: ProductListRow[] = [];
+  const seenParentIds = new Set<string>();
+
+  for (const row of rows) {
+    if (isVariantChildListRow(row) && !seenParentIds.has(row.id)) {
+      seenParentIds.add(row.id);
+      result.push(toVariantParentListRow(row));
+    }
+    result.push(row);
+  }
+
+  return result;
 }
 
 /** Maps list row selection keys to parent item ids for item-level bulk RPCs. */
@@ -22,20 +63,46 @@ export function resolveBulkSelectionItemIds(
   return [...new Set(keys.map((key) => rowKeyToItemId.get(key) ?? key))];
 }
 
+export function listVariantAttributeEntries(
+  attributes: Record<string, unknown> | null | undefined
+): Array<[string, string]> {
+  if (!attributes || typeof attributes !== "object") return [];
+
+  return Object.entries(attributes)
+    .filter(([, value]) => value != null && String(value).trim() !== "")
+    .map(([key, value]) => [key, String(value)]);
+}
+
 export function formatVariantAttributesSubline(
   attributes: Record<string, unknown> | null | undefined
 ): string | null {
-  if (!attributes || typeof attributes !== "object") return null;
-
-  const parts = Object.entries(attributes)
-    .filter(([, value]) => value != null && String(value).trim() !== "")
-    .map(([key, value]) => `${key}: ${String(value)}`);
-
+  const parts = listVariantAttributeEntries(attributes).map(([key, value]) => `${key}: ${value}`);
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** Resolves the SKU/code shown for a list row — variant SKU for variant rows, style code for parents. */
+export function resolveProductListDisplaySku(
+  product: Pick<ProductListRow, "default_sku" | "style_code">,
+  rowKind: ProductListRowKind
+): string | null {
+  if (rowKind === "variant") {
+    return product.default_sku?.trim() || null;
+  }
+
+  return product.style_code?.trim() || product.default_sku?.trim() || null;
 }
 
 export function isProductListRowInactive(row: ProductListRow, showVariants: boolean): boolean {
   if (!row.is_active) return true;
   if (showVariants && row.variant_id && row.variant_is_active === false) return true;
   return false;
+}
+
+export function resolveProductListRowActiveStatus(
+  row: ProductListRow,
+  showVariants: boolean
+): boolean {
+  if (!row.is_active) return false;
+  if (showVariants && row.variant_id && row.variant_is_active === false) return false;
+  return true;
 }

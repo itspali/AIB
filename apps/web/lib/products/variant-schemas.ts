@@ -26,7 +26,6 @@ export const itemVariantSchema = z.object({
   sku: z.string().trim().min(1, "SKU is required").max(64),
   barcode: z.string().trim().max(64),
   dead_weight_kg: nonNegativeDecimal(3),
-  weight: nonNegativeDecimal(4, true),
   volume: nonNegativeDecimal(4, true),
   length_cm: nonNegativeDecimal(2),
   width_cm: nonNegativeDecimal(2),

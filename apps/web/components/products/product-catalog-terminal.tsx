@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -39,10 +39,21 @@ import {
   ProductBulkTaxCategoryDialog,
 } from "@/components/products/product-bulk-secondary-dialogs";
 import { NewItemLinkContent } from "@/components/products/new-item-link-content";
-import { ProductDrawerForm } from "@/components/products/product-drawer-form";
+import {
+  ProductPanelBody,
+  ProductPanelHeaderActions,
+  ProductPanelScope,
+  resolveProductPanelDescription,
+  resolveProductPanelImageUrl,
+  resolveProductPanelTitle,
+} from "@/components/products/product-panel-form";
+import { ProductPrimaryImage } from "@/components/products/product-primary-image";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
+import { SplitPaneLayout } from "@/components/ui/split-pane-layout";
 import { Button } from "@/components/ui/button";
+import { useDeviceClass } from "@/hooks/use-device-class";
+import { useAvailablePaneHeight } from "@/lib/layout/use-viewport-remaining-height";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,9 +86,49 @@ import {
   savedViewNeedsNativeFilter,
   type SavedViewSnapshot,
 } from "@/lib/search/views/saved-view-utils";
+import { cn } from "@/lib/utils";
+import {
+  ITEM_LIST_SELECTION_PARAM,
+  ITEMS_HREF,
+} from "@/lib/products/item-navigation";
 
 const ITEMS_PAGE_DESCRIPTION =
   "Manage item master profiles, classifications, and stock balances.";
+
+const CATALOG_VIEWPORT_OFFSET = "-mt-2 md:-mt-3 lg:-mt-4";
+
+const CATALOG_VIEWPORT_FALLBACK_HEIGHT =
+  "h-[calc(100dvh-4rem-7rem)] max-h-[calc(100dvh-4rem-7rem)] md:h-[calc(100dvh-4rem-6.5rem)] md:max-h-[calc(100dvh-4rem-6.5rem)]";
+
+const CATALOG_PAGE_CHROME =
+  "z-20 shrink-0 border-b border-border/80 bg-background -mx-4 px-4 pt-2 pb-0.5 md:-mx-6 md:px-6 md:pt-2.5 md:pb-1 lg:-mx-8 lg:px-8 lg:pt-3";
+
+function ItemsPageTitleHeader({ onNewItem }: { onNewItem: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <h1 className="min-w-0 truncate text-xl font-bold leading-tight tracking-tight">Items</h1>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+              aria-label="About Items"
+            >
+              <Info className="h-4 w-4" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-72 p-3">
+            <p className="text-sm leading-snug text-muted-foreground">{ITEMS_PAGE_DESCRIPTION}</p>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <Button type="button" size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs" onClick={onNewItem}>
+        <NewItemLinkContent />
+      </Button>
+    </div>
+  );
+}
 
 function filterItemIdsKey(ids: Iterable<string> | null | undefined): string {
   if (!ids) return "";
@@ -107,7 +158,21 @@ export function ProductCatalogTerminal({
   fieldPermissions,
   initialListPrefs,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { isDesktop } = useDeviceClass();
+  const { ref: catalogViewportRef, height: catalogViewportHeight } =
+    useAvailablePaneHeight(true, "remaining-viewport");
   const omnibar = useOptionalOmnibarContext();
+
+  useEffect(() => {
+    const scrollRoot = document.querySelector<HTMLElement>("[data-dashboard-scroll-root]");
+    if (!scrollRoot) return;
+    scrollRoot.style.overflow = "hidden";
+    return () => {
+      scrollRoot.style.removeProperty("overflow");
+    };
+  }, []);
   const hasServerFilteredView =
     initialSavedView != null && initialFilteredItemIds != null;
   const serverFilterSnapshotRef = useRef(
@@ -128,6 +193,7 @@ export function ProductCatalogTerminal({
   const [isLoadingFilterProducts, setIsLoadingFilterProducts] = useState(false);
   const [isLoadingFullCatalog, setIsLoadingFullCatalog] = useState(false);
   const filterFetchRequestRef = useRef(0);
+  const expandVariantsFetchRequestRef = useRef(0);
   const fullCatalogFetchRequestRef = useRef(0);
   const [totalCount, setTotalCount] = useState(listTotalCount);
   const [hasMore, setHasMore] = useState(listHasMore);
@@ -135,8 +201,8 @@ export function ProductCatalogTerminal({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ProductDetailSnapshot | null>(null);
   const [catalogContext, setCatalogContext] = useState<ProductCatalogContext | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<ProductFormMode>("create");
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<ProductFormMode>("create");
   const [isLoadingDetail, startDetailTransition] = useTransition();
   const [isLoadingCatalogContext, setIsLoadingCatalogContext] = useState(false);
   const catalogContextRequestRef = useRef<Promise<ProductCatalogContext | null> | null>(null);
@@ -159,6 +225,7 @@ export function ProductCatalogTerminal({
   const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
   const [storefrontDialogOpen, setStorefrontDialogOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+  const restoredListSelectionRef = useRef(false);
 
   const runBulkTransition = useCallback(
     (task: () => Promise<void>) => {
@@ -190,17 +257,17 @@ export function ProductCatalogTerminal({
 
   const matchesServerSnapshot = useCallback(() => {
     const snapshot = serverFilterSnapshotRef.current;
-    if (!snapshot || !omnibar) return false;
+    if (!snapshot || !omnibar || initialSavedView == null) return false;
+
+    if (omnibar.activeSavedView?.id !== initialSavedView.id) {
+      return false;
+    }
 
     if (omnibar.filteredItemIds) {
       return filterItemIdsKey(omnibar.filteredItemIds) === snapshot.itemIdsKey;
     }
 
-    return (
-      initialSavedView != null &&
-      omnibar.activeSavedView?.id === initialSavedView.id &&
-      Boolean(omnibar.appliedQuery.trim())
-    );
+    return Boolean(omnibar.appliedQuery.trim());
   }, [initialSavedView, omnibar]);
 
   const structuralFilterActive = useMemo(() => {
@@ -421,24 +488,30 @@ export function ProductCatalogTerminal({
   }, []);
 
   const refetchCatalog = useCallback(async (nextExpandVariants: boolean) => {
-    try {
-      const page = await fetchMoreProductListRows(0, { expandVariants: nextExpandVariants });
-      setProducts(page.rows);
-      setTotalCount(page.totalCount);
-      setHasMore(page.hasMore);
-      setFilterProducts(null);
-    } catch {
-      toast.error("Unable to reload items.");
-    }
+    const page = await fetchMoreProductListRows(0, { expandVariants: nextExpandVariants });
+    setProducts(page.rows);
+    setTotalCount(page.totalCount);
+    setHasMore(page.hasMore);
+    setFilterProducts(null);
   }, []);
 
   const handleExpandVariantsChange = useCallback(
     (nextExpandVariants: boolean) => {
       if (expandVariantsRef.current === nextExpandVariants) return;
-      expandVariantsRef.current = nextExpandVariants;
-      setExpandVariants(nextExpandVariants);
       clearBulkSelection();
-      void refetchCatalog(nextExpandVariants);
+      const requestId = expandVariantsFetchRequestRef.current + 1;
+      expandVariantsFetchRequestRef.current = requestId;
+      void (async () => {
+        try {
+          await refetchCatalog(nextExpandVariants);
+          if (expandVariantsFetchRequestRef.current !== requestId) return;
+          expandVariantsRef.current = nextExpandVariants;
+          setExpandVariants(nextExpandVariants);
+        } catch {
+          if (expandVariantsFetchRequestRef.current !== requestId) return;
+          toast.error("Unable to reload items.");
+        }
+      })();
     },
     [clearBulkSelection, refetchCatalog]
   );
@@ -820,22 +893,52 @@ export function ProductCatalogTerminal({
   };
 
   const handleSelect = (productId: string) => {
+    if (!isDesktop) {
+      router.push(`/inventory/items/${productId}`);
+      return;
+    }
     setSelectedId(productId);
     setDetail(null);
-    setDrawerMode("view");
-    setDrawerOpen(true);
+    setPanelMode("view");
+    setPanelOpen(true);
     void ensureCatalogContext();
     loadDetail(productId);
   };
 
-  const handleDrawerOpenChange = (open: boolean) => {
-    setDrawerOpen(open);
-    if (!open) {
-      setDrawerMode("create");
-      setDetail(null);
-      setSelectedId(null);
+  const handleNewItem = () => {
+    if (!isDesktop) {
+      router.push("/inventory/items/new");
+      return;
     }
+    setSelectedId(null);
+    setDetail(null);
+    setPanelMode("create");
+    setPanelOpen(true);
+    void ensureCatalogContext();
   };
+
+  const handlePanelClose = () => {
+    setPanelOpen(false);
+    setPanelMode("create");
+    setDetail(null);
+    setSelectedId(null);
+  };
+
+  useEffect(() => {
+    const itemId = searchParams.get(ITEM_LIST_SELECTION_PARAM);
+    if (!itemId || !isDesktop || restoredListSelectionRef.current) return;
+
+    restoredListSelectionRef.current = true;
+    setSelectedId(itemId);
+    setDetail(null);
+    setPanelMode("view");
+    setPanelOpen(true);
+    void ensureCatalogContext();
+    loadDetail(itemId);
+    router.replace(ITEMS_HREF, { scroll: false });
+    // One-shot restore when returning from a catalog pop-out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ensureCatalogContext/loadDetail are stable enough for this path
+  }, [isDesktop, router, searchParams]);
 
   const refreshDetail = () => {
     if (!selectedId) return;
@@ -844,7 +947,9 @@ export function ProductCatalogTerminal({
 
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
     setSelectedId(itemId);
-    setDrawerMode("view");
+    if (panelMode === "create") {
+      setPanelMode("edit");
+    }
 
     if (savedDetail) {
       setDetail(savedDetail);
@@ -867,69 +972,119 @@ export function ProductCatalogTerminal({
     }
   };
 
+  const streamPanelProps = {
+    products: catalogProducts,
+    totalCount: catalogTotalCount,
+    hasMore: catalogHasMore,
+    isLoadingMore,
+    onLoadMore: unfilteredCatalogActive ? handleLoadMore : undefined,
+    structuralFilterResolved: !unfilteredCatalogActive && filterProducts != null,
+    isLoadingStructuralFilter:
+      isLoadingFullCatalog ||
+      (!matchesServerSnapshot() &&
+        (isResolvingDefaultView ||
+          (structuralFilterActive &&
+            (isLoadingFilterProducts ||
+              omnibar?.isExecuting === true ||
+              omnibar?.filteredItemIds === null)))),
+    categories,
+    selectedId: panelOpen ? selectedId : null,
+    fieldPermissions,
+    initialListPrefs,
+    bulkSelectedIds,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+    onCategoryFilterChange: setCategoryFilterId,
+    bulkSelectAllMatching,
+    isBulkPending,
+    onBulkClearSelection: clearBulkSelection,
+    onBulkSelectAllMatching: () => setBulkSelectAllMatching(true),
+    onBulkAction: handleBulkToolbarAction,
+    onSelect: handleSelect,
+    onImagesHydrated: handleImagesHydrated,
+    expandVariants,
+    onExpandVariantsChange: handleExpandVariantsChange,
+    detailPaneOpen: panelOpen && isDesktop,
+    bulkToolbarEmbedded: true,
+  } as const;
+
+  const renderCatalogSplitPane = (body: React.ReactNode, viewMode: ProductListPrefs["viewMode"]) => (
+    <SplitPaneLayout
+      fillParent
+      className="h-full min-h-0 flex-1 basis-0"
+      primaryClassName="overflow-hidden"
+      insetPrimary={viewMode === "card"}
+      detailOpen={panelOpen}
+      onDetailClose={handlePanelClose}
+      detailTitle={resolveProductPanelTitle(panelMode, detail)}
+      detailDescription={resolveProductPanelDescription(panelMode, detail)}
+      detailLeading={
+        panelOpen ? (
+          <ProductPrimaryImage
+            imageUrl={resolveProductPanelImageUrl(panelMode, detail)}
+            alt={resolveProductPanelTitle(panelMode, detail)}
+          />
+        ) : undefined
+      }
+      detailActions={panelOpen ? <ProductPanelHeaderActions /> : undefined}
+      primary={<div className="flex h-full min-h-0 flex-1 basis-0 flex-col">{body}</div>}
+      detail={panelOpen ? <ProductPanelBody /> : null}
+    />
+  );
+
   return (
     <>
-      <div className="canvas-scroll-endpad">
-        <header className="mb-4 sm:mb-5 md:mb-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">Items</h1>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-                    aria-label="About Items"
-                  >
-                    <Info className="h-4 w-4" aria-hidden />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72 p-3">
-                  <p className="text-sm leading-snug text-muted-foreground">{ITEMS_PAGE_DESCRIPTION}</p>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <Button asChild className="shrink-0">
-              <Link href="/inventory/items/new" prefetch>
-                <NewItemLinkContent />
-              </Link>
-            </Button>
-          </div>
-        </header>
-
+      <div
+        ref={catalogViewportRef}
+        style={
+          catalogViewportHeight != null
+            ? { height: catalogViewportHeight, maxHeight: catalogViewportHeight }
+            : undefined
+        }
+        className={cn(
+          "flex min-h-0 flex-col overflow-hidden",
+          catalogViewportHeight == null && CATALOG_VIEWPORT_FALLBACK_HEIGHT,
+          CATALOG_VIEWPORT_OFFSET
+        )}
+      >
         <ProductStreamPanel
-          products={catalogProducts}
-          totalCount={catalogTotalCount}
-          hasMore={catalogHasMore}
-          isLoadingMore={isLoadingMore}
-          onLoadMore={unfilteredCatalogActive ? handleLoadMore : undefined}
-          structuralFilterResolved={!unfilteredCatalogActive && filterProducts != null}
-          isLoadingStructuralFilter={
-            isLoadingFullCatalog ||
-            (!matchesServerSnapshot() &&
-              (isResolvingDefaultView ||
-                (structuralFilterActive &&
-                  (isLoadingFilterProducts ||
-                    omnibar?.isExecuting === true ||
-                    omnibar?.filteredItemIds === null))))
-          }
-          categories={categories}
-          selectedId={drawerOpen ? selectedId : null}
-          fieldPermissions={fieldPermissions}
-          initialListPrefs={initialListPrefs}
-          bulkSelectedIds={bulkSelectedIds}
-          onBulkRowToggle={handleBulkRowToggle}
-          onBulkPageToggle={handleBulkPageToggle}
-          onCategoryFilterChange={setCategoryFilterId}
-          bulkSelectAllMatching={bulkSelectAllMatching}
-          isBulkPending={isBulkPending}
-          onBulkClearSelection={clearBulkSelection}
-          onBulkSelectAllMatching={() => setBulkSelectAllMatching(true)}
-          onBulkAction={handleBulkToolbarAction}
-          onSelect={handleSelect}
-          onImagesHydrated={handleImagesHydrated}
-          expandVariants={expandVariants}
-          onExpandVariantsChange={handleExpandVariantsChange}
+          {...streamPanelProps}
+          renderLayout={({ toolbar, bulkToolbar, body, viewMode }) => (
+            <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden">
+              <div className={CATALOG_PAGE_CHROME}>
+                <div className="space-y-2.5">
+                  <ItemsPageTitleHeader onNewItem={handleNewItem} />
+                  {toolbar}
+                </div>
+                {bulkToolbar}
+              </div>
+              <div className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden pb-1">
+                {panelOpen ? (
+                  <ProductPanelScope
+                    mode={panelMode}
+                    onModeChange={setPanelMode}
+                    tenantId={tenantId}
+                    categories={categories}
+                    catalogContext={catalogContext}
+                    detail={detail}
+                    fieldPermissions={fieldPermissions}
+                    isLoading={
+                      !catalogContext ||
+                      isLoadingCatalogContext ||
+                      (isLoadingDetail && panelMode !== "create")
+                    }
+                    onSaved={handleSaved}
+                    onExtensionsChanged={refreshDetail}
+                    onClose={handlePanelClose}
+                  >
+                    {renderCatalogSplitPane(body, viewMode)}
+                  </ProductPanelScope>
+                ) : (
+                  renderCatalogSplitPane(body, viewMode)
+                )}
+              </div>
+            </div>
+          )}
         />
       </div>
 
@@ -1009,23 +1164,6 @@ export function ProductCatalogTerminal({
         onSubmit={runBulkStorefront}
       />
 
-      <ProductDrawerForm
-        open={drawerOpen}
-        mode={drawerMode}
-        onOpenChange={handleDrawerOpenChange}
-        onModeChange={setDrawerMode}
-        tenantId={tenantId}
-        categories={categories}
-        catalogContext={catalogContext}
-        detail={detail}
-        isLoading={
-          !catalogContext ||
-          isLoadingCatalogContext ||
-          (isLoadingDetail && drawerMode !== "create")
-        }
-        onSaved={handleSaved}
-        onExtensionsChanged={refreshDetail}
-      />
     </>
   );
 }

@@ -17,7 +17,7 @@ import {
 import { redactProductListRows } from "@/lib/products/field-permissions";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
-import { isTaxCategory } from "@/lib/products/tax-options";
+import { normalizeTaxCategory } from "@/lib/products/tax-options";
 import { parseCustomFields } from "@/lib/products/sku-mask";
 import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import type {
@@ -39,7 +39,6 @@ type VariantRow = {
   is_sellable?: boolean;
   created_at: string;
   dead_weight_kg: number | string | null;
-  weight: number | string | null;
   volume: number | string | null;
   length_cm: number | string | null;
   width_cm: number | string | null;
@@ -157,9 +156,15 @@ function pickDefaultPriceEntry(rows: PriceBookEntryRow[] | null | undefined): Pr
 
 function pickAlternatePurchaseUom(
   rows: ItemUomRow[] | null | undefined,
-  baseUom: string
+  baseUom: string,
+  preferredCode?: string | null
 ): ItemUomRow | null {
   if (!rows?.length) return null;
+  const preferred = preferredCode?.trim();
+  if (preferred && preferred !== baseUom.trim()) {
+    const match = rows.find((row) => row.uom_code === preferred);
+    if (match) return match;
+  }
   return rows.find((row) => row.uom_code !== baseUom) ?? null;
 }
 
@@ -283,7 +288,6 @@ function mapVariantRow(row: VariantRow, masterVariantId: string): ProductVariant
         ? row.variant_attributes
         : {},
     dead_weight_kg: formatDecimal(row.dead_weight_kg, "0"),
-    weight: formatDecimal(row.weight, "0"),
     volume: formatDecimal(row.volume, "0"),
     length_cm: formatDecimal(row.length_cm, "0"),
     width_cm: formatDecimal(row.width_cm, "0"),
@@ -364,9 +368,7 @@ function mapListRow(
 ): ProductListRow | null {
   if (!isItemClassification(row.classification)) return null;
   const variant = pickDefaultVariant(row.item_variants);
-  const taxCategory = isTaxCategory(row.default_tax_category)
-    ? row.default_tax_category
-    : "STANDARD";
+  const taxCategory = normalizeTaxCategory(row.default_tax_category);
 
   return {
     id: row.id,
@@ -541,7 +543,6 @@ const VARIANT_DETAIL_SELECT = `
   is_sellable,
   created_at,
   dead_weight_kg,
-  weight,
   volume,
   length_cm,
   width_cm,
@@ -721,9 +722,7 @@ export async function fetchProductDetail(
   const variant = pickDefaultVariant(variantRows);
   if (!variant) return null;
 
-  const taxCategory = isTaxCategory(row.default_tax_category)
-    ? row.default_tax_category
-    : "STANDARD";
+  const taxCategory = normalizeTaxCategory(row.default_tax_category);
 
   const [
     { data: priceEntries },
@@ -789,10 +788,6 @@ export async function fetchProductDetail(
   const variants = sortedVariants.map((entry) => mapVariantRow(entry, masterVariantId));
 
   const priceEntry = pickDefaultPriceEntry(priceEntries as PriceBookEntryRow[] | null);
-  const purchaseUom = pickAlternatePurchaseUom(
-    itemUoms as ItemUomRow[] | null,
-    row.base_unit_of_measure
-  );
   const preferredSupplier = pickPreferredSupplier(supplierItems as SupplierItemRow[] | null);
   const parsedCustomFields = parseCustomFields(
     row.custom_fields && typeof row.custom_fields === "object"
@@ -803,6 +798,12 @@ export async function fetchProductDetail(
     uom_code: entry.uom_code,
     conversion_factor: formatDecimal(entry.conversion_factor, "1"),
   }));
+
+  const purchaseUom = pickAlternatePurchaseUom(
+    itemUoms as ItemUomRow[] | null,
+    row.base_unit_of_measure,
+    parsedCustomFields.defaultPurchaseUom
+  );
 
   return {
     id: row.id,
@@ -848,14 +849,16 @@ export async function fetchProductDetail(
         ? variant.variant_attributes
         : {},
     dead_weight_kg: formatDecimal(variant.dead_weight_kg, "0"),
-    weight: formatDecimal(variant.weight, "0"),
     volume: formatDecimal(variant.volume, "0"),
     length_cm: formatDecimal(variant.length_cm, "0"),
     width_cm: formatDecimal(variant.width_cm, "0"),
     height_cm: formatDecimal(variant.height_cm, "0"),
     variant_is_active: variant.is_active,
     selling_price: priceEntry ? formatDecimal(priceEntry.price, "") : "",
-    selling_uom: priceEntry?.uom_code ?? row.base_unit_of_measure,
+    selling_uom:
+      parsedCustomFields.defaultSellingUom ??
+      priceEntry?.uom_code ??
+      row.base_unit_of_measure,
     purchase_uom: purchaseUom?.uom_code ?? row.base_unit_of_measure,
     purchase_uom_conversion: purchaseUom
       ? formatDecimal(purchaseUom.conversion_factor, "1")

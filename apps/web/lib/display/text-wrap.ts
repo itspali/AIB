@@ -31,7 +31,7 @@ export function defaultWrapModeForValueKind(
   layout: ProductListViewMode
 ): TextWrapMode {
   if (valueKind === "multiline") {
-    return layout === "compact" ? "line-clamp-1" : "line-clamp-2";
+    return layout === "card" ? "line-clamp-1" : "line-clamp-2";
   }
   return "truncate";
 }

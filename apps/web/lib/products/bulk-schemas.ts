@@ -103,7 +103,7 @@ export const bulkClassificationSchema = z.object({
 });
 
 export const bulkTaxCategorySchema = z.object({
-  default_tax_category: z.enum(["STANDARD", "REDUCED", "ZERO_RATED", "EXEMPT"]),
+  default_tax_category: z.enum(["TAXABLE", "NON_TAXABLE", "OUT_OF_SCOPE", "NON_GST_SUPPLY"]),
 });
 
 export const bulkOperationalFlagsSchema = z

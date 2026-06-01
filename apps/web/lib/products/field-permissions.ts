@@ -160,3 +160,48 @@ export function isProductFieldAllowed(
 ): boolean {
   return permissions.allowedFields.includes(field as ProductFieldKey);
 }
+
+/** Maps product editor form fields to list-column permission keys. */
+const FORM_FIELD_PERMISSIONS: Partial<Record<string, ProductFieldKey>> = {
+  name: "name",
+  sku: "default_sku",
+  barcode: "barcode",
+  classification: "classification",
+  description: "description",
+  base_unit_of_measure: "base_unit_of_measure",
+  category_id: "category_name",
+  is_purchasable: "is_purchasable",
+  is_salable: "is_salable",
+  is_active: "is_active",
+  hsn_sac_code: "hsn_sac_code",
+  has_variants: "has_variants",
+  default_tax_category: "default_tax_category",
+  is_returnable: "is_returnable",
+  selling_price: "selling_price",
+  selling_uom: "selling_price",
+  purchase_price: "purchase_price",
+  purchase_uom: "purchase_price",
+  purchase_uom_conversion: "purchase_price",
+  supplier_id: "supplier_name",
+  price_is_tax_inclusive: "selling_price",
+};
+
+const GATED_FORM_FIELDS = new Set(Object.keys(FORM_FIELD_PERMISSIONS));
+
+export function isProductFormFieldEditable(
+  formField: string,
+  permissions: ProductFieldPermissions
+): boolean {
+  const permissionKey = FORM_FIELD_PERMISSIONS[formField];
+  if (!permissionKey) return true;
+  return isProductFieldAllowed(permissionKey, permissions);
+}
+
+/** Whether the user can enter edit mode (at least one gated or ungated field is editable). */
+export function canEditAnyProductFormField(permissions: ProductFieldPermissions): boolean {
+  if (GATED_FORM_FIELDS.size === 0) return true;
+  for (const formField of GATED_FORM_FIELDS) {
+    if (isProductFormFieldEditable(formField, permissions)) return true;
+  }
+  return false;
+}

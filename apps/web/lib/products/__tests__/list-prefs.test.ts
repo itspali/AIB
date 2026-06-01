@@ -7,6 +7,7 @@ import {
   resolveCardGridColumns,
   resolveFrozenColumnCount,
   resolvePrefsOnMount,
+  resolveProductListExpandVariants,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
 
@@ -33,7 +34,7 @@ describe("product list prefs migration", () => {
       "default_sku",
       "is_active",
     ]);
-    expect(getOrderedVisibleColumns(migrated, "compact", "desktop")).toEqual([
+    expect(getOrderedVisibleColumns(migrated, "card", "desktop")).toEqual([
       "name",
       "default_sku",
       "is_active",
@@ -46,13 +47,13 @@ describe("product list prefs migration", () => {
       "is_active",
       "updated_at",
     ]);
-    expect(getOrderedVisibleColumns(migrated, "compact", "mobile")).toEqual([
+    expect(getOrderedVisibleColumns(migrated, "card", "mobile")).toEqual([
       "image",
       "name",
       "default_sku",
       "is_active",
     ]);
-    expect(getOrderedVisibleColumns(migrated, "compact", "tablet")).toEqual([
+    expect(getOrderedVisibleColumns(migrated, "card", "tablet")).toEqual([
       "image",
       "name",
       "default_sku",
@@ -62,7 +63,7 @@ describe("product list prefs migration", () => {
     ]);
   });
 
-  it("migrates v2 nested prefs to v3 with tablet slice and card grid columns", () => {
+  it("migrates v2 nested prefs to v6 with card column prefs from legacy compact", () => {
     const v2 = {
       prefsVersion: 2,
       viewMode: "compact",
@@ -83,18 +84,19 @@ describe("product list prefs migration", () => {
 
     const migrated = coerceProductListPrefs(v2);
     expect(migrated.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
+    expect(migrated.viewMode).toBe("card");
     expect(migrated.cardGridColumns.desktop).toBe("auto");
-    expect(getOrderedVisibleColumns(migrated, "compact", "tablet")).toEqual(["name", "default_sku"]);
+    expect(getOrderedVisibleColumns(migrated, "card", "tablet")).toEqual(["name", "default_sku"]);
   });
 
-  it("preserves nested v3 column prefs", () => {
+  it("preserves nested v6 card column prefs", () => {
     const defaults = getDefaultProductListPrefs();
     const custom = {
       ...defaults,
       columnPrefs: {
         ...defaults.columnPrefs,
-        compact: {
-          ...defaults.columnPrefs.compact,
+        card: {
+          ...defaults.columnPrefs.card,
           desktop: {
             columnOrder: ["name", "default_sku", "classification"],
             visibleColumns: ["name", "classification"],
@@ -109,7 +111,7 @@ describe("product list prefs migration", () => {
     };
 
     const parsed = coerceProductListPrefs(custom);
-    expect(getOrderedVisibleColumns(parsed, "compact", "desktop")).toEqual([
+    expect(getOrderedVisibleColumns(parsed, "card", "desktop")).toEqual([
       "name",
       "classification",
     ]);
@@ -146,29 +148,29 @@ describe("resolvePrefsOnMount", () => {
   it("prefers local prefs when clientRevision is newer", () => {
     const defaults = getDefaultProductListPrefs();
     const server = { ...defaults, viewMode: "table" as const, clientRevision: 1 };
-    const local = { ...defaults, viewMode: "compact" as const, clientRevision: 3 };
+    const local = { ...defaults, viewMode: "card" as const, clientRevision: 3 };
 
     const resolved = resolvePrefsOnMount(server, local);
 
-    expect(resolved.viewMode).toBe("compact");
+    expect(resolved.viewMode).toBe("card");
     expect(resolved.clientRevision).toBe(3);
   });
 
   it("prefers server prefs when local revision is stale or absent", () => {
     const defaults = getDefaultProductListPrefs();
     const server = { ...defaults, viewMode: "table" as const, clientRevision: 5 };
-    const staleLocal = { ...defaults, viewMode: "compact" as const, clientRevision: 2 };
+    const staleLocal = { ...defaults, viewMode: "card" as const, clientRevision: 2 };
 
     expect(resolvePrefsOnMount(server, staleLocal).viewMode).toBe("table");
     expect(resolvePrefsOnMount(server, null).viewMode).toBe("table");
-    expect(resolvePrefsOnMount(null, staleLocal).viewMode).toBe("compact");
+    expect(resolvePrefsOnMount(null, staleLocal).viewMode).toBe("card");
     expect(resolvePrefsOnMount(null, null).viewMode).toBe("table");
   });
 
   it("uses server when revisions are equal", () => {
     const defaults = getDefaultProductListPrefs();
     const server = { ...defaults, viewMode: "table" as const, clientRevision: 2 };
-    const local = { ...defaults, viewMode: "compact" as const, clientRevision: 2 };
+    const local = { ...defaults, viewMode: "card" as const, clientRevision: 2 };
 
     expect(resolvePrefsOnMount(server, local).viewMode).toBe("table");
   });
@@ -195,6 +197,15 @@ describe("resolveVisibleColumns", () => {
     ]);
     expect(visible).not.toContain("purchase_price");
     expect(visible).not.toContain("updated_at");
+  });
+});
+
+describe("resolveProductListExpandVariants", () => {
+  it("expands variants for table and card views", () => {
+    expect(resolveProductListExpandVariants(true, "table")).toBe(true);
+    expect(resolveProductListExpandVariants(true, "compact")).toBe(true);
+    expect(resolveProductListExpandVariants(true, "card")).toBe(true);
+    expect(resolveProductListExpandVariants(false, "table")).toBe(false);
   });
 });
 

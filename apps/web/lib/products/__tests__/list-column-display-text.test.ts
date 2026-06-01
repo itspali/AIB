@@ -36,15 +36,13 @@ function sampleRow(partial: Partial<ProductListRow> = {}): ProductListRow {
 }
 
 describe("getProductListCellDisplayTexts", () => {
-  it("includes header-competitive name and variant badge text", () => {
+  it("includes name and variant attribute subline for expanded variant rows", () => {
     const texts = getProductListCellDisplayTexts(
       "name",
       sampleRow({ variant_strategy: "MULTI_SKU" }),
       { showVariants: true }
     );
-    expect(texts).toContain("Widget Pro Max");
-    expect(texts.some((value) => value.includes("Variant"))).toBe(true);
-    expect(texts).toContain("Color: Red · Size: L");
+    expect(texts).toEqual(["Widget Pro Max", "Color: Red · Size: L"]);
   });
 
   it("formats numeric and enum-backed columns as display strings", () => {

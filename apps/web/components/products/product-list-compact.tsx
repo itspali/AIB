@@ -4,6 +4,7 @@ import type { CardGridColumnCount } from "@/lib/products/list-prefs";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import type { ProductListRow } from "@/lib/products/types";
+import { productListRowKey } from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 import { ProductListCompactCard } from "@/components/products/product-list-compact-card";
 
@@ -12,10 +13,11 @@ type Props = {
   columns: ProductListColumnId[];
   columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
   gridColumns: CardGridColumnCount;
+  showVariants?: boolean;
   selectedId: string | null;
   bulkSelectedIds: Set<string>;
   onSelect: (productId: string) => void;
-  onBulkRowToggle: (productId: string, checked: boolean) => void;
+  onBulkRowToggle: (rowKey: string, checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
 };
 
@@ -31,6 +33,7 @@ export function ProductListCompact({
   columns,
   columnWrapModes,
   gridColumns,
+  showVariants = false,
   selectedId,
   bulkSelectedIds,
   onSelect,
@@ -39,19 +42,23 @@ export function ProductListCompact({
 }: Props) {
   return (
     <div className={cn("grid gap-3", GRID_CLASS[gridColumns])}>
-      {products.map((product) => (
+      {products.map((product) => {
+        const rowKey = productListRowKey(product, showVariants);
+        return (
         <ProductListCompactCard
-          key={product.id}
+          key={rowKey}
           product={product}
           columns={columns}
           columnWrapModes={columnWrapModes}
+          showVariants={showVariants}
           selected={selectedId === product.id}
-          bulkSelected={bulkSelectedIds.has(product.id)}
+          bulkSelected={bulkSelectedIds.has(rowKey)}
           onSelect={onSelect}
-          onBulkToggle={onBulkRowToggle}
+          onBulkToggle={(checked) => onBulkRowToggle(rowKey, checked)}
           onImageClick={onImageClick}
         />
-      ))}
+        );
+      })}
     </div>
   );
 }

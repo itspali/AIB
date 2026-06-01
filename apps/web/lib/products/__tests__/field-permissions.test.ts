@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  canEditAnyProductFormField,
   getDefaultFieldAccess,
+  isProductFormFieldEditable,
   mergeProductFieldPermissions,
   parseTenantProductFieldsAccess,
   redactProductListRow,
@@ -74,5 +76,25 @@ describe("product field permissions", () => {
     expect(redacted.selling_price).toBeNull();
     expect(redacted.supplier_name).toBeNull();
     expect(redacted.image_url).toBeNull();
+  });
+
+  it("gates form fields by role permissions", () => {
+    const staff = mergeProductFieldPermissions("STAFF", null);
+    const owner = mergeProductFieldPermissions("OWNER", null);
+
+    expect(isProductFormFieldEditable("selling_price", staff)).toBe(false);
+    expect(isProductFormFieldEditable("purchase_price", staff)).toBe(false);
+    expect(isProductFormFieldEditable("supplier_id", staff)).toBe(false);
+    expect(isProductFormFieldEditable("name", staff)).toBe(true);
+    expect(isProductFormFieldEditable("selling_price", owner)).toBe(true);
+    expect(isProductFormFieldEditable("custom_fields", staff)).toBe(true);
+  });
+
+  it("allows edit mode when at least one form field is editable", () => {
+    const staff = mergeProductFieldPermissions("STAFF", null);
+    const owner = mergeProductFieldPermissions("OWNER", null);
+
+    expect(canEditAnyProductFormField(staff)).toBe(true);
+    expect(canEditAnyProductFormField(owner)).toBe(true);
   });
 });

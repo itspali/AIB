@@ -4,6 +4,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
+import { tenantHasLocations } from "@/lib/auth/post-login-route";
 import { createClient } from "@/lib/supabase/server";
 import { claimsToUserShape, getSessionClaims } from "@/lib/supabase/auth";
 import { fetchOperatorProfile } from "@/lib/user/queries";
@@ -34,20 +35,21 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
   const tenantId = claims.tenantId;
   if (!tenantId) redirect("/signup");
 
-  const [{ data: tenant, error: tenantError }, approvalAlertCount, operatorProfile] =
+  const [{ data: tenant, error: tenantError }, hasLocations, approvalAlertCount, operatorProfile] =
     await Promise.all([
       supabase
         .from("tenants")
         .select("name, trade_name, onboarding_status")
         .eq("id", tenantId)
         .single(),
+      tenantHasLocations(supabase, tenantId),
       fetchApprovalAlertCount(supabase, tenantId),
       fetchOperatorProfile(supabase, claims.userId, tenantId),
     ]);
 
   if (tenantError || !tenant) redirect("/signup");
 
-  if (tenant.onboarding_status !== "GO_LIVE_READY") redirect("/onboarding");
+  if (!hasLocations) redirect("/onboarding");
 
   const orgName = tenant.trade_name || tenant.name;
   const resolvedProfile =

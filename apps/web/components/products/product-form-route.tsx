@@ -1,19 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { ProductFormBackLinkContent } from "@/components/products/product-form-back-link-content";import { ProductFormEditLinkContent } from "@/components/products/product-form-edit-link-content";
+import { Suspense, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { ProductFormBackLinkContent } from "@/components/products/product-form-back-link-content";
+import { ProductFormEditLinkContent } from "@/components/products/product-form-edit-link-content";
 import { ProductEditorShell } from "@/components/products/product-editor/product-editor-shell";
+import { ProductFormSkeleton } from "@/components/products/product-form-skeleton";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { Button } from "@/components/ui/button";
-import { useRouteTransition } from "@/lib/navigation/use-route-transition";import type { CategoryRow } from "@/lib/categories/types";
+import { useRouteTransition } from "@/lib/navigation/use-route-transition";
+import type { CategoryRow } from "@/lib/categories/types";
+import {
+  isCatalogPopOutOrigin,
+  itemFullPageHref,
+  itemListReturnHref,
+  resolveItemFormBackHref,
+  resolveItemFormBackLabel,
+} from "@/lib/products/item-navigation";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import {
   detailToFormValues,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
 } from "@/lib/products/types";
-
-const ITEMS_HREF = "/inventory/items";
 
 type Props = {
   mode: ProductFormMode;
@@ -38,7 +48,19 @@ export function ProductFormRoute({
   detail = null,
   lockedFields = [],
 }: Props) {
+  const searchParams = useSearchParams();
   const { push, replace, refresh, isPending: isNavigating } = useRouteTransition();
+  const fromCatalog = isCatalogPopOutOrigin(searchParams);
+  const itemId = detail?.id;
+
+  const backHref = useMemo(
+    () => resolveItemFormBackHref(mode, itemId, fromCatalog),
+    [fromCatalog, itemId, mode]
+  );
+  const backLabel = useMemo(
+    () => resolveItemFormBackLabel(fromCatalog, mode),
+    [fromCatalog, mode]
+  );
 
   const initialValues =
     detail && mode !== "create"
@@ -51,34 +73,35 @@ export function ProductFormRoute({
         }
       : undefined;
 
-  const handleSaved = (itemId: string) => {
+  const handleSaved = (savedItemId: string) => {
     if (mode === "create") {
-      replace(`${ITEMS_HREF}/${itemId}/edit`);
+      replace(itemFullPageHref("edit", savedItemId, { fromCatalog }));
     }
   };
 
   const handleCancel = () => {
-    if (mode === "edit" && detail) {
-      push(`${ITEMS_HREF}/${detail.id}`);
+    if (fromCatalog) {
+      push(itemListReturnHref(detail?.id));
       return;
     }
-    push(ITEMS_HREF);
+    if (mode === "edit" && detail) {
+      push(itemFullPageHref("view", detail.id));
+      return;
+    }
+    push(itemListReturnHref());
   };
-
-  const backHref =
-    mode === "create" || !detail ? ITEMS_HREF : `${ITEMS_HREF}/${detail.id}`;
 
   return (
     <div className="canvas-scroll-endpad">
       <div className="mb-4 flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" asChild>
           <Link href={backHref} prefetch>
-            <ProductFormBackLinkContent />
+            <ProductFormBackLinkContent label={backLabel} />
           </Link>
         </Button>
         {mode === "view" && detail ? (
           <Button size="sm" asChild>
-            <Link href={`${ITEMS_HREF}/${detail.id}/edit`} prefetch>
+            <Link href={itemFullPageHref("edit", detail.id, { fromCatalog })} prefetch>
               <ProductFormEditLinkContent />
             </Link>
           </Button>
@@ -103,5 +126,13 @@ export function ProductFormRoute({
         onExtensionsChanged={() => refresh()}
       />
     </div>
+  );
+}
+
+export function ProductFormRouteWithSuspense(props: Props) {
+  return (
+    <Suspense fallback={<ProductFormSkeleton />}>
+      <ProductFormRoute {...props} />
+    </Suspense>
   );
 }

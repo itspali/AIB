@@ -322,7 +322,6 @@ CREATE TABLE item_variants (
     sku                 TEXT NOT NULL,
     barcode             TEXT,
     variant_attributes  JSONB NOT NULL DEFAULT '{}'::jsonb,
-    weight              NUMERIC(15, 4),
     volume              NUMERIC(15, 4),
     length              NUMERIC(15, 4),
     width               NUMERIC(15, 4),

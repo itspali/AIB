@@ -11,7 +11,7 @@ ORDER BY table_name;
 
 SELECT column_name FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'item_variants'
-  AND column_name IN ('dead_weight_kg','length_cm','weight','length')
+  AND column_name IN ('dead_weight_kg','length_cm','length')
 ORDER BY column_name;
 
 SELECT tablename, policyname FROM pg_policies

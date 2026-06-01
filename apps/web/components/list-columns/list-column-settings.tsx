@@ -4,8 +4,9 @@ import { useMemo, useRef, useState } from "react";
 import {
   Columns3,
   GripVertical,
-  LayoutList,
+  LayoutGrid,
   Monitor,
+  Rows3,
   Smartphone,
   Tablet,
   Table2,
@@ -50,7 +51,7 @@ import {
 } from "@/lib/products/list-prefs";
 import { cn } from "@/lib/utils";
 
-export type ColumnSettingsLayout = "table" | "compact";
+export type ColumnSettingsLayout = "table" | "compact" | "card";
 export type ColumnSettingsDevice = "mobile" | "tablet" | "desktop";
 
 type Props<TId extends string> = {
@@ -69,6 +70,8 @@ type Props<TId extends string> = {
   onCardGridColumnsChange?: (count: CardGridColumnPref) => void;
   disabled?: boolean;
   isSaving?: boolean;
+  triggerClassName?: string;
+  triggerVariant?: "outline" | "ghost";
 };
 
 const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
@@ -79,7 +82,7 @@ const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
 
 function segmentIconButtonClass(selected: boolean, className?: string) {
   return cn(
-    "h-7 p-0 focus-visible:ring-1 focus-visible:ring-ring",
+    "h-6 p-0 focus-visible:ring-1 focus-visible:ring-ring",
     className,
     selected
       ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
@@ -103,6 +106,8 @@ export function ListColumnSettings<TId extends string>({
   onCardGridColumnsChange,
   disabled = false,
   isSaving = false,
+  triggerClassName,
+  triggerVariant = "outline",
 }: Props<TId>) {
   const dragIdRef = useRef<TId | null>(null);
   const [dragOverId, setDragOverId] = useState<TId | null>(null);
@@ -180,16 +185,18 @@ export function ListColumnSettings<TId extends string>({
     return "truncate";
   };
 
-  const editingLabel = `${editingLayout === "table" ? "Table" : "Card"} · ${DEVICE_LABEL[editingDevice]}`;
+  const layoutLabel =
+    editingLayout === "table" ? "Table" : editingLayout === "compact" ? "Compact" : "Card";
+  const editingLabel = `${layoutLabel} · ${DEVICE_LABEL[editingDevice]}`;
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant={triggerVariant}
           size="sm"
-          className="h-8 w-8 p-0"
+          className={cn("h-8 w-8 p-0", triggerClassName)}
           title="Column settings"
           aria-label="Column settings"
           aria-busy={isSaving}
@@ -204,34 +211,34 @@ export function ListColumnSettings<TId extends string>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[22rem]"
+        className="w-[17.5rem] p-0 text-xs"
         onPointerDownOutside={(event) => {
           if (dragIdRef.current) event.preventDefault();
         }}
       >
-        <div className="flex items-start justify-between gap-2 px-2 pt-1.5">
-          <DropdownMenuLabel className="p-0">Visible columns & order</DropdownMenuLabel>
+        <div className="flex items-center justify-between gap-1.5 px-2 pt-1.5">
+          <DropdownMenuLabel className="p-0 text-xs font-semibold leading-none">
+            Columns
+          </DropdownMenuLabel>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 w-7 shrink-0 p-0"
+            className="h-6 w-6 shrink-0 p-0"
             onClick={() => handleOpenChange(false)}
             aria-label="Close column settings"
             title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="px-2 pb-2 text-xs text-muted-foreground">
-          Editing: <span className="font-medium text-foreground">{editingLabel}</span>
-          {editingDevice === detectedDevice ? (
-            <span className="text-muted-foreground"> (auto-detected)</span>
-          ) : null}
+        <p className="px-2 pb-1.5 text-[11px] leading-snug text-muted-foreground">
+          {editingLabel}
+          {editingDevice === detectedDevice ? " · auto" : null}
         </p>
-        <div className="flex items-center gap-2 px-2 pb-2">
+        <div className="flex items-center gap-1.5 px-2 pb-1.5">
           <div
-            className="inline-flex shrink-0 gap-0.5 rounded-md border border-border bg-muted p-0.5"
+            className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
             role="group"
             aria-label="Layout"
           >
@@ -239,29 +246,41 @@ export function ListColumnSettings<TId extends string>({
               type="button"
               size="sm"
               variant="ghost"
-              className={segmentIconButtonClass(editingLayout === "table", "w-8")}
+              className={segmentIconButtonClass(editingLayout === "table", "w-7")}
               onClick={() => onEditingLayoutChange("table")}
               title="Table layout"
               aria-label="Table layout"
               aria-pressed={editingLayout === "table"}
             >
-              <Table2 className="h-4 w-4" aria-hidden />
+              <Table2 className="h-3.5 w-3.5" aria-hidden />
             </Button>
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              className={segmentIconButtonClass(editingLayout === "compact", "w-8")}
+              className={segmentIconButtonClass(editingLayout === "compact", "w-7")}
               onClick={() => onEditingLayoutChange("compact")}
-              title="Card layout"
-              aria-label="Card layout"
+              title="Compact table layout"
+              aria-label="Compact table layout"
               aria-pressed={editingLayout === "compact"}
             >
-              <LayoutList className="h-4 w-4" aria-hidden />
+              <Rows3 className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={segmentIconButtonClass(editingLayout === "card", "w-7")}
+              onClick={() => onEditingLayoutChange("card")}
+              title="Card layout"
+              aria-label="Card layout"
+              aria-pressed={editingLayout === "card"}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </div>
           <div
-            className="inline-flex min-w-0 flex-1 gap-0.5 rounded-md border border-border bg-muted p-0.5"
+            className="inline-flex min-w-0 flex-1 gap-px rounded-md border border-border bg-muted p-px"
             role="group"
             aria-label="Device"
           >
@@ -275,7 +294,7 @@ export function ListColumnSettings<TId extends string>({
               aria-label="Mobile"
               aria-pressed={editingDevice === "mobile"}
             >
-              <Smartphone className="h-4 w-4" aria-hidden />
+              <Smartphone className="h-3.5 w-3.5" aria-hidden />
             </Button>
             <Button
               type="button"
@@ -287,7 +306,7 @@ export function ListColumnSettings<TId extends string>({
               aria-label="Tablet"
               aria-pressed={editingDevice === "tablet"}
             >
-              <Tablet className="h-4 w-4" aria-hidden />
+              <Tablet className="h-3.5 w-3.5" aria-hidden />
             </Button>
             <Button
               type="button"
@@ -299,21 +318,21 @@ export function ListColumnSettings<TId extends string>({
               aria-label="Desktop"
               aria-pressed={editingDevice === "desktop"}
             >
-              <Monitor className="h-4 w-4" aria-hidden />
+              <Monitor className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </div>
         </div>
-        <div className="flex min-h-11 items-center justify-between gap-3 px-2 py-2">
-          {editingLayout === "compact" ? (
+        <div className="flex items-center justify-between gap-2 px-2 py-1">
+          {editingLayout === "card" ? (
             <>
               <label
                 htmlFor="card-grid-columns-select"
-                className="shrink-0 text-xs text-muted-foreground"
+                className="shrink-0 text-[11px] text-muted-foreground"
               >
-                Card columns · {DEVICE_LABEL[editingDevice]}
+                Cards · {DEVICE_LABEL[editingDevice]}
               </label>
               {editingDevice === "mobile" ? (
-                <span className="text-xs font-medium text-foreground">Auto ({autoCardGridLabel})</span>
+                <span className="text-[11px] font-medium text-foreground">Auto ({autoCardGridLabel})</span>
               ) : (
                 <Select
                   value={cardGridSelectValue}
@@ -330,7 +349,7 @@ export function ListColumnSettings<TId extends string>({
                 >
                   <SelectTrigger
                     id="card-grid-columns-select"
-                    className="h-7 w-16 shrink-0 px-2 py-0 text-xs [&>svg]:h-3.5 [&>svg]:w-3.5"
+                    className="h-6 w-14 shrink-0 px-1.5 py-0 text-[11px] [&>svg]:h-3 [&>svg]:w-3"
                     aria-label="Card columns per row"
                     title={
                       cardGridColumns === AUTO_LAYOUT_PREF
@@ -355,12 +374,12 @@ export function ListColumnSettings<TId extends string>({
             <>
               <label
                 htmlFor="freeze-columns-select"
-                className="shrink-0 text-xs text-muted-foreground"
+                className="shrink-0 text-[11px] text-muted-foreground"
               >
-                Freeze columns · {DEVICE_LABEL[editingDevice]}
+                Freeze · {DEVICE_LABEL[editingDevice]}
               </label>
               {editingDevice === "mobile" ? (
-                <span className="text-xs font-medium text-foreground">Auto ({autoFrozenLabel})</span>
+                <span className="text-[11px] font-medium text-foreground">Auto ({autoFrozenLabel})</span>
               ) : (
                 <Select
                   value={freezeSelectValue}
@@ -377,7 +396,7 @@ export function ListColumnSettings<TId extends string>({
                 >
                   <SelectTrigger
                     id="freeze-columns-select"
-                    className="h-7 w-16 shrink-0 px-2 py-0 text-xs [&>svg]:h-3.5 [&>svg]:w-3.5"
+                    className="h-6 w-14 shrink-0 px-1.5 py-0 text-[11px] [&>svg]:h-3 [&>svg]:w-3"
                     aria-label="Freeze columns"
                     title={
                       frozenColumnCount === AUTO_LAYOUT_PREF
@@ -400,7 +419,7 @@ export function ListColumnSettings<TId extends string>({
           )}
         </div>
         <DropdownMenuSeparator />
-        <div className="max-h-96 space-y-0.5 overflow-y-auto p-1">
+        <div className="max-h-64 space-y-px overflow-y-auto px-1 pb-1">
           {editableColumnOrder.map((columnId) => {
             const column = getColumnDef(registry, columnId);
             const visible = prefs.visibleColumns.includes(columnId);
@@ -426,14 +445,14 @@ export function ListColumnSettings<TId extends string>({
                   setDragOverId(null);
                 }}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-accent/50",
-                  isDragOver && "bg-accent/60 ring-2 ring-primary/30"
+                  "flex items-center gap-1 rounded-sm px-0.5 py-0.5 transition-colors hover:bg-accent/50",
+                  isDragOver && "bg-accent/60 ring-1 ring-primary/30"
                 )}
               >
                 <button
                   type="button"
                   draggable
-                  className="flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
+                  className="flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
                   aria-label={`Drag ${column.label} to reorder`}
                   onDragStart={(event) => {
                     dragIdRef.current = columnId;
@@ -445,21 +464,16 @@ export function ListColumnSettings<TId extends string>({
                     setDragOverId(null);
                   }}
                 >
-                  <GripVertical className="h-4 w-4" />
+                  <GripVertical className="h-3.5 w-3.5" />
                 </button>
                 <Switch
                   checked={visible}
                   onCheckedChange={(checked) => toggleVisible(columnId, checked)}
                   aria-label={`Toggle ${column.label}`}
-                  className="h-5 w-9 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4 [&>span]:shadow-md"
+                  className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
                 />
                 <div className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{column.label}</span>
-                  {column.group ? (
-                    <span className="block truncate text-[10px] text-muted-foreground">
-                      {column.group}
-                    </span>
-                  ) : null}
+                  <span className="block truncate text-xs leading-tight">{column.label}</span>
                 </div>
                 {visible && columnSupportsWrapControl(column.valueKind) ? (
                   <Select
@@ -468,7 +482,7 @@ export function ListColumnSettings<TId extends string>({
                     onValueChange={(value) => setWrapMode(columnId, value as TextWrapMode)}
                   >
                     <SelectTrigger
-                      className="h-7 w-[5.75rem] shrink-0 px-2 py-0 text-xs [&>span]:truncate [&>svg]:h-3.5 [&>svg]:w-3.5"
+                      className="h-6 w-[4.5rem] shrink-0 px-1.5 py-0 text-[11px] [&>span]:truncate [&>svg]:h-3 [&>svg]:w-3"
                       aria-label={`Text wrap for ${column.label}`}
                       title="Text wrap"
                       onClick={(event) => event.stopPropagation()}
@@ -477,7 +491,7 @@ export function ListColumnSettings<TId extends string>({
                     </SelectTrigger>
                     <SelectContent align="end">
                       {TEXT_WRAP_MODES.map((mode) => (
-                        <SelectItem key={mode} value={mode} className="text-xs">
+                        <SelectItem key={mode} value={mode} className="text-xs py-1">
                           {TEXT_WRAP_MODE_LABELS[mode]}
                         </SelectItem>
                       ))}

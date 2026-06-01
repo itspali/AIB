@@ -331,7 +331,7 @@ export function ProductVariantPanel({
       </div>
 
       {!readOnly && selectedIds.size > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-2">
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-2 editor-bulk-bar">
           <span className="text-sm">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" disabled={isPending} onClick={() => runBulkActive(true)}>
@@ -744,46 +744,63 @@ function VariantDrawerForm({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="variant_dead_weight">Dead weight (kg)</Label>
-              <Input
-                id="variant_dead_weight"
-                disabled={isPending}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("dead_weight_kg")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="variant_length">Length (cm)</Label>
-              <Input
-                id="variant_length"
-                disabled={isPending}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("length_cm")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="variant_width">Width (cm)</Label>
-              <Input
-                id="variant_width"
-                disabled={isPending}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("width_cm")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="variant_height">Height (cm)</Label>
-              <Input
-                id="variant_height"
-                disabled={isPending}
-                className="text-right font-mono"
-                inputMode="decimal"
-                {...register("height_cm")}
-              />
+          <div className="space-y-3 border-t border-border pt-4">
+            <h4 className="text-sm font-medium">Shipping & dimensions</h4>
+            <p className="text-xs text-muted-foreground">
+              Used for freight quotes and packaging — not tied to stock tracking.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="variant_dead_weight">Weight (kg)</Label>
+                <Input
+                  id="variant_dead_weight"
+                  disabled={isPending}
+                  className="text-right font-mono"
+                  inputMode="decimal"
+                  {...register("dead_weight_kg")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variant_volume">Volume</Label>
+                <Input
+                  id="variant_volume"
+                  disabled={isPending}
+                  className="text-right font-mono"
+                  inputMode="decimal"
+                  placeholder="Optional"
+                  {...register("volume")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variant_length">Length (cm)</Label>
+                <Input
+                  id="variant_length"
+                  disabled={isPending}
+                  className="text-right font-mono"
+                  inputMode="decimal"
+                  {...register("length_cm")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variant_width">Width (cm)</Label>
+                <Input
+                  id="variant_width"
+                  disabled={isPending}
+                  className="text-right font-mono"
+                  inputMode="decimal"
+                  {...register("width_cm")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variant_height">Height (cm)</Label>
+                <Input
+                  id="variant_height"
+                  disabled={isPending}
+                  className="text-right font-mono"
+                  inputMode="decimal"
+                  {...register("height_cm")}
+                />
+              </div>
             </div>
           </div>
 

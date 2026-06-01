@@ -13,13 +13,12 @@ import { classificationLabel } from "@/lib/products/classification-labels";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
-import { formatVariantAttributesSubline } from "@/lib/products/list-row-key";
 import {
-  productListRowKindBadgeVariant,
-  productListRowKindLabel,
-  resolveProductListRowKind,
-} from "@/lib/products/variant-strategy";
+  productListVariantNameIndentClass,
+  resolveProductListRowPresentation,
+} from "@/lib/products/list-row-presentation";
 import { cn } from "@/lib/utils";
+import type { ProductListViewMode } from "@/lib/products/list-prefs";
 import { Badge } from "@/components/ui/badge";
 
 function formatOptionalCurrency(value: string | null): string {
@@ -50,10 +49,14 @@ function formatActiveStatus(value: boolean): ReactNode {
   );
 }
 
+export function renderProductListActiveStatus(value: boolean): ReactNode {
+  return formatActiveStatus(value);
+}
+
 export function resolveProductListCellTextWrapClass(
   columnId: ProductListColumnId,
   wrapMode?: TextWrapMode,
-  viewMode: "table" | "compact" = "table"
+  viewMode: ProductListViewMode = "table"
 ): string {
   const column = getColumnDef(columnId);
   if (!columnSupportsWrapControl(column.valueKind)) {
@@ -136,33 +139,19 @@ export function renderProductListCell(
         </span>
       );
     case "name": {
-      const subline = options?.showVariants
-        ? formatVariantAttributesSubline(product.variant_attributes)
-        : null;
-      const rowKind = resolveProductListRowKind(product, options?.showVariants ?? false);
+      const showVariants = options?.showVariants ?? false;
+      const presentation = resolveProductListRowPresentation(product, showVariants);
+      const subline = presentation.attributeSubline;
       const wrapMode = options?.wrapMode ?? "truncate";
       const nameWrapClass = resolveProductListCellTextWrapClass("name", wrapMode);
-      const nameRowClass =
-        wrapMode === "wrap"
-          ? "flex flex-wrap items-center gap-2"
-          : "flex min-w-0 items-center gap-2";
       const nameTextClass =
         wrapMode === "wrap"
-          ? cn("font-medium", nameWrapClass)
-          : cn("min-w-0 flex-1 font-medium", nameWrapClass);
+          ? cn("block font-medium", nameWrapClass)
+          : cn("block min-w-0 font-medium", nameWrapClass);
 
       return (
-        <div className={cn(subline && product.has_variants && "border-l-2 border-border/70 pl-2.5")}>
-          <div className={nameRowClass}>
-            <span className={nameTextClass}>
-              {product.name?.trim() ? product.name : "—"}
-            </span>
-            {rowKind !== "single" ? (
-              <Badge variant={productListRowKindBadgeVariant(rowKind)} className="shrink-0">
-                {productListRowKindLabel(rowKind)}
-              </Badge>
-            ) : null}
-          </div>
+        <div className={productListVariantNameIndentClass(presentation, showVariants)}>
+          <span className={nameTextClass}>{product.name?.trim() ? product.name : "—"}</span>
           {subline ? (
             <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
               {subline}
@@ -171,12 +160,15 @@ export function renderProductListCell(
         </div>
       );
     }
-    case "default_sku":
+    case "default_sku": {
+      const showVariants = options?.showVariants ?? false;
+      const presentation = resolveProductListRowPresentation(product, showVariants);
       return (
         <span className="font-mono text-muted-foreground">
-          {product.style_code ?? product.default_sku ?? "—"}
+          {presentation.displaySku ?? "—"}
         </span>
       );
+    }
     case "barcode":
       return (
         <span className="font-mono text-muted-foreground">{product.barcode ?? "—"}</span>

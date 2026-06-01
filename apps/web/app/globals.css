@@ -124,6 +124,50 @@
     @apply rounded-lg border border-border bg-muted/20 shadow-sm;
   }
 
+  /* Detail-panel item editor: flatten nested cards/tables inside the split pane. */
+  .product-editor-panel .surface-panel {
+    @apply space-y-3 rounded-none border-0 bg-transparent p-0 shadow-none dark:bg-transparent;
+  }
+
+  .product-editor-panel .surface-inset {
+    @apply rounded-none border border-border/60 bg-muted/15 shadow-none;
+  }
+
+  .product-editor-panel .surface-panel h3 {
+    @apply text-sm font-medium normal-case tracking-normal text-foreground;
+  }
+
+  .product-editor-panel .surface-panel > p.text-xs.text-muted-foreground {
+    @apply mt-0.5;
+  }
+
+  .product-editor-panel table th,
+  .product-editor-panel table td {
+    @apply px-2 py-1.5;
+  }
+
+  .product-editor-panel table thead tr {
+    @apply bg-muted/30;
+  }
+
+  .product-editor-panel .variant-attribute-toggle {
+    @apply rounded-none border-0 border-b border-border/60 px-0 py-2 last:border-b-0;
+  }
+
+  .product-editor-panel .editor-bulk-bar {
+    @apply rounded-md border-border/60 bg-muted/25 px-3 py-1.5;
+  }
+
+  /* Stacked widgets inside a panel section (variants, price books, etc.) */
+  .product-editor-panel .editor-section-panel .surface-panel + .surface-panel {
+    @apply mt-3 border-t border-border/60 pt-3;
+  }
+
+  .product-editor-panel .editor-section-panel > * + hr,
+  .product-editor-panel .editor-section-panel > hr + * {
+    @apply border-border/60;
+  }
+
   .gradient-text {
     @apply bg-gradient-to-r from-primary via-cyan-300 to-violet-400 bg-clip-text text-transparent;
   }

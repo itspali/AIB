@@ -24,6 +24,8 @@ type Props = {
   detectedDeviceClass: DeviceClass;
   disabled?: boolean;
   isSaving?: boolean;
+  triggerClassName?: string;
+  triggerVariant?: "outline" | "ghost";
 };
 
 export function ProductListColumnSettings({
@@ -33,6 +35,8 @@ export function ProductListColumnSettings({
   detectedDeviceClass,
   disabled = false,
   isSaving = false,
+  triggerClassName,
+  triggerVariant,
 }: Props) {
   const [editingLayout, setEditingLayout] = useState<ColumnSettingsLayout>(prefs.viewMode);
   const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
@@ -81,6 +85,8 @@ export function ProductListColumnSettings({
       }
       disabled={disabled}
       isSaving={isSaving}
+      triggerClassName={triggerClassName}
+      triggerVariant={triggerVariant}
     />
   );
 }

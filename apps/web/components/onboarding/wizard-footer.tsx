@@ -27,7 +27,7 @@ export function WizardFooter({
 }: Props) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const { setOnboardingComplete } = useOnboardingContext();
+  const { setOnboardingComplete, setHasWorkspaceAccess } = useOnboardingContext();
 
   const isChannelsStep = activeStepId === "channels";
   const showLaunchOnly = isChannelsStep && stepCompleted && canLaunch;
@@ -40,6 +40,7 @@ export function WizardFooter({
         return;
       }
       setOnboardingComplete(true);
+      setHasWorkspaceAccess(true);
       toast.success("Welcome to your live AIB Smart ERP workspace!");
       router.push("/dashboard");
       router.refresh();
@@ -67,6 +68,10 @@ export function WizardFooter({
       if (result.error) {
         toast.error(result.error);
         return;
+      }
+
+      if (activeStepId === "locations") {
+        setHasWorkspaceAccess(true);
       }
 
       if (isChannelsStep) {

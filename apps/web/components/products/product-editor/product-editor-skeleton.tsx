@@ -15,7 +15,7 @@ export function ProductEditorSkeleton() {
 
       <div className="flex flex-col gap-4">
         {/* Summary header */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="surface-panel p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-2">
               <Skeleton className="h-6 w-44 shimmer" />
@@ -41,7 +41,7 @@ export function ProductEditorSkeleton() {
             {Array.from({ length: 2 }).map((_, cardIndex) => (
               <section
                 key={cardIndex}
-                className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6"
+                className="surface-panel p-4 sm:p-6"
               >
                 <Skeleton className="mb-4 h-4 w-40 shimmer" />
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

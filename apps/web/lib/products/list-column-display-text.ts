@@ -1,12 +1,8 @@
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
-import { formatVariantAttributesSubline } from "@/lib/products/list-row-key";
+import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
-import {
-  productListRowKindLabel,
-  resolveProductListRowKind,
-} from "@/lib/products/variant-strategy";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 
 function formatOptionalCurrency(value: string | null): string {
@@ -37,20 +33,20 @@ export function getProductListCellDisplayTexts(
     case "image":
       return [];
     case "name": {
+      const showVariants = options?.showVariants ?? false;
+      const presentation = resolveProductListRowPresentation(product, showVariants);
       const name = product.name?.trim() || "—";
       const texts = [name];
-      const rowKind = resolveProductListRowKind(product, options?.showVariants ?? false);
-      if (rowKind !== "single") {
-        texts.push(`${name} ${productListRowKindLabel(rowKind)}`);
-      }
-      if (options?.showVariants) {
-        const subline = formatVariantAttributesSubline(product.variant_attributes);
-        if (subline) texts.push(subline);
+      if (presentation.attributeSubline) {
+        texts.push(presentation.attributeSubline);
       }
       return texts;
     }
-    case "default_sku":
-      return [product.style_code ?? product.default_sku ?? "—"];
+    case "default_sku": {
+      const showVariants = options?.showVariants ?? false;
+      const presentation = resolveProductListRowPresentation(product, showVariants);
+      return [presentation.displaySku ?? "—"];
+    }
     case "barcode":
       return [product.barcode ?? "—"];
     case "classification":

@@ -1,11 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
-
+import type { ProductListViewMode } from "@/lib/products/list-prefs";
+import { isCardViewMode } from "@/lib/products/list-prefs";
+import { cn } from "@/lib/utils";
 type Props = {
-  viewMode: "table" | "compact";
+  viewMode: ProductListViewMode;
 };
 
 export function ProductListSkeleton({ viewMode }: Props) {
-  if (viewMode === "compact") {
+  if (isCardViewMode(viewMode)) {
     return (
       <div
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
@@ -24,10 +26,16 @@ export function ProductListSkeleton({ viewMode }: Props) {
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-border p-3" aria-busy="true" aria-label="Loading product list">
-      <Skeleton className="h-8 w-full" />
+    <div className="flex h-full min-h-0 flex-col border border-border bg-muted/20 shadow-sm" aria-busy="true" aria-label="Loading product list">
+      <Skeleton className="h-8 w-full rounded-none shimmer" />
       {Array.from({ length: 8 }).map((_, index) => (
-        <Skeleton key={index} className="h-10 w-full" />
+        <Skeleton
+          key={index}
+          className={cn(
+            "w-full rounded-none",
+            viewMode === "compact" ? "h-7" : "h-10"
+          )}
+        />
       ))}
     </div>
   );

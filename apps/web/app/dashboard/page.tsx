@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionTenantId } from "@/lib/supabase/auth";
-import { fetchOnboardingSnapshot } from "@/lib/onboarding/status";
+import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   const snapshot = await fetchOnboardingSnapshot(supabase, tenantId);
   if (!snapshot) redirect("/signup");
 
-  if (!snapshot.isOnboardingComplete) redirect("/onboarding");
+  if (!hasWorkspaceAccess(snapshot)) redirect("/onboarding");
 
   const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
 

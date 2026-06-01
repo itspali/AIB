@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { useEditorPanelLayout } from "@/lib/products/editor-chrome";
+import { cn } from "@/lib/utils";
 
 type Props = {
   templates: AttributeTemplateEntry[];
@@ -20,6 +22,8 @@ type Props = {
 };
 
 export function VariantAttributeFields({ templates, values, disabled, onChange }: Props) {
+  const panel = useEditorPanelLayout();
+
   if (templates.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -29,7 +33,7 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className={cn("grid grid-cols-1 sm:grid-cols-2", panel ? "gap-3" : "gap-4")}>
       {templates.map((template) => {
         const fieldId = `variant_attr_${template.key}`;
         const currentValue = values[template.key] ?? "";
@@ -38,7 +42,12 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
           return (
             <div
               key={template.key}
-              className="flex items-center justify-between rounded-lg border border-border px-4 py-3 sm:col-span-2"
+              className={cn(
+                "flex items-center justify-between sm:col-span-2",
+                panel
+                  ? "variant-attribute-toggle"
+                  : "rounded-lg border border-border px-4 py-3"
+              )}
             >
               <div>
                 <p className="text-sm font-medium">{template.label}</p>
@@ -55,8 +64,14 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
 
         if (template.type === "select" && template.options?.length) {
           return (
-            <div key={template.key} className="space-y-2">
-              <Label htmlFor={fieldId} className="text-sm font-medium text-muted-foreground">
+            <div key={template.key} className={panel ? "space-y-1.5" : "space-y-2"}>
+              <Label
+                htmlFor={fieldId}
+                className={cn(
+                  "font-medium text-muted-foreground",
+                  panel ? "text-xs" : "text-sm"
+                )}
+              >
                 {template.label}
                 {template.required && " *"}
               </Label>
@@ -82,8 +97,14 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
         }
 
         return (
-          <div key={template.key} className="space-y-2">
-            <Label htmlFor={fieldId} className="text-sm font-medium text-muted-foreground">
+          <div key={template.key} className={panel ? "space-y-1.5" : "space-y-2"}>
+            <Label
+              htmlFor={fieldId}
+              className={cn(
+                "font-medium text-muted-foreground",
+                panel ? "text-xs" : "text-sm"
+              )}
+            >
               {template.label}
               {template.required && " *"}
             </Label>

@@ -57,13 +57,37 @@ describe("compact card subline", () => {
     expect(formatCompactCardSubline(subline!)).toBe("Inactive");
   });
 
-  it("uses No SKU when SKU column is visible but empty", () => {
+  it("returns null for expanded variant rows because the card header owns variant SKU", () => {
     const subline = buildCompactCardSubline({
-      product: sampleRow({ default_sku: null, is_active: true }),
+      product: sampleRow({
+        has_variants: true,
+        variant_strategy: "MULTI_SKU",
+        variant_id: "variant-1",
+        style_code: "STYLE-001",
+        default_sku: "VAR-RED-L",
+      }),
       showSku: true,
       showStatus: false,
+      showVariants: true,
     });
 
-    expect(formatCompactCardSubline(subline!)).toBe("No SKU");
+    expect(subline).toBeNull();
+  });
+
+  it("treats single-sku items as master rows even when a default variant id is present", () => {
+    const subline = buildCompactCardSubline({
+      product: sampleRow({
+        has_variants: false,
+        variant_strategy: "SINGLE_SKU",
+        variant_id: "variant-1",
+        style_code: "STYLE-001",
+        default_sku: "SKU-ONLY",
+      }),
+      showSku: true,
+      showStatus: false,
+      showVariants: true,
+    });
+
+    expect(formatCompactCardSubline(subline!)).toBe("STYLE-001");
   });
 });

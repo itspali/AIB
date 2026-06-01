@@ -22,14 +22,19 @@ import {
 } from "@/lib/layout/module-nav-active";
 import { cn } from "@/lib/utils";
 
+const SIDEBAR_WIDTH_EXPANDED = "w-52";
+const SIDEBAR_WIDTH_COLLAPSED = "w-16";
+const SIDEBAR_WIDTH_EXPANDED_MD = "md:w-52";
+const SIDEBAR_WIDTH_COLLAPSED_MD = "md:w-16";
+
 const navLinkClass =
-  "group flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-normal transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "group flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-normal transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const collapsedNavControlClass =
   "flex h-10 w-full items-center justify-center rounded-lg px-2 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function sidebarWidthClass(collapsed: boolean): string {
-  return collapsed ? "w-16" : "w-64";
+  return collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 }
 
 export function SidebarHeaderToggleColumn({
@@ -46,7 +51,7 @@ export function SidebarHeaderToggleColumn({
       className={cn(
         "flex h-16 w-16 shrink-0 items-center gap-1 border-r border-white/10 bg-card/40 p-2 transition-all duration-200",
         sidebarCollapsed ? "md:justify-center" : "md:min-w-0",
-        sidebarCollapsed ? "md:w-16" : "md:w-64"
+        sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED_MD : SIDEBAR_WIDTH_EXPANDED_MD
       )}
     >
       <Button
@@ -83,7 +88,7 @@ export function SidebarHeaderToggleColumn({
 }
 
 const childLinkClass =
-  "flex items-center gap-2 rounded-md py-2 pl-9 pr-3 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex items-center gap-2 rounded-md py-2 pl-8 pr-2.5 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function SidebarNavGroup({
   item,
@@ -172,7 +177,7 @@ function SidebarNavGroup({
           onClick={() => setExpanded((value) => !value)}
           className={cn(
             navLinkClass,
-            "min-w-0 flex-1 justify-start px-3",
+            "min-w-0 flex-1 justify-start px-2.5",
             groupActive && "text-primary"
           )}
         >

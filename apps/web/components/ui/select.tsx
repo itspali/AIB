@@ -27,6 +27,10 @@ const SelectTrigger = React.forwardRef<
 ));
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
+/** Shared width/scroll cap for selects with multi-line option help text. */
+export const selectPopperContentClassName =
+  "min-w-[var(--radix-select-trigger-width)] max-w-[min(20rem,calc(100vw-2rem))]";
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
@@ -37,12 +41,21 @@ const SelectContent = React.forwardRef<
       className={cn(
         "relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out",
         position === "popper" && "data-[side=bottom]:translate-y-1",
+        position === "popper" && selectPopperContentClassName,
         className
       )}
       position={position}
       {...props}
     >
-      <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
+      <SelectPrimitive.Viewport
+        className={cn(
+          "max-h-[min(20rem,var(--radix-select-content-available-height,20rem))] overflow-y-auto overscroll-contain p-1",
+          position === "popper" &&
+            "w-full min-w-[var(--radix-select-trigger-width)]"
+        )}
+      >
+        {children}
+      </SelectPrimitive.Viewport>
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
 ));
@@ -70,6 +83,36 @@ const SelectItem = React.forwardRef<
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
 
+/** Menu row with title + helper line; `textValue` keeps the closed trigger to the title only. */
+const SelectItemWithDescription = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
+    label: string;
+    description: string;
+  }
+>(({ className, label, description, ...props }, ref) => (
+  <SelectPrimitive.Item
+    ref={ref}
+    textValue={label}
+    className={cn(
+      "relative flex w-full cursor-default select-none items-start rounded-md py-2.5 pl-9 pr-3 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      className
+    )}
+    {...props}
+  >
+    <span className="absolute left-2.5 top-3 flex h-3.5 w-3.5 items-center justify-center">
+      <SelectPrimitive.ItemIndicator>
+        <Check className="h-4 w-4" />
+      </SelectPrimitive.ItemIndicator>
+    </span>
+    <div className="flex min-w-0 flex-col gap-1">
+      <SelectPrimitive.ItemText className="font-medium leading-none">{label}</SelectPrimitive.ItemText>
+      <span className="text-xs leading-relaxed text-muted-foreground">{description}</span>
+    </div>
+  </SelectPrimitive.Item>
+));
+SelectItemWithDescription.displayName = "SelectItemWithDescription";
+
 const SelectLabel = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
@@ -82,4 +125,13 @@ const SelectLabel = React.forwardRef<
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
-export { Select, SelectGroup, SelectLabel, SelectValue, SelectTrigger, SelectContent, SelectItem };
+export {
+  Select,
+  SelectGroup,
+  SelectLabel,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectItemWithDescription,
+};

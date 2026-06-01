@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
@@ -29,11 +28,11 @@ export function DashboardShell({
   operatorProfile = null,
   tenantId = null,
 }: DashboardShellProps) {
-  const { isOnboardingComplete } = useOnboardingContext();
-  const showModuleNav = isOnboardingComplete && !onboardingMode;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const isOnboardingLayout = onboardingMode || !isOnboardingComplete;
+  // Only the locked first-run onboarding canvas hides module navigation.
+  const isOnboardingLayout = onboardingMode;
+  const showModuleNav = !onboardingMode;
 
   return (
     <OmnibarProvider operatorProfile={operatorProfile} tenantId={tenantId}>

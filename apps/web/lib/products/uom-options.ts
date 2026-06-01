@@ -34,3 +34,24 @@ export function withUomValue(
   if (options.some((option) => option.code === current)) return options;
   return [...options, { code: current, name: current }];
 }
+
+/** Stock unit plus catalog alternate UOMs (for default sales / purchase unit pickers). */
+export function resolveItemCommerceUomOptions(
+  stockUom: string,
+  alternateUoms: ReadonlyArray<{ uom_code: string }>,
+  managed: ReadonlyArray<{ code: string; name: string }> | null | undefined,
+  current?: string | null
+): UomOption[] {
+  const tenantByCode = new Map(resolveUomOptions(managed).map((unit) => [unit.code, unit]));
+  const codes: string[] = [];
+  const trimmedStock = stockUom.trim();
+  if (trimmedStock) codes.push(trimmedStock);
+  for (const row of alternateUoms) {
+    const code = row.uom_code?.trim();
+    if (code && code !== trimmedStock && !codes.includes(code)) {
+      codes.push(code);
+    }
+  }
+  const options = codes.map((code) => tenantByCode.get(code) ?? { code, name: code });
+  return withUomValue(options, current);
+}

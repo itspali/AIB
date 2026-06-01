@@ -1,13 +1,14 @@
 import type { ItemClassification } from "@/lib/products/classification-labels";
-import type {
-  ItemCostingMethod,
-  ItemSource,
-  ItemStatus,
-  ItemTrackingMode,
-  ItemType,
+import {
+  itemLifecycleStatusFromActive,
+  type ItemCostingMethod,
+  type ItemSource,
+  type ItemStatus,
+  type ItemTrackingMode,
+  type ItemType,
 } from "@/lib/products/item-model";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
-import type { TaxCategory } from "@/lib/products/tax-options";
+import { normalizeTaxCategory, type TaxCategory } from "@/lib/products/tax-options";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
 export type ProductListRow = {
@@ -104,7 +105,6 @@ export type ProductVariantSnapshot = {
   barcode: string | null;
   variant_attributes: Record<string, unknown>;
   dead_weight_kg: string;
-  weight: string;
   volume: string;
   length_cm: string;
   width_cm: string;
@@ -163,7 +163,6 @@ export type ProductDetailSnapshot = {
   barcode: string | null;
   variant_attributes: Record<string, unknown>;
   dead_weight_kg: string;
-  weight: string;
   volume: string;
   length_cm: string;
   width_cm: string;
@@ -194,7 +193,6 @@ export type ItemVariantFormValues = {
   sku: string;
   barcode: string;
   dead_weight_kg: string;
-  weight: string;
   volume: string;
   length_cm: string;
   width_cm: string;
@@ -210,7 +208,6 @@ export const defaultVariantFormValues = (itemId: string): ItemVariantFormValues 
   sku: "",
   barcode: "",
   dead_weight_kg: "0",
-  weight: "",
   volume: "",
   length_cm: "0",
   width_cm: "0",
@@ -236,7 +233,6 @@ export function variantSnapshotToFormValues(
     sku: variant.sku,
     barcode: variant.barcode ?? "",
     dead_weight_kg: variant.dead_weight_kg,
-    weight: variant.weight !== "0" ? variant.weight : "",
     volume: variant.volume !== "0" ? variant.volume : "",
     length_cm: variant.length_cm,
     width_cm: variant.width_cm,
@@ -267,7 +263,6 @@ export type ProductMasterFormValues = {
   tax_code_id: string | null;
   is_returnable: boolean;
   dead_weight_kg: string;
-  weight: string;
   volume: string;
   length_cm: string;
   width_cm: string;
@@ -310,9 +305,9 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     variantAttributes[key] = Array.isArray(value) ? value.join(", ") : String(value);
   }
 
-  const extraAlternateUoms = detail.alternate_uoms.filter(
-    (row) => row.uom_code !== detail.purchase_uom
-  );
+  const purchaseConversionFromCatalog = detail.alternate_uoms.find(
+    (row) => row.uom_code === detail.purchase_uom
+  )?.conversion_factor;
 
   return {
     item_id: detail.id,
@@ -332,18 +327,17 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     variant_strategy: detail.variant_strategy,
     item_type: detail.item_type,
     track_inventory: detail.track_inventory,
-    status: detail.status,
+    status: itemLifecycleStatusFromActive(detail.is_active),
     needs_review: detail.needs_review,
     costing_method: detail.costing_method,
     standard_cost: detail.standard_cost,
     tracking_mode: detail.tracking_mode,
     is_bundle: detail.is_bundle,
-    price_is_tax_inclusive: detail.price_is_tax_inclusive,
-    default_tax_category: detail.default_tax_category,
+    price_is_tax_inclusive: false,
+    default_tax_category: normalizeTaxCategory(detail.default_tax_category),
     tax_code_id: detail.tax_code_id,
     is_returnable: detail.is_returnable,
     dead_weight_kg: detail.dead_weight_kg,
-    weight: detail.weight,
     volume: detail.volume,
     length_cm: detail.length_cm,
     width_cm: detail.width_cm,
@@ -353,12 +347,13 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     selling_price: detail.selling_price,
     selling_uom: detail.selling_uom || detail.base_unit_of_measure,
     purchase_uom: detail.purchase_uom || detail.base_unit_of_measure,
-    purchase_uom_conversion: detail.purchase_uom_conversion || "1",
+    purchase_uom_conversion:
+      purchaseConversionFromCatalog ?? detail.purchase_uom_conversion ?? "1",
     purchase_price: detail.purchase_price,
     supplier_id: detail.supplier_id,
     sku_mask: detail.sku_mask,
     custom_fields: detail.custom_fields.map((entry) => ({ ...entry })),
-    alternate_uoms: extraAlternateUoms.map((row) => ({
+    alternate_uoms: detail.alternate_uoms.map((row) => ({
       uom_code: row.uom_code,
       conversion_factor: row.conversion_factor,
     })),
@@ -373,10 +368,9 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
       detail.description ||
         detail.hsn_sac_code ||
         detail.has_variants ||
-        detail.default_tax_category !== "STANDARD" ||
+        detail.default_tax_category !== "TAXABLE" ||
         !detail.is_returnable ||
         detail.dead_weight_kg !== "0" ||
-        detail.weight !== "0" ||
         detail.volume !== "0" ||
         detail.length_cm !== "0" ||
         detail.width_cm !== "0" ||
@@ -407,11 +401,10 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   is_active: true,
   hsn_sac_code: "",
   has_variants: false,
-  default_tax_category: "STANDARD",
+  default_tax_category: "TAXABLE",
   tax_code_id: null,
   is_returnable: true,
   dead_weight_kg: "0",
-  weight: "",
   volume: "",
   length_cm: "0",
   width_cm: "0",

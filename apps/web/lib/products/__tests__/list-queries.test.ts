@@ -13,9 +13,10 @@ describe("list-queries", () => {
     expect(chunkCount).toBe(3);
   });
 
-  it("expands variants only for table view with showVariants enabled", () => {
+  it("expands variants for table and card views with showVariants enabled", () => {
     expect(resolveProductListExpandVariants(true, "table")).toBe(true);
-    expect(resolveProductListExpandVariants(true, "compact")).toBe(false);
+    expect(resolveProductListExpandVariants(true, "compact")).toBe(true);
+    expect(resolveProductListExpandVariants(true, "card")).toBe(true);
     expect(resolveProductListExpandVariants(false, "table")).toBe(false);
   });
 });

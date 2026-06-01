@@ -17,7 +17,14 @@ import {
   type ProductMasterFormValues,
 } from "@/lib/products/types";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import type { ItemClassification } from "@/lib/products/classification-labels";
+import {
+  classificationForBundleEnabled,
+  classificationWhenBundleDisabled,
+  deriveClassificationOnItemTypeChange,
+} from "@/lib/products/item-type-classification";
 import type { ItemType } from "@/lib/products/item-model";
+import { isTaxableSupplyCategory } from "@/lib/products/tax-options";
 
 export type ProductFormMode = "create" | "view" | "edit";
 
@@ -107,6 +114,8 @@ export function useProductForm({
   const variantStrategy = watch("variant_strategy");
   const isMultiSku = variantStrategy === "MULTI_SKU";
   const itemType = watch("item_type");
+  const classification = watch("classification");
+  const isBundle = watch("is_bundle");
   const isPhysical = itemType === "PHYSICAL";
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
@@ -124,8 +133,15 @@ export function useProductForm({
 
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
+      const taxable = isTaxableSupplyCategory(values.default_tax_category);
+      const payload: ProductMasterFormValues = {
+        ...values,
+        hsn_sac_code: taxable ? values.hsn_sac_code : "",
+        tax_code_id: taxable ? values.tax_code_id : null,
+      };
+
       startTransition(async () => {
-        const result = await saveProductMasterProfile(values);
+        const result = await saveProductMasterProfile(payload);
 
         if ("error" in result) {
           if (notifyOnSave) {
@@ -136,7 +152,7 @@ export function useProductForm({
 
         if (notifyOnSave) {
           toast.success(
-            values.variant_strategy === "MULTI_SKU" && !values.item_id
+            payload.variant_strategy === "MULTI_SKU" && !payload.item_id
               ? "Style saved. Use Variant Management to generate sellable SKUs."
               : "Product master profile saved successfully"
           );
@@ -174,6 +190,24 @@ export function useProductForm({
     }
   }, [categoryId, categories, itemId, setValue]);
 
+  // Keep classification and bundle aligned with item_type.
+  useEffect(() => {
+    const currentClassification = form.getValues("classification") as ItemClassification;
+    const preserveLegacy =
+      currentClassification === "PHYSICAL_GOOD" && itemType === "PHYSICAL";
+    const nextClassification = deriveClassificationOnItemTypeChange(
+      itemType,
+      currentClassification,
+      { preserveLegacyPhysicalGood: preserveLegacy }
+    );
+    if (nextClassification !== currentClassification) {
+      setValue("classification", nextClassification, { shouldDirty: true });
+    }
+    if (itemType !== "PHYSICAL" && form.getValues("is_bundle")) {
+      setValue("is_bundle", false, { shouldDirty: true });
+    }
+  }, [itemType, form, setValue]);
+
   // Non-physical items cannot hold stock, lot/serial tracking, or multi-SKU styles.
   useEffect(() => {
     if (itemType === "PHYSICAL") return;
@@ -188,22 +222,51 @@ export function useProductForm({
     }
   }, [itemType, form, setValue]);
 
+  const trackInventory = watch("track_inventory");
+
+  // Physical items without stock tracking do not use lot/serial modes.
+  useEffect(() => {
+    if (itemType !== "PHYSICAL" || trackInventory) return;
+    if (form.getValues("tracking_mode") !== "NONE") {
+      setValue("tracking_mode", "NONE", { shouldDirty: true });
+    }
+  }, [itemType, trackInventory, form, setValue]);
+
+  useEffect(() => {
+    if (classification === "KIT_BUNDLE" && !form.getValues("is_bundle")) {
+      setValue("is_bundle", true, { shouldDirty: true });
+      return;
+    }
+    if (classification !== "KIT_BUNDLE" && form.getValues("is_bundle")) {
+      setValue("is_bundle", false, { shouldDirty: true });
+    }
+  }, [classification, form, setValue]);
+
+  useEffect(() => {
+    const currentClassification = form.getValues("classification") as ItemClassification;
+    if (isBundle) {
+      const nextClassification = classificationForBundleEnabled(currentClassification);
+      if (nextClassification !== currentClassification) {
+        setValue("classification", nextClassification, { shouldDirty: true });
+      }
+      return;
+    }
+    if (currentClassification === "KIT_BUNDLE") {
+      setValue("classification", classificationWhenBundleDisabled(currentClassification), {
+        shouldDirty: true,
+      });
+    }
+  }, [isBundle, form, setValue]);
+
   useEffect(() => {
     if (previousBaseUomRef.current === baseUom) return;
 
-    const sellingUom = form.getValues("selling_uom");
-    const currentPurchaseUom = form.getValues("purchase_uom");
-
-    if (sellingUom === previousBaseUomRef.current) {
-      setValue("selling_uom", baseUom, { shouldDirty: true });
-    }
-    if (currentPurchaseUom === previousBaseUomRef.current) {
-      setValue("purchase_uom", baseUom, { shouldDirty: true });
-      setValue("purchase_uom_conversion", "1", { shouldDirty: true });
-    }
+    setValue("selling_uom", baseUom, { shouldDirty: true });
+    setValue("purchase_uom", baseUom, { shouldDirty: true });
+    setValue("purchase_uom_conversion", "1", { shouldDirty: true });
 
     previousBaseUomRef.current = baseUom;
-  }, [baseUom, form, setValue]);
+  }, [baseUom, setValue]);
 
   return {
     form,

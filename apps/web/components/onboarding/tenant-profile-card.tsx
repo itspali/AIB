@@ -1,13 +1,21 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { humanOnboardingStatus } from "@/lib/onboarding/locale-presets";
 import type { TenantProfile } from "@/lib/onboarding/types";
 
 type TenantProfileCardProps = {
   tenant: TenantProfile;
   progressPercent: number;
+  showDashboardExit?: boolean;
 };
 
-export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCardProps) {
+export function TenantProfileCard({
+  tenant,
+  progressPercent,
+  showDashboardExit = false,
+}: TenantProfileCardProps) {
   const statusLabel = humanOnboardingStatus(tenant.onboarding_status, progressPercent);
 
   return (
@@ -51,6 +59,19 @@ export function TenantProfileCard({ tenant, progressPercent }: TenantProfileCard
             />
           </div>
         </div>
+        {showDashboardExit ? (
+          <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Your workspace is ready to explore. Finish setup anytime from the dashboard.
+            </p>
+            <Button asChild variant="outline" className="shrink-0">
+              <Link href="/dashboard">
+                Go to dashboard
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

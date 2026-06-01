@@ -25,11 +25,16 @@ import {
   getModuleViewDefinition,
   isSavedViewsScope,
 } from "@/lib/search/views/module-view-registry";
+import { listToolbarGhostTriggerClass } from "@/lib/products/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
 type Props = {
   className?: string;
   triggerClassName?: string;
+  /** Highlights the trigger when a saved view or ad-hoc filters are active. */
+  triggerActive?: boolean;
+  /** Borderless toolbar preview for module view select demos. */
+  borderless?: boolean;
 };
 
 function snapshotToView(
@@ -300,7 +305,12 @@ function SavedViewRow({
   );
 }
 
-export function ModuleViewSelect({ className, triggerClassName }: Props) {
+export function ModuleViewSelect({
+  className,
+  triggerClassName,
+  triggerActive = false,
+  borderless = false,
+}: Props) {
   const omnibar = useOptionalOmnibarContext();
   const [views, setViews] = useState<CustomModuleView[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -363,7 +373,9 @@ export function ModuleViewSelect({ className, triggerClassName }: Props) {
   } = omnibar;
 
   const allLabel = getAllViewLabel(scope);
-  const viewMatchesFilters = activeSavedViewId != null && hasActiveFilters;
+  const isSavedViewDirty = omnibar.isSavedViewDirty;
+  const viewMatchesFilters =
+    activeSavedViewId != null && hasActiveFilters && !isSavedViewDirty;
   const isAllSelected = !viewMatchesFilters;
   const isAllDefault = !views.some((view) => view.is_system_default);
   const isFilterLoading = isExecuting && hasActiveFilters;
@@ -461,11 +473,13 @@ export function ModuleViewSelect({ className, triggerClassName }: Props) {
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             disabled={isInitialLoading}
             aria-busy={isFilterLoading || isDefaultViewBootstrapping}
             className={cn(
-              "h-8 justify-between gap-2 px-3 font-normal shadow-sm [&>span]:truncate",
+              "h-8 justify-between gap-2 px-3 font-normal [&>span]:truncate",
+              listToolbarGhostTriggerClass(triggerActive),
+              triggerActive && "font-medium",
               triggerClassName ?? "w-[9.5rem]"
             )}
             aria-label={isFilterLoading ? "Loading saved view filters" : "Saved filter view"}
@@ -476,7 +490,13 @@ export function ModuleViewSelect({ className, triggerClassName }: Props) {
               ) : null}
               <span className="truncate">{displayLabel}</span>
             </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0",
+                triggerActive ? "text-primary opacity-100" : "opacity-50"
+              )}
+              aria-hidden
+            />
           </Button>
         </DropdownMenuTrigger>
 

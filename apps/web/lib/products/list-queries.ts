@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isItemClassification } from "@/lib/products/classification-labels";
 import { redactProductListRows } from "@/lib/products/field-permissions";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
-import { isTaxCategory } from "@/lib/products/tax-options";
+import { normalizeTaxCategory } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
 import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
@@ -79,9 +79,7 @@ function formatDecimal(value: number | string | null | undefined, fallback = "0"
 function mapListViewRow(row: ListViewRow, imageUrl: string | null): ProductListRow | null {
   if (!isItemClassification(row.classification)) return null;
 
-  const taxCategory = isTaxCategory(row.default_tax_category)
-    ? row.default_tax_category
-    : "STANDARD";
+  const taxCategory = normalizeTaxCategory(row.default_tax_category);
 
   return {
     id: row.id,

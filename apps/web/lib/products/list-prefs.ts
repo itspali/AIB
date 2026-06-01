@@ -19,7 +19,17 @@ import {
 
 export type { DeviceClass } from "@/lib/layout/device-class";
 
-export type ProductListViewMode = "table" | "compact";
+export type ProductListViewMode = "table" | "compact" | "card";
+
+export const PRODUCT_LIST_VIEW_MODES: ProductListViewMode[] = ["table", "compact", "card"];
+
+export function isCardViewMode(viewMode: ProductListViewMode): boolean {
+  return viewMode === "card";
+}
+
+export function isTableLikeViewMode(viewMode: ProductListViewMode): boolean {
+  return viewMode === "table" || viewMode === "compact";
+}
 export type CardGridColumnCount = 1 | 2 | 3 | 4;
 
 export type ProductListFrozenColumnCount = 0 | 1 | 2 | 3;
@@ -28,7 +38,7 @@ export const AUTO_LAYOUT_PREF = "auto" as const;
 export type CardGridColumnPref = CardGridColumnCount | typeof AUTO_LAYOUT_PREF;
 export type FrozenColumnPref = ProductListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const PRODUCT_LIST_PREFS_VERSION = 5;
+export const PRODUCT_LIST_PREFS_VERSION = 6;
 
 export type ProductListColumnPrefsByContext = Record<
   ProductListViewMode,
@@ -69,7 +79,7 @@ const TABLE_TABLET_VISIBLE: ProductListColumnId[] = [
   "updated_at",
 ];
 
-const COMPACT_DESKTOP_VISIBLE: ProductListColumnId[] = [
+const CARD_DESKTOP_VISIBLE: ProductListColumnId[] = [
   "image",
   "name",
   "default_sku",
@@ -79,7 +89,7 @@ const COMPACT_DESKTOP_VISIBLE: ProductListColumnId[] = [
   "updated_at",
 ];
 
-const COMPACT_TABLET_VISIBLE: ProductListColumnId[] = [
+const CARD_TABLET_VISIBLE: ProductListColumnId[] = [
   "image",
   "name",
   "default_sku",
@@ -88,7 +98,7 @@ const COMPACT_TABLET_VISIBLE: ProductListColumnId[] = [
   "updated_at",
 ];
 
-const COMPACT_MOBILE_VISIBLE: ProductListColumnId[] = [
+const CARD_MOBILE_VISIBLE: ProductListColumnId[] = [
   "image",
   "name",
   "default_sku",
@@ -167,11 +177,17 @@ export function resolveFrozenColumnCount(
   return prefs.frozenColumnCount;
 }
 
+export function supportsProductListVariantExpansion(
+  viewMode: ProductListViewMode
+): boolean {
+  return isTableLikeViewMode(viewMode) || isCardViewMode(viewMode);
+}
+
 export function resolveProductListExpandVariants(
   showVariants: boolean,
   viewMode: ProductListViewMode
 ): boolean {
-  return showVariants && viewMode === "table";
+  return showVariants && supportsProductListVariantExpansion(viewMode);
 }
 
 function parseCardGridColumnPref(
@@ -205,18 +221,41 @@ export function clampCardGridColumns(prefs: ProductListPrefs): ProductListPrefs 
   return { ...prefs, cardGridColumns };
 }
 
+function cloneColumnPrefsSlice(
+  slice: ListColumnPrefs<ProductListColumnId>
+): ListColumnPrefs<ProductListColumnId> {
+  return normalizeListColumnPrefs(PRODUCT_LIST_COLUMN_REGISTRY, {
+    columnOrder: [...slice.columnOrder],
+    visibleColumns: [...slice.visibleColumns],
+    columnWidths: slice.columnWidths ? { ...slice.columnWidths } : undefined,
+    columnWrapModes: slice.columnWrapModes ? { ...slice.columnWrapModes } : undefined,
+  });
+}
+
+function cloneDeviceColumnPrefs(
+  source: Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>
+): Record<DeviceClass, ListColumnPrefs<ProductListColumnId>> {
+  return {
+    mobile: cloneColumnPrefsSlice(source.mobile),
+    tablet: cloneColumnPrefsSlice(source.tablet),
+    desktop: cloneColumnPrefsSlice(source.desktop),
+  };
+}
+
 export function getDefaultProductListColumnPrefsByContext(): ProductListColumnPrefsByContext {
   const desktopTable = getDefaultListColumnPrefs(PRODUCT_LIST_COLUMN_REGISTRY);
+  const table = {
+    desktop: desktopTable,
+    tablet: buildContextPrefs(TABLE_TABLET_VISIBLE),
+    mobile: buildContextPrefs(TABLE_MOBILE_VISIBLE),
+  };
   return {
-    table: {
-      desktop: desktopTable,
-      tablet: buildContextPrefs(TABLE_TABLET_VISIBLE),
-      mobile: buildContextPrefs(TABLE_MOBILE_VISIBLE),
-    },
-    compact: {
-      desktop: buildContextPrefs(COMPACT_DESKTOP_VISIBLE),
-      tablet: buildContextPrefs(COMPACT_TABLET_VISIBLE),
-      mobile: buildContextPrefs(COMPACT_MOBILE_VISIBLE),
+    table,
+    compact: cloneDeviceColumnPrefs(table),
+    card: {
+      desktop: buildContextPrefs(CARD_DESKTOP_VISIBLE),
+      tablet: buildContextPrefs(CARD_TABLET_VISIBLE),
+      mobile: buildContextPrefs(CARD_MOBILE_VISIBLE),
     },
   };
 }
@@ -282,23 +321,57 @@ function migrateLegacyFlatPrefs(
       tablet: defaults.table.tablet,
       mobile: defaults.table.mobile,
     },
-    compact: {
+    card: {
       desktop: legacy,
-      tablet: defaults.compact.tablet,
-      mobile: defaults.compact.mobile,
+      tablet: defaults.card.tablet,
+      mobile: defaults.card.mobile,
     },
+    compact: cloneDeviceColumnPrefs(defaults.table),
   };
+}
+
+function migrateV5ColumnPrefsToV6(
+  raw: Partial<ProductListColumnPrefsByContext>
+): ProductListColumnPrefsByContext {
+  const defaults = getDefaultProductListColumnPrefsByContext();
+  const tableSource = raw.table ?? defaults.table;
+  const cardSource = raw.card ?? raw.compact ?? defaults.card;
+  const compactSource = raw.compact && raw.card ? raw.compact : null;
+
+  const result = {} as ProductListColumnPrefsByContext;
+
+  for (const viewMode of PRODUCT_LIST_VIEW_MODES) {
+    result[viewMode] = {} as Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>;
+    const source =
+      viewMode === "table"
+        ? tableSource
+        : viewMode === "card"
+          ? cardSource
+          : compactSource ?? tableSource;
+
+    for (const deviceClass of DEVICE_CLASSES) {
+      result[viewMode][deviceClass] = normalizeListColumnPrefs(
+        PRODUCT_LIST_COLUMN_REGISTRY,
+        source[deviceClass] ?? defaults[viewMode][deviceClass]
+      );
+    }
+  }
+
+  if (!compactSource) {
+    result.compact = cloneDeviceColumnPrefs(result.table);
+  }
+
+  return result;
 }
 
 function migrateV2ColumnPrefs(
   raw: Partial<ProductListColumnPrefsByContext>
 ): ProductListColumnPrefsByContext {
   const defaults = getDefaultProductListColumnPrefsByContext();
-  const viewModes: ProductListViewMode[] = ["table", "compact"];
-  const result = {} as ProductListColumnPrefsByContext;
+  const legacy = {} as ProductListColumnPrefsByContext;
 
-  for (const viewMode of viewModes) {
-    result[viewMode] = {} as Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>;
+  for (const viewMode of ["table", "compact"] as const) {
+    legacy[viewMode] = {} as Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>;
     const v2Slice = raw[viewMode] as
       | Partial<Record<"mobile" | "desktop", ListColumnPrefs<ProductListColumnId>>>
       | undefined;
@@ -306,41 +379,45 @@ function migrateV2ColumnPrefs(
     for (const deviceClass of DEVICE_CLASSES) {
       const slice = v2Slice?.[deviceClass as "mobile" | "desktop"];
       if (slice) {
-        result[viewMode][deviceClass] = normalizeListColumnPrefs(PRODUCT_LIST_COLUMN_REGISTRY, slice);
+        legacy[viewMode][deviceClass] = normalizeListColumnPrefs(PRODUCT_LIST_COLUMN_REGISTRY, slice);
       } else if (deviceClass === "tablet") {
         const fallback =
-          v2Slice?.desktop ?? v2Slice?.mobile ?? defaults[viewMode][deviceClass];
-        result[viewMode][deviceClass] = normalizeListColumnPrefs(
+          v2Slice?.desktop ?? v2Slice?.mobile ?? defaults[viewMode === "compact" ? "card" : viewMode][deviceClass];
+        legacy[viewMode][deviceClass] = normalizeListColumnPrefs(
           PRODUCT_LIST_COLUMN_REGISTRY,
           fallback
         );
       } else {
-        result[viewMode][deviceClass] = normalizeListColumnPrefs(
+        legacy[viewMode][deviceClass] = normalizeListColumnPrefs(
           PRODUCT_LIST_COLUMN_REGISTRY,
-          v2Slice?.[deviceClass as "mobile" | "desktop"] ?? defaults[viewMode][deviceClass]
+          v2Slice?.[deviceClass as "mobile" | "desktop"] ??
+            defaults[viewMode === "compact" ? "card" : viewMode][deviceClass]
         );
       }
     }
   }
 
-  return result;
+  return migrateV5ColumnPrefsToV6(legacy);
 }
 
 function parseColumnPrefsByContext(raw: unknown): ProductListColumnPrefsByContext | null {
   if (!raw || typeof raw !== "object") return null;
 
   const parsed = raw as Partial<ProductListColumnPrefsByContext>;
-  const hasTablet = Boolean(parsed.table?.tablet || parsed.compact?.tablet);
+  const hasTablet = Boolean(parsed.table?.tablet || parsed.compact?.tablet || parsed.card?.tablet);
 
   if (!hasTablet) {
     return migrateV2ColumnPrefs(parsed);
   }
 
+  if (!parsed.card) {
+    return migrateV5ColumnPrefsToV6(parsed);
+  }
+
   const defaults = getDefaultProductListColumnPrefsByContext();
-  const viewModes: ProductListViewMode[] = ["table", "compact"];
   const result = {} as ProductListColumnPrefsByContext;
 
-  for (const viewMode of viewModes) {
+  for (const viewMode of PRODUCT_LIST_VIEW_MODES) {
     result[viewMode] = {} as Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>;
     for (const deviceClass of DEVICE_CLASSES) {
       const slice = parsed[viewMode]?.[deviceClass];
@@ -352,6 +429,16 @@ function parseColumnPrefsByContext(raw: unknown): ProductListColumnPrefsByContex
   }
 
   return result;
+}
+
+function parseViewMode(value: unknown, prefsVersion: number): ProductListViewMode {
+  if (prefsVersion >= PRODUCT_LIST_PREFS_VERSION) {
+    if (value === "table" || value === "compact" || value === "card") return value;
+    return "table";
+  }
+  // v5 and below: persisted "compact" meant card grid.
+  if (value === "compact") return "card";
+  return "table";
 }
 
 function parseCardGridColumns(raw: unknown): CardGridColumnsByDevice {
@@ -371,7 +458,11 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
   if (!raw || typeof raw !== "object") return defaults;
 
   const parsed = raw as LegacyFlatProductListPrefs;
-  const viewMode = parsed.viewMode === "compact" ? "compact" : "table";
+  const rawVersion =
+    typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
+      ? parsed.prefsVersion
+      : 0;
+  const viewMode = parseViewMode(parsed.viewMode, rawVersion);
   const sortField = isProductListSortField(parsed.sortField ?? "")
     ? (parsed.sortField as ProductListSortField)
     : defaults.sortField;

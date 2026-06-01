@@ -56,6 +56,30 @@ export function scrollElementInDashboardRoot(
   scrollRoot.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "smooth" });
 }
 
+export function resolveScrollSpyAnchorLine(scrollRoot: HTMLElement, offsetTop = 0): number {
+  return scrollRoot.getBoundingClientRect().top + offsetTop;
+}
+
+/** Last section whose top has crossed the anchor line (progressive scroll-spy). */
+export function resolveActiveSectionByScrollPosition<T extends string>(
+  sectionIds: readonly T[],
+  getElement: (id: T) => HTMLElement | null,
+  anchorLine: number,
+  tolerance = 12
+): T | null {
+  let currentId: T | null = sectionIds[0] ?? null;
+
+  for (const id of sectionIds) {
+    const element = getElement(id);
+    if (!element) continue;
+    if (element.getBoundingClientRect().top <= anchorLine + tolerance) {
+      currentId = id;
+    }
+  }
+
+  return currentId;
+}
+
 export function scrollToFormSection(
   sectionId: string,
   headerRef: RefObject<HTMLElement | null>,

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   formatVariantAttributesSubline,
+  injectVariantParentRows,
   isProductListRowInactive,
   productListRowKey,
   resolveBulkSelectionItemIds,
+  resolveProductListDisplaySku,
 } from "@/lib/products/list-row-key";
 import type { ProductListRow } from "@/lib/products/types";
 
@@ -64,6 +66,26 @@ describe("formatVariantAttributesSubline", () => {
   });
 });
 
+describe("resolveProductListDisplaySku", () => {
+  it("uses variant sku for expanded variant rows", () => {
+    expect(
+      resolveProductListDisplaySku(
+        { style_code: "STYLE-001", default_sku: "VAR-RED-L" },
+        "variant"
+      )
+    ).toBe("VAR-RED-L");
+  });
+
+  it("uses style code for parent rows", () => {
+    expect(
+      resolveProductListDisplaySku(
+        { style_code: "STYLE-001", default_sku: "VAR-RED-L" },
+        "style"
+      )
+    ).toBe("STYLE-001");
+  });
+});
+
 describe("resolveBulkSelectionItemIds", () => {
   it("passes through item ids in master mode", () => {
     const row = sampleRow();
@@ -81,6 +103,42 @@ describe("resolveBulkSelectionItemIds", () => {
     expect(
       resolveBulkSelectionItemIds(["variant-1", "variant-2"], rows, true)
     ).toEqual(["item-1"]);
+  });
+});
+
+describe("injectVariantParentRows", () => {
+  it("inserts a parent row before the first variant row of each item", () => {
+    const variantA = sampleRow({
+      id: "item-1",
+      variant_id: "variant-a",
+      default_sku: "ITM001-RED",
+      style_code: "ITM001",
+      variant_strategy: "MULTI_SKU",
+    });
+    const variantB = sampleRow({
+      id: "item-1",
+      variant_id: "variant-b",
+      default_sku: "ITM001-BLUE",
+      style_code: "ITM001",
+      variant_strategy: "MULTI_SKU",
+    });
+    const single = sampleRow({
+      id: "item-2",
+      has_variants: false,
+      variant_strategy: "SINGLE_SKU",
+      variant_id: null,
+      default_sku: "SKU-ONLY",
+    });
+
+    const rows = injectVariantParentRows([variantA, variantB, single]);
+
+    expect(rows).toHaveLength(4);
+    expect(rows[0]?.id).toBe("item-1");
+    expect(rows[0]?.variant_id).toBeNull();
+    expect(rows[0]?.default_sku).toBe("ITM001");
+    expect(rows[1]).toBe(variantA);
+    expect(rows[2]).toBe(variantB);
+    expect(rows[3]).toBe(single);
   });
 });
 

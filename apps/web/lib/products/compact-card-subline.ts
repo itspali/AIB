@@ -1,9 +1,11 @@
 import type { ProductListRow } from "@/lib/products/types";
+import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 
 type SublineInput = {
   product: ProductListRow;
   showSku: boolean;
   showStatus: boolean;
+  showVariants?: boolean;
 };
 
 export type CompactCardSubline = {
@@ -16,13 +18,19 @@ export function buildCompactCardSubline({
   product,
   showSku,
   showStatus,
+  showVariants = false,
 }: SublineInput): CompactCardSubline | null {
-  const skuLabel = product.style_code ?? product.default_sku;
-  const skuPart = showSku
-    ? skuLabel?.trim()
-      ? skuLabel.trim()
-      : "No SKU"
-    : null;
+  const { displaySku, isExpandedVariantRow } = resolveProductListRowPresentation(
+    product,
+    showVariants
+  );
+
+  // Variant cards render SKU in the card header; keep subline for master/single rows.
+  if (isExpandedVariantRow) {
+    return null;
+  }
+
+  const skuPart = showSku ? (displaySku?.trim() ? displaySku.trim() : "No SKU") : null;
   const statusPart = showStatus ? (product.is_active ? "Active" : "Inactive") : null;
 
   if (!skuPart && !statusPart) return null;

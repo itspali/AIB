@@ -170,6 +170,10 @@ export async function fetchOnboardingSnapshot(
   };
 }
 
+export function hasWorkspaceAccess(snapshot: Pick<OnboardingSnapshot, "steps">): boolean {
+  return snapshot.steps.find((step) => step.id === "locations")?.completed ?? false;
+}
+
 export function getFirstIncompleteStepId(steps: OnboardingStepState[]): WizardStepId {
   const order: WizardStepId[] = ["locations", "coa", "tax", "channels"];
   for (const id of order) {

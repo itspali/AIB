@@ -3,7 +3,7 @@ import { fetchCategoryRows } from "@/lib/categories/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import { fetchProductDetail } from "@/lib/products/queries";
-import { ProductFormRoute } from "@/components/products/product-form-route";
+import { ProductFormRouteWithSuspense } from "@/components/products/product-form-route";
 
 export default async function EditItemPage({
   params,
@@ -28,7 +28,7 @@ export default async function EditItemPage({
     : [];
 
   return (
-    <ProductFormRoute
+    <ProductFormRouteWithSuspense
       mode="edit"
       tenantId={tenantId}
       categories={categories}

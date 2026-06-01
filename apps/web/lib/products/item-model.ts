@@ -16,10 +16,42 @@ export const ITEM_SOURCES = ["MANUAL", "QUICK_CREATE", "AI", "IMPORT"] as const;
 export type ItemSource = (typeof ITEM_SOURCES)[number];
 
 const ITEM_TYPE_LABELS: Record<ItemType, string> = {
-  PHYSICAL: "Physical Good",
+  PHYSICAL: "Goods",
   SERVICE: "Service",
-  DIGITAL: "Digital / Virtual",
+  DIGITAL: "Digital",
 };
+
+export type ItemTypeChoice = {
+  value: ItemType;
+  label: string;
+  description: string;
+};
+
+/** Labels and guidance for the product editor item type picker. */
+export const ITEM_TYPE_CHOICES: ItemTypeChoice[] = [
+  {
+    value: "PHYSICAL",
+    label: "Goods",
+    description:
+      "Tangible products you buy, sell, and can track in stock. Supports variants, dimensions, and inventory.",
+  },
+  {
+    value: "SERVICE",
+    label: "Service",
+    description:
+      "Labor or overhead with no physical stock. Supply-chain role is fixed to Service; variants are not used.",
+  },
+  {
+    value: "DIGITAL",
+    label: "Digital",
+    description:
+      "Non-physical deliverables such as licenses or downloads. No stock tracking; a limited set of supply-chain roles applies.",
+  },
+];
+
+const ITEM_TYPE_DESCRIPTIONS: Record<ItemType, string> = Object.fromEntries(
+  ITEM_TYPE_CHOICES.map((choice) => [choice.value, choice.description])
+) as Record<ItemType, string>;
 
 const ITEM_STATUS_LABELS: Record<ItemStatus, string> = {
   DRAFT: "Draft",
@@ -44,8 +76,26 @@ export function itemTypeLabel(value: ItemType): string {
   return ITEM_TYPE_LABELS[value] ?? value;
 }
 
+export function itemTypeDescription(value: ItemType): string {
+  return ITEM_TYPE_DESCRIPTIONS[value] ?? "";
+}
+
+export function itemTypeChoice(value: ItemType): ItemTypeChoice | undefined {
+  return ITEM_TYPE_CHOICES.find((choice) => choice.value === value);
+}
+
 export function itemStatusLabel(value: ItemStatus): string {
   return ITEM_STATUS_LABELS[value] ?? value;
+}
+
+/** User-facing active/inactive; maps to `items.is_active` in the editor. */
+export function itemOperationalStatusLabel(isActive: boolean): string {
+  return isActive ? "Active" : "Inactive";
+}
+
+/** Persisted `items.status` derived from the operational active flag. */
+export function itemLifecycleStatusFromActive(isActive: boolean): ItemStatus {
+  return isActive ? "ACTIVE" : "ARCHIVED";
 }
 
 export function itemCostingMethodLabel(value: ItemCostingMethod): string {

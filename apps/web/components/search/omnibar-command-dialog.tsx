@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Clock, Sparkles } from "lucide-react";
 import { FilterChipRow } from "@/components/search/filter-chip-row";
 import { Omnibar } from "@/components/search/omnibar";
@@ -45,7 +46,12 @@ export function OmnibarCommandDialog() {
   } = useOmnibarContext();
 
   const applyShortcutLabel = useApplyShortcutLabel();
+  const [mounted, setMounted] = useState(false);
   const draftChips = modalDraftAst.filter((clause) => clause.kind !== "text");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const supportsRecent = scope !== "all" && scope !== "settings";
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -87,11 +93,11 @@ export function OmnibarCommandDialog() {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [commandOpen, cancelCommandPalette, applyModalFilters, canApplyModal, isExecuting]);
 
-  if (!commandOpen) return null;
+  if (!commandOpen || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top))] md:pt-[8vh]"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top))] md:pt-[8vh]"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
@@ -201,6 +207,7 @@ export function OmnibarCommandDialog() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

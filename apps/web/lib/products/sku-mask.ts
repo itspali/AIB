@@ -1,4 +1,5 @@
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { RESERVED_COMMERCE_CUSTOM_FIELD_KEYS } from "@/lib/products/item-uom-commerce";
 
 const BASE_TOKEN = "BASE";
 
@@ -42,23 +43,29 @@ export function composeSkuFromMask(
 export function parseCustomFields(raw: Record<string, unknown> | null | undefined): {
   sku_mask: string;
   entries: Array<{ key: string; value: string }>;
+  defaultPurchaseUom: string | null;
+  defaultSellingUom: string | null;
 } {
   if (!raw || typeof raw !== "object") {
-    return { sku_mask: "", entries: [] };
+    return { sku_mask: "", entries: [], defaultPurchaseUom: null, defaultSellingUom: null };
   }
 
   const skuMask = typeof raw.sku_mask === "string" ? raw.sku_mask : "";
   const entries: Array<{ key: string; value: string }> = [];
+  const defaultPurchaseUom =
+    typeof raw._default_purchase_uom === "string" ? raw._default_purchase_uom.trim() || null : null;
+  const defaultSellingUom =
+    typeof raw._default_selling_uom === "string" ? raw._default_selling_uom.trim() || null : null;
 
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "sku_mask") continue;
+    if (key === "sku_mask" || RESERVED_COMMERCE_CUSTOM_FIELD_KEYS.has(key)) continue;
     if (value === null || value === undefined) continue;
     const stringValue = String(value).trim();
     if (!stringValue) continue;
     entries.push({ key, value: stringValue });
   }
 
-  return { sku_mask: skuMask, entries };
+  return { sku_mask: skuMask, entries, defaultPurchaseUom, defaultSellingUom };
 }
 
 export function buildCustomFieldsPayload(
@@ -75,7 +82,9 @@ export function buildCustomFieldsPayload(
   for (const entry of entries) {
     const key = entry.key.trim();
     const value = entry.value.trim();
-    if (!key || key === "sku_mask" || !value) continue;
+    if (!key || key === "sku_mask" || RESERVED_COMMERCE_CUSTOM_FIELD_KEYS.has(key) || !value) {
+      continue;
+    }
     payload[key] = value;
   }
 

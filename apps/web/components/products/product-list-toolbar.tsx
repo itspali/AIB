@@ -1,9 +1,10 @@
 "use client";
 
-import { LayoutList, Table2 } from "lucide-react";
+import { LayoutGrid, Rows3, Table2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
-import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
+import { ProductListToolbarFilters } from "@/components/products/product-list-toolbar-filters";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,24 +17,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
-import type { DeviceClass, ProductListPrefs, ProductListViewMode } from "@/lib/products/list-prefs";
+import {
+  isCardViewMode,
+  supportsProductListVariantExpansion,
+  type DeviceClass,
+  type ProductListPrefs,
+  type ProductListViewMode,
+} from "@/lib/products/list-prefs";
 import {
   PRODUCT_LIST_SORT_OPTIONS,
   sortOptionKey,
 } from "@/lib/products/list-sort";
-import { listControlShellClassName } from "@/lib/products/list-control-shell";
+import {
+  listToolbarIconButtonClass,
+  listToolbarModuleViewTriggerClass,
+  listToolbarSelectClass,
+  listToolbarViewToggleButtonClass,
+  listToolbarViewToggleShellClass,
+  LIST_TOOLBAR_CONTROL_HEIGHT,
+  LIST_TOOLBAR_ROW_MIN_HEIGHT,
+  LIST_TOOLBAR_TEXT,
+} from "@/lib/products/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
+
 type CategoryOption = {
   id: string;
   label: string;
 };
+
+const MOBILE_SELECT_WIDTH = "w-[6rem] sm:w-[8.5rem]";
 
 type Props = {
   categoryFilter: string;
   onCategoryFilterChange: (value: string) => void;
   categoryOptions: CategoryOption[];
   prefs: ProductListPrefs;
-  onPrefsChange: (prefs: ProductListPrefs) => void;
+  onPrefsChange: (
+    prefs: ProductListPrefs | ((current: ProductListPrefs) => ProductListPrefs)
+  ) => void;
   fieldPermissions: ProductFieldPermissions;
   detectedDeviceClass: DeviceClass;
   resultCount: number;
@@ -41,6 +62,13 @@ type Props = {
   prefsHydrated?: boolean;
   isSavingPrefs?: boolean;
   isSavingColumnPrefs?: boolean;
+  isExpandVariantsSyncing?: boolean;
+  /** Overrides prefs.viewMode for display (e.g. force table while detail pane is open). */
+  activeViewMode?: ProductListViewMode;
+  /** Disables view toggle while detail pane forces table layout. */
+  viewModeToggleLocked?: boolean;
+  /** Uses compact result count (e.g. while split-pane detail is open). */
+  compactCountLabel?: boolean;
 };
 
 export function ProductListToolbar({
@@ -56,12 +84,20 @@ export function ProductListToolbar({
   prefsHydrated = true,
   isSavingPrefs = false,
   isSavingColumnPrefs = false,
+  isExpandVariantsSyncing = false,
+  activeViewMode,
+  viewModeToggleLocked = false,
+  compactCountLabel = false,
 }: Props) {
+  const omnibar = useOptionalOmnibarContext();
   const controlsDisabled = !prefsHydrated || isSavingPrefs;
+  const viewMode = activeViewMode ?? prefs.viewMode;
+  const isViewFilterActive = omnibar?.hasActiveFilters ?? false;
+  const isCategoryFilterActive = categoryFilter !== "all";
 
-  const setViewMode = (viewMode: ProductListViewMode) => {
-    if (controlsDisabled || prefs.viewMode === viewMode) return;
-    onPrefsChange({ ...prefs, viewMode });
+  const setViewMode = (nextViewMode: ProductListViewMode) => {
+    if (controlsDisabled || viewModeToggleLocked || prefs.viewMode === nextViewMode) return;
+    onPrefsChange({ ...prefs, viewMode: nextViewMode });
   };
 
   const sortValue = sortOptionKey(prefs.sortField, prefs.sortDirection);
@@ -70,27 +106,79 @@ export function ProductListToolbar({
     allowedSortFields.has(option.field)
   );
 
+  const countLabel =
+    supportsProductListVariantExpansion(viewMode) && prefs.showVariants
+      ? `row${totalCount === 1 ? "" : "s"}`
+      : `product${totalCount === 1 ? "" : "s"}`;
+
   return (
-    <div className="space-y-3">
-      <div className={listControlShellClassName()}>
-        <div className="flex w-full min-w-0 items-center gap-2">
-          <ModuleViewSelect triggerClassName="w-[8.5rem] shrink-0" />
-          <div className="min-w-0 flex-1">
-            <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
-              <SelectTrigger className="h-8 w-full [&>span]:truncate">
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                {categoryOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {prefs.viewMode === "compact" ? (
+    <div className="space-y-2">
+      <div
+        className={cn(
+          "flex min-w-0 flex-nowrap items-center gap-2 text-muted-foreground md:gap-x-3",
+          LIST_TOOLBAR_ROW_MIN_HEIGHT,
+          LIST_TOOLBAR_TEXT
+        )}
+      >
+        <span className="shrink-0 whitespace-nowrap tabular-nums">
+          {compactCountLabel ? (
+            <>
+              {resultCount}/{totalCount}
+            </>
+          ) : (
+            <>
+              <span className="md:hidden">
+                {resultCount}/{totalCount}
+              </span>
+              <span className="hidden md:inline">
+                Showing {resultCount} of {totalCount} {countLabel}.
+              </span>
+            </>
+          )}
+        </span>
+
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto",
+            LIST_TOOLBAR_CONTROL_HEIGHT,
+            "flex-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          )}
+        >
+          <ProductListToolbarFilters
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={onCategoryFilterChange}
+            categoryOptions={categoryOptions}
+          />
+
+          <ModuleViewSelect
+            borderless
+            triggerActive={isViewFilterActive}
+            triggerClassName={cn(
+              listToolbarModuleViewTriggerClass(isViewFilterActive),
+              MOBILE_SELECT_WIDTH
+            )}
+          />
+
+          <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
+            <SelectTrigger
+              className={cn(
+                listToolbarSelectClass(isCategoryFilterActive),
+                MOBILE_SELECT_WIDTH
+              )}
+            >
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {categoryOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {isCardViewMode(viewMode) ? (
             <Select
               value={sortValue}
               disabled={controlsDisabled}
@@ -107,7 +195,10 @@ export function ProductListToolbar({
               }}
             >
               <SelectTrigger
-                className="hidden h-8 w-[9.5rem] shrink-0 sm:flex [&>span]:truncate"
+                className={cn(
+                  listToolbarSelectClass(false),
+                  "hidden w-[8.5rem] shrink-0 sm:flex"
+                )}
                 title="Sort products"
                 aria-label="Sort products"
               >
@@ -125,97 +216,118 @@ export function ProductListToolbar({
               </SelectContent>
             </Select>
           ) : null}
-          {prefs.viewMode === "table" ? (
-            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+
+          {supportsProductListVariantExpansion(viewMode) ? (
+            <div className="flex shrink-0 items-center">
               <Switch
                 id="show-variants-toggle"
                 checked={prefs.showVariants}
-                disabled={controlsDisabled}
+                disabled={controlsDisabled || isExpandVariantsSyncing}
+                className="h-5 w-9 shrink-0 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4 [&>span]:shadow-sm"
                 onCheckedChange={(checked) =>
-                  onPrefsChange({ ...prefs, showVariants: checked === true })
+                  onPrefsChange((current) => ({
+                    ...current,
+                    showVariants: checked === true,
+                  }))
                 }
                 aria-label="Show variants"
               />
               <Label
                 htmlFor="show-variants-toggle"
-                className="cursor-pointer text-xs font-normal text-muted-foreground"
+                className="ml-1.5 hidden cursor-pointer text-sm font-normal text-muted-foreground md:inline"
               >
-                Show variants
+                Variants
               </Label>
             </div>
           ) : null}
-          <div className="flex shrink-0 items-center gap-2">
-            <div
-              className="inline-flex h-8 items-center rounded-md border border-border bg-muted p-0.5"
-              aria-busy={isSavingPrefs}
+
+          <div
+            className={listToolbarViewToggleShellClass()}
+            aria-busy={isSavingPrefs}
+            title={
+              viewModeToggleLocked ? "Card view switches to table while item detail is open" : undefined
+            }
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                listToolbarViewToggleButtonClass(),
+                viewMode === "table"
+                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={controlsDisabled || viewModeToggleLocked}
+              onClick={() => setViewMode("table")}
+              title="Table view"
+              aria-label="Table view"
+              aria-pressed={viewMode === "table"}
             >
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  "h-7 w-7 p-0 focus-visible:ring-1 focus-visible:ring-ring",
-                  prefs.viewMode === "table"
-                    ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                disabled={controlsDisabled}
-                onClick={() => setViewMode("table")}
-                title="Table view"
-                aria-label="Table view"
-                aria-pressed={prefs.viewMode === "table"}
-              >
-                {isSavingPrefs && prefs.viewMode === "table" ? (
-                  <Spinner />
-                ) : (
-                  <Table2 className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  "h-7 w-7 p-0 focus-visible:ring-1 focus-visible:ring-ring",
-                  prefs.viewMode === "compact"
-                    ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                disabled={controlsDisabled}
-                onClick={() => setViewMode("compact")}
-                title="Compact view"
-                aria-label="Compact view"
-                aria-pressed={prefs.viewMode === "compact"}
-              >
-                {isSavingPrefs && prefs.viewMode === "compact" ? (
-                  <Spinner />
-                ) : (
-                  <LayoutList className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <ProductListColumnSettings
-              prefs={prefs}
-              onChange={onPrefsChange}
-              fieldPermissions={fieldPermissions}
-              detectedDeviceClass={detectedDeviceClass}
-              disabled={controlsDisabled}
-              isSaving={isSavingColumnPrefs}
-            />
+              {isSavingPrefs && prefs.viewMode === "table" ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Table2 className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                listToolbarViewToggleButtonClass(),
+                viewMode === "compact"
+                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={controlsDisabled || viewModeToggleLocked}
+              onClick={() => setViewMode("compact")}
+              title="Compact table"
+              aria-label="Compact table"
+              aria-pressed={viewMode === "compact"}
+            >
+              {isSavingPrefs && prefs.viewMode === "compact" ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Rows3 className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                listToolbarViewToggleButtonClass(),
+                viewMode === "card"
+                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={controlsDisabled || viewModeToggleLocked}
+              onClick={() => setViewMode("card")}
+              title="Card view"
+              aria-label="Card view"
+              aria-pressed={viewMode === "card"}
+            >
+              {isSavingPrefs && prefs.viewMode === "card" ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <LayoutGrid className="h-4 w-4" />
+              )}
+            </Button>
           </div>
+
+          <ProductListColumnSettings
+            prefs={{ ...prefs, viewMode }}
+            onChange={onPrefsChange}
+            fieldPermissions={fieldPermissions}
+            detectedDeviceClass={detectedDeviceClass}
+            disabled={controlsDisabled}
+            isSaving={isSavingColumnPrefs}
+            triggerVariant="ghost"
+            triggerClassName={listToolbarIconButtonClass(false)}
+          />
         </div>
       </div>
-
-      <OmnibarFilterChipBar variant="inline" />
-
-      <p className="text-xs text-muted-foreground">
-        Showing {resultCount} of {totalCount}{" "}
-        {prefs.viewMode === "table" && prefs.showVariants
-          ? `row${totalCount === 1 ? "" : "s"}`
-          : `product${totalCount === 1 ? "" : "s"}`}
-        .
-        {prefs.viewMode === "compact" ? " Use the sort control above." : ""}
-      </p>
     </div>
   );
 }

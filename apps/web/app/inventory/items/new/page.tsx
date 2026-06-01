@@ -1,7 +1,7 @@
 import { fetchCategoryRows } from "@/lib/categories/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
-import { ProductFormRoute } from "@/components/products/product-form-route";
+import { ProductFormRouteWithSuspense } from "@/components/products/product-form-route";
 
 export default async function NewItemPage() {
   const { supabase, tenantId } = await getModulePageContext();
@@ -12,7 +12,7 @@ export default async function NewItemPage() {
   ]);
 
   return (
-    <ProductFormRoute
+    <ProductFormRouteWithSuspense
       mode="create"
       tenantId={tenantId}
       categories={categories}

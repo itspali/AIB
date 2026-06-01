@@ -11,9 +11,15 @@ import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { fetchProductDetail } from "@/lib/products/queries";
 import { resolveSessionProductFieldPermissions } from "@/lib/products/field-permissions-server";
 import { productMasterSchema } from "@/lib/products/schemas";
+import {
+  buildAlternateUomsPayload,
+  buildCommerceCustomFieldDefaults,
+} from "@/lib/products/item-uom-commerce";
 import { buildCustomFieldsPayload } from "@/lib/products/sku-mask";
 import type { ProductMasterInput } from "@/lib/products/schemas";
 import { itemMediaSchema, itemVariantSchema } from "@/lib/products/variant-schemas";
+import { itemLifecycleStatusFromActive } from "@/lib/products/item-model";
+import { resolveItemTaxCodePickerOptions } from "@/lib/tax/item-tax-code-picker";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -40,30 +46,6 @@ function buildVariantAttributes(raw: Record<string, string>): Record<string, str
     attributes[trimmedKey] = trimmedValue;
   }
   return attributes;
-}
-
-function buildAlternateUomsPayload(values: ProductMasterInput) {
-  const rows = values.alternate_uoms.map((row) => ({
-    uom_code: row.uom_code,
-    conversion_factor: parseDecimal(row.conversion_factor, 1),
-  }));
-
-  if (values.purchase_uom !== values.base_unit_of_measure) {
-    const purchaseIndex = rows.findIndex((row) => row.uom_code === values.purchase_uom);
-    if (purchaseIndex >= 0) {
-      rows[purchaseIndex] = {
-        uom_code: values.purchase_uom,
-        conversion_factor: parseDecimal(values.purchase_uom_conversion, 1),
-      };
-    } else {
-      rows.unshift({
-        uom_code: values.purchase_uom,
-        conversion_factor: parseDecimal(values.purchase_uom_conversion, 1),
-      });
-    }
-  }
-
-  return rows;
 }
 
 function buildStorefrontItemsPayload(values: ProductMasterInput) {
@@ -122,7 +104,6 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_description: values.description || null,
     p_is_purchasable: values.is_purchasable,
     p_is_salable: values.is_salable,
-    p_is_active: values.is_active,
     p_hsn_sac_code: values.hsn_sac_code || null,
     p_has_variants: values.has_variants,
     p_default_tax_category: values.default_tax_category,
@@ -130,7 +111,6 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_barcode: values.barcode || null,
     p_variant_attributes: buildVariantAttributes(values.variant_attributes),
     p_dead_weight_kg: parseDecimal(values.dead_weight_kg),
-    p_weight: parseOptionalDecimal(values.weight),
     p_volume: parseOptionalDecimal(values.volume),
     p_length_cm: parseDecimal(values.length_cm),
     p_width_cm: parseDecimal(values.width_cm),
@@ -147,20 +127,24 @@ export async function saveProductMasterProfile(raw: unknown) {
         : null,
     p_purchase_price: parseOptionalDecimal(values.purchase_price),
     p_supplier_id: values.supplier_id,
-    p_custom_fields: buildCustomFieldsPayload(values.sku_mask, values.custom_fields),
+    p_custom_fields: {
+      ...buildCustomFieldsPayload(values.sku_mask, values.custom_fields),
+      ...buildCommerceCustomFieldDefaults(values),
+    },
     p_alternate_uoms: buildAlternateUomsPayload(values),
     p_tag_ids: values.tag_ids,
     p_storefront_items: buildStorefrontItemsPayload(values),
     p_variant_strategy: values.variant_strategy,
     p_item_type: values.item_type,
     p_track_inventory: values.track_inventory,
-    p_status: values.status,
+    p_is_active: values.item_id ? values.is_active : true,
+    p_status: itemLifecycleStatusFromActive(values.item_id ? values.is_active : true),
     p_needs_review: values.needs_review,
     p_costing_method: values.costing_method,
     p_standard_cost: parseOptionalDecimal(values.standard_cost),
     p_tracking_mode: values.tracking_mode,
     p_is_bundle: values.is_bundle,
-    p_price_is_tax_inclusive: values.price_is_tax_inclusive,
+    p_price_is_tax_inclusive: false,
     p_expected_updated_at: values.item_id ? values.updated_at : null,
   });
 
@@ -315,7 +299,7 @@ export async function quickCreateItem(input: QuickCreateItemInput) {
   const { data, error } = await supabase.rpc("save_product_master_profile", {
     p_name: name,
     p_sku: sku,
-    p_classification: "PHYSICAL_GOOD",
+    p_classification: "FINISHED_GOOD",
     p_base_uom: input.base_unit_of_measure?.trim() || "PCS",
     p_category_id: input.category_id ?? null,
     p_is_purchasable: input.doc_type !== "sales",
@@ -511,7 +495,6 @@ export async function saveItemVariant(raw: unknown) {
     p_barcode: values.barcode || null,
     p_variant_attributes: buildVariantAttributes(values.variant_attributes),
     p_dead_weight_kg: parseDecimal(values.dead_weight_kg),
-    p_weight: parseOptionalDecimal(values.weight),
     p_volume: parseOptionalDecimal(values.volume),
     p_length_cm: parseDecimal(values.length_cm),
     p_width_cm: parseDecimal(values.width_cm),
@@ -919,11 +902,13 @@ export type TaxCodeOption = {
   rate: string;
   kind: string;
   is_variable: boolean;
+  pickerLabel: string;
+  pickerDescription: string;
 };
 
-export async function fetchActiveTaxCodeOptions(): Promise<
-  { options: TaxCodeOption[] } | { error: string }
-> {
+export async function fetchActiveTaxCodeOptions(options?: {
+  includeTaxCodeId?: string | null;
+}): Promise<{ options: TaxCodeOption[] } | { error: string }> {
   const { supabase, tenantId } = await requireTenantId();
 
   const { data, error } = await supabase
@@ -935,16 +920,30 @@ export async function fetchActiveTaxCodeOptions(): Promise<
 
   if (error) return { error: error.message };
 
-  const options = (data ?? []).map((row) => ({
-    id: row.id as string,
-    code: row.code as string,
-    name: row.name as string,
-    rate: String(row.rate),
-    kind: row.kind as string,
-    is_variable: Boolean(row.is_variable),
-  }));
+  const pickerOptions = resolveItemTaxCodePickerOptions(
+    (data ?? []).map((row) => ({
+      id: row.id as string,
+      code: row.code as string,
+      name: row.name as string,
+      rate: Number(row.rate),
+      kind: row.kind as string,
+      is_variable: Boolean(row.is_variable),
+    })),
+    { includeTaxCodeId: options?.includeTaxCodeId }
+  );
 
-  return { options };
+  return {
+    options: pickerOptions.map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      rate: String(row.rate),
+      kind: row.kind,
+      is_variable: row.is_variable,
+      pickerLabel: row.pickerLabel,
+      pickerDescription: row.pickerDescription,
+    })),
+  };
 }
 
 export type ResolveBulkTargetInput = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import { redactProductListRow } from "@/lib/products/field-permissions";
 import {
   bumpProductListPrefsRevision,
   getColumnPrefsSlice,
+  isCardViewMode,
+  isTableLikeViewMode,
   loadProductListPrefs,
   AUTO_LAYOUT_PREF,
   resolveCardGridColumns,
@@ -31,14 +33,17 @@ import {
   saveProductListPrefs,
   setColumnPrefsSlice,
   shouldPersistPrefsImmediately,
+  supportsProductListVariantExpansion,
   didColumnSettingsChange,
   type ProductListPrefs,
 } from "@/lib/products/list-prefs";
 import { resolveColumnWrapModes, resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
-import { productListRowKey } from "@/lib/products/list-row-key";
+import { productListRowKey, injectVariantParentRows } from "@/lib/products/list-row-key";
 import { sortProductListRows } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
+import { resolveListPaneLayoutOverrides } from "@/lib/products/list-pane-layout";
+import { useElementWidth } from "@/lib/layout/use-element-width";
 import { applyFallbackTextFilter } from "@/lib/search/executor/apply-fallback-text";
 
 const PREFS_SAVE_DEBOUNCE_MS = 500;
@@ -68,6 +73,15 @@ type Props = {
   onImagesHydrated?: (imageUrls: Record<string, string | null>) => void;
   expandVariants?: boolean;
   onExpandVariantsChange?: (expandVariants: boolean) => void;
+  /** Desktop split detail open — list pane uses narrower responsive layout. */
+  detailPaneOpen?: boolean;
+  bulkToolbarEmbedded?: boolean;
+  renderLayout: (sections: {
+    toolbar: ReactNode;
+    bulkToolbar: ReactNode | null;
+    body: ReactNode;
+    viewMode: ProductListPrefs["viewMode"];
+  }) => ReactNode;
 };
 
 export function ProductStreamPanel({
@@ -95,9 +109,13 @@ export function ProductStreamPanel({
   onImagesHydrated,
   expandVariants = false,
   onExpandVariantsChange,
+  detailPaneOpen = false,
+  bulkToolbarEmbedded = false,
+  renderLayout,
 }: Props) {
   const omnibar = useOptionalOmnibarContext();
   const { deviceClass } = useDeviceClass();
+  const { ref: listPaneRef, width: listPaneWidth } = useElementWidth<HTMLDivElement>();
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const initialListPrefsRef = useRef(initialListPrefs);
   const hydratedRef = useRef(false);
@@ -186,11 +204,18 @@ export function ProductStreamPanel({
     []
   );
 
-  const effectiveExpandVariants = prefs.viewMode === "table" && prefs.showVariants;
+  const displayViewMode =
+    detailPaneOpen && isCardViewMode(prefs.viewMode) ? "table" : prefs.viewMode;
+
+  const supportsVariantExpansion = supportsProductListVariantExpansion(displayViewMode);
+  const desiredExpandVariants = supportsVariantExpansion && prefs.showVariants;
+  const effectiveExpandVariants = supportsVariantExpansion && expandVariants;
+  const isExpandVariantsSyncing =
+    supportsVariantExpansion && prefs.showVariants !== expandVariants;
 
   useEffect(() => {
-    onExpandVariantsChange?.(effectiveExpandVariants);
-  }, [effectiveExpandVariants, onExpandVariantsChange]);
+    onExpandVariantsChange?.(desiredExpandVariants);
+  }, [desiredExpandVariants, onExpandVariantsChange]);
 
   useEffect(() => {
     if (omnibar?.scopePinnedToAll) {
@@ -252,13 +277,12 @@ export function ProductStreamPanel({
     structuralFilterResolved,
   ]);
 
-  const displayedProducts = useMemo(
-    () =>
-      sortProductListRows(filteredProducts, prefs.sortField, prefs.sortDirection, {
-        showVariants: effectiveExpandVariants,
-      }),
-    [effectiveExpandVariants, filteredProducts, prefs.sortField, prefs.sortDirection]
-  );
+  const displayedProducts = useMemo(() => {
+    const sorted = sortProductListRows(filteredProducts, prefs.sortField, prefs.sortDirection, {
+      showVariants: effectiveExpandVariants,
+    });
+    return effectiveExpandVariants ? injectVariantParentRows(sorted) : sorted;
+  }, [effectiveExpandVariants, filteredProducts, prefs.sortField, prefs.sortDirection]);
 
   const displayedRowKeys = useMemo(
     () => displayedProducts.map((product) => productListRowKey(product, effectiveExpandVariants)),
@@ -271,31 +295,63 @@ export function ProductStreamPanel({
   const pageSomeSelected =
     displayedRowKeys.some((key) => bulkSelectedIds.has(key)) && !pageAllSelected;
 
+  const baseCardGridColumns = useMemo(
+    () => resolveCardGridColumns(prefs, deviceClass),
+    [deviceClass, prefs]
+  );
+
+  const baseFrozenColumnCount = useMemo(
+    () => resolveFrozenColumnCount(prefs, deviceClass),
+    [deviceClass, prefs]
+  );
+
+  const listPaneLayout = useMemo(
+    () =>
+      resolveListPaneLayoutOverrides({
+        viewportDeviceClass: deviceClass,
+        listPaneWidth,
+        detailPaneOpen,
+        frozenColumnCount: baseFrozenColumnCount,
+        cardGridColumns: baseCardGridColumns,
+        freezeColumnsAuto: prefs.frozenColumnCount === AUTO_LAYOUT_PREF,
+      }),
+    [
+      baseCardGridColumns,
+      baseFrozenColumnCount,
+      detailPaneOpen,
+      deviceClass,
+      listPaneWidth,
+      prefs.frozenColumnCount,
+    ]
+  );
+
+  const listDisplayDeviceClass = listPaneLayout.deviceClass;
+
   const visibleColumns = useMemo(
     () =>
       resolveVisibleColumns({
         prefs,
-        viewMode: prefs.viewMode,
-        deviceClass,
+        viewMode: displayViewMode,
+        deviceClass: listDisplayDeviceClass,
         allowedFields: fieldPermissions.allowedFields,
       }),
-    [deviceClass, fieldPermissions.allowedFields, prefs]
+    [displayViewMode, fieldPermissions.allowedFields, listDisplayDeviceClass, prefs]
   );
 
   const columnWrapModes = useMemo(() => {
-    const slice = getColumnPrefsSlice(prefs, prefs.viewMode, deviceClass);
-    return resolveColumnWrapModes(visibleColumns, slice, prefs.viewMode);
-  }, [deviceClass, prefs, visibleColumns]);
+    const slice = getColumnPrefsSlice(prefs, displayViewMode, listDisplayDeviceClass);
+    return resolveColumnWrapModes(visibleColumns, slice, displayViewMode);
+  }, [displayViewMode, listDisplayDeviceClass, prefs, visibleColumns]);
 
   const columnWidths = useMemo(() => {
-    if (prefs.viewMode !== "table") return undefined;
-    return getColumnPrefsSlice(prefs, prefs.viewMode, deviceClass).columnWidths;
-  }, [deviceClass, prefs]);
+    if (!isTableLikeViewMode(displayViewMode)) return undefined;
+    return getColumnPrefsSlice(prefs, displayViewMode, listDisplayDeviceClass).columnWidths;
+  }, [displayViewMode, listDisplayDeviceClass, prefs]);
 
   const handleColumnWidthChange = useCallback(
     (columnId: ProductListColumnId, width: number | null) => {
       handlePrefsChange((current) => {
-        const slice = getColumnPrefsSlice(current, current.viewMode, deviceClass);
+        const slice = getColumnPrefsSlice(current, displayViewMode, deviceClass);
         const nextWidths = { ...(slice.columnWidths ?? {}) };
 
         if (width == null) {
@@ -307,18 +363,18 @@ export function ProductStreamPanel({
         const normalizedWidths =
           Object.keys(nextWidths).length > 0 ? nextWidths : undefined;
 
-        return setColumnPrefsSlice(current, current.viewMode, deviceClass, {
+        return setColumnPrefsSlice(current, displayViewMode, deviceClass, {
           ...slice,
           columnWidths: normalizedWidths,
         });
       });
     },
-    [deviceClass, handlePrefsChange]
+    [deviceClass, displayViewMode, handlePrefsChange]
   );
 
   const shouldHydrateImages = useMemo(
-    () => prefs.viewMode === "compact" || visibleColumns.includes("image"),
-    [prefs.viewMode, visibleColumns]
+    () => isCardViewMode(displayViewMode) || visibleColumns.includes("image"),
+    [displayViewMode, visibleColumns]
   );
 
   const imageHydrationKeyRef = useRef("");
@@ -347,55 +403,48 @@ export function ProductStreamPanel({
     };
   }, [onImagesHydrated, prefsHydrated, products, shouldHydrateImages]);
 
-  const cardGridColumns = useMemo(
-    () => resolveCardGridColumns(prefs, deviceClass),
-    [deviceClass, prefs]
-  );
-
-  const frozenColumnCount = useMemo(
-    () => resolveFrozenColumnCount(prefs, deviceClass),
-    [deviceClass, prefs]
-  );
-
   const handleImageClick = useCallback((product: ProductListRow) => {
     setGalleryItem({ id: product.id, name: product.name });
     setGalleryOpen(true);
   }, []);
 
-  const bulkSelectionCount = bulkSelectAllMatching ? totalCount : bulkSelectedIds.size;
   const showBulkToolbar =
-    bulkSelectionCount > 0 &&
+    (bulkSelectAllMatching ? totalCount : bulkSelectedIds.size) > 0 &&
     onBulkClearSelection &&
     onBulkSelectAllMatching &&
     onBulkAction;
 
-  const listContent = !prefsHydrated || isLoadingStructuralFilter ? (
-    <ProductListSkeleton viewMode={prefs.viewMode} />
+  const listContent = !prefsHydrated || isLoadingStructuralFilter || isExpandVariantsSyncing ? (
+    <ProductListSkeleton viewMode={displayViewMode} />
   ) : displayedProducts.length === 0 ? (
     <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
       {products.length === 0
         ? "No items yet. Create your first item profile to populate the catalog."
         : "No items match the current filter."}
     </p>
-  ) : prefs.viewMode === "compact" ? (
-    <ProductListCompact
-      products={displayedProducts}
-      columns={visibleColumns}
-      columnWrapModes={columnWrapModes}
-      gridColumns={cardGridColumns}
-      selectedId={selectedId}
-      bulkSelectedIds={bulkSelectedIds}
-      onSelect={onSelect}
-      onBulkRowToggle={onBulkRowToggle}
-      onImageClick={handleImageClick}
-    />
+  ) : isCardViewMode(displayViewMode) ? (
+    <div className="min-h-0 flex-1 basis-0 overflow-auto overscroll-contain scrollbar-none">
+      <ProductListCompact
+        products={displayedProducts}
+        columns={visibleColumns}
+        columnWrapModes={columnWrapModes}
+        gridColumns={listPaneLayout.cardGridColumns}
+        showVariants={effectiveExpandVariants}
+        selectedId={selectedId}
+        bulkSelectedIds={bulkSelectedIds}
+        onSelect={onSelect}
+        onBulkRowToggle={onBulkRowToggle}
+        onImageClick={handleImageClick}
+      />
+    </div>
   ) : (
     <ProductListTable
       products={displayedProducts}
       columns={visibleColumns}
       columnWrapModes={columnWrapModes}
       columnWidths={columnWidths}
-      deviceClass={deviceClass}
+      deviceClass={listDisplayDeviceClass}
+      compactRows={displayViewMode === "compact"}
       showVariants={effectiveExpandVariants}
       selectedId={selectedId}
       bulkSelectedIds={bulkSelectedIds}
@@ -403,8 +452,8 @@ export function ProductStreamPanel({
       pageSomeSelected={pageSomeSelected}
       sortField={prefs.sortField}
       sortDirection={prefs.sortDirection}
-      frozenColumnCount={frozenColumnCount}
-      freezeColumnsAuto={prefs.frozenColumnCount === AUTO_LAYOUT_PREF}
+      frozenColumnCount={listPaneLayout.frozenColumnCount}
+      freezeColumnsAuto={listPaneLayout.freezeColumnsAuto}
       onSortChange={(sortField, sortDirection) =>
         handlePrefsChange((current) => ({ ...current, sortField, sortDirection }))
       }
@@ -416,41 +465,53 @@ export function ProductStreamPanel({
     />
   );
 
-  return (
-    <div className="space-y-3">
-      <ProductListToolbar
-          categoryFilter={categoryFilter}
-          onCategoryFilterChange={(value) => {
-            setCategoryFilter(value);
-            onCategoryFilterChange?.(value);
-          }}
-          categoryOptions={categoryOptions}
-          prefs={prefs}
-          onPrefsChange={handlePrefsChange}
-          fieldPermissions={fieldPermissions}
-          detectedDeviceClass={deviceClass}
-          resultCount={displayedProducts.length}
-          totalCount={totalCount}
-          prefsHydrated={prefsHydrated}
-          isSavingPrefs={isSavingPrefs}
-          isSavingColumnPrefs={isSavingColumnPrefs}
-        />
+  const toolbar = (
+    <ProductListToolbar
+      categoryFilter={categoryFilter}
+      onCategoryFilterChange={(value) => {
+        setCategoryFilter(value);
+        onCategoryFilterChange?.(value);
+      }}
+      categoryOptions={categoryOptions}
+      prefs={prefs}
+      onPrefsChange={handlePrefsChange}
+      fieldPermissions={fieldPermissions}
+      detectedDeviceClass={deviceClass}
+      resultCount={displayedProducts.length}
+      totalCount={totalCount}
+      prefsHydrated={prefsHydrated}
+      isSavingPrefs={isSavingPrefs}
+      isSavingColumnPrefs={isSavingColumnPrefs}
+      isExpandVariantsSyncing={isExpandVariantsSyncing}
+      activeViewMode={displayViewMode}
+      viewModeToggleLocked={detailPaneOpen && isCardViewMode(prefs.viewMode)}
+      compactCountLabel={detailPaneOpen}
+    />
+  );
 
-      {showBulkToolbar ? (
-        <ProductBulkActionToolbar
-          selectedCount={bulkSelectedIds.size}
-          totalMatchingCount={totalCount}
-          selectAllMatching={bulkSelectAllMatching}
-          visibleCount={displayedProducts.length}
-          isPending={isBulkPending}
-          fieldPermissions={fieldPermissions}
-          onClearSelection={onBulkClearSelection}
-          onSelectAllMatching={onBulkSelectAllMatching}
-          onAction={onBulkAction}
-        />
-      ) : null}
+  const bulkToolbar =
+    showBulkToolbar ? (
+      <ProductBulkActionToolbar
+        selectedCount={bulkSelectedIds.size}
+        totalMatchingCount={totalCount}
+        selectAllMatching={bulkSelectAllMatching}
+        pageAllSelected={pageAllSelected}
+        visibleCount={displayedProducts.length}
+        isPending={isBulkPending}
+        fieldPermissions={fieldPermissions}
+        onClearSelection={onBulkClearSelection}
+        onSelectPage={() => onBulkPageToggle(displayedRowKeys, true)}
+        onSelectAllMatching={onBulkSelectAllMatching}
+        onAction={onBulkAction}
+        embedded={bulkToolbarEmbedded}
+      />
+    ) : null;
 
-      {listContent}
+  const body = (
+    <div className="flex min-h-0 flex-1 basis-0 flex-col">
+      <div ref={listPaneRef} className="flex min-h-0 flex-1 basis-0 flex-col">
+        {listContent}
+      </div>
 
       <ProductListImageGallery
         key={galleryItem?.id ?? "gallery-closed"}
@@ -482,4 +543,6 @@ export function ProductStreamPanel({
       ) : null}
     </div>
   );
+
+  return renderLayout({ toolbar, bulkToolbar, body, viewMode: displayViewMode });
 }

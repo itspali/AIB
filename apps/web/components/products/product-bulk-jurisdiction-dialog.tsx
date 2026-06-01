@@ -17,6 +17,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectItemWithDescription,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -25,10 +26,9 @@ import { buildCategoryTree, flattenTree } from "@/lib/categories/tree";
 import { taxCategoryLabel, type TaxCategory } from "@/lib/products/tax-options";
 
 function deriveTaxCategory(rate: number, kind: string): TaxCategory {
-  if (kind === "EXEMPT") return "EXEMPT";
-  if (kind === "ZERO" || kind === "NIL" || !Number.isFinite(rate) || rate === 0) return "ZERO_RATED";
-  if (rate > 0 && rate < 18) return "REDUCED";
-  return "STANDARD";
+  if (kind === "EXEMPT") return "NON_TAXABLE";
+  if (kind === "ZERO" || kind === "NIL" || !Number.isFinite(rate) || rate === 0) return "TAXABLE";
+  return "TAXABLE";
 }
 
 type Props = {
@@ -73,7 +73,7 @@ export function ProductBulkJurisdictionDialog({
     setIsLoadingTax(true);
     setLoadError(null);
     void (async () => {
-      const result = await fetchActiveTaxCodeOptions();
+      const result = await fetchActiveTaxCodeOptions({ includeTaxCodeId: taxCodeId || null });
       if ("error" in result) {
         setLoadError(result.error);
         setTaxOptions([]);
@@ -132,12 +132,14 @@ export function ProductBulkJurisdictionDialog({
               <SelectTrigger>
                 <SelectValue placeholder={isLoadingTax ? "Loading…" : "Select tax rule"} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" sideOffset={4}>
                 {taxOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                    {option.is_variable ? " (slab)" : ` (${Number(option.rate)}%)`}
-                  </SelectItem>
+                  <SelectItemWithDescription
+                    key={option.id}
+                    value={option.id}
+                    label={option.pickerLabel}
+                    description={option.pickerDescription}
+                  />
                 ))}
               </SelectContent>
             </Select>

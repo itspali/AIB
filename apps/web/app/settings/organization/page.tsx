@@ -7,7 +7,7 @@ import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { getTenantLogoSignedUrl } from "@/lib/organization/logo";
 import { fetchOrganizationSettingsSnapshot } from "@/lib/organization/queries";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot } from "@/lib/onboarding/status";
+import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { getSessionClaims } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +21,7 @@ export default async function OrganizationSettingsPage() {
   const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
   if (!onboardingSnapshot) redirect("/signup");
 
-  if (!onboardingSnapshot.isOnboardingComplete) redirect("/onboarding");
+  if (!hasWorkspaceAccess(onboardingSnapshot)) redirect("/onboarding");
 
   const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
 

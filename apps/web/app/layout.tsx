@@ -26,14 +26,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isDarkTheme = themeCookie !== "light";
 
   let initialComplete = false;
+  let initialWorkspaceAccess = false;
   if (tenantId) {
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("tenants")
-      .select("onboarding_status")
-      .eq("id", tenantId)
-      .single();
+    const [{ data }, { count: locationCount }] = await Promise.all([
+      supabase.from("tenants").select("onboarding_status").eq("id", tenantId).single(),
+      supabase
+        .from("tenant_locations")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId),
+    ]);
     initialComplete = data?.onboarding_status === "GO_LIVE_READY";
+    initialWorkspaceAccess = (locationCount ?? 0) > 0;
   }
 
   return (
@@ -47,7 +51,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {themeInitScript}
         </Script>
         <Providers>
-          <OnboardingProvider initialComplete={initialComplete}>
+          <OnboardingProvider
+            initialComplete={initialComplete}
+            initialWorkspaceAccess={initialWorkspaceAccess}
+          >
             {children}
             <Toaster position="top-right" richColors />
           </OnboardingProvider>
