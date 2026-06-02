@@ -13,6 +13,9 @@ type ModuleLinkProps = {
   labelClassName?: string;
 };
 
+/** Keeps module nav icons pinned while labels collapse. */
+export const navIconSlotClass = "flex size-4 shrink-0 items-center justify-center";
+
 /** Icon + label content for module nav links; icon becomes a spinner while pending. */
 export function NavModuleLinkContent({
   icon: Icon,
@@ -24,14 +27,24 @@ export function NavModuleLinkContent({
   const { pending } = useLinkStatus();
   return (
     <>
-      {pending ? (
-        <Spinner className={cn("size-4", iconClassName)} />
-      ) : (
-        <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
-      )}
-      {showLabel ? (
-        <span className={cn(pending && "opacity-80", labelClassName)}>{label}</span>
-      ) : null}
+      <span className={navIconSlotClass}>
+        {pending ? (
+          <Spinner className={cn("size-4", iconClassName)} />
+        ) : (
+          <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
+        )}
+      </span>
+      <span
+        aria-hidden={!showLabel}
+        className={cn(
+          "min-w-0 truncate transition-[opacity,width] duration-200 ease-in-out",
+          showLabel ? "w-auto opacity-100" : "w-0 overflow-hidden opacity-0",
+          pending && showLabel && "opacity-80",
+          labelClassName
+        )}
+      >
+        {label}
+      </span>
     </>
   );
 }

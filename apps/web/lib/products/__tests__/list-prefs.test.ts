@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   coerceProductListPrefs,
   getDefaultProductListPrefs,
+  getMaxCardGridColumns,
   getOrderedVisibleColumns,
   PRODUCT_LIST_PREFS_VERSION,
   resolveCardGridColumns,
@@ -29,6 +30,7 @@ describe("product list prefs migration", () => {
       tablet: "auto",
       desktop: "auto",
     });
+    expect(migrated.cardLayout).toBe("v2");
     expect(getOrderedVisibleColumns(migrated, "table", "desktop")).toEqual([
       "name",
       "default_sku",
@@ -212,9 +214,9 @@ describe("resolveProductListExpandVariants", () => {
 describe("resolveCardGridColumns", () => {
   it("clamps desktop preference on smaller devices", () => {
     const prefs = getDefaultProductListPrefs();
-    prefs.cardGridColumns = { mobile: "auto", tablet: "auto", desktop: 4 };
+    prefs.cardGridColumns = { mobile: "auto", tablet: "auto", desktop: 6 };
 
-    expect(resolveCardGridColumns(prefs, "desktop")).toBe(4);
+    expect(resolveCardGridColumns(prefs, "desktop")).toBe(6);
     expect(resolveCardGridColumns(prefs, "tablet")).toBe(2);
     expect(resolveCardGridColumns(prefs, "mobile")).toBe(1);
   });
@@ -231,12 +233,18 @@ describe("resolveCardGridColumns", () => {
   it("clamps over-max stored values per device", () => {
     const prefs = coerceProductListPrefs({
       ...getDefaultProductListPrefs(),
-      cardGridColumns: { mobile: 4, tablet: 4, desktop: 4 },
+      cardGridColumns: { mobile: 6, tablet: 6, desktop: 6 },
     });
 
-    expect(prefs.cardGridColumns.mobile).toBe(1);
-    expect(prefs.cardGridColumns.tablet).toBe(2);
-    expect(prefs.cardGridColumns.desktop).toBe(4);
+    expect(prefs.cardGridColumns.mobile).toBe(2);
+    expect(prefs.cardGridColumns.tablet).toBe(4);
+    expect(prefs.cardGridColumns.desktop).toBe(6);
+  });
+
+  it("exposes per-device max card grid columns", () => {
+    expect(getMaxCardGridColumns("mobile")).toBe(2);
+    expect(getMaxCardGridColumns("tablet")).toBe(4);
+    expect(getMaxCardGridColumns("desktop")).toBe(6);
   });
 
   it("defaults showVariants to false and coerces persisted true", () => {
@@ -247,6 +255,30 @@ describe("resolveCardGridColumns", () => {
         showVariants: true,
       }).showVariants
     ).toBe(true);
+  });
+
+  it("preserves cardLayout when coerced", () => {
+    expect(
+      coerceProductListPrefs({
+        ...getDefaultProductListPrefs(),
+        cardLayout: "v2",
+      }).cardLayout
+    ).toBe("v2");
+    expect(
+      coerceProductListPrefs({
+        ...getDefaultProductListPrefs(),
+        cardLayout: "shop",
+      }).cardLayout
+    ).toBe("shop");
+  });
+
+  it("coerces unknown cardLayout to detail (v2)", () => {
+    expect(
+      coerceProductListPrefs({
+        ...getDefaultProductListPrefs(),
+        cardLayout: "unknown",
+      }).cardLayout
+    ).toBe("v2");
   });
 });
 

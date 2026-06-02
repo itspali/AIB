@@ -14,7 +14,7 @@ export type VariantStrategyChoice = {
 
 /** Short intro for the Variant field info popover. */
 export const VARIANT_STRATEGY_FIELD_INTRO =
-  "How many product codes (SKUs) this item uses on purchase orders, sales orders, and inventory — not whether you sell it.";
+  "Do you track one product code or many (for example each size or color)? This does not mean whether you sell online.";
 
 /** Labels and guidance for the product editor variant picker. */
 export const VARIANT_STRATEGY_CHOICES: VariantStrategyChoice[] = [
@@ -22,13 +22,13 @@ export const VARIANT_STRATEGY_CHOICES: VariantStrategyChoice[] = [
     value: "SINGLE_SKU",
     label: "Single",
     description:
-      "One SKU for this item. Use when there is no separate size, color, or other version to track on orders or stock.",
+      "One code for the whole item. Best when there is only one version (no separate sizes or colors).",
   },
   {
     value: "MULTI_SKU",
     label: "Multiple",
     description:
-      "Several SKUs for the same item (e.g. by size or color). Each version can be purchased, sold, and stocked; add them after saving.",
+      "A code for each version (size, color, etc.). Add versions after you save the item.",
   },
 ];
 

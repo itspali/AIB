@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
@@ -102,6 +111,49 @@ const CATALOG_VIEWPORT_FALLBACK_HEIGHT =
 
 const CATALOG_PAGE_CHROME =
   "z-20 shrink-0 border-b border-border/80 bg-background -mx-4 px-4 pt-2 pb-0.5 md:-mx-6 md:px-6 md:pt-2.5 md:pb-1 lg:-mx-8 lg:px-8 lg:pt-3";
+
+type CatalogDetailSplitPaneProps = {
+  body: ReactNode;
+  viewMode: ProductListPrefs["viewMode"];
+  panelOpen: boolean;
+  panelMode: ProductFormMode;
+  detail: ProductDetailSnapshot | null;
+  onDetailClose: () => void;
+};
+
+function CatalogDetailSplitPane({
+  body,
+  viewMode,
+  panelOpen,
+  panelMode,
+  detail,
+  onDetailClose,
+}: CatalogDetailSplitPaneProps) {
+  return (
+    <SplitPaneLayout
+      fillParent
+      className="h-full min-h-0 flex-1 basis-0"
+      primaryClassName="overflow-hidden"
+      insetPrimary={viewMode === "card"}
+      detailOpen={panelOpen}
+      onDetailClose={onDetailClose}
+      detailTitle={resolveProductPanelTitle(panelMode, detail)}
+      detailDescription={resolveProductPanelDescription(panelMode, detail)}
+      detailScrollOwner="panel"
+      detailLeading={
+        panelOpen ? (
+          <ProductPrimaryImage
+            imageUrl={resolveProductPanelImageUrl(panelMode, detail)}
+            alt={resolveProductPanelTitle(panelMode, detail)}
+          />
+        ) : undefined
+      }
+      detailActions={panelOpen ? <ProductPanelHeaderActions /> : undefined}
+      primary={<div className="flex h-full min-h-0 flex-1 basis-0 flex-col">{body}</div>}
+      detail={panelOpen ? <ProductPanelBody /> : null}
+    />
+  );
+}
 
 function ItemsPageTitleHeader({ onNewItem }: { onNewItem: () => void }) {
   return (
@@ -906,15 +958,10 @@ export function ProductCatalogTerminal({
   };
 
   const handleNewItem = () => {
-    if (!isDesktop) {
-      router.push("/inventory/items/new");
-      return;
-    }
-    setSelectedId(null);
-    setDetail(null);
-    setPanelMode("create");
-    setPanelOpen(true);
-    void ensureCatalogContext();
+    // Creating an item is a guided, staged flow that lives on the full-page
+    // wizard. The split-pane panel stays for quickly viewing/editing existing
+    // items. `from=catalog` keeps Back/Cancel returning to this list.
+    router.push("/inventory/items/new?from=catalog");
   };
 
   const handlePanelClose = () => {
@@ -1008,30 +1055,6 @@ export function ProductCatalogTerminal({
     bulkToolbarEmbedded: true,
   } as const;
 
-  const renderCatalogSplitPane = (body: React.ReactNode, viewMode: ProductListPrefs["viewMode"]) => (
-    <SplitPaneLayout
-      fillParent
-      className="h-full min-h-0 flex-1 basis-0"
-      primaryClassName="overflow-hidden"
-      insetPrimary={viewMode === "card"}
-      detailOpen={panelOpen}
-      onDetailClose={handlePanelClose}
-      detailTitle={resolveProductPanelTitle(panelMode, detail)}
-      detailDescription={resolveProductPanelDescription(panelMode, detail)}
-      detailLeading={
-        panelOpen ? (
-          <ProductPrimaryImage
-            imageUrl={resolveProductPanelImageUrl(panelMode, detail)}
-            alt={resolveProductPanelTitle(panelMode, detail)}
-          />
-        ) : undefined
-      }
-      detailActions={panelOpen ? <ProductPanelHeaderActions /> : undefined}
-      primary={<div className="flex h-full min-h-0 flex-1 basis-0 flex-col">{body}</div>}
-      detail={panelOpen ? <ProductPanelBody /> : null}
-    />
-  );
-
   return (
     <>
       <div
@@ -1077,10 +1100,24 @@ export function ProductCatalogTerminal({
                     onExtensionsChanged={refreshDetail}
                     onClose={handlePanelClose}
                   >
-                    {renderCatalogSplitPane(body, viewMode)}
+                    <CatalogDetailSplitPane
+                      body={body}
+                      viewMode={viewMode}
+                      panelOpen={panelOpen}
+                      panelMode={panelMode}
+                      detail={detail}
+                      onDetailClose={handlePanelClose}
+                    />
                   </ProductPanelScope>
                 ) : (
-                  renderCatalogSplitPane(body, viewMode)
+                  <CatalogDetailSplitPane
+                    body={body}
+                    viewMode={viewMode}
+                    panelOpen={panelOpen}
+                    panelMode={panelMode}
+                    detail={detail}
+                    onDetailClose={handlePanelClose}
+                  />
                 )}
               </div>
             </div>

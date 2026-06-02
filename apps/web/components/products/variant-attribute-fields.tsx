@@ -1,6 +1,8 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
+import { VARIANT_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -27,7 +29,7 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
   if (templates.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Select a category with attribute templates to capture variant-specific parameters.
+        Pick a category first to show size, color, and other options for each version.
       </p>
     );
   }
@@ -43,15 +45,17 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
             <div
               key={template.key}
               className={cn(
-                "flex items-center justify-between sm:col-span-2",
+                "editor-toggle-row flex items-center justify-between sm:col-span-2",
                 panel
                   ? "variant-attribute-toggle"
                   : "rounded-lg border border-border px-4 py-3"
               )}
             >
-              <div>
+              <div className="flex items-center gap-1.5">
                 <p className="text-sm font-medium">{template.label}</p>
-                <p className="text-xs text-muted-foreground">{template.key}</p>
+                <FieldLabelInfo label={template.label}>
+                  {fieldHelpText(VARIANT_FIELD_HELP.categoryAttribute(template.key))}
+                </FieldLabelInfo>
               </div>
               <Switch
                 checked={currentValue === "true"}
@@ -65,16 +69,21 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
         if (template.type === "select" && template.options?.length) {
           return (
             <div key={template.key} className={panel ? "space-y-1.5" : "space-y-2"}>
-              <Label
-                htmlFor={fieldId}
-                className={cn(
-                  "font-medium text-muted-foreground",
-                  panel ? "text-xs" : "text-sm"
-                )}
-              >
-                {template.label}
-                {template.required && " *"}
-              </Label>
+              <div className="flex items-center gap-1.5">
+                <Label
+                  htmlFor={fieldId}
+                  className={cn(
+                    "font-medium text-muted-foreground",
+                    panel ? "text-xs" : "text-sm"
+                  )}
+                >
+                  {template.label}
+                  {template.required && " *"}
+                </Label>
+                <FieldLabelInfo label={template.label}>
+                  {fieldHelpText(VARIANT_FIELD_HELP.categoryAttribute(template.key))}
+                </FieldLabelInfo>
+              </div>
               <Select
                 value={currentValue || "none"}
                 disabled={disabled}
@@ -98,16 +107,23 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
 
         return (
           <div key={template.key} className={panel ? "space-y-1.5" : "space-y-2"}>
-            <Label
-              htmlFor={fieldId}
-              className={cn(
-                "font-medium text-muted-foreground",
-                panel ? "text-xs" : "text-sm"
-              )}
-            >
-              {template.label}
-              {template.required && " *"}
-            </Label>
+            <div className="flex items-center gap-1.5">
+              <Label
+                htmlFor={fieldId}
+                className={cn(
+                  "font-medium text-muted-foreground",
+                  panel ? "text-xs" : "text-sm"
+                )}
+              >
+                {template.label}
+                {template.required && " *"}
+              </Label>
+              <FieldLabelInfo label={template.label}>
+                {fieldHelpText(
+                  `Category attribute (“${template.key}”). Used when building variant SKUs from your SKU mask.`
+                )}
+              </FieldLabelInfo>
+            </div>
             <Input
               id={fieldId}
               disabled={disabled}

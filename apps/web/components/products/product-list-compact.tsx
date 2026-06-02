@@ -6,13 +6,16 @@ import type { ProductListColumnId } from "@/lib/products/list-columns";
 import type { ProductListRow } from "@/lib/products/types";
 import { productListRowKey } from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
-import { ProductListCompactCard } from "@/components/products/product-list-compact-card";
+import { ProductListCompactCardV2 } from "@/components/products/product-list-compact-card-v2";
+import { ProductListCompactCardShop } from "@/components/products/product-list-compact-card-shop";
+import { isShopCardLayout, type ProductCardLayout } from "@/lib/products/list-prefs";
 
 type Props = {
   products: ProductListRow[];
   columns: ProductListColumnId[];
   columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
   gridColumns: CardGridColumnCount;
+  cardLayout?: ProductCardLayout;
   showVariants?: boolean;
   selectedId: string | null;
   bulkSelectedIds: Set<string>;
@@ -23,9 +26,11 @@ type Props = {
 
 const GRID_CLASS: Record<CardGridColumnCount, string> = {
   1: "grid-cols-1",
-  2: "grid-cols-1 md:grid-cols-2 lg:grid-cols-2",
-  3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
-  4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  6: "grid-cols-6",
 };
 
 export function ProductListCompact({
@@ -33,6 +38,7 @@ export function ProductListCompact({
   columns,
   columnWrapModes,
   gridColumns,
+  cardLayout = "v2",
   showVariants = false,
   selectedId,
   bulkSelectedIds,
@@ -41,23 +47,30 @@ export function ProductListCompact({
   onImageClick,
 }: Props) {
   return (
-    <div className={cn("grid gap-3", GRID_CLASS[gridColumns])}>
+    <div
+      className={cn(
+        "grid px-0.5 pb-0.5 pt-2",
+        isShopCardLayout(cardLayout) ? "gap-4" : "gap-3",
+        GRID_CLASS[gridColumns]
+      )}
+    >
       {products.map((product) => {
         const rowKey = productListRowKey(product, showVariants);
-        return (
-        <ProductListCompactCard
-          key={rowKey}
-          product={product}
-          columns={columns}
-          columnWrapModes={columnWrapModes}
-          showVariants={showVariants}
-          selected={selectedId === product.id}
-          bulkSelected={bulkSelectedIds.has(rowKey)}
-          onSelect={onSelect}
-          onBulkToggle={(checked) => onBulkRowToggle(rowKey, checked)}
-          onImageClick={onImageClick}
-        />
-        );
+        const cardProps = {
+          product,
+          columns,
+          columnWrapModes,
+          showVariants,
+          selected: selectedId === product.id,
+          bulkSelected: bulkSelectedIds.has(rowKey),
+          onSelect,
+          onBulkToggle: (checked: boolean) => onBulkRowToggle(rowKey, checked),
+          onImageClick,
+        };
+        if (cardLayout === "shop") {
+          return <ProductListCompactCardShop key={rowKey} {...cardProps} />;
+        }
+        return <ProductListCompactCardV2 key={rowKey} {...cardProps} />;
       })}
     </div>
   );

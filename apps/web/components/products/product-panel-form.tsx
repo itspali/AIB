@@ -13,6 +13,7 @@ import Link from "next/link";
 import { ExternalLink, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { getItemEditability } from "@/app/items/actions";
+
 import { ProductEditorShell } from "@/components/products/product-editor/product-editor-shell";
 import { ProductEditorSkeleton } from "@/components/products/product-editor/product-editor-skeleton";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ type PanelContextValue = {
   isLoadingEditability: boolean;
   fullPageHref: string;
   onEdit: () => void;
+  fieldPermissions: ProductFieldPermissions;
 };
 
 const ProductPanelContext = createContext<PanelContextValue | null>(null);
@@ -152,8 +154,17 @@ export function ProductPanelScope({
       isLoadingEditability,
       fullPageHref,
       onEdit: handleEdit,
+      fieldPermissions,
     }),
-    [mode, detail, canEdit, isLoadingEditability, fullPageHref, handleEdit]
+    [
+      mode,
+      detail,
+      canEdit,
+      isLoadingEditability,
+      fullPageHref,
+      handleEdit,
+      fieldPermissions,
+    ]
   );
 
   const body =

@@ -185,26 +185,36 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   }, [userId, cacheTenantId]);
 
   useEffect(() => {
-    if (scopePinnedToAll) return;
     const nextScope = resolveScopeFromPath(pathname);
-    if (routeScopeRef.current !== nextScope) {
-      setRawQuery("");
-      setAppliedQuery("");
-      setCompileResult(null);
-      setFilteredItemIds(null);
-      setInlinePreviewText(null);
-      setActiveSavedView(null);
-      setModalDraftSegments([]);
-      setOpenPaletteAfterViewLoad(false);
-      setIsExecuting(false);
-      setModuleFilterRevision((value) => value + 1);
-      defaultFetchScopeRef.current = null;
-      defaultFetchResultRef.current = undefined;
-      defaultAppliedRef.current = false;
-      setResolvingDefaultView(null);
-      setIsDefaultViewBootstrapping(isSavedViewsScope(nextScope));
-      routeScopeRef.current = nextScope;
-    }
+    const routeChanged = routeScopeRef.current !== nextScope;
+
+    // Keep the route ref current even while pinned to "all" so that a later
+    // un-pin doesn't resync the scope to a stale route value.
+    routeScopeRef.current = nextScope;
+
+    // Pinning the omnibar to "All Modules" persists across navigation.
+    if (scopePinnedToAll) return;
+
+    // Only a genuine route change should reset module-local state and
+    // re-derive the scope. Toggling the pin (e.g. switching from "all" to a
+    // module via the dropdown) must not clobber the scope the user just chose.
+    if (!routeChanged) return;
+
+    setRawQuery("");
+    setAppliedQuery("");
+    setCompileResult(null);
+    setFilteredItemIds(null);
+    setInlinePreviewText(null);
+    setActiveSavedView(null);
+    setModalDraftSegments([]);
+    setOpenPaletteAfterViewLoad(false);
+    setIsExecuting(false);
+    setModuleFilterRevision((value) => value + 1);
+    defaultFetchScopeRef.current = null;
+    defaultFetchResultRef.current = undefined;
+    defaultAppliedRef.current = false;
+    setResolvingDefaultView(null);
+    setIsDefaultViewBootstrapping(isSavedViewsScope(nextScope));
     setScopeState(nextScope);
   }, [pathname, scopePinnedToAll]);
 

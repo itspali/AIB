@@ -241,8 +241,57 @@ export function ProductListToolbar({
             </div>
           ) : null}
 
+          <div className="shrink-0 sm:hidden">
+            <Select
+              value={viewMode}
+              disabled={controlsDisabled || viewModeToggleLocked}
+              onValueChange={(value) => setViewMode(value as ProductListViewMode)}
+            >
+              <SelectTrigger
+                className={cn(listToolbarSelectClass(true), "w-auto px-1.5 [&>svg]:hidden")}
+                aria-label="View mode"
+                aria-busy={isSavingPrefs}
+                title={
+                  viewModeToggleLocked
+                    ? "Card view switches to table while item detail is open"
+                    : "View mode"
+                }
+              >
+                <span className="flex items-center">
+                  {viewMode === "table" ? (
+                    <Table2 className="h-4 w-4" aria-hidden />
+                  ) : viewMode === "compact" ? (
+                    <Rows3 className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <LayoutGrid className="h-4 w-4" aria-hidden />
+                  )}
+                </span>
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="table">
+                  <span className="flex items-center gap-2">
+                    <Table2 className="h-4 w-4" aria-hidden />
+                    Table
+                  </span>
+                </SelectItem>
+                <SelectItem value="compact">
+                  <span className="flex items-center gap-2">
+                    <Rows3 className="h-4 w-4" aria-hidden />
+                    Compact
+                  </span>
+                </SelectItem>
+                <SelectItem value="card">
+                  <span className="flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" aria-hidden />
+                    Card
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div
-            className={listToolbarViewToggleShellClass()}
+            className={cn(listToolbarViewToggleShellClass(), "hidden sm:inline-flex")}
             aria-busy={isSavingPrefs}
             title={
               viewModeToggleLocked ? "Card view switches to table while item detail is open" : undefined

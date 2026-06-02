@@ -2,12 +2,21 @@ import type { AttributeFieldType } from "@/lib/categories/attribute-types";
 import type { ItemType } from "@/lib/products/item-model";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 
+/** Whether a category attribute defines variants (axis) or just describes the item. */
+export type AttributeRole = "axis" | "descriptive";
+
 export type AttributeTemplateEntry = {
   key: string;
   label: string;
   type: AttributeFieldType;
   required?: boolean;
   options?: string[];
+  /**
+   * Default composition role suggested to items. "axis" means each value
+   * creates a separate SKU; "descriptive" means it stays the same across SKUs.
+   * Undefined falls back to a type-based heuristic.
+   */
+  role?: AttributeRole;
 };
 
 export type CategoryRow = {

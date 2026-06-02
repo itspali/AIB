@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
+import { VARIANT_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import { Label } from "@/components/ui/label";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import {
@@ -50,6 +52,8 @@ type Props = {
   itemId: string;
   variants: ProductVariantSnapshot[];
   categoryTemplates: AttributeTemplateEntry[];
+  /** Category attribute keys the author chose to vary on (drives the matrix). */
+  variantAxisKeys?: string[];
   skuMask?: string;
   baseSku?: string;
   variantStrategy?: ProductVariantStrategy;
@@ -91,6 +95,7 @@ export function ProductVariantPanel({
   itemId,
   variants,
   categoryTemplates,
+  variantAxisKeys,
   skuMask = "",
   baseSku = "",
   variantStrategy = "SINGLE_SKU",
@@ -534,6 +539,7 @@ export function ProductVariantPanel({
         onOpenChange={setMatrixOpen}
         itemId={itemId}
         categoryTemplates={categoryTemplates}
+        axisKeys={variantAxisKeys}
         variants={variants}
         skuMask={skuMask}
         baseSku={baseSku}
@@ -678,7 +684,14 @@ function VariantDrawerForm({
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="variant_sku">Variant SKU</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="variant_sku">Variant SKU</Label>
+                {skuMask.trim() ? (
+                  <FieldLabelInfo label="Variant SKU">
+                    <p className="font-mono">{VARIANT_FIELD_HELP.variantSkuMask(skuMask)}</p>
+                  </FieldLabelInfo>
+                ) : null}
+              </div>
               {skuMask.trim() && (
                 <Button
                   type="button"
@@ -703,14 +716,16 @@ function VariantDrawerForm({
                 },
               })}
             />
-            {skuMask.trim() && (
-              <p className="font-mono text-xs text-muted-foreground">Mask: {skuMask}</p>
-            )}
             {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="variant_barcode">Barcode / GTIN</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="variant_barcode">Barcode / GTIN</Label>
+              <FieldLabelInfo label="Barcode / GTIN">
+                {fieldHelpText(VARIANT_FIELD_HELP.barcode)}
+              </FieldLabelInfo>
+            </div>
             <Input
               id="variant_barcode"
               disabled={isPending}
@@ -720,22 +735,29 @@ function VariantDrawerForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="variant_price">Variant price (default book)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="variant_price">Variant price (default book)</Label>
+              <FieldLabelInfo label="Variant price (default book)">
+                {fieldHelpText(VARIANT_FIELD_HELP.price)}
+              </FieldLabelInfo>
+            </div>
             <Input
               id="variant_price"
               disabled={isPending}
               className="text-right font-mono"
               inputMode="decimal"
-              placeholder="Leave blank to inherit item price"
+              placeholder="Inherit item price"
               {...register("price")}
             />
             {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <div>
+            <div className="flex items-center gap-1.5">
               <p className="text-sm font-medium">Variant active</p>
-              <p className="text-xs text-muted-foreground">Inactive variants stay linked but are excluded from flows.</p>
+              <FieldLabelInfo label="Variant active">
+                {fieldHelpText(VARIANT_FIELD_HELP.active)}
+              </FieldLabelInfo>
             </div>
             <Switch
               checked={watch("is_active")}
@@ -746,12 +768,14 @@ function VariantDrawerForm({
 
           <div className="space-y-3 border-t border-border pt-4">
             <h4 className="text-sm font-medium">Shipping & dimensions</h4>
-            <p className="text-xs text-muted-foreground">
-              Used for freight quotes and packaging — not tied to stock tracking.
-            </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="variant_dead_weight">Weight (kg)</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="variant_dead_weight">Weight (kg)</Label>
+                  <FieldLabelInfo label="Weight (kg)">
+                    {fieldHelpText(VARIANT_FIELD_HELP.weight)}
+                  </FieldLabelInfo>
+                </div>
                 <Input
                   id="variant_dead_weight"
                   disabled={isPending}

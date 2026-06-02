@@ -145,6 +145,7 @@ export type ProductDetailSnapshot = {
   is_salable: boolean;
   has_variants: boolean;
   variant_strategy: ProductVariantStrategy;
+  variant_axes: string[];
   item_type: ItemType;
   track_inventory: boolean;
   status: ItemStatus;
@@ -288,6 +289,8 @@ export type ProductMasterFormValues = {
     store_price_book_id: string | null;
   }>;
   variant_strategy: ProductVariantStrategy;
+  /** Category attribute keys this item varies on (drives the variant matrix). */
+  variant_axes: string[];
   item_type: ItemType;
   track_inventory: boolean;
   status: ItemStatus;
@@ -326,6 +329,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     hsn_sac_code: detail.hsn_sac_code ?? "",
     has_variants: detail.has_variants,
     variant_strategy: detail.variant_strategy,
+    variant_axes: detail.variant_axes,
     item_type: detail.item_type,
     track_inventory: detail.track_inventory,
     status: itemLifecycleStatusFromActive(detail.is_active),
@@ -334,7 +338,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     standard_cost: detail.standard_cost,
     tracking_mode: detail.tracking_mode,
     is_bundle: detail.is_bundle,
-    price_is_tax_inclusive: false,
+    price_is_tax_inclusive: detail.price_is_tax_inclusive,
     default_tax_category: normalizeTaxCategory(detail.default_tax_category),
     tax_code_id: detail.tax_code_id,
     is_returnable: detail.is_returnable,
@@ -402,6 +406,7 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   is_active: true,
   hsn_sac_code: "",
   has_variants: false,
+  variant_axes: [],
   default_tax_category: "TAXABLE",
   tax_code_id: null,
   is_returnable: true,

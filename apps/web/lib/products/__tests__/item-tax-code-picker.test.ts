@@ -58,14 +58,14 @@ describe("resolveItemTaxCodePickerOptions", () => {
     const options = resolveItemTaxCodePickerOptions(codes, { includeTaxCodeId: "cgst" });
     expect(options.some((o) => o.id === "cgst")).toBe(true);
     const stale = options.find((o) => o.id === "cgst");
-    expect(stale?.pickerDescription).toContain("Component-only");
+    expect(stale?.pickerDescription).toContain("half of a GST rate");
   });
 });
 
 describe("itemTaxCodePickerDescription", () => {
-  it("mentions invoice place-of-supply for standard GST rates", () => {
+  it("mentions automatic bill split for standard GST rates", () => {
     expect(itemTaxCodePickerDescription(row({ id: "1", name: "GST 18%", rate: 18 }))).toContain(
-      "invoice"
+      "bill"
     );
   });
 });

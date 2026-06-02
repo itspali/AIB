@@ -60,6 +60,7 @@ type ItemRow = {
   is_salable: boolean;
   has_variants: boolean;
   variant_strategy?: string;
+  variant_axes?: unknown;
   item_type?: string | null;
   track_inventory?: boolean | null;
   status?: string | null;
@@ -681,6 +682,7 @@ export async function fetchProductDetail(
       is_salable,
       has_variants,
       variant_strategy,
+      variant_axes,
       item_type,
       track_inventory,
       status,
@@ -821,6 +823,11 @@ export async function fetchProductDetail(
     variant_strategy: isProductVariantStrategy(row.variant_strategy ?? "")
       ? (row.variant_strategy as ProductVariantStrategy)
       : "SINGLE_SKU",
+    variant_axes: Array.isArray(row.variant_axes)
+      ? (row.variant_axes as unknown[]).filter(
+          (entry): entry is string => typeof entry === "string" && entry.trim() !== ""
+        )
+      : [],
     item_type: isItemType(row.item_type ?? "")
       ? (row.item_type as ItemType)
       : "PHYSICAL",

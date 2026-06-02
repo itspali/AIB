@@ -415,7 +415,7 @@ export function ProductStreamPanel({
     onBulkAction;
 
   const listContent = !prefsHydrated || isLoadingStructuralFilter || isExpandVariantsSyncing ? (
-    <ProductListSkeleton viewMode={displayViewMode} />
+    <ProductListSkeleton viewMode={displayViewMode} cardLayout={prefs.cardLayout} />
   ) : displayedProducts.length === 0 ? (
     <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
       {products.length === 0
@@ -429,6 +429,7 @@ export function ProductStreamPanel({
         columns={visibleColumns}
         columnWrapModes={columnWrapModes}
         gridColumns={listPaneLayout.cardGridColumns}
+        cardLayout={prefs.cardLayout}
         showVariants={effectiveExpandVariants}
         selectedId={selectedId}
         bulkSelectedIds={bulkSelectedIds}
@@ -477,7 +478,7 @@ export function ProductStreamPanel({
       onPrefsChange={handlePrefsChange}
       fieldPermissions={fieldPermissions}
       detectedDeviceClass={deviceClass}
-      resultCount={displayedProducts.length}
+      resultCount={filteredProducts.length}
       totalCount={totalCount}
       prefsHydrated={prefsHydrated}
       isSavingPrefs={isSavingPrefs}
@@ -544,5 +545,10 @@ export function ProductStreamPanel({
     </div>
   );
 
-  return renderLayout({ toolbar, bulkToolbar, body, viewMode: displayViewMode });
+  return renderLayout({
+    toolbar,
+    bulkToolbar,
+    body,
+    viewMode: displayViewMode,
+  });
 }

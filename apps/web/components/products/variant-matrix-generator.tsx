@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import { composeSkuFromMask, suggestSkuMask } from "@/lib/products/sku-mask";
+import { splitTemplatesByAxis } from "@/lib/products/variant-composition";
 import type { ProductVariantSnapshot } from "@/lib/products/types";
 
 type Props = {
@@ -22,6 +23,12 @@ type Props = {
   variants: ProductVariantSnapshot[];
   skuMask: string;
   baseSku: string;
+  /**
+   * Attribute keys the item author chose as variant axes. When provided, only
+   * these are offered as axes (pre-enabled) and the rest are shown as
+   * descriptive. Omit to offer every template as a candidate axis.
+   */
+  axisKeys?: string[];
   onGenerated: () => void;
 };
 
@@ -57,6 +64,7 @@ export function VariantMatrixGenerator({
   variants,
   skuMask,
   baseSku,
+  axisKeys,
   onGenerated,
 }: Props) {
   const router = useRouter();
@@ -66,14 +74,33 @@ export function VariantMatrixGenerator({
   const [freeValues, setFreeValues] = useState<Record<string, string>>({});
   const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
 
+  const hasComposition = Boolean(axisKeys);
+  const { axes: axisTemplates, descriptive: descriptiveTemplates } = useMemo(
+    () =>
+      hasComposition
+        ? splitTemplatesByAxis(categoryTemplates, axisKeys ?? [])
+        : { axes: categoryTemplates, descriptive: [] },
+    [hasComposition, categoryTemplates, axisKeys]
+  );
+
   useEffect(() => {
     if (!open) {
       setEnabledAxes({});
       setSelectValues({});
       setFreeValues({});
       setOverrides({});
+      return;
     }
-  }, [open]);
+    // Pre-enable the author's chosen axes so the grid is ready to fill.
+    if (hasComposition && axisTemplates.length > 0) {
+      setEnabledAxes((prev) => {
+        if (Object.keys(prev).length > 0) return prev;
+        const seeded: Record<string, boolean> = {};
+        for (const template of axisTemplates) seeded[template.key] = true;
+        return seeded;
+      });
+    }
+  }, [open, hasComposition, axisTemplates]);
 
   const existingCombos = useMemo(() => {
     const set = new Set<string>();
@@ -89,7 +116,7 @@ export function VariantMatrixGenerator({
   }, [variants]);
 
   const activeAxes = useMemo(() => {
-    return categoryTemplates
+    return axisTemplates
       .filter((template) => enabledAxes[template.key])
       .map((template) => {
         let values: string[];
@@ -104,14 +131,14 @@ export function VariantMatrixGenerator({
         return { key: template.key, values };
       })
       .filter((axis) => axis.values.length > 0);
-  }, [categoryTemplates, enabledAxes, selectValues, freeValues]);
+  }, [axisTemplates, enabledAxes, selectValues, freeValues]);
 
   const effectiveMask = useMemo(() => {
     const trimmed = skuMask.trim();
     if (trimmed) return trimmed;
-    const axisTemplates = categoryTemplates.filter((template) => enabledAxes[template.key]);
-    return suggestSkuMask(axisTemplates);
-  }, [skuMask, categoryTemplates, enabledAxes]);
+    const enabledAxisTemplates = axisTemplates.filter((template) => enabledAxes[template.key]);
+    return suggestSkuMask(enabledAxisTemplates);
+  }, [skuMask, axisTemplates, enabledAxes]);
 
   const combos = useMemo(() => {
     if (!activeAxes.length) return [];
@@ -180,11 +207,24 @@ export function VariantMatrixGenerator({
               This product&apos;s category has no attribute templates. Add attributes to the
               category to define variant axes (e.g. Size, Color).
             </p>
+          ) : axisTemplates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No attributes are set to vary yet. In “Variant composition”, move an attribute (such
+              as Size) into “Varies by” to generate SKUs.
+            </p>
           ) : (
             <>
               <div className="space-y-3">
                 <h4 className="text-sm font-medium">1. Choose variant axes &amp; values</h4>
-                {categoryTemplates.map((template) => {
+                {descriptiveTemplates.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Same for every version:{" "}
+                    <span className="font-medium text-foreground">
+                      {descriptiveTemplates.map((template) => template.label).join(", ")}
+                    </span>
+                  </p>
+                ) : null}
+                {axisTemplates.map((template) => {
                   const isEnabled = Boolean(enabledAxes[template.key]);
                   return (
                     <div key={template.key} className="rounded-lg border border-border p-3">
@@ -230,7 +270,7 @@ export function VariantMatrixGenerator({
                           </Label>
                           <Input
                             disabled={isPending}
-                            placeholder="e.g. S, M, L"
+                            placeholder="e.g. A, B, C"
                             value={freeValues[template.key] ?? ""}
                             onChange={(event) =>
                               setFreeValues((prev) => ({

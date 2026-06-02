@@ -83,6 +83,8 @@ export function ProductListColumnSettings({
       onCardGridColumnsChange={(columns) =>
         onChange(setCardGridColumnsSlice(prefs, editingDevice as DeviceClass, columns))
       }
+      cardLayout={prefs.cardLayout}
+      onCardLayoutChange={(cardLayout) => onChange({ ...prefs, cardLayout })}
       disabled={disabled}
       isSaving={isSaving}
       triggerClassName={triggerClassName}

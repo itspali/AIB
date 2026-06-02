@@ -33,19 +33,19 @@ export const ITEM_TYPE_CHOICES: ItemTypeChoice[] = [
     value: "PHYSICAL",
     label: "Goods",
     description:
-      "Tangible products you buy, sell, and can track in stock. Supports variants, dimensions, and inventory.",
+      "Physical products you buy, sell, and can count in stock. Sizes, colors, weight, and inventory apply.",
   },
   {
     value: "SERVICE",
     label: "Service",
     description:
-      "Labor or overhead with no physical stock. Supply-chain role is fixed to Service; variants are not used.",
+      "Work or fees with no physical stock. Role stays Service; sizes and colors do not apply.",
   },
   {
     value: "DIGITAL",
     label: "Digital",
     description:
-      "Non-physical deliverables such as licenses or downloads. No stock tracking; a limited set of supply-chain roles applies.",
+      "Downloads, licenses, or other non-physical items. Stock tracking is not used.",
   },
 ];
 

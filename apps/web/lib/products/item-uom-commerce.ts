@@ -11,6 +11,51 @@ export const RESERVED_COMMERCE_CUSTOM_FIELD_KEYS = new Set([
 
 export type AlternateUomRow = { uom_code: string; conversion_factor: string };
 
+export type UomLabelLookup = ReadonlyArray<{ code: string; name: string }>;
+
+function uomDisplayLabel(code: string, lookup: UomLabelLookup): string {
+  const trimmed = code.trim();
+  const match = lookup.find((entry) => entry.code === trimmed);
+  if (match?.name && match.name.trim() && match.name !== match.code) {
+    return match.name.trim().toLowerCase();
+  }
+  return trimmed.toLowerCase();
+}
+
+function formatPositiveFactor(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  return String(value)
+    .replace(/(\.\d*?[1-9])0+$/, "$1")
+    .replace(/\.0+$/, "");
+}
+
+/**
+ * Human-readable preview: one alternate unit equals N base units
+ * (e.g. "1 box = 12 pieces" when factor is 12 and base is PCS).
+ */
+export function formatAlternateUomConversionPreview(
+  alternateUomCode: string,
+  conversionFactor: string,
+  baseUom: string,
+  lookup: UomLabelLookup = []
+): string | null {
+  const altCode = alternateUomCode.trim();
+  const baseCode = baseUom.trim();
+  if (!altCode || !baseCode || altCode === baseCode) return null;
+
+  const factorRaw = conversionFactor.trim();
+  if (!factorRaw) return null;
+
+  const factor = Number(factorRaw);
+  if (!Number.isFinite(factor) || factor <= 0) return null;
+
+  const altLabel = uomDisplayLabel(altCode, lookup);
+  const baseLabel = uomDisplayLabel(baseCode, lookup);
+  const factorText = formatPositiveFactor(factor);
+
+  return `1 ${altLabel} = ${factorText} ${baseLabel}`;
+}
+
 export function conversionFactorForAlternate(
   alternates: ReadonlyArray<AlternateUomRow>,
   uomCode: string

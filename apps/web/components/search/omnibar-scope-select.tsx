@@ -28,7 +28,7 @@ export function OmnibarScopeSelect({ scope, options, onScopeChange }: Props) {
       <SelectTrigger className="h-7 w-[7.5rem] shrink-0 border-0 bg-background/50 px-2 text-xs shadow-none focus:ring-0">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="start">
+      <SelectContent align="start" className="z-[110]">
         {options.map((option) => (
           <SelectItem key={option.id} value={option.id} className="text-xs">
             {option.label}

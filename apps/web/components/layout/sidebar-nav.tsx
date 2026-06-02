@@ -5,7 +5,11 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
-import { NavModuleLinkContent, NavTextLinkContent } from "@/components/layout/nav-link-content";
+import {
+  NavModuleLinkContent,
+  NavTextLinkContent,
+  navIconSlotClass,
+} from "@/components/layout/nav-link-content";
 import { moduleNavItems, type ModuleNavItem } from "@/components/layout/module-nav";
 import {
   DropdownMenu,
@@ -24,67 +28,12 @@ import { cn } from "@/lib/utils";
 
 const SIDEBAR_WIDTH_EXPANDED = "w-52";
 const SIDEBAR_WIDTH_COLLAPSED = "w-16";
-const SIDEBAR_WIDTH_EXPANDED_MD = "md:w-52";
-const SIDEBAR_WIDTH_COLLAPSED_MD = "md:w-16";
 
 const navLinkClass =
-  "group flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-normal transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-const collapsedNavControlClass =
-  "flex h-10 w-full items-center justify-center rounded-lg px-2 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "group flex h-10 items-center justify-start gap-2.5 rounded-lg px-2.5 text-sm font-normal transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function sidebarWidthClass(collapsed: boolean): string {
   return collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
-}
-
-export function SidebarHeaderToggleColumn({
-  branding,
-  onOpenMobileNav,
-}: {
-  branding?: React.ReactNode;
-  onOpenMobileNav?: () => void;
-}) {
-  const { sidebarCollapsed, setSidebarCollapsed } = useOnboardingContext();
-
-  return (
-    <div
-      className={cn(
-        "flex h-16 w-16 shrink-0 items-center gap-1 border-r border-white/10 bg-card/40 p-2 transition-all duration-200",
-        sidebarCollapsed ? "md:justify-center" : "md:min-w-0",
-        sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED_MD : SIDEBAR_WIDTH_EXPANDED_MD
-      )}
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        className="flex h-10 w-full items-center justify-center rounded-lg px-2 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-        onClick={onOpenMobileNav}
-        aria-label="Open module navigation"
-      >
-        <PanelLeftOpen className="h-4 w-4 shrink-0" aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        className={cn(
-          "hidden h-10 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex",
-          sidebarCollapsed ? "w-full px-2" : "shrink-0 px-3"
-        )}
-        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        aria-expanded={!sidebarCollapsed}
-      >
-        {sidebarCollapsed ? (
-          <PanelLeftOpen className="h-4 w-4 shrink-0" aria-hidden />
-        ) : (
-          <PanelLeftClose className="h-4 w-4 shrink-0" aria-hidden />
-        )}
-      </Button>
-      {!sidebarCollapsed && branding ? (
-        <div className="hidden min-w-0 flex-1 overflow-hidden md:block">{branding}</div>
-      ) : null}
-    </div>
-  );
 }
 
 const childLinkClass =
@@ -109,29 +58,49 @@ function SidebarNavGroup({
     if (defaultExpanded) setExpanded(true);
   }, [defaultExpanded]);
 
+  const groupTrigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-expanded={collapsed ? undefined : expanded}
+      aria-label={
+        collapsed
+          ? item.label
+          : expanded
+            ? `Collapse ${item.label} menu`
+            : `Expand ${item.label} menu`
+      }
+      title={collapsed ? item.label : undefined}
+      onClick={collapsed ? undefined : () => setExpanded((value) => !value)}
+      className={cn(
+        navLinkClass,
+        "w-full",
+        groupActive && "nav-glow-active bg-primary/10 text-primary"
+      )}
+    >
+      <NavModuleLinkContent
+        icon={Icon}
+        label={<span className="truncate">{item.label}</span>}
+        showLabel={!collapsed}
+        iconClassName={cn(
+          "transition-colors duration-200",
+          groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+        )}
+      />
+      {!collapsed ? (
+        expanded ? (
+          <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        ) : (
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        )
+      ) : null}
+    </Button>
+  );
+
   if (collapsed) {
     return (
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            className={cn(
-              collapsedNavControlClass,
-              groupActive && "nav-glow-active bg-primary/10 text-primary"
-            )}
-            title={item.label}
-            aria-label={item.label}
-          >
-            <Icon
-              className={cn(
-                "h-4 w-4 shrink-0",
-                groupActive ? "text-primary" : "text-muted-foreground"
-              )}
-              aria-hidden
-            />
-          </Button>
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild>{groupTrigger}</DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" className="w-48">
           <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
           {children.map((child) => {
@@ -169,32 +138,7 @@ function SidebarNavGroup({
           groupActive && "bg-primary/5"
         )}
       >
-        <Button
-          type="button"
-          variant="ghost"
-          aria-expanded={expanded}
-          aria-label={expanded ? `Collapse ${item.label} menu` : `Expand ${item.label} menu`}
-          onClick={() => setExpanded((value) => !value)}
-          className={cn(
-            navLinkClass,
-            "min-w-0 flex-1 justify-start px-2.5",
-            groupActive && "text-primary"
-          )}
-        >
-          <NavModuleLinkContent
-            icon={Icon}
-            label={<span className="truncate">{item.label}</span>}
-            iconClassName={cn(
-              "transition-colors duration-200",
-              groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-            )}
-          />
-          {expanded ? (
-            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          ) : (
-            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          )}
-        </Button>
+        {groupTrigger}
       </div>
 
       {expanded ? (
@@ -250,8 +194,7 @@ function SidebarNavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         navLinkClass,
-        active && "nav-glow-active bg-primary/10 text-primary",
-        collapsed && "justify-center px-2 h-10 py-0"
+        active && "nav-glow-active bg-primary/10 text-primary"
       )}
       title={collapsed ? item.label : undefined}
     >
@@ -270,12 +213,12 @@ function SidebarNavLink({
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { sidebarCollapsed } = useOnboardingContext();
+  const { sidebarCollapsed, setSidebarCollapsed } = useOnboardingContext();
 
   return (
     <aside
       className={cn(
-        "hidden h-full shrink-0 flex-col border-r border-white/10 bg-card/40 backdrop-blur-xl transition-all duration-200 md:flex",
+        "hidden h-full shrink-0 flex-col overflow-x-hidden border-r border-white/10 bg-card/40 backdrop-blur-xl transition-[width] duration-200 ease-in-out md:flex",
         sidebarWidthClass(sidebarCollapsed)
       )}
     >
@@ -298,6 +241,33 @@ export function SidebarNav() {
           )
         )}
       </nav>
+      <div className="shrink-0 border-t border-white/10 p-2">
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!sidebarCollapsed}
+          title={sidebarCollapsed ? "Expand sidebar" : undefined}
+          className={cn(navLinkClass, "w-full text-muted-foreground hover:text-foreground")}
+        >
+          <span className={navIconSlotClass}>
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="size-4 shrink-0" aria-hidden />
+            ) : (
+              <PanelLeftClose className="size-4 shrink-0" aria-hidden />
+            )}
+          </span>
+          <span
+            aria-hidden={sidebarCollapsed}
+            className={cn(
+              "truncate transition-[opacity,width] duration-200 ease-in-out",
+              sidebarCollapsed ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100"
+            )}
+          >
+            Collapse
+          </span>
+        </button>
+      </div>
     </aside>
   );
 }

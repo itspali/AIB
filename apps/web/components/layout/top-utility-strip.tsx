@@ -4,12 +4,10 @@ import { useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { GlobalCreateMenu } from "@/components/layout/global-create-menu";
-import { SidebarHeaderToggleColumn } from "@/components/layout/sidebar-nav";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { OmnibarCommandDialog } from "@/components/search/omnibar-command-dialog";
 import { OmnibarSearchTrigger } from "@/components/search/omnibar-search-trigger";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
-import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { OperatorProfile } from "@/lib/user/types";
@@ -40,20 +38,18 @@ export function TopUtilityStrip({
 }: TopUtilityStripProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const omnibar = useOptionalOmnibarContext();
-  const { sidebarCollapsed } = useOnboardingContext();
 
-  const orgInSidebarColumn =
-    embedded && showSidebarToggle && !sidebarCollapsed;
+  const orgLogo = (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 text-xs font-bold text-primary">
+      A
+    </span>
+  );
 
   const orgBranding = (
     <div className="flex min-w-0 items-center gap-2 md:gap-3">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 text-xs font-bold text-primary sm:flex">
-          A
-        </span>
-        <span className="truncate text-sm font-semibold">
-          {orgName}
-        </span>
+        {orgLogo}
+        <span className="truncate text-sm font-semibold">{orgName}</span>
       </div>
       {showProgress && (
         <span className="hidden shrink-0 rounded-full border border-white/10 bg-secondary/80 px-2.5 py-0.5 text-xs text-muted-foreground sm:inline">
@@ -66,8 +62,8 @@ export function TopUtilityStrip({
   const headerActions = (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5",
-        embedded ? "ml-auto" : "justify-end justify-self-end"
+        "flex shrink-0 items-center gap-1.5 md:col-start-3 md:justify-self-end",
+        embedded ? "justify-self-end" : "justify-end justify-self-end"
       )}
     >
       {omnibar ? (
@@ -125,14 +121,9 @@ export function TopUtilityStrip({
 
   const headerContent = (
     <>
-      <div className={cn(orgInSidebarColumn && "md:hidden")}>{orgBranding}</div>
+      <div className="min-w-0 md:col-start-1">{orgBranding}</div>
 
-      <div
-        className={cn(
-          "hidden min-w-0 md:block",
-          embedded ? "min-w-0 flex-1" : undefined
-        )}
-      >
+      <div className="hidden min-w-0 md:col-start-2 md:block">
         {omnibar && !hideWorkspaceTools ? <OmnibarSearchTrigger /> : null}
       </div>
 
@@ -145,24 +136,38 @@ export function TopUtilityStrip({
       className={cn(
         "h-16 w-full min-w-0",
         embedded
-          ? "flex items-center"
+          ? "grid grid-cols-[1fr_auto] items-center gap-2 px-3 md:grid-cols-[1fr_minmax(0,20rem)_1fr] md:gap-4 md:px-4"
           : cn(
               "grid items-center gap-2 px-4 md:gap-4 md:px-6",
-              "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:grid-cols-[1fr_minmax(0,28rem)_1fr]"
+              "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:grid-cols-[1fr_minmax(0,20rem)_1fr]"
             )
       )}
     >
-      {embedded && showSidebarToggle ? (
-        <SidebarHeaderToggleColumn
-          branding={orgInSidebarColumn ? orgBranding : undefined}
-          onOpenMobileNav={onOpenMobileNav}
-        />
-      ) : null}
-
       {embedded ? (
-        <div className="flex min-w-0 flex-1 items-center gap-2 pl-2 pr-4 md:gap-4 md:pl-3 md:pr-6">
-          {headerContent}
-        </div>
+        <>
+          <div className="flex min-w-0 items-center md:col-start-1">
+            {showSidebarToggle && onOpenMobileNav ? (
+              <button
+                type="button"
+                onClick={onOpenMobileNav}
+                aria-label="Open navigation menu"
+                className="flex items-center rounded-lg p-1 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+              >
+                {orgLogo}
+              </button>
+            ) : (
+              <span className="md:hidden">{orgLogo}</span>
+            )}
+
+            <div className="hidden min-w-0 md:flex">{orgBranding}</div>
+          </div>
+
+          <div className="hidden min-w-0 md:col-start-2 md:block">
+            {omnibar && !hideWorkspaceTools ? <OmnibarSearchTrigger /> : null}
+          </div>
+
+          {headerActions}
+        </>
       ) : (
         headerContent
       )}

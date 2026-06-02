@@ -63,6 +63,8 @@ type SplitPaneLayoutProps = {
   detailDescription?: string;
   /** Avatar/thumbnail shown before the title block (e.g. item primary image). */
   detailLeading?: ReactNode;
+  /** When set, replaces the default title / description / leading block. */
+  detailHeaderContent?: ReactNode;
   detailActions?: ReactNode;
   className?: string;
   primaryClassName?: string;
@@ -71,6 +73,13 @@ type SplitPaneLayoutProps = {
   insetPrimary?: boolean;
   /** When true, fill the parent flex slot instead of measuring viewport height. */
   fillParent?: boolean;
+  /** Tighter detail header (profile read-only panels). */
+  detailHeaderCompact?: boolean;
+  /**
+   * When "content", the detail child owns vertical scrolling (full height, no panel padding).
+   * Default "panel" scrolls the detail body inside the split pane.
+   */
+  detailScrollOwner?: "panel" | "content";
 };
 
 export function SplitPaneLayout({
@@ -81,12 +90,15 @@ export function SplitPaneLayout({
   detailTitle = "Detail",
   detailDescription,
   detailLeading,
+  detailHeaderContent,
   detailActions,
   className,
   primaryClassName,
   detailClassName,
   insetPrimary = false,
   fillParent = false,
+  detailHeaderCompact = false,
+  detailScrollOwner = "panel",
 }: SplitPaneLayoutProps) {
   const { ref: containerRef, height: paneHeight } = useAvailablePaneHeight(!fillParent);
   const widthPctRef = useRef(DEFAULT_WIDTH_PCT);
@@ -208,15 +220,36 @@ export function SplitPaneLayout({
             )}
           />
 
-          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/80 px-4 py-3 dark:border-white/10">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              {detailLeading}
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-base font-semibold">{detailTitle}</h2>
-                {detailDescription ? (
-                  <p className="truncate text-xs text-muted-foreground">{detailDescription}</p>
-                ) : null}
-              </div>
+          <header
+            className={cn(
+              "flex shrink-0 items-center justify-between gap-2 border-b border-border/80 dark:border-white/10",
+              detailHeaderCompact ? "px-3 py-1.5" : "px-4 py-3"
+            )}
+          >
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-3",
+                detailHeaderContent && "transition-[padding] duration-200"
+              )}
+            >
+              {detailHeaderContent ?? (
+                <>
+                  {detailLeading}
+                  <div className="min-w-0 flex-1">
+                    <h2
+                      className={cn(
+                        "truncate font-semibold",
+                        detailHeaderCompact ? "text-sm" : "text-base"
+                      )}
+                    >
+                      {detailTitle}
+                    </h2>
+                    {detailDescription ? (
+                      <p className="truncate text-xs text-muted-foreground">{detailDescription}</p>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {detailActions}
@@ -234,9 +267,13 @@ export function SplitPaneLayout({
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto scroll-pt-5 scrollbar-none">
-            <div className="px-4 pb-4 pt-3">{detail}</div>
-          </div>
+          {detailScrollOwner === "content" ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{detail}</div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto scroll-pt-5 scrollbar-none">
+              <div className="px-4 pb-4 pt-3">{detail}</div>
+            </div>
+          )}
         </aside>
       ) : null}
     </div>

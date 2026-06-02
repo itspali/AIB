@@ -50,6 +50,7 @@ export const productMasterSchema = z.object({
   base_unit_of_measure: uomCode,
   category_id: z.string().uuid().nullable(),
   variant_strategy: z.enum(PRODUCT_VARIANT_STRATEGIES),
+  variant_axes: z.array(z.string().trim().min(1)),
   item_type: z.enum(ITEM_TYPES),
   track_inventory: z.boolean(),
   status: z.enum(ITEM_STATUSES),

@@ -187,6 +187,16 @@ export async function saveProductMasterProfile(raw: unknown) {
     return { error: taxCodeResult.error.message };
   }
 
+  // Persist the variant composition (which attributes vary) via an isolated
+  // RPC, same rationale as the tax rule binding above.
+  const variantAxesResult = await supabase.rpc("set_item_variant_axes", {
+    p_item_id: itemId,
+    p_variant_axes: values.variant_axes ?? [],
+  });
+  if (variantAxesResult.error && !isMissingRpcError(variantAxesResult.error)) {
+    return { error: variantAxesResult.error.message };
+  }
+
   const detail = await fetchProductDetail(supabase, tenantId, itemId);
 
   return { success: true as const, itemId, detail };

@@ -66,26 +66,26 @@ export function itemTaxCodePickerDescription(
   options?: { isStaleLegacySelection?: boolean }
 ): string {
   if (options?.isStaleLegacySelection) {
-    return "Component-only rule (half of a full GST rate). Choose a full-rate rule such as GST 18% instead.";
+    return "This is only half of a GST rate. Pick a full rate such as GST 18% instead.";
   }
 
   if (code.is_variable) {
-    return "Slab rule — effective % is chosen from price, quantity, or line value when you bill.";
+    return "Tax % depends on price or quantity when you create the bill.";
   }
 
   const kind = code.kind.trim().toUpperCase();
   if (kind === "EXEMPT" || kind === "NIL") {
-    return "No tax on lines. Set Tax category on the item for how the supply is reported.";
+    return "No tax on the bill. Set Tax category on the item for how it is reported.";
   }
   if (kind === "ZERO") {
-    return "Zero-rated supply. Set Tax category and HSN for compliance.";
+    return "0% tax. Still set Tax category and product code for GST records.";
   }
 
   if (code.rate === 0) {
-    return "No tax charged on lines using this rule.";
+    return "No tax charged when this rule is used.";
   }
 
-  return `${formatRatePercent(code.rate)}% GST for this product (HSN schedule). CGST+SGST vs IGST is decided on each invoice from ship-from and ship-to state — not on the item.`;
+  return `${formatRatePercent(code.rate)}% GST on this item. Your bill picks state vs interstate split automatically.`;
 }
 
 export function resolveItemTaxCodePickerOptions(

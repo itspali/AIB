@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { ensureProductTag } from "@/app/items/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldLabelInfo, fieldHelpText, SubsectionHeading } from "@/components/ui/field-label-info";
+import { CATALOG_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -24,6 +26,11 @@ type Props = {
   catalogContext: ProductCatalogContext;
   categoryTemplates: AttributeTemplateEntry[];
   showSkuMask?: boolean;
+  /**
+   * Which blocks to render. "catalog" = SKU mask, custom fields, and tags;
+   * "reach" = storefront channel visibility. Omit to render everything.
+   */
+  only?: "catalog" | "reach";
   values: Pick<
     ProductMasterFormValues,
     "sku_mask" | "custom_fields" | "tag_ids" | "storefront_visibility"
@@ -38,12 +45,15 @@ export function ProductCatalogExtensions({
   catalogContext,
   categoryTemplates,
   showSkuMask = false,
+  only,
   values,
   disabled,
   compact = false,
   onChange,
   onTagsChanged,
 }: Props) {
+  const showCatalogBlocks = only !== "reach";
+  const showStorefrontBlock = only !== "catalog";
   const [newTagName, setNewTagName] = useState("");
   const [isCreatingTag, startCreateTag] = useTransition();
 
@@ -73,15 +83,13 @@ export function ProductCatalogExtensions({
 
   return (
     <div className={compact ? "space-y-0" : "space-y-6 border-t border-border pt-6"}>
-      {showSkuMask ? (
+      {showCatalogBlocks && showSkuMask ? (
         <div className={editorCatalogBlockClass(compact)}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h4 className="text-sm font-medium">SKU composition mask</h4>
-              <p className="text-xs text-muted-foreground">
-                Use {"{BASE}"} and attribute keys like {"{Size}"} to auto-compose variant SKUs.
-              </p>
-            </div>
+            <SubsectionHeading
+              title="SKU composition mask"
+              info={fieldHelpText(CATALOG_FIELD_HELP.skuMask)}
+            />
             <Button
               type="button"
               size="sm"
@@ -96,19 +104,21 @@ export function ProductCatalogExtensions({
           <Input
             disabled={disabled}
             className="font-mono"
-            placeholder="{BASE}-{Size}-{Color}"
+            placeholder="{BASE}-{Option1}-{Option2}"
             value={values.sku_mask}
             onChange={(event) => onChange("sku_mask", event.target.value)}
           />
         </div>
       ) : null}
 
+      {showCatalogBlocks ? (
+        <>
       <div className={editorCatalogBlockClass(compact)}>
         <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-medium">Custom fields</h4>
-            <p className="text-xs text-muted-foreground">Flexible JSONB metadata stored on the parent item.</p>
-          </div>
+          <SubsectionHeading
+            title="Custom fields"
+            info={fieldHelpText(CATALOG_FIELD_HELP.customFields)}
+          />
           <Button
             type="button"
             size="sm"
@@ -170,10 +180,10 @@ export function ProductCatalogExtensions({
       </div>
 
       <div className={editorCatalogBlockClass(compact)}>
-        <div>
-          <h4 className="text-sm font-medium">Discovery tags</h4>
-          <p className="text-xs text-muted-foreground">Assign catalog tags for search and storefront filtering.</p>
-        </div>
+        <SubsectionHeading
+          title="Discovery tags"
+          info={fieldHelpText(CATALOG_FIELD_HELP.tags)}
+        />
         <div className="flex flex-wrap gap-2">
           {catalogContext.tags.map((tag) => {
             const selected = values.tag_ids.includes(tag.id);
@@ -215,14 +225,15 @@ export function ProductCatalogExtensions({
           </Button>
         </div>
       </div>
+        </>
+      ) : null}
 
+      {showStorefrontBlock ? (
       <div className={editorCatalogBlockClass(compact)}>
-        <div>
-          <h4 className="text-sm font-medium">Storefront channel visibility</h4>
-          <p className="text-xs text-muted-foreground">
-            Control omnichannel exposure per storefront channel.
-          </p>
-        </div>
+        <SubsectionHeading
+          title="Storefront channel visibility"
+          info={fieldHelpText(CATALOG_FIELD_HELP.storefront)}
+        />
         {catalogContext.storefronts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No active storefront channels configured. Complete onboarding channel setup first.
@@ -250,7 +261,12 @@ export function ProductCatalogExtensions({
                       <p className="text-xs text-muted-foreground">{channel.channel_type}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">Visible</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">Visible</Label>
+                        <FieldLabelInfo label="Visible">
+                          {fieldHelpText(CATALOG_FIELD_HELP.channelVisible)}
+                        </FieldLabelInfo>
+                      </div>
                       <Switch
                         size={editorSwitchSize}
                         checked={row.is_visible}
@@ -265,7 +281,14 @@ export function ProductCatalogExtensions({
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Storefront display name override</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          Storefront display name override
+                        </Label>
+                        <FieldLabelInfo label="Storefront display name override">
+                          {fieldHelpText(CATALOG_FIELD_HELP.displayName)}
+                        </FieldLabelInfo>
+                      </div>
                       <Input
                         disabled={disabled}
                         placeholder={channel.name}
@@ -278,7 +301,14 @@ export function ProductCatalogExtensions({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Channel price book override</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          Channel price book override
+                        </Label>
+                        <FieldLabelInfo label="Channel price book override">
+                          {fieldHelpText(CATALOG_FIELD_HELP.priceBook)}
+                        </FieldLabelInfo>
+                      </div>
                       <Select
                         value={row.store_price_book_id ?? "inherit"}
                         disabled={disabled}
@@ -311,6 +341,7 @@ export function ProductCatalogExtensions({
           </div>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "@/lib/categories/attribute-types";
 import { attributeTemplateMissingOptions } from "@/lib/categories/validate-templates";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { isDefaultAxisTemplate } from "@/lib/products/variant-composition";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,6 +179,24 @@ export function AttributeTemplateBuilder({ rows, onChange }: Props) {
                   onCheckedChange={(required) => updateRow(index, { required })}
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor={`role-${index}`} className="text-sm font-medium text-muted-foreground">
+              Creates variants by default
+            </Label>
+            <div className="flex h-10 items-center justify-between rounded-md border border-input bg-background px-3">
+              <span className="text-xs text-muted-foreground">
+                Each value becomes a separate SKU (e.g. Size). Items can still override this.
+              </span>
+              <Switch
+                id={`role-${index}`}
+                checked={row.role ? row.role === "axis" : isDefaultAxisTemplate(row)}
+                onCheckedChange={(checked) =>
+                  updateRow(index, { role: checked ? "axis" : "descriptive" })
+                }
+              />
             </div>
           </div>
 

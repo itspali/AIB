@@ -31,44 +31,37 @@ export const CLASSIFICATION_CHOICES: ClassificationChoice[] = [
   {
     value: "RAW_MATERIAL",
     label: "Raw Material",
-    description:
-      "Purchased inputs used in production or assembly. Often tracked in inventory and consumed on work orders.",
+    description: "Materials you buy to make products (fabric, parts, ingredients).",
   },
   {
     value: "WIP_ASSEMBLY",
     label: "Work In Progress",
-    description:
-      "Partially finished goods still in production. Used for WIP reporting; may hold stock while being built.",
+    description: "Half-finished items still being built in your workshop or factory.",
   },
   {
     value: "FINISHED_GOOD",
     label: "Finished Good",
-    description:
-      "Sellable end product ready for customers. The default role for most goods and digital items you ship or deliver.",
+    description: "Ready-to-sell product. The usual choice for items you ship to customers.",
   },
   {
     value: "CONSUMABLE",
     label: "Consumable",
-    description:
-      "Supplies used in operations (packaging, MRO, office) rather than sold as the main product line.",
+    description: "Supplies you use internally (packaging, tools, office items), not your main product line.",
   },
   {
     value: "KIT_BUNDLE",
     label: "Kit / Bundle",
-    description:
-      "Sold as one SKU but fulfilled from components. Pair with Bundle / kit in Inventory when stock is tracked.",
+    description: "Sold as one item but made from other products. Stock is tracked from its component items.",
   },
   {
     value: "SERVICE",
     label: "Service / Overhead",
-    description:
-      "Non-stock service or overhead for costing and reporting. Required when item type is Service.",
+    description: "Services or overhead costs. Used when the item type is Service.",
   },
   {
     value: "PHYSICAL_GOOD",
     label: "Physical good (legacy)",
-    description:
-      "Deprecated generic goods role. Choose Finished Good, Raw Material, or another role when editing.",
+    description: "Old option — pick Finished Good or another role above when you can.",
   },
 ];
 

@@ -3,6 +3,7 @@ import {
   buildAlternateUomsPayload,
   buildCommerceCustomFieldDefaults,
   conversionFactorForAlternate,
+  formatAlternateUomConversionPreview,
 } from "@/lib/products/item-uom-commerce";
 import type { ProductMasterInput } from "@/lib/products/schemas";
 
@@ -18,6 +19,7 @@ function baseValues(overrides: Partial<ProductMasterInput> = {}): ProductMasterI
     base_unit_of_measure: "PCS",
     category_id: null,
     variant_strategy: "SINGLE_SKU",
+    variant_axes: [],
     item_type: "PHYSICAL",
     track_inventory: true,
     status: "ACTIVE",
@@ -63,6 +65,24 @@ describe("item-uom-commerce", () => {
     expect(conversionFactorForAlternate([{ uom_code: "BOX", conversion_factor: "12" }], "BOX")).toBe(
       "12"
     );
+  });
+
+  it("formats alternate unit conversion preview with managed names", () => {
+    expect(
+      formatAlternateUomConversionPreview("BOX", "12", "PCS", [
+        { code: "BOX", name: "Box" },
+        { code: "PCS", name: "Pieces" },
+      ])
+    ).toBe("1 box = 12 pieces");
+  });
+
+  it("formats preview using codes when names are unavailable", () => {
+    expect(formatAlternateUomConversionPreview("PKT", "6", "LTRS", [])).toBe("1 pkt = 6 ltrs");
+  });
+
+  it("returns null for invalid conversion factor", () => {
+    expect(formatAlternateUomConversionPreview("BOX", "", "PCS", [])).toBeNull();
+    expect(formatAlternateUomConversionPreview("BOX", "0", "PCS", [])).toBeNull();
   });
 
   it("prefers catalog factor when building purchase row", () => {

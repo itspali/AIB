@@ -42,12 +42,15 @@ import type {
   CardGridColumnCount,
   CardGridColumnPref,
   FrozenColumnPref,
+  ProductCardLayout,
 } from "@/lib/products/list-prefs";
 import {
   AUTO_LAYOUT_PREF,
   getAutoCardGridColumns,
   getAutoFrozenColumnCount,
   getMaxCardGridColumns,
+  isCardGridColumnCount,
+  parseProductCardLayout,
 } from "@/lib/products/list-prefs";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +71,8 @@ type Props<TId extends string> = {
   onFrozenColumnCountChange?: (count: FrozenColumnPref) => void;
   cardGridColumns?: CardGridColumnPref;
   onCardGridColumnsChange?: (count: CardGridColumnPref) => void;
+  cardLayout?: ProductCardLayout;
+  onCardLayoutChange?: (layout: ProductCardLayout) => void;
   disabled?: boolean;
   isSaving?: boolean;
   triggerClassName?: string;
@@ -104,6 +109,8 @@ export function ListColumnSettings<TId extends string>({
   onFrozenColumnCountChange,
   cardGridColumns = AUTO_LAYOUT_PREF,
   onCardGridColumnsChange,
+  cardLayout = "v2",
+  onCardLayoutChange,
   disabled = false,
   isSaving = false,
   triggerClassName,
@@ -324,16 +331,14 @@ export function ListColumnSettings<TId extends string>({
         </div>
         <div className="flex items-center justify-between gap-2 px-2 py-1">
           {editingLayout === "card" ? (
-            <>
-              <label
-                htmlFor="card-grid-columns-select"
-                className="shrink-0 text-[11px] text-muted-foreground"
-              >
-                Cards · {DEVICE_LABEL[editingDevice]}
-              </label>
-              {editingDevice === "mobile" ? (
-                <span className="text-[11px] font-medium text-foreground">Auto ({autoCardGridLabel})</span>
-              ) : (
+            <div className="flex w-full flex-col gap-1">
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="card-grid-columns-select"
+                  className="shrink-0 text-[11px] text-muted-foreground"
+                >
+                  Cards · {DEVICE_LABEL[editingDevice]}
+                </label>
                 <Select
                   value={cardGridSelectValue}
                   onValueChange={(value) => {
@@ -342,7 +347,7 @@ export function ListColumnSettings<TId extends string>({
                       return;
                     }
                     const count = Number(value);
-                    if (count === 1 || count === 2 || count === 3 || count === 4) {
+                    if (isCardGridColumnCount(count)) {
                       onCardGridColumnsChange?.(count);
                     }
                   }}
@@ -368,8 +373,34 @@ export function ListColumnSettings<TId extends string>({
                     ))}
                   </SelectContent>
                 </Select>
-              )}
-            </>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="card-layout-style-settings"
+                  className="shrink-0 text-[11px] text-muted-foreground"
+                >
+                  Card style
+                </label>
+                <Select
+                  value={cardLayout}
+                  onValueChange={(value) =>
+                    onCardLayoutChange?.(parseProductCardLayout(value))
+                  }
+                >
+                  <SelectTrigger
+                    id="card-layout-style-settings"
+                    className="h-6 w-[4.75rem] shrink-0 px-1.5 py-0 text-[11px] [&>svg]:h-3 [&>svg]:w-3"
+                    aria-label="Card tile style"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="v2">Detail</SelectItem>
+                    <SelectItem value="shop">Shop</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           ) : (
             <>
               <label

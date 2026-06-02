@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { deleteItemMedia, saveItemMedia } from "@/app/items/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
+import { MEDIA_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -206,8 +208,13 @@ export function ProductMediaGallery({
           </p>
         </div>
 
-        <div className="w-full sm:w-64">
-          <Label className="text-xs text-muted-foreground">Image scope</Label>
+        <div className="w-full sm:w-64 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Image scope</Label>
+            <FieldLabelInfo label="Image scope">
+              {fieldHelpText(MEDIA_FIELD_HELP.imageScope)}
+            </FieldLabelInfo>
+          </div>
           <Select
             value={scope}
             disabled={isPending || isUploading}
@@ -290,7 +297,7 @@ export function ProductMediaGallery({
                 <div className="space-y-1">
                   <VisibilityRow
                     label="Storefront"
-                    description="Show on B2C/B2B storefront renderers"
+                    description={MEDIA_FIELD_HELP.storefront}
                     checked={entry.show_on_storefront}
                     disabled={readOnly || isPending}
                     onCheckedChange={(checked) =>
@@ -299,7 +306,7 @@ export function ProductMediaGallery({
                   />
                   <VisibilityRow
                     label="Digital catalog"
-                    description="Include in PDF/email catalog exports"
+                    description={MEDIA_FIELD_HELP.digitalCatalog}
                     checked={entry.show_in_digital_catalog}
                     disabled={readOnly || isPending}
                     onCheckedChange={(checked) =>
@@ -308,7 +315,7 @@ export function ProductMediaGallery({
                   />
                   <VisibilityRow
                     label="Internal documents"
-                    description="Show on PO/SO print layouts"
+                    description={MEDIA_FIELD_HELP.internalDocs}
                     checked={entry.show_on_internal_transactions}
                     disabled={readOnly || isPending}
                     onCheckedChange={(checked) =>
@@ -424,11 +431,11 @@ function VisibilityRow({
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <div
-      className="flex items-center justify-between gap-2 rounded-sm px-0.5 py-0.5"
-      title={description}
-    >
-      <p className="truncate text-xs font-medium leading-none">{label}</p>
+    <div className="flex items-center justify-between gap-2 rounded-sm px-0.5 py-0.5">
+      <div className="flex min-w-0 items-center gap-1">
+        <p className="truncate text-xs font-medium leading-none">{label}</p>
+        <FieldLabelInfo label={label}>{fieldHelpText(description)}</FieldLabelInfo>
+      </div>
       <Switch
         checked={checked}
         disabled={disabled}

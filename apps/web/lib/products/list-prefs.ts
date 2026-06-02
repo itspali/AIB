@@ -17,6 +17,8 @@ import {
   type ProductListSortField,
 } from "@/lib/products/list-sort";
 
+const LEGACY_CARD_LAYOUT_STORAGE_KEY = "aib-card-layout-preview";
+
 export type { DeviceClass } from "@/lib/layout/device-class";
 
 export type ProductListViewMode = "table" | "compact" | "card";
@@ -27,10 +29,30 @@ export function isCardViewMode(viewMode: ProductListViewMode): boolean {
   return viewMode === "card";
 }
 
+/** Card grid tile style: detailed structured tiles or shop catalog grid. */
+export type ProductCardLayout = "v2" | "shop";
+
+export const PRODUCT_CARD_LAYOUTS: ProductCardLayout[] = ["v2", "shop"];
+
+export function isShopCardLayout(layout: ProductCardLayout): boolean {
+  return layout === "shop";
+}
+
+export function parseProductCardLayout(value: unknown): ProductCardLayout {
+  if (value === "shop") return "shop";
+  return "v2";
+}
+
 export function isTableLikeViewMode(viewMode: ProductListViewMode): boolean {
   return viewMode === "table" || viewMode === "compact";
 }
-export type CardGridColumnCount = 1 | 2 | 3 | 4;
+export const CARD_GRID_COLUMN_VALUES = [1, 2, 3, 4, 5, 6] as const;
+
+export type CardGridColumnCount = (typeof CARD_GRID_COLUMN_VALUES)[number];
+
+export function isCardGridColumnCount(value: number): value is CardGridColumnCount {
+  return Number.isInteger(value) && value >= 1 && value <= 6;
+}
 
 export type ProductListFrozenColumnCount = 0 | 1 | 2 | 3;
 
@@ -58,6 +80,8 @@ export type ProductListPrefs = {
   frozenColumnCount: FrozenColumnPref;
   /** When true, table view lists one row per variant for multi-variant items. */
   showVariants: boolean;
+  /** Tile style when viewMode is card. */
+  cardLayout: ProductCardLayout;
 };
 
 const TABLE_MOBILE_VISIBLE: ProductListColumnId[] = [
@@ -147,11 +171,11 @@ export function getAutoFrozenColumnCount(deviceClass: DeviceClass): ProductListF
 export function getMaxCardGridColumns(deviceClass: DeviceClass): CardGridColumnCount {
   switch (deviceClass) {
     case "mobile":
-      return 1;
-    case "tablet":
       return 2;
-    case "desktop":
+    case "tablet":
       return 4;
+    case "desktop":
+      return 6;
   }
 }
 
@@ -195,7 +219,7 @@ function parseCardGridColumnPref(
   fallback: CardGridColumnPref
 ): CardGridColumnPref {
   if (value === AUTO_LAYOUT_PREF) return AUTO_LAYOUT_PREF;
-  if (value === 1 || value === 2 || value === 3 || value === 4) return value;
+  if (typeof value === "number" && isCardGridColumnCount(value)) return value;
   return fallback;
 }
 
@@ -277,6 +301,7 @@ export function getDefaultProductListPrefs(): ProductListPrefs {
     columnPrefs: getDefaultProductListColumnPrefsByContext(),
     cardGridColumns: getDefaultCardGridColumns(),
     showVariants: false,
+    cardLayout: "v2",
   });
 }
 
@@ -478,6 +503,9 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
       ? parseCardGridColumns(parsed.cardGridColumns)
       : getDefaultCardGridColumns();
   const showVariants = parsed.showVariants === true;
+  const cardLayout = parseProductCardLayout(
+    (parsed as Partial<ProductListPrefs>).cardLayout
+  );
 
   return clampCardGridColumns({
     prefsVersion: PRODUCT_LIST_PREFS_VERSION,
@@ -489,7 +517,40 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     columnPrefs,
     cardGridColumns,
     showVariants,
+    cardLayout,
   });
+}
+
+function readLegacyCardLayoutPreviewStorage(): ProductCardLayout | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(LEGACY_CARD_LAYOUT_STORAGE_KEY);
+    // Legacy preview stored "v2" when the UI label was Shop.
+    if (stored === "v2") return "shop";
+    if (stored === "shop") return "shop";
+    if (stored === "legacy") return "v2";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearLegacyCardLayoutPreviewStorage(): void {
+  try {
+    window.localStorage.removeItem(LEGACY_CARD_LAYOUT_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function applyLegacyCardLayoutStorageMigration(prefs: ProductListPrefs): ProductListPrefs {
+  if (typeof window === "undefined") return prefs;
+
+  const legacy = readLegacyCardLayoutPreviewStorage();
+  if (!legacy) return prefs;
+  clearLegacyCardLayoutPreviewStorage();
+  if (prefs.cardLayout === legacy) return prefs;
+  return { ...prefs, cardLayout: legacy };
 }
 
 export function loadProductListPrefs(): ProductListPrefs | null {
@@ -499,7 +560,7 @@ export function loadProductListPrefs(): ProductListPrefs | null {
     const raw = localStorage.getItem(PRODUCT_LIST_COLUMN_REGISTRY.storageKey);
     if (!raw) return null;
 
-    return coerceProductListPrefs(JSON.parse(raw));
+    return applyLegacyCardLayoutStorageMigration(coerceProductListPrefs(JSON.parse(raw)));
   } catch {
     return null;
   }
@@ -624,6 +685,7 @@ export function shouldPersistPrefsImmediately(
 ): boolean {
   if (previous.viewMode !== next.viewMode) return true;
   if (previous.showVariants !== next.showVariants) return true;
+  if (previous.cardLayout !== next.cardLayout) return true;
   if (previous.frozenColumnCount !== next.frozenColumnCount) return true;
   if (previous.sortField !== next.sortField || previous.sortDirection !== next.sortDirection) {
     return true;
@@ -643,5 +705,6 @@ export function didColumnSettingsChange(
   if (JSON.stringify(previous.cardGridColumns) !== JSON.stringify(next.cardGridColumns)) {
     return true;
   }
+  if (previous.cardLayout !== next.cardLayout) return true;
   return false;
 }
