@@ -283,6 +283,8 @@ CREATE TYPE inventory_transaction_type AS ENUM (
 
 -- tenant_locations (M3 compliance columns)
 -- location_tax_identifier TEXT, tax_registered_name TEXT
+-- valuation_calculation_rule location_valuation_calculation_rule NULL (FIFO | MWAC; inherit tenant default when NULL)
+-- CREATE TYPE location_valuation_calculation_rule AS ENUM ('FIFO', 'MWAC');
 
 CREATE TABLE item_categories (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),

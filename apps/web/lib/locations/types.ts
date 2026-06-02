@@ -1,4 +1,5 @@
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type { ValuationMethodOption } from "@/lib/organization/naming-options";
 import type { DocumentSequenceRow } from "@/lib/organization/types";
 import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import type {
@@ -24,6 +25,7 @@ export type LocationRow = {
   is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
   pos_terminal_count: number;
+  valuation_calculation_rule: ValuationMethodOption | null;
   address_line1: string;
   address_line2: string | null;
   city: string;
@@ -52,6 +54,7 @@ export type LocationTopologyRow = {
   is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
   pos_terminal_count: number;
+  valuation_calculation_rule: ValuationMethodOption | null;
   is_active: boolean;
   address_line1: string;
   address_line2: string | null;
@@ -77,6 +80,7 @@ export type LocationModuleContext = {
   governance: LocationGovernanceSnapshot;
   centralHqLocationId: string | null;
   canManage: boolean;
+  defaultInventoryValuationMethod: ValuationMethodOption;
   revenueAccounts: RevenueAccountOption[];
   documentSequencesByLocationId: Record<string, DocumentSequenceRow[]>;
 };
@@ -101,6 +105,7 @@ export type LocationFormValues = {
   is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
   pos_terminal_count: number;
+  valuation_calculation_rule: ValuationMethodOption | null;
   location_tax_identifier: string;
   tax_registered_name: string;
   show_advanced: boolean;

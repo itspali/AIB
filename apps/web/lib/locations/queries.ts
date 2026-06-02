@@ -12,6 +12,23 @@ import type {
 } from "@/lib/locations/types";
 import type { DocumentSequenceRow } from "@/lib/organization/types";
 import { mapTenantRowToSnapshotParts } from "@/lib/organization/types";
+import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
+import type { ValuationMethodOption } from "@/lib/organization/naming-options";
+
+function parseValuationCalculationRule(value: unknown): ValuationMethodOption | null {
+  if (value === "FIFO" || value === "MWAC") return value;
+  return null;
+}
+
+function parseDefaultInventoryValuationMethod(
+  accountingConfig: Record<string, unknown> | undefined
+): ValuationMethodOption {
+  const method = accountingConfig?.inventory_valuation_method;
+  if (typeof method === "string" && VALUATION_METHOD_OPTIONS.includes(method as ValuationMethodOption)) {
+    return method as ValuationMethodOption;
+  }
+  return "FIFO";
+}
 
 function mapLocationRow(row: Record<string, unknown>): LocationRow {
   return {
@@ -25,6 +42,7 @@ function mapLocationRow(row: Record<string, unknown>): LocationRow {
     is_manufacturing_floor: Boolean(row.is_manufacturing_floor),
     is_stock_holding: Boolean(row.is_stock_holding),
     pos_terminal_count: Number(row.pos_terminal_count ?? 0),
+    valuation_calculation_rule: parseValuationCalculationRule(row.valuation_calculation_rule),
     address_line1: String(row.address_line1),
     address_line2: row.address_line2 ? String(row.address_line2) : null,
     city: String(row.city),
@@ -60,6 +78,7 @@ function mapTopologyRow(row: Record<string, unknown>): LocationTopologyRow {
     is_manufacturing_floor: Boolean(row.is_manufacturing_floor),
     is_stock_holding: Boolean(row.is_stock_holding),
     pos_terminal_count: Number(row.pos_terminal_count ?? 0),
+    valuation_calculation_rule: parseValuationCalculationRule(row.valuation_calculation_rule),
     is_active: Boolean(row.is_active),
     address_line1: String(row.address_line1),
     address_line2: row.address_line2 ? String(row.address_line2) : null,
@@ -170,17 +189,24 @@ export async function fetchLocationModuleContext(
   tenantId: string,
   canManage: boolean
 ): Promise<LocationModuleContext | null> {
-  const [governance, revenueAccounts, documentSequencesByLocationId] = await Promise.all([
+  const [governance, revenueAccounts, documentSequencesByLocationId, tenantRow] = await Promise.all([
     fetchLocationGovernanceSnapshot(supabase, tenantId),
     fetchRevenueAccounts(supabase, tenantId),
     fetchLocationDocumentSequenceMap(supabase, tenantId),
+    supabase.from("tenants").select("accounting_config").eq("id", tenantId).maybeSingle(),
   ]);
   if (!governance) return null;
+
+  const accountingConfig =
+    tenantRow.data?.accounting_config && typeof tenantRow.data.accounting_config === "object"
+      ? (tenantRow.data.accounting_config as Record<string, unknown>)
+      : undefined;
 
   return {
     governance,
     centralHqLocationId: governance.central_hq_location_id,
     canManage,
+    defaultInventoryValuationMethod: parseDefaultInventoryValuationMethod(accountingConfig),
     revenueAccounts,
     documentSequencesByLocationId,
   };

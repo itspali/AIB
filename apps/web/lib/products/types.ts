@@ -69,7 +69,8 @@ export type ProductStorefrontVisibilitySnapshot = {
 export type ProductCatalogContext = {
   base_currency: string;
   inventory_valuation_method: string;
-  runtime_valuation_engine: "MWAC";
+  runtime_valuation_engine: "MWAC" | "LOCATION_SCOPED";
+  runtime_valuation_note: string;
   suppliers: Array<{ id: string; name: string }>;
   tags: ProductTagSnapshot[];
   storefronts: Array<{ id: string; name: string; channel_type: string; slug: string }>;

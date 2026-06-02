@@ -76,6 +76,7 @@ export async function saveLocation(raw: unknown) {
     p_location_tax_identifier: values.location_tax_identifier || null,
     p_tax_registered_name: values.tax_registered_name || null,
     p_location_meta: locationMeta,
+    p_valuation_calculation_rule: values.valuation_calculation_rule,
   });
 
   if (error) {

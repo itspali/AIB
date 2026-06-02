@@ -33,3 +33,5 @@ export const DEFAULT_FACILITY_NAMING_SEQUENCES: Record<
 };
 
 export const VALUATION_METHOD_OPTIONS = ["FIFO", "MWAC"] as const;
+
+export type ValuationMethodOption = (typeof VALUATION_METHOD_OPTIONS)[number];

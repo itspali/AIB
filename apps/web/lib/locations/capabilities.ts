@@ -1,5 +1,7 @@
 import type { LocationRow } from "@/lib/locations/types";
 
+export { locationSupportsValuationRule } from "@/lib/locations/valuation-rule";
+
 export function locationSupportsInventoryOps(
   location: Pick<LocationRow, "is_stock_holding" | "presence_type">
 ): boolean {

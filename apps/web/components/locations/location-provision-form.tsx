@@ -47,13 +47,17 @@ import {
   DEFAULT_VIRTUAL_LOCATION_CONFIG,
   parseVirtualLocationConfiguration,
 } from "@/lib/locations/virtual-config";
+import { LocationValuationRuleField } from "@/components/locations/location-valuation-rule-field";
+import { locationSupportsValuationRule } from "@/lib/locations/valuation-rule";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type { ValuationMethodOption } from "@/lib/organization/naming-options";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { cn } from "@/lib/utils";
 
 type Props = {
   rows: LocationRow[];
   governance: OrganizationLocationGovernanceConfig;
+  defaultInventoryValuationMethod: ValuationMethodOption;
   revenueAccounts: RevenueAccountOption[];
   documentSequencesByLocationId: Record<string, DocumentSequenceRow[]>;
   editingLocation?: LocationRow | null;
@@ -92,6 +96,7 @@ const defaultForm: LocationFormValues = {
   is_manufacturing_floor: false,
   is_stock_holding: false,
   pos_terminal_count: 0,
+  valuation_calculation_rule: null,
   location_tax_identifier: "",
   tax_registered_name: "",
   show_advanced: false,
@@ -114,6 +119,7 @@ function normalizeVirtualAddress(form: LocationFormValues): LocationFormValues {
 export function LocationProvisionForm({
   rows,
   governance,
+  defaultInventoryValuationMethod,
   revenueAccounts,
   documentSequencesByLocationId,
   editingLocation = null,
@@ -169,6 +175,7 @@ export function LocationProvisionForm({
         is_manufacturing_floor: editingLocation.is_manufacturing_floor,
         is_stock_holding: editingLocation.is_stock_holding,
         pos_terminal_count: editingLocation.pos_terminal_count,
+        valuation_calculation_rule: editingLocation.valuation_calculation_rule,
         location_tax_identifier: editingLocation.location_tax_identifier ?? "",
         tax_registered_name: editingLocation.tax_registered_name ?? "",
         show_advanced: Boolean(
@@ -179,6 +186,7 @@ export function LocationProvisionForm({
             editingLocation.is_commercial_storefront ||
             editingLocation.is_manufacturing_floor ||
             editingLocation.is_stock_holding ||
+            editingLocation.valuation_calculation_rule ||
             editingLocation.pos_terminal_count > 0 ||
             editingLocation.address_line2 ||
             editingLocation.presence_type === "VIRTUAL" ||
@@ -288,12 +296,19 @@ export function LocationProvisionForm({
       if (key === "presence_type" && value === "VIRTUAL") {
         next.is_stock_holding = false;
         next.is_manufacturing_floor = false;
+        next.valuation_calculation_rule = null;
       }
       if (key === "presence_type" && value === "PHYSICAL") {
         next.virtual_configuration = DEFAULT_VIRTUAL_LOCATION_CONFIG;
       }
       if (key === "is_commercial_storefront") {
         next.pos_terminal_count = value ? Math.max(1, prev.pos_terminal_count || 1) : 0;
+        if (!value && !next.is_stock_holding) {
+          next.valuation_calculation_rule = null;
+        }
+      }
+      if (key === "is_stock_holding" && !value && !next.is_commercial_storefront) {
+        next.valuation_calculation_rule = null;
       }
       if (key === "code" && typeof value === "string") {
         next.code = value.toUpperCase();
@@ -577,6 +592,16 @@ export function LocationProvisionForm({
                     </div>
                   )}
                 </CapabilityCard>
+
+                {locationSupportsValuationRule(form) && (
+                  <CapabilityCard title="Inventory Calculation Rule">
+                    <LocationValuationRuleField
+                      form={form}
+                      defaultInventoryValuationMethod={defaultInventoryValuationMethod}
+                      onChange={(value) => updateField("valuation_calculation_rule", value)}
+                    />
+                  </CapabilityCard>
+                )}
 
                 <CapabilityCard title={storefrontCapabilityCardTitle(form.presence_type)}>
                   <SwitchRow

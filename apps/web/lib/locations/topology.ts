@@ -12,6 +12,7 @@ export function buildLocationTreeFromRows(rows: LocationRow[]): LocationTreeNode
     is_manufacturing_floor: row.is_manufacturing_floor,
     is_stock_holding: row.is_stock_holding,
     pos_terminal_count: row.pos_terminal_count,
+    valuation_calculation_rule: row.valuation_calculation_rule,
     is_active: row.is_active,
     address_line1: row.address_line1,
     address_line2: row.address_line2,

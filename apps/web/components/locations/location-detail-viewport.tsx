@@ -13,7 +13,9 @@ import {
   resolveLocationTagVariant,
   tagLabel,
 } from "@/lib/locations/axis-labels";
-import { locationSupportsInventoryOps } from "@/lib/locations/capabilities";
+import { locationSupportsInventoryOps, locationSupportsValuationRule } from "@/lib/locations/capabilities";
+import { formatLocationValuationRuleLabel } from "@/lib/locations/valuation-rule";
+import type { ValuationMethodOption } from "@/lib/organization/naming-options";
 import {
   getLocationDocumentNumberingKeys,
   locationHasDocumentNumbering,
@@ -35,6 +37,7 @@ type Props = {
   canManage: boolean;
   revenueAccounts?: RevenueAccountOption[];
   documentSequences?: DocumentSequenceRow[];
+  defaultInventoryValuationMethod?: ValuationMethodOption;
   onEdit: () => void;
   onDeactivate: () => void;
   onReactivate: () => void;
@@ -46,6 +49,7 @@ export function LocationDetailViewport({
   canManage,
   revenueAccounts = [],
   documentSequences = [],
+  defaultInventoryValuationMethod = "FIFO",
   onEdit,
   onDeactivate,
   onReactivate,
@@ -122,6 +126,15 @@ export function LocationDetailViewport({
             {location.is_manufacturing_floor && (
               <p>Manufacturing floor · WIP and production routing enabled</p>
             )}
+            {locationSupportsValuationRule(location) && (
+              <p>
+                Inventory calculation:{" "}
+                {formatLocationValuationRuleLabel(
+                  location.valuation_calculation_rule,
+                  defaultInventoryValuationMethod
+                )}
+              </p>
+            )}
             {!location.is_administrative_office &&
               !location.is_commercial_storefront &&
               !location.is_stock_holding &&
@@ -172,6 +185,15 @@ export function LocationDetailViewport({
             Inventory counting, moving average cost grids, and shelf slot selectors are available for
             this stock-holding location.
           </p>
+          {locationSupportsValuationRule(location) && (
+            <p className="text-sm text-muted-foreground">
+              Calculation rule:{" "}
+              {formatLocationValuationRuleLabel(
+                location.valuation_calculation_rule,
+                defaultInventoryValuationMethod
+              )}
+            </p>
+          )}
         </section>
       ) : (
         <section className="surface-panel space-y-2 border-red-500/20 p-4">

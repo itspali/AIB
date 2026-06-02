@@ -82,6 +82,7 @@ const defaultForm: LocationFormValues = {
   is_manufacturing_floor: false,
   is_stock_holding: false,
   pos_terminal_count: 0,
+  valuation_calculation_rule: null,
   location_tax_identifier: "",
   tax_registered_name: "",
   show_advanced: false,
@@ -142,6 +143,7 @@ export function LocationDrawerForm({
           is_manufacturing_floor: editingLocation.is_manufacturing_floor,
           is_stock_holding: editingLocation.is_stock_holding,
           pos_terminal_count: editingLocation.pos_terminal_count,
+          valuation_calculation_rule: editingLocation.valuation_calculation_rule,
           location_tax_identifier: editingLocation.location_tax_identifier ?? "",
           tax_registered_name: editingLocation.tax_registered_name ?? "",
           show_advanced: Boolean(

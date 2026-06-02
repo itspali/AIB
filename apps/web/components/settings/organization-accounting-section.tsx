@@ -51,12 +51,12 @@ export function OrganizationAccountingSection({ form, disabled }: Props) {
   return (
     <OrgSettingsSection
       title="Accounting & Workspace Controls"
-      description="Valuation engine, credit policy, and posting guardrails."
+      description="Default inventory calculation rule and posting guardrails."
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">
-            Inventory valuation method
+            Default inventory calculation rule
           </Label>
           <Select
             value={watch("inventory_valuation_method")}
@@ -77,7 +77,9 @@ export function OrganizationAccountingSection({ form, disabled }: Props) {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Runtime valuation engine executes MWAC on inventory ledger postings.
+            Default calculation rule for stock-holding and storefront locations without an explicit
+            override. MWAC runs when the resolved rule is MWAC; FIFO postings fail until cost
+            layers are implemented.
           </p>
         </div>
         <div className="space-y-2">

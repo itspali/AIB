@@ -134,6 +134,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
             <LocationProvisionForm
               rows={initialRows}
               governance={moduleContext.governance}
+              defaultInventoryValuationMethod={moduleContext.defaultInventoryValuationMethod}
               revenueAccounts={moduleContext.revenueAccounts}
               documentSequencesByLocationId={moduleContext.documentSequencesByLocationId}
               editingLocation={editingLocation}
@@ -149,6 +150,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
               documentSequences={
                 moduleContext.documentSequencesByLocationId[selectedLocation.id] ?? []
               }
+              defaultInventoryValuationMethod={moduleContext.defaultInventoryValuationMethod}
               onEdit={openEdit}
               onDeactivate={handleDeactivate}
               onReactivate={handleReactivate}

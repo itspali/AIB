@@ -5,7 +5,8 @@ import { DOM_FULFILLMENT_STRATEGIES } from "@/lib/locations/dom-routing";
 import {
   getLocationDocumentNumberingKeys,
 } from "@/lib/locations/document-numbering";
-import { NAMING_SEQUENCE_KEYS } from "@/lib/organization/naming-options";
+import { NAMING_SEQUENCE_KEYS, VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
+import { locationSupportsValuationRule } from "@/lib/locations/valuation-rule";
 import {
   VIRTUAL_FULFILLMENT_MODES,
   WEBHOOK_VERIFICATION_STATUSES,
@@ -44,6 +45,7 @@ export const locationFormSchema = z
     is_manufacturing_floor: z.boolean(),
     is_stock_holding: z.boolean(),
     pos_terminal_count: z.number().int().min(0, "POS terminal count cannot be negative"),
+    valuation_calculation_rule: z.enum(VALUATION_METHOD_OPTIONS).nullable(),
     location_tax_identifier: z.string().trim().max(50),
     tax_registered_name: z.string().trim().max(200),
     show_advanced: z.boolean(),
@@ -112,6 +114,17 @@ export const locationFormSchema = z
         code: z.ZodIssueCode.custom,
         message: "POS terminals require a commercial storefront location",
         path: ["pos_terminal_count"],
+      });
+    }
+    if (
+      values.valuation_calculation_rule !== null &&
+      !locationSupportsValuationRule(values)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Inventory calculation rules apply only to stock-holding or storefront locations",
+        path: ["valuation_calculation_rule"],
       });
     }
 

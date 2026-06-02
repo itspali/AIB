@@ -73,7 +73,9 @@ export async function fetchProductCatalogContext(
   return {
     base_currency: tenant?.base_currency ?? "USD",
     inventory_valuation_method: valuationMethod,
-    runtime_valuation_engine: "MWAC",
+    runtime_valuation_engine: "LOCATION_SCOPED",
+    runtime_valuation_note:
+      "Resolved per location (with organization default fallback). MWAC executes when the effective rule is MWAC; FIFO is blocked until cost layers ship.",
     suppliers: (suppliers ?? []).map((row) => ({ id: row.id, name: row.name })),
     tags: (tags ?? []).map((row) => ({ id: row.id, name: row.name, slug: row.slug })),
     storefronts: (storefronts ?? []).map((row) => ({
