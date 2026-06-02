@@ -1,6 +1,6 @@
 -- ====================================================================
 -- AIB SMART ERP - ITEM VARIANT COMPOSITION (variant axes)
--- Migration: 20260604000000_item_variant_axes.sql
+-- Migration: 20260602104910_item_variant_axes.sql
 -- --------------------------------------------------------------------
 -- Persists which category attribute keys an item actually varies on
 -- (e.g. ["size"]) versus those that merely describe it (e.g. brand).
