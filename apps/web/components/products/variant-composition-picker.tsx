@@ -10,13 +10,15 @@ import { cn } from "@/lib/utils";
 type Props = {
   templates: AttributeTemplateEntry[];
   axisKeys: string[];
+  /** Category/variant hints only — not applied until the author moves attributes. */
+  suggestedAxisKeys?: string[];
   disabled?: boolean;
   compact?: boolean;
   onChange: (axisKeys: string[]) => void;
 };
 
 const COMPOSITION_HELP =
-  "Choose which category attributes create separate versions (SKUs). Attributes under “Same for every version” describe the item but don’t split it — e.g. Brand stays the same while Size varies.";
+  "Your category defines which attributes exist. You choose which ones create separate versions (SKUs). Attributes under “Same for every version” describe the item but don’t split it — e.g. Brand stays the same while Size varies.";
 
 /**
  * Lets the item author decide which category attributes compose its variants
@@ -26,6 +28,7 @@ const COMPOSITION_HELP =
 export function VariantCompositionPicker({
   templates,
   axisKeys,
+  suggestedAxisKeys = [],
   disabled,
   compact,
   onChange,
@@ -33,6 +36,9 @@ export function VariantCompositionPicker({
   if (templates.length === 0) return null;
 
   const { axes, descriptive } = splitTemplatesByAxis(templates, axisKeys);
+  const suggestionLabels = suggestedAxisKeys
+    .map((key) => templates.find((template) => template.key === key)?.label ?? key)
+    .filter((label, index, list) => list.indexOf(label) === index);
 
   const move = (key: string, toAxis: boolean) => {
     const next = new Set(axisKeys);
@@ -48,6 +54,11 @@ export function VariantCompositionPicker({
         compact={compact}
         info={fieldHelpText(COMPOSITION_HELP)}
       />
+      {axisKeys.length === 0 && suggestionLabels.length > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Suggested axes: {suggestionLabels.join(", ")} — move them to “Varies by” when ready.
+        </p>
+      ) : null}
       <div className={cn("grid gap-3", compact ? "grid-cols-1" : "sm:grid-cols-2")}>
         <Bucket
           icon={Layers}

@@ -5,6 +5,7 @@ import { SlidersHorizontal } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { creditControlLabel } from "@/lib/organization/credit-control-options";
+import { scanIdentifierPolicyLabel } from "@/lib/products/catalog-item-settings";
 import { domStrategyLabel } from "@/lib/locations/dom-routing";
 import type {
   OrganizationSettingsFormValues,
@@ -93,6 +94,19 @@ export function useOrganizationPolicyItems(
         id: "valuation",
         label: "Valuation",
         value: formValues.inventory_valuation_method,
+      },
+      {
+        id: "scan",
+        label: "Scan lookup",
+        value: scanIdentifierPolicyLabel(formValues.scan_identifier_policy),
+      },
+      {
+        id: "auto-sku",
+        label: "Auto SKU",
+        value: formValues.sku_auto_generation_enabled
+          ? `${formValues.sku_auto_pattern} (${formValues.sku_auto_prefix})`
+          : "Off",
+        mono: formValues.sku_auto_generation_enabled,
       },
       {
         id: "credit",

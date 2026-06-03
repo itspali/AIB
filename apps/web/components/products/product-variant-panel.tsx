@@ -27,6 +27,7 @@ import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info"
 import { VARIANT_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import { Label } from "@/components/ui/label";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import {
   Select,
   SelectContent,
@@ -318,7 +319,7 @@ export function ProductVariantPanel({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Search SKU, barcode, attributes…"
+            placeholder="Search SKU, GTIN, attributes…"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -377,7 +378,7 @@ export function ProductVariantPanel({
                   SKU <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
-              <th className="p-3 font-medium text-muted-foreground">Barcode</th>
+              <th className="p-3 font-medium text-muted-foreground">GTIN</th>
               <th className="p-3 font-medium text-muted-foreground">Attributes</th>
               <th className="p-3 font-medium text-muted-foreground">
                 <button
@@ -606,6 +607,7 @@ function VariantDrawerForm({
   onSaved: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
   const skuManualRef = useRef(isEditing);
 
   const form = useForm<ItemVariantFormValues>({
@@ -674,12 +676,17 @@ function VariantDrawerForm({
     [categoryTemplates, siblingVariants, itemId, isEditing, onSaved]
   );
 
+  const closeForm = () => {
+    onOpenChange(false);
+  };
+
   return (
-    <RightDrawer
-      open={open}
-      onOpenChange={onOpenChange}
-      title={isEditing ? "Edit Product Variant" : "Add Product Variant"}
-    >
+    <>
+      <RightDrawer
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
+        title={isEditing ? "Edit Product Variant" : "Add Product Variant"}
+      >
       <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           <div className="space-y-2">
@@ -721,9 +728,9 @@ function VariantDrawerForm({
 
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Label htmlFor="variant_barcode">Barcode / GTIN</Label>
-              <FieldLabelInfo label="Barcode / GTIN">
-                {fieldHelpText(VARIANT_FIELD_HELP.barcode)}
+              <Label htmlFor="variant_barcode">GTIN</Label>
+              <FieldLabelInfo label="GTIN">
+                {fieldHelpText(VARIANT_FIELD_HELP.gtin)}
               </FieldLabelInfo>
             </div>
             <Input
@@ -829,7 +836,7 @@ function VariantDrawerForm({
           </div>
 
           <div className="space-y-3 border-t border-border pt-4">
-            <h4 className="text-sm font-medium">Category variant attributes</h4>
+            <h4 className="text-sm font-medium">Version attributes</h4>
             <VariantAttributeFields
               templates={categoryTemplates}
               values={variantAttributes}
@@ -846,7 +853,7 @@ function VariantDrawerForm({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="ghost" disabled={isPending} onClick={() => requestClose(closeForm)}>
             Cancel
           </Button>
           <Button type="submit" disabled={isPending}>
@@ -855,5 +862,7 @@ function VariantDrawerForm({
         </div>
       </form>
     </RightDrawer>
+    {discardDialog}
+    </>
   );
 }

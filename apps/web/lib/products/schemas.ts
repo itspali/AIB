@@ -45,7 +45,7 @@ export const productMasterSchema = z.object({
   classification: z.enum(ITEM_CLASSIFICATIONS),
   name: z.string().trim().min(1, "Product name is required").max(200),
   description: z.string().trim().max(2000),
-  sku: z.string().trim().min(1, "Product code is required").max(64),
+  sku: z.string().trim().max(64),
   barcode: z.string().trim().max(64),
   base_unit_of_measure: uomCode,
   category_id: z.string().uuid().nullable(),

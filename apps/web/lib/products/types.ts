@@ -1,3 +1,4 @@
+import type { CatalogItemSettings } from "@/lib/products/catalog-item-settings";
 import type { ItemClassification } from "@/lib/products/classification-labels";
 import {
   itemLifecycleStatusFromActive,
@@ -71,6 +72,7 @@ export type ProductCatalogContext = {
   inventory_valuation_method: string;
   runtime_valuation_engine: "MWAC" | "LOCATION_SCOPED";
   runtime_valuation_note: string;
+  catalog_items: CatalogItemSettings;
   suppliers: Array<{ id: string; name: string }>;
   tags: ProductTagSnapshot[];
   storefronts: Array<{ id: string; name: string; channel_type: string; slug: string }>;

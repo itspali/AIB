@@ -7,7 +7,9 @@ import {
   getVariantAssortment,
   saveVariantAssortment,
   type VariantAssortmentCell,
+  type VariantAssortmentData,
 } from "@/app/items/actions";
+import { useOptionalItemExtensionData } from "@/components/products/item-extension-data-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,8 +38,25 @@ function locationSupportsStock(location: LocationMeta): boolean {
   return location.is_stock_holding && location.presence_type !== "VIRTUAL";
 }
 
+function applyAssortmentData(
+  data: VariantAssortmentData,
+  setLocations: (locations: LocationMeta[]) => void,
+  setCells: (cells: Record<string, CellState>) => void
+) {
+  setLocations(data.locations);
+  const map: Record<string, CellState> = {};
+  for (const cell of data.cells) {
+    map[cellKey(cell.variant_id, cell.location_id)] = {
+      is_stocked: cell.is_stocked,
+      is_sellable: cell.is_sellable,
+    };
+  }
+  setCells(map);
+}
+
 export function VariantAssortmentMatrix({ itemId, variants, readOnly = false }: Props) {
   const router = useRouter();
+  const extension = useOptionalItemExtensionData();
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<LocationMeta[]>([]);
   const [cells, setCells] = useState<Record<string, CellState>>({});
@@ -53,21 +72,27 @@ export function VariantAssortmentMatrix({ itemId, variants, readOnly = false }: 
       setLoading(false);
       return;
     }
-    setLocations(result.data.locations);
-    const map: Record<string, CellState> = {};
-    for (const cell of result.data.cells) {
-      map[cellKey(cell.variant_id, cell.location_id)] = {
-        is_stocked: cell.is_stocked,
-        is_sellable: cell.is_sellable,
-      };
-    }
-    setCells(map);
+    applyAssortmentData(result.data, setLocations, setCells);
     setLoading(false);
   }, [itemId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!extension) {
+      void load();
+      return;
+    }
+    if (extension.status === "loading" || extension.status === "idle") {
+      setLoading(true);
+      return;
+    }
+    if (extension.status === "error") {
+      toast.error(extension.error);
+      setLoading(false);
+      return;
+    }
+    applyAssortmentData(extension.data.assortment, setLocations, setCells);
+    setLoading(false);
+  }, [extension, load]);
 
   const setCell = (variantId: string, locationId: string, patch: Partial<CellState>) => {
     setCells((prev) => {

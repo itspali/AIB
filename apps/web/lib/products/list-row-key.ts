@@ -106,3 +106,15 @@ export function resolveProductListRowActiveStatus(
   if (showVariants && row.variant_id && row.variant_is_active === false) return false;
   return true;
 }
+
+/** Whether a list row matches the open drawer selection (item + optional variant). */
+export function isProductListRowSelected(
+  row: ProductListRow,
+  selectedItemId: string | null,
+  selectedVariantId: string | null,
+  showVariants: boolean
+): boolean {
+  if (!selectedItemId || row.id !== selectedItemId) return false;
+  if (!showVariants || !row.variant_id) return true;
+  return (selectedVariantId ?? null) === row.variant_id;
+}

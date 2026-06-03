@@ -108,7 +108,7 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
   },
   {
     id: "barcode",
-    label: "Barcode",
+    label: "GTIN",
     defaultVisible: false,
     group: "Identity",
     valueKind: "code",

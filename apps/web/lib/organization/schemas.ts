@@ -3,6 +3,7 @@ import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { CREDIT_CONTROL_OPTIONS } from "@/lib/organization/credit-control-options";
 import { CURRENCY_OPTIONS } from "@/lib/organization/currency-options";
 import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
+import { SCAN_IDENTIFIER_POLICIES } from "@/lib/products/catalog-item-settings";
 import { isValidTimezone } from "@/lib/settings/timezone-options";
 
 const phonePattern = /^\+?[0-9\s().-]{7,30}$/;
@@ -52,6 +53,10 @@ export const organizationSettingsSchema = z.object({
   allow_negative_inventory: z.boolean(),
   multi_currency_enabled: z.boolean(),
   credit_control_enforcement: z.enum(CREDIT_CONTROL_OPTIONS),
+  scan_identifier_policy: z.enum(SCAN_IDENTIFIER_POLICIES),
+  sku_auto_generation_enabled: z.boolean(),
+  sku_auto_pattern: z.string().trim().min(1).max(64),
+  sku_auto_prefix: z.string().trim().min(1).max(24),
   allow_line_item_discounts: z.boolean(),
   accounting_period_closing_date: z.string().trim(),
   search_financial_fields_mode: z.enum(["role_default", "enabled", "disabled"]),

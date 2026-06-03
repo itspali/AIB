@@ -1,5 +1,5 @@
-import { ModuleWorkspaceSkeleton } from "@/components/layout/module-workspace-skeleton";
+import { CategoryCatalogPageSkeleton } from "@/components/categories/category-catalog-page-skeleton";
 
 export default function Loading() {
-  return <ModuleWorkspaceSkeleton titleWidth="w-36" />;
+  return <CategoryCatalogPageSkeleton />;
 }

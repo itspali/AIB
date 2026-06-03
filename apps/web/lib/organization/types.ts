@@ -4,12 +4,21 @@ import type { CreditControlEnforcement } from "@/lib/organization/credit-control
 import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
 import type { TenantProductFieldsAccess } from "@/lib/products/field-permissions";
+import {
+  DEFAULT_CATALOG_ITEM_SETTINGS,
+  isScanIdentifierPolicy,
+  type CatalogItemSettings,
+  type ScanIdentifierPolicy,
+} from "@/lib/products/catalog-item-settings";
+
+export type { CatalogItemSettings, ScanIdentifierPolicy };
 
 export type OrganizationAccountingConfig = {
   inventory_valuation_method: string;
   allow_negative_inventory: boolean;
   multi_currency_enabled: boolean;
   credit_control_enforcement: CreditControlEnforcement;
+  catalog_items: CatalogItemSettings;
 };
 
 export type OrganizationLocationGovernanceConfig = {
@@ -116,6 +125,10 @@ export type OrganizationSettingsFormValues = {
   allow_negative_inventory: boolean;
   multi_currency_enabled: boolean;
   credit_control_enforcement: CreditControlEnforcement;
+  scan_identifier_policy: ScanIdentifierPolicy;
+  sku_auto_generation_enabled: boolean;
+  sku_auto_pattern: string;
+  sku_auto_prefix: string;
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string;
   search_financial_fields_mode: SearchFinancialFieldsMode;
@@ -135,6 +148,27 @@ function parseAccountingConfig(raw: unknown): OrganizationAccountingConfig {
     multi_currency_enabled: config.multi_currency_enabled !== false,
     credit_control_enforcement:
       enforcement === "WARN" || enforcement === "OFF" ? enforcement : "STRICT",
+    catalog_items: parseCatalogItemSettingsFromAccounting(config),
+  };
+}
+
+function parseCatalogItemSettingsFromAccounting(
+  config: Record<string, unknown>
+): CatalogItemSettings {
+  const policy = config.scan_identifier_policy;
+  return {
+    scan_identifier_policy: isScanIdentifierPolicy(String(policy ?? ""))
+      ? policy
+      : DEFAULT_CATALOG_ITEM_SETTINGS.scan_identifier_policy,
+    sku_auto_generation_enabled: Boolean(config.sku_auto_generation_enabled),
+    sku_auto_pattern:
+      typeof config.sku_auto_pattern === "string" && config.sku_auto_pattern.trim()
+        ? config.sku_auto_pattern.trim()
+        : DEFAULT_CATALOG_ITEM_SETTINGS.sku_auto_pattern,
+    sku_auto_prefix:
+      typeof config.sku_auto_prefix === "string" && config.sku_auto_prefix.trim()
+        ? config.sku_auto_prefix.trim()
+        : DEFAULT_CATALOG_ITEM_SETTINGS.sku_auto_prefix,
   };
 }
 
@@ -185,6 +219,11 @@ export function snapshotToFormValues(
     allow_negative_inventory: snapshot.accounting_config.allow_negative_inventory,
     multi_currency_enabled: snapshot.accounting_config.multi_currency_enabled,
     credit_control_enforcement: snapshot.accounting_config.credit_control_enforcement,
+    scan_identifier_policy: snapshot.accounting_config.catalog_items.scan_identifier_policy,
+    sku_auto_generation_enabled:
+      snapshot.accounting_config.catalog_items.sku_auto_generation_enabled,
+    sku_auto_pattern: snapshot.accounting_config.catalog_items.sku_auto_pattern,
+    sku_auto_prefix: snapshot.accounting_config.catalog_items.sku_auto_prefix,
     allow_line_item_discounts: snapshot.allow_line_item_discounts,
     accounting_period_closing_date: snapshot.accounting_period_closing_date
       ? snapshot.accounting_period_closing_date.slice(0, 10)

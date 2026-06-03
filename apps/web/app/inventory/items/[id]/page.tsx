@@ -1,9 +1,5 @@
-import { notFound } from "next/navigation";
-import { fetchCategoryRows } from "@/lib/categories/queries";
-import { getModulePageContext } from "@/lib/layout/module-page";
-import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
-import { fetchProductDetail } from "@/lib/products/queries";
-import { ProductFormRouteWithSuspense } from "@/components/products/product-form-route";
+import { redirect } from "next/navigation";
+import { itemPeekHref } from "@/lib/products/item-navigation";
 
 export default async function ViewItemPage({
   params,
@@ -11,23 +7,5 @@ export default async function ViewItemPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, tenantId } = await getModulePageContext();
-
-  const [categories, catalogContext, detail] = await Promise.all([
-    fetchCategoryRows(supabase, tenantId),
-    fetchProductCatalogContext(supabase, tenantId),
-    fetchProductDetail(supabase, tenantId, id),
-  ]);
-
-  if (!detail) notFound();
-
-  return (
-    <ProductFormRouteWithSuspense
-      mode="view"
-      tenantId={tenantId}
-      categories={categories}
-      catalogContext={catalogContext}
-      detail={detail}
-    />
-  );
+  redirect(itemPeekHref(id));
 }

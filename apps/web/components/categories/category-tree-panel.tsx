@@ -1,35 +1,38 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CategoryTreeNodeRow } from "@/components/categories/category-tree-node";
-import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
-import type { CategoryRow, CategoryTreeNode } from "@/lib/categories/types";
-import { buildCategoryTree, filterCategoryTree } from "@/lib/categories/tree";
-import { filterCategoriesByAst } from "@/lib/search/executor/client-scopes";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { CategoryTreeNode } from "@/lib/categories/types";
+import { flattenTree } from "@/lib/categories/tree";
 
 type Props = {
-  rows: CategoryRow[];
+  filteredTree: CategoryTreeNode[];
+  totalRows: number;
   selectedId: string | null;
+  bulkSelectedIds: Set<string>;
   onSelect: (id: string) => void;
+  onBulkRowToggle: (id: string, checked: boolean) => void;
+  onBulkPageToggle: (checked: boolean) => void;
 };
 
-export function CategoryTreePanel({ rows, selectedId, onSelect }: Props) {
-  const omnibar = useOptionalOmnibarContext();
+export function CategoryTreePanel({
+  filteredTree,
+  totalRows,
+  selectedId,
+  bulkSelectedIds,
+  onSelect,
+  onBulkRowToggle,
+  onBulkPageToggle,
+}: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
-  const tree = useMemo(() => buildCategoryTree(rows), [rows]);
-  const filteredTree = useMemo(() => {
-    const query = omnibar?.appliedQuery?.trim() ?? "";
-    if (!query) return tree;
-
-    if (omnibar?.scope === "categories" && omnibar.activeAst.length) {
-      const filteredRows = filterCategoriesByAst(rows, omnibar.activeAst);
-      const filteredIds = new Set(filteredRows.map((row) => row.id));
-      return filterCategoryTree(tree, "").filter((node) => filteredIds.has(node.id));
-    }
-
-    return filterCategoryTree(tree, query);
-  }, [tree, rows, omnibar?.scope, omnibar?.appliedQuery, omnibar?.activeAst]);
+  const visibleNodes = flattenTree(filteredTree);
+  const visibleIds = visibleNodes.map((node) => node.id);
+  const pageAllSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => bulkSelectedIds.has(id));
+  const pageSomeSelected =
+    visibleIds.some((id) => bulkSelectedIds.has(id)) && !pageAllSelected;
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -41,14 +44,23 @@ export function CategoryTreePanel({ rows, selectedId, onSelect }: Props) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <p className="text-xs text-muted-foreground">
-        Filter categories using the header omnibar.
-      </p>
-      <div className="min-h-0 flex-1 space-y-1">
+    <div className="flex h-full min-h-0 flex-col overflow-auto overscroll-contain scrollbar-none px-0.5 pt-2">
+      {visibleIds.length > 0 ? (
+        <div className="mb-2 flex items-center gap-2 px-2">
+          <Checkbox
+            checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+            onCheckedChange={(checked) => {
+              onBulkPageToggle(checked === true);
+            }}
+            aria-label="Select all visible categories"
+          />
+          <span className="text-xs text-muted-foreground">Select visible</span>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 space-y-1 pb-2">
         {filteredTree.length === 0 ? (
           <p className="px-2 py-4 text-sm text-muted-foreground">
-            {rows.length === 0 ? "No categories yet." : "No categories match your search."}
+            {totalRows === 0 ? "No categories yet." : "No categories match your search."}
           </p>
         ) : (
           filteredTree.map((node: CategoryTreeNode) => (
@@ -56,7 +68,9 @@ export function CategoryTreePanel({ rows, selectedId, onSelect }: Props) {
               key={node.id}
               node={node}
               selectedId={selectedId}
+              bulkSelectedIds={bulkSelectedIds}
               onSelect={onSelect}
+              onBulkRowToggle={onBulkRowToggle}
               expandedIds={expandedIds}
               onToggleExpand={toggleExpand}
             />

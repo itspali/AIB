@@ -1,8 +1,14 @@
 import { createContext, useContext } from "react";
 import { cn } from "@/lib/utils";
 
+/** Shared utility: bottom-border-only inputs inside marked form roots. */
+export const FORM_FIELDS_BOTTOM_BORDER_CLASS = "form-fields-bottom-border";
+
 /** Root class on the item editor form — enables bottom-border-only field styling. */
-export const PRODUCT_EDITOR_FORM_CLASS = "product-editor-form form-fields-bottom-border";
+export const PRODUCT_EDITOR_FORM_CLASS = `product-editor-form ${FORM_FIELDS_BOTTOM_BORDER_CLASS}`;
+
+/** Root class on the category editor — same field treatment as the item editor. */
+export const CATEGORY_EDITOR_FORM_CLASS = `category-editor-form ${FORM_FIELDS_BOTTOM_BORDER_CLASS}`;
 
 export const EditorPanelContext = createContext(false);
 
@@ -66,7 +72,7 @@ export function editorSubsectionHeadingClass(panel: boolean) {
     "block py-2 font-medium",
     // Break out of the section body's horizontal padding so the heading band
     // stretches edge-to-edge, matching the main section header.
-    panel ? "-mx-3.5 px-3.5 text-xs" : "-mx-4 px-4 text-sm sm:-mx-6 sm:px-6"
+    panel ? "-mx-3.5 px-3.5 text-xs" : "-mx-3 px-3 text-sm sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6"
   );
 }
 
@@ -93,11 +99,21 @@ export function editorInsetTableWrapClass(panel: boolean) {
   return panel ? "overflow-x-auto" : "overflow-x-auto rounded-lg border border-border";
 }
 
-/** Panel width at or below which the section rail stacks above content (horizontal chips). */
-export const EDITOR_PANEL_HORIZONTAL_RAIL_MAX_WIDTH_PX = 400;
+/** Panel width at or below which section tabs move to the top strip (not left rail). */
+export const EDITOR_PANEL_HORIZONTAL_RAIL_MAX_WIDTH_PX = 560;
+
+/** Viewports below `lg` use the top section strip in drawer editors. */
+export const EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA = "(max-width: 1023px)";
 
 export function resolveEditorPanelHorizontalRail(paneWidth: number | undefined): boolean {
   return paneWidth != null && paneWidth <= EDITOR_PANEL_HORIZONTAL_RAIL_MAX_WIDTH_PX;
+}
+
+export function resolveEditorPanelUseTopTabs(
+  paneWidth: number | undefined,
+  compactViewport: boolean
+): boolean {
+  return compactViewport || resolveEditorPanelHorizontalRail(paneWidth);
 }
 
 /** Width of the sticky section rail in the detail-panel editor (keep in sync with grid class below). */

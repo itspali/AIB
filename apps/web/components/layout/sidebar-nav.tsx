@@ -222,7 +222,10 @@ export function SidebarNav() {
         sidebarWidthClass(sidebarCollapsed)
       )}
     >
-      <nav aria-label="Module navigation" className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 pt-3">
+      <nav
+        aria-label="Module navigation"
+        className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 pt-3"
+      >
         {moduleNavItems.map((item) =>
           item.children?.length ? (
             <SidebarNavGroup

@@ -10,11 +10,12 @@ import {
 } from "@/lib/categories/attribute-types";
 import { attributeTemplateMissingOptions } from "@/lib/categories/validate-templates";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { CATEGORY_EDITOR_FIELD_HELP } from "@/lib/categories/category-editor-field-help";
 import { isDefaultAxisTemplate } from "@/lib/products/variant-composition";
+import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
+import { CategoryAttrFieldLabel, CategoryFieldLabel } from "@/components/categories/category-field-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -24,10 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 type Props = {
   rows: AttributeTemplateEntry[];
   onChange: (rows: AttributeTemplateEntry[]) => void;
+  /** When true, show per-attribute version-axis suggestion. */
+  showAdvancedOptions?: boolean;
 };
 
 const emptyRow = (): AttributeTemplateEntry => ({
@@ -37,15 +39,14 @@ const emptyRow = (): AttributeTemplateEntry => ({
   required: false,
 });
 
-const FIELD_TYPE_GROUPS = ATTRIBUTE_FIELD_TYPES.reduce<Map<string, typeof ATTRIBUTE_FIELD_TYPES[number][]>>(
-  (groups, entry) => {
-    const list = groups.get(entry.group) ?? [];
-    list.push(entry);
-    groups.set(entry.group, list);
-    return groups;
-  },
-  new Map()
-);
+const FIELD_TYPE_GROUPS = ATTRIBUTE_FIELD_TYPES.reduce<
+  Map<string, (typeof ATTRIBUTE_FIELD_TYPES)[number][]>
+>((groups, entry) => {
+  const list = groups.get(entry.group) ?? [];
+  list.push(entry);
+  groups.set(entry.group, list);
+  return groups;
+}, new Map());
 
 function parseOptionsInput(raw: string): string[] {
   return raw
@@ -58,14 +59,17 @@ function formatOptionsDisplay(options: string[] | undefined): string {
   return (options ?? []).join(", ");
 }
 
-export function AttributeTemplateBuilder({ rows, onChange }: Props) {
-  const [manualKeys, setManualKeys] = useState<Set<number>>(() => {
-    const initial = new Set<number>();
-    rows.forEach((row, index) => {
-      if (row.key.trim()) initial.add(index);
-    });
-    return initial;
-  });
+function versionAxisSelectValue(row: AttributeTemplateEntry): "axis" | "descriptive" {
+  if (row.role === "axis") return "axis";
+  if (row.role === "descriptive") return "descriptive";
+  return isDefaultAxisTemplate(row) ? "axis" : "descriptive";
+}
+
+export function AttributeTemplateBuilder({
+  rows,
+  onChange,
+  showAdvancedOptions = false,
+}: Props) {
   const [optionsDrafts, setOptionsDrafts] = useState<Record<number, string>>({});
 
   const updateRow = (index: number, patch: Partial<AttributeTemplateEntry>) => {
@@ -73,20 +77,13 @@ export function AttributeTemplateBuilder({ rows, onChange }: Props) {
   };
 
   const handleLabelChange = (index: number, label: string) => {
-    const nextRows = rows.map((row, i) => {
-      if (i !== index) return row;
-      const nextRow = { ...row, label };
-      if (!manualKeys.has(index)) {
-        nextRow.key = suggestUniqueAttributeKey(label, rows, index);
-      }
-      return nextRow;
-    });
-    onChange(nextRows);
-  };
-
-  const handleKeyChange = (index: number, key: string) => {
-    setManualKeys((current) => new Set(current).add(index));
-    updateRow(index, { key });
+    onChange(
+      rows.map((row, i) =>
+        i === index
+          ? { ...row, label, key: suggestUniqueAttributeKey(label, rows, index) }
+          : row
+      )
+    );
   };
 
   const handleTypeChange = (index: number, type: AttributeFieldType) => {
@@ -105,188 +102,231 @@ export function AttributeTemplateBuilder({ rows, onChange }: Props) {
     updateRow(index, patch);
   };
 
-  const groupedOptions = useMemo(
-    () => Array.from(FIELD_TYPE_GROUPS.entries()),
-    []
-  );
+  const groupedOptions = useMemo(() => Array.from(FIELD_TYPE_GROUPS.entries()), []);
+
+  const removeRow = (index: number) => {
+    onChange(rows.filter((_, i) => i !== index));
+    setOptionsDrafts((current) => {
+      const next: Record<number, string> = {};
+      for (const [draftIndex, value] of Object.entries(current)) {
+        const numericIndex = Number(draftIndex);
+        if (numericIndex < index) next[numericIndex] = value;
+        else if (numericIndex > index) next[numericIndex - 1] = value;
+      }
+      return next;
+    });
+  };
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Define additional attribute keys for this category. Keys on this list override inherited
-        parent keys with the same name. Keys are auto-suggested from labels unless you edit them
-        manually.
-      </p>
-      {rows.map((row, index) => (
-        <div
-          key={index}
-          className="space-y-3 rounded-lg border border-border/80 p-3 dark:border-white/10"
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-muted-foreground">Label</Label>
-              <Input
-                value={row.label}
-                placeholder="Size"
-                onChange={(e) => handleLabelChange(index, e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-muted-foreground">Key</Label>
-              <Input
-                value={row.key}
-                placeholder="size"
-                aria-invalid={isDuplicateAttributeKey(rows, index)}
-                className={isDuplicateAttributeKey(rows, index) ? "border-destructive" : undefined}
-                onChange={(e) => handleKeyChange(index, e.target.value)}
-              />
-              {isDuplicateAttributeKey(rows, index) ? (
-                <p className="text-xs text-destructive">This key is already used by another attribute.</p>
-              ) : !manualKeys.has(index) && row.label.trim() ? (
-                <p className="text-xs text-muted-foreground">Auto-generated from label</p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-muted-foreground">Type</Label>
-              <Select value={row.type} onValueChange={(value) => handleTypeChange(index, value as AttributeFieldType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {groupedOptions.map(([group, entries]) => (
-                    <SelectGroup key={group}>
-                      <SelectLabel>{group}</SelectLabel>
-                      {entries.map((entry) => (
-                        <SelectItem key={entry.value} value={entry.value}>
-                          {entry.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`required-${index}`} className="text-sm font-medium text-muted-foreground">
-                Required
-              </Label>
-              <div className="flex h-10 items-center justify-end rounded-md border border-input bg-background px-3">
-                <Switch
-                  id={`required-${index}`}
-                  checked={Boolean(row.required)}
-                  onCheckedChange={(required) => updateRow(index, { required })}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`role-${index}`} className="text-sm font-medium text-muted-foreground">
-              Creates variants by default
-            </Label>
-            <div className="flex h-10 items-center justify-between rounded-md border border-input bg-background px-3">
-              <span className="text-xs text-muted-foreground">
-                Each value becomes a separate SKU (e.g. Size). Items can still override this.
-              </span>
-              <Switch
-                id={`role-${index}`}
-                checked={row.role ? row.role === "axis" : isDefaultAxisTemplate(row)}
-                onCheckedChange={(checked) =>
-                  updateRow(index, { role: checked ? "axis" : "descriptive" })
-                }
-              />
-            </div>
-          </div>
-
-          {attributeTypeNeedsOptions(row.type) && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-muted-foreground">Options</Label>
-              <Input
-                value={
-                  index in optionsDrafts
-                    ? optionsDrafts[index]
-                    : formatOptionsDisplay(row.options)
-                }
-                placeholder="Small, Medium, Large"
-                aria-invalid={attributeTemplateMissingOptions(
-                  row,
-                  index in optionsDrafts ? optionsDrafts[index] : undefined
-                )}
-                className={
-                  attributeTemplateMissingOptions(
-                    row,
-                    index in optionsDrafts ? optionsDrafts[index] : undefined
-                  )
-                    ? "border-destructive"
-                    : undefined
-                }
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setOptionsDrafts((current) => ({ ...current, [index]: raw }));
-                  updateRow(index, { options: parseOptionsInput(raw) });
-                }}
-                onBlur={() => {
-                  setOptionsDrafts((current) => {
-                    if (!(index in current)) return current;
-                    const next = { ...current };
-                    delete next[index];
-                    return next;
-                  });
-                }}
-              />
-              {attributeTemplateMissingOptions(
-                row,
-                index in optionsDrafts ? optionsDrafts[index] : undefined
-              ) ? (
-                <p className="text-xs text-destructive">
-                  Add at least one comma-separated choice for this field.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Comma-separated choices for this field.</p>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onChange(rows.filter((_, i) => i !== index));
-                setManualKeys((current) => {
-                  const next = new Set<number>();
-                  for (const keyIndex of current) {
-                    if (keyIndex < index) next.add(keyIndex);
-                    else if (keyIndex > index) next.add(keyIndex - 1);
-                  }
-                  return next;
-                });
-                setOptionsDrafts((current) => {
-                  const next: Record<number, string> = {};
-                  for (const [draftIndex, value] of Object.entries(current)) {
-                    const numericIndex = Number(draftIndex);
-                    if (numericIndex < index) next[numericIndex] = value;
-                    else if (numericIndex > index) next[numericIndex - 1] = value;
-                  }
-                  return next;
-                });
-              }}
-              aria-label="Remove attribute row"
-            >
-              <Trash2 className="h-4 w-4" />
-              Remove
-            </Button>
-          </div>
+    <div className="attribute-template-builder">
+      {rows.length === 0 ? (
+        <div className="pb-2">
+          <CategoryFieldLabel
+            label="No attributes yet"
+            help={CATEGORY_EDITOR_FIELD_HELP.attributeEmpty}
+          />
         </div>
-      ))}
-      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, emptyRow()])}>
-        <Plus className="h-4 w-4" />
-        Add Attribute
-      </Button>
+      ) : (
+        <ul className="divide-y divide-border/60">
+          {rows.map((row, index) => {
+            const duplicateKey = isDuplicateAttributeKey(rows, index);
+            const optionsDraft =
+              index in optionsDrafts ? optionsDrafts[index] : undefined;
+            const needsOptions = attributeTypeNeedsOptions(row.type);
+            const optionsMissing = attributeTemplateMissingOptions(row, optionsDraft);
+            const labelId = `attr-label-${index}`;
+            const typeId = `attr-type-${index}`;
+            const optionsId = `attr-options-${index}`;
+            const versionAxisId = `attr-version-axis-${index}`;
+            const requiredId = `attr-required-${index}`;
+            const duplicateKeyError = duplicateKey
+              ? "Two attributes cannot share the same internal key."
+              : undefined;
+            const optionsError = optionsMissing
+              ? "Add at least one comma-separated choice for this field."
+              : undefined;
+            const hasRowError = Boolean(duplicateKeyError || optionsError);
+
+            return (
+              <li key={index} className="py-4 first:pt-0">
+                <div
+                  className="attribute-template-row -mx-1 overflow-x-auto overscroll-x-contain px-1 touch-pan-x"
+                  tabIndex={0}
+                  role="group"
+                  aria-label={`Attribute ${index + 1} fields`}
+                >
+                  <div
+                    className={
+                      hasRowError
+                        ? "flex w-max min-w-full items-end gap-3 pb-9"
+                        : "flex w-max min-w-full items-end gap-3 pb-0.5"
+                    }
+                  >
+                    <CategoryAttrFieldLabel
+                      label="Label"
+                      htmlFor={labelId}
+                      help={CATEGORY_EDITOR_FIELD_HELP.attributeLabel}
+                      error={duplicateKeyError}
+                      errorLayout="absolute"
+                      className="w-[7.5rem] shrink-0"
+                    >
+                      <Input
+                        id={labelId}
+                        value={row.label}
+                        placeholder="e.g. Size"
+                        aria-invalid={duplicateKey}
+                        aria-describedby={duplicateKeyError ? `${labelId}-error` : undefined}
+                        onChange={(e) => handleLabelChange(index, e.target.value)}
+                      />
+                    </CategoryAttrFieldLabel>
+
+                    <CategoryAttrFieldLabel
+                      label="Type"
+                      htmlFor={typeId}
+                      help={CATEGORY_EDITOR_FIELD_HELP.attributeType}
+                      className="w-[8.75rem] shrink-0"
+                    >
+                      <Select
+                        value={row.type}
+                        onValueChange={(value) =>
+                          handleTypeChange(index, value as AttributeFieldType)
+                        }
+                      >
+                        <SelectTrigger id={typeId}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {groupedOptions.map(([group, entries]) => (
+                            <SelectGroup key={group}>
+                              <SelectLabel>{group}</SelectLabel>
+                              {entries.map((entry) => (
+                                <SelectItem key={entry.value} value={entry.value}>
+                                  {entry.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </CategoryAttrFieldLabel>
+
+                    {needsOptions ? (
+                      <CategoryAttrFieldLabel
+                        label="Options"
+                        htmlFor={optionsId}
+                        help={CATEGORY_EDITOR_FIELD_HELP.attributeOptions}
+                        error={optionsError}
+                        errorLayout="absolute"
+                        className="w-[min(16rem,40vw)] shrink-0 sm:w-[14rem]"
+                      >
+                        <Input
+                          id={optionsId}
+                          value={
+                            index in optionsDrafts
+                              ? optionsDrafts[index]
+                              : formatOptionsDisplay(row.options)
+                          }
+                          placeholder="Small, Medium, Large"
+                          aria-invalid={optionsMissing}
+                          aria-describedby={optionsError ? `${optionsId}-error` : undefined}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setOptionsDrafts((current) => ({ ...current, [index]: raw }));
+                            updateRow(index, { options: parseOptionsInput(raw) });
+                          }}
+                          onBlur={() => {
+                            setOptionsDrafts((current) => {
+                              if (!(index in current)) return current;
+                              const next = { ...current };
+                              delete next[index];
+                              return next;
+                            });
+                          }}
+                        />
+                      </CategoryAttrFieldLabel>
+                    ) : null}
+
+                    {showAdvancedOptions ? (
+                      <CategoryAttrFieldLabel
+                        label="Version axis"
+                        htmlFor={versionAxisId}
+                        help={CATEGORY_EDITOR_FIELD_HELP.attributeVersionAxis}
+                        className="w-[7.25rem] shrink-0"
+                      >
+                        <Select
+                          value={versionAxisSelectValue(row)}
+                          onValueChange={(value) =>
+                            updateRow(index, {
+                              role: value as "axis" | "descriptive",
+                            })
+                          }
+                        >
+                          <SelectTrigger id={versionAxisId}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="axis">Yes</SelectItem>
+                            <SelectItem value="descriptive">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </CategoryAttrFieldLabel>
+                    ) : null}
+
+                    <CategoryAttrFieldLabel
+                      label="Required"
+                      htmlFor={requiredId}
+                      help={CATEGORY_EDITOR_FIELD_HELP.attributeRequired}
+                      className="w-[6.75rem] shrink-0"
+                    >
+                      <Select
+                        value={row.required ? "yes" : "no"}
+                        onValueChange={(value) =>
+                          updateRow(index, { required: value === "yes" })
+                        }
+                      >
+                        <SelectTrigger id={requiredId}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </CategoryAttrFieldLabel>
+
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeRow(index)}
+                        aria-label={`Remove ${row.label || "attribute"}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="mt-1 flex w-full items-center gap-1.5 border-b border-dashed border-border/70 py-3">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+          onClick={() => onChange([...rows, emptyRow()])}
+        >
+          <Plus className="h-4 w-4 shrink-0" aria-hidden />
+          Add attribute
+        </button>
+        <FieldLabelInfo label="Add attribute">
+          {fieldHelpText(CATEGORY_EDITOR_FIELD_HELP.attributeAdd)}
+        </FieldLabelInfo>
+      </div>
     </div>
   );
 }

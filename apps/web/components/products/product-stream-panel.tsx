@@ -58,6 +58,7 @@ type Props = {
   isLoadingStructuralFilter?: boolean;
   categories: CategoryRow[];
   selectedId: string | null;
+  selectedVariantId?: string | null;
   fieldPermissions: ProductFieldPermissions;
   initialListPrefs?: ProductListPrefs | null;
   bulkSelectedIds: Set<string>;
@@ -69,7 +70,7 @@ type Props = {
   onBulkClearSelection?: () => void;
   onBulkSelectAllMatching?: () => void;
   onBulkAction?: (action: BulkToolbarAction) => void;
-  onSelect: (productId: string) => void;
+  onSelect: (productId: string, variantId?: string | null) => void;
   onImagesHydrated?: (imageUrls: Record<string, string | null>) => void;
   expandVariants?: boolean;
   onExpandVariantsChange?: (expandVariants: boolean) => void;
@@ -94,6 +95,7 @@ export function ProductStreamPanel({
   isLoadingStructuralFilter = false,
   categories,
   selectedId,
+  selectedVariantId = null,
   fieldPermissions,
   initialListPrefs,
   bulkSelectedIds,
@@ -432,6 +434,7 @@ export function ProductStreamPanel({
         cardLayout={prefs.cardLayout}
         showVariants={effectiveExpandVariants}
         selectedId={selectedId}
+        selectedVariantId={selectedVariantId}
         bulkSelectedIds={bulkSelectedIds}
         onSelect={onSelect}
         onBulkRowToggle={onBulkRowToggle}
@@ -448,6 +451,7 @@ export function ProductStreamPanel({
       compactRows={displayViewMode === "compact"}
       showVariants={effectiveExpandVariants}
       selectedId={selectedId}
+      selectedVariantId={selectedVariantId}
       bulkSelectedIds={bulkSelectedIds}
       pageAllSelected={pageAllSelected}
       pageSomeSelected={pageSomeSelected}

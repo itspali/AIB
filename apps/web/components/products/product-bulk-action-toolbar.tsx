@@ -95,7 +95,7 @@ function BulkSelectionMenu({
   const hasMoreThanListed = totalMatchingCount > visibleCount;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -240,7 +240,7 @@ export function ProductBulkActionToolbar({
         ) : null}
         {!hasSelection ? null : (
         <div className="flex shrink-0 items-center gap-1 md:hidden">
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
@@ -305,7 +305,7 @@ export function ProductBulkActionToolbar({
           </Button>
           )}
           {!hasSelection ? null : visibleSecondary.length > 0 ? (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
@@ -381,7 +381,7 @@ export function ProductBulkActionToolbar({
             <Spinner className="text-muted-foreground" label="Processing bulk action" />
           ) : null}
           {!hasSelection ? null : (
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button type="button" size="sm" variant="outline" disabled={isPending}>
                 Actions
@@ -437,7 +437,7 @@ export function ProductBulkActionToolbar({
           </Button>
           )}
           {!hasSelection ? null : visibleSecondary.length > 0 ? (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button type="button" size="sm" variant="outline" disabled={isPending}>
                   More

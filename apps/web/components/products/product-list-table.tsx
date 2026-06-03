@@ -21,7 +21,11 @@ import {
   type ProductListSortField,
 } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
-import { isProductListRowInactive, productListRowKey } from "@/lib/products/list-row-key";
+import {
+  isProductListRowInactive,
+  isProductListRowSelected,
+  productListRowKey,
+} from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 import {
   productListCellClassName,
@@ -38,6 +42,7 @@ type Props = {
   deviceClass: DeviceClass;
   showVariants?: boolean;
   selectedId: string | null;
+  selectedVariantId?: string | null;
   bulkSelectedIds: Set<string>;
   pageAllSelected: boolean;
   pageSomeSelected: boolean;
@@ -49,7 +54,7 @@ type Props = {
   compactRows?: boolean;
   onSortChange: (field: ProductListSortField, direction: ProductListSortDirection) => void;
   onColumnWidthChange?: (columnId: ProductListColumnId, width: number | null) => void;
-  onSelect: (productId: string) => void;
+  onSelect: (productId: string, variantId?: string | null) => void;
   onBulkRowToggle: (rowKey: string, checked: boolean) => void;
   onBulkPageToggle: (checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
@@ -112,6 +117,7 @@ export function ProductListTable({
   deviceClass,
   showVariants = false,
   selectedId,
+  selectedVariantId = null,
   bulkSelectedIds,
   pageAllSelected,
   pageSomeSelected,
@@ -408,7 +414,12 @@ export function ProductListTable({
         <tbody>
           {products.map((product, rowIndex) => {
             const rowKey = productListRowKey(product, showVariants);
-            const selected = selectedId === product.id;
+            const selected = isProductListRowSelected(
+              product,
+              selectedId,
+              selectedVariantId ?? null,
+              showVariants
+            );
             const bulkSelected = bulkSelectedIds.has(rowKey);
             const isLastRow = rowIndex === products.length - 1;
             const rowInactive = isProductListRowInactive(product, showVariants);
@@ -417,11 +428,11 @@ export function ProductListTable({
                 key={rowKey}
                 tabIndex={0}
                 role="button"
-                onClick={() => onSelect(product.id)}
+                onClick={() => onSelect(product.id, product.variant_id)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    onSelect(product.id);
+                    onSelect(product.id, product.variant_id);
                   }
                 }}
                 className={cn(

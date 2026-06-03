@@ -300,7 +300,7 @@ export function OrganizationSettingsTerminal({
     <form ref={formRef} onSubmit={onSubmit} className="canvas-scroll-endpad flex flex-col gap-4 lg:gap-5">
       <div
         ref={topBarRef}
-        className="sticky top-0 z-30 -mx-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6"
+        className="sticky top-0 z-30 -mx-3 border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-4 md:px-4"
       >
         <div className="flex items-center justify-between gap-3">
           <h2 className="min-w-0 truncate text-lg font-semibold sm:text-xl">{displayName}</h2>
@@ -339,7 +339,7 @@ export function OrganizationSettingsTerminal({
       <div
         ref={chipBarRef}
         style={{ top: stickyOffsets.top }}
-        className="sticky z-20 -mx-4 border-b border-border bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6 lg:hidden"
+        className="sticky z-20 -mx-3 border-b border-border bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-4 md:px-4 lg:hidden"
       >
         <SectionScrollChipBar
           chips={mobileChips}

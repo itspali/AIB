@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ProductFormBackLinkContent } from "@/components/products/product-form-back-link-content";
+import { X } from "lucide-react";
 import { ProductFormEditLinkContent } from "@/components/products/product-form-edit-link-content";
 import {
   ProductEditorShell,
@@ -13,6 +13,8 @@ import { ProductFormSkeleton } from "@/components/products/product-form-skeleton
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { Button } from "@/components/ui/button";
 import { useRouteTransition } from "@/lib/navigation/use-route-transition";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
+import { cn } from "@/lib/utils";
 import type { CategoryRow } from "@/lib/categories/types";
 import {
   editorStageOrder,
@@ -24,10 +26,9 @@ import {
   ITEM_CATALOG_ORIGIN_VALUE,
   ITEMS_HREF,
   isCatalogPopOutOrigin,
-  itemFullPageHref,
+  itemEditHref,
   itemListReturnHref,
-  resolveItemFormBackHref,
-  resolveItemFormBackLabel,
+  itemPeekHref,
 } from "@/lib/products/item-navigation";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import {
@@ -44,9 +45,10 @@ type WizardNav =
   | { type: "stage"; stage: EditorStageId };
 
 function wizardEditHref(itemId: string, stage: EditorStageId, fromCatalog: boolean): string {
+  const base = itemEditHref(itemId);
   const params = new URLSearchParams({ wizard: "1", stage });
   if (fromCatalog) params.set(ITEM_CATALOG_ORIGIN_PARAM, ITEM_CATALOG_ORIGIN_VALUE);
-  return `${ITEMS_HREF}/${itemId}/edit?${params.toString()}`;
+  return `${base}&${params.toString()}`;
 }
 
 type Props = {
@@ -88,19 +90,12 @@ export function ProductFormRoute({
   const renderMultiSku = (detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
   const renderOrder = editorStageOrder(renderMultiSku);
   const renderIndex = Math.max(0, renderOrder.indexOf(currentStage));
+  const [isSaving, setIsSaving] = useState(false);
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation();
 
   // The shell hands us its submit trigger; nav buttons set intent then save.
   const submitRef = useRef<(() => void) | null>(null);
   const navRef = useRef<WizardNav>({ type: "primary" });
-
-  const backHref = useMemo(
-    () => resolveItemFormBackHref(mode, itemId, fromCatalog),
-    [fromCatalog, itemId, mode]
-  );
-  const backLabel = useMemo(
-    () => resolveItemFormBackLabel(fromCatalog, mode),
-    [fromCatalog, mode]
-  );
 
   const initialValues =
     detail && mode !== "create"
@@ -130,7 +125,8 @@ export function ProductFormRoute({
     const nav = navRef.current;
     navRef.current = { type: "primary" };
 
-    const finish = () => push(itemFullPageHref("view", savedItemId, { fromCatalog }));
+    const finish = () =>
+      push(fromCatalog ? itemPeekHref(savedItemId) : itemPeekHref(savedItemId));
 
     if (nav.type === "exit") return finish();
     if (nav.type === "stage") {
@@ -179,31 +175,107 @@ export function ProductFormRoute({
       return;
     }
     if (mode === "edit" && detail) {
-      push(itemFullPageHref("view", detail.id));
+      push(itemPeekHref(detail.id));
       return;
     }
     push(itemListReturnHref());
   };
 
+  const handleHeaderClose = () => {
+    requestClose(handleCancel);
+  };
+
+  const handleHeaderSave = () => {
+    navRef.current = { type: "primary" };
+    submitRef.current?.();
+  };
+
+  // Wizard pages scroll inside the form column only — not the dashboard main pane.
+  useEffect(() => {
+    if (!wizardActive) return;
+    const main = document.querySelector<HTMLElement>("[data-dashboard-scroll-root]");
+    const pad = main?.firstElementChild;
+    if (!main) return;
+
+    const previousOverflow = main.style.overflow;
+    const padEl = pad instanceof HTMLElement ? pad : null;
+    const previousPadMinHeight = padEl?.style.minHeight ?? "";
+    const previousPadHeight = padEl?.style.height ?? "";
+
+    main.style.overflow = "hidden";
+    if (padEl) {
+      padEl.style.minHeight = "0";
+      padEl.style.height = "100%";
+    }
+
+    return () => {
+      main.style.overflow = previousOverflow;
+      if (padEl) {
+        padEl.style.minHeight = previousPadMinHeight;
+        padEl.style.height = previousPadHeight;
+      }
+    };
+  }, [wizardActive]);
+
   return (
-    <div className="canvas-scroll-endpad">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={backHref} prefetch>
-            <ProductFormBackLinkContent label={backLabel} />
-          </Link>
-        </Button>
-        {mode === "view" && detail ? (
-          <Button size="sm" asChild>
-            <Link href={itemFullPageHref("edit", detail.id, { fromCatalog })} prefetch>
-              <ProductFormEditLinkContent />
-            </Link>
-          </Button>
-        ) : null}
+    <div className={cn(wizardActive ? "item-wizard-workspace" : "canvas-scroll-endpad")}>
+      <div
+        className={cn(
+          "flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border/70 pb-2",
+          wizardActive ? "mb-2" : "mb-4"
+        )}
+      >
+        <div className="flex min-w-0 flex-col gap-2">
+          {mode === "create" ? (
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight sm:text-xl">New item</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Create a new catalog item.
+              </p>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          {mode !== "view" && wizardActive ? (
+            <Button
+              size="sm"
+              disabled={isSaving || isNavigating}
+              onClick={handleHeaderSave}
+              title="Save (Cmd/Ctrl + Enter)"
+            >
+              {isSaving ? "Saving..." : wizardActive ? "Save & continue" : "Save item"}
+            </Button>
+          ) : null}
+          {mode === "view" && detail ? (
+            <Button size="sm" asChild>
+              <Link href={itemEditHref(detail.id)} prefetch>
+                <ProductFormEditLinkContent />
+              </Link>
+            </Button>
+          ) : null}
+          {mode !== "view" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close form"
+              title="Close"
+              onClick={handleHeaderClose}
+              disabled={isSaving || isNavigating}
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <ProductEditorShell
-        key={`${detail?.id ?? "new"}-${mode}`}
+      <div
+        className={cn(
+          wizardActive && "flex min-h-0 flex-1 flex-col overflow-hidden"
+        )}
+      >
+        <ProductEditorShell
+          key={`${detail?.id ?? "new"}-${mode}`}
         mode={mode}
         tenantId={tenantId}
         categories={categories}
@@ -214,12 +286,15 @@ export function ProductFormRoute({
         media={detail?.media}
         initialValues={initialValues}
         lockedFields={lockedFields}
-        onCancel={handleCancel}
+        onCancel={handleHeaderClose}
         onSaved={handleSaved}
         isNavigatePending={isNavigating}
+        onPendingChange={setIsSaving}
         onExtensionsChanged={() => refresh()}
-        wizard={wizard}
-      />
+          wizard={wizard}
+        />
+      </div>
+      {discardDialog}
     </div>
   );
 }

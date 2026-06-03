@@ -13,6 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { getModuleViewDefinition } from "@/lib/search/views/module-view-registry";
 import { extractStructuralAst } from "@/lib/search/views/saved-view-utils";
 import type { CustomModuleView } from "@/lib/search/types";
@@ -33,6 +34,7 @@ export function SaveViewSheet({
   const { scope, appliedQuery, activeAst, setActiveSavedViewSnapshot, notifySavedViewsChanged } =
     useOmnibarContext();
   const moduleDef = getModuleViewDefinition(scope);
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
   const [viewName, setViewName] = useState(defaultName);
   const [isPending, startTransition] = useTransition();
 
@@ -78,8 +80,13 @@ export function SaveViewSheet({
 
   if (!moduleDef) return null;
 
+  const closeForm = () => {
+    onOpenChange(false);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <>
+      <Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}>
       <SheetContent side="right" className="w-full max-w-sm">
         <SheetHeader>
           <SheetTitle>Save view</SheetTitle>
@@ -96,7 +103,7 @@ export function SaveViewSheet({
           />
           <p className="line-clamp-3 text-xs text-muted-foreground">{appliedQuery}</p>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="ghost" onClick={() => requestClose(closeForm)}>
               Cancel
             </Button>
             <Button
@@ -110,5 +117,7 @@ export function SaveViewSheet({
         </div>
       </SheetContent>
     </Sheet>
+    {discardDialog}
+    </>
   );
 }

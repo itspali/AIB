@@ -1,20 +1,47 @@
 import type { ProductFormMode } from "@/lib/products/use-product-form";
+import {
+  buildModuleHref,
+  LEGACY_ITEM_LIST_SELECTION_PARAM,
+  moduleDrawerCreateHref,
+  moduleDrawerEditHref,
+  moduleDrawerPeekHref,
+  type PreservedQueryParams,
+} from "@/lib/layout/module-drawer-url";
 
 export const ITEMS_HREF = "/inventory/items";
 
 export const ITEM_CATALOG_ORIGIN_PARAM = "from";
 export const ITEM_CATALOG_ORIGIN_VALUE = "catalog";
-export const ITEM_LIST_SELECTION_PARAM = "item";
+
+/** @deprecated Use `id` query param — kept for imports that reference the legacy name. */
+export const ITEM_LIST_SELECTION_PARAM = LEGACY_ITEM_LIST_SELECTION_PARAM;
 
 export function isCatalogPopOutOrigin(searchParams: Pick<URLSearchParams, "get">): boolean {
   return searchParams.get(ITEM_CATALOG_ORIGIN_PARAM) === ITEM_CATALOG_ORIGIN_VALUE;
 }
 
+export function itemPeekHref(
+  itemId: string,
+  preserveParams?: URLSearchParams | PreservedQueryParams
+): string {
+  return moduleDrawerPeekHref(ITEMS_HREF, itemId, preserveParams);
+}
+
+export function itemEditHref(
+  itemId: string,
+  preserveParams?: URLSearchParams | PreservedQueryParams
+): string {
+  return moduleDrawerEditHref(ITEMS_HREF, itemId, preserveParams);
+}
+
+export function itemCreateHref(
+  preserveParams?: URLSearchParams | PreservedQueryParams
+): string {
+  return moduleDrawerCreateHref(ITEMS_HREF, preserveParams);
+}
+
 export function itemListReturnHref(itemId?: string | null): string {
-  if (itemId) {
-    return `${ITEMS_HREF}?${ITEM_LIST_SELECTION_PARAM}=${encodeURIComponent(itemId)}`;
-  }
-  return ITEMS_HREF;
+  return buildModuleHref(ITEMS_HREF, { recordId: itemId ?? null });
 }
 
 export function itemFullPageHref(
@@ -25,13 +52,19 @@ export function itemFullPageHref(
   let path = ITEMS_HREF;
 
   if (mode === "create") {
-    path = `${ITEMS_HREF}/new`;
-  } else if (itemId) {
-    path = mode === "edit" ? `${ITEMS_HREF}/${itemId}/edit` : `${ITEMS_HREF}/${itemId}`;
+    return itemCreateHref();
+  }
+  if (itemId) {
+    if (mode === "edit") {
+      path = itemEditHref(itemId);
+    } else {
+      path = itemPeekHref(itemId);
+    }
   }
 
   if (!options?.fromCatalog) return path;
-  return `${path}?${ITEM_CATALOG_ORIGIN_PARAM}=${ITEM_CATALOG_ORIGIN_VALUE}`;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${ITEM_CATALOG_ORIGIN_PARAM}=${ITEM_CATALOG_ORIGIN_VALUE}`;
 }
 
 export function resolveItemFormBackHref(
@@ -43,7 +76,7 @@ export function resolveItemFormBackHref(
     return itemListReturnHref(itemId);
   }
   if (mode === "edit" && itemId) {
-    return `${ITEMS_HREF}/${itemId}`;
+    return itemPeekHref(itemId);
   }
   return ITEMS_HREF;
 }

@@ -1,3 +1,5 @@
+import type { AttributeTemplateEntry } from "@/lib/categories/types";
+
 /** Normalize a key for uniqueness comparisons. */
 export function normalizeAttributeKey(key: string): string {
   return key.trim().toLowerCase();
@@ -52,3 +54,18 @@ export function isDuplicateAttributeKey(
     (row, index) => index !== rowIndex && normalizeAttributeKey(row.key) === key
   );
 }
+
+/** Ensure every labeled row has a unique key before save. Drops blank label rows. */
+export function finalizeAttributeTemplateRows(
+  rows: AttributeTemplateEntry[]
+): AttributeTemplateEntry[] {
+  return rows
+    .map((row, index, all) => {
+      const label = row.label.trim();
+      if (!label) return row;
+      const key = row.key.trim() || suggestUniqueAttributeKey(label, all, index);
+      return { ...row, label, key };
+    })
+    .filter((row) => row.label.trim().length > 0);
+}
+

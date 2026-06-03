@@ -1,22 +1,6 @@
-import { fetchCategoryRows } from "@/lib/categories/queries";
-import { getModulePageContext } from "@/lib/layout/module-page";
-import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
-import { ProductFormRouteWithSuspense } from "@/components/products/product-form-route";
+import { redirect } from "next/navigation";
+import { itemCreateHref } from "@/lib/products/item-navigation";
 
-export default async function NewItemPage() {
-  const { supabase, tenantId } = await getModulePageContext();
-
-  const [categories, catalogContext] = await Promise.all([
-    fetchCategoryRows(supabase, tenantId),
-    fetchProductCatalogContext(supabase, tenantId),
-  ]);
-
-  return (
-    <ProductFormRouteWithSuspense
-      mode="create"
-      tenantId={tenantId}
-      categories={categories}
-      catalogContext={catalogContext}
-    />
-  );
+export default function NewItemPage() {
+  redirect(itemCreateHref());
 }

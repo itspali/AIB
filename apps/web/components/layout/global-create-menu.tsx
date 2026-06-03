@@ -13,9 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { categoryNewHref } from "@/lib/categories/category-navigation";
+import { itemCreateHref } from "@/lib/products/item-navigation";
+
 const CREATE_ACTIONS = [
-  { href: "/inventory/items/new", label: "New Item", icon: Package },
-  { href: "/inventory/categories", label: "New Category", icon: FolderTree },
+  { href: itemCreateHref(), label: "New Item", icon: Package },
+  { href: categoryNewHref(), label: "New Category", icon: FolderTree },
   { href: "/settings/locations", label: "New Location", icon: MapPin },
 ];
 
@@ -23,7 +26,12 @@ export function GlobalCreateMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" className="h-9 w-9 px-0" aria-label="New">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 w-9 shrink-0 px-0 shadow-none"
+          aria-label="New"
+        >
           <Plus className="h-4 w-4" aria-hidden />
         </Button>
       </DropdownMenuTrigger>

@@ -1,0 +1,35 @@
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  LIST_MODULE_PAGE_CHROME,
+  LIST_MODULE_VIEWPORT_OFFSET,
+} from "@/lib/layout/list-module-chrome";
+import { cn } from "@/lib/utils";
+
+export function CategoryCatalogPageSkeleton() {
+  return (
+    <div
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden",
+        LIST_MODULE_VIEWPORT_OFFSET
+      )}
+      aria-busy="true"
+      aria-label="Loading categories"
+    >
+      <div className={LIST_MODULE_PAGE_CHROME}>
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2.5">
+            <Skeleton className="h-7 w-28 shimmer" />
+            <Skeleton className="h-8 w-16 shrink-0 rounded-md shimmer" />
+          </div>
+          <Skeleton className="h-7 w-full max-w-md shimmer" />
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-1">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-2">
+          <Skeleton className="h-full min-h-[240px] shimmer" />
+          <Skeleton className="hidden h-full min-h-[240px] shimmer lg:block" />
+        </div>
+      </div>
+    </div>
+  );
+}

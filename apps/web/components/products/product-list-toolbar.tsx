@@ -30,6 +30,7 @@ import {
 } from "@/lib/products/list-sort";
 import {
   listToolbarIconButtonClass,
+  LIST_TOOLBAR_MODULE_VIEW_WIDTH,
   listToolbarModuleViewTriggerClass,
   listToolbarSelectClass,
   listToolbarViewToggleButtonClass,
@@ -37,7 +38,7 @@ import {
   LIST_TOOLBAR_CONTROL_HEIGHT,
   LIST_TOOLBAR_ROW_MIN_HEIGHT,
   LIST_TOOLBAR_TEXT,
-} from "@/lib/products/list-toolbar-chrome";
+} from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
 type CategoryOption = {
@@ -111,6 +112,10 @@ export function ProductListToolbar({
       ? `row${totalCount === 1 ? "" : "s"}`
       : `product${totalCount === 1 ? "" : "s"}`;
 
+  const fullCountText = `Showing ${resultCount} of ${totalCount} ${countLabel}.`;
+  const shortCountText = `Showing ${resultCount} of ${totalCount}`;
+  const ratioCountText = `${resultCount}/${totalCount}`;
+
   return (
     <div className="space-y-2">
       <div
@@ -120,26 +125,29 @@ export function ProductListToolbar({
           LIST_TOOLBAR_TEXT
         )}
       >
-        <span className="shrink-0 whitespace-nowrap tabular-nums">
+        <span
+          className={cn(
+            "min-w-0 shrink truncate whitespace-nowrap tabular-nums",
+            compactCountLabel
+              ? "max-w-[5.5rem] sm:max-w-[6.5rem]"
+              : "max-w-[5.5rem] sm:max-w-[7.5rem] md:max-w-[10rem] lg:max-w-[14rem] xl:max-w-[18rem] 2xl:max-w-[24rem]"
+          )}
+          title={compactCountLabel ? ratioCountText : fullCountText}
+        >
           {compactCountLabel ? (
-            <>
-              {resultCount}/{totalCount}
-            </>
+            ratioCountText
           ) : (
             <>
-              <span className="md:hidden">
-                {resultCount}/{totalCount}
-              </span>
-              <span className="hidden md:inline">
-                Showing {resultCount} of {totalCount} {countLabel}.
-              </span>
+              <span className="lg:hidden">{ratioCountText}</span>
+              <span className="hidden lg:inline 2xl:hidden">{shortCountText}</span>
+              <span className="hidden 2xl:inline">{fullCountText}</span>
             </>
           )}
         </span>
 
         <div
           className={cn(
-            "flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto",
+            "relative z-10 flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto overflow-y-visible",
             LIST_TOOLBAR_CONTROL_HEIGHT,
             "flex-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           )}
@@ -152,10 +160,12 @@ export function ProductListToolbar({
 
           <ModuleViewSelect
             borderless
+            menuAlign="end"
+            className="min-w-0 shrink-0"
             triggerActive={isViewFilterActive}
             triggerClassName={cn(
               listToolbarModuleViewTriggerClass(isViewFilterActive),
-              MOBILE_SELECT_WIDTH
+              LIST_TOOLBAR_MODULE_VIEW_WIDTH
             )}
           />
 

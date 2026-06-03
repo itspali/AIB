@@ -25,7 +25,7 @@ import {
   getModuleViewDefinition,
   isSavedViewsScope,
 } from "@/lib/search/views/module-view-registry";
-import { listToolbarGhostTriggerClass } from "@/lib/products/list-toolbar-chrome";
+import { listToolbarGhostTriggerClass } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -35,6 +35,8 @@ type Props = {
   triggerActive?: boolean;
   /** Borderless toolbar preview for module view select demos. */
   borderless?: boolean;
+  /** Popover alignment; use `end` in tight horizontal toolbars. */
+  menuAlign?: "start" | "end";
 };
 
 function snapshotToView(
@@ -310,6 +312,7 @@ export function ModuleViewSelect({
   triggerClassName,
   triggerActive = false,
   borderless = false,
+  menuAlign = "start",
 }: Props) {
   const omnibar = useOptionalOmnibarContext();
   const [views, setViews] = useState<CustomModuleView[]>([]);
@@ -468,7 +471,7 @@ export function ModuleViewSelect({
   };
 
   return (
-    <div className={className}>
+    <div className={cn("min-w-0 max-w-full", className)}>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen} modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -477,18 +480,21 @@ export function ModuleViewSelect({
             disabled={isInitialLoading}
             aria-busy={isFilterLoading || isDefaultViewBootstrapping}
             className={cn(
-              "h-8 justify-between gap-2 px-3 font-normal [&>span]:truncate",
+              "min-w-0 max-w-full overflow-hidden font-normal",
+              borderless
+                ? "h-7 gap-1.5 px-2"
+                : "h-8 gap-2 px-3",
               listToolbarGhostTriggerClass(triggerActive),
               triggerActive && "font-medium",
-              triggerClassName ?? "w-[9.5rem]"
+              triggerClassName ?? (borderless ? "w-[7.5rem]" : "w-[9.5rem]")
             )}
             aria-label={isFilterLoading ? "Loading saved view filters" : "Saved filter view"}
           >
-            <span className="flex min-w-0 items-center gap-1.5 truncate">
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
               {isFilterLoading || isDefaultViewBootstrapping ? (
-                <Spinner className="size-3.5 border-[1.5px]" />
+                <Spinner className="size-3.5 shrink-0 border-[1.5px]" />
               ) : null}
-              <span className="truncate">{displayLabel}</span>
+              <span className="min-w-0 flex-1 truncate text-left">{displayLabel}</span>
             </span>
             <ChevronDown
               className={cn(
@@ -500,7 +506,12 @@ export function ModuleViewSelect({
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="start" className="min-w-[16rem] p-1">
+        <DropdownMenuContent
+          align={menuAlign}
+          side="bottom"
+          collisionPadding={12}
+          className="z-[100] min-w-[16rem] p-1"
+        >
           <AllViewRow
             label={allLabel}
             isSelected={isAllSelected && !isResolvingCustomDefault}

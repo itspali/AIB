@@ -76,6 +76,41 @@ describe("resolveEffectiveAttributeTemplates", () => {
       "brand",
     ]);
   });
+
+  it("does not overflow when parent links form a cycle", () => {
+    const cyclic: CategoryRow[] = [
+      {
+        id: "a",
+        name: "A",
+        parent_id: "b",
+        is_active: true,
+        attribute_templates: [brand],
+        inherit_parent_attributes: true,
+        default_variant_strategy: "SINGLE_SKU",
+        created_at: "",
+        updated_at: "",
+      },
+      {
+        id: "b",
+        name: "B",
+        parent_id: "a",
+        is_active: true,
+        attribute_templates: [size],
+        inherit_parent_attributes: true,
+        default_variant_strategy: "SINGLE_SKU",
+        created_at: "",
+        updated_at: "",
+      },
+    ];
+
+    expect(() =>
+      resolveEffectiveAttributeTemplates("a", cyclic).map((entry) => entry.key)
+    ).not.toThrow();
+    expect(resolveEffectiveAttributeTemplates("a", cyclic).map((entry) => entry.key)).toEqual([
+      "size",
+      "brand",
+    ]);
+  });
 });
 
 describe("resolveInheritedAttributeTemplates", () => {

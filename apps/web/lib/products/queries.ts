@@ -137,6 +137,19 @@ function pickDefaultVariant(variants: VariantRow[] | null | undefined): VariantR
   )[0];
 }
 
+function pickVariantForDetail(
+  variants: VariantRow[],
+  preferredVariantId?: string | null
+): VariantRow | null {
+  if (!variants.length) return null;
+  const preferred = preferredVariantId?.trim();
+  if (preferred) {
+    const match = variants.find((variant) => variant.id === preferred);
+    if (match) return match;
+  }
+  return pickDefaultVariant(variants);
+}
+
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
   if (value === null || value === undefined || value === "") return fallback;
   return String(value);
@@ -664,7 +677,8 @@ export async function fetchProductListRows(
 export async function fetchProductDetail(
   supabase: SupabaseClient,
   tenantId: string,
-  itemId: string
+  itemId: string,
+  options?: { variantId?: string | null }
 ): Promise<ProductDetailSnapshot | null> {
   const { data, error } = await supabase
     .from("items")
@@ -721,7 +735,7 @@ export async function fetchProductDetail(
     row.item_variants = variantRows;
   }
 
-  const variant = pickDefaultVariant(variantRows);
+  const variant = pickVariantForDetail(variantRows, options?.variantId);
   if (!variant) return null;
 
   const taxCategory = normalizeTaxCategory(row.default_tax_category);

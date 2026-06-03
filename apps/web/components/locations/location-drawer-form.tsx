@@ -24,6 +24,7 @@ import {
 } from "@/lib/locations/document-numbering";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
 import { LocationNumberingSection } from "@/components/locations/location-numbering-section";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { PRESENCE_ENVIRONMENTS, type LocationFormValues, type LocationRow } from "@/lib/locations/types";
 import type { DocumentSequenceRow } from "@/lib/organization/types";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
@@ -102,6 +103,7 @@ export function LocationDrawerForm({
 }: Props) {
   const router = useRouter();
   const isEditing = Boolean(editingLocation);
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
   const [form, setForm] = useState<LocationFormValues>(defaultForm);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -165,7 +167,7 @@ export function LocationDrawerForm({
     setError(null);
   }, [open, editingLocation]);
 
-  const handleClose = () => {
+  const closeForm = () => {
     onOpenChange(false);
     setForm(defaultForm);
     setError(null);
@@ -205,18 +207,19 @@ export function LocationDrawerForm({
       toast.success(isEditing ? "Location updated." : "Location created.");
       router.refresh();
       onSaved(result.locationId);
-      handleClose();
+      closeForm();
     });
   };
 
   const stockToggleDisabled = form.presence_type === "VIRTUAL";
 
   return (
-    <RightDrawer
-      open={open}
-      onOpenChange={onOpenChange}
-      title={isEditing ? "Edit location" : "Create location"}
-    >
+    <>
+      <RightDrawer
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
+        title={isEditing ? "Edit location" : "Create location"}
+      >
       <p className="mb-4 text-sm text-muted-foreground">
         Configure presence, capabilities, and hierarchy placement using the 3-axis model.
       </p>
@@ -422,12 +425,14 @@ export function LocationDrawerForm({
           <Button onClick={handleSubmit} disabled={isPending}>
             {isPending ? "Saving…" : isEditing ? "Save changes" : "Create location"}
           </Button>
-          <Button type="button" variant="outline" onClick={handleClose}>
+          <Button type="button" variant="outline" onClick={() => requestClose(closeForm)}>
             Cancel
           </Button>
         </div>
       </div>
     </RightDrawer>
+    {discardDialog}
+    </>
   );
 }
 

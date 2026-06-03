@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import { composeSkuFromMask, suggestSkuMask } from "@/lib/products/sku-mask";
 import { splitTemplatesByAxis } from "@/lib/products/variant-composition";
@@ -68,6 +69,7 @@ export function VariantMatrixGenerator({
   onGenerated,
 }: Props) {
   const router = useRouter();
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
   const [isPending, startTransition] = useTransition();
   const [enabledAxes, setEnabledAxes] = useState<Record<string, boolean>>({});
   const [selectValues, setSelectValues] = useState<Record<string, Record<string, boolean>>>({});
@@ -198,8 +200,17 @@ export function VariantMatrixGenerator({
     });
   }, [includedRows, itemId, onGenerated, onOpenChange, router]);
 
+  const closeForm = () => {
+    onOpenChange(false);
+  };
+
   return (
-    <RightDrawer open={open} onOpenChange={onOpenChange} title="Generate Variant Matrix">
+    <>
+      <RightDrawer
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
+        title="Generate Variant Matrix"
+      >
       <div className="flex h-full flex-col">
         <div className="flex-1 space-y-5 overflow-y-auto p-6">
           {categoryTemplates.length === 0 ? (
@@ -378,7 +389,7 @@ export function VariantMatrixGenerator({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="ghost" disabled={isPending} onClick={() => requestClose(closeForm)}>
             Cancel
           </Button>
           <Button
@@ -391,5 +402,7 @@ export function VariantMatrixGenerator({
         </div>
       </div>
     </RightDrawer>
+    {discardDialog}
+    </>
   );
 }

@@ -31,6 +31,8 @@ import { ProductMediaGallery } from "@/components/products/product-media-gallery
 import { ProductPrimaryImage } from "@/components/products/product-primary-image";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
+import type { ProductPanelMutationHeader } from "@/components/products/product-panel-form";
+import { ItemExtensionDataProvider } from "@/components/products/item-extension-data-provider";
 import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
 import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
@@ -45,6 +47,7 @@ import {
   ITEM_EDITOR_TOGGLE_HELP,
   VariantStrategyFieldHelp,
 } from "@/lib/products/item-editor-field-help";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -86,6 +89,7 @@ import {
   resolveItemCommerceUomOptions,
   type UomOption,
 } from "@/lib/products/uom-options";
+import { gtinFieldHint, skuFieldHint } from "@/lib/products/catalog-item-settings";
 import { VARIANT_STRATEGY_CHOICES, variantStrategyLabel } from "@/lib/products/variant-strategy";
 import {
   defaultVariantAxisKeys,
@@ -133,13 +137,16 @@ import {
   editorPanelBadgesClass,
   editorPanelScrollMarginClass,
   PRODUCT_EDITOR_FORM_CLASS,
-  resolveEditorPanelHorizontalRail,
+  EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA,
+  resolveEditorPanelUseTopTabs,
   EditorPanelContext,
   useEditorPanelLayout,
 } from "@/lib/products/editor-chrome";
+import { useViewportMatches } from "@/lib/layout/use-viewport-matches";
 import {
   EDITOR_SECTIONS_HIDDEN_WHILE_CREATING,
   editorSectionIdsForItem,
+  type EditorSectionId,
 } from "@/lib/products/editor-sections";
 import {
   EDITOR_STAGES,
@@ -253,6 +260,10 @@ type Props = {
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
   isNavigatePending?: boolean;
+  onPendingChange?: (pending: boolean) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Drawer header: Cancel / Save (panel layout edit only). */
+  onMutationHeaderChange?: (header: ProductPanelMutationHeader | null) => void;
   /**
    * When present, the editor renders as a guided create wizard: only the active
    * stage's sections show, the rail is replaced by a stepper + completeness
@@ -260,6 +271,18 @@ type Props = {
    * sectioned editor (e.g. editing an existing item).
    */
   wizard?: EditorWizardChrome;
+  /**
+   * When true, hides the section navigation (chip bar + side rail) so all
+   * sections scroll continuously in a single column. Used for the "minimal form"
+   * read-only view in the peek drawer.
+   */
+  hideNav?: boolean;
+  /**
+   * When set, only the listed sections are rendered (others are hidden). Nav is
+   * automatically hidden. Used for the "minimal edit" drawer layout so the user
+   * sees only the essential fields.
+   */
+  pinnedSections?: EditorSectionId[];
 };
 
 export type EditorWizardChrome = {
@@ -487,12 +510,12 @@ function DefaultUnitField({
         </SelectContent>
       </Select>
       <div className={cn("flex items-center gap-2", panel ? "pt-0.5" : "pt-1")}>
-        <Switch
+        <Checkbox
           id={toggleId}
-          size={editorSwitchSize}
+          className="h-3.5 w-3.5 rounded-[3px] [&_svg]:h-2.5 [&_svg]:w-2.5"
           checked={useDifferent}
           disabled={fieldDisabled}
-          onCheckedChange={onUseDifferentChange}
+          onCheckedChange={(checked) => onUseDifferentChange(checked === true)}
         />
         <Label
           htmlFor={toggleId}
@@ -623,8 +646,15 @@ export function ProductEditorShell({
   onSaved,
   onExtensionsChanged,
   isNavigatePending = false,
+  onPendingChange,
+  onDirtyChange,
+  onMutationHeaderChange,
   wizard,
+  hideNav = false,
+  pinnedSections,
 }: Props) {
+  // When pinnedSections is provided, nav is always hidden.
+  const effectiveHideNav = hideNav || !!pinnedSections;
   const [activeSection, setActiveSection] = useState<SectionId>("overview");
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
   const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
@@ -634,12 +664,15 @@ export function ProductEditorShell({
   const isLocked = useCallback((field: string) => lockedSet.has(field), [lockedSet]);
   const isPanelLayout = layout === "panel";
   const { ref: panelLayoutRef, width: panelPaneWidth } = useElementWidth<HTMLDivElement>();
-  const panelRailHorizontal =
-    isPanelLayout && resolveEditorPanelHorizontalRail(panelPaneWidth);
+  const compactDrawerViewport = useViewportMatches(EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA);
+  const panelUseTopSectionTabs =
+    isPanelLayout && !wizard && resolveEditorPanelUseTopTabs(panelPaneWidth, compactDrawerViewport);
+  const panelRailHorizontal = panelUseTopSectionTabs;
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
   const panelRailRef = useRef<HTMLElement | null>(null);
+  const panelScrollRef = useRef<HTMLDivElement | null>(null);
   const scrollRootRef = useRef<HTMLElement | null>(null);
   const sectionRefs = useRef<Partial<Record<SectionId, HTMLDivElement | null>>>({});
   const ignoreSpyUntilRef = useRef(0);
@@ -659,7 +692,14 @@ export function ProductEditorShell({
     purchaseUom,
     categoryTemplates,
     categoryOptions,
-  } = useProductForm({ categories, catalogContext, initialValues, mode, onSaved });
+  } = useProductForm({
+    categories,
+    catalogContext,
+    initialValues,
+    mode,
+    onSaved,
+    onPendingChange,
+  });
 
   const visibleSections = useMemo(() => editorSections(itemId), [itemId]);
   const visibleSectionIds = useMemo(() => editorSectionIdsForItem(itemId), [itemId]);
@@ -686,6 +726,7 @@ export function ProductEditorShell({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isDirty },
   } = form;
 
@@ -728,17 +769,19 @@ export function ProductEditorShell({
     [categoryTemplates, usedVariantKeys]
   );
   const storedVariantAxes = watch("variant_axes");
-  const variantAxisCategoryRef = useRef<string | null | undefined>(categoryId);
+  const variantAxisKeys = storedVariantAxes ?? [];
+  const variantAxisCategoryRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (variantAxisCategoryRef.current === categoryId) return;
+    const previousCategory = variantAxisCategoryRef.current;
     variantAxisCategoryRef.current = categoryId;
-    // Re-derive from the new category's suggestion when the category changes.
-    setValue("variant_axes", [], { shouldDirty: true });
-  }, [categoryId, setValue]);
-  const variantAxisKeys =
-    storedVariantAxes && storedVariantAxes.length > 0
-      ? storedVariantAxes
-      : suggestedVariantAxisKeys;
+    if (previousCategory === undefined || previousCategory === categoryId) return;
+    const templateKeys = new Set(categoryTemplates.map((template) => template.key));
+    const current = getValues("variant_axes") ?? [];
+    const filtered = current.filter((key) => templateKeys.has(key));
+    if (filtered.length !== current.length) {
+      setValue("variant_axes", filtered, { shouldDirty: true });
+    }
+  }, [categoryId, categoryTemplates, getValues, setValue]);
 
   const classificationOptions = useMemo(
     () =>
@@ -845,9 +888,13 @@ export function ProductEditorShell({
 
   const showStatus = !readOnly;
 
-  // Resolve the nearest scrollable ancestor (the dashboard canvas) as the
-  // IntersectionObserver root; falls back to the viewport.
+  // Resolve scroll root: drawer panel scroll container, else nearest overflow ancestor.
   useLayoutEffect(() => {
+    if (isPanelLayout && panelScrollRef.current) {
+      scrollRootRef.current = panelScrollRef.current;
+      setScrollRoot(panelScrollRef.current);
+      return;
+    }
     let el = formRef.current?.parentElement ?? null;
     while (el) {
       const overflowY = window.getComputedStyle(el).overflowY;
@@ -860,7 +907,7 @@ export function ProductEditorShell({
     }
     scrollRootRef.current = null;
     setScrollRoot(null);
-  }, []);
+  }, [isPanelLayout, panelPaneWidth, panelUseTopSectionTabs]);
 
   // Scroll-spy: highlight the section whose top has most recently crossed the anchor line.
   useEffect(() => {
@@ -871,8 +918,8 @@ export function ProductEditorShell({
       if (Date.now() < ignoreSpyUntilRef.current) return;
 
       const stickyNavHeight = isPanelLayout
-        ? panelRailHorizontal
-          ? (panelRailRef.current?.offsetHeight ?? 0)
+        ? panelUseTopSectionTabs
+          ? (chipBarRef.current?.offsetHeight ?? 0)
           : 0
         : (chipBarRef.current?.offsetHeight ?? 0);
       const anchorLine = resolveScrollSpyAnchorLine(
@@ -898,7 +945,7 @@ export function ProductEditorShell({
       scrollRootEl.removeEventListener("scroll", updateActive);
       window.removeEventListener("resize", updateActive);
     };
-  }, [isPanelLayout, panelRailHorizontal, scrollRoot, visibleSectionIds]);
+  }, [isPanelLayout, panelUseTopSectionTabs, scrollRoot, visibleSectionIds]);
 
   useEffect(() => {
     if (itemId) return;
@@ -915,17 +962,26 @@ export function ProductEditorShell({
       if (!el) return;
 
       const stickyNavHeight = isPanelLayout
-        ? panelRailHorizontal
-          ? (panelRailRef.current?.offsetHeight ?? 0)
+        ? panelUseTopSectionTabs
+          ? (chipBarRef.current?.offsetHeight ?? 0)
           : 0
         : (chipBarRef.current?.offsetHeight ?? 0);
+      if (isPanelLayout && panelScrollRef.current) {
+        const root = panelScrollRef.current;
+        const rootRect = root.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const top =
+          root.scrollTop + (elRect.top - rootRect.top) - (stickyNavHeight > 0 ? stickyNavHeight + 8 : 12);
+        root.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+        return;
+      }
       scrollElementInDashboardRoot(el, {
         offsetTop: isPanelLayout ? 20 : 96,
         additionalOffset: stickyNavHeight > 0 ? stickyNavHeight + 8 : 0,
         scrollRootRef,
       });
     },
-    [isPanelLayout, panelRailHorizontal]
+    [isPanelLayout, panelUseTopSectionTabs]
   );
 
   const registerSection = useCallback(
@@ -961,6 +1017,36 @@ export function ProductEditorShell({
       void handleSave();
     });
   }, [wizard, handleSave]);
+
+  useEffect(() => {
+    if (!onMutationHeaderChange || !isPanelLayout || readOnly || wizard) {
+      onMutationHeaderChange?.(null);
+      return;
+    }
+    onMutationHeaderChange({
+      onCancel,
+      onSave: () => {
+        void handleSave();
+      },
+      isPending,
+      isNavigatePending,
+      saveLabel: isPending ? "Saving…" : "Save item",
+    });
+    return () => onMutationHeaderChange(null);
+  }, [
+    onMutationHeaderChange,
+    isPanelLayout,
+    readOnly,
+    wizard,
+    onCancel,
+    handleSave,
+    isPending,
+    isNavigatePending,
+  ]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1066,6 +1152,16 @@ export function ProductEditorShell({
     (id: SectionId) => !wizardSectionSet || wizardSectionSet.has(id),
     [wizardSectionSet]
   );
+
+  const pinnedSet = useMemo(
+    () => (pinnedSections ? new Set(pinnedSections) : null),
+    [pinnedSections]
+  );
+
+  const sectionVisible = useCallback(
+    (id: SectionId) => sectionInStage(id) && (!pinnedSet || pinnedSet.has(id)),
+    [sectionInStage, pinnedSet]
+  );
   // Single-SKU items have nothing to compose, so Versions drops out of both the
   // stepper and the completeness math.
   const wizardStages = useMemo(
@@ -1144,18 +1240,20 @@ export function ProductEditorShell({
 
   return (
     <EditorPanelContext.Provider value={isPanelLayout}>
+    <ItemExtensionDataProvider itemId={itemId}>
     <form
       ref={formRef}
       onSubmit={handleSave}
       className={cn(
         PRODUCT_EDITOR_FORM_CLASS,
         "flex flex-col",
-        isPanelLayout && "product-editor-panel gap-2",
-        !isPanelLayout && "gap-4"
+        isPanelLayout && "product-editor-panel h-full min-h-0 w-full flex-1 gap-2 overflow-hidden",
+        !isPanelLayout &&
+          (wizard ? "h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden" : "gap-4")
       )}
     >
-      {/* Summary header — name/SKU live in the split-pane header when layout is panel */}
-      {!isPanelLayout ? (
+      {/* Summary header — skip on create; the wizard stepper + fields are the focus */}
+      {!isPanelLayout && mode !== "create" ? (
         <div className={editorCardClassName(false, "summary")}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-3">
@@ -1188,37 +1286,67 @@ export function ProductEditorShell({
         </div>
       ) : null}
 
-      {!isPanelLayout && !wizard ? (
-        <SectionScrollChipBar
-          barRef={chipBarRef}
-          chips={mobileChips}
-          activeId={activeSection}
-          onSelect={(id) => scrollToSection(id as SectionId)}
-        />
+      {(!isPanelLayout || panelUseTopSectionTabs) && !wizard && !effectiveHideNav ? (
+        <div
+          className={cn(
+            panelUseTopSectionTabs &&
+              "shrink-0 border-b border-border/80 bg-background/95 pb-2 backdrop-blur supports-[backdrop-filter]:bg-background/90"
+          )}
+        >
+          <SectionScrollChipBar
+            barRef={chipBarRef}
+            chips={mobileChips}
+            activeId={activeSection}
+            onSelect={(id) => scrollToSection(id as SectionId)}
+            embedded={panelUseTopSectionTabs}
+            dense={panelUseTopSectionTabs}
+          />
+        </div>
       ) : null}
 
       {wizard ? (
-        <EditorStepper
-          stages={wizardStages}
-          activeStage={wizard.stage}
-          statuses={wizardStageStatuses}
-          percent={wizardPercent}
-          onSelect={wizard.onSelectStage}
-          compact={isPanelLayout}
-        />
+        <div className="shrink-0 lg:hidden">
+          <EditorStepper
+            stages={wizardStages}
+            activeStage={wizard.stage}
+            statuses={wizardStageStatuses}
+            percent={wizardPercent}
+            onSelect={wizard.onSelectStage}
+            compact
+            showDescription={false}
+          />
+        </div>
       ) : null}
 
       <div
         ref={panelLayoutRef}
         className={cn(
+          isPanelLayout && "min-h-0 min-w-0 flex-1 overflow-hidden",
+          isPanelLayout &&
+            (panelUseTopSectionTabs || effectiveHideNav
+              ? "flex h-full min-h-0 flex-col"
+              : cn(editorPanelLayoutGridClass(false), "h-full min-h-0 items-stretch")),
           wizard
-            ? "min-w-0"
-            : isPanelLayout
-              ? editorPanelLayoutGridClass(panelRailHorizontal)
-              : "lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-6"
+            ? "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:gap-4"
+            : !isPanelLayout && "lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-6"
         )}
       >
-        {!wizard ? (
+        {wizard ? (
+          <aside className="hidden shrink-0 lg:block">
+            <div className="rounded-lg border border-border/60 bg-background/70 p-2">
+              <EditorStepper
+                stages={wizardStages}
+                activeStage={wizard.stage}
+                statuses={wizardStageStatuses}
+                percent={wizardPercent}
+                onSelect={wizard.onSelectStage}
+                vertical
+                compact
+                showDescription={false}
+              />
+            </div>
+          </aside>
+        ) : !panelUseTopSectionTabs && !effectiveHideNav ? (
           <EditorSectionRail
             sections={visibleSections}
             activeSection={activeSection}
@@ -1226,13 +1354,24 @@ export function ProductEditorShell({
             showStatus={showStatus}
             sectionStatus={sectionStatus}
             compact={isPanelLayout}
-            horizontal={panelRailHorizontal}
+            horizontal={false}
             railRef={panelRailRef}
           />
         ) : null}
 
         {/* Continuous form */}
-        <div className={cn("min-w-0", isPanelLayout ? "space-y-3" : "space-y-4")}>
+        <div
+          ref={isPanelLayout ? panelScrollRef : undefined}
+          className={cn(
+            "min-w-0",
+            isPanelLayout &&
+              "min-h-0 space-y-3 overflow-y-auto overscroll-contain [overflow-anchor:none]",
+            isPanelLayout && (panelUseTopSectionTabs || effectiveHideNav ? "flex-1" : "h-full max-h-full"),
+            !isPanelLayout && "space-y-4",
+            wizard &&
+              "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-1 lg:h-full lg:flex-none lg:pr-1"
+          )}
+        >
           {isPanelLayout && mode !== "create" ? (
             <div className={editorPanelBadgesClass()}>
               <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
@@ -1248,13 +1387,17 @@ export function ProductEditorShell({
           <SectionBlock
             id="overview"
             title="Basics"
-            description="Start here: what the item is, how it is classified and taxed, and whether it comes in versions."
+            description={
+              wizard
+                ? undefined
+                : "Start here: what the item is, how it is classified and taxed, and whether it comes in versions."
+            }
             registerRef={registerSection("overview")}
-            hidden={!sectionInStage("overview")}
+            hidden={!sectionVisible("overview")}
             panel={isPanelLayout}
           >
-            {/* AI assist slot (wiring lands in the next phase) */}
-            {!readOnly && (
+            {/* AI assist slot (wiring lands in the next phase) — hidden on create until wired */}
+            {!readOnly && mode !== "create" && !wizard && (
               <div
                 className={cn(
                   "mb-4 rounded-xl border border-dashed border-indigo-300/60 bg-indigo-50/50 p-4 dark:border-indigo-500/30 dark:bg-indigo-950/20",
@@ -1353,11 +1496,15 @@ export function ProductEditorShell({
                 label="SKU"
                 htmlFor="sku"
                 error={errors.sku?.message}
-                hint={ITEM_EDITOR_FIELD_HELP.sku}
+                hint={skuFieldHint(catalogContext.catalog_items, mode === "create")}
               >
                 <Input
                   id="sku"
-                  placeholder="e.g. ITEM-001"
+                  placeholder={
+                    mode === "create" && catalogContext.catalog_items.sku_auto_generation_enabled
+                      ? "Auto-generated on save if blank"
+                      : "e.g. ITEM-001"
+                  }
                   disabled={disableInput("sku")}
                   className="font-mono"
                   {...register("sku")}
@@ -1536,6 +1683,24 @@ export function ProductEditorShell({
                   )}
                 </Field>
 
+                {!itemId && isMultiSku && isPhysical && categoryTemplates.length > 0 ? (
+                  <div className="col-span-full">
+                    <VariantCompositionPicker
+                      templates={categoryTemplates}
+                      axisKeys={variantAxisKeys}
+                      suggestedAxisKeys={suggestedVariantAxisKeys}
+                      disabled={fieldDisabled}
+                      compact={isPanelLayout}
+                      onChange={(keys) =>
+                        setValue("variant_axes", keys, { shouldDirty: true })
+                      }
+                    />
+                    {errors.variant_axes?.message ? (
+                      <p className="mt-2 text-sm text-destructive">{errors.variant_axes.message}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+
               <Field
                 label="Tax category"
                 full={!isTaxableCategory}
@@ -1675,7 +1840,7 @@ export function ProductEditorShell({
             title="Units of measure"
             description="Base unit, alternate units with conversion factors, and how they relate to pricing."
             registerRef={registerSection("units")}
-            hidden={!sectionInStage("units")}
+            hidden={!sectionVisible("units")}
             panel={isPanelLayout}
           >
             <ProductUnitsSection
@@ -1700,7 +1865,7 @@ export function ProductEditorShell({
             title="Sell & stock"
             description="How it sells and stocks: pricing and purchase defaults, then inventory tracking, costing, and shipping."
             registerRef={registerSection("commerce")}
-            hidden={!sectionInStage("commerce")}
+            hidden={!sectionVisible("commerce")}
             panel={isPanelLayout}
           >
             {!isPanelLayout ? (
@@ -2008,29 +2173,20 @@ export function ProductEditorShell({
 
               {!isMultiSku && isPhysical && (
                 <Field
-                  label="Barcode / GTIN"
+                  label="GTIN"
                   htmlFor="barcode"
                   error={errors.barcode?.message}
-                  hint={ITEM_EDITOR_FIELD_HELP.barcode}
+                  hint={gtinFieldHint(catalogContext.catalog_items.scan_identifier_policy)}
                 >
-                  <Input id="barcode" disabled={disableInput("barcode")} className="font-mono" {...register("barcode")} />
+                  <Input
+                    id="barcode"
+                    placeholder="e.g. 8901234567890"
+                    disabled={disableInput("barcode")}
+                    className="font-mono"
+                    {...register("barcode")}
+                  />
                 </Field>
               )}
-
-              {isPhysical && trackInventory ? (
-                <Field
-                  label="Inventory valuation method"
-                  full
-                  hint={ITEM_EDITOR_FIELD_HELP.valuationMethod}
-                >
-                  <div className={editorReadOnlyFieldClass(isPanelLayout)}>
-                    {catalogContext.inventory_valuation_method}{" "}
-                    <span className="text-muted-foreground">
-                      ({catalogContext.runtime_valuation_note})
-                    </span>
-                  </div>
-                </Field>
-              ) : null}
             </div>
 
             {trackInventory && valuations.length > 0 && (
@@ -2074,14 +2230,14 @@ export function ProductEditorShell({
                   : "Category attributes for this item, and any additional versions."
               }
               registerRef={registerSection("variants")}
-              hidden={!sectionInStage("variants")}
+              hidden={!sectionVisible("variants")}
               panel={isPanelLayout}
             >
               <div className={cn(isPanelLayout ? "space-y-4" : "space-y-6")}>
                 {!isMultiSku && isPhysical && categoryTemplates.length > 0 && (
                   <div className="space-y-3">
                     <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>
-                      Category variant attributes
+                      Version attributes
                     </h4>
                     <VariantAttributeFields
                       templates={categoryTemplates}
@@ -2101,6 +2257,7 @@ export function ProductEditorShell({
                   <VariantCompositionPicker
                     templates={categoryTemplates}
                     axisKeys={variantAxisKeys}
+                    suggestedAxisKeys={suggestedVariantAxisKeys}
                     disabled={fieldDisabled}
                     compact={isPanelLayout}
                     onChange={(keys) =>
@@ -2139,7 +2296,7 @@ export function ProductEditorShell({
               title="Media"
               description="Images shown across storefront, catalog, and documents."
               registerRef={registerSection("media")}
-              hidden={!sectionInStage("media")}
+              hidden={!sectionVisible("media")}
               panel={isPanelLayout}
             >
               <ProductMediaGallery
@@ -2158,7 +2315,7 @@ export function ProductEditorShell({
             title="Catalog & tags"
             description="Cataloguing details: SKU mask, custom fields, and discovery tags."
             registerRef={registerSection("catalog")}
-            hidden={!sectionInStage("catalog")}
+            hidden={!sectionVisible("catalog")}
             panel={isPanelLayout}
           >
             <ProductCatalogExtensions
@@ -2184,7 +2341,7 @@ export function ProductEditorShell({
             title="Reach"
             description="Where it sells: visibility, display name, and price book per storefront channel."
             registerRef={registerSection("reach")}
-            hidden={!sectionInStage("reach")}
+            hidden={!sectionVisible("reach")}
             panel={isPanelLayout}
           >
             <ProductCatalogExtensions
@@ -2208,7 +2365,7 @@ export function ProductEditorShell({
             title="Shipping & dimensions"
             description="Weight and carton size used for fulfilment and shipping-rate calculation."
             registerRef={registerSection("shipping")}
-            hidden={!sectionInStage("shipping")}
+            hidden={!sectionVisible("shipping")}
             panel={isPanelLayout}
           >
             {!isPhysical ? (
@@ -2299,8 +2456,8 @@ export function ProductEditorShell({
         </div>
       </div>
 
-      {/* Sticky action bar — reachable on every device */}
-      {!readOnly && (
+      {/* Sticky action bar — full page and create wizard; drawer edit uses header actions */}
+      {!readOnly && !(isPanelLayout && !wizard) && (
         <div
           className={cn(
             "sticky bottom-0 z-10 flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
@@ -2378,6 +2535,7 @@ export function ProductEditorShell({
         </div>
       )}
     </form>
+    </ItemExtensionDataProvider>
     </EditorPanelContext.Provider>
   );
 }

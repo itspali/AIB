@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import {
+  categoryHasComposableAxes,
   defaultVariantAxisKeys,
   isDefaultAxisTemplate,
   splitTemplatesByAxis,
   usedVariantAttributeKeys,
+  validateVariantAxesSelection,
 } from "@/lib/products/variant-composition";
 
 const size: AttributeTemplateEntry = {
@@ -76,5 +78,70 @@ describe("splitTemplatesByAxis", () => {
     const { axes, descriptive } = splitTemplatesByAxis(templates, ["size"]);
     expect(axes.map((t) => t.key)).toEqual(["size"]);
     expect(descriptive.map((t) => t.key)).toEqual(["brand", "color"]);
+  });
+});
+
+describe("categoryHasComposableAxes", () => {
+  it("is true when templates have options or axis role", () => {
+    expect(categoryHasComposableAxes(templates)).toBe(true);
+    expect(categoryHasComposableAxes([brand])).toBe(false);
+    expect(categoryHasComposableAxes([{ ...brand, role: "axis" }])).toBe(true);
+  });
+});
+
+describe("validateVariantAxesSelection", () => {
+  it("requires axes for MULTI_SKU physical items with composable templates", () => {
+    expect(
+      validateVariantAxesSelection({
+        variant_strategy: "MULTI_SKU",
+        item_type: "PHYSICAL",
+        variant_axes: [],
+        categoryTemplates: templates,
+      })
+    ).toMatch(/at least one/i);
+  });
+
+  it("allows empty axes for SINGLE_SKU", () => {
+    expect(
+      validateVariantAxesSelection({
+        variant_strategy: "SINGLE_SKU",
+        item_type: "PHYSICAL",
+        variant_axes: [],
+        categoryTemplates: templates,
+      })
+    ).toBeNull();
+  });
+
+  it("skips validation when category has no composable templates", () => {
+    expect(
+      validateVariantAxesSelection({
+        variant_strategy: "MULTI_SKU",
+        item_type: "PHYSICAL",
+        variant_axes: [],
+        categoryTemplates: [brand],
+      })
+    ).toBeNull();
+  });
+
+  it("rejects axes not on the category", () => {
+    expect(
+      validateVariantAxesSelection({
+        variant_strategy: "MULTI_SKU",
+        item_type: "PHYSICAL",
+        variant_axes: ["missing"],
+        categoryTemplates: templates,
+      })
+    ).toMatch(/not defined/i);
+  });
+
+  it("accepts valid axis keys", () => {
+    expect(
+      validateVariantAxesSelection({
+        variant_strategy: "MULTI_SKU",
+        item_type: "PHYSICAL",
+        variant_axes: ["size"],
+        categoryTemplates: templates,
+      })
+    ).toBeNull();
   });
 });

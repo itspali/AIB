@@ -58,6 +58,10 @@ export async function saveOrganizationSettings(raw: unknown) {
       allow_negative_inventory: values.allow_negative_inventory,
       multi_currency_enabled: values.multi_currency_enabled,
       credit_control_enforcement: values.credit_control_enforcement,
+      scan_identifier_policy: values.scan_identifier_policy,
+      sku_auto_generation_enabled: values.sku_auto_generation_enabled,
+      sku_auto_pattern: values.sku_auto_pattern,
+      sku_auto_prefix: values.sku_auto_prefix,
     },
     p_location_governance_config_patch: {
       multi_location_enabled: values.multi_location_enabled,

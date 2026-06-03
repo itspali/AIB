@@ -34,14 +34,44 @@ export function buildCategoryTree(rows: CategoryRow[]): CategoryTreeNode[] {
 export function resolveLineage(categoryId: string, rows: CategoryRow[]): CategoryRow[] {
   const byId = new Map(rows.map((r) => [r.id, r]));
   const lineage: CategoryRow[] = [];
+  const visited = new Set<string>();
   let current = byId.get(categoryId);
 
   while (current) {
+    if (visited.has(current.id)) break;
+    visited.add(current.id);
     lineage.unshift(current);
     current = current.parent_id ? byId.get(current.parent_id) : undefined;
   }
 
   return lineage;
+}
+
+function cloneAttributeTemplates(
+  templates: AttributeTemplateEntry[]
+): AttributeTemplateEntry[] {
+  return templates.map((entry) => ({ ...entry }));
+}
+
+/** Walk from `category` toward root while `inherit_parent_attributes` is enabled. */
+function collectInheritingAncestors(
+  category: CategoryRow,
+  byId: Map<string, CategoryRow>
+): CategoryRow[] {
+  const ancestors: CategoryRow[] = [];
+  const visited = new Set<string>([category.id]);
+  let cursor: CategoryRow = category;
+
+  while (cursor.inherit_parent_attributes && cursor.parent_id) {
+    if (visited.has(cursor.parent_id)) break;
+    const parent = byId.get(cursor.parent_id);
+    if (!parent) break;
+    visited.add(parent.id);
+    ancestors.push(parent);
+    cursor = parent;
+  }
+
+  return ancestors;
 }
 
 /** Merge template lists; later entries override earlier ones on duplicate keys. */
@@ -81,11 +111,24 @@ export function resolveEffectiveAttributeTemplates(
   if (!category) return [];
 
   if (!category.inherit_parent_attributes || !category.parent_id) {
-    return category.attribute_templates.map((entry) => ({ ...entry }));
+    return cloneAttributeTemplates(category.attribute_templates);
   }
 
-  const parentEffective = resolveEffectiveAttributeTemplates(category.parent_id, rows);
-  return mergeAttributeTemplates(parentEffective, category.attribute_templates);
+  const ancestors = collectInheritingAncestors(category, byId);
+  if (ancestors.length === 0) {
+    return cloneAttributeTemplates(category.attribute_templates);
+  }
+
+  let effective = cloneAttributeTemplates(ancestors[ancestors.length - 1].attribute_templates);
+
+  for (let index = ancestors.length - 2; index >= 0; index -= 1) {
+    const parent = ancestors[index];
+    const child = ancestors[index + 1];
+    if (!child.inherit_parent_attributes) break;
+    effective = mergeAttributeTemplates(effective, parent.attribute_templates);
+  }
+
+  return mergeAttributeTemplates(effective, category.attribute_templates);
 }
 
 /** Templates contributed by ancestors (excludes this category's own rows). */
@@ -144,12 +187,16 @@ export function parseAttributeTemplates(raw: unknown): AttributeTemplateEntry[] 
     .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
     .map((entry) => {
       const typeValue = String(entry.type ?? "text");
+      const roleRaw = entry.role;
+      const role =
+        roleRaw === "axis" || roleRaw === "descriptive" ? roleRaw : undefined;
       return {
         key: String(entry.key ?? ""),
         label: String(entry.label ?? entry.key ?? ""),
         type: isAttributeFieldType(typeValue) ? typeValue : "text",
         required: Boolean(entry.required),
         options: parseTemplateOptions(entry.options),
+        role,
       };
     })
     .filter((entry) => entry.key.trim().length > 0);

@@ -154,8 +154,8 @@
     @apply rounded-none border-0 border-b border-border/60 px-0 py-2 last:border-b-0;
   }
 
-  /* Item editor: bottom-border-only fields (default form styling). */
-  .product-editor-form.form-fields-bottom-border
+  /* Catalog editors: bottom-border-only fields (item + category forms). */
+  :is(.product-editor-form, .category-editor-form).form-fields-bottom-border
     :is(
       input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
       textarea,
@@ -164,11 +164,12 @@
     @apply !h-9 !rounded-none !border-0 !border-b !border-input !bg-transparent !px-0 !shadow-none !ring-0;
   }
 
-  .product-editor-form.form-fields-bottom-border textarea:not(.no-underline-field) {
+  :is(.product-editor-form, .category-editor-form).form-fields-bottom-border
+    textarea:not(.no-underline-field) {
     @apply !h-auto !min-h-[4.5rem] !py-2;
   }
 
-  .product-editor-form.form-fields-bottom-border
+  :is(.product-editor-form, .category-editor-form).form-fields-bottom-border
     :is(
       input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
       textarea,
@@ -177,9 +178,25 @@
     @apply !outline-none !border-0 !border-b !border-ring !shadow-none !ring-0;
   }
 
-  .product-editor-form.form-fields-bottom-border .editor-toggle-row,
-  .product-editor-form.form-fields-bottom-border .variant-attribute-toggle {
-    @apply !border-0 !rounded-none !shadow-none;
+  :is(.product-editor-form, .category-editor-form).form-fields-bottom-border .editor-toggle-row,
+  :is(.product-editor-form, .category-editor-form).form-fields-bottom-border
+    .variant-attribute-toggle {
+    @apply !rounded-none !border-0 !border-b !border-border/60 !px-0 !py-2.5 !shadow-none last:!border-b-0;
+  }
+
+  /* Category attribute rows: single line; scroll horizontally when narrow. */
+  .attribute-template-builder .attribute-template-row {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .attribute-template-builder .attribute-template-row::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .attribute-template-builder .attribute-template-row::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: hsl(var(--border));
   }
 
   .product-editor-panel .editor-bulk-bar {
@@ -235,19 +252,37 @@
 
   /* Workspace content inset — horizontal + top only; no bottom pad (sticky footers sit flush). */
   .canvas-workspace-pad {
-    @apply px-4 pt-4 md:px-6 md:pt-6 lg:px-8 lg:pt-8;
+    @apply px-3 pt-3 md:px-4 md:pt-4 lg:px-6 lg:pt-5;
   }
 
   /* Sticky save bars: flush to scrollport bottom; sit above mobile module nav (h-14). */
   .canvas-sticky-footer {
     @apply sticky z-10 mt-8 flex justify-end gap-2 border-t border-border bg-background py-4 shadow-[0_-8px_24px_-12px_hsl(var(--background))];
     @apply bottom-14 md:bottom-0;
-    @apply -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8;
+    @apply -mx-3 px-3 md:-mx-4 md:px-4 lg:-mx-6 lg:px-6;
   }
 
   /* Pages without a sticky footer still need clearance above mobile nav. */
   .canvas-scroll-endpad {
-    @apply pb-16 md:pb-6 lg:pb-8;
+    @apply pb-16 md:pb-5 lg:pb-6;
+  }
+
+  /* Item create wizard: fill workspace below top chrome; inner form column scrolls. */
+  .item-wizard-workspace {
+    @apply flex min-h-0 flex-col overflow-hidden;
+    height: calc(100dvh - 4rem - 0.75rem);
+  }
+
+  @media (min-width: 768px) {
+    .item-wizard-workspace {
+      height: calc(100dvh - 4rem - 1rem);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .item-wizard-workspace {
+      height: calc(100dvh - 4rem - 1.25rem);
+    }
   }
 }
 
@@ -257,5 +292,34 @@
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+/* Right drawer: slide in from off-screen right; width stays fixed (right edge anchored). */
+@keyframes aib-right-drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes aib-right-drawer-slide-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@layer utilities {
+  .aib-right-drawer-enter {
+    animation: aib-right-drawer-slide-in 300ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+
+  .aib-right-drawer-exit {
+    animation: aib-right-drawer-slide-out 200ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
   }
 }

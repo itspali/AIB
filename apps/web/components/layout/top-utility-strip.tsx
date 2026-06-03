@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { GlobalCreateMenu } from "@/components/layout/global-create-menu";
+import { OrgNavMenuTrigger } from "@/components/layout/org-nav-menu-trigger";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { OmnibarCommandDialog } from "@/components/search/omnibar-command-dialog";
 import { OmnibarSearchTrigger } from "@/components/search/omnibar-search-trigger";
@@ -11,6 +12,7 @@ import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { OperatorProfile } from "@/lib/user/types";
+import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
 import { cn } from "@/lib/utils";
 
 type TopUtilityStripProps = {
@@ -39,16 +41,16 @@ export function TopUtilityStrip({
   const [profileOpen, setProfileOpen] = useState(false);
   const omnibar = useOptionalOmnibarContext();
 
-  const orgLogo = (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 text-xs font-bold text-primary">
-      A
-    </span>
-  );
-
   const orgBranding = (
     <div className="flex min-w-0 items-center gap-2 md:gap-3">
       <div className="flex min-w-0 items-center gap-2">
-        {orgLogo}
+        <OrgNavMenuTrigger
+          orgLabel={orgName}
+          enableSidebarControl={showSidebarToggle}
+          onOpenMobileDrawer={
+            showSidebarToggle && onOpenMobileNav ? onOpenMobileNav : undefined
+          }
+        />
         <span className="truncate text-sm font-semibold">{orgName}</span>
       </div>
       {showProgress && (
@@ -59,63 +61,79 @@ export function TopUtilityStrip({
     </div>
   );
 
+  const headerActionSlotClass = "flex h-9 shrink-0 items-center justify-center";
+
   const headerActions = (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5 md:col-start-3 md:justify-self-end",
+        "flex shrink-0 items-center gap-2 md:col-start-3 md:justify-self-end",
         embedded ? "justify-self-end" : "justify-end justify-self-end"
       )}
     >
       {omnibar ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="md:hidden"
-          onClick={omnibar.openCommandPalette}
-          aria-label="Open search"
-        >
-          <Search className="h-4 w-4" />
-        </Button>
+        <div className={headerActionSlotClass}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 px-0 md:hidden"
+            onClick={omnibar.openCommandPalette}
+            aria-label="Open search"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
       ) : null}
 
-      {!hideWorkspaceTools ? <GlobalCreateMenu /> : null}
+      {!hideWorkspaceTools ? (
+        <div className={headerActionSlotClass}>
+          <GlobalCreateMenu />
+        </div>
+      ) : null}
 
-      {approvalAlertCount > 0 && !hideWorkspaceTools ? (
-        <Badge
-          variant="action_required"
-          className="gap-1.5 border border-amber-500/20 shadow-sm transition-colors duration-200"
-          title={`${approvalAlertCount} items need managerial approval`}
-        >
-          <AlertTriangle className="h-3 w-3" />
-          <span className="hidden md:inline">Approvals</span>
-          <span className="tabular-nums">{approvalAlertCount}</span>
-        </Badge>
-      ) : hideWorkspaceTools ? null : (
-        <Badge variant="locked" className="hidden md:inline-flex">
-          All clear
-        </Badge>
-      )}
+      {!hideWorkspaceTools ? (
+        <div className={headerActionSlotClass}>
+          {approvalAlertCount > 0 ? (
+            <Badge
+              variant="action_required"
+              className="h-9 gap-1.5 rounded-md border border-amber-500/20 px-2.5 shadow-sm transition-colors duration-200"
+              title={`${approvalAlertCount} items need managerial approval`}
+            >
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span className="hidden md:inline">Approvals</span>
+              <span className="tabular-nums">{approvalAlertCount}</span>
+            </Badge>
+          ) : (
+            <Badge variant="locked" className="hidden h-9 rounded-md px-2.5 md:inline-flex">
+              All clear
+            </Badge>
+          )}
+        </div>
+      ) : null}
 
-      <ThemeToggle />
+      <div className={headerActionSlotClass}>
+        <ThemeToggle className="h-9 w-9 px-0" />
+      </div>
 
-      {operatorProfile ? (
-        <UserProfileMenu
-          key={`${operatorProfile.userId}-${operatorProfile.firstName}-${operatorProfile.lastName}-${operatorProfile.avatarUrl ?? ""}`}
-          profile={operatorProfile}
-          onboardingOnly={hideWorkspaceTools}
-          onOpenChange={setProfileOpen}
-        />
-      ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="rounded-full border border-transparent hover:border-white/10"
-          aria-label="Account"
-          disabled
-        >
-          <span className="h-4 w-4 rounded-full bg-muted" />
-        </Button>
-      )}
+      <div className={headerActionSlotClass}>
+        {operatorProfile ? (
+          <UserProfileMenu
+            key={`${operatorProfile.userId}-${operatorProfile.firstName}-${operatorProfile.lastName}-${operatorProfile.avatarUrl ?? ""}`}
+            profile={operatorProfile}
+            onboardingOnly={hideWorkspaceTools}
+            onOpenChange={setProfileOpen}
+          />
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 rounded-full border border-transparent px-0 hover:border-white/10"
+            aria-label="Account"
+            disabled
+          >
+            <span className="h-4 w-4 rounded-full bg-muted" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 
@@ -134,9 +152,13 @@ export function TopUtilityStrip({
   const header = (
     <header
       className={cn(
-        "h-16 w-full min-w-0",
+        APP_HEADER_HEIGHT_CLASS,
+        "w-full min-w-0",
         embedded
-          ? "grid grid-cols-[1fr_auto] items-center gap-2 px-3 md:grid-cols-[1fr_minmax(0,20rem)_1fr] md:gap-4 md:px-4"
+          ? cn(
+              "grid grid-cols-[1fr_auto] items-center gap-2 md:grid-cols-[1fr_minmax(0,20rem)_1fr] md:gap-4",
+              APP_HEADER_PADDING_X_CLASS
+            )
           : cn(
               "grid items-center gap-2 px-4 md:gap-4 md:px-6",
               "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:grid-cols-[1fr_minmax(0,20rem)_1fr]"
@@ -145,22 +167,7 @@ export function TopUtilityStrip({
     >
       {embedded ? (
         <>
-          <div className="flex min-w-0 items-center md:col-start-1">
-            {showSidebarToggle && onOpenMobileNav ? (
-              <button
-                type="button"
-                onClick={onOpenMobileNav}
-                aria-label="Open navigation menu"
-                className="flex items-center rounded-lg p-1 transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-              >
-                {orgLogo}
-              </button>
-            ) : (
-              <span className="md:hidden">{orgLogo}</span>
-            )}
-
-            <div className="hidden min-w-0 md:flex">{orgBranding}</div>
-          </div>
+          <div className="min-w-0 md:col-start-1">{orgBranding}</div>
 
           <div className="hidden min-w-0 md:col-start-2 md:block">
             {omnibar && !hideWorkspaceTools ? <OmnibarSearchTrigger /> : null}

@@ -1,6 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  allocateNextItemSku,
+  normalizeGtinInput,
+  parseCatalogItemSettings,
+} from "@/lib/products/catalog-item-settings";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import {
   fetchProductListByIds,
@@ -94,13 +99,39 @@ export async function saveProductMasterProfile(raw: unknown) {
   const values = parsed.data;
   const { supabase, tenantId } = await requireTenantId();
 
+  const { data: tenantRow } = await supabase
+    .from("tenants")
+    .select("accounting_config")
+    .eq("id", tenantId)
+    .maybeSingle();
+  const catalogItems = parseCatalogItemSettings(tenantRow?.accounting_config);
+
+  let sku = values.sku.trim();
+  if (!sku) {
+    if (!values.item_id && catalogItems.sku_auto_generation_enabled) {
+      try {
+        sku = await allocateNextItemSku(supabase, tenantId, catalogItems);
+      } catch (allocationError) {
+        const message =
+          allocationError instanceof Error
+            ? allocationError.message
+            : "Unable to auto-generate product code.";
+        return { error: message };
+      }
+    } else {
+      return { error: "Product code is required." };
+    }
+  }
+
+  const gtin = normalizeGtinInput(values.barcode);
+
   const { data, error } = await supabase.rpc("save_product_master_profile", {
     p_item_id: values.item_id,
     p_name: values.name,
     p_classification: values.classification,
     p_base_uom: values.base_unit_of_measure,
     p_category_id: values.category_id,
-    p_sku: values.sku,
+    p_sku: sku,
     p_description: values.description || null,
     p_is_purchasable: values.is_purchasable,
     p_is_salable: values.is_salable,
@@ -108,7 +139,7 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_has_variants: values.has_variants,
     p_default_tax_category: values.default_tax_category,
     p_is_returnable: values.is_returnable,
-    p_barcode: values.barcode || null,
+    p_barcode: gtin || null,
     p_variant_attributes: buildVariantAttributes(values.variant_attributes),
     p_dead_weight_kg: parseDecimal(values.dead_weight_kg),
     p_volume: parseOptionalDecimal(values.volume),
@@ -202,9 +233,9 @@ export async function saveProductMasterProfile(raw: unknown) {
   return { success: true as const, itemId, detail };
 }
 
-export async function getProductDetail(itemId: string) {
+export async function getProductDetail(itemId: string, variantId?: string | null) {
   const { supabase, tenantId } = await requireTenantId();
-  const detail = await fetchProductDetail(supabase, tenantId, itemId);
+  const detail = await fetchProductDetail(supabase, tenantId, itemId, { variantId });
   if (!detail) return { error: "Product profile not found." };
   return { detail };
 }
@@ -497,12 +528,13 @@ export async function saveItemVariant(raw: unknown) {
 
   const values = parsed.data;
   const { supabase } = await requireTenantId();
+  const variantGtin = normalizeGtinInput(values.barcode);
 
   const { data, error } = await supabase.rpc("save_item_variant", {
     p_item_id: values.item_id,
     p_sku: values.sku,
     p_variant_id: values.variant_id,
-    p_barcode: values.barcode || null,
+    p_barcode: variantGtin || null,
     p_variant_attributes: buildVariantAttributes(values.variant_attributes),
     p_dead_weight_kg: parseDecimal(values.dead_weight_kg),
     p_volume: parseOptionalDecimal(values.volume),
@@ -716,6 +748,102 @@ export type PriceBookEntryData = {
   books: Array<{ id: string; name: string; currency_code: string }>;
   entries: PriceBookEntryRow[];
 };
+
+export type ItemDrawerExtensionData = {
+  assortment: VariantAssortmentData;
+  channels: VariantChannelData;
+  priceBooks: PriceBookEntryData;
+};
+
+/** Single round-trip for drawer editor extension panels (assortment, channels, price books). */
+export async function getItemDrawerExtensionData(
+  itemId: string
+): Promise<{ data: ItemDrawerExtensionData } | { error: string }> {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const [
+    { data: locations, error: locError },
+    { data: assortmentRows, error: assortmentError },
+    { data: channels, error: channelError },
+    { data: channelRows, error: channelRowError },
+    { data: books, error: bookError },
+    { data: entries, error: entryError },
+  ] = await Promise.all([
+    supabase
+      .from("tenant_locations")
+      .select("id, name, presence_type, is_stock_holding")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("item_variant_locations")
+      .select("variant_id, location_id, is_stocked, is_sellable, is_orderable")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId),
+    supabase
+      .from("storefront_channels")
+      .select("id, name, channel_type")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("storefront_variant_items")
+      .select("storefront_id, variant_id, is_visible")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId),
+    supabase
+      .from("price_books")
+      .select("id, name, currency_code")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("price_book_entries")
+      .select("price_book_id, variant_id, uom_code, min_quantity, price")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .order("min_quantity"),
+  ]);
+
+  const firstError =
+    locError ??
+    assortmentError ??
+    channelError ??
+    channelRowError ??
+    bookError ??
+    entryError;
+  if (firstError) return { error: firstError.message };
+
+  return {
+    data: {
+      assortment: {
+        locations: (locations ?? []) as VariantAssortmentData["locations"],
+        cells: (assortmentRows ?? []) as VariantAssortmentCell[],
+      },
+      channels: {
+        channels: (channels ?? []) as VariantChannelData["channels"],
+        cells: (channelRows ?? []) as VariantChannelCell[],
+      },
+      priceBooks: {
+        books: (books ?? []) as PriceBookEntryData["books"],
+        entries: ((entries ?? []) as Array<{
+          price_book_id: string;
+          variant_id: string | null;
+          uom_code: string | null;
+          min_quantity: number | string;
+          price: number | string;
+        }>).map((row) => ({
+          price_book_id: row.price_book_id,
+          variant_id: row.variant_id,
+          uom_code: row.uom_code,
+          min_quantity: Number(row.min_quantity),
+          price: Number(row.price),
+        })),
+      },
+    },
+  };
+}
 
 export async function getPriceBookEntries(
   itemId: string

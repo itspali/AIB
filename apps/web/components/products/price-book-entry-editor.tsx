@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { getPriceBookEntries, savePriceBookEntries } from "@/app/items/actions";
+import {
+  getPriceBookEntries,
+  savePriceBookEntries,
+  type PriceBookEntryData,
+} from "@/app/items/actions";
+import { useOptionalItemExtensionData } from "@/components/products/item-extension-data-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,8 +48,35 @@ function nextRowKey(): string {
   return `row-${rowCounter}`;
 }
 
+function applyPriceBookData(
+  data: PriceBookEntryData,
+  setBooks: (books: BookMeta[]) => void,
+  setRowsByBook: (rows: Record<string, DraftRow[]>) => void,
+  setSelectedBookId: (id: string | ((prev: string) => string)) => void
+) {
+  const grouped: Record<string, DraftRow[]> = {};
+  for (const book of data.books) {
+    grouped[book.id] = [];
+  }
+  for (const entry of data.entries) {
+    if (!grouped[entry.price_book_id]) grouped[entry.price_book_id] = [];
+    grouped[entry.price_book_id].push({
+      key: nextRowKey(),
+      variantId: entry.variant_id,
+      uomCode: entry.uom_code,
+      minQuantity: String(entry.min_quantity),
+      price: String(entry.price),
+    });
+  }
+
+  setBooks(data.books);
+  setRowsByBook(grouped);
+  setSelectedBookId((prev) => prev || data.books[0]?.id || "");
+}
+
 export function PriceBookEntryEditor({ itemId, variants, uomCodes, readOnly = false }: Props) {
   const router = useRouter();
+  const extension = useOptionalItemExtensionData();
   const [loading, setLoading] = useState(true);
   const [books, setBooks] = useState<BookMeta[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<string>("");
@@ -69,30 +101,27 @@ export function PriceBookEntryEditor({ itemId, variants, uomCodes, readOnly = fa
       return;
     }
 
-    const grouped: Record<string, DraftRow[]> = {};
-    for (const book of result.data.books) {
-      grouped[book.id] = [];
-    }
-    for (const entry of result.data.entries) {
-      if (!grouped[entry.price_book_id]) grouped[entry.price_book_id] = [];
-      grouped[entry.price_book_id].push({
-        key: nextRowKey(),
-        variantId: entry.variant_id,
-        uomCode: entry.uom_code,
-        minQuantity: String(entry.min_quantity),
-        price: String(entry.price),
-      });
-    }
-
-    setBooks(result.data.books);
-    setRowsByBook(grouped);
-    setSelectedBookId((prev) => prev || result.data.books[0]?.id || "");
+    applyPriceBookData(result.data, setBooks, setRowsByBook, setSelectedBookId);
     setLoading(false);
   }, [itemId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!extension) {
+      void load();
+      return;
+    }
+    if (extension.status === "loading" || extension.status === "idle") {
+      setLoading(true);
+      return;
+    }
+    if (extension.status === "error") {
+      toast.error(extension.error);
+      setLoading(false);
+      return;
+    }
+    applyPriceBookData(extension.data.priceBooks, setBooks, setRowsByBook, setSelectedBookId);
+    setLoading(false);
+  }, [extension, load]);
 
   const currentRows = useMemo(
     () => (selectedBookId ? rowsByBook[selectedBookId] ?? [] : []),

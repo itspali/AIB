@@ -34,7 +34,7 @@ type CardProps = {
   showVariants?: boolean;
   selected: boolean;
   bulkSelected: boolean;
-  onSelect: (productId: string) => void;
+  onSelect: (productId: string, variantId?: string | null) => void;
   onBulkToggle: (checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
 };
@@ -129,11 +129,11 @@ export function ProductListCompactCardShop({
     <article
       role="button"
       tabIndex={0}
-      onClick={() => onSelect(product.id)}
+      onClick={() => onSelect(product.id, product.variant_id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onSelect(product.id);
+          onSelect(product.id, product.variant_id);
         }
       }}
       className={cn(

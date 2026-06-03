@@ -10,7 +10,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -48,20 +48,16 @@ import {
   ProductBulkTaxCategoryDialog,
 } from "@/components/products/product-bulk-secondary-dialogs";
 import { NewItemLinkContent } from "@/components/products/new-item-link-content";
-import {
-  ProductPanelBody,
-  ProductPanelHeaderActions,
-  ProductPanelScope,
-  resolveProductPanelDescription,
-  resolveProductPanelImageUrl,
-  resolveProductPanelTitle,
-} from "@/components/products/product-panel-form";
-import { ProductPrimaryImage } from "@/components/products/product-primary-image";
-import type { ProductFormMode } from "@/lib/products/use-product-form";
+import { ProductItemDrawer } from "@/components/products/product-item-drawer";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
-import { SplitPaneLayout } from "@/components/ui/split-pane-layout";
 import { Button } from "@/components/ui/button";
-import { useDeviceClass } from "@/hooks/use-device-class";
+import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  LIST_MODULE_PAGE_CHROME,
+  LIST_MODULE_VIEWPORT_FALLBACK_HEIGHT,
+  LIST_MODULE_VIEWPORT_OFFSET,
+} from "@/lib/layout/list-module-chrome";
+import { useListModuleScrollLock } from "@/lib/layout/use-list-module-scroll-lock";
 import { useAvailablePaneHeight } from "@/lib/layout/use-viewport-remaining-height";
 import {
   DropdownMenu,
@@ -85,6 +81,7 @@ import {
 import {
   productListRowKey,
   resolveBulkSelectionItemIds,
+  isProductListRowSelected,
 } from "@/lib/products/list-row-key";
 import { bulkSuccessToastMessage } from "@/lib/products/bulk-schemas";
 import {
@@ -96,71 +93,17 @@ import {
   type SavedViewSnapshot,
 } from "@/lib/search/views/saved-view-utils";
 import { cn } from "@/lib/utils";
-import {
-  ITEM_LIST_SELECTION_PARAM,
-  ITEMS_HREF,
-} from "@/lib/products/item-navigation";
+import { ITEMS_HREF } from "@/lib/products/item-navigation";
 
 const ITEMS_PAGE_DESCRIPTION =
   "Manage item master profiles, classifications, and stock balances.";
-
-const CATALOG_VIEWPORT_OFFSET = "-mt-2 md:-mt-3 lg:-mt-4";
-
-const CATALOG_VIEWPORT_FALLBACK_HEIGHT =
-  "h-[calc(100dvh-4rem-7rem)] max-h-[calc(100dvh-4rem-7rem)] md:h-[calc(100dvh-4rem-6.5rem)] md:max-h-[calc(100dvh-4rem-6.5rem)]";
-
-const CATALOG_PAGE_CHROME =
-  "z-20 shrink-0 border-b border-border/80 bg-background -mx-4 px-4 pt-2 pb-0.5 md:-mx-6 md:px-6 md:pt-2.5 md:pb-1 lg:-mx-8 lg:px-8 lg:pt-3";
-
-type CatalogDetailSplitPaneProps = {
-  body: ReactNode;
-  viewMode: ProductListPrefs["viewMode"];
-  panelOpen: boolean;
-  panelMode: ProductFormMode;
-  detail: ProductDetailSnapshot | null;
-  onDetailClose: () => void;
-};
-
-function CatalogDetailSplitPane({
-  body,
-  viewMode,
-  panelOpen,
-  panelMode,
-  detail,
-  onDetailClose,
-}: CatalogDetailSplitPaneProps) {
-  return (
-    <SplitPaneLayout
-      fillParent
-      className="h-full min-h-0 flex-1 basis-0"
-      primaryClassName="overflow-hidden"
-      insetPrimary={viewMode === "card"}
-      detailOpen={panelOpen}
-      onDetailClose={onDetailClose}
-      detailTitle={resolveProductPanelTitle(panelMode, detail)}
-      detailDescription={resolveProductPanelDescription(panelMode, detail)}
-      detailScrollOwner="panel"
-      detailLeading={
-        panelOpen ? (
-          <ProductPrimaryImage
-            imageUrl={resolveProductPanelImageUrl(panelMode, detail)}
-            alt={resolveProductPanelTitle(panelMode, detail)}
-          />
-        ) : undefined
-      }
-      detailActions={panelOpen ? <ProductPanelHeaderActions /> : undefined}
-      primary={<div className="flex h-full min-h-0 flex-1 basis-0 flex-col">{body}</div>}
-      detail={panelOpen ? <ProductPanelBody /> : null}
-    />
-  );
-}
 
 function ItemsPageTitleHeader({ onNewItem }: { onNewItem: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2.5">
       <div className="flex min-w-0 items-center gap-1.5">
-        <h1 className="min-w-0 truncate text-xl font-bold leading-tight tracking-tight">Items</h1>
-        <DropdownMenu>
+        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">Items</h1>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
@@ -211,20 +154,12 @@ export function ProductCatalogTerminal({
   initialListPrefs,
 }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { isDesktop } = useDeviceClass();
+  const drawer = useModuleDrawerUrl(ITEMS_HREF, { canonicalizeLegacy: true });
   const { ref: catalogViewportRef, height: catalogViewportHeight } =
     useAvailablePaneHeight(true, "remaining-viewport");
   const omnibar = useOptionalOmnibarContext();
 
-  useEffect(() => {
-    const scrollRoot = document.querySelector<HTMLElement>("[data-dashboard-scroll-root]");
-    if (!scrollRoot) return;
-    scrollRoot.style.overflow = "hidden";
-    return () => {
-      scrollRoot.style.removeProperty("overflow");
-    };
-  }, []);
+  useListModuleScrollLock();
   const hasServerFilteredView =
     initialSavedView != null && initialFilteredItemIds != null;
   const serverFilterSnapshotRef = useRef(
@@ -250,11 +185,8 @@ export function ProductCatalogTerminal({
   const [totalCount, setTotalCount] = useState(listTotalCount);
   const [hasMore, setHasMore] = useState(listHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ProductDetailSnapshot | null>(null);
   const [catalogContext, setCatalogContext] = useState<ProductCatalogContext | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [panelMode, setPanelMode] = useState<ProductFormMode>("create");
   const [isLoadingDetail, startDetailTransition] = useTransition();
   const [isLoadingCatalogContext, setIsLoadingCatalogContext] = useState(false);
   const catalogContextRequestRef = useRef<Promise<ProductCatalogContext | null> | null>(null);
@@ -277,7 +209,10 @@ export function ProductCatalogTerminal({
   const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
   const [storefrontDialogOpen, setStorefrontDialogOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
-  const restoredListSelectionRef = useRef(false);
+
+  const selectedId = drawer.recordId;
+  const selectedVariantId = drawer.variantId;
+  const drawerOpen = drawer.isOpen;
 
   const runBulkTransition = useCallback(
     (task: () => Promise<void>) => {
@@ -932,72 +867,89 @@ export function ProductCatalogTerminal({
     return request;
   }, [catalogContext]);
 
-  const loadDetail = (itemId: string, onLoaded?: (snapshot: ProductDetailSnapshot) => void) => {
-    startDetailTransition(async () => {
-      const result = await getProductDetail(itemId);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to load product profile.");
-        return;
-      }
-      setDetail(result.detail);
-      onLoaded?.(result.detail);
-    });
-  };
+  const detailRequestKeyRef = useRef<string | null>(null);
 
-  const handleSelect = (productId: string) => {
-    if (!isDesktop) {
-      router.push(`/inventory/items/${productId}`);
-      return;
+  const loadDetail = useCallback(
+    (
+      itemId: string,
+      variantId?: string | null,
+      onLoaded?: (snapshot: ProductDetailSnapshot) => void
+    ) => {
+      const variant = variantId?.trim() || null;
+      const requestKey = `${itemId}:${variant ?? ""}`;
+      if (detailRequestKeyRef.current === requestKey) return;
+      detailRequestKeyRef.current = requestKey;
+      startDetailTransition(async () => {
+        try {
+          const result = await getProductDetail(itemId, variant);
+          if ("error" in result) {
+            toast.error(result.error ?? "Unable to load product profile.");
+            setDetail(null);
+            return;
+          }
+          setDetail(result.detail);
+          onLoaded?.(result.detail);
+        } finally {
+          if (detailRequestKeyRef.current === requestKey) {
+            detailRequestKeyRef.current = null;
+          }
+        }
+      });
+    },
+    []
+  );
+
+  const handleSelect = (productId: string, variantId?: string | null) => {
+    const variant = variantId?.trim() || null;
+    drawer.openPeek(productId, variant);
+    const sameItem = detail?.id === productId;
+    const sameVariant = (detail?.variant_id ?? null) === variant;
+    if (!sameItem || !sameVariant) {
+      setDetail(null);
     }
-    setSelectedId(productId);
-    setDetail(null);
-    setPanelMode("view");
-    setPanelOpen(true);
     void ensureCatalogContext();
-    loadDetail(productId);
   };
 
   const handleNewItem = () => {
-    // Creating an item is a guided, staged flow that lives on the full-page
-    // wizard. The split-pane panel stays for quickly viewing/editing existing
-    // items. `from=catalog` keeps Back/Cancel returning to this list.
-    router.push("/inventory/items/new?from=catalog");
-  };
-
-  const handlePanelClose = () => {
-    setPanelOpen(false);
-    setPanelMode("create");
     setDetail(null);
-    setSelectedId(null);
+    drawer.openCreate();
+    void ensureCatalogContext();
   };
 
   useEffect(() => {
-    const itemId = searchParams.get(ITEM_LIST_SELECTION_PARAM);
-    if (!itemId || !isDesktop || restoredListSelectionRef.current) return;
+    if (!drawerOpen) return;
 
-    restoredListSelectionRef.current = true;
-    setSelectedId(itemId);
-    setDetail(null);
-    setPanelMode("view");
-    setPanelOpen(true);
+    if (drawer.surface === "create") {
+      void ensureCatalogContext();
+      return;
+    }
+
+    if (!drawer.recordId) return;
+    const drawerVariant = drawer.variantId ?? null;
+    if (detail?.id === drawer.recordId && (detail.variant_id ?? null) === drawerVariant) {
+      return;
+    }
+
     void ensureCatalogContext();
-    loadDetail(itemId);
-    router.replace(ITEMS_HREF, { scroll: false });
-    // One-shot restore when returning from a catalog pop-out.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ensureCatalogContext/loadDetail are stable enough for this path
-  }, [isDesktop, router, searchParams]);
+    loadDetail(drawer.recordId, drawerVariant);
+  }, [
+    detail?.id,
+    detail?.variant_id,
+    drawer.recordId,
+    drawer.surface,
+    drawer.variantId,
+    drawerOpen,
+    ensureCatalogContext,
+    loadDetail,
+  ]);
 
   const refreshDetail = () => {
-    if (!selectedId) return;
-    loadDetail(selectedId);
+    if (!drawer.recordId) return;
+    detailRequestKeyRef.current = null;
+    loadDetail(drawer.recordId, drawer.variantId);
   };
 
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
-    setSelectedId(itemId);
-    if (panelMode === "create") {
-      setPanelMode("edit");
-    }
-
     if (savedDetail) {
       setDetail(savedDetail);
       const mergeSavedRow = (current: ProductListRow[]) => {
@@ -1015,9 +967,55 @@ export function ProductCatalogTerminal({
       setProducts(mergeSavedRow);
       setFilterProducts((current) => (current ? mergeSavedRow(current) : current));
     } else {
-      loadDetail(itemId);
+      loadDetail(itemId, drawer.variantId);
     }
   };
+
+  const handlePeekAfterSave = useCallback(
+    (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
+      handleSaved(itemId, savedDetail);
+      drawer.afterSave(itemId, savedDetail?.variant_id ?? drawer.variantId);
+    },
+    [drawer, handleSaved]
+  );
+
+  const handleCreatePersisted = useCallback(
+    (itemId: string) => {
+      loadDetail(itemId);
+    },
+    [loadDetail]
+  );
+
+  const handlePanelCloseStable = useCallback(() => {
+    drawer.close();
+    setDetail(null);
+  }, [drawer]);
+
+  const handleItemArchived = useCallback(
+    (itemId: string) => {
+      patchBulkActiveRows([itemId], false);
+      handlePanelCloseStable();
+    },
+    [handlePanelCloseStable, patchBulkActiveRows]
+  );
+
+  const urlNavigation = useMemo(
+    () => ({
+      onOpenEdit: () => {
+        if (drawer.recordId) drawer.openEdit(drawer.recordId, drawer.variantId);
+      },
+      onPeekAfterSave: handlePeekAfterSave,
+      onClose: handlePanelCloseStable,
+    }),
+    [drawer, handlePeekAfterSave, handlePanelCloseStable]
+  );
+
+  const drawerIsLoading =
+    !catalogContext ||
+    isLoadingCatalogContext ||
+    (drawer.surface !== "create" &&
+      Boolean(drawer.recordId) &&
+      (isLoadingDetail || !detail));
 
   const streamPanelProps = {
     products: catalogProducts,
@@ -1035,7 +1033,8 @@ export function ProductCatalogTerminal({
               omnibar?.isExecuting === true ||
               omnibar?.filteredItemIds === null)))),
     categories,
-    selectedId: panelOpen ? selectedId : null,
+    selectedId: drawerOpen ? selectedId : null,
+    selectedVariantId: drawerOpen ? selectedVariantId : null,
     fieldPermissions,
     initialListPrefs,
     bulkSelectedIds,
@@ -1051,7 +1050,7 @@ export function ProductCatalogTerminal({
     onImagesHydrated: handleImagesHydrated,
     expandVariants,
     onExpandVariantsChange: handleExpandVariantsChange,
-    detailPaneOpen: panelOpen && isDesktop,
+    detailPaneOpen: drawerOpen,
     bulkToolbarEmbedded: true,
   } as const;
 
@@ -1066,59 +1065,23 @@ export function ProductCatalogTerminal({
         }
         className={cn(
           "flex min-h-0 flex-col overflow-hidden",
-          catalogViewportHeight == null && CATALOG_VIEWPORT_FALLBACK_HEIGHT,
-          CATALOG_VIEWPORT_OFFSET
+          catalogViewportHeight == null && LIST_MODULE_VIEWPORT_FALLBACK_HEIGHT,
+          LIST_MODULE_VIEWPORT_OFFSET
         )}
       >
         <ProductStreamPanel
           {...streamPanelProps}
-          renderLayout={({ toolbar, bulkToolbar, body, viewMode }) => (
+          renderLayout={({ toolbar, bulkToolbar, body }) => (
             <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden">
-              <div className={CATALOG_PAGE_CHROME}>
+              <div className={LIST_MODULE_PAGE_CHROME}>
                 <div className="space-y-2.5">
                   <ItemsPageTitleHeader onNewItem={handleNewItem} />
                   {toolbar}
                 </div>
                 {bulkToolbar}
               </div>
-              <div className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden pb-1">
-                {panelOpen ? (
-                  <ProductPanelScope
-                    mode={panelMode}
-                    onModeChange={setPanelMode}
-                    tenantId={tenantId}
-                    categories={categories}
-                    catalogContext={catalogContext}
-                    detail={detail}
-                    fieldPermissions={fieldPermissions}
-                    isLoading={
-                      !catalogContext ||
-                      isLoadingCatalogContext ||
-                      (isLoadingDetail && panelMode !== "create")
-                    }
-                    onSaved={handleSaved}
-                    onExtensionsChanged={refreshDetail}
-                    onClose={handlePanelClose}
-                  >
-                    <CatalogDetailSplitPane
-                      body={body}
-                      viewMode={viewMode}
-                      panelOpen={panelOpen}
-                      panelMode={panelMode}
-                      detail={detail}
-                      onDetailClose={handlePanelClose}
-                    />
-                  </ProductPanelScope>
-                ) : (
-                  <CatalogDetailSplitPane
-                    body={body}
-                    viewMode={viewMode}
-                    panelOpen={panelOpen}
-                    panelMode={panelMode}
-                    detail={detail}
-                    onDetailClose={handlePanelClose}
-                  />
-                )}
+              <div className="flex min-h-0 flex-1 basis-0 flex-col overflow-auto pb-1">
+                {body}
               </div>
             </div>
           )}
@@ -1201,6 +1164,20 @@ export function ProductCatalogTerminal({
         onSubmit={runBulkStorefront}
       />
 
+      <ProductItemDrawer
+        open={drawerOpen}
+        surface={drawer.surface}
+        tenantId={tenantId}
+        categories={categories}
+        catalogContext={catalogContext}
+        detail={detail}
+        fieldPermissions={fieldPermissions}
+        isLoading={drawerIsLoading}
+        urlNavigation={urlNavigation}
+        onExtensionsChanged={refreshDetail}
+        onCreatePersisted={handleCreatePersisted}
+        onItemArchived={handleItemArchived}
+      />
     </>
   );
 }

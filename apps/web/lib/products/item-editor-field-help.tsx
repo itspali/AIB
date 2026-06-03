@@ -6,7 +6,7 @@ import {
 /** Plain-language hints for item editor field info icons. */
 export const ITEM_EDITOR_FIELD_HELP = {
   itemName: "The name shown on orders, bills, and your shop.",
-  sku: "Your main product code. Different sizes or colors get their own codes later.",
+  sku: "Your internal product code. Different sizes or colors get their own codes later.",
   category: "Links size/color options and tax ideas from your category list.",
   description: "Notes for your team or website. Does not change tax or stock.",
   itemType:
@@ -40,7 +40,7 @@ export const ITEM_EDITOR_FIELD_HELP = {
   standardCost: "Planned cost per unit when you use Standard costing.",
   trackingMode:
     "Track stock by batch, by serial number, or do not track batches at all.",
-  barcode: "Code you scan at checkout or in the warehouse.",
+  gtin: "Optional UPC/EAN from the package. If blank, scanning may use SKU per workspace settings.",
   valuationMethod: "Set in company settings. Shown here for reference.",
   volume: "Package size for shipping quotes. Optional if you enter length, width, and height.",
   lengthCm: "Package length in centimeters.",
@@ -96,10 +96,10 @@ export const VARIANT_FIELD_HELP = {
   variantSkuMask: (mask: string) => `Code pattern: ${mask}`,
   price: "Leave empty to use the main selling price on the item.",
   active: "Off = keep old records, but do not sell or stock this version.",
-  barcode: "Barcode for this size or color.",
+  gtin: "Optional GTIN (UPC/EAN) for this size or color.",
   weight: "For shipping quotes only. Does not change stock count.",
   categoryAttribute: (key: string) =>
-    `Value for "${key}". May be used when building codes for each size or color.`,
+    `Value for "${key}" from the category template. Used per version when that attribute is in your chosen “Varies by” axes.`,
 } as const;
 
 export function VariantStrategyFieldHelp() {

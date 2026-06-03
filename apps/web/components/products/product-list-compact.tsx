@@ -4,7 +4,7 @@ import type { CardGridColumnCount } from "@/lib/products/list-prefs";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import type { ProductListRow } from "@/lib/products/types";
-import { productListRowKey } from "@/lib/products/list-row-key";
+import { isProductListRowSelected, productListRowKey } from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 import { ProductListCompactCardV2 } from "@/components/products/product-list-compact-card-v2";
 import { ProductListCompactCardShop } from "@/components/products/product-list-compact-card-shop";
@@ -18,8 +18,9 @@ type Props = {
   cardLayout?: ProductCardLayout;
   showVariants?: boolean;
   selectedId: string | null;
+  selectedVariantId?: string | null;
   bulkSelectedIds: Set<string>;
-  onSelect: (productId: string) => void;
+  onSelect: (productId: string, variantId?: string | null) => void;
   onBulkRowToggle: (rowKey: string, checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
 };
@@ -41,6 +42,7 @@ export function ProductListCompact({
   cardLayout = "v2",
   showVariants = false,
   selectedId,
+  selectedVariantId = null,
   bulkSelectedIds,
   onSelect,
   onBulkRowToggle,
@@ -61,7 +63,12 @@ export function ProductListCompact({
           columns,
           columnWrapModes,
           showVariants,
-          selected: selectedId === product.id,
+          selected: isProductListRowSelected(
+            product,
+            selectedId,
+            selectedVariantId,
+            showVariants
+          ),
           bulkSelected: bulkSelectedIds.has(rowKey),
           onSelect,
           onBulkToggle: (checked: boolean) => onBulkRowToggle(rowKey, checked),

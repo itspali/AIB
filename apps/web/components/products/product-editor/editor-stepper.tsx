@@ -2,18 +2,25 @@
 
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { EditorStage, EditorStageId } from "@/lib/products/editor-stages";
 import type { StageStatus } from "@/lib/products/item-completeness";
 
-type Props = {
-  stages: EditorStage[];
-  activeStage: EditorStageId;
-  statuses: Record<EditorStageId, StageStatus>;
+export type WizardStep<T extends string = string> = {
+  id: T;
+  label: string;
+  description: string;
+};
+
+type Props<T extends string> = {
+  stages: WizardStep<T>[];
+  activeStage: T;
+  statuses: Record<T, StageStatus>;
   /** Overall completeness, 0-100. */
   percent: number;
   /** Invoked when a navigable (already-reachable) stage is clicked. */
-  onSelect?: (stage: EditorStageId) => void;
+  onSelect?: (stage: T) => void;
   compact?: boolean;
+  vertical?: boolean;
+  showDescription?: boolean;
 };
 
 function dotClasses(status: StageStatus, active: boolean): string {
@@ -30,21 +37,27 @@ function dotClasses(status: StageStatus, active: boolean): string {
   }
 }
 
-export function EditorStepper({
+export function EditorStepper<T extends string>({
   stages,
   activeStage,
   statuses,
   percent,
   onSelect,
   compact = false,
-}: Props) {
+  vertical = false,
+  showDescription = true,
+}: Props<T>) {
   const activeIndex = stages.findIndex((stage) => stage.id === activeStage);
   const active = stages[activeIndex];
 
   return (
-    <div className={cn("space-y-3", compact ? "" : "rounded-xl border border-border bg-card p-4")}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">
+    <div
+      className={cn(
+        compact ? "space-y-2" : "space-y-3 rounded-xl border border-border bg-card p-4"
+      )}
+    >
+      <div className={cn("flex items-center gap-3", vertical && "justify-between")}>
+        <p className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
           Step {activeIndex + 1} of {stages.length}
         </p>
         <p className="text-xs font-medium text-muted-foreground">{percent}% complete</p>
@@ -57,7 +70,7 @@ export function EditorStepper({
         />
       </div>
 
-      <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
+      <ol className={cn(vertical ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-x-2 gap-y-2")}>
         {stages.map((stage, index) => {
           const status = statuses[stage.id] ?? "empty";
           const isActive = stage.id === activeStage;
@@ -65,13 +78,15 @@ export function EditorStepper({
           const navigable = index <= activeIndex && !isActive && Boolean(onSelect);
 
           return (
-            <li key={stage.id} className="flex items-center gap-2">
+            <li key={stage.id} className={cn("flex", vertical ? "items-stretch gap-2" : "items-center gap-2")}>
               <button
                 type="button"
                 disabled={!navigable}
                 onClick={navigable ? () => onSelect?.(stage.id) : undefined}
                 className={cn(
-                  "flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-left transition-colors",
+                  vertical
+                    ? "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+                    : "flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-left transition-colors",
                   navigable ? "hover:bg-muted" : "cursor-default",
                   isActive ? "bg-muted/60" : ""
                 )}
@@ -98,14 +113,17 @@ export function EditorStepper({
                 </span>
               </button>
               {index < stages.length - 1 ? (
-                <span aria-hidden className="h-px w-4 bg-border sm:w-6" />
+                <span
+                  aria-hidden
+                  className={cn(vertical ? "mx-3 h-4 w-px bg-border" : "h-px w-4 bg-border sm:w-6")}
+                />
               ) : null}
             </li>
           );
         })}
       </ol>
 
-      {active ? (
+      {showDescription && active ? (
         <p className="text-xs text-muted-foreground">{active.description}</p>
       ) : null}
     </div>

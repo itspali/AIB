@@ -46,6 +46,8 @@ export function usedVariantAttributeKeys(
  * Existing variant usage wins (any attribute a variant already varies on is an
  * axis); otherwise fall back to the choice-typed templates. Order follows the
  * template list so the UI stays stable.
+ *
+ * Suggestion only — never persist this return value without explicit author confirmation.
  */
 export function defaultVariantAxisKeys(
   templates: AttributeTemplateEntry[],
@@ -75,4 +77,47 @@ export function splitTemplatesByAxis(
     }
   }
   return { axes, descriptive };
+}
+
+/** Category defines at least one attribute that could split versions. */
+export function categoryHasComposableAxes(templates: AttributeTemplateEntry[]): boolean {
+  return templates.some(
+    (template) =>
+      template.role === "axis" ||
+      ((template.options?.length ?? 0) > 0 && template.role !== "descriptive")
+  );
+}
+
+const VARIANT_AXES_PATH = "variant_axes" as const;
+
+/**
+ * Validates persisted `variant_axes` for multi-SKU physical items.
+ * Returns a user-facing message or null when valid / not applicable.
+ */
+export function validateVariantAxesSelection(input: {
+  variant_strategy: string;
+  item_type: string;
+  variant_axes: string[];
+  categoryTemplates: AttributeTemplateEntry[];
+}): string | null {
+  if (input.variant_strategy !== "MULTI_SKU" || input.item_type !== "PHYSICAL") {
+    return null;
+  }
+  if (!categoryHasComposableAxes(input.categoryTemplates)) {
+    return null;
+  }
+  if (input.variant_axes.length < 1) {
+    return "Choose at least one attribute that varies by version.";
+  }
+  const templateKeys = new Set(input.categoryTemplates.map((template) => template.key));
+  for (const key of input.variant_axes) {
+    if (!templateKeys.has(key)) {
+      return `"${key}" is not defined on this category.`;
+    }
+  }
+  return null;
+}
+
+export function variantAxesZodIssuePath(): typeof VARIANT_AXES_PATH {
+  return VARIANT_AXES_PATH;
 }

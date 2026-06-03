@@ -7,7 +7,9 @@ import {
   getVariantChannelAvailability,
   saveVariantChannelAvailability,
   type VariantChannelCell,
+  type VariantChannelData,
 } from "@/app/items/actions";
+import { useOptionalItemExtensionData } from "@/components/products/item-extension-data-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,8 +31,22 @@ function cellKey(variantId: string, channelId: string): string {
   return `${variantId}:${channelId}`;
 }
 
+function applyChannelData(
+  data: VariantChannelData,
+  setChannels: (channels: ChannelMeta[]) => void,
+  setCells: (cells: Record<string, boolean>) => void
+) {
+  setChannels(data.channels);
+  const map: Record<string, boolean> = {};
+  for (const cell of data.cells) {
+    map[cellKey(cell.variant_id, cell.storefront_id)] = cell.is_visible;
+  }
+  setCells(map);
+}
+
 export function VariantChannelAvailabilityMatrix({ itemId, variants, readOnly = false }: Props) {
   const router = useRouter();
+  const extension = useOptionalItemExtensionData();
   const [loading, setLoading] = useState(true);
   const [channels, setChannels] = useState<ChannelMeta[]>([]);
   const [cells, setCells] = useState<Record<string, boolean>>({});
@@ -46,18 +62,27 @@ export function VariantChannelAvailabilityMatrix({ itemId, variants, readOnly = 
       setLoading(false);
       return;
     }
-    setChannels(result.data.channels);
-    const map: Record<string, boolean> = {};
-    for (const cell of result.data.cells) {
-      map[cellKey(cell.variant_id, cell.storefront_id)] = cell.is_visible;
-    }
-    setCells(map);
+    applyChannelData(result.data, setChannels, setCells);
     setLoading(false);
   }, [itemId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!extension) {
+      void load();
+      return;
+    }
+    if (extension.status === "loading" || extension.status === "idle") {
+      setLoading(true);
+      return;
+    }
+    if (extension.status === "error") {
+      toast.error(extension.error);
+      setLoading(false);
+      return;
+    }
+    applyChannelData(extension.data.channels, setChannels, setCells);
+    setLoading(false);
+  }, [extension, load]);
 
   const setCell = (variantId: string, channelId: string, visible: boolean) => {
     setCells((prev) => ({ ...prev, [cellKey(variantId, channelId)]: visible }));

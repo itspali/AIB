@@ -15,6 +15,7 @@ import {
 import { creditControlLabel, CREDIT_CONTROL_OPTIONS } from "@/lib/organization/credit-control-options";
 import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
 import type { OrganizationSettingsFormValues } from "@/lib/organization/types";
+import { SCAN_IDENTIFIER_POLICIES, scanIdentifierPolicyLabel } from "@/lib/products/catalog-item-settings";
 
 type Props = {
   form: UseFormReturn<OrganizationSettingsFormValues>;
@@ -152,6 +153,75 @@ export function OrganizationAccountingSection({ form, disabled }: Props) {
           setValue("allow_line_item_discounts", checked, { shouldDirty: true })
         }
       />
+
+      <div className="space-y-3 border-t border-border pt-4">
+        <div>
+          <p className="text-sm font-medium">Item catalog</p>
+          <p className="text-xs text-muted-foreground">
+            How scanning resolves products and whether new item SKUs are auto-generated.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Scan lookup uses</Label>
+            <Select
+              value={watch("scan_identifier_policy")}
+              disabled={disabled}
+              onValueChange={(value) =>
+                setValue(
+                  "scan_identifier_policy",
+                  value as OrganizationSettingsFormValues["scan_identifier_policy"],
+                  { shouldDirty: true }
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SCAN_IDENTIFIER_POLICIES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {scanIdentifierPolicyLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="sku_auto_pattern" className="text-sm font-medium text-muted-foreground">
+              Auto SKU pattern
+            </Label>
+            <Input
+              id="sku_auto_pattern"
+              disabled={disabled || !watch("sku_auto_generation_enabled")}
+              placeholder="{PREFIX}-{SEQ:6}"
+              {...register("sku_auto_pattern")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Tokens: {"{PREFIX}"}, {"{SEQ:6}"} (width optional).
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="sku_auto_prefix" className="text-sm font-medium text-muted-foreground">
+              Auto SKU prefix
+            </Label>
+            <Input
+              id="sku_auto_prefix"
+              disabled={disabled || !watch("sku_auto_generation_enabled")}
+              {...register("sku_auto_prefix")}
+            />
+          </div>
+        </div>
+        <SwitchRow
+          label="Auto-generate SKU on new items"
+          description="When enabled, blank SKU on create is filled from the pattern above on save."
+          checked={watch("sku_auto_generation_enabled")}
+          disabled={disabled}
+          onCheckedChange={(checked) =>
+            setValue("sku_auto_generation_enabled", checked, { shouldDirty: true })
+          }
+        />
+      </div>
     </OrgSettingsSection>
   );
 }

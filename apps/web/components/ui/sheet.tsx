@@ -16,8 +16,8 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      className={cn(
+      "fixed inset-0 z-[60] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -29,22 +29,28 @@ type SheetContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.C
   side?: "left" | "right";
   /** When false, omits the dimmed backdrop so underlying content stays interactive. */
   showOverlay?: boolean;
+  /** Right panel width is controlled inline (e.g. RightDrawer); skips the default `w-64`. */
+  variableWidth?: boolean;
+  /** Optional classes for the backdrop (e.g. transparent peek overlay). */
+  overlayClassName?: string;
 };
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = "left", className, children, showOverlay = true, ...props }, ref) => (
+>(({ side = "left", className, children, showOverlay = true, variableWidth = false, overlayClassName, ...props }, ref) => (
   <SheetPortal>
-    {showOverlay && <SheetOverlay />}
+    {showOverlay && <SheetOverlay className={overlayClassName} />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-200",
+        "fixed z-[60] gap-4 bg-background p-6 shadow-lg",
         side === "left" &&
-          "inset-y-0 left-0 h-full w-64 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+          "inset-y-0 left-0 h-full w-64 border-r transition ease-in-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left data-[state=closed]:duration-200 data-[state=open]:duration-300",
         side === "right" &&
-          "inset-y-0 right-0 h-full w-64 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          (variableWidth
+            ? "inset-y-0 right-0 h-full max-w-none overflow-visible border-l shadow-2xl data-[state=closed]:aib-right-drawer-exit data-[state=open]:aib-right-drawer-enter"
+            : "inset-y-0 right-0 h-full w-64 border-l transition ease-in-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=closed]:duration-200 data-[state=open]:duration-300"),
         className
       )}
       {...props}

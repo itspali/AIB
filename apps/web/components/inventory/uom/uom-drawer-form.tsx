@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import {
   defaultUomFormValues,
   UOM_FAMILIES,
@@ -48,6 +49,7 @@ function toFormValues(row: UomRow | null): UomFormValues {
 export function UomDrawerForm({ open, onOpenChange, editing = null, onSaved }: Props) {
   const router = useRouter();
   const isEditing = Boolean(editing);
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
   const [form, setForm] = useState<UomFormValues>(toFormValues(editing));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -60,7 +62,7 @@ export function UomDrawerForm({ open, onOpenChange, editing = null, onSaved }: P
 
   const patch = (next: Partial<UomFormValues>) => setForm((current) => ({ ...current, ...next }));
 
-  const handleClose = () => {
+  const closeForm = () => {
     onOpenChange(false);
     setError(null);
   };
@@ -74,18 +76,19 @@ export function UomDrawerForm({ open, onOpenChange, editing = null, onSaved }: P
         return;
       }
       toast.success(isEditing ? "Unit updated" : "Unit created");
-      handleClose();
+      closeForm();
       router.refresh();
       onSaved(result.uomId);
     });
   };
 
   return (
-    <RightDrawer
-      open={open}
-      onOpenChange={(next) => (next ? onOpenChange(true) : handleClose())}
-      title={isEditing ? "Edit unit" : "New unit"}
-    >
+    <>
+      <RightDrawer
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
+        title={isEditing ? "Edit unit" : "New unit"}
+      >
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -188,7 +191,7 @@ export function UomDrawerForm({ open, onOpenChange, editing = null, onSaved }: P
         </div>
 
         <div className="sticky bottom-0 mt-8 flex justify-end gap-2 border-t border-border/80 bg-background/95 pt-4 backdrop-blur-sm dark:border-white/10">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={handleClose}>
+          <Button type="button" variant="ghost" disabled={isPending} onClick={() => requestClose(closeForm)}>
             Cancel
           </Button>
           <Button type="button" disabled={isPending} onClick={handleSubmit}>
@@ -197,5 +200,7 @@ export function UomDrawerForm({ open, onOpenChange, editing = null, onSaved }: P
         </div>
       </div>
     </RightDrawer>
+    {discardDialog}
+    </>
   );
 }

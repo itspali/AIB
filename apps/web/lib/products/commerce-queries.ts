@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseCatalogItemSettings } from "@/lib/products/catalog-item-settings";
 import type { ProductCatalogContext } from "@/lib/products/types";
 
 export async function fetchProductCatalogContext(
@@ -70,12 +71,15 @@ export async function fetchProductCatalogContext(
       ? accountingConfig.inventory_valuation_method
       : "FIFO";
 
+  const catalogItems = parseCatalogItemSettings(accountingConfig);
+
   return {
     base_currency: tenant?.base_currency ?? "USD",
     inventory_valuation_method: valuationMethod,
     runtime_valuation_engine: "LOCATION_SCOPED",
     runtime_valuation_note:
       "Resolved per location (with organization default fallback). MWAC executes when the effective rule is MWAC; FIFO is blocked until cost layers ship.",
+    catalog_items: catalogItems,
     suppliers: (suppliers ?? []).map((row) => ({ id: row.id, name: row.name })),
     tags: (tags ?? []).map((row) => ({ id: row.id, name: row.name, slug: row.slug })),
     storefronts: (storefronts ?? []).map((row) => ({

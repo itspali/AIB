@@ -2,13 +2,16 @@
 
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { CategoryTreeNode } from "@/lib/categories/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
   node: CategoryTreeNode;
   selectedId: string | null;
+  bulkSelectedIds: Set<string>;
   onSelect: (id: string) => void;
+  onBulkRowToggle: (id: string, checked: boolean) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
 };
@@ -16,13 +19,16 @@ type Props = {
 export function CategoryTreeNodeRow({
   node,
   selectedId,
+  bulkSelectedIds,
   onSelect,
+  onBulkRowToggle,
   expandedIds,
   onToggleExpand,
 }: Props) {
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedIds.has(node.id);
   const isSelected = selectedId === node.id;
+  const isBulkSelected = bulkSelectedIds.has(node.id);
 
   return (
     <div>
@@ -33,6 +39,13 @@ export function CategoryTreeNodeRow({
         )}
         style={{ paddingLeft: `${node.depth * 12 + 8}px` }}
       >
+        <div onClick={(event) => event.stopPropagation()}>
+          <Checkbox
+            checked={isBulkSelected}
+            onCheckedChange={(checked) => onBulkRowToggle(node.id, checked === true)}
+            aria-label={`Select ${node.name}`}
+          />
+        </div>
         {hasChildren ? (
           <button
             type="button"
@@ -70,7 +83,9 @@ export function CategoryTreeNodeRow({
               key={child.id}
               node={child}
               selectedId={selectedId}
+              bulkSelectedIds={bulkSelectedIds}
               onSelect={onSelect}
+              onBulkRowToggle={onBulkRowToggle}
               expandedIds={expandedIds}
               onToggleExpand={onToggleExpand}
             />

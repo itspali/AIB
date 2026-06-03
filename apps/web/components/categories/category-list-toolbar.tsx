@@ -1,0 +1,240 @@
+"use client";
+
+import { ListTree, Rows3, Table2 } from "lucide-react";
+import { CategoryListColumnSettings } from "@/components/categories/category-list-column-settings";
+import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
+import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
+import { ModuleViewSelect } from "@/components/search/module-view-select";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { CategoryListPrefs, CategoryListViewMode } from "@/lib/categories/list-prefs";
+import { isCategoryTableLikeViewMode } from "@/lib/categories/list-prefs";
+import {
+  CATEGORY_LIST_SORT_OPTIONS,
+  sortOptionKey,
+} from "@/lib/categories/list-sort";
+import type { DeviceClass } from "@/lib/layout/device-class";
+import {
+  LIST_TOOLBAR_MODULE_VIEW_WIDTH,
+  listToolbarIconButtonClass,
+  listToolbarModuleViewTriggerClass,
+  listToolbarSelectClass,
+  listToolbarViewToggleButtonClass,
+  listToolbarViewToggleShellClass,
+} from "@/lib/layout/list-toolbar-chrome";
+import { cn } from "@/lib/utils";
+
+type Props = {
+  prefs: CategoryListPrefs;
+  onPrefsChange: (prefs: CategoryListPrefs) => void;
+  detectedDeviceClass: DeviceClass;
+  resultCount: number;
+  totalCount: number;
+  compactCountLabel?: boolean;
+  prefsHydrated?: boolean;
+};
+
+export function CategoryListToolbar({
+  prefs,
+  onPrefsChange,
+  detectedDeviceClass,
+  resultCount,
+  totalCount,
+  compactCountLabel = false,
+  prefsHydrated = true,
+}: Props) {
+  const omnibar = useOptionalOmnibarContext();
+  const isViewFilterActive = omnibar?.hasActiveFilters ?? false;
+  const controlsDisabled = !prefsHydrated;
+  const isTableLike = isCategoryTableLikeViewMode(prefs.viewMode);
+
+  const setViewMode = (viewMode: CategoryListViewMode) => {
+    if (controlsDisabled || prefs.viewMode === viewMode) return;
+    onPrefsChange({ ...prefs, viewMode });
+  };
+
+  const sortValue = sortOptionKey(prefs.sortField, prefs.sortDirection);
+
+  return (
+    <ListModuleToolbarRow
+      resultCount={resultCount}
+      totalCount={totalCount}
+      countNoun="category"
+      countNounPlural="categories"
+      compactCountLabel={compactCountLabel}
+      controls={
+        <>
+          <ModuleListToolbarFilters />
+          <ModuleViewSelect
+            borderless
+            menuAlign="end"
+            className="min-w-0 shrink-0"
+            triggerActive={isViewFilterActive}
+            triggerClassName={cn(
+              listToolbarModuleViewTriggerClass(isViewFilterActive),
+              LIST_TOOLBAR_MODULE_VIEW_WIDTH
+            )}
+          />
+
+          {isTableLike ? (
+            <Select
+              value={sortValue}
+              disabled={controlsDisabled}
+              onValueChange={(value) => {
+                const option = CATEGORY_LIST_SORT_OPTIONS.find(
+                  (entry) => sortOptionKey(entry.field, entry.direction) === value
+                );
+                if (!option) return;
+                onPrefsChange({
+                  ...prefs,
+                  sortField: option.field,
+                  sortDirection: option.direction,
+                });
+              }}
+            >
+              <SelectTrigger
+                className={cn(listToolbarSelectClass(false), "hidden w-[8.5rem] shrink-0 sm:flex")}
+                title="Sort categories"
+                aria-label="Sort categories"
+              >
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {CATEGORY_LIST_SORT_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={sortOptionKey(option.field, option.direction)}
+                    value={sortOptionKey(option.field, option.direction)}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+
+          <div className="shrink-0 sm:hidden">
+            <Select
+              value={prefs.viewMode}
+              disabled={controlsDisabled}
+              onValueChange={(value) => setViewMode(value as CategoryListViewMode)}
+            >
+              <SelectTrigger
+                className={cn(listToolbarSelectClass(true), "w-auto px-1.5 [&>svg]:hidden")}
+                aria-label="View mode"
+                title="View mode"
+              >
+                <span className="flex items-center">
+                  {prefs.viewMode === "tree" ? (
+                    <ListTree className="h-4 w-4" aria-hidden />
+                  ) : prefs.viewMode === "compact" ? (
+                    <Rows3 className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Table2 className="h-4 w-4" aria-hidden />
+                  )}
+                </span>
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="tree">
+                  <span className="flex items-center gap-2">
+                    <ListTree className="h-4 w-4" aria-hidden />
+                    Tree
+                  </span>
+                </SelectItem>
+                <SelectItem value="table">
+                  <span className="flex items-center gap-2">
+                    <Table2 className="h-4 w-4" aria-hidden />
+                    Table
+                  </span>
+                </SelectItem>
+                <SelectItem value="compact">
+                  <span className="flex items-center gap-2">
+                    <Rows3 className="h-4 w-4" aria-hidden />
+                    Compact
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div
+            className={cn(listToolbarViewToggleShellClass(), "hidden sm:inline-flex")}
+            aria-label="View mode"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                listToolbarViewToggleButtonClass(),
+                prefs.viewMode === "tree"
+                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={controlsDisabled}
+              onClick={() => setViewMode("tree")}
+              title="Tree view"
+              aria-label="Tree view"
+              aria-pressed={prefs.viewMode === "tree"}
+            >
+              <ListTree className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                listToolbarViewToggleButtonClass(),
+                prefs.viewMode === "table"
+                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={controlsDisabled}
+              onClick={() => setViewMode("table")}
+              title="Table view"
+              aria-label="Table view"
+              aria-pressed={prefs.viewMode === "table"}
+            >
+              <Table2 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                listToolbarViewToggleButtonClass(),
+                prefs.viewMode === "compact"
+                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={controlsDisabled}
+              onClick={() => setViewMode("compact")}
+              title="Compact table"
+              aria-label="Compact table"
+              aria-pressed={prefs.viewMode === "compact"}
+            >
+              <Rows3 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {isTableLike ? (
+            <CategoryListColumnSettings
+              prefs={prefs}
+              onChange={onPrefsChange}
+              detectedDeviceClass={detectedDeviceClass}
+              disabled={controlsDisabled}
+              triggerVariant="ghost"
+              triggerClassName={listToolbarIconButtonClass(false)}
+            />
+          ) : null}
+        </>
+      }
+    />
+  );
+}

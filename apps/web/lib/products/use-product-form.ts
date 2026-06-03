@@ -17,6 +17,10 @@ import {
   type ProductMasterFormValues,
 } from "@/lib/products/types";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import {
+  validateVariantAxesSelection,
+  variantAxesZodIssuePath,
+} from "@/lib/products/variant-composition";
 import type { ItemClassification } from "@/lib/products/classification-labels";
 import {
   classificationForBundleEnabled,
@@ -133,9 +137,36 @@ export function useProductForm({
 
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
+      const axesMessage = validateVariantAxesSelection({
+        variant_strategy: values.variant_strategy,
+        item_type: values.item_type,
+        variant_axes: values.variant_axes,
+        categoryTemplates,
+      });
+      if (axesMessage) {
+        form.setError(variantAxesZodIssuePath(), { type: "manual", message: axesMessage });
+        if (notifyOnSave) {
+          toast.error(axesMessage);
+        }
+        return;
+      }
+
+      const skuTrim = values.sku.trim();
+      if (
+        !skuTrim &&
+        !values.item_id &&
+        !catalogContext.catalog_items.sku_auto_generation_enabled
+      ) {
+        if (notifyOnSave) {
+          toast.error("Product code is required.");
+        }
+        return;
+      }
+
       const taxable = isTaxableSupplyCategory(values.default_tax_category);
       const payload: ProductMasterFormValues = {
         ...values,
+        sku: skuTrim,
         hsn_sac_code: taxable ? values.hsn_sac_code : "",
         tax_code_id: taxable ? values.tax_code_id : null,
       };
@@ -153,7 +184,7 @@ export function useProductForm({
         if (notifyOnSave) {
           toast.success(
             payload.variant_strategy === "MULTI_SKU" && !payload.item_id
-              ? "Style saved. Use Variant Management to generate sellable SKUs."
+              ? "Item saved. Open Versions to generate sellable SKUs."
               : "Product master profile saved successfully"
           );
         }
@@ -163,7 +194,15 @@ export function useProductForm({
         }
       });
     },
-    [notifyOnSave, onSaved, refreshOnSave, router]
+    [
+      catalogContext.catalog_items.sku_auto_generation_enabled,
+      categoryTemplates,
+      form,
+      notifyOnSave,
+      onSaved,
+      refreshOnSave,
+      router,
+    ]
   );
 
   const submit = useCallback(() => {
