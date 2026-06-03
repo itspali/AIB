@@ -13,7 +13,7 @@ export async function fetchCategoryRows(
   const { data, error } = await supabase
     .from("item_categories")
     .select(
-      "id, name, parent_id, is_active, attribute_templates, default_variant_strategy, default_item_type, created_at, updated_at"
+      "id, name, parent_id, is_active, attribute_templates, inherit_parent_attributes, default_variant_strategy, default_item_type, created_at, updated_at"
     )
     .eq("tenant_id", tenantId)
     .order("name");
@@ -26,6 +26,7 @@ export async function fetchCategoryRows(
     parent_id: row.parent_id,
     is_active: row.is_active,
     attribute_templates: parseAttributeTemplates(row.attribute_templates),
+    inherit_parent_attributes: row.inherit_parent_attributes ?? true,
     default_variant_strategy: isProductVariantStrategy(row.default_variant_strategy ?? "")
       ? row.default_variant_strategy
       : "SINGLE_SKU",

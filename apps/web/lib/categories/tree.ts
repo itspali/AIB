@@ -44,6 +44,60 @@ export function resolveLineage(categoryId: string, rows: CategoryRow[]): Categor
   return lineage;
 }
 
+/** Merge template lists; later entries override earlier ones on duplicate keys. */
+export function mergeAttributeTemplates(
+  base: AttributeTemplateEntry[],
+  override: AttributeTemplateEntry[]
+): AttributeTemplateEntry[] {
+  const byKey = new Map<string, AttributeTemplateEntry>();
+  for (const entry of base) {
+    byKey.set(entry.key, entry);
+  }
+  for (const entry of override) {
+    byKey.set(entry.key, entry);
+  }
+
+  const orderedKeys: string[] = [];
+  for (const entry of base) {
+    if (!orderedKeys.includes(entry.key)) orderedKeys.push(entry.key);
+  }
+  for (const entry of override) {
+    if (!orderedKeys.includes(entry.key)) orderedKeys.push(entry.key);
+  }
+
+  return orderedKeys.map((key) => byKey.get(key)!);
+}
+
+/**
+ * Effective templates for item forms: ancestor chain when inherit is enabled,
+ * otherwise only templates defined on this category. Child keys override parent.
+ */
+export function resolveEffectiveAttributeTemplates(
+  categoryId: string,
+  rows: CategoryRow[]
+): AttributeTemplateEntry[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const category = byId.get(categoryId);
+  if (!category) return [];
+
+  if (!category.inherit_parent_attributes || !category.parent_id) {
+    return category.attribute_templates.map((entry) => ({ ...entry }));
+  }
+
+  const parentEffective = resolveEffectiveAttributeTemplates(category.parent_id, rows);
+  return mergeAttributeTemplates(parentEffective, category.attribute_templates);
+}
+
+/** Templates contributed by ancestors (excludes this category's own rows). */
+export function resolveInheritedAttributeTemplates(
+  categoryId: string,
+  rows: CategoryRow[]
+): AttributeTemplateEntry[] {
+  const category = rows.find((row) => row.id === categoryId);
+  if (!category?.inherit_parent_attributes || !category.parent_id) return [];
+  return resolveEffectiveAttributeTemplates(category.parent_id, rows);
+}
+
 export function flattenTree(nodes: CategoryTreeNode[]): CategoryTreeNode[] {
   const flat: CategoryTreeNode[] = [];
   const walk = (list: CategoryTreeNode[]) => {

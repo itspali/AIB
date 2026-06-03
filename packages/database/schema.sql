@@ -287,14 +287,15 @@ CREATE TYPE inventory_transaction_type AS ENUM (
 -- CREATE TYPE location_valuation_calculation_rule AS ENUM ('FIFO', 'MWAC');
 
 CREATE TABLE item_categories (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-    name                TEXT NOT NULL,
-    parent_id           UUID REFERENCES item_categories (id) ON DELETE CASCADE,
-    attribute_templates JSONB NOT NULL DEFAULT '[]'::jsonb,
-    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name                        TEXT NOT NULL,
+    parent_id                   UUID REFERENCES item_categories (id) ON DELETE CASCADE,
+    attribute_templates         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    inherit_parent_attributes   BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active                   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE items (

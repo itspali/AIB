@@ -25,6 +25,8 @@ export type CategoryRow = {
   parent_id: string | null;
   is_active: boolean;
   attribute_templates: AttributeTemplateEntry[];
+  /** When true (default), merge ancestor templates then own; child keys override. */
+  inherit_parent_attributes: boolean;
   default_variant_strategy: ProductVariantStrategy;
   default_item_type?: ItemType;
   created_at: string;
@@ -42,5 +44,6 @@ export type SystemCategoryFormValues = {
   parent_id: string | null;
   is_active: boolean;
   attribute_templates: AttributeTemplateEntry[];
+  inherit_parent_attributes: boolean;
   default_variant_strategy: ProductVariantStrategy;
 };

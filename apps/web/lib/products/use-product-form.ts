@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 import { saveProductMasterProfile } from "@/app/items/actions";
-import { parentSelectOptions } from "@/lib/categories/tree";
+import { parentSelectOptions, resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import { productMasterSchema } from "@/lib/products/schemas";
@@ -128,7 +128,7 @@ export function useProductForm({
 
   const categoryTemplates = useMemo(() => {
     if (!categoryId) return [];
-    return categories.find((category) => category.id === categoryId)?.attribute_templates ?? [];
+    return resolveEffectiveAttributeTemplates(categoryId, categories);
   }, [categories, categoryId]);
 
   const onSubmit = useCallback(

@@ -44,6 +44,7 @@ export async function saveSystemCategory(values: SystemCategoryFormValues) {
       parent_id: values.parent_id,
       is_active: values.is_active,
       attribute_templates: templates,
+      inherit_parent_attributes: values.inherit_parent_attributes,
       default_variant_strategy: values.default_variant_strategy,
     });
   }
@@ -54,6 +55,7 @@ export async function saveSystemCategory(values: SystemCategoryFormValues) {
     p_is_active: values.is_active,
     p_attribute_templates: templates,
     p_default_variant_strategy: values.default_variant_strategy,
+    p_inherit_parent_attributes: values.inherit_parent_attributes,
   });
 
   if (error) return { error: error.message };
@@ -72,6 +74,7 @@ async function updateSystemCategory(
     parent_id: string | null;
     is_active: boolean;
     attribute_templates: Record<string, unknown>[];
+    inherit_parent_attributes: boolean;
     default_variant_strategy: SystemCategoryFormValues["default_variant_strategy"];
   }
 ) {
@@ -99,6 +102,7 @@ async function updateSystemCategory(
       parent_id: payload.parent_id,
       is_active: payload.is_active,
       attribute_templates: payload.attribute_templates,
+      inherit_parent_attributes: payload.inherit_parent_attributes,
       default_variant_strategy: payload.default_variant_strategy,
     })
     .eq("id", categoryId)

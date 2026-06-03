@@ -113,8 +113,9 @@ export function AttributeTemplateBuilder({ rows, onChange }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Declare attribute keys child products under this category inherit on creation. Keys are
-        auto-suggested from labels unless you edit them manually.
+        Define additional attribute keys for this category. Keys on this list override inherited
+        parent keys with the same name. Keys are auto-suggested from labels unless you edit them
+        manually.
       </p>
       {rows.map((row, index) => (
         <div
