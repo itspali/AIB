@@ -6,7 +6,7 @@ This document catalogs **known and likely failures** when pushing schema changes
 
 | Branch | Workflow job | Command | Target |
 |--------|--------------|---------|--------|
-| `develop` | `deploy-sandbox` | `supabase link` + `supabase db push --yes` | AIB Sandbox |
+| `develop` | `deploy-sandbox` | `supabase link` + `supabase db push --yes --include-all` | AIB Sandbox |
 | `main` | `deploy-production` | same | AIB Production |
 
 Workflow file: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
@@ -61,6 +61,27 @@ authentication failed / invalid access token / project ref not found
 **Fix:** Workflow uses `supabase db push --yes` (fixed in commit `2e2dbfe`).
 
 **Prevention:** Never remove `--yes` from [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
+
+---
+
+### 1.4 Out-of-order local migrations (skipped after duplicate rename)
+
+**Signal:**
+```
+Found local migration files to be inserted before the last migration on remote database.
+Rerun the command with --include-all flag to apply these migrations:
+supabase/migrations/20260603120050_...
+```
+
+**Cause:** A **later** timestamp was recorded on sandbox (e.g. `20260603140000`) while an **earlier** file was renamed or added afterward (e.g. duplicate `20260603120000` resolved by moving supplier catalog to `20260603120050`). `db push` without `--include-all` refuses to apply “backfilled” versions.
+
+**Encountered:** 2026-06-05 — after renaming `20260603120000_supplier_catalog_entries` → `20260603120050`, remote already had `20260603120000` (category) and `20260603140000`, but not `20260603120050` / `20260603120100`.
+
+**Fix:**
+1. One-time: `supabase db push --yes --include-all` (applies missing older timestamps).
+2. CI: keep `--include-all` on both deploy jobs so backfilled migrations apply automatically.
+
+**Prevention:** Avoid duplicate migration timestamps; when renaming an already-pushed version, use `supabase migration repair` per Supabase docs or a new forward-only timestamp instead of inserting a lower version after a higher one is on remote.
 
 ---
 
