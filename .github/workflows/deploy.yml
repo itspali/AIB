@@ -10,6 +10,8 @@ jobs:
   deploy-sandbox:
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout Code Base
         uses: actions/checkout@v5
@@ -30,6 +32,8 @@ jobs:
   deploy-production:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout Code Base
         uses: actions/checkout@v5
