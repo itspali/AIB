@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { ProductCatalogContext, ProductMasterFormValues } from "@/lib/products/types";
 import { suggestSkuMask } from "@/lib/products/sku-mask";
-import { editorCatalogBlockClass, editorSwitchSize } from "@/lib/products/editor-chrome";
+import { editorCatalogBlockClass, editorGridClass, editorSwitchSize } from "@/lib/products/editor-chrome";
 
 type Props = {
   catalogContext: ProductCatalogContext;
@@ -104,7 +104,6 @@ export function ProductCatalogExtensions({
           <Input
             disabled={disabled}
             className="font-mono"
-            placeholder="{BASE}-{Option1}-{Option2}"
             value={values.sku_mask}
             onChange={(event) => onChange("sku_mask", event.target.value)}
           />
@@ -136,11 +135,32 @@ export function ProductCatalogExtensions({
           <p className="text-sm text-muted-foreground">No custom fields configured.</p>
         ) : (
           <div className="space-y-2">
+            <div className="hidden gap-2 md:grid md:grid-cols-[1fr_1fr_auto]">
+              <span className="text-xs font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  Key
+                  <FieldLabelInfo label="Custom field key">
+                    {fieldHelpText(CATALOG_FIELD_HELP.customFieldKey)}
+                  </FieldLabelInfo>
+                </span>
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  Value
+                  <FieldLabelInfo label="Custom field value">
+                    {fieldHelpText(CATALOG_FIELD_HELP.customFieldValue)}
+                  </FieldLabelInfo>
+                </span>
+              </span>
+              <span className="sr-only">Actions</span>
+            </div>
             {values.custom_fields.map((row, index) => (
-              <div key={`custom-field-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+              <div
+                key={`custom-field-${index}`}
+                className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_auto]"
+              >
                 <Input
                   disabled={disabled}
-                  placeholder="Field key"
                   value={row.key}
                   onChange={(event) => {
                     const next = [...values.custom_fields];
@@ -150,7 +170,6 @@ export function ProductCatalogExtensions({
                 />
                 <Input
                   disabled={disabled}
-                  placeholder="Field value"
                   value={row.value}
                   onChange={(event) => {
                     const next = [...values.custom_fields];
@@ -208,16 +227,24 @@ export function ProductCatalogExtensions({
             );
           })}
         </div>
-        <div className="flex gap-2">
-          <Input
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">New tag</Label>
+              <FieldLabelInfo label="New tag">
+                {fieldHelpText(CATALOG_FIELD_HELP.newTag)}
+              </FieldLabelInfo>
+            </div>
+            <Input
             disabled={disabled || isCreatingTag}
-            placeholder="Create new tag"
             value={newTagName}
             onChange={(event) => setNewTagName(event.target.value)}
-          />
+            />
+          </div>
           <Button
             type="button"
             variant="outline"
+            className="sm:self-end"
             disabled={disabled || isCreatingTag || !newTagName.trim()}
             onClick={handleCreateTag}
           >
@@ -279,19 +306,18 @@ export function ProductCatalogExtensions({
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className={editorGridClass(Boolean(compact))}>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5">
                         <Label className="text-xs font-medium text-muted-foreground">
                           Storefront display name override
                         </Label>
                         <FieldLabelInfo label="Storefront display name override">
-                          {fieldHelpText(CATALOG_FIELD_HELP.displayName)}
+                          {fieldHelpText(CATALOG_FIELD_HELP.displayName(channel.name))}
                         </FieldLabelInfo>
                       </div>
                       <Input
                         disabled={disabled}
-                        placeholder={channel.name}
                         value={row.store_custom_name}
                         onChange={(event) => {
                           const next = [...values.storefront_visibility];
@@ -306,7 +332,9 @@ export function ProductCatalogExtensions({
                           Channel price book override
                         </Label>
                         <FieldLabelInfo label="Channel price book override">
-                          {fieldHelpText(CATALOG_FIELD_HELP.priceBook)}
+                          {fieldHelpText(
+                            `${CATALOG_FIELD_HELP.priceBook} ${CATALOG_FIELD_HELP.priceBookSelect}`
+                          )}
                         </FieldLabelInfo>
                       </div>
                       <Select
@@ -322,7 +350,7 @@ export function ProductCatalogExtensions({
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Use tenant default" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="inherit">Use tenant default</SelectItem>

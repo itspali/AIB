@@ -35,7 +35,7 @@ export function ProductItemArchiveAlert({
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                This archives the item master and linked SKU variants by setting them inactive.
+                This archives the product and linked variants by setting them inactive.
                 Historical financial lines, purchase orders, and sales records stay intact.
               </p>
               <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">

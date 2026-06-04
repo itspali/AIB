@@ -20,6 +20,7 @@ import {
   buildAlternateUomsPayload,
   buildCommerceCustomFieldDefaults,
 } from "@/lib/products/item-uom-commerce";
+import { buildReservedCatalogCustomFieldsPayload } from "@/lib/products/catalog-reserved-fields";
 import { buildCustomFieldsPayload } from "@/lib/products/sku-mask";
 import type { ProductMasterInput } from "@/lib/products/schemas";
 import { itemMediaSchema, itemVariantSchema } from "@/lib/products/variant-schemas";
@@ -161,6 +162,14 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_custom_fields: {
       ...buildCustomFieldsPayload(values.sku_mask, values.custom_fields),
       ...buildCommerceCustomFieldDefaults(values),
+      ...buildReservedCatalogCustomFieldsPayload({
+        mrp: values.mrp,
+        reorder_point: values.reorder_point,
+        selling_price: values.selling_price,
+        purchase_price: values.purchase_price,
+        variant_strategy: values.variant_strategy,
+        supplier_id: values.supplier_id,
+      }),
     },
     p_alternate_uoms: buildAlternateUomsPayload(values),
     p_tag_ids: values.tag_ids,
@@ -600,6 +609,83 @@ export async function saveItemVariantsBulk(itemId: string, variants: BulkVariant
   return { success: true as const, createdCount: (data as number) ?? payload.length };
 }
 
+/** Apply per-variant supplier cost quotes after matrix bulk create (merges into existing catalog). */
+export async function syncMatrixVariantSupplierPrices(
+  itemId: string,
+  supplierId: string,
+  rows: Array<{ sku: string; costPrice: string }>
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+  if (!supplierId.trim()) return { error: "Supplier is required." };
+
+  const priced = rows
+    .map((row) => ({
+      sku: row.sku.trim(),
+      costPrice: row.costPrice.trim(),
+    }))
+    .filter((row) => row.sku && row.costPrice && Number(row.costPrice) >= 0);
+  if (!priced.length) return { success: true as const };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const skus = priced.map((row) => row.sku);
+
+  const { data: variants, error: variantError } = await supabase
+    .from("item_variants")
+    .select("id, sku")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .in("sku", skus);
+
+  if (variantError) return { error: variantError.message };
+
+  const skuToVariantId = new Map(
+    (variants ?? []).map((row) => [String(row.sku), String(row.id)])
+  );
+
+  const catalogResult = await getSupplierCatalog(itemId);
+  if ("error" in catalogResult) return catalogResult;
+
+  const costBySku = new Map(priced.map((row) => [row.sku, Number(row.costPrice)]));
+  const existing = catalogResult.data.entries.map((entry) => ({
+    variant_id: entry.variant_id,
+    supplier_id: entry.supplier_id,
+    supplier_price: entry.supplier_price,
+    supplier_part_number: entry.supplier_part_number,
+    minimum_order_quantity: entry.minimum_order_quantity,
+    lead_time_days: entry.lead_time_days,
+    is_preferred: entry.is_preferred,
+  }));
+
+  const seen = new Set(
+    existing.map((row) => `${row.variant_id ?? "*"}|${row.supplier_id}`)
+  );
+
+  for (const [sku, cost] of costBySku) {
+    const variantId = skuToVariantId.get(sku);
+    if (!variantId) continue;
+    const combo = `${variantId}|${supplierId}`;
+    if (seen.has(combo)) {
+      const index = existing.findIndex(
+        (row) => row.variant_id === variantId && row.supplier_id === supplierId
+      );
+      if (index >= 0) existing[index] = { ...existing[index], supplier_price: cost };
+      continue;
+    }
+    seen.add(combo);
+    existing.push({
+      variant_id: variantId,
+      supplier_id: supplierId,
+      supplier_price: cost,
+      supplier_part_number: null,
+      minimum_order_quantity: 1,
+      lead_time_days: null,
+      is_preferred: false,
+    });
+  }
+
+  return saveSupplierCatalog(itemId, existing);
+}
+
 export type VariantAssortmentCell = {
   variant_id: string;
   location_id: string;
@@ -749,10 +835,26 @@ export type PriceBookEntryData = {
   entries: PriceBookEntryRow[];
 };
 
+export type SupplierCatalogEntryRow = {
+  variant_id: string | null;
+  supplier_id: string;
+  supplier_price: number;
+  supplier_part_number: string | null;
+  minimum_order_quantity: number;
+  lead_time_days: number | null;
+  is_preferred: boolean;
+  supplier_name: string | null;
+};
+
+export type SupplierCatalogData = {
+  entries: SupplierCatalogEntryRow[];
+};
+
 export type ItemDrawerExtensionData = {
   assortment: VariantAssortmentData;
   channels: VariantChannelData;
   priceBooks: PriceBookEntryData;
+  supplierCatalog: SupplierCatalogData;
 };
 
 /** Single round-trip for drawer editor extension panels (assortment, channels, price books). */
@@ -769,6 +871,7 @@ export async function getItemDrawerExtensionData(
     { data: channelRows, error: channelRowError },
     { data: books, error: bookError },
     { data: entries, error: entryError },
+    { data: supplierRows, error: supplierError },
   ] = await Promise.all([
     supabase
       .from("tenant_locations")
@@ -804,6 +907,23 @@ export async function getItemDrawerExtensionData(
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId)
       .order("min_quantity"),
+    supabase
+      .from("supplier_items")
+      .select(
+        `
+        variant_id,
+        supplier_id,
+        supplier_price,
+        supplier_part_number,
+        minimum_order_quantity,
+        lead_time_days,
+        is_preferred,
+        entities!supplier_items_supplier_id_fkey ( name )
+      `
+      )
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .order("is_preferred", { ascending: false }),
   ]);
 
   const firstError =
@@ -812,7 +932,8 @@ export async function getItemDrawerExtensionData(
     channelError ??
     channelRowError ??
     bookError ??
-    entryError;
+    entryError ??
+    supplierError;
   if (firstError) return { error: firstError.message };
 
   return {
@@ -841,8 +962,105 @@ export async function getItemDrawerExtensionData(
           price: Number(row.price),
         })),
       },
+      supplierCatalog: {
+        entries: mapSupplierCatalogRows(supplierRows),
+      },
     },
   };
+}
+
+function mapSupplierCatalogRows(
+  rows: Array<{
+    variant_id: string | null;
+    supplier_id: string;
+    supplier_price: number | string;
+    supplier_part_number: string | null;
+    minimum_order_quantity: number | string;
+    lead_time_days: number | null;
+    is_preferred: boolean;
+    entities: { name: string } | { name: string }[] | null;
+  }> | null
+): SupplierCatalogEntryRow[] {
+  return (rows ?? []).map((row) => {
+    const entity = Array.isArray(row.entities) ? row.entities[0] : row.entities;
+    return {
+      variant_id: row.variant_id,
+      supplier_id: row.supplier_id,
+      supplier_price: Number(row.supplier_price),
+      supplier_part_number: row.supplier_part_number,
+      minimum_order_quantity: Number(row.minimum_order_quantity),
+      lead_time_days: row.lead_time_days,
+      is_preferred: row.is_preferred,
+      supplier_name: entity?.name ?? null,
+    };
+  });
+}
+
+export async function getSupplierCatalog(
+  itemId: string
+): Promise<{ data: SupplierCatalogData } | { error: string }> {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data, error } = await supabase
+    .from("supplier_items")
+    .select(
+      `
+      variant_id,
+      supplier_id,
+      supplier_price,
+      supplier_part_number,
+      minimum_order_quantity,
+      lead_time_days,
+      is_preferred,
+      entities!supplier_items_supplier_id_fkey ( name )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .order("is_preferred", { ascending: false });
+
+  if (error) return { error: error.message };
+  return { data: { entries: mapSupplierCatalogRows(data) } };
+}
+
+export async function saveSupplierCatalog(
+  itemId: string,
+  rows: Array<{
+    variant_id: string | null;
+    supplier_id: string;
+    supplier_price: number;
+    supplier_part_number?: string | null;
+    minimum_order_quantity?: number;
+    lead_time_days?: number | null;
+    is_preferred?: boolean;
+  }>
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("save_supplier_catalog_entries", {
+    p_item_id: itemId,
+    p_rows: rows.map((row) => ({
+      variant_id: row.variant_id,
+      supplier_id: row.supplier_id,
+      supplier_price: row.supplier_price,
+      supplier_part_number: row.supplier_part_number ?? null,
+      minimum_order_quantity: row.minimum_order_quantity ?? 1,
+      lead_time_days: row.lead_time_days ?? null,
+      is_preferred: row.is_preferred ?? false,
+    })),
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_supplier_catalog_entries") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/inventory/items");
+  return { success: true as const };
 }
 
 export async function getPriceBookEntries(

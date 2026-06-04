@@ -31,11 +31,11 @@ export function ProductBulkArchiveAlert({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Archive selected item masters?</AlertDialogTitle>
+          <AlertDialogTitle>Archive selected products?</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                This archives {selectedCount} item master{selectedCount === 1 ? "" : "s"} and all
+                This archives {selectedCount} product{selectedCount === 1 ? "" : "s"} and all
                 linked SKU variants by setting them inactive. Historical financial lines, purchase
                 orders, and sales records remain intact.
               </p>

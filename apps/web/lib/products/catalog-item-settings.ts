@@ -82,14 +82,15 @@ export function scanIdentifierPolicyLabel(policy: ScanIdentifierPolicy): string 
 }
 
 export function gtinFieldHint(policy: ScanIdentifierPolicy): string {
+  const example = " Example: 8901234567890.";
   switch (policy) {
     case "GTIN":
-      return "Optional UPC/EAN from the package. Scanning uses GTIN only.";
+      return `Optional UPC/EAN from the package. Scanning uses GTIN only.${example}`;
     case "SKU":
-      return "Optional UPC/EAN for marketplaces. Scanning uses your SKU — leave GTIN blank if the label shows SKU only.";
+      return `Optional UPC/EAN for marketplaces. Scanning uses your SKU — leave GTIN blank if the label shows SKU only.${example}`;
     case "GTIN_THEN_SKU":
     default:
-      return "Optional UPC/EAN from the package. If blank, scanning uses SKU.";
+      return `Optional UPC/EAN from the package. If blank, scanning uses SKU.${example}`;
   }
 }
 
@@ -97,7 +98,7 @@ export function skuFieldHint(settings: CatalogItemSettings, isCreate: boolean): 
   if (isCreate && settings.sku_auto_generation_enabled) {
     return "Your internal product code. Leave blank to auto-generate on save using your workspace pattern.";
   }
-  return "Your internal product code.";
+  return "Your internal product code. Example: ITEM-001.";
 }
 
 function formatSequence(segment: string, width: number): string {

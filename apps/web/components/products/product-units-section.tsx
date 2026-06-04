@@ -14,39 +14,31 @@ import {
 } from "@/components/ui/select";
 import type { ProductCatalogContext, ProductMasterFormValues } from "@/lib/products/types";
 import { ITEM_EDITOR_FIELD_HELP } from "@/lib/products/item-editor-field-help";
-import { editorCatalogBlockClass, editorGridClass, useEditorPanelLayout } from "@/lib/products/editor-chrome";
+import { editorCatalogBlockClass, useEditorPanelLayout } from "@/lib/products/editor-chrome";
 import { formatAlternateUomConversionPreview } from "@/lib/products/item-uom-commerce";
 import { resolveUomOptions, withUomValue, type UomOption } from "@/lib/products/uom-options";
 import { cn } from "@/lib/utils";
 
-type Props = {
+type BaseUnitFieldProps = {
   catalogContext: ProductCatalogContext;
   baseUom: string;
-  alternateUoms: ProductMasterFormValues["alternate_uoms"];
   isPhysical: boolean;
   stockUnitDisabled?: boolean;
   stockUnitLocked?: boolean;
-  alternatesDisabled?: boolean;
   onBaseUomChange: (code: string) => void;
-  onAlternateUomsChange: (rows: ProductMasterFormValues["alternate_uoms"]) => void;
 };
 
-export function ProductUnitsSection({
+export function ProductBaseUnitField({
   catalogContext,
   baseUom,
-  alternateUoms,
   isPhysical,
   stockUnitDisabled,
   stockUnitLocked,
-  alternatesDisabled,
   onBaseUomChange,
-  onAlternateUomsChange,
-}: Props) {
+}: BaseUnitFieldProps) {
   const panel = useEditorPanelLayout();
   const uomOptions = resolveUomOptions(catalogContext.uoms);
   const baseUomOptions: UomOption[] = withUomValue(uomOptions, baseUom);
-  const alternateUomOptions = uomOptions.filter((option) => option.code !== baseUom);
-  const defaultAlternateUomCode = alternateUomOptions[0]?.code ?? "";
 
   const baseUnitInfo = mergeFieldLabelInfo(
     fieldHelpText(
@@ -56,68 +48,70 @@ export function ProductUnitsSection({
   );
 
   return (
-    <div className={panel ? "space-y-3" : "space-y-6"}>
-      <div className={editorGridClass(panel)}>
-        <div className={cn("min-w-0", panel ? "space-y-1.5" : "space-y-2")}>
-          <div className="flex items-center gap-1.5">
-            <Label className={cn("font-medium text-muted-foreground", panel ? "text-xs" : "text-sm")}>
-              Base unit
-            </Label>
-            {baseUnitInfo ? <FieldLabelInfo label="Base unit">{baseUnitInfo}</FieldLabelInfo> : null}
-            {stockUnitLocked ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground ring-1 ring-border">
-                Locked
-              </span>
-            ) : null}
-          </div>
-          <Select
-            value={baseUom}
-            disabled={stockUnitDisabled || stockUnitLocked}
-            onValueChange={onBaseUomChange}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {baseUomOptions.map((option) => (
-                <SelectItem key={option.code} value={option.code}>
-                  {option.code}
-                  {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className={cn("min-w-0", panel ? "space-y-1.5" : "space-y-2")}>
+      <div className="flex items-center gap-1.5">
+        <Label className={cn("font-medium text-muted-foreground", panel ? "text-xs" : "text-sm")}>
+          Base unit
+        </Label>
+        {baseUnitInfo ? <FieldLabelInfo label="Base unit">{baseUnitInfo}</FieldLabelInfo> : null}
+        {stockUnitLocked ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground ring-1 ring-border">
+            Locked
+          </span>
+        ) : null}
       </div>
+      <Select
+        value={baseUom}
+        disabled={stockUnitDisabled || stockUnitLocked}
+        onValueChange={onBaseUomChange}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {baseUomOptions.map((option) => (
+            <SelectItem key={option.code} value={option.code}>
+              {option.code}
+              {option.name && option.name !== option.code ? ` · ${option.name}` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
+type Props = {
+  catalogContext: ProductCatalogContext;
+  baseUom: string;
+  alternateUoms: ProductMasterFormValues["alternate_uoms"];
+  alternatesDisabled?: boolean;
+  onAlternateUomsChange: (rows: ProductMasterFormValues["alternate_uoms"]) => void;
+};
+
+export function ProductUnitsSection({
+  catalogContext,
+  baseUom,
+  alternateUoms,
+  alternatesDisabled,
+  onAlternateUomsChange,
+}: Props) {
+  const panel = useEditorPanelLayout();
+  const uomOptions = resolveUomOptions(catalogContext.uoms);
+  const alternateUomOptions = uomOptions.filter((option) => option.code !== baseUom);
+  const defaultAlternateUomCode = alternateUomOptions[0]?.code ?? "";
+
+  return (
+    <div className={panel ? "space-y-3" : "space-y-6"}>
       <div className={editorCatalogBlockClass(panel)}>
-        <div className="flex items-center justify-between gap-2">
-          <SubsectionHeading
-            title="Alternate units"
-            compact={panel}
-            info={fieldHelpText(ITEM_EDITOR_FIELD_HELP.alternateUnits)}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={alternatesDisabled || defaultAlternateUomCode === ""}
-            onClick={() =>
-              onAlternateUomsChange([
-                ...alternateUoms,
-                { uom_code: defaultAlternateUomCode, conversion_factor: "1" },
-              ])
-            }
-          >
-            <Plus className="h-4 w-4" />
-            Add unit
-          </Button>
-        </div>
-        {alternateUoms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No alternate units configured.</p>
-        ) : (
-          <div className="space-y-2">
-            <div className="hidden gap-2 sm:grid sm:grid-cols-[1fr_1fr_auto]">
+        <SubsectionHeading
+          title="Alternate units"
+          compact={panel}
+          info={fieldHelpText(ITEM_EDITOR_FIELD_HELP.alternateUnits)}
+        />
+        <div className="space-y-2">
+          {alternateUoms.length > 0 ? (
+            <div className="hidden gap-2 md:grid md:grid-cols-[1fr_1fr_auto]">
               <span className="text-xs font-medium text-muted-foreground">Unit</span>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Conversion factor</span>
@@ -127,7 +121,10 @@ export function ProductUnitsSection({
               </div>
               <span className="sr-only">Actions</span>
             </div>
-            {alternateUoms.map((row, index) => {
+          ) : (
+            <p className="text-sm text-muted-foreground">No alternate units configured.</p>
+          )}
+          {alternateUoms.map((row, index) => {
               const conversionPreview = formatAlternateUomConversionPreview(
                 row.uom_code,
                 row.conversion_factor,
@@ -138,7 +135,7 @@ export function ProductUnitsSection({
               return (
                 <div
                   key={`alternate-uom-${index}`}
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-start"
+                  className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_auto] md:items-start"
                 >
                   <Select
                     value={row.uom_code}
@@ -165,7 +162,6 @@ export function ProductUnitsSection({
                     disabled={alternatesDisabled}
                     className="font-mono text-right"
                     inputMode="decimal"
-                    placeholder="Conversion factor"
                     value={row.conversion_factor}
                     onChange={(event) => {
                       const next = [...alternateUoms];
@@ -187,7 +183,7 @@ export function ProductUnitsSection({
                   </Button>
                   <p
                     className={cn(
-                      "text-xs leading-snug sm:col-span-2",
+                      "text-xs leading-snug md:col-span-2",
                       conversionPreview ? "text-foreground" : "text-muted-foreground"
                     )}
                   >
@@ -197,8 +193,26 @@ export function ProductUnitsSection({
                 </div>
               );
             })}
-          </div>
-        )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-7 gap-1 px-0 font-medium text-primary hover:bg-transparent hover:text-primary",
+              panel ? "text-xs" : "text-sm"
+            )}
+            disabled={alternatesDisabled || defaultAlternateUomCode === ""}
+            onClick={() =>
+              onAlternateUomsChange([
+                ...alternateUoms,
+                { uom_code: defaultAlternateUomCode, conversion_factor: "1" },
+              ])
+            }
+          >
+            <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Add unit
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -12,8 +12,21 @@ import {
 } from "@/lib/products/item-model";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import { itemTaxCodePickerLabel } from "@/lib/tax/item-tax-code-picker";
+import {
+  BUY_PRICE_COLUMN,
+  SELL_PRICE_COLUMN,
+  VARIANT_DEFAULT_BADGE,
+  VARIANT_NOT_SOLD_BADGE,
+  VARIANTS_EMPTY_STATE,
+  VARIANTS_PEEK_DESCRIPTION,
+  VARIANTS_SECTION_LABEL,
+} from "@/lib/products/product-user-labels";
 import { variantStrategyLabel } from "@/lib/products/variant-strategy";
-import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
+import type {
+  ProductCatalogContext,
+  ProductDetailSnapshot,
+  ProductVariantSnapshot,
+} from "@/lib/products/types";
 import { ProfileSectionCard } from "@/components/products/profile-section-card";
 import { Badge } from "@/components/ui/badge";
 import { useElementWidth } from "@/lib/layout/use-element-width";
@@ -97,6 +110,16 @@ function formatVariantAttributes(attrs: Record<string, unknown>): string {
   return entries.map(([k, v]) => `${k}: ${String(v)}`).join(" · ");
 }
 
+function masterVariantBadgeLabel(variant: ProductVariantSnapshot): string {
+  if (variant.is_master && variant.is_sellable === false) return VARIANT_NOT_SOLD_BADGE;
+  return VARIANT_DEFAULT_BADGE;
+}
+
+function variantWeightLabel(variant: ProductVariantSnapshot): string | null {
+  const kg = fmtDim(variant.dead_weight_kg);
+  return kg != null ? `${kg} kg` : null;
+}
+
 function BehaviorFlagChip({ label, enabled }: { label: string; enabled: boolean }) {
   return (
     <span
@@ -165,6 +188,11 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
   const hasShipping =
     isPhysical && (weightKg != null || dimensionsCm != null || volume != null);
 
+  const showVariantGtin = detail.variants.some((v) => hasText(v.barcode));
+  const showVariantWeight =
+    isPhysical && detail.variants.some((v) => variantWeightLabel(v) != null);
+  const showVariantSellable = isMultiSku;
+
   return (
     <div ref={layoutRef} className="p-3 pb-6">
       <div
@@ -192,7 +220,10 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
           <Row label="Status" value={itemOperationalStatusLabel(detail.is_active)} />
           <Row label="Variant nature" value={variantStrategyLabel(detail.variant_strategy)} />
           <Row label="SKU" value={detail.sku} />
-          {hasText(detail.code) ? <Row label="Item code" value={detail.code} /> : null}
+          {hasText(detail.code) &&
+          detail.code.trim().toLowerCase() !== detail.sku.trim().toLowerCase() ? (
+            <Row label="Item code" value={detail.code} />
+          ) : null}
           {hasText(detail.barcode) ? <Row label="GTIN" value={detail.barcode} /> : null}
           <Row
             label="Category"
@@ -202,10 +233,6 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
           {isMultiSku && detail.variant_axes.length > 0 ? (
             <Row label="Variant axes" value={detail.variant_axes.join(", ")} />
           ) : null}
-          {hasText(detail.hsn_sac_code) ? (
-            <Row label="HSN / SAC" value={detail.hsn_sac_code} />
-          ) : null}
-          {taxCodeLabel ? <Row label="Tax rule" value={taxCodeLabel} /> : null}
           {detail.needs_review ? (
             <Row label="Review" value="Needs review" />
           ) : null}
@@ -259,7 +286,12 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
           {parseFloat(detail.standard_cost) > 0 ? (
             <Row label="Standard cost" value={fmtMoney(detail.standard_cost, currency)} numeric />
           ) : null}
-          <Row label="Tax category" value={taxCategoryLabel(detail.default_tax_category)} />
+          <Row label="Tax" value={taxCategoryLabel(detail.default_tax_category)} />
+          <Row label="Rule" value={taxCodeLabel ?? ""} />
+          <Row
+            label="HSN"
+            value={hasText(detail.hsn_sac_code) ? detail.hsn_sac_code : ""}
+          />
         </ProfileSectionCard>
 
         {detail.track_inventory ? (
@@ -312,40 +344,148 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
 
         {(isMultiSku || detail.variants.length > 0) && (
           <ProfileSectionCard
-            title="Versions"
-            description={`${sellableVariants.length} sellable · ${detail.variants.length} total`}
+            title={VARIANTS_SECTION_LABEL}
+            description={VARIANTS_PEEK_DESCRIPTION(
+              sellableVariants.length,
+              detail.variants.length
+            )}
           >
             {detail.variants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No versions yet.</p>
+              <p className="text-sm text-muted-foreground">{VARIANTS_EMPTY_STATE}</p>
             ) : (
               <div className="max-h-48 overflow-x-auto overflow-y-auto rounded-md border border-border/60">
-                <table className="w-full min-w-[20rem]">
-                  <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                <table className="w-max min-w-full text-sm">
+                  <thead className="sticky top-0 z-[1] bg-muted/80 backdrop-blur">
                     <tr className="border-b border-border text-left">
-                      <th className={cn("px-2.5 py-1.5", fieldLabelClass)}>SKU</th>
-                      <th className={cn("px-2.5 py-1.5", fieldLabelClass)}>Attributes</th>
-                      <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>Price</th>
-                      <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>Status</th>
+                      <th
+                        className={cn(
+                          "whitespace-nowrap px-2.5 py-1.5",
+                          fieldLabelClass
+                        )}
+                      >
+                        SKU
+                      </th>
+                      {showVariantGtin ? (
+                        <th
+                          className={cn(
+                            "whitespace-nowrap px-2.5 py-1.5",
+                            fieldLabelClass
+                          )}
+                        >
+                          GTIN
+                        </th>
+                      ) : null}
+                      <th
+                        className={cn(
+                          "min-w-[10rem] whitespace-nowrap px-2.5 py-1.5",
+                          fieldLabelClass
+                        )}
+                      >
+                        Attributes
+                      </th>
+                      {showVariantSellable ? (
+                        <th
+                          className={cn(
+                            "whitespace-nowrap px-2.5 py-1.5",
+                            fieldLabelClass
+                          )}
+                        >
+                          Sellable
+                        </th>
+                      ) : null}
+                      <th
+                        className={cn(
+                          "whitespace-nowrap px-2.5 py-1.5 text-right",
+                          fieldLabelClass
+                        )}
+                      >
+                        {SELL_PRICE_COLUMN}
+                      </th>
+                      <th
+                        className={cn(
+                          "whitespace-nowrap px-2.5 py-1.5 text-right",
+                          fieldLabelClass
+                        )}
+                      >
+                        {BUY_PRICE_COLUMN}
+                      </th>
+                      {showVariantWeight ? (
+                        <th
+                          className={cn(
+                            "whitespace-nowrap px-2.5 py-1.5 text-right",
+                            fieldLabelClass
+                          )}
+                        >
+                          Weight
+                        </th>
+                      ) : null}
+                      <th
+                        className={cn(
+                          "whitespace-nowrap px-2.5 py-1.5 text-right",
+                          fieldLabelClass
+                        )}
+                      >
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {detail.variants.map((v) => (
                       <tr key={v.id} className="border-b border-border/40 last:border-0">
-                        <td className={cn("px-2.5 py-1.5", fieldValueClass)}>{v.sku}</td>
+                        <td className={cn("whitespace-nowrap px-2.5 py-1.5", fieldValueClass)}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono">{v.sku}</span>
+                            {v.is_master ? (
+                              <Badge
+                                variant={v.is_sellable === false ? "default" : "active"}
+                                className="shrink-0 text-[10px]"
+                              >
+                                {masterVariantBadgeLabel(v)}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </td>
+                        {showVariantGtin ? (
+                          <td
+                            className={cn(
+                              "whitespace-nowrap px-2.5 py-1.5 font-mono",
+                              fieldValueClass
+                            )}
+                          >
+                            {hasText(v.barcode) ? v.barcode : "—"}
+                          </td>
+                        ) : null}
                         <td
                           className={cn(
-                            "max-w-[8rem] truncate px-2.5 py-1.5",
+                            "max-w-[14rem] px-2.5 py-1.5",
                             fieldValueClass,
                             "font-normal text-muted-foreground"
                           )}
                         >
-                          {formatVariantAttributes(v.variant_attributes)}
+                          <span className="line-clamp-2">
+                            {formatVariantAttributes(v.variant_attributes)}
+                          </span>
                         </td>
-                        <td className={cn("px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                        {showVariantSellable ? (
+                          <td className={cn("whitespace-nowrap px-2.5 py-1.5", fieldValueClass)}>
+                            {v.is_sellable ? "Yes" : "No"}
+                          </td>
+                        ) : null}
+                        <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
                           {fmtMoney(v.price, currency)}
                         </td>
-                        <td className={cn("px-2.5 py-1.5 text-right", fieldValueClass)}>
-                          {v.is_active ? "Active" : "Inactive"}
+                        <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                          {fmtMoney(v.purchase_price, currency)}
+                        </td>
+                        {showVariantWeight ? (
+                          <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                            {variantWeightLabel(v) ?? "—"}
+                          </td>
+                        ) : null}
+                        <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueClass)}>
+                          <Badge variant={v.is_active ? "completed" : "locked"}>
+                            {v.is_active ? "Active" : "Inactive"}
+                          </Badge>
                         </td>
                       </tr>
                     ))}

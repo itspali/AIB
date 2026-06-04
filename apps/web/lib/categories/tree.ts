@@ -153,6 +153,21 @@ export function flattenTree(nodes: CategoryTreeNode[]): CategoryTreeNode[] {
   return flat;
 }
 
+/** Ids of categories that have children (used to default the tree to expanded). */
+export function collectExpandableCategoryIds(nodes: CategoryTreeNode[]): Set<string> {
+  const ids = new Set<string>();
+  const walk = (list: CategoryTreeNode[]) => {
+    for (const node of list) {
+      if (node.children.length > 0) {
+        ids.add(node.id);
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return ids;
+}
+
 export function filterCategoryTree(
   nodes: CategoryTreeNode[],
   query: string

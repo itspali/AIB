@@ -1,39 +1,103 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { saveItemVariantsBulk, type BulkVariantRow } from "@/app/items/actions";
-import { Badge } from "@/components/ui/badge";
+import {
+  saveItemVariantsBulk,
+  syncMatrixVariantSupplierPrices,
+  type BulkVariantRow,
+} from "@/app/items/actions";
+import { VariantAxisChipSelector } from "@/components/products/variant-axis-chip-selector";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RightDrawer } from "@/components/ui/right-drawer";
-import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import { composeSkuFromMask, suggestSkuMask } from "@/lib/products/sku-mask";
+import {
+  COST_PRICE_COLUMN,
+  HSN_COLUMN,
+  MRP_PRICE_COLUMN,
+  SELL_PRICE_COLUMN,
+} from "@/lib/products/product-user-labels";
 import { splitTemplatesByAxis } from "@/lib/products/variant-composition";
+import {
+  normalizeMatrixPriceDefault,
+  resolveMatrixCostDefault,
+} from "@/lib/products/variant-matrix-defaults";
+import { editorPanelDividerClass } from "@/lib/products/editor-chrome";
 import type { ProductVariantSnapshot } from "@/lib/products/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   itemId: string;
   categoryTemplates: AttributeTemplateEntry[];
   variants: ProductVariantSnapshot[];
   skuMask: string;
   baseSku: string;
-  /**
-   * Attribute keys the item author chose as variant axes. When provided, only
-   * these are offered as axes (pre-enabled) and the rest are shown as
-   * descriptive. Omit to offer every template as a candidate axis.
-   */
-  axisKeys?: string[];
+  axisKeys: string[];
+  onAxisKeysChange?: (keys: string[]) => void;
+  /** When false, SKU axes are chosen in the parent form (VariantCompositionPicker). */
+  showAxisPicker?: boolean;
+  defaultExpanded?: boolean;
+  defaultSellingPrice?: string;
+  defaultPurchasePrice?: string;
+  defaultStandardCost?: string;
+  defaultMrp?: string;
+  defaultHsn?: string;
+  defaultSupplierId?: string | null;
   onGenerated: () => void;
 };
 
-type RowOverride = { include: boolean; sku?: string; price?: string };
+type RowOverride = {
+  include: boolean;
+  sku?: string;
+  sellPrice?: string;
+  costPrice?: string;
+  mrp?: string;
+  hsn?: string;
+};
+
+function SectionLabel({ title, meta }: { title: string; meta?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs font-medium text-muted-foreground">{title}</span>
+      {meta}
+    </div>
+  );
+}
+
+function ValueToggleChip({
+  label,
+  selected,
+  disabled,
+  onToggle,
+}: {
+  label: string;
+  selected: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onToggle}
+      className={cn(
+        "rounded-md px-2 py-0.5 text-xs transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        selected
+          ? "bg-primary/10 font-medium text-foreground ring-1 ring-primary/40"
+          : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+      )}
+      aria-pressed={selected}
+    >
+      {label}
+    </button>
+  );
+}
 
 function comboKey(attributes: Record<string, string>): string {
   return Object.keys(attributes)
@@ -57,52 +121,67 @@ function cartesian(axes: Array<{ key: string; values: string[] }>): Array<Record
   );
 }
 
+function formatComboLabel(attributes: Record<string, string>): string {
+  return Object.values(attributes).join(" · ");
+}
+
+function resolveFieldDefault(
+  key: string,
+  overrides: Record<string, RowOverride>,
+  field: keyof Pick<RowOverride, "sellPrice" | "costPrice" | "mrp" | "hsn">,
+  productDefault: string
+): string {
+  const override = overrides[key]?.[field];
+  if (override !== undefined) return override;
+  return productDefault;
+}
+
+function resetMatrixDraft() {
+  return {
+    selectValues: {} as Record<string, Record<string, boolean>>,
+    freeValues: {} as Record<string, string>,
+    overrides: {} as Record<string, RowOverride>,
+  };
+}
+
+const compactInputClass = "h-7 text-xs";
+const priceColClass = "w-[4.75rem] min-w-[4.75rem]";
+const hsnColClass = "w-[5.5rem] min-w-[5.5rem]";
+
 export function VariantMatrixGenerator({
-  open,
-  onOpenChange,
   itemId,
   categoryTemplates,
   variants,
   skuMask,
   baseSku,
   axisKeys,
+  onAxisKeysChange,
+  showAxisPicker = false,
+  defaultExpanded = true,
+  defaultSellingPrice = "",
+  defaultPurchasePrice = "",
+  defaultStandardCost = "",
+  defaultMrp = "",
+  defaultHsn = "",
+  defaultSupplierId = null,
   onGenerated,
 }: Props) {
   const router = useRouter();
-  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [isPending, startTransition] = useTransition();
-  const [enabledAxes, setEnabledAxes] = useState<Record<string, boolean>>({});
-  const [selectValues, setSelectValues] = useState<Record<string, Record<string, boolean>>>({});
-  const [freeValues, setFreeValues] = useState<Record<string, string>>({});
-  const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
+  const [selectValues, setSelectValues] = useState(resetMatrixDraft().selectValues);
+  const [freeValues, setFreeValues] = useState(resetMatrixDraft().freeValues);
+  const [overrides, setOverrides] = useState(resetMatrixDraft().overrides);
 
-  const hasComposition = Boolean(axisKeys);
-  const { axes: axisTemplates, descriptive: descriptiveTemplates } = useMemo(
-    () =>
-      hasComposition
-        ? splitTemplatesByAxis(categoryTemplates, axisKeys ?? [])
-        : { axes: categoryTemplates, descriptive: [] },
-    [hasComposition, categoryTemplates, axisKeys]
+  const sellDefault = normalizeMatrixPriceDefault(defaultSellingPrice);
+  const costDefault = resolveMatrixCostDefault(defaultPurchasePrice, defaultStandardCost);
+  const mrpDefault = normalizeMatrixPriceDefault(defaultMrp);
+  const hsnDefault = defaultHsn?.trim() ?? "";
+
+  const { axes: axisTemplates } = useMemo(
+    () => splitTemplatesByAxis(categoryTemplates, axisKeys),
+    [categoryTemplates, axisKeys]
   );
-
-  useEffect(() => {
-    if (!open) {
-      setEnabledAxes({});
-      setSelectValues({});
-      setFreeValues({});
-      setOverrides({});
-      return;
-    }
-    // Pre-enable the author's chosen axes so the grid is ready to fill.
-    if (hasComposition && axisTemplates.length > 0) {
-      setEnabledAxes((prev) => {
-        if (Object.keys(prev).length > 0) return prev;
-        const seeded: Record<string, boolean> = {};
-        for (const template of axisTemplates) seeded[template.key] = true;
-        return seeded;
-      });
-    }
-  }, [open, hasComposition, axisTemplates]);
 
   const existingCombos = useMemo(() => {
     const set = new Set<string>();
@@ -119,7 +198,6 @@ export function VariantMatrixGenerator({
 
   const activeAxes = useMemo(() => {
     return axisTemplates
-      .filter((template) => enabledAxes[template.key])
       .map((template) => {
         let values: string[];
         if (template.type === "select" && template.options?.length) {
@@ -130,17 +208,16 @@ export function VariantMatrixGenerator({
             .map((value) => value.trim())
             .filter(Boolean);
         }
-        return { key: template.key, values };
+        return { key: template.key, label: template.label, values };
       })
       .filter((axis) => axis.values.length > 0);
-  }, [axisTemplates, enabledAxes, selectValues, freeValues]);
+  }, [axisTemplates, selectValues, freeValues]);
 
   const effectiveMask = useMemo(() => {
     const trimmed = skuMask.trim();
     if (trimmed) return trimmed;
-    const enabledAxisTemplates = axisTemplates.filter((template) => enabledAxes[template.key]);
-    return suggestSkuMask(enabledAxisTemplates);
-  }, [skuMask, axisTemplates, enabledAxes]);
+    return suggestSkuMask(axisTemplates);
+  }, [skuMask, axisTemplates]);
 
   const combos = useMemo(() => {
     if (!activeAxes.length) return [];
@@ -148,23 +225,53 @@ export function VariantMatrixGenerator({
       const key = comboKey(attributes);
       const exists = existingCombos.has(key);
       const defaultSku = composeSkuFromMask(effectiveMask, baseSku || "ITEM", attributes);
-      return { key, attributes, exists, defaultSku };
+      return { key, attributes, exists, defaultSku, label: formatComboLabel(attributes) };
     });
   }, [activeAxes, existingCombos, effectiveMask, baseSku]);
 
   const newCombos = combos.filter((combo) => !combo.exists);
+
+  const resolveSellPrice = useCallback(
+    (key: string) => resolveFieldDefault(key, overrides, "sellPrice", sellDefault),
+    [overrides, sellDefault]
+  );
+
+  const resolveCostPrice = useCallback(
+    (key: string) => resolveFieldDefault(key, overrides, "costPrice", costDefault),
+    [overrides, costDefault]
+  );
 
   const includedRows = useMemo(() => {
     return newCombos
       .filter((combo) => overrides[combo.key]?.include ?? true)
       .map((combo) => ({
         sku: overrides[combo.key]?.sku ?? combo.defaultSku,
-        price: overrides[combo.key]?.price ?? "",
+        price: resolveSellPrice(combo.key) || null,
+        costPrice: resolveCostPrice(combo.key),
         attributes: combo.attributes,
       }));
-  }, [newCombos, overrides]);
+  }, [newCombos, overrides, resolveSellPrice, resolveCostPrice]);
+
+  const clearDraft = useCallback(() => {
+    const empty = resetMatrixDraft();
+    setSelectValues(empty.selectValues);
+    setFreeValues(empty.freeValues);
+    setOverrides(empty.overrides);
+  }, []);
 
   const handleGenerate = useCallback(() => {
+    if (!axisKeys.length) {
+      toast.error(
+        showAxisPicker
+          ? "Select at least one attribute under “Varies by”."
+          : "Choose what varies above, then pick values here."
+      );
+      return;
+    }
+    if (!activeAxes.length) {
+      toast.error("Pick values for each selected axis.");
+      return;
+    }
     if (!includedRows.length) {
       toast.error("Select at least one variant combination to generate.");
       return;
@@ -193,216 +300,340 @@ export function VariantMatrixGenerator({
         toast.error(result.error ?? "Unable to generate variants.");
         return;
       }
+
+      if (defaultSupplierId) {
+        const costRows = includedRows
+          .filter((row) => row.costPrice.trim())
+          .map((row) => ({ sku: row.sku.trim(), costPrice: row.costPrice.trim() }));
+        if (costRows.length) {
+          const costResult = await syncMatrixVariantSupplierPrices(
+            itemId,
+            defaultSupplierId,
+            costRows
+          );
+          if ("error" in costResult) {
+            toast.error(
+              costResult.error ??
+                "Variants were created but supplier cost prices could not be saved."
+            );
+          }
+        }
+      }
+
       toast.success(`Generated ${result.createdCount} variant(s).`);
+      clearDraft();
       onGenerated();
-      onOpenChange(false);
       router.refresh();
     });
-  }, [includedRows, itemId, onGenerated, onOpenChange, router]);
+  }, [
+    activeAxes.length,
+    axisKeys.length,
+    clearDraft,
+    defaultSupplierId,
+    includedRows,
+    itemId,
+    onGenerated,
+    router,
+    showAxisPicker,
+  ]);
 
-  const closeForm = () => {
-    onOpenChange(false);
-  };
+  const patchOverride = useCallback((comboKeyValue: string, patch: Partial<RowOverride>) => {
+    setOverrides((prev) => ({
+      ...prev,
+      [comboKeyValue]: { ...prev[comboKeyValue], ...patch },
+    }));
+  }, []);
+
+  if (categoryTemplates.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Add attribute templates to this product&apos;s category first (e.g. Size, Color).
+      </p>
+    );
+  }
 
   return (
-    <>
-      <RightDrawer
-        open={open}
-        onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
-        title="Generate Variant Matrix"
+    <div className="space-y-2">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 py-1 text-left"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
       >
-      <div className="flex h-full flex-col">
-        <div className="flex-1 space-y-5 overflow-y-auto p-6">
-          {categoryTemplates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              This product&apos;s category has no attribute templates. Add attributes to the
-              category to define variant axes (e.g. Size, Color).
-            </p>
-          ) : axisTemplates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No attributes are set to vary yet. In “Variant composition”, move an attribute (such
-              as Size) into “Varies by” to generate SKUs.
-            </p>
-          ) : (
-            <>
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium">1. Choose variant axes &amp; values</h4>
-                {descriptiveTemplates.length > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Same for every version:{" "}
-                    <span className="font-medium text-foreground">
-                      {descriptiveTemplates.map((template) => template.label).join(", ")}
-                    </span>
-                  </p>
-                ) : null}
-                {axisTemplates.map((template) => {
-                  const isEnabled = Boolean(enabledAxes[template.key]);
-                  return (
-                    <div key={template.key} className="rounded-lg border border-border p-3">
-                      <label className="flex items-center gap-2">
-                        <Checkbox
-                          checked={isEnabled}
-                          disabled={isPending}
-                          onCheckedChange={(checked) =>
-                            setEnabledAxes((prev) => ({ ...prev, [template.key]: Boolean(checked) }))
-                          }
-                        />
-                        <span className="text-sm font-medium">{template.label}</span>
-                        <span className="text-xs text-muted-foreground">({template.key})</span>
-                      </label>
+        <span className="text-sm font-medium text-foreground">Generate variants</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            expanded && "rotate-180"
+          )}
+        />
+      </button>
 
-                      {isEnabled && template.type === "select" && template.options?.length ? (
-                        <div className="mt-3 flex flex-wrap gap-3 pl-6">
-                          {template.options.map((option) => (
-                            <label key={option} className="flex items-center gap-2">
-                              <Checkbox
-                                checked={Boolean(selectValues[template.key]?.[option])}
-                                disabled={isPending}
-                                onCheckedChange={(checked) =>
-                                  setSelectValues((prev) => ({
-                                    ...prev,
-                                    [template.key]: {
-                                      ...(prev[template.key] ?? {}),
-                                      [option]: Boolean(checked),
-                                    },
-                                  }))
-                                }
-                              />
-                              <span className="text-sm">{option}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ) : null}
+      {expanded ? (
+        <div className="space-y-4 pb-1">
+          {showAxisPicker ? (
+            <div className="space-y-2">
+              <VariantAxisChipSelector
+                templates={categoryTemplates}
+                axisKeys={axisKeys}
+                disabled={isPending}
+                compact
+                onChange={(keys) => {
+                  if (onAxisKeysChange) onAxisKeysChange(keys);
+                }}
+              />
+            </div>
+          ) : axisKeys.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Choose what varies above first.</p>
+          ) : null}
 
-                      {isEnabled && !(template.type === "select" && template.options?.length) ? (
-                        <div className="mt-3 space-y-1 pl-6">
-                          <Label className="text-xs text-muted-foreground">
-                            Comma-separated values
-                          </Label>
-                          <Input
+          {axisKeys.length > 0 ? (
+            <section className={cn("space-y-2", editorPanelDividerClass())}>
+              <SectionLabel title="Values" />
+              <div className="space-y-2.5">
+                {axisTemplates.map((template) =>
+                  template.type === "select" && template.options?.length ? (
+                    <div
+                      key={template.key}
+                      className="flex flex-wrap items-center gap-x-2 gap-y-1.5"
+                    >
+                      <span className="w-16 shrink-0 truncate text-xs font-medium text-muted-foreground">
+                        {template.label}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                        {template.options.map((option) => (
+                          <ValueToggleChip
+                            key={option}
+                            label={option}
+                            selected={Boolean(selectValues[template.key]?.[option])}
                             disabled={isPending}
-                            placeholder="e.g. A, B, C"
-                            value={freeValues[template.key] ?? ""}
-                            onChange={(event) =>
-                              setFreeValues((prev) => ({
+                            onToggle={() =>
+                              setSelectValues((prev) => ({
                                 ...prev,
-                                [template.key]: event.target.value,
+                                [template.key]: {
+                                  ...(prev[template.key] ?? {}),
+                                  [option]: !prev[template.key]?.[option],
+                                },
                               }))
                             }
                           />
-                        </div>
-                      ) : null}
+                        ))}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">2. Preview ({newCombos.length} new)</h4>
-                  <span className="font-mono text-xs text-muted-foreground">{effectiveMask}</span>
-                </div>
-
-                {combos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Enable axes and pick values to preview the generated SKU grid.
-                  </p>
-                ) : (
-                  <div className="surface-inset overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/40 text-left">
-                          <th className="p-2" />
-                          <th className="p-2 font-medium text-muted-foreground">Combination</th>
-                          <th className="p-2 font-medium text-muted-foreground">SKU</th>
-                          <th className="p-2 font-medium text-muted-foreground">Price</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {combos.map((combo) => {
-                          const override = overrides[combo.key];
-                          const include = combo.exists ? false : override?.include ?? true;
-                          return (
-                            <tr key={combo.key} className="border-b border-border last:border-0">
-                              <td className="p-2">
-                                <Checkbox
-                                  checked={include}
-                                  disabled={isPending || combo.exists}
-                                  onCheckedChange={(checked) =>
-                                    setOverrides((prev) => ({
-                                      ...prev,
-                                      [combo.key]: { ...prev[combo.key], include: Boolean(checked) },
-                                    }))
-                                  }
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className="flex flex-wrap items-center gap-1">
-                                  {Object.entries(combo.attributes).map(([key, value]) => (
-                                    <Badge key={key} variant="default">
-                                      {value}
-                                    </Badge>
-                                  ))}
-                                  {combo.exists && (
-                                    <span className="text-xs text-muted-foreground">exists</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-2">
-                                <Input
-                                  className="h-8 font-mono"
-                                  disabled={isPending || combo.exists || !include}
-                                  value={override?.sku ?? combo.defaultSku}
-                                  onChange={(event) =>
-                                    setOverrides((prev) => ({
-                                      ...prev,
-                                      [combo.key]: { ...prev[combo.key], sku: event.target.value },
-                                    }))
-                                  }
-                                />
-                              </td>
-                              <td className="p-2">
-                                <Input
-                                  className="h-8 text-right font-mono"
-                                  inputMode="decimal"
-                                  placeholder="—"
-                                  disabled={isPending || combo.exists || !include}
-                                  value={override?.price ?? ""}
-                                  onChange={(event) =>
-                                    setOverrides((prev) => ({
-                                      ...prev,
-                                      [combo.key]: { ...prev[combo.key], price: event.target.value },
-                                    }))
-                                  }
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  ) : (
+                    <div key={template.key} className="flex items-center gap-2">
+                      <span className="w-16 shrink-0 truncate text-xs font-medium text-muted-foreground">
+                        {template.label}
+                      </span>
+                      <Input
+                        className={cn(compactInputClass, "flex-1 font-mono")}
+                        disabled={isPending}
+                        placeholder="Red, Blue, Green"
+                        value={freeValues[template.key] ?? ""}
+                        onChange={(event) =>
+                          setFreeValues((prev) => ({
+                            ...prev,
+                            [template.key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  )
                 )}
               </div>
-            </>
-          )}
-        </div>
+            </section>
+          ) : null}
 
-        <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={() => requestClose(closeForm)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={isPending || includedRows.length === 0}
-            onClick={handleGenerate}
-          >
-            Generate {includedRows.length || ""} variant{includedRows.length === 1 ? "" : "s"}
-          </Button>
+                {combos.length > 0 ? (
+                  <section className={cn("space-y-2", editorPanelDividerClass())}>
+                    <SectionLabel
+                      title="Preview"
+                      meta={
+                        <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                          {newCombos.length} new
+                        </span>
+                      }
+                    />
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[36rem] text-xs">
+                        <thead>
+                          <tr className="border-b border-border/50 text-left">
+                      <th className="w-8 px-1.5 py-1.5" />
+                      <th className="min-w-[6rem] px-2 py-1.5 font-medium text-muted-foreground">
+                        Variant
+                      </th>
+                      <th className="min-w-[6.5rem] px-2 py-1.5 font-medium text-muted-foreground">
+                        SKU
+                      </th>
+                      <th
+                        className={cn(
+                          priceColClass,
+                          "px-2 py-1.5 font-medium text-muted-foreground"
+                        )}
+                      >
+                        {COST_PRICE_COLUMN}
+                      </th>
+                      <th
+                        className={cn(
+                          priceColClass,
+                          "px-2 py-1.5 font-medium text-muted-foreground"
+                        )}
+                      >
+                        {SELL_PRICE_COLUMN}
+                      </th>
+                      <th
+                        className={cn(
+                          priceColClass,
+                          "px-2 py-1.5 font-medium text-muted-foreground"
+                        )}
+                      >
+                        {MRP_PRICE_COLUMN}
+                      </th>
+                      <th
+                        className={cn(hsnColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
+                      >
+                        {HSN_COLUMN}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {combos.map((combo) => {
+                      const override = overrides[combo.key];
+                      const include = combo.exists ? false : override?.include ?? true;
+                      const disabledRow = isPending || combo.exists || !include;
+                      const sellValue = resolveFieldDefault(
+                        combo.key,
+                        overrides,
+                        "sellPrice",
+                        sellDefault
+                      );
+                      const costValue = resolveFieldDefault(
+                        combo.key,
+                        overrides,
+                        "costPrice",
+                        costDefault
+                      );
+                      const mrpValue = resolveFieldDefault(
+                        combo.key,
+                        overrides,
+                        "mrp",
+                        mrpDefault
+                      );
+                      const hsnValue = resolveFieldDefault(
+                        combo.key,
+                        overrides,
+                        "hsn",
+                        hsnDefault
+                      );
+
+                      return (
+                        <tr
+                          key={combo.key}
+                                className={cn(
+                                  "border-b border-border/40 last:border-0",
+                                  combo.exists && "opacity-50"
+                                )}
+                        >
+                          <td className="px-1.5 py-1">
+                            <Checkbox
+                              className="h-3.5 w-3.5"
+                              checked={include}
+                              disabled={isPending || combo.exists}
+                              onCheckedChange={(checked) =>
+                                patchOverride(combo.key, { include: Boolean(checked) })
+                              }
+                            />
+                          </td>
+                          <td className="max-w-[9rem] truncate px-2 py-1 text-foreground">
+                            {combo.label}
+                            {combo.exists ? (
+                              <span className="ml-1 text-muted-foreground">(exists)</span>
+                            ) : null}
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              className={cn(compactInputClass, "font-mono")}
+                              disabled={disabledRow}
+                              value={override?.sku ?? combo.defaultSku}
+                              onChange={(event) =>
+                                patchOverride(combo.key, { sku: event.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              className={cn(compactInputClass, "text-right font-mono")}
+                              inputMode="decimal"
+                              placeholder={costDefault || "—"}
+                              disabled={disabledRow}
+                              value={costValue}
+                              onChange={(event) =>
+                                patchOverride(combo.key, { costPrice: event.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              className={cn(compactInputClass, "text-right font-mono")}
+                              inputMode="decimal"
+                              placeholder={sellDefault || "—"}
+                              disabled={disabledRow}
+                              value={sellValue}
+                              onChange={(event) =>
+                                patchOverride(combo.key, { sellPrice: event.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              className={cn(compactInputClass, "text-right font-mono")}
+                              inputMode="decimal"
+                              placeholder={mrpDefault || "—"}
+                              disabled={disabledRow}
+                              value={mrpValue}
+                              onChange={(event) =>
+                                patchOverride(combo.key, { mrp: event.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              className={cn(compactInputClass, "font-mono")}
+                              placeholder={hsnDefault || "—"}
+                              disabled={disabledRow}
+                              value={hsnValue}
+                              onChange={(event) =>
+                                patchOverride(combo.key, { hsn: event.target.value })
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+                ) : axisKeys.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">Pick values to preview SKUs.</p>
+                ) : null}
+
+          {includedRows.length > 0 ? (
+            <div className="flex justify-end pt-1">
+              <Button
+                type="button"
+                size="sm"
+                disabled={isPending}
+                onClick={handleGenerate}
+              >
+                {isPending
+                  ? "Creating…"
+                  : `Create ${includedRows.length} variant${includedRows.length === 1 ? "" : "s"}`}
+              </Button>
+            </div>
+          ) : null}
         </div>
-      </div>
-    </RightDrawer>
-    {discardDialog}
-    </>
+      ) : null}
+    </div>
   );
 }

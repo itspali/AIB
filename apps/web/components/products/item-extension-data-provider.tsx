@@ -44,15 +44,18 @@ function fetchExtensionData(itemId: string): Promise<ItemDrawerExtensionData | {
 
 export function ItemExtensionDataProvider({
   itemId,
+  enabled = true,
   children,
 }: {
   itemId: string | null | undefined;
+  /** When false, skips the batched extension fetch until heavy sections need it. */
+  enabled?: boolean;
   children: ReactNode;
 }) {
   const [state, setState] = useState<ExtensionState>({ status: "idle" });
 
   useEffect(() => {
-    if (!itemId) {
+    if (!enabled || !itemId) {
       setState({ status: "idle" });
       return;
     }
@@ -72,7 +75,7 @@ export function ItemExtensionDataProvider({
     return () => {
       cancelled = true;
     };
-  }, [itemId]);
+  }, [enabled, itemId]);
 
   const value = useMemo(() => state, [state]);
 

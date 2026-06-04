@@ -388,7 +388,6 @@ export function CategoryManagementTerminal({
         bulkSelectedIds={bulkSelectedIds}
         onSelect={handleSelectCategory}
         onBulkRowToggle={handleBulkRowToggle}
-        onBulkPageToggle={handleBulkPageToggle}
       />
     );
 

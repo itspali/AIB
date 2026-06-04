@@ -23,6 +23,8 @@ export type ProductListRowPresentation = {
   isExpandedVariantRow: boolean;
   isStyleRow: boolean;
   isSingleRow: boolean;
+  /** Product header row when the Variants list toggle is on (not a sellable line). */
+  isProductGroupHeader: boolean;
   attributeSubline: string | null;
   displaySku: string | null;
   showHasVariantsIndicator: boolean;
@@ -34,11 +36,14 @@ export function resolveProductListRowPresentation(
 ): ProductListRowPresentation {
   const kind = resolveProductListRowKind(product, showVariants);
 
+  const isProductGroupHeader = showVariants && kind === "style";
+
   return {
     kind,
     isExpandedVariantRow: kind === "variant",
     isStyleRow: kind === "style",
     isSingleRow: kind === "single",
+    isProductGroupHeader,
     attributeSubline:
       kind === "variant"
         ? formatVariantAttributesSubline(product.variant_attributes)
@@ -54,5 +59,5 @@ export function productListVariantNameIndentClass(
   showVariants: boolean
 ): string | undefined {
   if (!showVariants || !presentation.isExpandedVariantRow) return undefined;
-  return "pl-3 sm:pl-4";
+  return "pl-6 sm:pl-8 border-l-2 border-border/60 ml-2";
 }

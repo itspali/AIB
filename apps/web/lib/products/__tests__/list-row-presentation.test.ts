@@ -123,7 +123,9 @@ describe("productListVariantNameIndentClass", () => {
       true
     );
 
-    expect(productListVariantNameIndentClass(variant, true)).toBe("pl-3 sm:pl-4");
+    expect(productListVariantNameIndentClass(variant, true)).toBe(
+      "pl-6 sm:pl-8 border-l-2 border-border/60 ml-2"
+    );
     expect(productListVariantNameIndentClass(single, true)).toBeUndefined();
   });
 
@@ -139,6 +141,7 @@ describe("productListVariantNameIndentClass", () => {
 
     expect(parentPresentation.showHasVariantsIndicator).toBe(true);
     expect(parentPresentation.isExpandedVariantRow).toBe(false);
+    expect(parentPresentation.isProductGroupHeader).toBe(true);
     expect(productListVariantNameIndentClass(parentPresentation, true)).toBeUndefined();
   });
 });

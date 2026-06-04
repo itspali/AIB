@@ -107,7 +107,7 @@ export function validateVariantAxesSelection(input: {
     return null;
   }
   if (input.variant_axes.length < 1) {
-    return "Choose at least one attribute that varies by version.";
+    return "Choose at least one attribute that varies by variant.";
   }
   const templateKeys = new Set(input.categoryTemplates.map((template) => template.key));
   for (const key of input.variant_axes) {

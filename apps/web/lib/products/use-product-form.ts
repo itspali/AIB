@@ -12,12 +12,14 @@ import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility"
 import { productMasterSchema } from "@/lib/products/schemas";
 import {
   defaultProductFormValues,
+  detailToFormValues,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
   type ProductMasterFormValues,
 } from "@/lib/products/types";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import {
+  defaultVariantAxisKeys,
   validateVariantAxesSelection,
   variantAxesZodIssuePath,
 } from "@/lib/products/variant-composition";
@@ -45,6 +47,11 @@ export type UseProductFormOptions = {
   notifyOnSave?: boolean;
   /** Call router.refresh() after a successful save. Defaults to true. */
   refreshOnSave?: boolean;
+  /**
+   * When true, always apply `initialValues` when they change (e.g. create wizard
+   * after first save). Skips the dirty-guard that blocks stale `updated_at`.
+   */
+  hydrateOnInitialValuesChange?: boolean;
 };
 
 export type CategorySelectOption = {
@@ -91,6 +98,7 @@ export function useProductForm({
   onPendingChange,
   notifyOnSave = true,
   refreshOnSave = true,
+  hydrateOnInitialValuesChange = false,
 }: UseProductFormOptions): UseProductFormResult {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -137,10 +145,17 @@ export function useProductForm({
 
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
+      const variantAxes =
+        values.variant_axes.length > 0
+          ? values.variant_axes
+          : values.variant_strategy === "MULTI_SKU" && values.item_type === "PHYSICAL"
+            ? defaultVariantAxisKeys(categoryTemplates, [])
+            : values.variant_axes;
+
       const axesMessage = validateVariantAxesSelection({
         variant_strategy: values.variant_strategy,
         item_type: values.item_type,
-        variant_axes: values.variant_axes,
+        variant_axes: variantAxes,
         categoryTemplates,
       });
       if (axesMessage) {
@@ -167,6 +182,7 @@ export function useProductForm({
       const payload: ProductMasterFormValues = {
         ...values,
         sku: skuTrim,
+        variant_axes: variantAxes,
         hsn_sac_code: taxable ? values.hsn_sac_code : "",
         tax_code_id: taxable ? values.tax_code_id : null,
       };
@@ -181,10 +197,26 @@ export function useProductForm({
           return;
         }
 
+        if (result.detail) {
+          const hydrated = {
+            ...detailToFormValues(result.detail),
+            storefront_visibility: mergeStorefrontVisibility(
+              catalogContext.storefronts,
+              detailToFormValues(result.detail).storefront_visibility
+            ),
+          };
+          form.reset(hydrated);
+          previousBaseUomRef.current = hydrated.base_unit_of_measure;
+        }
+
         if (notifyOnSave) {
+          const savedStrategy = payload.variant_strategy;
+          const loadedStrategy = (initialValues ?? buildDefaultValues()).variant_strategy;
+          const switchedToMulti =
+            savedStrategy === "MULTI_SKU" && loadedStrategy !== "MULTI_SKU";
           toast.success(
-            payload.variant_strategy === "MULTI_SKU" && !payload.item_id
-              ? "Item saved. Open Versions to generate sellable SKUs."
+            switchedToMulti
+              ? "Product saved. Add sellable SKUs under Variants."
               : "Product master profile saved successfully"
           );
         }
@@ -197,11 +229,14 @@ export function useProductForm({
     [
       catalogContext.catalog_items.sku_auto_generation_enabled,
       categoryTemplates,
+      buildDefaultValues,
       form,
+      initialValues,
       notifyOnSave,
       onSaved,
       refreshOnSave,
       router,
+      catalogContext.storefronts,
     ]
   );
 
@@ -213,11 +248,25 @@ export function useProductForm({
     onPendingChange?.(isPending);
   }, [isPending, onPendingChange]);
 
+  const valuesSeedRef = useRef<string | null>(null);
+
   useEffect(() => {
     const nextValues = buildDefaultValues();
+    const seed = `${mode}:${nextValues.item_id ?? "new"}:${nextValues.updated_at ?? ""}`;
+    if (valuesSeedRef.current === seed) return;
+
+    const previousSeed = valuesSeedRef.current;
+    const sameItem =
+      previousSeed != null &&
+      previousSeed.split(":")[1] === (nextValues.item_id ?? "new");
+    if (sameItem && form.formState.isDirty && !hydrateOnInitialValuesChange) {
+      return;
+    }
+
+    valuesSeedRef.current = seed;
     form.reset(nextValues);
     previousBaseUomRef.current = nextValues.base_unit_of_measure;
-  }, [buildDefaultValues, form]);
+  }, [buildDefaultValues, form, hydrateOnInitialValuesChange, mode]);
 
   useEffect(() => {
     if (itemId || !categoryId) return;

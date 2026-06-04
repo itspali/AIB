@@ -18,6 +18,12 @@ import { redactProductListRows } from "@/lib/products/field-permissions";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
 import { normalizeTaxCategory } from "@/lib/products/tax-options";
+import {
+  extractDefaultPurchasePriceFromCustomFieldsRecord,
+  extractDefaultSellingPriceFromCustomFieldsRecord,
+  extractMrpFromCustomFieldsRecord,
+  extractReorderPointFromCustomFieldsRecord,
+} from "@/lib/products/catalog-reserved-fields";
 import { parseCustomFields } from "@/lib/products/sku-mask";
 import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import type {
@@ -95,6 +101,7 @@ type ItemUomRow = {
 };
 
 type SupplierItemRow = {
+  variant_id: string | null;
   supplier_id: string;
   supplier_price: number | string;
   is_preferred: boolean;
@@ -187,6 +194,40 @@ function pickPreferredSupplier(
 ): SupplierItemRow | null {
   if (!rows?.length) return null;
   return rows.find((row) => row.is_preferred) ?? rows[0] ?? null;
+}
+
+function pickPreferredSupplierForVariant(
+  rows: SupplierItemRow[] | null | undefined,
+  variantId: string
+): SupplierItemRow | null {
+  if (!rows?.length) return null;
+  const variantRows = rows.filter((row) => row.variant_id === variantId);
+  const itemRows = rows.filter((row) => row.variant_id == null);
+  return (
+    pickPreferredSupplier(variantRows.length ? variantRows : itemRows) ??
+    pickPreferredSupplier(rows)
+  );
+}
+
+function buildVariantPurchaseMap(
+  rows: SupplierItemRow[] | null | undefined
+): Map<string, { price: string; supplierName: string | null }> {
+  const map = new Map<string, { price: string; supplierName: string | null }>();
+  if (!rows?.length) return map;
+
+  const variantIds = new Set(
+    rows.map((row) => row.variant_id).filter((id): id is string => Boolean(id))
+  );
+  for (const variantId of variantIds) {
+    const match = pickPreferredSupplierForVariant(rows, variantId);
+    if (match) {
+      map.set(variantId, {
+        price: formatDecimal(match.supplier_price),
+        supplierName: resolveEntityName(match.entities),
+      });
+    }
+  }
+  return map;
 }
 
 type TagAssignmentRow = {
@@ -292,7 +333,12 @@ type MediaRow = {
   created_at: string;
 };
 
-function mapVariantRow(row: VariantRow, masterVariantId: string): ProductVariantSnapshot {
+function mapVariantRow(
+  row: VariantRow,
+  masterVariantId: string,
+  purchaseByVariant?: Map<string, { price: string; supplierName: string | null }>
+): ProductVariantSnapshot {
+  const purchase = purchaseByVariant?.get(row.id);
   return {
     id: row.id,
     sku: row.sku,
@@ -310,6 +356,8 @@ function mapVariantRow(row: VariantRow, masterVariantId: string): ProductVariant
     is_master: row.is_master ?? row.id === masterVariantId,
     is_sellable: row.is_sellable ?? true,
     price: formatDecimal(row.price, "0"),
+    purchase_price: purchase?.price ?? null,
+    supplier_name: purchase?.supplierName ?? null,
     created_at: row.created_at,
   };
 }
@@ -521,7 +569,7 @@ async function fetchListCommerceByItemId(
         supplier_id,
         supplier_price,
         is_preferred,
-        entities ( name )
+        entities!supplier_items_supplier_id_fkey ( name )
       `
       )
       .eq("tenant_id", tenantId)
@@ -770,10 +818,11 @@ export async function fetchProductDetail(
       .from("supplier_items")
       .select(
         `
+        variant_id,
         supplier_id,
         supplier_price,
         is_preferred,
-        entities ( name )
+        entities!supplier_items_supplier_id_fkey ( name )
       `
       )
       .eq("tenant_id", tenantId)
@@ -801,15 +850,20 @@ export async function fetchProductDetail(
   );
   const masterVariantId =
     sortedVariants.find((entry) => entry.is_master)?.id ?? sortedVariants[0]?.id ?? variant.id;
-  const variants = sortedVariants.map((entry) => mapVariantRow(entry, masterVariantId));
+  const purchaseByVariant = buildVariantPurchaseMap(
+    supplierItems as SupplierItemRow[] | null
+  );
+  const variants = sortedVariants.map((entry) =>
+    mapVariantRow(entry, masterVariantId, purchaseByVariant)
+  );
 
   const priceEntry = pickDefaultPriceEntry(priceEntries as PriceBookEntryRow[] | null);
   const preferredSupplier = pickPreferredSupplier(supplierItems as SupplierItemRow[] | null);
-  const parsedCustomFields = parseCustomFields(
+  const rawCustomFields =
     row.custom_fields && typeof row.custom_fields === "object"
       ? (row.custom_fields as Record<string, unknown>)
-      : {}
-  );
+      : {};
+  const parsedCustomFields = parseCustomFields(rawCustomFields);
   const alternateUoms = (itemUoms as ItemUomRow[] | null ?? []).map((entry) => ({
     uom_code: entry.uom_code,
     conversion_factor: formatDecimal(entry.conversion_factor, "1"),
@@ -875,7 +929,11 @@ export async function fetchProductDetail(
     width_cm: formatDecimal(variant.width_cm, "0"),
     height_cm: formatDecimal(variant.height_cm, "0"),
     variant_is_active: variant.is_active,
-    selling_price: priceEntry ? formatDecimal(priceEntry.price, "") : "",
+    selling_price: priceEntry
+      ? formatDecimal(priceEntry.price, "")
+      : extractDefaultSellingPriceFromCustomFieldsRecord(rawCustomFields),
+    mrp: extractMrpFromCustomFieldsRecord(rawCustomFields),
+    reorder_point: extractReorderPointFromCustomFieldsRecord(rawCustomFields),
     selling_uom:
       parsedCustomFields.defaultSellingUom ??
       priceEntry?.uom_code ??
@@ -886,7 +944,7 @@ export async function fetchProductDetail(
       : "1",
     purchase_price: preferredSupplier
       ? formatDecimal(preferredSupplier.supplier_price, "")
-      : "",
+      : extractDefaultPurchasePriceFromCustomFieldsRecord(rawCustomFields),
     supplier_id: preferredSupplier?.supplier_id ?? null,
     supplier_name: preferredSupplier ? resolveEntityName(preferredSupplier.entities) : null,
     valuations: mapValuations(valuations as ValuationRow[] | null),

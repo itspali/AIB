@@ -1,6 +1,7 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
+import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
 import { cn } from "@/lib/utils";
 import {
   menuItemHighlightClassName,
@@ -8,7 +9,13 @@ import {
   selectItemHoverCheckClassName,
 } from "@/components/ui/menu-item-classes";
 
-const Select = SelectPrimitive.Root;
+/** `modal={false}` avoids Radix blocking pointer events on the portaled item drawer. */
+const Select = ({
+  modal = false,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) => (
+  <SelectPrimitive.Root modal={modal} {...props} />
+);
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
 
@@ -36,20 +43,26 @@ SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 export const selectPopperContentClassName =
   "min-w-[var(--radix-select-trigger-width)] max-w-[min(20rem,calc(100vw-2rem))]";
 
+/** @deprecated Default `SelectContent` already stacks above the item drawer. */
+export const selectContentAboveDrawerClassName = popoverAboveDrawerClassName;
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
+>(({ className, children, position = "popper", sideOffset = 4, collisionPadding = 12, ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out",
+        popoverAboveDrawerClassName,
         position === "popper" && "data-[side=bottom]:translate-y-1",
         position === "popper" && selectPopperContentClassName,
         className
       )}
       position={position}
+      sideOffset={sideOffset}
+      collisionPadding={collisionPadding}
       {...props}
     >
       <SelectPrimitive.Viewport

@@ -108,7 +108,7 @@ export function ProductBulkCategoryDialog({
         onOpenChange(next);
       }}
       title="Change category"
-      description={`Assign a new category to ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}. HSN and tax fields are not changed.`}
+      description={`Assign a new category to ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}. HSN and tax fields are not changed.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit={Boolean(categoryId)}
@@ -154,7 +154,7 @@ export function ProductBulkClassificationDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Change classification"
-      description={`Update supply-chain role for ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}. Non-goods items may reject incompatible values.`}
+      description={`Update supply-chain role for ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}. Non-goods items may reject incompatible values.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit
@@ -206,7 +206,7 @@ export function ProductBulkTaxCategoryDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Set tax category"
-      description={`Update default tax category for ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}.`}
+      description={`Update default tax category for ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit
@@ -307,7 +307,7 @@ export function ProductBulkFlagsDialog({
         onOpenChange(next);
       }}
       title="Operational flags"
-      description={`Update purchasable, salable, and returnable flags for ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}.`}
+      description={`Update purchasable, salable, and returnable flags for ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit={canSubmit}
@@ -395,7 +395,7 @@ export function ProductBulkTagsDialog({
         onOpenChange(next);
       }}
       title="Modify tags"
-      description={`Add or remove discovery tags on ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}.`}
+      description={`Add or remove discovery tags on ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit={selectedTags.length > 0}
@@ -473,7 +473,7 @@ export function ProductBulkStorefrontDialog({
         onOpenChange(next);
       }}
       title="Storefront visibility"
-      description={`Show or hide ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"} on a storefront channel.`}
+      description={`Show or hide ${selectedCount} selected product${selectedCount === 1 ? "" : "s"} on a storefront channel.`}
       selectedCount={selectedCount}
       isPending={isPending}
       canSubmit={Boolean(storefrontId)}

@@ -8,6 +8,7 @@ import {
   type ItemTrackingMode,
   type ItemType,
 } from "@/lib/products/item-model";
+import { filterUserCustomFieldEntries } from "@/lib/products/catalog-reserved-fields";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import { normalizeTaxCategory, type TaxCategory } from "@/lib/products/tax-options";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
@@ -116,6 +117,8 @@ export type ProductVariantSnapshot = {
   is_master: boolean;
   is_sellable: boolean;
   price: string;
+  purchase_price: string | null;
+  supplier_name: string | null;
   created_at: string;
 };
 
@@ -173,6 +176,8 @@ export type ProductDetailSnapshot = {
   height_cm: string;
   variant_is_active: boolean;
   selling_price: string;
+  mrp: string;
+  reorder_point: string;
   selling_uom: string;
   purchase_uom: string;
   purchase_uom_conversion: string;
@@ -206,18 +211,33 @@ export type ItemVariantFormValues = {
   variant_attributes: Record<string, string>;
 };
 
-export const defaultVariantFormValues = (itemId: string): ItemVariantFormValues => ({
+export type VariantFormDefaults = Partial<
+  Pick<
+    ItemVariantFormValues,
+    | "price"
+    | "dead_weight_kg"
+    | "volume"
+    | "length_cm"
+    | "width_cm"
+    | "height_cm"
+  >
+>;
+
+export const defaultVariantFormValues = (
+  itemId: string,
+  defaults?: VariantFormDefaults
+): ItemVariantFormValues => ({
   variant_id: null,
   item_id: itemId,
   sku: "",
   barcode: "",
-  dead_weight_kg: "0",
-  volume: "",
-  length_cm: "0",
-  width_cm: "0",
-  height_cm: "0",
+  dead_weight_kg: defaults?.dead_weight_kg?.trim() || "0",
+  volume: defaults?.volume?.trim() ?? "",
+  length_cm: defaults?.length_cm?.trim() || "0",
+  width_cm: defaults?.width_cm?.trim() || "0",
+  height_cm: defaults?.height_cm?.trim() || "0",
   is_active: true,
-  price: "",
+  price: defaults?.price?.trim() ?? "",
   variant_attributes: {},
 });
 
@@ -274,6 +294,7 @@ export type ProductMasterFormValues = {
   variant_is_active: boolean;
   variant_attributes: Record<string, string>;
   selling_price: string;
+  mrp: string;
   selling_uom: string;
   purchase_uom: string;
   purchase_uom_conversion: string;
@@ -295,6 +316,7 @@ export type ProductMasterFormValues = {
   variant_axes: string[];
   item_type: ItemType;
   track_inventory: boolean;
+  reorder_point: string;
   status: ItemStatus;
   needs_review: boolean;
   costing_method: ItemCostingMethod;
@@ -334,6 +356,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     variant_axes: detail.variant_axes,
     item_type: detail.item_type,
     track_inventory: detail.track_inventory,
+    reorder_point: detail.reorder_point,
     status: itemLifecycleStatusFromActive(detail.is_active),
     needs_review: detail.needs_review,
     costing_method: detail.costing_method,
@@ -352,6 +375,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     variant_is_active: detail.variant_is_active,
     variant_attributes: variantAttributes,
     selling_price: detail.selling_price,
+    mrp: detail.mrp,
     selling_uom: detail.selling_uom || detail.base_unit_of_measure,
     purchase_uom: detail.purchase_uom || detail.base_unit_of_measure,
     purchase_uom_conversion:
@@ -359,7 +383,9 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     purchase_price: detail.purchase_price,
     supplier_id: detail.supplier_id,
     sku_mask: detail.sku_mask,
-    custom_fields: detail.custom_fields.map((entry) => ({ ...entry })),
+    custom_fields: filterUserCustomFieldEntries(detail.custom_fields).map((entry) => ({
+      ...entry,
+    })),
     alternate_uoms: detail.alternate_uoms.map((row) => ({
       uom_code: row.uom_code,
       conversion_factor: row.conversion_factor,
@@ -420,6 +446,7 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   variant_is_active: true,
   variant_attributes: {},
   selling_price: "",
+  mrp: "",
   selling_uom: "PCS",
   purchase_uom: "PCS",
   purchase_uom_conversion: "1",
@@ -434,6 +461,7 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   variant_strategy: "SINGLE_SKU",
   item_type: "PHYSICAL",
   track_inventory: true,
+  reorder_point: "",
   status: "ACTIVE",
   needs_review: false,
   costing_method: "WEIGHTED_AVG",

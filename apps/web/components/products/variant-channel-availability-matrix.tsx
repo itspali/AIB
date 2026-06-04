@@ -209,7 +209,9 @@ export function VariantChannelAvailabilityMatrix({ itemId, variants, readOnly = 
                 <td className="sticky left-0 z-10 bg-background p-3">
                   <div className="flex items-center gap-2">
                     <span className="font-mono">{variant.sku}</span>
-                    {variant.is_master && <Badge variant="active">Master</Badge>}
+                    {variant.is_master && variant.is_sellable === false ? (
+                      <Badge variant="default">Not sold</Badge>
+                    ) : null}
                   </div>
                 </td>
                 {channels.map((channel) => {

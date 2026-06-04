@@ -1,5 +1,5 @@
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { RESERVED_COMMERCE_CUSTOM_FIELD_KEYS } from "@/lib/products/item-uom-commerce";
+import { isReservedCatalogFormFieldKey } from "@/lib/products/catalog-reserved-fields";
 
 const BASE_TOKEN = "BASE";
 
@@ -58,7 +58,7 @@ export function parseCustomFields(raw: Record<string, unknown> | null | undefine
     typeof raw._default_selling_uom === "string" ? raw._default_selling_uom.trim() || null : null;
 
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "sku_mask" || RESERVED_COMMERCE_CUSTOM_FIELD_KEYS.has(key)) continue;
+    if (key === "sku_mask" || isReservedCatalogFormFieldKey(key)) continue;
     if (value === null || value === undefined) continue;
     const stringValue = String(value).trim();
     if (!stringValue) continue;
@@ -82,7 +82,7 @@ export function buildCustomFieldsPayload(
   for (const entry of entries) {
     const key = entry.key.trim();
     const value = entry.value.trim();
-    if (!key || key === "sku_mask" || RESERVED_COMMERCE_CUSTOM_FIELD_KEYS.has(key) || !value) {
+    if (!key || key === "sku_mask" || isReservedCatalogFormFieldKey(key) || !value) {
       continue;
     }
     payload[key] = value;

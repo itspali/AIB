@@ -100,7 +100,7 @@ export function ProductBulkJurisdictionDialog({
         <DialogHeader>
           <DialogTitle>Bulk statutory jurisdiction sync</DialogTitle>
           <DialogDescription>
-            Reallocate category and tax rule for {selectedCount} selected item master
+            Reallocate category and tax rule for {selectedCount} selected product
             {selectedCount === 1 ? "" : "s"}.
           </DialogDescription>
         </DialogHeader>

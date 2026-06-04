@@ -16,27 +16,37 @@ export type VariantStrategyChoice = {
 export const VARIANT_STRATEGY_FIELD_INTRO =
   "Do you track one product code or many (for example each size or color)? This does not mean whether you sell online.";
 
+/** True when the user may pick Single SKU (not when multiple sellable variants already exist). */
+export function canSelectSingleVariantStrategy(sellableVariantCount: number): boolean {
+  return sellableVariantCount <= 1;
+}
+
 /** Labels and guidance for the product editor variant picker. */
 export const VARIANT_STRATEGY_CHOICES: VariantStrategyChoice[] = [
   {
     value: "SINGLE_SKU",
-    label: "Single",
+    label: "One variant",
     description:
-      "One code for the whole item. Best when there is only one version (no separate sizes or colors).",
+      "One SKU for the whole product. Best when there is only one sellable configuration.",
   },
   {
     value: "MULTI_SKU",
-    label: "Multiple",
+    label: "Multiple variants",
     description:
-      "A code for each version (size, color, etc.). Add versions after you save the item.",
+      "A separate SKU for each configuration (size, color, board type, etc.). Add variants after you save.",
   },
 ];
 
+/** Compact label for badges and read-only fields (edit / view). */
 export function variantStrategyLabel(strategy: ProductVariantStrategy): string {
-  return (
-    VARIANT_STRATEGY_CHOICES.find((choice) => choice.value === strategy)?.label ??
-    strategy
-  );
+  switch (strategy) {
+    case "SINGLE_SKU":
+      return "Single";
+    case "MULTI_SKU":
+      return "Multiple";
+    default:
+      return strategy;
+  }
 }
 
 export type ProductListRowKind = "style" | "variant" | "single";
@@ -69,7 +79,7 @@ export function resolveProductListRowKind(
 export function productListRowKindLabel(kind: ProductListRowKind): string {
   switch (kind) {
     case "style":
-      return "Style";
+      return "Product";
     case "variant":
       return "Variant";
     case "single":
@@ -91,7 +101,7 @@ export function shouldShowHasVariantsIndicator(
 }
 
 export function productListHasVariantsBadgeLabel(): string {
-  return "Has variants";
+  return "Multiple variants";
 }
 
 export function productListRowKindBadgeVariant(

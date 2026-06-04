@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
+import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "aib-right-drawer-width";
@@ -369,7 +370,8 @@ export function RightDrawer({
         aria-label={title}
         data-drawer-root
         className={cn(
-          "fixed inset-y-0 right-0 z-[60] flex h-full max-h-[100dvh] flex-col gap-0 overflow-hidden border-l border-border/80 bg-background shadow-2xl dark:border-white/10",
+          "fixed inset-y-0 right-0 flex h-full max-h-[100dvh] flex-col gap-0 overflow-hidden border-l border-border/80 bg-background shadow-2xl dark:border-white/10",
+          itemDrawerClassName,
           open && "aib-right-drawer-enter",
           className
         )}

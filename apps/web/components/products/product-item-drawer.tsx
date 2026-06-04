@@ -17,6 +17,7 @@ import type { ProductFormMode } from "@/lib/products/use-product-form";
 import {
   type ProductCatalogContext,
   type ProductDetailSnapshot,
+  type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 import { useProductCreateWizard } from "@/lib/products/use-product-create-wizard";
@@ -39,7 +40,11 @@ type Props = {
   isLoading?: boolean;
   urlNavigation: UrlNavigation;
   onExtensionsChanged?: () => void;
-  onCreatePersisted?: (itemId: string) => void;
+  onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
+  onVariantsReload?: () => void | Promise<void>;
+  onCreatePersisted?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
+  /** Keeps catalog detail/variants in sync during the create wizard. */
+  onDetailSaved?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onItemArchived?: (itemId: string) => void;
 };
 
@@ -107,7 +112,10 @@ export function ProductItemDrawer({
   isLoading = false,
   urlNavigation,
   onExtensionsChanged,
+  onVariantPatch,
+  onVariantsReload,
   onCreatePersisted,
+  onDetailSaved,
   onItemArchived,
 }: Props) {
   const [persistedCreateId, setPersistedCreateId] = useState<string | null>(null);
@@ -135,17 +143,19 @@ export function ProductItemDrawer({
     (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
       if (isCreateFlow && !persistedCreateId) {
         setPersistedCreateId(itemId);
-        onCreatePersisted?.(itemId);
+        onCreatePersisted?.(itemId, savedDetail);
+        onDetailSaved?.(itemId, savedDetail);
         wizardHost.handleSaved(itemId, savedDetail);
         return;
       }
       if (isCreateFlow && persistedCreateId) {
+        onDetailSaved?.(itemId, savedDetail);
         wizardHost.handleSaved(itemId, savedDetail);
         return;
       }
       urlNavigation.onPeekAfterSave(itemId, savedDetail);
     },
-    [isCreateFlow, onCreatePersisted, persistedCreateId, urlNavigation, wizardHost]
+    [isCreateFlow, onCreatePersisted, onDetailSaved, persistedCreateId, urlNavigation, wizardHost]
   );
 
   const handleModeChange = useCallback((_next: ProductFormMode) => {
@@ -173,6 +183,8 @@ export function ProductItemDrawer({
       onModeChange={handleModeChange}
       onSaved={handleSaved}
       onExtensionsChanged={onExtensionsChanged}
+      onVariantPatch={onVariantPatch}
+      onVariantsReload={onVariantsReload}
       onClose={urlNavigation.onClose}
       onItemArchived={onItemArchived}
       urlNavigation={urlNavigation}

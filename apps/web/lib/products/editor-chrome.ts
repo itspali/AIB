@@ -16,11 +16,11 @@ export function useEditorPanelLayout() {
   return useContext(EditorPanelContext);
 }
 
-/** Flat section styling for the detail-panel editor — soft cards, not nested chrome. */
+/** Panel section card — light border for separation without nested boxes. */
 export function editorPanelSectionClass() {
   return cn(
-    "editor-section-panel overflow-hidden rounded-md border border-border/80",
-    "bg-muted/25 dark:bg-muted/15"
+    "editor-section-panel overflow-hidden rounded-md border border-border/50",
+    "bg-muted/15 px-3.5 py-3 dark:bg-muted/10"
   );
 }
 
@@ -36,16 +36,23 @@ export function editorPageSectionClass(variant: "summary" | "section" = "section
 
 /** Padded body below a full-width section heading band. */
 export function editorSectionBodyClass(panel: boolean) {
-  return cn(panel ? "space-y-3 p-3.5 pt-4" : "space-y-4 p-4 pt-4 sm:p-6 sm:pt-5");
+  return cn(panel ? "space-y-3 pt-3" : "space-y-4 p-4 pt-4 sm:p-6 sm:pt-5");
 }
 
 export function editorSubsectionClass(panel: boolean) {
-  // Page layout leads each subsection with a full-width heading band, so the band
-  // itself is the separator (no inset top divider). Panel layout keeps the divider
-  // since its heading bands are usually hidden.
   return panel
-    ? "mt-4 space-y-2 border-t border-border/60 pt-3"
+    ? "space-y-2.5 border-t border-border/50 pt-4 first:border-t-0 first:pt-0"
     : "mt-5 space-y-3";
+}
+
+/** Divider between sibling blocks inside one panel section (e.g. matrix vs variant table). */
+export function editorPanelDividerClass(className?: string) {
+  return cn("border-t border-border/50 pt-4", className);
+}
+
+/** Vertical rhythm between top-level panel sections in the scroll column. */
+export function editorPanelSectionStackClass() {
+  return "space-y-4";
 }
 
 /** Shared heading band — full width, higher contrast on light and dark surfaces. */
@@ -54,9 +61,9 @@ const editorHeadingBgClass = "w-full bg-secondary text-foreground dark:bg-second
 /** Main section title band (Overview, Pricing, etc.). */
 export function editorSectionHeadingClass(panel: boolean) {
   return cn(
-    editorHeadingBgClass,
-    "border-b border-border",
-    panel ? "px-3.5 py-2.5" : "px-4 py-2.5 sm:px-6"
+    panel
+      ? "-mx-3.5 -mt-3 mb-0 border-b border-border/50 bg-muted/25 px-3.5 py-2.5 dark:bg-muted/20"
+      : cn(editorHeadingBgClass, "border-b border-border px-4 py-2.5 sm:px-6")
   );
 }
 
@@ -67,20 +74,29 @@ export function editorSubsectionHeadingWrapClass(className?: string) {
 
 /** In-section h4 headings (Status, Shipping, price books, etc.). */
 export function editorSubsectionHeadingClass(panel: boolean) {
-  return cn(
-    editorHeadingBgClass,
-    "block py-2 font-medium",
-    // Break out of the section body's horizontal padding so the heading band
-    // stretches edge-to-edge, matching the main section header.
-    panel ? "-mx-3.5 px-3.5 text-xs" : "-mx-3 px-3 text-sm sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6"
-  );
+  return panel
+    ? "border-t border-border/40 pt-3 text-xs font-medium text-muted-foreground first:border-t-0 first:pt-0"
+    : cn(
+        editorHeadingBgClass,
+        "block py-2 font-medium",
+        "-mx-3 px-3 text-sm sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6"
+      );
 }
 
 export function editorEmptyStateClass(panel: boolean, className?: string) {
   return cn(
     panel
-      ? "py-2 text-sm text-muted-foreground"
+      ? "py-1 text-xs leading-snug text-muted-foreground"
       : "rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground",
+    className
+  );
+}
+
+/** Compact dashed placeholder with optional primary action (panel advanced sections). */
+export function editorDeferredActionClass(panel: boolean, className?: string) {
+  return cn(
+    "space-y-2 rounded-md border border-dashed border-border/50 bg-muted/10",
+    panel ? "px-3 py-2" : "px-4 py-3",
     className
   );
 }
@@ -91,8 +107,27 @@ export function editorReadOnlyFieldClass(panel: boolean) {
     : "rounded-md border border-border bg-muted/30 px-3 py-2 text-sm";
 }
 
+/** Two-column field grids from md breakpoint; panel drawer uses two columns in the form column. */
 export function editorGridClass(panel: boolean) {
-  return cn("grid grid-cols-1 sm:grid-cols-2", panel ? "gap-3" : "gap-4");
+  return cn(
+    "grid grid-cols-1 gap-y-8",
+    panel ? "grid-cols-2 gap-x-10 gap-y-6" : "md:grid-cols-2 md:gap-x-10 md:gap-y-8"
+  );
+}
+
+/** Full-width row inside editorGridClass (name, description, toggles, etc.). */
+export function editorFieldSpanFullClass(_panel?: boolean) {
+  return "col-span-2";
+}
+
+/** Length, width, height on one row (inside a full-width grid row). */
+export function editorDimensionsLwhGridClass() {
+  return "grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-x-4 sm:gap-y-4";
+}
+
+/** Stacked toggle rows without line separators between them (e.g. Salable / Returnable / Purchasable). */
+export function editorToggleGroupClass(panel: boolean) {
+  return cn("editor-toggle-group", editorFieldSpanFullClass(panel), panel ? "space-y-0.5" : "space-y-1");
 }
 
 export function editorInsetTableWrapClass(panel: boolean) {
@@ -149,7 +184,7 @@ export function editorPanelBadgesClass() {
 
 export function editorCatalogBlockClass(compact: boolean) {
   return compact
-    ? "space-y-2.5 border-t border-border/60 pt-4 first:border-t-0 first:pt-0"
+    ? "space-y-2.5 border-t border-border/50 pt-4 first:border-t-0 first:pt-0"
     : "space-y-3";
 }
 

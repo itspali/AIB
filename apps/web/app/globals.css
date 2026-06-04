@@ -184,6 +184,16 @@
     @apply !rounded-none !border-0 !border-b !border-border/60 !px-0 !py-2.5 !shadow-none last:!border-b-0;
   }
 
+  :is(.product-editor-form, .category-editor-form).form-fields-bottom-border
+    .editor-toggle-group
+    .editor-toggle-row {
+    @apply !border-b-0 !py-1.5;
+  }
+
+  :is(.product-editor-form, .category-editor-form) .editor-toggle-group .editor-toggle-row {
+    @apply !rounded-none !border-0 !px-0 !shadow-none;
+  }
+
   /* Category attribute rows: single line; scroll horizontally when narrow. */
   .attribute-template-builder .attribute-template-row {
     scrollbar-width: thin;

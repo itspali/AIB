@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorWizardChrome } from "@/components/products/product-editor/product-editor-shell";
 import {
   editorStageOrder,
@@ -27,10 +27,15 @@ export function useProductCreateWizard({
   onFinished,
 }: Options) {
   const [stage, setStage] = useState<EditorStageId>("essentials");
+  const [resolvedStrategy, setResolvedStrategy] = useState(variantStrategy);
   const navRef = useRef<WizardNav>({ type: "primary" });
   const submitRef = useRef<(() => void) | null>(null);
 
-  const renderMultiSku = variantStrategy === "MULTI_SKU";
+  useEffect(() => {
+    setResolvedStrategy(variantStrategy);
+  }, [variantStrategy]);
+
+  const renderMultiSku = resolvedStrategy === "MULTI_SKU";
   const renderOrder = editorStageOrder(renderMultiSku);
   const renderIndex = Math.max(0, renderOrder.indexOf(stage));
 
@@ -39,7 +44,10 @@ export function useProductCreateWizard({
       if (!active) return;
 
       const multi =
-        (savedDetail?.variant_strategy ?? variantStrategy ?? "SINGLE_SKU") === "MULTI_SKU";
+        (savedDetail?.variant_strategy ?? resolvedStrategy ?? "SINGLE_SKU") === "MULTI_SKU";
+      if (savedDetail?.variant_strategy) {
+        setResolvedStrategy(savedDetail.variant_strategy);
+      }
       const order = editorStageOrder(multi);
       const at = Math.max(0, order.indexOf(stage));
       const nav = navRef.current;
@@ -69,13 +77,14 @@ export function useProductCreateWizard({
         onFinished(savedItemId);
       }
     },
-    [active, onFinished, stage, variantStrategy]
+    [active, onFinished, resolvedStrategy, stage]
   );
 
   const resetWizard = useCallback(() => {
     setStage("essentials");
+    setResolvedStrategy(variantStrategy);
     navRef.current = { type: "primary" };
-  }, []);
+  }, [variantStrategy]);
 
   const wizard: EditorWizardChrome | undefined = active
     ? {

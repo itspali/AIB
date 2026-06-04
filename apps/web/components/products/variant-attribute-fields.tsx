@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { useEditorPanelLayout } from "@/lib/products/editor-chrome";
+import {
+  editorFieldSpanFullClass,
+  editorGridClass,
+  useEditorPanelLayout,
+} from "@/lib/products/editor-chrome";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -35,7 +39,7 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
   }
 
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-2", panel ? "gap-3" : "gap-4")}>
+    <div className={editorGridClass(panel)}>
       {templates.map((template) => {
         const fieldId = `variant_attr_${template.key}`;
         const currentValue = values[template.key] ?? "";
@@ -45,7 +49,8 @@ export function VariantAttributeFields({ templates, values, disabled, onChange }
             <div
               key={template.key}
               className={cn(
-                "editor-toggle-row flex items-center justify-between sm:col-span-2",
+                "editor-toggle-row flex items-center justify-between",
+                editorFieldSpanFullClass(panel),
                 panel
                   ? "variant-attribute-toggle"
                   : "rounded-lg border border-border px-4 py-3"

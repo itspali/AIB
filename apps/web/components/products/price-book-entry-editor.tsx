@@ -293,7 +293,7 @@ export function PriceBookEntryEditor({ itemId, variants, uomCodes, readOnly = fa
                       {variants.map((variant) => (
                         <SelectItem key={variant.id} value={variant.id}>
                           {variant.sku}
-                          {variant.is_master ? " (master)" : ""}
+                          {variant.is_master && variant.is_sellable === false ? " (not sold)" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>

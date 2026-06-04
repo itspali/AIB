@@ -21,20 +21,20 @@ export const EDITOR_STAGES: EditorStage[] = [
   {
     id: "essentials",
     label: "Essentials",
-    description: "Name it, classify it, and set pricing & stock. Saving creates the item.",
-    sections: ["overview", "units", "commerce"],
+    description: "Name, classification, pricing, and stock. Saving creates the item.",
+    sections: ["overview", "salable", "purchasable", "inventory"],
   },
   {
     id: "versions",
-    label: "Versions",
-    description: "Choose what varies, then generate the sellable versions.",
+    label: "Variants",
+    description: "Choose what varies, then add or generate sellable variants.",
     sections: ["variants"],
   },
   {
     id: "reach",
     label: "Catalog & reach",
-    description: "Media, tags, custom fields, where it sells, and shipping details.",
-    sections: ["media", "catalog", "reach", "shipping"],
+    description: "Media, tags, custom fields, and where it sells.",
+    sections: ["media", "catalog", "reach"],
   },
 ];
 
@@ -57,7 +57,7 @@ export function stageForSection(sectionId: EditorSectionId): EditorStageId | und
 
 /**
  * Stage order for a specific item. Single-SKU items have nothing to compose, so
- * the Versions stage is dropped from the guided sequence.
+ * the Variants stage is dropped from the guided sequence.
  */
 export function editorStageOrder(isMultiSku: boolean): EditorStageId[] {
   return EDITOR_STAGE_IDS.filter((id) => id !== "versions" || isMultiSku);

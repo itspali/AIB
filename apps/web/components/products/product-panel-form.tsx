@@ -34,6 +34,7 @@ import {
   detailToFormValues,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
+  type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import { blurActiveElement } from "@/lib/dom/focus";
@@ -83,6 +84,8 @@ type PanelProps = {
   onModeChange: (mode: ProductFormMode) => void;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
+  onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
+  onVariantsReload?: () => void | Promise<void>;
   onClose: () => void;
   /** After a successful archive (delete) from the panel header. */
   onItemArchived?: (itemId: string) => void;
@@ -166,6 +169,8 @@ export function ProductPanelScope({
   onModeChange,
   onSaved,
   onExtensionsChanged,
+  onVariantPatch,
+  onVariantsReload,
   onClose,
   onItemArchived,
   urlNavigation,
@@ -196,7 +201,7 @@ export function ProductPanelScope({
   const canEdit = canEditAnyProductFormField(fieldPermissions);
 
   const initialValues = useMemo(() => {
-    if (!detail || mode === "create" || !catalogContext) return undefined;
+    if (!detail || !catalogContext) return undefined;
     return {
       ...detailToFormValues(detail),
       storefront_visibility: mergeStorefrontVisibility(
@@ -204,7 +209,7 @@ export function ProductPanelScope({
         detailToFormValues(detail).storefront_visibility
       ),
     };
-  }, [catalogContext, detail, mode]);
+  }, [catalogContext, detail]);
 
   const loadEditability = useCallback(() => {
     if (!detail) return;
@@ -347,6 +352,8 @@ export function ProductPanelScope({
         onCancel={mode === "view" ? handleCancel : handleRequestCancel}
         onSaved={handleSaved}
         onExtensionsChanged={onExtensionsChanged}
+        onVariantPatch={onVariantPatch}
+        onVariantsReload={onVariantsReload}
         wizard={wizard}
         onMutationHeaderChange={setMutationHeader}
       />
@@ -513,7 +520,7 @@ export function resolveProductPanelDescription(
   mode: ProductFormMode,
   detail: ProductDetailSnapshot | null
 ): string | undefined {
-  if (mode === "create") return "Create a new item master profile";
+  if (mode === "create") return "Create a new product";
   if (detail?.sku) return detail.sku;
   return undefined;
 }

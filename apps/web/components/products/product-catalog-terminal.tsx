@@ -96,7 +96,7 @@ import { cn } from "@/lib/utils";
 import { ITEMS_HREF } from "@/lib/products/item-navigation";
 
 const ITEMS_PAGE_DESCRIPTION =
-  "Manage item master profiles, classifications, and stock balances.";
+  "Manage products, classifications, variants, and stock balances.";
 
 function ItemsPageTitleHeader({ onNewItem }: { onNewItem: () => void }) {
   return (
@@ -642,7 +642,7 @@ export function ProductCatalogTerminal({
 
         const csv = exportProductListRowsToCsv(rows, fieldPermissions);
         downloadProductListCsv(csv);
-        toast.success(`Exported ${rows.length} item master${rows.length === 1 ? "" : "s"}.`);
+        toast.success(`Exported ${rows.length} product${rows.length === 1 ? "" : "s"}.`);
         clearBulkSelection();
       } catch {
         toast.error("Unable to export selected items.");
@@ -949,6 +949,41 @@ export function ProductCatalogTerminal({
     loadDetail(drawer.recordId, drawer.variantId);
   };
 
+  const patchVariantInDetail = useCallback(
+    (variantId: string, patch: Partial<ProductDetailSnapshot["variants"][number]>) => {
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              variants: prev.variants.map((row) =>
+                row.id === variantId ? { ...row, ...patch } : row
+              ),
+            }
+          : prev
+      );
+    },
+    []
+  );
+
+  const reloadVariantsQuietly = useCallback(async () => {
+    if (!drawer.recordId) return;
+    const result = await getProductDetail(drawer.recordId, drawer.variantId);
+    if ("error" in result || !result.detail) {
+      toast.error(result.error ?? "Unable to refresh variants.");
+      return;
+    }
+    setDetail((prev) =>
+      prev
+        ? {
+            ...prev,
+            variants: result.detail.variants,
+            has_variants: result.detail.has_variants,
+            variant_axes: result.detail.variant_axes,
+          }
+        : result.detail
+    );
+  }, [drawer.recordId, drawer.variantId]);
+
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
     if (savedDetail) {
       setDetail(savedDetail);
@@ -980,10 +1015,14 @@ export function ProductCatalogTerminal({
   );
 
   const handleCreatePersisted = useCallback(
-    (itemId: string) => {
+    (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
+      if (savedDetail) {
+        handleSaved(itemId, savedDetail);
+        return;
+      }
       loadDetail(itemId);
     },
-    [loadDetail]
+    [handleSaved, loadDetail]
   );
 
   const handlePanelCloseStable = useCallback(() => {
@@ -1175,7 +1214,10 @@ export function ProductCatalogTerminal({
         isLoading={drawerIsLoading}
         urlNavigation={urlNavigation}
         onExtensionsChanged={refreshDetail}
+        onVariantPatch={patchVariantInDetail}
+        onVariantsReload={reloadVariantsQuietly}
         onCreatePersisted={handleCreatePersisted}
+        onDetailSaved={handleSaved}
         onItemArchived={handleItemArchived}
       />
     </>

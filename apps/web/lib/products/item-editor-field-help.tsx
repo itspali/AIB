@@ -5,10 +5,15 @@ import {
 
 /** Plain-language hints for item editor field info icons. */
 export const ITEM_EDITOR_FIELD_HELP = {
-  itemName: "The name shown on orders, bills, and your shop.",
+  itemName:
+    "The name shown on orders, bills, and your shop. Example: Standard service package.",
   sku: "Your internal product code. Different sizes or colors get their own codes later.",
-  category: "Links size/color options and tax ideas from your category list.",
-  description: "Notes for your team or website. Does not change tax or stock.",
+  productCodeMultiSku:
+    "Stable code for the product. Sellable SKUs are added under Variants.",
+  category:
+    "Links size/color options and tax ideas from your category list. Pick a category or leave uncategorized.",
+  description:
+    "Notes for your team or website. Does not change tax or stock. Optional internal notes are fine.",
   itemType:
     "Goods = physical products you can stock. Service = work with no stock. Digital = downloads or licenses.",
   classification:
@@ -24,25 +29,37 @@ export const ITEM_EDITOR_FIELD_HELP = {
   hsnRequired:
     "Required for taxable items. Use the government code you put on GST invoices for this product.",
   hsnIntro:
-    "Government product code on GST bills. Goods use HSN numbers; services use SAC codes.",
-  sellingRate: "Usual price per unit when you sell, if no special price list applies.",
-  purchaseRate: "Usual cost per unit when you buy from a supplier.",
+    "Government product or service classification code on GST bills. Goods use HSN; services use SAC.",
+  hsnExample: "Example: 8471 for goods or 998314 for services.",
+  taxRuleSelect:
+    "Pick the GST rate for this item, or choose No tax rule until you have decided.",
+  variantStrategySelect: "Choose how many sellable SKUs this product has.",
+  supplyChainRoleSelect: "What this item is used for in reports and purchasing.",
+  sellingRate:
+    "Default sell price for all variants. Override on a variant row or in price book entries. Example: 0.00.",
+  mrp:
+    "Maximum retail price (MRP) printed on the label. Optional; used as a default for new variants. Example: 0.00.",
+  reorderPoint:
+    "When on-hand stock falls to this level, the item is due for replenishment. Applies as the product default. Example: 0.",
+  purchaseRate:
+    "Default buy quote for all variants. Override per variant in the Suppliers grid. Example: 0.00.",
   salesUnit: "Unit shown by default on sales (piece, box, kg, etc.).",
   purchaseUnit: "Unit shown by default on purchases.",
   preferredSupplier:
-    "Optional. Pick a supplier only if you want a default buy price on their record.",
+    "Optional default vendor for catalog buy price. Add more suppliers per variant under Suppliers.",
   purchaseConversionDefined:
     "This conversion is already set under Units of measure.",
   purchaseConversionFactor: (baseUom: string, purchaseUom: string) =>
-    `How many ${baseUom} are in one ${purchaseUom}. You can also set this under Units of measure.`,
+    `How many ${baseUom} are in one ${purchaseUom}. You can also set this under Units of measure. Example: 1.`,
   costingMethod:
     "How stock value is calculated when you receive or sell (oldest-first, average, or fixed plan cost).",
-  standardCost: "Planned cost per unit when you use Standard costing.",
+  standardCost:
+    "Planned cost per unit when you use Standard costing. Example: 0.00.",
   trackingMode:
     "Track stock by batch, by serial number, or do not track batches at all.",
-  gtin: "Optional UPC/EAN from the package. If blank, scanning may use SKU per workspace settings.",
+  gtin: "Optional UPC/EAN from the package. If blank, scanning may use SKU per workspace settings. Example: 8901234567890.",
   valuationMethod: "Set in company settings. Shown here for reference.",
-  volume: "Package size for shipping quotes. Optional if you enter length, width, and height.",
+  volume: "Calculated from length × width × height (cm³). Shown as info when all three sides are set.",
   lengthCm: "Package length in centimeters.",
   widthCm: "Package width in centimeters.",
   heightCm: "Package height in centimeters.",
@@ -76,17 +93,22 @@ export const ITEM_EDITOR_TOGGLE_HELP = {
 
 export const CATALOG_FIELD_HELP = {
   skuMask:
-    "Pattern for auto product codes. Use {BASE} and names like {Size} for each version.",
+    "Pattern for auto product codes. Use {BASE} and names like {Size} for each variant. Example: {BASE}-{Option1}-{Option2}.",
   customFields: "Extra details you define (shelf spot, internal code, etc.).",
+  customFieldKey: "Short label for this detail (e.g. shelf_spot).",
+  customFieldValue: "Value stored for that label.",
   tags: "Labels to search and filter this item.",
+  newTag: "Type a new tag name, then click Add tag.",
   storefront: "Pick which online shops can show this item.",
   channelVisible: "Off = hidden on that shop, even if it is for sale elsewhere.",
-  displayName: "Different name on that shop only. Leave blank to use the item name.",
+  displayName: (channelName: string) =>
+    `Different name on that shop only. Leave blank to use the item name (shows as “${channelName}” on this channel).`,
   priceBook: "Special price list for that shop. Blank = company default prices.",
+  priceBookSelect: "Pick a price book for this channel, or use the tenant default.",
 } as const;
 
 export const MEDIA_FIELD_HELP = {
-  imageScope: "Add photos for the whole product or for one size/color version.",
+  imageScope: "Add photos for the whole product or for one variant.",
   storefront: "Show this image on your website.",
   digitalCatalog: "Include in PDF or email catalogs.",
   internalDocs: "Show on printed purchase and sales papers.",
@@ -94,12 +116,26 @@ export const MEDIA_FIELD_HELP = {
 
 export const VARIANT_FIELD_HELP = {
   variantSkuMask: (mask: string) => `Code pattern: ${mask}`,
-  price: "Leave empty to use the main selling price on the item.",
-  active: "Off = keep old records, but do not sell or stock this version.",
-  gtin: "Optional GTIN (UPC/EAN) for this size or color.",
+  sellPrice:
+    "Leave empty to use the product default selling price. Enter an amount to override.",
+  buyPrice: "Preferred supplier quote for this variant. Manage all vendors under Suppliers.",
+  active: "Off = keep history, but do not sell or stock this variant.",
+  gtin: "Optional GTIN (UPC/EAN) for this variant. Example: 8901234567890.",
   weight: "For shipping quotes only. Does not change stock count.",
+  useCase:
+    "The same variant can be bought for production and sold as a spare when the product is marked purchasable and salable.",
   categoryAttribute: (key: string) =>
-    `Value for "${key}" from the category template. Used per version when that attribute is in your chosen “Varies by” axes.`,
+    `Value for "${key}" from the category template. Used per variant when that attribute is in your “Varies by” list.`,
+} as const;
+
+export const SUPPLY_FIELD_HELP = {
+  section:
+    "Catalog quotes from vendors. Multiple suppliers per variant are allowed; preferred is used on lists and purchase orders.",
+  variantAll: "Applies to every variant unless a variant-specific row exists.",
+  supplierSelect: "Choose which supplier this row applies to.",
+  purchaseRate: "Catalog buy price from this vendor. Example: 0.00.",
+  partNumber: "Supplier’s part or catalog number for this SKU. Optional.",
+  preferred: "One preferred supplier per variant (or per product when variant is “All variants”).",
 } as const;
 
 export function VariantStrategyFieldHelp() {

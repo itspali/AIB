@@ -71,10 +71,10 @@ export function ProductBulkPricingDialog({
 
   const description =
     target === "BOTH"
-      ? `Apply the same adjustment to selling prices and preferred supplier purchase rates for ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}. Items without a current price or supplier rate start from zero.`
+      ? `Apply the same adjustment to selling prices and preferred supplier purchase rates for ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}. Items without a current price or supplier rate start from zero.`
       : target === "PURCHASE"
-        ? `Apply a purchase cost change to ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}. Items without a preferred supplier rate are skipped.`
-        : `Apply a selling price change to ${selectedCount} selected item master${selectedCount === 1 ? "" : "s"}. Items without a current price start from zero.`;
+        ? `Apply a purchase cost change to ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}. Items without a preferred supplier rate are skipped.`
+        : `Apply a selling price change to ${selectedCount} selected product${selectedCount === 1 ? "" : "s"}. Items without a current price start from zero.`;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

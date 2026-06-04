@@ -16,40 +16,52 @@ import {
   ListTree,
   Lock,
   Package,
-  Ruler,
-  Sparkles,
+  Plus,
+  ShoppingCart,
   Store,
   Tag,
-  Truck,
   Wallet,
+  Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
 import { findSimilarItems, type SimilarItem } from "@/app/items/actions";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
-import { ProductUnitsSection } from "@/components/products/product-units-section";
+import {
+  ProductBaseUnitField,
+  ProductUnitsSection,
+} from "@/components/products/product-units-section";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductPrimaryImage } from "@/components/products/product-primary-image";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import type { ProductPanelMutationHeader } from "@/components/products/product-panel-form";
 import { ItemExtensionDataProvider } from "@/components/products/item-extension-data-provider";
-import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
-import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
+import { VariantDistributionSection } from "@/components/products/variant-distribution-section";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
+import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
 import { VariantCompositionPicker } from "@/components/products/variant-composition-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FieldLabelInfo, mergeFieldLabelInfo } from "@/components/ui/field-label-info";
+import {
+  FieldLabelInfo,
+  fieldHelpText,
+  mergeFieldLabelInfo,
+  SubsectionHeading,
+} from "@/components/ui/field-label-info";
 import {
   ITEM_EDITOR_FIELD_HELP,
   ITEM_EDITOR_TOGGLE_HELP,
   VariantStrategyFieldHelp,
 } from "@/lib/products/item-editor-field-help";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  VARIANT_STRATEGY_FIELD_LABEL,
+  VARIANTS_SECTION_LABEL,
+  VARIANTS_SECTION_SHORT_LABEL,
+  MRP_PRICE_COLUMN,
+} from "@/lib/products/product-user-labels";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -80,6 +92,10 @@ import {
 } from "@/lib/products/item-model";
 import { conversionFactorForAlternate } from "@/lib/products/item-uom-commerce";
 import {
+  computeVolumeCm3FromDimensions,
+  formatCalculatedVolumeInfo,
+} from "@/lib/products/shipping-dimensions";
+import {
   isTaxableSupplyCategory,
   TAX_CATEGORY_OPTIONS,
   taxCategoryLabel,
@@ -90,7 +106,11 @@ import {
   type UomOption,
 } from "@/lib/products/uom-options";
 import { gtinFieldHint, skuFieldHint } from "@/lib/products/catalog-item-settings";
-import { VARIANT_STRATEGY_CHOICES, variantStrategyLabel } from "@/lib/products/variant-strategy";
+import {
+  VARIANT_STRATEGY_CHOICES,
+  canSelectSingleVariantStrategy,
+  variantStrategyLabel,
+} from "@/lib/products/variant-strategy";
 import {
   defaultVariantAxisKeys,
   usedVariantAttributeKeys,
@@ -121,6 +141,9 @@ import {
 import { useElementWidth } from "@/lib/layout/use-element-width";
 import {
   editorEmptyStateClass,
+  editorDeferredActionClass,
+  editorDimensionsLwhGridClass,
+  editorFieldSpanFullClass,
   editorGridClass,
   editorInsetTableWrapClass,
   editorPageSectionClass,
@@ -136,6 +159,8 @@ import {
   editorPanelLayoutGridClass,
   editorPanelBadgesClass,
   editorPanelScrollMarginClass,
+  editorPanelDividerClass,
+  editorPanelSectionStackClass,
   PRODUCT_EDITOR_FORM_CLASS,
   EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA,
   resolveEditorPanelUseTopTabs,
@@ -161,16 +186,9 @@ import {
 import { EditorStepper } from "@/components/products/product-editor/editor-stepper";
 import { cn } from "@/lib/utils";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
+import { useMountedEditorSections } from "@/lib/products/use-mounted-editor-sections";
 
-type SectionId =
-  | "overview"
-  | "units"
-  | "commerce"
-  | "variants"
-  | "media"
-  | "catalog"
-  | "reach"
-  | "shipping";
+type SectionId = EditorSectionId;
 type SectionStatus = "error" | "complete" | "empty";
 
 const SECTIONS: Array<{
@@ -180,13 +198,13 @@ const SECTIONS: Array<{
   icon: typeof Package;
 }> = [
   { id: "overview", label: "Basics", shortLabel: "Basics", icon: Package },
-  { id: "units", label: "Units of measure", shortLabel: "Units", icon: Ruler },
-  { id: "commerce", label: "Sell & stock", shortLabel: "Sell & stock", icon: Wallet },
-  { id: "variants", label: "Versions", shortLabel: "Versions", icon: Layers },
+  { id: "salable", label: "Salable", shortLabel: "Salable", icon: Wallet },
+  { id: "purchasable", label: "Purchasable", shortLabel: "Purchasable", icon: ShoppingCart },
+  { id: "inventory", label: "Track inventory", shortLabel: "Inventory", icon: Warehouse },
+  { id: "variants", label: VARIANTS_SECTION_LABEL, shortLabel: VARIANTS_SECTION_SHORT_LABEL, icon: Layers },
   { id: "media", label: "Media", shortLabel: "Media", icon: ListTree },
   { id: "catalog", label: "Catalog & tags", shortLabel: "Catalog", icon: Tag },
   { id: "reach", label: "Reach", shortLabel: "Reach", icon: Store },
-  { id: "shipping", label: "Shipping & dimensions", shortLabel: "Shipping", icon: Truck },
 ];
 
 const SECTION_IDS = SECTIONS.map((section) => section.id);
@@ -220,26 +238,28 @@ const FIELD_SECTION: Partial<Record<keyof ProductMasterFormValues, SectionId>> =
   description: "overview",
   category_id: "overview",
   variant_strategy: "overview",
-  base_unit_of_measure: "units",
-  selling_price: "commerce",
-  selling_uom: "commerce",
-  purchase_uom: "commerce",
-  purchase_uom_conversion: "commerce",
-  purchase_price: "commerce",
-  supplier_id: "commerce",
+  base_unit_of_measure: "overview",
+  selling_price: "salable",
+  mrp: "salable",
+  selling_uom: "salable",
+  purchase_uom: "purchasable",
+  purchase_uom_conversion: "purchasable",
+  purchase_price: "purchasable",
+  supplier_id: "purchasable",
   hsn_sac_code: "overview",
   tax_code_id: "overview",
   default_tax_category: "overview",
-  is_returnable: "commerce",
-  standard_cost: "commerce",
-  barcode: "commerce",
-  dead_weight_kg: "shipping",
-  volume: "shipping",
-  length_cm: "shipping",
-  width_cm: "shipping",
-  height_cm: "shipping",
+  is_returnable: "salable",
+  reorder_point: "inventory",
+  standard_cost: "inventory",
+  barcode: "overview",
+  dead_weight_kg: "overview",
+  volume: "overview",
+  length_cm: "overview",
+  width_cm: "overview",
+  height_cm: "overview",
   custom_fields: "catalog",
-  alternate_uoms: "units",
+  alternate_uoms: "overview",
 };
 
 type Props = {
@@ -259,6 +279,8 @@ type Props = {
   onCancel: () => void;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
+  onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
+  onVariantsReload?: () => void | Promise<void>;
   isNavigatePending?: boolean;
   onPendingChange?: (pending: boolean) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -433,7 +455,13 @@ function Field({
   );
 
   return (
-    <div className={cn("min-w-0", panel ? "space-y-1.5" : "space-y-2", full && "sm:col-span-2")}>
+    <div
+      className={cn(
+        "min-w-0",
+        panel ? "space-y-1.5" : "space-y-2",
+        full && editorFieldSpanFullClass(panel)
+      )}
+    >
       <div className="flex items-center gap-1.5">
         <Label
           htmlFor={htmlFor}
@@ -455,14 +483,12 @@ function Field({
   );
 }
 
-function DefaultUnitField({
+function CommerceUnitField({
   label,
   stockUom,
   value,
   options,
   fieldDisabled,
-  useDifferent,
-  onUseDifferentChange,
   onUnitChange,
   conversionHint,
   info,
@@ -472,31 +498,22 @@ function DefaultUnitField({
   value: string;
   options: UomOption[];
   fieldDisabled: boolean;
-  useDifferent: boolean;
-  onUseDifferentChange: (useDifferent: boolean) => void;
   onUnitChange: (code: string) => void;
   conversionHint?: string;
   info?: React.ReactNode;
 }) {
-  const panel = useEditorPanelLayout();
   const selectId = `${label.replace(/\s+/g, "-").toLowerCase()}-uom`;
-  const toggleId = `${selectId}-use-different`;
+  const usesAlternate = value !== stockUom;
 
   return (
     <Field
       label={label}
       hint={
-        !useDifferent
-          ? ITEM_EDITOR_FIELD_HELP.usingBaseUnit(stockUom)
-          : conversionHint
+        usesAlternate ? conversionHint : ITEM_EDITOR_FIELD_HELP.usingBaseUnit(stockUom)
       }
       info={info}
     >
-      <Select
-        value={useDifferent ? value : stockUom}
-        disabled={fieldDisabled || !useDifferent}
-        onValueChange={onUnitChange}
-      >
+      <Select value={value} disabled={fieldDisabled} onValueChange={onUnitChange}>
         <SelectTrigger id={selectId}>
           <SelectValue />
         </SelectTrigger>
@@ -509,21 +526,6 @@ function DefaultUnitField({
           ))}
         </SelectContent>
       </Select>
-      <div className={cn("flex items-center gap-2", panel ? "pt-0.5" : "pt-1")}>
-        <Checkbox
-          id={toggleId}
-          className="h-3.5 w-3.5 rounded-[3px] [&_svg]:h-2.5 [&_svg]:w-2.5"
-          checked={useDifferent}
-          disabled={fieldDisabled}
-          onCheckedChange={(checked) => onUseDifferentChange(checked === true)}
-        />
-        <Label
-          htmlFor={toggleId}
-          className="cursor-pointer text-xs font-normal text-muted-foreground"
-        >
-          Use different unit
-        </Label>
-      </div>
     </Field>
   );
 }
@@ -535,6 +537,7 @@ function ToggleRow({
   checked,
   disabled,
   onCheckedChange,
+  variant = "grid",
 }: {
   label: string;
   description?: string;
@@ -542,18 +545,24 @@ function ToggleRow({
   checked: boolean;
   disabled?: boolean;
   onCheckedChange: (checked: boolean) => void;
+  /** `inline` = compact row for panel header; `grid` = full-width field in form grids. */
+  variant?: "grid" | "inline";
 }) {
   const panel = useEditorPanelLayout();
+  const inline = variant === "inline";
   const labelInfo = mergeFieldLabelInfo(
-    description ? <p>{description}</p> : null,
+    description && !panel && !inline ? <p>{description}</p> : null,
     info
   );
 
   return (
     <div
       className={cn(
-        "editor-toggle-row flex items-center justify-between gap-2 sm:col-span-2",
-        panel ? "py-0.5" : "rounded-lg border border-border px-3 py-2"
+        "editor-toggle-row flex items-center justify-between gap-2",
+        !inline && panel && editorFieldSpanFullClass(panel),
+        inline && "shrink-0 gap-2.5 py-0",
+        !inline && panel && "py-0.5",
+        !inline && !panel && "rounded-lg border border-border px-3 py-2"
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5 pr-2">
@@ -574,11 +583,85 @@ function editorCardClassName(panel: boolean, variant: "summary" | "section" = "s
   return panel ? editorPanelSectionClass() : editorPageSectionClass(variant);
 }
 
+function EditorSectionAdvanced({
+  open,
+  onToggle,
+  panel,
+  children,
+  variant = "advanced",
+}: {
+  open: boolean;
+  onToggle: () => void;
+  panel: boolean;
+  children: React.ReactNode;
+  variant?: "advanced" | "more";
+}) {
+  const showLabel = variant === "more" ? "Show more" : "Show advanced";
+  const hideLabel = variant === "more" ? "Hide more" : "Hide advanced";
+
+  return (
+    <div className={cn("col-span-full", panel ? "space-y-2" : "space-y-3")}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 px-0 text-xs font-medium text-primary hover:text-primary"
+        onClick={onToggle}
+      >
+        {open ? hideLabel : showLabel}
+      </Button>
+      {open ? (
+        <div
+          className={cn(
+            variant === "more"
+              ? panel
+                ? "flex flex-col gap-6"
+                : "flex flex-col gap-8"
+              : panel
+                ? "space-y-4"
+                : "space-y-5"
+          )}
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type SectionHeaderToggleProps = {
+  label: string;
+  description?: string;
+  info?: React.ReactNode;
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+};
+
+/** Switch in the section title band (section name is the visible label). */
+function SectionHeaderToggle({
+  label,
+  checked,
+  disabled,
+  onCheckedChange,
+}: Pick<SectionHeaderToggleProps, "label" | "checked" | "disabled" | "onCheckedChange">) {
+  return (
+    <Switch
+      size={editorSwitchSize}
+      checked={checked}
+      disabled={disabled}
+      onCheckedChange={onCheckedChange}
+      aria-label={label}
+    />
+  );
+}
+
 /** Anchored section card; registers its element with the parent scroll-spy. */
 function SectionBlock({
   id,
   title,
   description,
+  headerToggle,
   registerRef,
   panel = false,
   hidden = false,
@@ -587,6 +670,7 @@ function SectionBlock({
   id: SectionId;
   title: string;
   description?: string;
+  headerToggle?: SectionHeaderToggleProps;
   registerRef: (el: HTMLDivElement | null) => void;
   panel?: boolean;
   /** When true (wizard mode, off-stage), the section is not rendered. */
@@ -594,6 +678,13 @@ function SectionBlock({
   children: React.ReactNode;
 }) {
   if (hidden) return null;
+  const titleInfo = headerToggle
+    ? mergeFieldLabelInfo(
+        headerToggle.description ? <p>{headerToggle.description}</p> : null,
+        headerToggle.info
+      )
+    : null;
+
   return (
     <div
       ref={registerRef}
@@ -602,26 +693,34 @@ function SectionBlock({
     >
       <section className={editorCardClassName(panel, "section")}>
         <div className={editorSectionHeadingClass(panel)}>
-          <h3
-            className={cn(
-              "font-semibold",
-              panel
-                ? "text-sm text-foreground"
-                : "text-sm uppercase tracking-wide text-foreground"
-            )}
-          >
-            {title}
-          </h3>
-          {description ? (
-            <p
-              className={cn(
-                "text-muted-foreground",
-                panel ? "mt-1 text-xs leading-snug" : "mt-1 text-xs"
-              )}
-            >
-              {description}
-            </p>
-          ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h3
+                  className={cn(
+                    "font-semibold",
+                    panel
+                      ? "text-sm text-foreground"
+                      : "text-sm uppercase tracking-wide text-foreground"
+                  )}
+                >
+                  {title}
+                </h3>
+                {titleInfo ? <FieldLabelInfo label={title}>{titleInfo}</FieldLabelInfo> : null}
+              </div>
+              {description && !panel ? (
+                <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+              ) : null}
+            </div>
+            {headerToggle ? (
+              <SectionHeaderToggle
+                label={headerToggle.label}
+                checked={headerToggle.checked}
+                disabled={headerToggle.disabled}
+                onCheckedChange={headerToggle.onCheckedChange}
+              />
+            ) : null}
+          </div>
         </div>
         <div className={editorSectionBodyClass(panel)}>{children}</div>
       </section>
@@ -645,6 +744,8 @@ export function ProductEditorShell({
   onCancel,
   onSaved,
   onExtensionsChanged,
+  onVariantPatch,
+  onVariantsReload,
   isNavigatePending = false,
   onPendingChange,
   onDirtyChange,
@@ -656,6 +757,9 @@ export function ProductEditorShell({
   // When pinnedSections is provided, nav is always hidden.
   const effectiveHideNav = hideNav || !!pinnedSections;
   const [activeSection, setActiveSection] = useState<SectionId>("overview");
+  const isSectionMounted = useMountedEditorSections(activeSection, {
+    wizardStage: wizard?.stage ?? null,
+  });
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
   const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
   const [duplicates, setDuplicates] = useState<SimilarItem[]>([]);
@@ -699,10 +803,30 @@ export function ProductEditorShell({
     mode,
     onSaved,
     onPendingChange,
+    refreshOnSave: !wizard,
+    hydrateOnInitialValuesChange: Boolean(wizard),
   });
 
-  const visibleSections = useMemo(() => editorSections(itemId), [itemId]);
-  const visibleSectionIds = useMemo(() => editorSectionIdsForItem(itemId), [itemId]);
+  const loadExtensionData =
+    Boolean(itemId) &&
+    (isSectionMounted("salable") ||
+      isSectionMounted("purchasable") ||
+      isSectionMounted("variants"));
+
+  const showVariantsSection = isMultiSku || variants.length > 1;
+  const visibleSections = useMemo(
+    () =>
+      editorSections(itemId).filter((section) => {
+        if (section.id === "variants" && !showVariantsSection) return false;
+        if (section.id === "inventory" && !isPhysical) return false;
+        return true;
+      }),
+    [itemId, showVariantsSection, isPhysical]
+  );
+  const visibleSectionIds = useMemo(
+    () => visibleSections.map((section) => section.id),
+    [visibleSections]
+  );
 
   const disableInput = useCallback(
     (formField: keyof ProductMasterFormValues | string, lockKey?: string) => {
@@ -751,6 +875,10 @@ export function ProductEditorShell({
   const sellingPrice = watch("selling_price");
   const purchasePrice = watch("purchase_price");
   const standardCost = watch("standard_cost");
+  const hsnSacCode = watch("hsn_sac_code");
+  const supplierId = watch("supplier_id");
+  const mrp = watch("mrp");
+  const matrixMrpDefault = useMemo(() => mrp?.trim() ?? "", [mrp]);
   const deadWeightKg = watch("dead_weight_kg");
   const shippingVolume = watch("volume");
   const lengthCm = watch("length_cm");
@@ -763,6 +891,12 @@ export function ProductEditorShell({
   // Which category attributes compose this item's variants. The category
   // suggests a default (its role hint, choice-typed attrs, or whatever existing
   // variants use); the author's explicit choice is persisted on the item.
+  const sellableVariantCount = useMemo(
+    () => variants.filter((variant) => variant.is_sellable !== false).length,
+    [variants]
+  );
+  const canSelectSingleSku = canSelectSingleVariantStrategy(sellableVariantCount);
+
   const usedVariantKeys = useMemo(() => usedVariantAttributeKeys(variants), [variants]);
   const suggestedVariantAxisKeys = useMemo(
     () => defaultVariantAxisKeys(categoryTemplates, usedVariantKeys),
@@ -846,31 +980,101 @@ export function ProductEditorShell({
     [baseUom, alternateUoms, catalogContext.uoms, purchaseUom]
   );
 
-  const [useDifferentSellingUnit, setUseDifferentSellingUnit] = useState(false);
-  const [useDifferentPurchaseUnit, setUseDifferentPurchaseUnit] = useState(false);
-  const previousStockUomForUnitTogglesRef = useRef(baseUom);
+  const hasShippingDimensionValues = useCallback(
+    (values: {
+      dead_weight_kg?: string | null;
+      volume?: string | null;
+      length_cm?: string | null;
+      width_cm?: string | null;
+      height_cm?: string | null;
+    }) =>
+      Number(values.dead_weight_kg) > 0 ||
+      Number(values.length_cm) > 0 ||
+      Number(values.width_cm) > 0 ||
+      Number(values.height_cm) > 0,
+    []
+  );
+
+  const barcode = watch("barcode");
+
+  const [showBasicsAdvanced, setShowBasicsAdvanced] = useState(
+    () => (initialValues?.alternate_uoms?.length ?? 0) > 0
+  );
+
+  const [showBasicsMore, setShowBasicsMore] = useState(
+    () =>
+      Boolean(initialValues?.barcode?.trim()) ||
+      hasShippingDimensionValues(initialValues ?? {})
+  );
 
   useEffect(() => {
-    if (isDirty) return;
-    setUseDifferentSellingUnit(sellingUom !== baseUom);
-    setUseDifferentPurchaseUnit(purchaseUom !== baseUom);
-  }, [isDirty, sellingUom, purchaseUom, baseUom]);
+    if ((alternateUoms?.length ?? 0) > 0) {
+      setShowBasicsAdvanced(true);
+    }
+  }, [alternateUoms?.length]);
 
   useEffect(() => {
-    if (previousStockUomForUnitTogglesRef.current === baseUom) return;
-    previousStockUomForUnitTogglesRef.current = baseUom;
-    setUseDifferentSellingUnit(false);
-    setUseDifferentPurchaseUnit(false);
-  }, [baseUom]);
+    if (
+      barcode?.trim() ||
+      hasShippingDimensionValues({
+        dead_weight_kg: deadWeightKg,
+        length_cm: lengthCm,
+        width_cm: widthCm,
+        height_cm: heightCm,
+      })
+    ) {
+      setShowBasicsMore(true);
+    }
+  }, [barcode, deadWeightKg, lengthCm, widthCm, heightCm, hasShippingDimensionValues]);
+
+  useEffect(() => {
+    const computed = computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm);
+    if (form.getValues("volume") === computed) return;
+    setValue("volume", computed, { shouldDirty: true });
+  }, [lengthCm, widthCm, heightCm, form, setValue]);
+
+  const [showSalableAdvanced, setShowSalableAdvanced] = useState(
+    () =>
+      Boolean(
+        initialValues?.selling_uom?.trim() &&
+          initialValues.selling_uom !== initialValues?.base_unit_of_measure
+      )
+  );
+
+  useEffect(() => {
+    if (sellingUom.trim() && sellingUom !== baseUom) {
+      setShowSalableAdvanced(true);
+    }
+  }, [sellingUom, baseUom]);
 
   const purchaseConversionFromCatalog = useMemo(
     () => conversionFactorForAlternate(alternateUoms ?? [], purchaseUom),
     [alternateUoms, purchaseUom]
   );
   const showPurchaseConversionField =
-    useDifferentPurchaseUnit &&
-    purchaseUom !== baseUom &&
-    !purchaseConversionFromCatalog;
+    purchaseUom !== baseUom && !purchaseConversionFromCatalog;
+
+  const showSellingUnitField = commerceUomOptions.length > 1;
+  const showPurchaseUnitField = purchaseCommerceUomOptions.length > 1;
+
+  const [showPurchasableAdvanced, setShowPurchasableAdvanced] = useState(
+    () =>
+      Boolean(
+        initialValues?.supplier_id ||
+          (initialValues?.purchase_uom?.trim() &&
+            initialValues.purchase_uom !== initialValues?.base_unit_of_measure)
+      )
+  );
+
+  useEffect(() => {
+    if (
+      supplierId ||
+      (purchaseUom.trim() && purchaseUom !== baseUom) ||
+      showPurchaseConversionField
+    ) {
+      setShowPurchasableAdvanced(true);
+    }
+  }, [supplierId, purchaseUom, baseUom, showPurchaseConversionField]);
 
   useEffect(() => {
     if (!purchaseConversionFromCatalog) return;
@@ -879,12 +1083,25 @@ export function ProductEditorShell({
   }, [purchaseConversionFromCatalog, form, setValue]);
 
   useEffect(() => {
-    if (!useDifferentPurchaseUnit || purchaseUom === baseUom) return;
+    if (purchaseUom === baseUom) return;
     const factor = conversionFactorForAlternate(alternateUoms ?? [], purchaseUom);
     if (!factor) return;
     if (form.getValues("purchase_uom_conversion") === factor) return;
     setValue("purchase_uom_conversion", factor, { shouldDirty: true });
-  }, [alternateUoms, baseUom, form, purchaseUom, setValue, useDifferentPurchaseUnit]);
+  }, [alternateUoms, baseUom, form, purchaseUom, setValue]);
+
+  useEffect(() => {
+    if (showSellingUnitField) return;
+    if (sellingUom === baseUom) return;
+    setValue("selling_uom", baseUom, { shouldDirty: true });
+  }, [baseUom, sellingUom, setValue, showSellingUnitField]);
+
+  useEffect(() => {
+    if (showPurchaseUnitField) return;
+    if (purchaseUom === baseUom) return;
+    setValue("purchase_uom", baseUom, { shouldDirty: true });
+    setValue("purchase_uom_conversion", "1", { shouldDirty: true });
+  }, [baseUom, purchaseUom, setValue, showPurchaseUnitField]);
 
   const showStatus = !readOnly;
 
@@ -1063,13 +1280,13 @@ export function ProductEditorShell({
   const sectionErrors = useMemo(() => {
     const map: Record<SectionId, boolean> = {
       overview: false,
-      units: false,
-      commerce: false,
+      salable: false,
+      purchasable: false,
+      inventory: false,
       variants: false,
       media: false,
       catalog: false,
       reach: false,
-      shipping: false,
     };
     (Object.keys(errors) as Array<keyof ProductMasterFormValues>).forEach((key) => {
       const section = FIELD_SECTION[key];
@@ -1083,22 +1300,17 @@ export function ProductEditorShell({
       if (sectionErrors[id]) return "error";
       switch (id) {
         case "overview":
-          return name?.trim() && sku?.trim() ? "complete" : "empty";
-        case "units":
-          return baseUom?.trim() ? "complete" : "empty";
-        case "commerce": {
-          const hasPricing = Number(sellingPrice) > 0 || Number(purchasePrice) > 0;
-          const hasStock = trackInventory || Number(standardCost) > 0;
-          return hasPricing || hasStock ? "complete" : "empty";
-        }
-        case "shipping": {
-          const hasShippingDims =
-            Number(deadWeightKg) > 0 ||
-            Number(shippingVolume) > 0 ||
-            Number(lengthCm) > 0 ||
-            Number(widthCm) > 0 ||
-            Number(heightCm) > 0;
-          return hasShippingDims ? "complete" : "empty";
+          return name?.trim() && sku?.trim() && baseUom?.trim() ? "complete" : "empty";
+        case "salable":
+          if (!isSalable) return "empty";
+          return Number(sellingPrice) > 0 || Number(mrp) > 0 ? "complete" : "empty";
+        case "purchasable":
+          if (!isPurchasable) return "empty";
+          return Number(purchasePrice) > 0 ? "complete" : "empty";
+        case "inventory": {
+          if (!isPhysical) return "complete";
+          if (!trackInventory) return "empty";
+          return Number(standardCost) > 0 ? "complete" : "empty";
         }
         case "variants":
           return variants.length > 0 ? "complete" : "empty";
@@ -1122,7 +1334,11 @@ export function ProductEditorShell({
       sectionErrors,
       name,
       sku,
+      isSalable,
+      isPurchasable,
+      isPhysical,
       sellingPrice,
+      mrp,
       purchasePrice,
       trackInventory,
       standardCost,
@@ -1159,28 +1375,44 @@ export function ProductEditorShell({
   );
 
   const sectionVisible = useCallback(
-    (id: SectionId) => sectionInStage(id) && (!pinnedSet || pinnedSet.has(id)),
-    [sectionInStage, pinnedSet]
+    (id: SectionId) =>
+      sectionInStage(id) &&
+      (id !== "inventory" || isPhysical) &&
+      (!pinnedSet || pinnedSet.has(id)),
+    [sectionInStage, pinnedSet, isPhysical]
   );
-  // Single-SKU items have nothing to compose, so Versions drops out of both the
-  // stepper and the completeness math.
+  // Single-SKU products with one variant skip the Variants stage in the guided flow.
   const wizardStages = useMemo(
-    () => EDITOR_STAGES.filter((stage) => isMultiSku || stage.id !== "versions"),
-    [isMultiSku]
+    () => EDITOR_STAGES.filter((stage) => showVariantsSection || stage.id !== "versions"),
+    [showVariantsSection]
   );
+  const applicableWizardSections = useCallback(
+    (sections: EditorSectionId[]) =>
+      sections.filter(
+        (section) =>
+          (section !== "inventory" || isPhysical) &&
+          (section !== "variants" || showVariantsSection)
+      ),
+    [isPhysical, showVariantsSection]
+  );
+
   const wizardStageStatuses = useMemo(() => {
     const map = {} as Record<EditorStageId, StageStatus>;
     for (const stage of wizardStages) {
-      map[stage.id] = rollUpStageStatus(stage.sections.map((section) => sectionStatus(section)));
+      map[stage.id] = rollUpStageStatus(
+        applicableWizardSections(stage.sections).map((section) => sectionStatus(section))
+      );
     }
     return map;
-  }, [wizardStages, sectionStatus]);
+  }, [wizardStages, sectionStatus, applicableWizardSections]);
   const wizardPercent = useMemo(
     () =>
       overallCompletenessPercent(
-        wizardStages.flatMap((stage) => stage.sections).map((section) => sectionStatus(section))
+        wizardStages
+          .flatMap((stage) => applicableWizardSections(stage.sections))
+          .map((section) => sectionStatus(section))
       ),
-    [wizardStages, sectionStatus]
+    [wizardStages, sectionStatus, applicableWizardSections]
   );
 
   // Shared by the Catalog and Reach cards (both render ProductCatalogExtensions).
@@ -1240,7 +1472,7 @@ export function ProductEditorShell({
 
   return (
     <EditorPanelContext.Provider value={isPanelLayout}>
-    <ItemExtensionDataProvider itemId={itemId}>
+    <ItemExtensionDataProvider itemId={itemId} enabled={loadExtensionData}>
     <form
       ref={formRef}
       onSubmit={handleSave}
@@ -1365,7 +1597,8 @@ export function ProductEditorShell({
           className={cn(
             "min-w-0",
             isPanelLayout &&
-              "min-h-0 space-y-3 overflow-y-auto overscroll-contain [overflow-anchor:none]",
+              "min-h-0 overflow-y-auto overscroll-contain [overflow-anchor:none]",
+              editorPanelSectionStackClass(),
             isPanelLayout && (panelUseTopSectionTabs || effectiveHideNav ? "flex-1" : "h-full max-h-full"),
             !isPanelLayout && "space-y-4",
             wizard &&
@@ -1373,15 +1606,39 @@ export function ProductEditorShell({
           )}
         >
           {isPanelLayout && mode !== "create" ? (
-            <div className={editorPanelBadgesClass()}>
-              <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className={editorPanelBadgesClass()}>
+                <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
+                <Badge variant="default">{variantStrategyLabel(variantStrategy)}</Badge>
+                {needsReview ? <Badge variant="action_required">Needs review</Badge> : null}
+              </div>
               {itemId ? (
-                <Badge variant={isActive ? "completed" : "locked"}>
-                  {itemOperationalStatusLabel(isActive)}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-3">
+                  <ToggleRow
+                    variant="inline"
+                    label="Active"
+                    info={fieldHelpText(ITEM_EDITOR_TOGGLE_HELP.active)}
+                    checked={isActive}
+                    disabled={disableInput("is_active")}
+                    onCheckedChange={(checked) => {
+                      setValue("is_active", checked, { shouldDirty: true });
+                      setValue("status", itemLifecycleStatusFromActive(checked), { shouldDirty: true });
+                    }}
+                  />
+                  {needsReview ? (
+                    <ToggleRow
+                      variant="inline"
+                      label="Needs review"
+                      info={fieldHelpText(ITEM_EDITOR_TOGGLE_HELP.needsReview)}
+                      checked={needsReview}
+                      disabled={disableInput("needs_review")}
+                      onCheckedChange={(checked) =>
+                        setValue("needs_review", checked, { shouldDirty: true })
+                      }
+                    />
+                  ) : null}
+                </div>
               ) : null}
-              <Badge variant="default">{variantStrategyLabel(variantStrategy)}</Badge>
-              {needsReview ? <Badge variant="action_required">Needs review</Badge> : null}
             </div>
           ) : null}
           <SectionBlock
@@ -1390,44 +1647,12 @@ export function ProductEditorShell({
             description={
               wizard
                 ? undefined
-                : "Start here: what the item is, how it is classified and taxed, and whether it comes in versions."
+                : "Start here: name, classification, base unit, tax, and how many variants this product has."
             }
             registerRef={registerSection("overview")}
             hidden={!sectionVisible("overview")}
             panel={isPanelLayout}
           >
-            {/* AI assist slot (wiring lands in the next phase) — hidden on create until wired */}
-            {!readOnly && mode !== "create" && !wizard && (
-              <div
-                className={cn(
-                  "mb-4 rounded-xl border border-dashed border-indigo-300/60 bg-indigo-50/50 p-4 dark:border-indigo-500/30 dark:bg-indigo-950/20",
-                  isPanelLayout && "mb-3 rounded-md border-indigo-200/50 p-3 dark:border-indigo-500/20"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">Describe it, we&apos;ll draft it</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Add a few words about the product and AI will suggest the name, description,
-                      and other fields. Coming soon.
-                    </p>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <Input
-                        placeholder="e.g. item name, description, and key attributes"
-                        disabled
-                        className="flex-1"
-                      />
-                      <Button type="button" variant="outline" disabled title="Coming soon">
-                        <Sparkles className="h-4 w-4" />
-                        Suggest
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {!readOnly && duplicates.length > 0 && (
               <div
                 className={cn(
@@ -1481,57 +1706,27 @@ export function ProductEditorShell({
                 label="Item name"
                 htmlFor="name"
                 error={errors.name?.message}
-                full
                 hint={ITEM_EDITOR_FIELD_HELP.itemName}
               >
-                <Input
-                  id="name"
-                  placeholder="e.g. Standard service package"
-                  disabled={disableInput("name")}
-                  {...register("name")}
-                />
+                <Input id="name" disabled={disableInput("name")} {...register("name")} />
               </Field>
 
               <Field
-                label="SKU"
+                label={isMultiSku ? "Product code" : "SKU"}
                 htmlFor="sku"
                 error={errors.sku?.message}
-                hint={skuFieldHint(catalogContext.catalog_items, mode === "create")}
+                hint={
+                  isMultiSku
+                    ? ITEM_EDITOR_FIELD_HELP.productCodeMultiSku
+                    : skuFieldHint(catalogContext.catalog_items, mode === "create")
+                }
               >
                 <Input
                   id="sku"
-                  placeholder={
-                    mode === "create" && catalogContext.catalog_items.sku_auto_generation_enabled
-                      ? "Auto-generated on save if blank"
-                      : "e.g. ITEM-001"
-                  }
                   disabled={disableInput("sku")}
                   className="font-mono"
                   {...register("sku")}
                 />
-              </Field>
-
-              <Field label="Category" hint={ITEM_EDITOR_FIELD_HELP.category}>
-                <Select
-                  value={watch("category_id") ?? "none"}
-                  disabled={disableInput("category_id")}
-                  onValueChange={(value) =>
-                    setValue("category_id", value === "none" ? null : value, { shouldDirty: true })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Uncategorized</SelectItem>
-                    {categoryOptions.map((option) => (
-                      <SelectItem key={option.id!} value={option.id!}>
-                        {"— ".repeat(option.depth)}
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </Field>
 
               <Field
@@ -1543,11 +1738,79 @@ export function ProductEditorShell({
               >
                 <textarea
                   id="description"
-                  placeholder="Optional description or internal notes"
                   disabled={disableInput("description")}
                   className="flex w-full text-sm placeholder:text-muted-foreground"
                   {...register("description")}
                 />
+              </Field>
+
+              <Field
+                label={VARIANT_STRATEGY_FIELD_LABEL}
+                hint={ITEM_EDITOR_FIELD_HELP.variantStrategySelect}
+                info={<VariantStrategyFieldHelp />}
+              >
+                {!isPhysical ? (
+                  <p className={editorReadOnlyFieldClass(isPanelLayout)}>
+                    {variantStrategyLabel(variantStrategy)}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <Select
+                      value={variantStrategy}
+                      disabled={disableInput("variant_strategy", "variant_strategy")}
+                      onValueChange={(value) =>
+                        setValue(
+                          "variant_strategy",
+                          value as ProductMasterFormValues["variant_strategy"],
+                          { shouldDirty: true }
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue>{variantStrategyLabel(variantStrategy)}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent position="popper" sideOffset={4}>
+                        {VARIANT_STRATEGY_CHOICES.map((choice) => (
+                          <SelectItemWithDescription
+                            key={choice.value}
+                            value={choice.value}
+                            label={choice.label}
+                            description={choice.description}
+                            disabled={choice.value === "SINGLE_SKU" && !canSelectSingleSku}
+                          />
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {itemId && !canSelectSingleSku ? (
+                      <p className="text-xs text-muted-foreground">
+                        Remove extra sellable SKUs under Variants before switching back to Single.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </Field>
+
+              <Field label="Category" hint={ITEM_EDITOR_FIELD_HELP.category}>
+                <Select
+                  value={watch("category_id") ?? "none"}
+                  disabled={disableInput("category_id")}
+                  onValueChange={(value) =>
+                    setValue("category_id", value === "none" ? null : value, { shouldDirty: true })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Uncategorized</SelectItem>
+                    {categoryOptions.map((option) => (
+                      <SelectItem key={option.id!} value={option.id!}>
+                        {"— ".repeat(option.depth)}
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
 
               <Field
@@ -1596,7 +1859,7 @@ export function ProductEditorShell({
                 ) : (
                   <Field
                     label="Supply-chain role"
-                    hint={ITEM_EDITOR_FIELD_HELP.classification}
+                    hint={`${ITEM_EDITOR_FIELD_HELP.classification} ${ITEM_EDITOR_FIELD_HELP.supplyChainRoleSelect}`}
                     locked={isLocked("classification")}
                   >
                     <Select
@@ -1611,7 +1874,7 @@ export function ProductEditorShell({
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent position="popper" sideOffset={4}>
                         {classificationOptions.map((value) => {
@@ -1632,78 +1895,8 @@ export function ProductEditorShell({
                   </Field>
                 )}
 
-                <Field label="Does this come in versions?" full info={<VariantStrategyFieldHelp />}>
-                  {itemId || !isPhysical ? (
-                    <p className={editorReadOnlyFieldClass(isPanelLayout)}>
-                      {variantStrategyLabel(variantStrategy)}
-                    </p>
-                  ) : (
-                    <RadioGroup
-                      value={variantStrategy}
-                      disabled={disableInput("variant_strategy", "variant_strategy")}
-                      onValueChange={(value) =>
-                        setValue(
-                          "variant_strategy",
-                          value as ProductMasterFormValues["variant_strategy"],
-                          { shouldDirty: true }
-                        )
-                      }
-                      className="grid grid-cols-2 gap-2"
-                    >
-                      {VARIANT_STRATEGY_CHOICES.map((choice) => {
-                        const active = variantStrategy === choice.value;
-                        return (
-                          <Label
-                            key={choice.value}
-                            htmlFor={`variant_strategy-${choice.value}`}
-                            className={cn(
-                              "flex cursor-pointer items-start gap-2 rounded-md border p-3 font-normal transition-colors",
-                              active
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:bg-muted/40"
-                            )}
-                          >
-                            <RadioGroupItem
-                              id={`variant_strategy-${choice.value}`}
-                              value={choice.value}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <span className="space-y-0.5">
-                              <span className="block text-sm font-medium leading-none">
-                                {choice.label}
-                              </span>
-                              <span className="block text-xs text-muted-foreground">
-                                {choice.description}
-                              </span>
-                            </span>
-                          </Label>
-                        );
-                      })}
-                    </RadioGroup>
-                  )}
-                </Field>
-
-                {!itemId && isMultiSku && isPhysical && categoryTemplates.length > 0 ? (
-                  <div className="col-span-full">
-                    <VariantCompositionPicker
-                      templates={categoryTemplates}
-                      axisKeys={variantAxisKeys}
-                      suggestedAxisKeys={suggestedVariantAxisKeys}
-                      disabled={fieldDisabled}
-                      compact={isPanelLayout}
-                      onChange={(keys) =>
-                        setValue("variant_axes", keys, { shouldDirty: true })
-                      }
-                    />
-                    {errors.variant_axes?.message ? (
-                      <p className="mt-2 text-sm text-destructive">{errors.variant_axes.message}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-
               <Field
                 label="Tax category"
-                full={!isTaxableCategory}
                 hint={
                   isTaxableCategory
                     ? ITEM_EDITOR_FIELD_HELP.taxCategoryTaxable
@@ -1741,7 +1934,11 @@ export function ProductEditorShell({
                 {isTaxableCategory ? (
                   <Field
                     label="Tax rule"
-                    hint={ITEM_EDITOR_FIELD_HELP.taxRule}
+                    hint={
+                      itemTaxCodePickerOptions.length > 0
+                        ? `${ITEM_EDITOR_FIELD_HELP.taxRule} ${ITEM_EDITOR_FIELD_HELP.taxRuleSelect}`
+                        : ITEM_EDITOR_FIELD_HELP.taxRule
+                    }
                     info={
                       itemTaxCodePickerOptions.length === 0 ? (
                         <p>{ITEM_EDITOR_FIELD_HELP.taxRuleNoRules}</p>
@@ -1758,7 +1955,7 @@ export function ProductEditorShell({
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="No tax rule" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent position="popper" sideOffset={4}>
                         <SelectItemWithDescription
@@ -1783,25 +1980,161 @@ export function ProductEditorShell({
                   <Field
                     label="HSN / SAC code"
                     htmlFor="hsn_sac_code"
-                    full
                     hint={
                       itemTaxCodePickerOptions.length > 0
-                        ? ITEM_EDITOR_FIELD_HELP.hsnRequired
-                        : ITEM_EDITOR_FIELD_HELP.hsnIntro
+                        ? `${ITEM_EDITOR_FIELD_HELP.hsnRequired} ${ITEM_EDITOR_FIELD_HELP.hsnExample}`
+                        : `${ITEM_EDITOR_FIELD_HELP.hsnIntro} ${ITEM_EDITOR_FIELD_HELP.hsnExample}`
                     }
                   >
                     <Input
                       id="hsn_sac_code"
                       disabled={disableInput("hsn_sac_code")}
                       className="font-mono"
-                      placeholder="Product or service classification code"
                       {...register("hsn_sac_code")}
                     />
                   </Field>
                 ) : null}
+
+              <ProductBaseUnitField
+                catalogContext={catalogContext}
+                baseUom={baseUom}
+                isPhysical={isPhysical}
+                stockUnitDisabled={disableInput("base_unit_of_measure", "base_unit_of_measure")}
+                stockUnitLocked={isLocked("base_unit_of_measure")}
+                onBaseUomChange={(code) =>
+                  setValue("base_unit_of_measure", code, { shouldDirty: true })
+                }
+              />
+
+              <EditorSectionAdvanced
+                variant="more"
+                open={showBasicsMore}
+                onToggle={() => setShowBasicsMore((open) => !open)}
+                panel={isPanelLayout}
+              >
+                {!isMultiSku ? (
+                  <Field
+                    label="GTIN"
+                    htmlFor="barcode"
+                    error={errors.barcode?.message}
+                    hint={gtinFieldHint(catalogContext.catalog_items.scan_identifier_policy)}
+                  >
+                    <Input
+                      id="barcode"
+                      disabled={disableInput("barcode")}
+                      className="font-mono"
+                      {...register("barcode")}
+                    />
+                  </Field>
+                ) : (
+                  <p className={editorEmptyStateClass(isPanelLayout)}>
+                    GTIN is set per sellable SKU under Variants.
+                  </p>
+                )}
+                {isPhysical ? (
+                  <div className={cn(isPanelLayout ? "space-y-3" : "space-y-4")}>
+                    {isMultiSku ? (
+                      <p className={editorEmptyStateClass(isPanelLayout)}>
+                        Variants inherit these dimensions until you override them per SKU in
+                        Variants.
+                      </p>
+                    ) : null}
+                    <div className={editorGridClass(isPanelLayout)}>
+                      <div
+                        className={cn(
+                          editorFieldSpanFullClass(isPanelLayout),
+                          editorDimensionsLwhGridClass()
+                        )}
+                      >
+                        <Field
+                          label="Length (cm)"
+                          htmlFor="length_cm"
+                          error={errors.length_cm?.message}
+                          hint={ITEM_EDITOR_FIELD_HELP.lengthCm}
+                        >
+                          <Input
+                            id="length_cm"
+                            disabled={disableInput("length_cm")}
+                            className="text-right font-mono"
+                            inputMode="decimal"
+                            {...register("length_cm")}
+                          />
+                        </Field>
+                        <Field
+                          label="Width (cm)"
+                          htmlFor="width_cm"
+                          error={errors.width_cm?.message}
+                          hint={ITEM_EDITOR_FIELD_HELP.widthCm}
+                        >
+                          <Input
+                            id="width_cm"
+                            disabled={disableInput("width_cm")}
+                            className="text-right font-mono"
+                            inputMode="decimal"
+                            {...register("width_cm")}
+                          />
+                        </Field>
+                        <Field
+                          label="Height (cm)"
+                          htmlFor="height_cm"
+                          error={errors.height_cm?.message}
+                          hint={ITEM_EDITOR_FIELD_HELP.heightCm}
+                        >
+                          <Input
+                            id="height_cm"
+                            disabled={disableInput("height_cm")}
+                            className="text-right font-mono"
+                            inputMode="decimal"
+                            {...register("height_cm")}
+                          />
+                        </Field>
+                      </div>
+                      <Field
+                        label="Weight (kg)"
+                        htmlFor="dead_weight_kg"
+                        error={errors.dead_weight_kg?.message}
+                        full
+                        hint={ITEM_EDITOR_FIELD_HELP.weightShipping}
+                      >
+                        <Input
+                          id="dead_weight_kg"
+                          disabled={disableInput("dead_weight_kg")}
+                          className="text-right font-mono"
+                          inputMode="decimal"
+                          {...register("dead_weight_kg")}
+                        />
+                      </Field>
+                      <p
+                        className={cn(
+                          "text-xs text-muted-foreground",
+                          editorFieldSpanFullClass(isPanelLayout)
+                        )}
+                      >
+                        {formatCalculatedVolumeInfo(lengthCm, widthCm, heightCm)}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </EditorSectionAdvanced>
+
+              <EditorSectionAdvanced
+                open={showBasicsAdvanced}
+                onToggle={() => setShowBasicsAdvanced((open) => !open)}
+                panel={isPanelLayout}
+              >
+                <ProductUnitsSection
+                  catalogContext={catalogContext}
+                  baseUom={baseUom}
+                  alternateUoms={alternateUoms ?? []}
+                  alternatesDisabled={fieldDisabled}
+                  onAlternateUomsChange={(rows) =>
+                    setValue("alternate_uoms", rows, { shouldDirty: true })
+                  }
+                />
+              </EditorSectionAdvanced>
             </div>
 
-            {itemId || needsReview ? (
+            {(itemId || needsReview) && !(isPanelLayout && itemId) ? (
               <div className={editorSubsectionClass(isPanelLayout)}>
                 {itemId ? (
                   <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>Status</h4>
@@ -1836,57 +2169,40 @@ export function ProductEditorShell({
           </SectionBlock>
 
           <SectionBlock
-            id="units"
-            title="Units of measure"
-            description="Base unit, alternate units with conversion factors, and how they relate to pricing."
-            registerRef={registerSection("units")}
-            hidden={!sectionVisible("units")}
+            id="salable"
+            title="Salable"
+            description="Return policy, rates, price book, and sales unit (advanced)."
+            headerToggle={{
+              label: "Salable",
+              description: ITEM_EDITOR_TOGGLE_HELP.salable,
+              checked: isSalable,
+              disabled: disableInput("is_salable"),
+              onCheckedChange: (checked) =>
+                setValue("is_salable", checked, { shouldDirty: true }),
+            }}
+            registerRef={registerSection("salable")}
+            hidden={!sectionVisible("salable")}
             panel={isPanelLayout}
           >
-            <ProductUnitsSection
-              catalogContext={catalogContext}
-              baseUom={baseUom}
-              alternateUoms={alternateUoms ?? []}
-              isPhysical={isPhysical}
-              stockUnitDisabled={disableInput("base_unit_of_measure", "base_unit_of_measure")}
-              stockUnitLocked={isLocked("base_unit_of_measure")}
-              alternatesDisabled={fieldDisabled}
-              onBaseUomChange={(code) =>
-                setValue("base_unit_of_measure", code, { shouldDirty: true })
-              }
-              onAlternateUomsChange={(rows) =>
-                setValue("alternate_uoms", rows, { shouldDirty: true })
-              }
-            />
-          </SectionBlock>
-
-          <SectionBlock
-            id="commerce"
-            title="Sell & stock"
-            description="How it sells and stocks: pricing and purchase defaults, then inventory tracking, costing, and shipping."
-            registerRef={registerSection("commerce")}
-            hidden={!sectionVisible("commerce")}
-            panel={isPanelLayout}
-          >
-            {!isPanelLayout ? (
-              <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>Pricing</h4>
-            ) : null}
             {pricingFieldsLocked ? (
               <p className="mb-4 text-sm text-muted-foreground">
                 Pricing fields are read-only for your role. Contact your workspace owner to request
                 access.
               </p>
             ) : null}
-            <div className={editorGridClass(isPanelLayout)}>
-              <ToggleRow
-                label="Salable"
-                description={ITEM_EDITOR_TOGGLE_HELP.salable}
-                checked={isSalable}
-                disabled={disableInput("is_salable")}
-                onCheckedChange={(checked) => setValue("is_salable", checked, { shouldDirty: true })}
-              />
-              {isSalable ? (
-                <>
+
+            {isSalable ? (
+              <>
+                <div className={editorGridClass(isPanelLayout)}>
+                  <ToggleRow
+                    label="Returnable"
+                    description={ITEM_EDITOR_TOGGLE_HELP.returnable}
+                    checked={watch("is_returnable")}
+                    disabled={disableInput("is_returnable")}
+                    onCheckedChange={(checked) =>
+                      setValue("is_returnable", checked, { shouldDirty: true })
+                    }
+                  />
                   <Field
                     label={`Selling rate (${catalogContext.base_currency})`}
                     htmlFor="selling_price"
@@ -1898,53 +2214,92 @@ export function ProductEditorShell({
                       disabled={disableInput("selling_price")}
                       className="text-right font-mono"
                       inputMode="decimal"
-                      placeholder="0.00"
                       {...register("selling_price")}
                     />
                   </Field>
-
-                  <DefaultUnitField
-                    label="Default sales unit"
-                    stockUom={baseUom}
-                    value={sellingUom}
-                    options={commerceUomOptions}
-                    fieldDisabled={disableInput("selling_uom")}
-                    useDifferent={useDifferentSellingUnit}
-                    onUseDifferentChange={(checked) => {
-                      setUseDifferentSellingUnit(checked);
-                      if (!checked) {
-                        setValue("selling_uom", baseUom, { shouldDirty: true });
-                      }
-                    }}
-                    onUnitChange={(code) =>
-                      setValue("selling_uom", code, { shouldDirty: true })
-                    }
-                    info={ITEM_EDITOR_FIELD_HELP.salesUnit}
+                  <Field
+                    label={`${MRP_PRICE_COLUMN} (${catalogContext.base_currency})`}
+                    htmlFor="mrp"
+                    error={errors.mrp?.message}
+                    hint={ITEM_EDITOR_FIELD_HELP.mrp}
+                  >
+                    <Input
+                      id="mrp"
+                      disabled={disableInput("mrp")}
+                      className="text-right font-mono"
+                      inputMode="decimal"
+                      {...register("mrp")}
+                    />
+                  </Field>
+                </div>
+                <EditorSectionAdvanced
+                  open={showSalableAdvanced}
+                  onToggle={() => setShowSalableAdvanced((open) => !open)}
+                  panel={isPanelLayout}
+                >
+                  {showSellingUnitField ? (
+                    <CommerceUnitField
+                      label="Default sales unit"
+                      stockUom={baseUom}
+                      value={sellingUom}
+                      options={commerceUomOptions}
+                      fieldDisabled={disableInput("selling_uom")}
+                      onUnitChange={(code) => setValue("selling_uom", code, { shouldDirty: true })}
+                      info={ITEM_EDITOR_FIELD_HELP.salesUnit}
+                    />
+                  ) : (
+                    <p className={editorEmptyStateClass(isPanelLayout)}>
+                      Add alternate units under Basics → Show advanced to choose a default sales
+                      unit.
+                    </p>
+                  )}
+                </EditorSectionAdvanced>
+              </>
+            ) : null}
+            {itemId && isSalable ? (
+              <div className={editorPanelDividerClass()}>
+                {isSectionMounted("salable") ? (
+                  <PriceBookEntryEditor
+                    itemId={itemId}
+                    variants={variants}
+                    uomCodes={priceBookUomCodes}
+                    readOnly={readOnly || disableInput("selling_price")}
                   />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Price book entries load when you open Salable.
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </SectionBlock>
 
-                  <ToggleRow
-                    label="Returnable"
-                    description={ITEM_EDITOR_TOGGLE_HELP.returnable}
-                    checked={watch("is_returnable")}
-                    disabled={disableInput("is_returnable")}
-                    onCheckedChange={(checked) =>
-                      setValue("is_returnable", checked, { shouldDirty: true })
-                    }
-                  />
-                </>
-              ) : null}
+          <SectionBlock
+            id="purchasable"
+            title="Purchasable"
+            description="Purchase rate, purchase unit, and vendor quotes (advanced)."
+            headerToggle={{
+              label: "Purchasable",
+              description: ITEM_EDITOR_TOGGLE_HELP.purchasable,
+              checked: isPurchasable,
+              disabled: disableInput("is_purchasable"),
+              onCheckedChange: (checked) =>
+                setValue("is_purchasable", checked, { shouldDirty: true }),
+            }}
+            registerRef={registerSection("purchasable")}
+            hidden={!sectionVisible("purchasable")}
+            panel={isPanelLayout}
+          >
+            {pricingFieldsLocked ? (
+              <p className="mb-4 text-sm text-muted-foreground">
+                Pricing fields are read-only for your role. Contact your workspace owner to request
+                access.
+              </p>
+            ) : null}
 
-              <ToggleRow
-                label="Purchasable"
-                description={ITEM_EDITOR_TOGGLE_HELP.purchasable}
-                checked={isPurchasable}
-                disabled={disableInput("is_purchasable")}
-                onCheckedChange={(checked) =>
-                  setValue("is_purchasable", checked, { shouldDirty: true })
-                }
-              />
-              {isPurchasable ? (
-                <>
+            {isPurchasable ? (
+              <>
+                <div className={editorGridClass(isPanelLayout)}>
                   <Field
                     label={`Purchase rate (${catalogContext.base_currency})`}
                     htmlFor="purchase_price"
@@ -1956,278 +2311,261 @@ export function ProductEditorShell({
                       disabled={disableInput("purchase_price")}
                       className="text-right font-mono"
                       inputMode="decimal"
-                      placeholder="0.00"
                       {...register("purchase_price")}
                     />
                   </Field>
-
-                  <DefaultUnitField
-                    label="Default purchase unit"
-                    stockUom={baseUom}
-                    value={purchaseUom}
-                    options={purchaseCommerceUomOptions}
-                    fieldDisabled={disableInput("purchase_uom")}
-                    useDifferent={useDifferentPurchaseUnit}
-                    onUseDifferentChange={(checked) => {
-                      setUseDifferentPurchaseUnit(checked);
-                      if (!checked) {
-                        setValue("purchase_uom", baseUom, { shouldDirty: true });
-                        setValue("purchase_uom_conversion", "1", { shouldDirty: true });
-                      }
-                    }}
-                    onUnitChange={(code) => {
-                      setValue("purchase_uom", code, { shouldDirty: true });
-                      if (code === baseUom) {
-                        setValue("purchase_uom_conversion", "1", { shouldDirty: true });
-                        return;
-                      }
-                      const factor = conversionFactorForAlternate(alternateUoms ?? [], code);
-                      if (factor) {
-                        setValue("purchase_uom_conversion", factor, { shouldDirty: true });
-                      }
-                    }}
-                    conversionHint={
-                      purchaseConversionFromCatalog
-                        ? ITEM_EDITOR_FIELD_HELP.purchaseUnitFromAlternates(
-                            purchaseConversionFromCatalog,
-                            baseUom,
-                            purchaseUom
-                          )
-                        : ITEM_EDITOR_FIELD_HELP.purchaseUnitDefault
-                    }
-                    info={
-                      purchaseConversionFromCatalog &&
-                      useDifferentPurchaseUnit &&
-                      purchaseUom !== baseUom ? (
-                        <p>
-                          {ITEM_EDITOR_FIELD_HELP.purchaseConversionDefined} (
-                          {purchaseConversionFromCatalog} {baseUom} per {purchaseUom}).
-                        </p>
-                      ) : undefined
-                    }
-                  />
-
-                  <Field
-                    label="Preferred supplier"
-                    full
-                    hint={ITEM_EDITOR_FIELD_HELP.preferredSupplier}
-                    error={errors.supplier_id?.message}
-                  >
-                    <Select
-                      value={watch("supplier_id") ?? "none"}
-                      disabled={disableInput("supplier_id")}
-                      onValueChange={(value) =>
-                        setValue("supplier_id", value === "none" ? null : value, {
-                          shouldDirty: true,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select supplier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No preferred supplier</SelectItem>
-                        {catalogContext.suppliers.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-
-                  {showPurchaseConversionField ? (
-                    <Field
-                      label="Purchase conversion factor"
-                      htmlFor="purchase_uom_conversion"
-                      error={errors.purchase_uom_conversion?.message}
-                      hint={ITEM_EDITOR_FIELD_HELP.purchaseConversionFactor(baseUom, purchaseUom)}
-                    >
-                      <Input
-                        id="purchase_uom_conversion"
-                        disabled={disableInput("purchase_uom_conversion")}
-                        className="text-right font-mono"
-                        inputMode="decimal"
-                        placeholder="1"
-                        {...register("purchase_uom_conversion")}
-                      />
-                    </Field>
-                  ) : null}
-                </>
-              ) : null}
-
-            </div>
-
-            {itemId && isSalable ? (
-              <div className={editorSubsectionClass(isPanelLayout)}>
-                {!isPanelLayout ? (
-                  <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>Price book entries</h4>
-                ) : null}
-                <PriceBookEntryEditor
-                  itemId={itemId}
-                  variants={variants}
-                  uomCodes={priceBookUomCodes}
-                  readOnly={readOnly || disableInput("selling_price")}
-                />
-              </div>
-            ) : null}
-
-            <div className={editorSubsectionClass(isPanelLayout)}>
-              {!isPanelLayout ? (
-                <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>Stock &amp; costing</h4>
-              ) : null}
-            </div>
-            <div className={editorGridClass(isPanelLayout)}>
-              {isPhysical ? (
-                <ToggleRow
-                  label="Track inventory"
-                  description={
-                    isLocked("track_inventory")
-                      ? ITEM_EDITOR_TOGGLE_HELP.trackInventoryLocked
-                      : ITEM_EDITOR_TOGGLE_HELP.trackInventory
-                  }
-                  info={
-                    !trackInventory ? ITEM_EDITOR_TOGGLE_HELP.trackInventoryOff : undefined
-                  }
-                  checked={trackInventory}
-                  disabled={disableInput("track_inventory", "track_inventory")}
-                  onCheckedChange={(checked) => setValue("track_inventory", checked, { shouldDirty: true })}
-                />
-              ) : (
-                <p className={editorEmptyStateClass(isPanelLayout, "sm:col-span-2")}>
-                  {itemTypeLabel(itemType)} items do not hold stock.
-                </p>
-              )}
-
-              {isPhysical && trackInventory && (
-                <Field label="Costing method" hint={ITEM_EDITOR_FIELD_HELP.costingMethod}>
-                  <Select
-                    value={costingMethod}
-                    disabled={disableInput("costing_method")}
-                    onValueChange={(value) =>
-                      setValue("costing_method", value as ProductMasterFormValues["costing_method"], {
-                        shouldDirty: true,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ITEM_COSTING_METHODS.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {itemCostingMethodLabel(value)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-
-              {isPhysical && trackInventory && costingMethod === "STANDARD" && (
-                <Field
-                  label={`Standard cost (${catalogContext.base_currency})`}
-                  htmlFor="standard_cost"
-                  error={errors.standard_cost?.message}
-                  hint={ITEM_EDITOR_FIELD_HELP.standardCost}
-                >
-                  <Input
-                    id="standard_cost"
-                    disabled={disableInput("standard_cost")}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    {...register("standard_cost")}
-                  />
-                </Field>
-              )}
-
-              {isPhysical && trackInventory && (
-                <Field
-                  label="Batch / serial tracking"
-                  locked={isLocked("tracking_mode")}
-                  hint={ITEM_EDITOR_FIELD_HELP.trackingMode}
-                >
-                  <Select
-                    value={trackingMode}
-                    disabled={disableInput("tracking_mode", "tracking_mode")}
-                    onValueChange={(value) =>
-                      setValue("tracking_mode", value as ProductMasterFormValues["tracking_mode"], {
-                        shouldDirty: true,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ITEM_TRACKING_MODES.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {itemTrackingModeLabel(value)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-
-              {!isMultiSku && isPhysical && (
-                <Field
-                  label="GTIN"
-                  htmlFor="barcode"
-                  error={errors.barcode?.message}
-                  hint={gtinFieldHint(catalogContext.catalog_items.scan_identifier_policy)}
-                >
-                  <Input
-                    id="barcode"
-                    placeholder="e.g. 8901234567890"
-                    disabled={disableInput("barcode")}
-                    className="font-mono"
-                    {...register("barcode")}
-                  />
-                </Field>
-              )}
-            </div>
-
-            {trackInventory && valuations.length > 0 && (
-              <div className={editorSubsectionClass(isPanelLayout)}>
-                <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>
-                  Live inventory valuation (read-only)
-                </h4>
-                <div className={editorInsetTableWrapClass(isPanelLayout)}>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40 text-left">
-                        <th className="p-3 font-medium text-muted-foreground">Location</th>
-                        <th className="p-3 font-medium text-muted-foreground">On hand</th>
-                        <th className="p-3 font-medium text-muted-foreground">MWAC</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {valuations.map((row) => (
-                        <tr key={row.location_id} className="border-b border-border last:border-0">
-                          <td className="p-3">{row.location_name}</td>
-                          <td className="p-3 font-mono">{row.total_quantity_on_hand}</td>
-                          <td className="p-3 font-mono">
-                            {formatMoney(row.current_average_cost, catalogContext.base_currency)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
-              </div>
-            )}
+                <EditorSectionAdvanced
+                  open={showPurchasableAdvanced}
+                  onToggle={() => setShowPurchasableAdvanced((open) => !open)}
+                  panel={isPanelLayout}
+                >
+                  <div className={editorGridClass(isPanelLayout)}>
+                    {showPurchaseUnitField ? (
+                      <CommerceUnitField
+                        label="Default purchase unit"
+                        stockUom={baseUom}
+                        value={purchaseUom}
+                        options={purchaseCommerceUomOptions}
+                        fieldDisabled={disableInput("purchase_uom")}
+                        onUnitChange={(code) => {
+                          setValue("purchase_uom", code, { shouldDirty: true });
+                          if (code === baseUom) {
+                            setValue("purchase_uom_conversion", "1", { shouldDirty: true });
+                            return;
+                          }
+                          const factor = conversionFactorForAlternate(alternateUoms ?? [], code);
+                          if (factor) {
+                            setValue("purchase_uom_conversion", factor, { shouldDirty: true });
+                          }
+                        }}
+                        conversionHint={
+                          purchaseConversionFromCatalog
+                            ? ITEM_EDITOR_FIELD_HELP.purchaseUnitFromAlternates(
+                                purchaseConversionFromCatalog,
+                                baseUom,
+                                purchaseUom
+                              )
+                            : ITEM_EDITOR_FIELD_HELP.purchaseUnitDefault
+                        }
+                        info={
+                          purchaseConversionFromCatalog && purchaseUom !== baseUom ? (
+                            <p>
+                              {ITEM_EDITOR_FIELD_HELP.purchaseConversionDefined} (
+                              {purchaseConversionFromCatalog} {baseUom} per {purchaseUom}).
+                            </p>
+                          ) : undefined
+                        }
+                      />
+                    ) : (
+                      <p className={cn(editorEmptyStateClass(isPanelLayout), editorFieldSpanFullClass(isPanelLayout))}>
+                        Add alternate units under Basics → Show advanced to choose a default
+                        purchase unit.
+                      </p>
+                    )}
+                    {showPurchaseConversionField ? (
+                      <Field
+                        label="Purchase conversion factor"
+                        htmlFor="purchase_uom_conversion"
+                        error={errors.purchase_uom_conversion?.message}
+                        hint={ITEM_EDITOR_FIELD_HELP.purchaseConversionFactor(baseUom, purchaseUom)}
+                      >
+                        <Input
+                          id="purchase_uom_conversion"
+                          disabled={disableInput("purchase_uom_conversion")}
+                          className="text-right font-mono"
+                          inputMode="decimal"
+                          {...register("purchase_uom_conversion")}
+                        />
+                      </Field>
+                    ) : null}
+                  </div>
+                  {itemId ? (
+                    isSectionMounted("purchasable") ? (
+                      <SupplierCatalogEditor
+                        embedded
+                        itemId={itemId}
+                        variants={variants}
+                        suppliers={catalogContext.suppliers}
+                        readOnly={readOnly || disableInput("purchase_price")}
+                      />
+                    ) : (
+                      <p className="text-xs leading-snug text-muted-foreground">
+                        Vendor quotes load when you open Purchasable.
+                      </p>
+                    )
+                  ) : (
+                    <div className={editorDeferredActionClass(isPanelLayout)}>
+                      <p className="text-xs leading-snug text-muted-foreground">
+                        Save the item to add vendor quotes with purchase rate and supplier code.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-7 gap-1 px-0 font-medium text-primary hover:bg-transparent hover:text-primary",
+                          isPanelLayout ? "text-xs" : "text-sm"
+                        )}
+                        disabled
+                        aria-disabled
+                      >
+                        <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        Add vendor
+                      </Button>
+                    </div>
+                  )}
+                </EditorSectionAdvanced>
+              </>
+            ) : null}
           </SectionBlock>
 
-          {itemId ? (
+          {isPhysical ? (
+            <SectionBlock
+              id="inventory"
+              title="Track inventory"
+              description="Stock tracking, costing, and live valuation."
+              headerToggle={{
+                label: "Track inventory",
+                description: isLocked("track_inventory")
+                  ? ITEM_EDITOR_TOGGLE_HELP.trackInventoryLocked
+                  : ITEM_EDITOR_TOGGLE_HELP.trackInventory,
+                info: !trackInventory ? ITEM_EDITOR_TOGGLE_HELP.trackInventoryOff : undefined,
+                checked: trackInventory,
+                disabled: disableInput("track_inventory", "track_inventory"),
+                onCheckedChange: (checked) =>
+                  setValue("track_inventory", checked, { shouldDirty: true }),
+              }}
+              registerRef={registerSection("inventory")}
+              hidden={!sectionVisible("inventory")}
+              panel={isPanelLayout}
+            >
+              {trackInventory ? (
+                  <div className={editorGridClass(isPanelLayout)}>
+                    <Field
+                      label="Reorder point"
+                      htmlFor="reorder_point"
+                      error={errors.reorder_point?.message}
+                      hint={ITEM_EDITOR_FIELD_HELP.reorderPoint}
+                    >
+                      <Input
+                        id="reorder_point"
+                        disabled={disableInput("reorder_point")}
+                        className="text-right font-mono"
+                        inputMode="decimal"
+                        {...register("reorder_point")}
+                      />
+                    </Field>
+                    <Field label="Costing method" hint={ITEM_EDITOR_FIELD_HELP.costingMethod}>
+                      <Select
+                        value={costingMethod}
+                        disabled={disableInput("costing_method")}
+                        onValueChange={(value) =>
+                          setValue("costing_method", value as ProductMasterFormValues["costing_method"], {
+                            shouldDirty: true,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ITEM_COSTING_METHODS.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {itemCostingMethodLabel(value)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    {costingMethod === "STANDARD" ? (
+                      <Field
+                        label={`Standard cost (${catalogContext.base_currency})`}
+                        htmlFor="standard_cost"
+                        error={errors.standard_cost?.message}
+                        hint={ITEM_EDITOR_FIELD_HELP.standardCost}
+                      >
+                        <Input
+                          id="standard_cost"
+                          disabled={disableInput("standard_cost")}
+                          className="text-right font-mono"
+                          inputMode="decimal"
+                          {...register("standard_cost")}
+                        />
+                      </Field>
+                    ) : null}
+                    <Field
+                      label="Batch / serial tracking"
+                      locked={isLocked("tracking_mode")}
+                      hint={ITEM_EDITOR_FIELD_HELP.trackingMode}
+                    >
+                      <Select
+                        value={trackingMode}
+                        disabled={disableInput("tracking_mode", "tracking_mode")}
+                        onValueChange={(value) =>
+                          setValue("tracking_mode", value as ProductMasterFormValues["tracking_mode"], {
+                            shouldDirty: true,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ITEM_TRACKING_MODES.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {itemTrackingModeLabel(value)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                ) : null}
+
+                {trackInventory && valuations.length > 0 ? (
+                  <div className={editorPanelDividerClass()}>
+                    <SubsectionHeading
+                      title="Live inventory valuation (read-only)"
+                      compact={isPanelLayout}
+                    />
+                    <div className={editorInsetTableWrapClass(isPanelLayout)}>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/40 text-left">
+                            <th className="p-3 font-medium text-muted-foreground">Location</th>
+                            <th className="p-3 font-medium text-muted-foreground">On hand</th>
+                            <th className="p-3 font-medium text-muted-foreground">MWAC</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {valuations.map((row) => (
+                            <tr key={row.location_id} className="border-b border-border last:border-0">
+                              <td className="p-3">{row.location_name}</td>
+                              <td className="p-3 font-mono">{row.total_quantity_on_hand}</td>
+                              <td className="p-3 font-mono">
+                                {formatMoney(row.current_average_cost, catalogContext.base_currency)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+            </SectionBlock>
+          ) : null}
+
+          {itemId && showVariantsSection ? (
             <SectionBlock
               id="variants"
-              title="Versions"
+              title={VARIANTS_SECTION_LABEL}
               description={
-                isMultiSku
-                  ? "Choose what varies, then generate and manage the sellable versions (SKUs)."
-                  : "Category attributes for this item, and any additional versions."
+                isPanelLayout
+                  ? undefined
+                  : isMultiSku
+                    ? "Choose what varies, then add or generate sellable variants (SKUs)."
+                    : "Category attributes and any additional variants for this product."
               }
               registerRef={registerSection("variants")}
               hidden={!sectionVisible("variants")}
@@ -2237,7 +2575,7 @@ export function ProductEditorShell({
                 {!isMultiSku && isPhysical && categoryTemplates.length > 0 && (
                   <div className="space-y-3">
                     <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>
-                      Version attributes
+                      Variant attributes
                     </h4>
                     <VariantAttributeFields
                       templates={categoryTemplates}
@@ -2265,27 +2603,65 @@ export function ProductEditorShell({
                     }
                   />
                 )}
+                <div
+                  className={cn(
+                    isMultiSku &&
+                      isPhysical &&
+                      categoryTemplates.length > 0 &&
+                      isPanelLayout &&
+                      editorPanelDividerClass()
+                  )}
+                >
                 <ProductVariantPanel
                   itemId={itemId}
                   variants={variants}
                   categoryTemplates={categoryTemplates}
                   variantAxisKeys={isMultiSku ? variantAxisKeys : undefined}
+                  onVariantAxisKeysChange={
+                    isMultiSku
+                      ? (keys) => setValue("variant_axes", keys, { shouldDirty: true })
+                      : undefined
+                  }
                   skuMask={skuMask}
                   baseSku={sku}
+                  defaultSellingPrice={sellingPrice}
+                  defaultPurchasePrice={purchasePrice}
+                  defaultStandardCost={standardCost}
+                  defaultMrp={matrixMrpDefault}
+                  defaultHsn={hsnSacCode}
+                  defaultSupplierId={supplierId}
+                  variantDefaults={{
+                    price: sellingPrice,
+                    dead_weight_kg: deadWeightKg,
+                    volume:
+                      computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm) ||
+                      shippingVolume,
+                    length_cm: lengthCm,
+                    width_cm: widthCm,
+                    height_cm: heightCm,
+                  }}
                   variantStrategy={variantStrategy}
+                  defaultShowDimensionColumns={isPhysical && isMultiSku}
                   readOnly={readOnly}
-                  onChanged={() => onExtensionsChanged?.()}
+                  onVariantPatch={onVariantPatch}
+                  onVariantsReload={onVariantsReload}
                 />
-                {variants.length > 0 && (
-                  <VariantAssortmentMatrix itemId={itemId} variants={variants} readOnly={readOnly} />
-                )}
-                {variants.length > 0 && (
-                  <VariantChannelAvailabilityMatrix
+                </div>
+                {variants.length > 0 ? (
+                  <div className={cn(isPanelLayout && editorPanelDividerClass())}>
+                  <VariantDistributionSection
                     itemId={itemId}
                     variants={variants}
+                    catalogContext={catalogContext}
+                    storefrontVisibility={storefrontVisibility}
                     readOnly={readOnly}
+                    compact={isPanelLayout}
+                    onStorefrontVisibilityChange={(value) =>
+                      setValue("storefront_visibility", value, { shouldDirty: true })
+                    }
                   />
-                )}
+                  </div>
+                ) : null}
               </div>
             </SectionBlock>
           ) : null}
@@ -2299,14 +2675,20 @@ export function ProductEditorShell({
               hidden={!sectionVisible("media")}
               panel={isPanelLayout}
             >
-              <ProductMediaGallery
-                tenantId={tenantId}
-                itemId={itemId}
-                variants={variants}
-                media={media}
-                readOnly={readOnly}
-                onChanged={() => onExtensionsChanged?.()}
-              />
+              {isSectionMounted("media") ? (
+                <ProductMediaGallery
+                  tenantId={tenantId}
+                  itemId={itemId}
+                  variants={variants}
+                  media={media}
+                  readOnly={readOnly}
+                  onChanged={() => onExtensionsChanged?.()}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Media gallery loads when you open this section.
+                </p>
+              )}
             </SectionBlock>
           ) : null}
 
@@ -2360,99 +2742,6 @@ export function ProductEditorShell({
             />
           </SectionBlock>
 
-          <SectionBlock
-            id="shipping"
-            title="Shipping & dimensions"
-            description="Weight and carton size used for fulfilment and shipping-rate calculation."
-            registerRef={registerSection("shipping")}
-            hidden={!sectionVisible("shipping")}
-            panel={isPanelLayout}
-          >
-            {!isPhysical ? (
-              <p className={editorEmptyStateClass(isPanelLayout)}>
-                {itemTypeLabel(itemType)} items are not shipped.
-              </p>
-            ) : isMultiSku ? (
-              <p className={editorEmptyStateClass(isPanelLayout)}>
-                Configure weight and carton size on each version in the Versions section.
-              </p>
-            ) : (
-              <div className={editorGridClass(isPanelLayout)}>
-                <Field
-                  label="Weight (kg)"
-                  htmlFor="dead_weight_kg"
-                  error={errors.dead_weight_kg?.message}
-                  full
-                  hint={ITEM_EDITOR_FIELD_HELP.weightShipping}
-                >
-                  <Input
-                    id="dead_weight_kg"
-                    disabled={disableInput("dead_weight_kg")}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("dead_weight_kg")}
-                  />
-                </Field>
-                <Field
-                  label="Volume"
-                  htmlFor="volume"
-                  error={errors.volume?.message}
-                  hint={ITEM_EDITOR_FIELD_HELP.volume}
-                >
-                  <Input
-                    id="volume"
-                    disabled={disableInput("volume")}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    placeholder="Optional"
-                    {...register("volume")}
-                  />
-                </Field>
-                <Field
-                  label="Length (cm)"
-                  htmlFor="length_cm"
-                  error={errors.length_cm?.message}
-                  hint={ITEM_EDITOR_FIELD_HELP.lengthCm}
-                >
-                  <Input
-                    id="length_cm"
-                    disabled={disableInput("length_cm")}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("length_cm")}
-                  />
-                </Field>
-                <Field
-                  label="Width (cm)"
-                  htmlFor="width_cm"
-                  error={errors.width_cm?.message}
-                  hint={ITEM_EDITOR_FIELD_HELP.widthCm}
-                >
-                  <Input
-                    id="width_cm"
-                    disabled={disableInput("width_cm")}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("width_cm")}
-                  />
-                </Field>
-                <Field
-                  label="Height (cm)"
-                  htmlFor="height_cm"
-                  error={errors.height_cm?.message}
-                  hint={ITEM_EDITOR_FIELD_HELP.heightCm}
-                >
-                  <Input
-                    id="height_cm"
-                    disabled={disableInput("height_cm")}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("height_cm")}
-                  />
-                </Field>
-              </div>
-            )}
-          </SectionBlock>
         </div>
       </div>
 
@@ -2460,7 +2749,7 @@ export function ProductEditorShell({
       {!readOnly && !(isPanelLayout && !wizard) && (
         <div
           className={cn(
-            "sticky bottom-0 z-10 flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+            "sticky bottom-0 z-10 shrink-0 flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
             wizard ? "justify-between" : "justify-end",
             isPanelLayout
               ? "-mx-4 border-t border-border/60 px-4 py-2"

@@ -7,7 +7,9 @@ import { ProductListToolbarFilters } from "@/components/products/product-list-to
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
 import { Button } from "@/components/ui/button";
+import { FieldLabelInfo } from "@/components/ui/field-label-info";
 import { Label } from "@/components/ui/label";
+import { VARIANTS_LIST_TOGGLE_HELP, VARIANTS_LIST_TOGGLE_LABEL } from "@/lib/products/product-user-labels";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -228,7 +230,7 @@ export function ProductListToolbar({
           ) : null}
 
           {supportsProductListVariantExpansion(viewMode) ? (
-            <div className="flex shrink-0 items-center">
+            <div className="flex shrink-0 items-center gap-0.5">
               <Switch
                 id="show-variants-toggle"
                 checked={prefs.showVariants}
@@ -240,14 +242,19 @@ export function ProductListToolbar({
                     showVariants: checked === true,
                   }))
                 }
-                aria-label="Show variants"
+                aria-label={VARIANTS_LIST_TOGGLE_LABEL}
               />
               <Label
                 htmlFor="show-variants-toggle"
                 className="ml-1.5 hidden cursor-pointer text-sm font-normal text-muted-foreground md:inline"
               >
-                Variants
+                {VARIANTS_LIST_TOGGLE_LABEL}
               </Label>
+              <span className="hidden md:inline-flex">
+                <FieldLabelInfo label={VARIANTS_LIST_TOGGLE_LABEL}>
+                  {VARIANTS_LIST_TOGGLE_HELP}
+                </FieldLabelInfo>
+              </span>
             </div>
           ) : null}
 

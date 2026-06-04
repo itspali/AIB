@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpDown, LayoutGrid, Pencil, Plus, RotateCw, Search, Trash2 } from "lucide-react";
+import { ArrowUpDown, Pencil, Plus, RotateCw, Ruler, Search, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { deleteItemVariant, saveItemVariant } from "@/app/items/actions";
@@ -25,6 +24,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
 import { VARIANT_FIELD_HELP } from "@/lib/products/item-editor-field-help";
+import {
+  BUY_PRICE_COLUMN,
+  MRP_COLUMN,
+  SELL_PRICE_COLUMN,
+  VARIANT_DEFAULT_BADGE,
+  VARIANT_DIMENSIONS_TOGGLE_LABEL,
+  VARIANT_NOT_SOLD_BADGE,
+  VARIANT_SKU_LABEL,
+  VARIANTS_PANEL_NOT_SOLD_HELP,
+} from "@/lib/products/product-user-labels";
 import { Label } from "@/components/ui/label";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
@@ -39,13 +48,25 @@ import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import { composeSkuFromMask } from "@/lib/products/sku-mask";
 import { itemVariantSchema } from "@/lib/products/variant-schemas";
+import {
+  editorDimensionsLwhGridClass,
+  editorFieldSpanFullClass,
+  editorGridClass,
+  editorPanelDividerClass,
+} from "@/lib/products/editor-chrome";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import {
   defaultVariantFormValues,
   variantSnapshotToFormValues,
   type ItemVariantFormValues,
   type ProductVariantSnapshot,
+  type VariantFormDefaults,
 } from "@/lib/products/types";
+import {
+  computeVolumeCm3FromDimensions,
+  formatCalculatedVolumeInfo,
+} from "@/lib/products/shipping-dimensions";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -55,11 +76,25 @@ type Props = {
   categoryTemplates: AttributeTemplateEntry[];
   /** Category attribute keys the author chose to vary on (drives the matrix). */
   variantAxisKeys?: string[];
+  onVariantAxisKeysChange?: (keys: string[]) => void;
   skuMask?: string;
   baseSku?: string;
+  defaultSellingPrice?: string;
+  defaultPurchasePrice?: string;
+  defaultStandardCost?: string;
+  defaultMrp?: string;
+  defaultHsn?: string;
+  defaultSupplierId?: string | null;
+  /** Prefill new variants (and empty table cells) from the master product row. */
+  variantDefaults?: VariantFormDefaults;
   variantStrategy?: ProductVariantStrategy;
+  /** When true, dimension columns start visible (multi-SKU inherit master dimensions). */
+  defaultShowDimensionColumns?: boolean;
   readOnly?: boolean;
-  onChanged: () => void;
+  /** Merge a saved field onto one variant without reloading the item form. */
+  onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
+  /** Refresh the variant list in place (no full item reload / skeleton). */
+  onVariantsReload?: () => void | Promise<void>;
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -87,9 +122,39 @@ function formatPrice(price: string): string {
   return price;
 }
 
+function hasPriceValue(value: string | null | undefined): boolean {
+  const trimmed = value?.trim();
+  return Boolean(trimmed && trimmed !== "0");
+}
+
+function displayPriceCell(
+  value: string | null | undefined,
+  fallback: string
+): { text: string; inherited: boolean } {
+  if (hasPriceValue(value)) {
+    return { text: formatPrice(value!), inherited: false };
+  }
+  if (hasPriceValue(fallback)) {
+    return { text: formatPrice(fallback), inherited: true };
+  }
+  return { text: "—", inherited: false };
+}
+
+function displayDimensionCell(
+  value: string | null | undefined,
+  fallback: string
+): { text: string; inherited: boolean } {
+  const trimmed = value?.trim();
+  const hasOwn = Boolean(trimmed && trimmed !== "0");
+  if (hasOwn) return { text: trimmed!, inherited: false };
+  const fb = fallback?.trim();
+  if (fb && fb !== "0") return { text: fb, inherited: true };
+  return { text: "—", inherited: false };
+}
+
 function masterVariantBadgeLabel(variant: ProductVariantSnapshot): string {
-  if (variant.is_master && variant.is_sellable === false) return "Style anchor";
-  return "Master";
+  if (variant.is_master && variant.is_sellable === false) return VARIANT_NOT_SOLD_BADGE;
+  return VARIANT_DEFAULT_BADGE;
 }
 
 export function ProductVariantPanel({
@@ -97,15 +162,24 @@ export function ProductVariantPanel({
   variants,
   categoryTemplates,
   variantAxisKeys,
+  onVariantAxisKeysChange,
   skuMask = "",
   baseSku = "",
+  defaultSellingPrice = "",
+  defaultPurchasePrice = "",
+  defaultStandardCost = "",
+  defaultMrp = "",
+  defaultHsn = "",
+  defaultSupplierId = null,
+  variantDefaults,
   variantStrategy = "SINGLE_SKU",
+  defaultShowDimensionColumns = false,
   readOnly = false,
-  onChanged,
+  onVariantPatch,
+  onVariantsReload,
 }: Props) {
-  const router = useRouter();
+  const [showDimensions, setShowDimensions] = useState(defaultShowDimensionColumns);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [matrixOpen, setMatrixOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState<ProductVariantSnapshot | null>(null);
   const [variantPendingDelete, setVariantPendingDelete] = useState<ProductVariantSnapshot | null>(
     null
@@ -132,8 +206,8 @@ export function ProductVariantPanel({
     if (variant.is_master) {
       toast.error(
         variant.is_sellable === false
-          ? "The style anchor is edited from the product profile form."
-          : "The master variant is edited from the product profile form."
+          ? VARIANTS_PANEL_NOT_SOLD_HELP
+          : "Edit the default variant from the product sections above."
       );
       return;
     }
@@ -152,8 +226,7 @@ export function ProductVariantPanel({
         return;
       }
       toast.success("Variant removed.");
-      onChanged();
-      router.refresh();
+      void onVariantsReload?.();
     });
   };
 
@@ -163,17 +236,17 @@ export function ProductVariantPanel({
         ...variantSnapshotToFormValues(variant, itemId),
         is_active: isActive,
       };
+      onVariantPatch?.(variant.id, { is_active: isActive });
       startTransition(async () => {
         const result = await saveItemVariant(payload);
         if ("error" in result) {
+          onVariantPatch?.(variant.id, { is_active: variant.is_active });
           toast.error(result.error ?? "Unable to update variant.");
           return;
         }
-        onChanged();
-        router.refresh();
       });
     },
-    [itemId, onChanged, router]
+    [itemId, onVariantPatch]
   );
 
   const additionalVariants = useMemo(
@@ -181,9 +254,37 @@ export function ProductVariantPanel({
     [variants]
   );
 
+  /** Sellable rows only — default/master SKU is edited in Essentials & Commerce above. */
+  const sellableVariants = additionalVariants;
+
+  const showVariantList = sellableVariants.length > 0;
+  const canUseMatrix = Boolean(itemId && categoryTemplates.length > 0);
+
+  useEffect(() => {
+    if (defaultShowDimensionColumns) {
+      setShowDimensions(true);
+    }
+  }, [defaultShowDimensionColumns]);
+
+  const resolvedVariantDefaults = useMemo((): VariantFormDefaults => {
+    const base = variantDefaults ?? {};
+    const length = base.length_cm;
+    const width = base.width_cm;
+    const height = base.height_cm;
+    const volumeFromDims = computeVolumeCm3FromDimensions(length, width, height);
+    return {
+      price: base.price?.trim() || defaultSellingPrice.trim() || undefined,
+      dead_weight_kg: base.dead_weight_kg,
+      volume: volumeFromDims || base.volume,
+      length_cm: length,
+      width_cm: width,
+      height_cm: height,
+    };
+  }, [defaultSellingPrice, variantDefaults]);
+
   const filteredVariants = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const rows = variants.filter((variant) => {
+    const rows = sellableVariants.filter((variant) => {
       if (statusFilter === "active" && !variant.is_active) return false;
       if (statusFilter === "inactive" && variant.is_active) return false;
       if (!term) return true;
@@ -198,8 +299,6 @@ export function ProductVariantPanel({
     });
 
     return [...rows].sort((a, b) => {
-      // Master always pins to the top regardless of sort.
-      if (a.is_master !== b.is_master) return a.is_master ? -1 : 1;
       let cmp = 0;
       if (sortKey === "sku") {
         cmp = a.sku.localeCompare(b.sku);
@@ -208,7 +307,7 @@ export function ProductVariantPanel({
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [variants, search, statusFilter, sortKey, sortDir]);
+  }, [sellableVariants, search, statusFilter, sortKey, sortDir]);
 
   const pageCount = Math.max(1, Math.ceil(filteredVariants.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -273,71 +372,115 @@ export function ProductVariantPanel({
         toast.success(`${targets.length} variant(s) ${isActive ? "activated" : "discontinued"}.`);
       }
       setSelectedIds(new Set());
-      onChanged();
-      router.refresh();
+      void onVariantsReload?.();
     });
   };
 
   return (
-    <section className="surface-panel space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Variant Management
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {variantStrategy === "MULTI_SKU"
-              ? "Generate and manage sellable SKU variants. The style anchor is edited in the product profile form."
-              : "Manage SKU variants beyond the master profile. The master variant is edited in the product form above."}
-          </p>
-          {skuMask.trim() && (
-            <p className="mt-1 font-mono text-xs text-muted-foreground">SKU mask: {skuMask}</p>
-          )}
+    <div className="space-y-0">
+      {!readOnly && itemId && !canUseMatrix ? (
+        <div className="flex justify-end pb-1">
+          <Button type="button" size="sm" variant="outline" onClick={openCreate} disabled={isPending}>
+            <Plus className="h-4 w-4" />
+            Add variant
+          </Button>
         </div>
-        {!readOnly && (
-          <div className="flex items-center gap-2">
+      ) : null}
+
+      {!readOnly && canUseMatrix ? (
+        <div className={editorPanelDividerClass()}>
+        <VariantMatrixGenerator
+          itemId={itemId}
+          categoryTemplates={categoryTemplates}
+          axisKeys={variantAxisKeys ?? []}
+          onAxisKeysChange={onVariantAxisKeysChange}
+          showAxisPicker={!onVariantAxisKeysChange}
+          defaultExpanded={additionalVariants.length === 0}
+          variants={variants}
+          skuMask={skuMask}
+          baseSku={baseSku}
+          defaultSellingPrice={defaultSellingPrice}
+          defaultPurchasePrice={defaultPurchasePrice}
+          defaultStandardCost={defaultStandardCost}
+          defaultMrp={defaultMrp}
+          defaultHsn={defaultHsn}
+          defaultSupplierId={defaultSupplierId}
+          onGenerated={() => {
+            void onVariantsReload?.();
+          }}
+        />
+        </div>
+      ) : !readOnly && !itemId ? (
+        <p className={cn("text-xs text-muted-foreground", editorPanelDividerClass())}>
+          Save the product to generate variants.
+        </p>
+      ) : null}
+
+      {showVariantList ? (
+        <>
+      <div
+        className={cn(
+          editorPanelDividerClass(),
+          "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+        )}
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search SKU, GTIN, attributes…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+          >
+            <SelectTrigger className="sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active only</SelectItem>
+              <SelectItem value="inactive">Inactive only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {showVariantList ? (
+            <div className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1">
+              <Ruler className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <Label htmlFor="variant-show-dimensions" className="text-xs font-medium">
+                {VARIANT_DIMENSIONS_TOGGLE_LABEL}
+              </Label>
+              <Switch
+                id="variant-show-dimensions"
+                checked={showDimensions}
+                onCheckedChange={setShowDimensions}
+                aria-label="Show dimension columns"
+              />
+            </div>
+          ) : null}
+          {!readOnly ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => setMatrixOpen(true)}
+              className="shrink-0"
               disabled={isPending}
+              onClick={openCreate}
             >
-              <LayoutGrid className="h-4 w-4" />
-              Generate Matrix
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={openCreate} disabled={isPending}>
               <Plus className="h-4 w-4" />
-              Add Variant
+              Add one
             </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Search SKU, GTIN, attributes…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          ) : null}
         </div>
-        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-          <SelectTrigger className="sm:w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="active">Active only</SelectItem>
-            <SelectItem value="inactive">Inactive only</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {!readOnly && selectedIds.size > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-2 editor-bulk-bar">
+        <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 editor-bulk-bar">
           <span className="text-sm">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" disabled={isPending} onClick={() => runBulkActive(true)}>
@@ -355,10 +498,16 @@ export function ProductVariantPanel({
         </div>
       )}
 
-      <div className="surface-inset overflow-x-auto">
-        <table className="w-full text-sm">
+      <div
+        className={cn(
+          editorPanelDividerClass(),
+          "overflow-x-auto",
+          showDimensions && "max-w-full [scrollbar-gutter:stable]"
+        )}
+      >
+        <table className={cn("w-full text-sm", showDimensions && "min-w-[960px]")}>
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-left">
+            <tr className="border-b border-border/50 text-left">
               {!readOnly && (
                 <th className="p-3">
                   <Checkbox
@@ -386,16 +535,50 @@ export function ProductVariantPanel({
                   className="inline-flex items-center gap-1"
                   onClick={() => toggleSort("price")}
                 >
-                  Price <ArrowUpDown className="h-3 w-3" />
+                  {SELL_PRICE_COLUMN} <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
+              <th className="p-3 font-medium text-muted-foreground">{MRP_COLUMN}</th>
+              <th className="p-3 font-medium text-muted-foreground">{BUY_PRICE_COLUMN}</th>
+              {showDimensions ? (
+                <>
+                  <th className="p-3 font-medium text-muted-foreground">L (cm)</th>
+                  <th className="p-3 font-medium text-muted-foreground">W (cm)</th>
+                  <th className="p-3 font-medium text-muted-foreground">H (cm)</th>
+                  <th className="p-3 font-medium text-muted-foreground">Weight (kg)</th>
+                </>
+              ) : null}
               <th className="p-3 font-medium text-muted-foreground">Status</th>
               {!readOnly && <th className="p-3 font-medium text-muted-foreground">Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {pagedVariants.map((variant) => (
-              <tr key={variant.id} className="border-b border-border last:border-0">
+            {pagedVariants.map((variant) => {
+              const sellCell = displayPriceCell(variant.price, defaultSellingPrice);
+              const mrpCell = displayPriceCell(null, defaultMrp);
+              const buyCell = displayPriceCell(
+                variant.purchase_price,
+                defaultPurchasePrice || defaultStandardCost
+              );
+              const weightCell = displayDimensionCell(
+                variant.dead_weight_kg,
+                resolvedVariantDefaults.dead_weight_kg ?? "0"
+              );
+              const lengthCell = displayDimensionCell(
+                variant.length_cm,
+                resolvedVariantDefaults.length_cm ?? "0"
+              );
+              const widthCell = displayDimensionCell(
+                variant.width_cm,
+                resolvedVariantDefaults.width_cm ?? "0"
+              );
+              const heightCell = displayDimensionCell(
+                variant.height_cm,
+                resolvedVariantDefaults.height_cm ?? "0"
+              );
+
+              return (
+              <tr key={variant.id} className="border-b border-border/40 last:border-0">
                 {!readOnly && (
                   <td className="p-3">
                     {!variant.is_master && (
@@ -421,7 +604,66 @@ export function ProductVariantPanel({
                 <td className="p-3 text-muted-foreground">
                   {attributeSummary(variant.variant_attributes)}
                 </td>
-                <td className="p-3 text-right font-mono">{formatPrice(variant.price)}</td>
+                <td
+                  className={cn(
+                    "p-3 text-right font-mono",
+                    sellCell.inherited && "text-muted-foreground"
+                  )}
+                >
+                  {sellCell.text}
+                </td>
+                <td
+                  className={cn(
+                    "p-3 text-right font-mono",
+                    mrpCell.inherited && "text-muted-foreground"
+                  )}
+                >
+                  {mrpCell.text}
+                </td>
+                <td
+                  className={cn(
+                    "p-3 text-right font-mono",
+                    buyCell.inherited && "text-muted-foreground"
+                  )}
+                >
+                  {buyCell.text}
+                </td>
+                {showDimensions ? (
+                  <>
+                    <td
+                      className={cn(
+                        "p-3 text-right font-mono text-xs",
+                        lengthCell.inherited && "text-muted-foreground"
+                      )}
+                    >
+                      {lengthCell.text}
+                    </td>
+                    <td
+                      className={cn(
+                        "p-3 text-right font-mono text-xs",
+                        widthCell.inherited && "text-muted-foreground"
+                      )}
+                    >
+                      {widthCell.text}
+                    </td>
+                    <td
+                      className={cn(
+                        "p-3 text-right font-mono text-xs",
+                        heightCell.inherited && "text-muted-foreground"
+                      )}
+                    >
+                      {heightCell.text}
+                    </td>
+                    <td
+                      className={cn(
+                        "p-3 text-right font-mono text-xs",
+                        weightCell.inherited && "text-muted-foreground"
+                      )}
+                    >
+                      {weightCell.text}
+                    </td>
+                  </>
+                ) : null}
                 <td className="p-3">
                   {readOnly || variant.is_master ? (
                     <Badge variant={variant.is_active ? "completed" : "locked"}>
@@ -467,10 +709,16 @@ export function ProductVariantPanel({
                   </td>
                 )}
               </tr>
-            ))}
+            );
+            })}
             {pagedVariants.length === 0 && (
               <tr>
-                <td colSpan={readOnly ? 5 : 7} className="p-6 text-center text-muted-foreground">
+                <td
+                  colSpan={
+                    (readOnly ? 6 : 8) + (showDimensions ? 4 : 0)
+                  }
+                  className="p-6 text-center text-muted-foreground"
+                >
                   No variants match the current filters.
                 </td>
               </tr>
@@ -506,13 +754,8 @@ export function ProductVariantPanel({
           </div>
         </div>
       )}
-
-      {additionalVariants.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No additional variants yet. Use “Generate Matrix” to bulk-create size/color combinations,
-          or add variants one at a time.
-        </p>
-      )}
+        </>
+      ) : null}
 
       <VariantDrawerForm
         open={drawerOpen}
@@ -525,28 +768,12 @@ export function ProductVariantPanel({
         initialValues={
           editingVariant
             ? variantSnapshotToFormValues(editingVariant, itemId)
-            : defaultVariantFormValues(itemId)
+            : defaultVariantFormValues(itemId, resolvedVariantDefaults)
         }
         isEditing={Boolean(editingVariant)}
         onSaved={() => {
           setDrawerOpen(false);
-          onChanged();
-          router.refresh();
-        }}
-      />
-
-      <VariantMatrixGenerator
-        open={matrixOpen}
-        onOpenChange={setMatrixOpen}
-        itemId={itemId}
-        categoryTemplates={categoryTemplates}
-        axisKeys={variantAxisKeys}
-        variants={variants}
-        skuMask={skuMask}
-        baseSku={baseSku}
-        onGenerated={() => {
-          onChanged();
-          router.refresh();
+          void onVariantsReload?.();
         }}
       />
 
@@ -579,7 +806,7 @@ export function ProductVariantPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </div>
   );
 }
 
@@ -617,6 +844,15 @@ function VariantDrawerForm({
 
   const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = form;
   const variantAttributes = watch("variant_attributes");
+  const lengthCm = watch("length_cm");
+  const widthCm = watch("width_cm");
+  const heightCm = watch("height_cm");
+
+  useEffect(() => {
+    const computed = computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm);
+    if (form.getValues("volume") === computed) return;
+    setValue("volume", computed, { shouldDirty: true });
+  }, [lengthCm, widthCm, heightCm, form, setValue]);
 
   const regenerateSku = useCallback(() => {
     const composed = composeSkuFromMask(skuMask, baseSku || "ITEM", variantAttributes);
@@ -664,7 +900,16 @@ function VariantDrawerForm({
       }
 
       startTransition(async () => {
-        const result = await saveItemVariant({ ...values, item_id: itemId });
+        const volume = computeVolumeCm3FromDimensions(
+          values.length_cm,
+          values.width_cm,
+          values.height_cm
+        );
+        const result = await saveItemVariant({
+          ...values,
+          volume,
+          item_id: itemId,
+        });
         if ("error" in result) {
           toast.error(result.error ?? "Unable to save variant.");
           return;
@@ -685,14 +930,14 @@ function VariantDrawerForm({
       <RightDrawer
         open={open}
         onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
-        title={isEditing ? "Edit Product Variant" : "Add Product Variant"}
+        title={isEditing ? "Edit variant" : "Add variant"}
       >
       <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <Label htmlFor="variant_sku">Variant SKU</Label>
+                <Label htmlFor="variant_sku">{VARIANT_SKU_LABEL}</Label>
                 {skuMask.trim() ? (
                   <FieldLabelInfo label="Variant SKU">
                     <p className="font-mono">{VARIANT_FIELD_HELP.variantSkuMask(skuMask)}</p>
@@ -743,9 +988,9 @@ function VariantDrawerForm({
 
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Label htmlFor="variant_price">Variant price (default book)</Label>
-              <FieldLabelInfo label="Variant price (default book)">
-                {fieldHelpText(VARIANT_FIELD_HELP.price)}
+              <Label htmlFor="variant_price">{SELL_PRICE_COLUMN}</Label>
+              <FieldLabelInfo label={SELL_PRICE_COLUMN}>
+                {fieldHelpText(VARIANT_FIELD_HELP.sellPrice)}
               </FieldLabelInfo>
             </div>
             <Input
@@ -753,7 +998,6 @@ function VariantDrawerForm({
               disabled={isPending}
               className="text-right font-mono"
               inputMode="decimal"
-              placeholder="Inherit item price"
               {...register("price")}
             />
             {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
@@ -775,8 +1019,42 @@ function VariantDrawerForm({
 
           <div className="space-y-3 border-t border-border pt-4">
             <h4 className="text-sm font-medium">Shipping & dimensions</h4>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
+            <div className={editorGridClass(true)}>
+              <div
+                className={cn(editorFieldSpanFullClass(true), editorDimensionsLwhGridClass())}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="variant_length">Length (cm)</Label>
+                  <Input
+                    id="variant_length"
+                    disabled={isPending}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("length_cm")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="variant_width">Width (cm)</Label>
+                  <Input
+                    id="variant_width"
+                    disabled={isPending}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("width_cm")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="variant_height">Height (cm)</Label>
+                  <Input
+                    id="variant_height"
+                    disabled={isPending}
+                    className="text-right font-mono"
+                    inputMode="decimal"
+                    {...register("height_cm")}
+                  />
+                </div>
+              </div>
+              <div className={cn("space-y-2", editorFieldSpanFullClass(true))}>
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="variant_dead_weight">Weight (kg)</Label>
                   <FieldLabelInfo label="Weight (kg)">
@@ -791,52 +1069,19 @@ function VariantDrawerForm({
                   {...register("dead_weight_kg")}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="variant_volume">Volume</Label>
-                <Input
-                  id="variant_volume"
-                  disabled={isPending}
-                  className="text-right font-mono"
-                  inputMode="decimal"
-                  placeholder="Optional"
-                  {...register("volume")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="variant_length">Length (cm)</Label>
-                <Input
-                  id="variant_length"
-                  disabled={isPending}
-                  className="text-right font-mono"
-                  inputMode="decimal"
-                  {...register("length_cm")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="variant_width">Width (cm)</Label>
-                <Input
-                  id="variant_width"
-                  disabled={isPending}
-                  className="text-right font-mono"
-                  inputMode="decimal"
-                  {...register("width_cm")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="variant_height">Height (cm)</Label>
-                <Input
-                  id="variant_height"
-                  disabled={isPending}
-                  className="text-right font-mono"
-                  inputMode="decimal"
-                  {...register("height_cm")}
-                />
-              </div>
+              <p
+                className={cn(
+                  "text-xs text-muted-foreground",
+                  editorFieldSpanFullClass(true)
+                )}
+              >
+                {formatCalculatedVolumeInfo(lengthCm, widthCm, heightCm)}
+              </p>
             </div>
           </div>
 
           <div className="space-y-3 border-t border-border pt-4">
-            <h4 className="text-sm font-medium">Version attributes</h4>
+            <h4 className="text-sm font-medium">Variant attributes</h4>
             <VariantAttributeFields
               templates={categoryTemplates}
               values={variantAttributes}

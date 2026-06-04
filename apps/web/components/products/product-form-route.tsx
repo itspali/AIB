@@ -117,7 +117,7 @@ export function ProductFormRoute({
     if (!wizardActive) return;
 
     // Recompute the stage order from the just-saved strategy so single-SKU
-    // items skip Versions even when the choice changed during Essentials.
+    // Single-SKU products skip the Variants stage even when strategy changed during Essentials.
     const multi =
       (savedDetail?.variant_strategy ?? detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
     const order = editorStageOrder(multi);

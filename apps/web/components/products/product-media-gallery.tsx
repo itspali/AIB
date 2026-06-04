@@ -243,10 +243,13 @@ export function ProductMediaGallery({
         <p className="text-sm text-muted-foreground">No images uploaded for this scope yet.</p>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
             {visibleMedia.map((entry) => (
-              <article key={entry.id} className="surface-inset flex min-w-0 flex-col gap-2 overflow-hidden p-2">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted/30">
+              <article
+                key={entry.id}
+                className="surface-inset flex min-w-0 flex-col gap-1 overflow-hidden p-1.5"
+              >
+                <div className="relative aspect-square max-h-[5.5rem] overflow-hidden rounded-sm bg-muted/30">
                   {entry.preview_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -260,41 +263,44 @@ export function ProductMediaGallery({
                     </div>
                   )}
                   {entry.is_primary && (
-                    <Badge className="absolute left-1.5 top-1.5 px-1.5 py-0 text-[10px]" variant="active">
+                    <Badge
+                      className="absolute left-1 top-1 px-1 py-0 text-[9px] leading-tight"
+                      variant="active"
+                    >
                       Primary
                     </Badge>
                   )}
                 </div>
 
                 {!readOnly && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <Button
                       type="button"
                       size="sm"
                       variant={entry.is_primary ? "secondary" : "outline"}
-                      className="h-7 min-w-0 flex-1 px-2 text-[11px]"
+                      className="h-6 min-w-0 flex-1 px-1.5 text-[10px]"
                       disabled={isPending || entry.is_primary}
                       title={entry.is_primary ? "Primary image" : "Set as primary image"}
                       onClick={() => updateMedia(entry, { is_primary: true })}
                     >
-                      <Star className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{entry.is_primary ? "Primary" : "Set primary"}</span>
+                      <Star className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{entry.is_primary ? "Primary" : "Set"}</span>
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-7 w-7 shrink-0 px-0 text-destructive hover:text-destructive"
+                      className="h-6 w-6 shrink-0 px-0 text-destructive hover:text-destructive"
                       title="Delete image"
                       disabled={isPending}
                       onClick={() => removeMedia(entry)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
 
-                <div className="space-y-1">
+                <div className="space-y-0">
                   <VisibilityRow
                     label="Storefront"
                     description={MEDIA_FIELD_HELP.storefront}
@@ -305,7 +311,7 @@ export function ProductMediaGallery({
                     }
                   />
                   <VisibilityRow
-                    label="Digital catalog"
+                    label="Catalog"
                     description={MEDIA_FIELD_HELP.digitalCatalog}
                     checked={entry.show_in_digital_catalog}
                     disabled={readOnly || isPending}
@@ -314,7 +320,7 @@ export function ProductMediaGallery({
                     }
                   />
                   <VisibilityRow
-                    label="Internal documents"
+                    label="Internal"
                     description={MEDIA_FIELD_HELP.internalDocs}
                     checked={entry.show_on_internal_transactions}
                     disabled={readOnly || isPending}
@@ -376,10 +382,10 @@ function MediaUploadTile({
   onUploadFile: (file: File | undefined) => void;
 }) {
   return (
-    <article className="surface-inset flex min-w-0 flex-col gap-2 overflow-hidden p-2">
+    <article className="surface-inset flex min-w-0 flex-col gap-1 overflow-hidden p-1.5">
       <label
         className={cn(
-          "relative flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-muted/20 px-2 text-center transition-colors",
+          "relative flex aspect-square max-h-[5.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-sm border border-dashed border-border bg-muted/20 px-1 text-center transition-colors",
           !disabled && "hover:border-primary/40 hover:bg-muted/30",
           disabled && "cursor-not-allowed opacity-50"
         )}
@@ -405,14 +411,12 @@ function MediaUploadTile({
           <p className="text-[11px] text-muted-foreground">Uploading…</p>
         ) : (
           <>
-            <Upload className="h-5 w-5 text-muted-foreground" />
-            <span className="text-[11px] font-medium text-muted-foreground">Add image</span>
+            <Upload className="h-4 w-4 text-muted-foreground" />
+            <span className="text-[10px] font-medium text-muted-foreground">Add</span>
           </>
         )}
       </label>
-      <p className="text-center text-[10px] leading-tight text-muted-foreground">
-        Drop or browse
-      </p>
+      <p className="text-center text-[9px] leading-tight text-muted-foreground">Upload</p>
     </article>
   );
 }
@@ -431,15 +435,17 @@ function VisibilityRow({
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-sm px-0.5 py-0.5">
-      <div className="flex min-w-0 items-center gap-1">
-        <p className="truncate text-xs font-medium leading-none">{label}</p>
+    <div className="flex items-center justify-between gap-1 py-px">
+      <div className="flex min-w-0 items-center gap-0.5">
+        <p className="truncate text-[10px] font-medium leading-none text-muted-foreground">
+          {label}
+        </p>
         <FieldLabelInfo label={label}>{fieldHelpText(description)}</FieldLabelInfo>
       </div>
       <Switch
         checked={checked}
         disabled={disabled}
-        className="scale-90"
+        className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 data-[state=checked]:[&>span]:translate-x-3"
         onCheckedChange={onCheckedChange}
       />
     </div>
