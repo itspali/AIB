@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import type { FieldErrors } from "react-hook-form";
 import {
+  Boxes,
   Layers,
   ListTree,
   Lock,
@@ -78,6 +79,12 @@ import {
   classificationLabel,
 } from "@/lib/products/classification-labels";
 import { classificationsForItemType } from "@/lib/products/item-type-classification";
+import {
+  COMPOSITION_FIELD_LABEL,
+  COMPOSITION_SECTION_LABEL,
+  itemTypeSupportsComposition,
+} from "@/lib/products/composition";
+import { ProductCompositionSection } from "@/components/products/product-editor/product-composition-section";
 import {
   ITEM_COSTING_METHODS,
   ITEM_TRACKING_MODES,
@@ -202,6 +209,7 @@ const SECTIONS: Array<{
   { id: "purchasable", label: "Purchasable", shortLabel: "Purchasable", icon: ShoppingCart },
   { id: "inventory", label: "Track inventory", shortLabel: "Inventory", icon: Warehouse },
   { id: "variants", label: VARIANTS_SECTION_LABEL, shortLabel: VARIANTS_SECTION_SHORT_LABEL, icon: Layers },
+  { id: "composition", label: COMPOSITION_SECTION_LABEL, shortLabel: "Set", icon: Boxes },
   { id: "media", label: "Media", shortLabel: "Media", icon: ListTree },
   { id: "catalog", label: "Catalog & tags", shortLabel: "Catalog", icon: Tag },
   { id: "reach", label: "Reach", shortLabel: "Reach", icon: Store },
@@ -209,8 +217,11 @@ const SECTIONS: Array<{
 
 const SECTION_IDS = SECTIONS.map((section) => section.id);
 
-function editorSections(itemId: string | null | undefined) {
-  const ids = new Set(editorSectionIdsForItem(itemId));
+function editorSections(
+  itemId: string | null | undefined,
+  hasComposition: boolean
+) {
+  const ids = new Set(editorSectionIdsForItem(itemId, { hasComposition }));
   return SECTIONS.filter((section) => ids.has(section.id));
 }
 
@@ -250,6 +261,7 @@ const FIELD_SECTION: Partial<Record<keyof ProductMasterFormValues, SectionId>> =
   tax_code_id: "overview",
   default_tax_category: "overview",
   is_returnable: "salable",
+  is_bundle: "overview",
   reorder_point: "inventory",
   standard_cost: "inventory",
   barcode: "overview",
@@ -813,21 +825,6 @@ export function ProductEditorShell({
       isSectionMounted("purchasable") ||
       isSectionMounted("variants"));
 
-  const showVariantsSection = isMultiSku || variants.length > 1;
-  const visibleSections = useMemo(
-    () =>
-      editorSections(itemId).filter((section) => {
-        if (section.id === "variants" && !showVariantsSection) return false;
-        if (section.id === "inventory" && !isPhysical) return false;
-        return true;
-      }),
-    [itemId, showVariantsSection, isPhysical]
-  );
-  const visibleSectionIds = useMemo(
-    () => visibleSections.map((section) => section.id),
-    [visibleSections]
-  );
-
   const disableInput = useCallback(
     (formField: keyof ProductMasterFormValues | string, lockKey?: string) => {
       if (fieldDisabled) return true;
@@ -868,6 +865,7 @@ export function ProductEditorShell({
   const storefrontVisibility = watch("storefront_visibility");
   const needsReview = watch("needs_review");
   const isSalable = watch("is_salable");
+  const isBundle = watch("is_bundle");
   const defaultTaxCategory = watch("default_tax_category");
   const taxCodeId = watch("tax_code_id");
   const isTaxableCategory = isTaxableSupplyCategory(defaultTaxCategory);
@@ -887,6 +885,23 @@ export function ProductEditorShell({
 
   const categoryId = watch("category_id");
   const currentClassification = watch("classification");
+
+  const showVariantsSection = isMultiSku || variants.length > 1;
+  const hasComposition = isBundle;
+  const visibleSections = useMemo(
+    () =>
+      editorSections(itemId, hasComposition).filter((section) => {
+        if (section.id === "variants" && !showVariantsSection) return false;
+        if (section.id === "composition" && !hasComposition) return false;
+        if (section.id === "inventory" && !isPhysical) return false;
+        return true;
+      }),
+    [itemId, hasComposition, showVariantsSection, isPhysical]
+  );
+  const visibleSectionIds = useMemo(
+    () => visibleSections.map((section) => section.id),
+    [visibleSections]
+  );
 
   // Which category attributes compose this item's variants. The category
   // suggests a default (its role hint, choice-typed attrs, or whatever existing
@@ -1314,6 +1329,8 @@ export function ProductEditorShell({
         }
         case "variants":
           return variants.length > 0 ? "complete" : "empty";
+        case "composition":
+          return "empty";
         case "media":
           return media.length > 0 ? "complete" : "empty";
         case "catalog": {
@@ -1378,22 +1395,28 @@ export function ProductEditorShell({
     (id: SectionId) =>
       sectionInStage(id) &&
       (id !== "inventory" || isPhysical) &&
+      (id !== "composition" || hasComposition) &&
       (!pinnedSet || pinnedSet.has(id)),
-    [sectionInStage, pinnedSet, isPhysical]
+    [sectionInStage, pinnedSet, isPhysical, hasComposition]
   );
-  // Single-SKU products with one variant skip the Variants stage in the guided flow.
   const wizardStages = useMemo(
-    () => EDITOR_STAGES.filter((stage) => showVariantsSection || stage.id !== "versions"),
-    [showVariantsSection]
+    () =>
+      EDITOR_STAGES.filter((stage) => {
+        if (stage.id === "versions" && !showVariantsSection) return false;
+        if (stage.id === "composition" && !hasComposition) return false;
+        return true;
+      }),
+    [showVariantsSection, hasComposition]
   );
   const applicableWizardSections = useCallback(
     (sections: EditorSectionId[]) =>
       sections.filter(
         (section) =>
           (section !== "inventory" || isPhysical) &&
-          (section !== "variants" || showVariantsSection)
+          (section !== "variants" || showVariantsSection) &&
+          (section !== "composition" || hasComposition)
       ),
-    [isPhysical, showVariantsSection]
+    [hasComposition, isPhysical, showVariantsSection]
   );
 
   const wizardStageStatuses = useMemo(() => {
@@ -1894,6 +1917,31 @@ export function ProductEditorShell({
                     </Select>
                   </Field>
                 )}
+
+                {itemTypeSupportsComposition(itemType) ? (
+                  <Field
+                    label={COMPOSITION_FIELD_LABEL}
+                    hint={ITEM_EDITOR_TOGGLE_HELP.composition}
+                    full
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <p className={editorReadOnlyFieldClass(isPanelLayout)}>
+                        {hasComposition
+                          ? "Save, then add components in the Composition step."
+                          : "Off = a single standalone item."}
+                      </p>
+                      <Switch
+                        size={editorSwitchSize}
+                        checked={isBundle}
+                        disabled={disableInput("is_bundle")}
+                        onCheckedChange={(checked) =>
+                          setValue("is_bundle", checked, { shouldDirty: true })
+                        }
+                        aria-label={COMPOSITION_FIELD_LABEL}
+                      />
+                    </div>
+                  </Field>
+                ) : null}
 
               <Field
                 label="Tax category"
@@ -2663,6 +2711,22 @@ export function ProductEditorShell({
                   </div>
                 ) : null}
               </div>
+            </SectionBlock>
+          ) : null}
+
+          {itemId && hasComposition ? (
+            <SectionBlock
+              id="composition"
+              title={COMPOSITION_SECTION_LABEL}
+              description="Items included when this product is sold as a set."
+              registerRef={registerSection("composition")}
+              hidden={!sectionVisible("composition")}
+              panel={isPanelLayout}
+            >
+              <ProductCompositionSection
+                classification={currentClassification}
+                hasItemId={Boolean(itemId)}
+              />
             </SectionBlock>
           ) : null}
 

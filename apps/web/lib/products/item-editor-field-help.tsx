@@ -85,10 +85,11 @@ export const ITEM_EDITOR_TOGGLE_HELP = {
   purchasable: "On = you can buy this on purchase orders.",
   trackInventory: "On = the system tracks how many you have in stock.",
   trackInventoryOff:
-    "Turn on to set costing, batch tracking, kits, and stock value.",
+    "Turn on to set costing, batch tracking, and stock value. Leave off when sold as a set.",
   trackInventoryLocked:
     "Cannot change because this item already has stock movements.",
-  bundle: "On = sold as a set made from other items, not from its own stock.",
+  composition:
+    "On = customers buy one offer made from other items. Stock and tax apply to each component, not this parent.",
 } as const;
 
 export const CATALOG_FIELD_HELP = {

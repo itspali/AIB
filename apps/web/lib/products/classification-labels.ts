@@ -49,11 +49,6 @@ export const CLASSIFICATION_CHOICES: ClassificationChoice[] = [
     description: "Supplies you use internally (packaging, tools, office items), not your main product line.",
   },
   {
-    value: "KIT_BUNDLE",
-    label: "Kit / Bundle",
-    description: "Sold as one item but made from other products. Stock is tracked from its component items.",
-  },
-  {
     value: "SERVICE",
     label: "Service / Overhead",
     description: "Services or overhead costs. Used when the item type is Service.",
@@ -69,9 +64,9 @@ const CLASSIFICATION_DESCRIPTIONS: Record<ItemClassification, string> = Object.f
   CLASSIFICATION_CHOICES.map((choice) => [choice.value, choice.description])
 ) as Record<ItemClassification, string>;
 
-/** Classifications shown in create/edit pickers (excludes deprecated values). */
+/** Classifications shown in create/edit pickers (excludes deprecated / composition-era values). */
 export const ITEM_CLASSIFICATIONS_FOR_PICKER = ITEM_CLASSIFICATIONS.filter(
-  (value) => value !== "PHYSICAL_GOOD"
+  (value) => value !== "PHYSICAL_GOOD" && value !== "KIT_BUNDLE"
 );
 
 export function classificationLabel(value: ItemClassification): string {

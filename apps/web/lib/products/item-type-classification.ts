@@ -1,22 +1,17 @@
 import type { ItemClassification } from "@/lib/products/classification-labels";
 import type { ItemType } from "@/lib/products/item-model";
 
-const PHYSICAL_CLASSIFICATIONS: readonly ItemClassification[] = [
+/** Roles shown in the supply-chain picker for physical goods (no Kit/Bundle). */
+const PHYSICAL_SUPPLY_CHAIN_ROLES: readonly ItemClassification[] = [
   "RAW_MATERIAL",
   "WIP_ASSEMBLY",
   "FINISHED_GOOD",
   "CONSUMABLE",
-  "KIT_BUNDLE",
 ] as const;
 
 const DIGITAL_CLASSIFICATIONS: readonly ItemClassification[] = [
   "FINISHED_GOOD",
   "CONSUMABLE",
-] as const;
-
-const GENERIC_PHYSICAL_CLASSIFICATIONS: readonly ItemClassification[] = [
-  "FINISHED_GOOD",
-  "PHYSICAL_GOOD",
 ] as const;
 
 export type ItemTypeClassificationIssue = {
@@ -33,16 +28,16 @@ export function classificationsForItemType(
   switch (itemType) {
     case "PHYSICAL": {
       if (includeLegacy) {
-        return [...PHYSICAL_CLASSIFICATIONS, "PHYSICAL_GOOD"];
+        return [...PHYSICAL_SUPPLY_CHAIN_ROLES, "PHYSICAL_GOOD"];
       }
-      return PHYSICAL_CLASSIFICATIONS;
+      return PHYSICAL_SUPPLY_CHAIN_ROLES;
     }
     case "SERVICE":
       return ["SERVICE"];
     case "DIGITAL":
       return DIGITAL_CLASSIFICATIONS;
     default:
-      return PHYSICAL_CLASSIFICATIONS;
+      return PHYSICAL_SUPPLY_CHAIN_ROLES;
   }
 }
 
@@ -53,6 +48,9 @@ export function isClassificationAllowedForItemType(
 ): boolean {
   if (classification === "PHYSICAL_GOOD") {
     return Boolean(options?.allowLegacyPhysicalGood);
+  }
+  if (classification === "KIT_BUNDLE") {
+    return false;
   }
   return classificationsForItemType(itemType, {
     includeLegacyPhysicalGood: options?.allowLegacyPhysicalGood,
@@ -72,6 +70,10 @@ export function deriveClassificationOnItemTypeChange(
     return current;
   }
 
+  if (current === "KIT_BUNDLE") {
+    return "FINISHED_GOOD";
+  }
+
   if (isClassificationAllowedForItemType(itemType, current)) {
     return current;
   }
@@ -85,25 +87,6 @@ export function deriveClassificationOnItemTypeChange(
     default:
       return "FINISHED_GOOD";
   }
-}
-
-export function classificationForBundleEnabled(
-  current: ItemClassification
-): ItemClassification {
-  if (current === "KIT_BUNDLE") return current;
-  if (GENERIC_PHYSICAL_CLASSIFICATIONS.includes(current)) {
-    return "KIT_BUNDLE";
-  }
-  return current;
-}
-
-export function classificationWhenBundleDisabled(
-  current: ItemClassification
-): ItemClassification {
-  if (current === "KIT_BUNDLE") {
-    return "FINISHED_GOOD";
-  }
-  return current;
 }
 
 export function validateItemTypeClassificationPair(
@@ -129,6 +112,13 @@ export function validateItemTypeClassificationPair(
     });
   }
 
+  if (classification === "KIT_BUNDLE") {
+    issues.push({
+      path: "classification",
+      message: "Kit / bundle is no longer a supply-chain role — use Sold as a set under Composition",
+    });
+  }
+
   if (
     !isClassificationAllowedForItemType(itemType, classification, {
       allowLegacyPhysicalGood: allowLegacy,
@@ -140,24 +130,10 @@ export function validateItemTypeClassificationPair(
     });
   }
 
-  if (classification === "KIT_BUNDLE" && !isBundle) {
+  if (isBundle && !["PHYSICAL", "SERVICE", "DIGITAL"].includes(itemType)) {
     issues.push({
       path: "is_bundle",
-      message: "Kit / bundle classification requires the bundle toggle to be enabled",
-    });
-  }
-
-  if (isBundle && itemType === "PHYSICAL" && classification !== "KIT_BUNDLE") {
-    issues.push({
-      path: "classification",
-      message: "Bundled items must use Kit / bundle classification",
-    });
-  }
-
-  if (isBundle && itemType !== "PHYSICAL") {
-    issues.push({
-      path: "is_bundle",
-      message: "Only goods items can be marked as a bundle",
+      message: "Sold as a set is not available for this item type",
     });
   }
 

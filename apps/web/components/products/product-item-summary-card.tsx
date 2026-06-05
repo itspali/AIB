@@ -150,7 +150,11 @@ const BEHAVIOR_FLAG_LABELS = [
     label: "Track inventory",
     getEnabled: (d: ProductDetailSnapshot) => d.track_inventory,
   },
-  { key: "bundle", label: "Bundle", getEnabled: (d: ProductDetailSnapshot) => d.is_bundle },
+  {
+    key: "bundle",
+    label: "Sold as a set",
+    getEnabled: (d: ProductDetailSnapshot) => d.is_bundle,
+  },
 ] as const;
 
 export function ProductItemSummaryCard({ detail, currency, catalogContext }: Props) {

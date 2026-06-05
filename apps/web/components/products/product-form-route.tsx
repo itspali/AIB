@@ -88,7 +88,11 @@ export function ProductFormRoute({
     mode === "create" ? "essentials" : isEditorStageId(stageParam) ? stageParam : "essentials";
 
   const renderMultiSku = (detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
-  const renderOrder = editorStageOrder(renderMultiSku);
+  const renderHasComposition = detail?.is_bundle ?? false;
+  const renderOrder = editorStageOrder({
+    isMultiSku: renderMultiSku,
+    hasComposition: renderHasComposition,
+  });
   const renderIndex = Math.max(0, renderOrder.indexOf(currentStage));
   const [isSaving, setIsSaving] = useState(false);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation();
@@ -120,7 +124,11 @@ export function ProductFormRoute({
     // Single-SKU products skip the Variants stage even when strategy changed during Essentials.
     const multi =
       (savedDetail?.variant_strategy ?? detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
-    const order = editorStageOrder(multi);
+    const composition = savedDetail?.is_bundle ?? detail?.is_bundle ?? false;
+    const order = editorStageOrder({
+      isMultiSku: multi,
+      hasComposition: composition,
+    });
     const at = Math.max(0, order.indexOf(currentStage));
     const nav = navRef.current;
     navRef.current = { type: "primary" };

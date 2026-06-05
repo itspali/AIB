@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { editorSectionIdsForItem } from "@/lib/products/editor-sections";
 
 describe("editor sections while creating", () => {
-  it("omits variants and media until item is saved", () => {
+  it("omits variants, composition, and media until item is saved", () => {
     expect(editorSectionIdsForItem(null)).toEqual([
       "overview",
       "salable",
@@ -13,8 +13,8 @@ describe("editor sections while creating", () => {
     ]);
   });
 
-  it("shows all sections after save", () => {
-    expect(editorSectionIdsForItem("item-uuid")).toEqual([
+  it("shows composition only when sold as a set", () => {
+    expect(editorSectionIdsForItem("item-uuid", { hasComposition: false })).toEqual([
       "overview",
       "salable",
       "purchasable",
@@ -24,5 +24,10 @@ describe("editor sections while creating", () => {
       "catalog",
       "reach",
     ]);
+
+    expect(editorSectionIdsForItem("item-uuid", { hasComposition: true })).toContain(
+      "composition"
+    );
   });
 });
+

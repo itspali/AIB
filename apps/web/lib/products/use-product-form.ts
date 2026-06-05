@@ -25,10 +25,11 @@ import {
 } from "@/lib/products/variant-composition";
 import type { ItemClassification } from "@/lib/products/classification-labels";
 import {
-  classificationForBundleEnabled,
-  classificationWhenBundleDisabled,
-  deriveClassificationOnItemTypeChange,
-} from "@/lib/products/item-type-classification";
+  itemTypeSupportsComposition,
+  normalizeCompositionFromDetail,
+  shouldClearTrackInventoryWhenCompositionEnabled,
+} from "@/lib/products/composition";
+import { deriveClassificationOnItemTypeChange } from "@/lib/products/item-type-classification";
 import type { ItemType } from "@/lib/products/item-model";
 import { isTaxableSupplyCategory } from "@/lib/products/tax-options";
 
@@ -179,10 +180,16 @@ export function useProductForm({
       }
 
       const taxable = isTaxableSupplyCategory(values.default_tax_category);
+      const normalizedRole = normalizeCompositionFromDetail({
+        classification: values.classification,
+        is_bundle: values.is_bundle,
+      });
       const payload: ProductMasterFormValues = {
         ...values,
         sku: skuTrim,
         variant_axes: variantAxes,
+        classification: normalizedRole.classification,
+        is_bundle: normalizedRole.is_bundle,
         hsn_sac_code: taxable ? values.hsn_sac_code : "",
         tax_code_id: taxable ? values.tax_code_id : null,
       };
@@ -291,7 +298,7 @@ export function useProductForm({
     if (nextClassification !== currentClassification) {
       setValue("classification", nextClassification, { shouldDirty: true });
     }
-    if (itemType !== "PHYSICAL" && form.getValues("is_bundle")) {
+    if (!itemTypeSupportsComposition(itemType) && form.getValues("is_bundle")) {
       setValue("is_bundle", false, { shouldDirty: true });
     }
   }, [itemType, form, setValue]);
@@ -321,28 +328,13 @@ export function useProductForm({
   }, [itemType, trackInventory, form, setValue]);
 
   useEffect(() => {
-    if (classification === "KIT_BUNDLE" && !form.getValues("is_bundle")) {
-      setValue("is_bundle", true, { shouldDirty: true });
-      return;
-    }
-    if (classification !== "KIT_BUNDLE" && form.getValues("is_bundle")) {
-      setValue("is_bundle", false, { shouldDirty: true });
-    }
-  }, [classification, form, setValue]);
-
-  useEffect(() => {
-    const currentClassification = form.getValues("classification") as ItemClassification;
-    if (isBundle) {
-      const nextClassification = classificationForBundleEnabled(currentClassification);
-      if (nextClassification !== currentClassification) {
-        setValue("classification", nextClassification, { shouldDirty: true });
-      }
-      return;
-    }
-    if (currentClassification === "KIT_BUNDLE") {
-      setValue("classification", classificationWhenBundleDisabled(currentClassification), {
-        shouldDirty: true,
-      });
+    if (
+      shouldClearTrackInventoryWhenCompositionEnabled(
+        isBundle,
+        form.getValues("track_inventory")
+      )
+    ) {
+      setValue("track_inventory", false, { shouldDirty: true });
     }
   }, [isBundle, form, setValue]);
 

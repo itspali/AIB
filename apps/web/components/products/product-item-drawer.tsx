@@ -123,6 +123,7 @@ export function ProductItemDrawer({
   const wizardHost = useProductCreateWizard({
     active: isCreateFlow,
     variantStrategy: detail?.variant_strategy ?? "SINGLE_SKU",
+    hasComposition: detail?.is_bundle ?? false,
     onFinished: (itemId) => {
       urlNavigation.onPeekAfterSave(itemId);
       setPersistedCreateId(null);

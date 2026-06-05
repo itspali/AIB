@@ -18,16 +18,19 @@ export type WizardNav =
 type Options = {
   active: boolean;
   variantStrategy?: string | null;
+  hasComposition?: boolean;
   onFinished: (itemId: string) => void;
 };
 
 export function useProductCreateWizard({
   active,
   variantStrategy = "SINGLE_SKU",
+  hasComposition = false,
   onFinished,
 }: Options) {
   const [stage, setStage] = useState<EditorStageId>("essentials");
   const [resolvedStrategy, setResolvedStrategy] = useState(variantStrategy);
+  const [resolvedComposition, setResolvedComposition] = useState(hasComposition);
   const navRef = useRef<WizardNav>({ type: "primary" });
   const submitRef = useRef<(() => void) | null>(null);
 
@@ -35,8 +38,19 @@ export function useProductCreateWizard({
     setResolvedStrategy(variantStrategy);
   }, [variantStrategy]);
 
-  const renderMultiSku = resolvedStrategy === "MULTI_SKU";
-  const renderOrder = editorStageOrder(renderMultiSku);
+  useEffect(() => {
+    setResolvedComposition(hasComposition);
+  }, [hasComposition]);
+
+  const stageOrderInput = useMemo(
+    () => ({
+      isMultiSku: resolvedStrategy === "MULTI_SKU",
+      hasComposition: resolvedComposition,
+    }),
+    [resolvedComposition, resolvedStrategy]
+  );
+
+  const renderOrder = editorStageOrder(stageOrderInput);
   const renderIndex = Math.max(0, renderOrder.indexOf(stage));
 
   const handleSaved = useCallback(
@@ -45,10 +59,16 @@ export function useProductCreateWizard({
 
       const multi =
         (savedDetail?.variant_strategy ?? resolvedStrategy ?? "SINGLE_SKU") === "MULTI_SKU";
+      const composition = savedDetail?.is_bundle ?? resolvedComposition;
       if (savedDetail?.variant_strategy) {
         setResolvedStrategy(savedDetail.variant_strategy);
       }
-      const order = editorStageOrder(multi);
+      setResolvedComposition(composition);
+
+      const order = editorStageOrder({
+        isMultiSku: multi,
+        hasComposition: composition,
+      });
       const at = Math.max(0, order.indexOf(stage));
       const nav = navRef.current;
       navRef.current = { type: "primary" };
@@ -77,14 +97,15 @@ export function useProductCreateWizard({
         onFinished(savedItemId);
       }
     },
-    [active, onFinished, resolvedStrategy, stage]
+    [active, onFinished, resolvedComposition, resolvedStrategy, stage]
   );
 
   const resetWizard = useCallback(() => {
     setStage("essentials");
     setResolvedStrategy(variantStrategy);
+    setResolvedComposition(hasComposition);
     navRef.current = { type: "primary" };
-  }, [variantStrategy]);
+  }, [hasComposition, variantStrategy]);
 
   const wizard: EditorWizardChrome | undefined = active
     ? {

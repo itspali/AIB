@@ -1,5 +1,6 @@
 import type { CatalogItemSettings } from "@/lib/products/catalog-item-settings";
 import type { ItemClassification } from "@/lib/products/classification-labels";
+import { normalizeCompositionFromDetail } from "@/lib/products/composition";
 import {
   itemLifecycleStatusFromActive,
   type ItemCostingMethod,
@@ -337,10 +338,15 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     (row) => row.uom_code === detail.purchase_uom
   )?.conversion_factor;
 
+  const normalized = normalizeCompositionFromDetail({
+    classification: detail.classification,
+    is_bundle: detail.is_bundle,
+  });
+
   return {
     item_id: detail.id,
     updated_at: detail.updated_at,
-    classification: detail.classification,
+    classification: normalized.classification,
     name: detail.name,
     description: detail.description ?? "",
     sku: detail.sku,
@@ -362,7 +368,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     costing_method: detail.costing_method,
     standard_cost: detail.standard_cost,
     tracking_mode: detail.tracking_mode,
-    is_bundle: detail.is_bundle,
+    is_bundle: normalized.is_bundle,
     price_is_tax_inclusive: detail.price_is_tax_inclusive,
     default_tax_category: normalizeTaxCategory(detail.default_tax_category),
     tax_code_id: detail.tax_code_id,
