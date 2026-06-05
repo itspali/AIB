@@ -944,9 +944,10 @@ export function ProductCatalogTerminal({
   ]);
 
   const refreshDetail = () => {
-    if (!drawer.recordId) return;
+    const itemId = drawer.recordId ?? detail?.id ?? null;
+    if (!itemId) return;
     detailRequestKeyRef.current = null;
-    loadDetail(drawer.recordId, drawer.variantId);
+    loadDetail(itemId, drawer.variantId);
   };
 
   const patchVariantInDetail = useCallback(
@@ -966,8 +967,9 @@ export function ProductCatalogTerminal({
   );
 
   const reloadVariantsQuietly = useCallback(async () => {
-    if (!drawer.recordId) return;
-    const result = await getProductDetail(drawer.recordId, drawer.variantId);
+    const itemId = drawer.recordId ?? detail?.id ?? null;
+    if (!itemId) return;
+    const result = await getProductDetail(itemId, drawer.variantId);
     if ("error" in result || !result.detail) {
       toast.error(result.error ?? "Unable to refresh variants.");
       return;
@@ -976,13 +978,14 @@ export function ProductCatalogTerminal({
       prev
         ? {
             ...prev,
+            updated_at: result.detail.updated_at,
             variants: result.detail.variants,
             has_variants: result.detail.has_variants,
             variant_axes: result.detail.variant_axes,
           }
         : result.detail
     );
-  }, [drawer.recordId, drawer.variantId]);
+  }, [detail?.id, drawer.recordId, drawer.variantId]);
 
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
     if (savedDetail) {

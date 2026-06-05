@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -25,13 +28,43 @@ import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "aib-right-drawer-width";
-const PRESET_WIDTHS = [40, 60, 80] as const;
+export const RIGHT_DRAWER_PRESET_WIDTHS = [40, 60, 80] as const;
+const PRESET_WIDTHS = RIGHT_DRAWER_PRESET_WIDTHS;
 const DEFAULT_WIDTH_VW = 40;
 const MIN_WIDTH_VW = 28;
 const MAX_WIDTH_VW = 92;
 
 /** Below this width the drawer uses full viewport (phone). Tablet+ uses partial panel. */
 const PARTIAL_DRAWER_MEDIA = "(min-width: 768px)";
+
+export type RightDrawerLayoutValue = {
+  widthVw: number;
+  isPartialDrawer: boolean;
+};
+
+const RightDrawerLayoutContext = createContext<RightDrawerLayoutValue | null>(null);
+
+export function useRightDrawerLayout() {
+  return useContext(RightDrawerLayoutContext);
+}
+
+function RightDrawerLayoutProvider({
+  widthVw,
+  isPartialDrawer,
+  children,
+}: {
+  widthVw: number;
+  isPartialDrawer: boolean;
+  children: ReactNode;
+}) {
+  const value = useMemo(
+    () => ({ widthVw, isPartialDrawer }),
+    [widthVw, isPartialDrawer]
+  );
+  return (
+    <RightDrawerLayoutContext.Provider value={value}>{children}</RightDrawerLayoutContext.Provider>
+  );
+}
 
 type RightDrawerProps = {
   open: boolean;
@@ -48,6 +81,8 @@ type RightDrawerProps = {
   allowBackgroundInteraction?: boolean;
   showCloseButton?: boolean;
   onRequestClose?: () => void;
+  /** When false, Escape does not dismiss the drawer (e.g. create forms). Default true. */
+  closeOnEscape?: boolean;
 };
 
 function readStoredWidthVw(): number {
@@ -254,6 +289,7 @@ export function RightDrawer({
   allowBackgroundInteraction = true,
   showCloseButton = true,
   onRequestClose,
+  closeOnEscape = true,
 }: RightDrawerProps) {
   const [widthVw, setWidthVw] = useState(DEFAULT_WIDTH_VW);
   const [portalReady, setPortalReady] = useState(false);
@@ -362,6 +398,12 @@ export function RightDrawer({
 
   if (!open) return null;
 
+  const drawerLayout = (
+    <RightDrawerLayoutProvider widthVw={widthVw} isPartialDrawer={isPartialDrawer}>
+      <DrawerChrome {...chromeProps} />
+    </RightDrawerLayoutProvider>
+  );
+
   if (useFixedPanel) {
     const panel = (
       <div
@@ -377,7 +419,7 @@ export function RightDrawer({
         )}
         style={panelStyle}
       >
-        <DrawerChrome {...chromeProps} />
+        {drawerLayout}
       </div>
     );
     return portalReady ? createPortal(panel, document.body) : panel;
@@ -396,8 +438,11 @@ export function RightDrawer({
           className
         )}
         style={panelStyle}
+        onEscapeKeyDown={(event) => {
+          if (!closeOnEscape) event.preventDefault();
+        }}
       >
-        <DrawerChrome {...chromeProps} inSheet />
+        {drawerLayout}
       </SheetContent>
     </Sheet>
   );

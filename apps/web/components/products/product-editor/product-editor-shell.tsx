@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { findSimilarItems, type SimilarItem } from "@/app/items/actions";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
+import { PanelMutationPrimaryButton } from "@/components/products/panel-mutation-primary-button";
 import {
   ProductBaseUnitField,
   ProductUnitsSection,
@@ -34,14 +35,18 @@ import {
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
 import { ProductPrimaryImage } from "@/components/products/product-primary-image";
 import { ProductVariantPanel } from "@/components/products/product-variant-panel";
+import type {
+  VariantMatrixCommitResult,
+  VariantMatrixDraftState,
+} from "@/components/products/variant-matrix-generator";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import type { ProductPanelMutationHeader } from "@/components/products/product-panel-form";
 import { ItemExtensionDataProvider } from "@/components/products/item-extension-data-provider";
 import { VariantDistributionSection } from "@/components/products/variant-distribution-section";
+import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
-import { VariantCompositionPicker } from "@/components/products/variant-composition-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,17 +169,31 @@ import {
   editorSubsectionHeadingClass,
   editorSwitchSize,
   editorPanelLayoutGridClass,
+  editorPanelWizardLayoutGridClass,
+  editorPageWizardLayoutGridClass,
+  editorPanelWizardBleedClass,
+  editorPanelWizardScrollClass,
+  editorPanelWizardFormScrollClass,
+  editorWizardTopBarClass,
+  editorWizardLeftRailAsideClass,
+  editorWizardLeftRailInnerClass,
+  editorWizardLeftRailStickyClass,
   editorPanelBadgesClass,
   editorPanelScrollMarginClass,
   editorPanelDividerClass,
+  editorSectionDisclosureButtonClass,
+  editorSectionDisclosureLineClass,
+  editorSectionDisclosureRowClass,
   editorPanelSectionStackClass,
   PRODUCT_EDITOR_FORM_CLASS,
   EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA,
   resolveEditorPanelUseTopTabs,
+  resolveWizardUseLeftRail,
   EditorPanelContext,
   useEditorPanelLayout,
 } from "@/lib/products/editor-chrome";
 import { useViewportMatches } from "@/lib/layout/use-viewport-matches";
+import { useRightDrawerLayout } from "@/components/ui/right-drawer";
 import {
   EDITOR_SECTIONS_HIDDEN_WHILE_CREATING,
   editorSectionIdsForItem,
@@ -185,6 +204,7 @@ import {
   editorStageById,
   type EditorStageId,
 } from "@/lib/products/editor-stages";
+import type { WizardNav } from "@/lib/products/use-product-create-wizard";
 import {
   overallCompletenessPercent,
   rollUpStageStatus,
@@ -296,13 +316,13 @@ type Props = {
   isNavigatePending?: boolean;
   onPendingChange?: (pending: boolean) => void;
   onDirtyChange?: (dirty: boolean) => void;
-  /** Drawer header: Cancel / Save (panel layout edit only). */
+  /** Drawer header: Cancel / Save (panel layout edit and create wizard). */
   onMutationHeaderChange?: (header: ProductPanelMutationHeader | null) => void;
   /**
    * When present, the editor renders as a guided create wizard: only the active
    * stage's sections show, the rail is replaced by a stepper + completeness
-   * indicator, and the footer drives stage navigation. Omit for the normal
-   * sectioned editor (e.g. editing an existing item).
+   * indicator, and stage navigation lives in the drawer header (panel) or
+   * sticky footer (full page). Omit for the normal sectioned editor.
    */
   wizard?: EditorWizardChrome;
   /**
@@ -332,7 +352,7 @@ export type EditorWizardChrome = {
   /** Save then jump to an already-reachable stage (stepper clicks). */
   onSelectStage: (stage: EditorStageId) => void;
   /** Receives the form's submit trigger so navigation can save first. */
-  registerSubmit: (fn: () => void) => void;
+  registerSubmit: (fn: (nav: WizardNav) => void) => void;
 };
 
 function formatMoney(amount: string, currency: string): string {
@@ -613,15 +633,18 @@ function EditorSectionAdvanced({
 
   return (
     <div className={cn("col-span-full", panel ? "space-y-2" : "space-y-3")}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 px-0 text-xs font-medium text-primary hover:text-primary"
-        onClick={onToggle}
-      >
-        {open ? hideLabel : showLabel}
-      </Button>
+      <div className={editorSectionDisclosureRowClass()}>
+        <div className={editorSectionDisclosureLineClass()} aria-hidden />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={editorSectionDisclosureButtonClass(panel)}
+          onClick={onToggle}
+        >
+          {open ? hideLabel : showLabel}
+        </Button>
+      </div>
       {open ? (
         <div
           className={cn(
@@ -677,6 +700,7 @@ function SectionBlock({
   registerRef,
   panel = false,
   hidden = false,
+  hideTitle = false,
   children,
 }: {
   id: SectionId;
@@ -687,6 +711,8 @@ function SectionBlock({
   panel?: boolean;
   /** When true (wizard mode, off-stage), the section is not rendered. */
   hidden?: boolean;
+  /** Omit the title band (e.g. wizard stage stepper already names the step). */
+  hideTitle?: boolean;
   children: React.ReactNode;
 }) {
   if (hidden) return null;
@@ -704,37 +730,46 @@ function SectionBlock({
       className={cn("scroll-mt-20", panel && editorPanelScrollMarginClass())}
     >
       <section className={editorCardClassName(panel, "section")}>
-        <div className={editorSectionHeadingClass(panel)}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <h3
-                  className={cn(
-                    "font-semibold",
-                    panel
-                      ? "text-sm text-foreground"
-                      : "text-sm uppercase tracking-wide text-foreground"
-                  )}
-                >
-                  {title}
-                </h3>
-                {titleInfo ? <FieldLabelInfo label={title}>{titleInfo}</FieldLabelInfo> : null}
+        {!hideTitle ? (
+          <div className={editorSectionHeadingClass(panel)}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <h3
+                    className={cn(
+                      "font-semibold",
+                      panel
+                        ? "text-sm text-foreground"
+                        : "text-sm uppercase tracking-wide text-foreground"
+                    )}
+                  >
+                    {title}
+                  </h3>
+                  {titleInfo ? <FieldLabelInfo label={title}>{titleInfo}</FieldLabelInfo> : null}
+                </div>
+                {description && !panel ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                ) : null}
               </div>
-              {description && !panel ? (
-                <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+              {headerToggle ? (
+                <SectionHeaderToggle
+                  label={headerToggle.label}
+                  checked={headerToggle.checked}
+                  disabled={headerToggle.disabled}
+                  onCheckedChange={headerToggle.onCheckedChange}
+                />
               ) : null}
             </div>
-            {headerToggle ? (
-              <SectionHeaderToggle
-                label={headerToggle.label}
-                checked={headerToggle.checked}
-                disabled={headerToggle.disabled}
-                onCheckedChange={headerToggle.onCheckedChange}
-              />
-            ) : null}
           </div>
+        ) : null}
+        <div
+          className={cn(
+            editorSectionBodyClass(panel),
+            hideTitle && panel && "!pt-0"
+          )}
+        >
+          {children}
         </div>
-        <div className={editorSectionBodyClass(panel)}>{children}</div>
       </section>
     </div>
   );
@@ -780,10 +815,22 @@ export function ProductEditorShell({
   const isLocked = useCallback((field: string) => lockedSet.has(field), [lockedSet]);
   const isPanelLayout = layout === "panel";
   const { ref: panelLayoutRef, width: panelPaneWidth } = useElementWidth<HTMLDivElement>();
+  const drawerLayout = useRightDrawerLayout();
   const compactDrawerViewport = useViewportMatches(EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA);
   const panelUseTopSectionTabs =
     isPanelLayout && !wizard && resolveEditorPanelUseTopTabs(panelPaneWidth, compactDrawerViewport);
   const panelRailHorizontal = panelUseTopSectionTabs;
+  const wizardDrawerWidthVw =
+    drawerLayout?.isPartialDrawer === true ? drawerLayout.widthVw : undefined;
+  const wizardUseLeftRail = Boolean(
+    wizard &&
+      resolveWizardUseLeftRail(
+        isPanelLayout,
+        panelPaneWidth,
+        compactDrawerViewport,
+        wizardDrawerWidthVw
+      )
+  );
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
@@ -919,6 +966,10 @@ export function ProductEditorShell({
   );
   const storedVariantAxes = watch("variant_axes");
   const variantAxisKeys = storedVariantAxes ?? [];
+  const variantCommitRef = useRef<(() => Promise<VariantMatrixCommitResult>) | null>(null);
+  const [compositionDraft, setCompositionDraft] = useState<VariantMatrixDraftState | null>(null);
+  const variantCompositionMode =
+    wizard?.stage === "versions" && Boolean(wizard) && isMultiSku ? "draft" : "live";
   const variantAxisCategoryRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const previousCategory = variantAxisCategoryRef.current;
@@ -1072,24 +1123,22 @@ export function ProductEditorShell({
   const showSellingUnitField = commerceUomOptions.length > 1;
   const showPurchaseUnitField = purchaseCommerceUomOptions.length > 1;
 
-  const [showPurchasableAdvanced, setShowPurchasableAdvanced] = useState(
-    () =>
-      Boolean(
-        initialValues?.supplier_id ||
-          (initialValues?.purchase_uom?.trim() &&
-            initialValues.purchase_uom !== initialValues?.base_unit_of_measure)
-      )
+  const [showPurchasableAdvanced, setShowPurchasableAdvanced] = useState(() =>
+    Boolean(
+      initialValues?.purchase_uom?.trim() &&
+        initialValues.purchase_uom !== initialValues?.base_unit_of_measure &&
+        !conversionFactorForAlternate(
+          initialValues?.alternate_uoms ?? [],
+          initialValues.purchase_uom
+        )
+    )
   );
 
   useEffect(() => {
-    if (
-      supplierId ||
-      (purchaseUom.trim() && purchaseUom !== baseUom) ||
-      showPurchaseConversionField
-    ) {
+    if (showPurchaseConversionField) {
       setShowPurchasableAdvanced(true);
     }
-  }, [supplierId, purchaseUom, baseUom, showPurchaseConversionField]);
+  }, [showPurchaseConversionField]);
 
   useEffect(() => {
     if (!purchaseConversionFromCatalog) return;
@@ -1245,17 +1294,73 @@ export function ProductEditorShell({
 
   // Hand the save trigger to the wizard host so its nav buttons can save first.
   useEffect(() => {
-    wizard?.registerSubmit(() => {
-      void handleSave();
+    wizard?.registerSubmit((nav) => {
+      void (async () => {
+        if (nav.type === "back" && !isDirty && itemId) {
+          onSaved(itemId, detail);
+          return;
+        }
+
+        if (
+          wizard.stage === "versions" &&
+          isMultiSku &&
+          variantCompositionMode === "draft" &&
+          variantCommitRef.current
+        ) {
+          const result = await variantCommitRef.current();
+          if ("error" in result) {
+            toast.error(result.error);
+            return;
+          }
+          if (result.updatedAt) {
+            setValue("updated_at", result.updatedAt, { shouldDirty: false });
+          }
+        }
+        void handleSave();
+      })();
     });
-  }, [wizard, handleSave]);
+  }, [
+    wizard,
+    detail,
+    handleSave,
+    isDirty,
+    isMultiSku,
+    itemId,
+    onSaved,
+    setValue,
+    variantCompositionMode,
+  ]);
 
   useEffect(() => {
-    if (!onMutationHeaderChange || !isPanelLayout || readOnly || wizard) {
+    if (!onMutationHeaderChange || !isPanelLayout || readOnly) {
       onMutationHeaderChange?.(null);
       return;
     }
+
+    if (wizard) {
+      onMutationHeaderChange({
+        variant: "wizard",
+        isFirst: wizard.isFirst,
+        isLast: wizard.isLast,
+        onBack: wizard.onBack,
+        onCancel,
+        onSkip: wizard.onSkip,
+        onPrimary: wizard.onPrimary,
+        isPending,
+        isNavigatePending,
+        primaryLabel: isPending
+          ? "Saving…"
+          : wizard.isLast
+            ? "Finish"
+            : wizard.isFirst
+              ? "Save & continue"
+              : "Continue",
+      });
+      return () => onMutationHeaderChange(null);
+    }
+
     onMutationHeaderChange({
+      variant: "edit",
       onCancel,
       onSave: () => {
         void handleSave();
@@ -1275,6 +1380,28 @@ export function ProductEditorShell({
     isPending,
     isNavigatePending,
   ]);
+
+  const panelPrimaryAction = useMemo(() => {
+    if (readOnly || !isPanelLayout) return null;
+    if (wizard) {
+      return {
+        label: isPending
+          ? "Saving…"
+          : wizard.isLast
+            ? "Finish"
+            : wizard.isFirst
+              ? "Save & continue"
+              : "Continue",
+        onClick: wizard.onPrimary,
+      };
+    }
+    return {
+      label: isPending ? "Saving…" : "Save item",
+      onClick: () => {
+        void handleSave();
+      },
+    };
+  }, [readOnly, isPanelLayout, wizard, isPending, handleSave]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -1328,7 +1455,8 @@ export function ProductEditorShell({
           return Number(standardCost) > 0 ? "complete" : "empty";
         }
         case "variants":
-          return variants.length > 0 ? "complete" : "empty";
+          if (compositionDraft?.includedCount) return "complete";
+          return variants.some((variant) => !variant.is_master) ? "complete" : "empty";
         case "composition":
           return "empty";
         case "media":
@@ -1365,6 +1493,7 @@ export function ProductEditorShell({
       widthCm,
       heightCm,
       variants.length,
+      compositionDraft?.includedCount,
       media.length,
       tagIds,
       customFields,
@@ -1502,7 +1631,11 @@ export function ProductEditorShell({
       className={cn(
         PRODUCT_EDITOR_FORM_CLASS,
         "flex flex-col",
-        isPanelLayout && "product-editor-panel h-full min-h-0 w-full flex-1 gap-2 overflow-hidden",
+        isPanelLayout &&
+          cn(
+            "product-editor-panel h-full min-h-0 w-full flex-1 gap-2",
+            wizard && isPanelLayout ? "overflow-visible" : "overflow-hidden"
+          ),
         !isPanelLayout &&
           (wizard ? "h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden" : "gap-4")
       )}
@@ -1559,49 +1692,62 @@ export function ProductEditorShell({
         </div>
       ) : null}
 
-      {wizard ? (
-        <div className="shrink-0 lg:hidden">
-          <EditorStepper
-            stages={wizardStages}
-            activeStage={wizard.stage}
-            statuses={wizardStageStatuses}
-            percent={wizardPercent}
-            onSelect={wizard.onSelectStage}
-            compact
-            showDescription={false}
-          />
-        </div>
-      ) : null}
-
       <div
         ref={panelLayoutRef}
         className={cn(
           isPanelLayout && "min-h-0 min-w-0 flex-1 overflow-hidden",
-          isPanelLayout &&
-            (panelUseTopSectionTabs || effectiveHideNav
-              ? "flex h-full min-h-0 flex-col"
-              : cn(editorPanelLayoutGridClass(false), "h-full min-h-0 items-stretch")),
           wizard
-            ? "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:gap-4"
-            : !isPanelLayout && "lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-6"
+            ? cn(
+                "flex min-h-0 min-w-0 flex-1 flex-col",
+                wizard && isPanelLayout ? "overflow-visible" : "overflow-hidden",
+                isPanelLayout && "h-full",
+                wizardUseLeftRail && isPanelLayout && editorPanelWizardBleedClass(),
+                wizardUseLeftRail &&
+                  (isPanelLayout
+                    ? editorPanelWizardLayoutGridClass()
+                    : editorPageWizardLayoutGridClass())
+              )
+            : cn(
+                isPanelLayout &&
+                  (panelUseTopSectionTabs || effectiveHideNav
+                    ? "flex h-full min-h-0 flex-col"
+                    : cn(editorPanelLayoutGridClass(false), "h-full min-h-0 items-stretch")),
+                !isPanelLayout && "lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-6"
+              )
         )}
       >
-        {wizard ? (
-          <aside className="hidden shrink-0 lg:block">
-            <div className="rounded-lg border border-border/60 bg-background/70 p-2">
-              <EditorStepper
-                stages={wizardStages}
-                activeStage={wizard.stage}
-                statuses={wizardStageStatuses}
-                percent={wizardPercent}
-                onSelect={wizard.onSelectStage}
-                vertical
-                compact
-                showDescription={false}
-              />
+        {wizard && !wizardUseLeftRail ? (
+          <div className={editorWizardTopBarClass(isPanelLayout)}>
+            <EditorStepper
+              stages={wizardStages}
+              activeStage={wizard.stage}
+              statuses={wizardStageStatuses}
+              percent={wizardPercent}
+              onSelect={wizard.onSelectStage}
+              compact
+              showDescription={false}
+            />
+          </div>
+        ) : null}
+
+        {wizard && wizardUseLeftRail ? (
+          <aside className={editorWizardLeftRailAsideClass(isPanelLayout)}>
+            <div className={editorWizardLeftRailInnerClass(isPanelLayout)}>
+              <div className={editorWizardLeftRailStickyClass()}>
+                <EditorStepper
+                  stages={wizardStages}
+                  activeStage={wizard.stage}
+                  statuses={wizardStageStatuses}
+                  percent={wizardPercent}
+                  onSelect={wizard.onSelectStage}
+                  vertical
+                  compact
+                  showDescription={false}
+                />
+              </div>
             </div>
           </aside>
-        ) : !panelUseTopSectionTabs && !effectiveHideNav ? (
+        ) : !wizard && !panelUseTopSectionTabs && !effectiveHideNav ? (
           <EditorSectionRail
             sections={visibleSections}
             activeSection={activeSection}
@@ -1622,10 +1768,23 @@ export function ProductEditorShell({
             isPanelLayout &&
               "min-h-0 overflow-y-auto overscroll-contain [overflow-anchor:none]",
               editorPanelSectionStackClass(),
-            isPanelLayout && (panelUseTopSectionTabs || effectiveHideNav ? "flex-1" : "h-full max-h-full"),
+            isPanelLayout &&
+              (wizard || panelUseTopSectionTabs || effectiveHideNav
+                ? "flex-1"
+                : "h-full max-h-full"),
             !isPanelLayout && "space-y-4",
             wizard &&
-              "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-16 md:pb-1 lg:h-full lg:flex-none lg:pr-1"
+              cn(
+                "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+                wizardUseLeftRail &&
+                  (isPanelLayout
+                    ? editorPanelWizardFormScrollClass()
+                    : "lg:h-full lg:flex-none lg:pl-4 lg:pr-1"),
+                wizard && !wizardUseLeftRail && isPanelLayout && "pt-4",
+                isPanelLayout && wizard && editorPanelWizardScrollClass(),
+                isPanelLayout && !wizard && "pb-1",
+                !isPanelLayout && "pb-16 md:pb-1"
+              )
           )}
         >
           {isPanelLayout && mode !== "create" ? (
@@ -2076,7 +2235,7 @@ export function ProductEditorShell({
                   </Field>
                 ) : (
                   <p className={editorEmptyStateClass(isPanelLayout)}>
-                    GTIN is set per sellable SKU under Variants.
+                    {ITEM_EDITOR_FIELD_HELP.gtinMultiSku}
                   </p>
                 )}
                 {isPhysical ? (
@@ -2219,7 +2378,7 @@ export function ProductEditorShell({
           <SectionBlock
             id="salable"
             title="Salable"
-            description="Return policy, rates, price book, and sales unit (advanced)."
+            description="Return policy, rates, price book, and sales unit."
             headerToggle={{
               label: "Salable",
               description: ITEM_EDITOR_TOGGLE_HELP.salable,
@@ -2280,12 +2439,12 @@ export function ProductEditorShell({
                     />
                   </Field>
                 </div>
-                <EditorSectionAdvanced
-                  open={showSalableAdvanced}
-                  onToggle={() => setShowSalableAdvanced((open) => !open)}
-                  panel={isPanelLayout}
-                >
-                  {showSellingUnitField ? (
+                {showSellingUnitField ? (
+                  <EditorSectionAdvanced
+                    open={showSalableAdvanced}
+                    onToggle={() => setShowSalableAdvanced((open) => !open)}
+                    panel={isPanelLayout}
+                  >
                     <CommerceUnitField
                       label="Default sales unit"
                       stockUom={baseUom}
@@ -2295,13 +2454,8 @@ export function ProductEditorShell({
                       onUnitChange={(code) => setValue("selling_uom", code, { shouldDirty: true })}
                       info={ITEM_EDITOR_FIELD_HELP.salesUnit}
                     />
-                  ) : (
-                    <p className={editorEmptyStateClass(isPanelLayout)}>
-                      Add alternate units under Basics → Show advanced to choose a default sales
-                      unit.
-                    </p>
-                  )}
-                </EditorSectionAdvanced>
+                  </EditorSectionAdvanced>
+                ) : null}
               </>
             ) : null}
             {itemId && isSalable ? (
@@ -2325,7 +2479,7 @@ export function ProductEditorShell({
           <SectionBlock
             id="purchasable"
             title="Purchasable"
-            description="Purchase rate, purchase unit, and vendor quotes (advanced)."
+            description="Purchase rate and vendor quotes."
             headerToggle={{
               label: "Purchasable",
               description: ITEM_EDITOR_TOGGLE_HELP.purchasable,
@@ -2363,71 +2517,7 @@ export function ProductEditorShell({
                     />
                   </Field>
                 </div>
-                <EditorSectionAdvanced
-                  open={showPurchasableAdvanced}
-                  onToggle={() => setShowPurchasableAdvanced((open) => !open)}
-                  panel={isPanelLayout}
-                >
-                  <div className={editorGridClass(isPanelLayout)}>
-                    {showPurchaseUnitField ? (
-                      <CommerceUnitField
-                        label="Default purchase unit"
-                        stockUom={baseUom}
-                        value={purchaseUom}
-                        options={purchaseCommerceUomOptions}
-                        fieldDisabled={disableInput("purchase_uom")}
-                        onUnitChange={(code) => {
-                          setValue("purchase_uom", code, { shouldDirty: true });
-                          if (code === baseUom) {
-                            setValue("purchase_uom_conversion", "1", { shouldDirty: true });
-                            return;
-                          }
-                          const factor = conversionFactorForAlternate(alternateUoms ?? [], code);
-                          if (factor) {
-                            setValue("purchase_uom_conversion", factor, { shouldDirty: true });
-                          }
-                        }}
-                        conversionHint={
-                          purchaseConversionFromCatalog
-                            ? ITEM_EDITOR_FIELD_HELP.purchaseUnitFromAlternates(
-                                purchaseConversionFromCatalog,
-                                baseUom,
-                                purchaseUom
-                              )
-                            : ITEM_EDITOR_FIELD_HELP.purchaseUnitDefault
-                        }
-                        info={
-                          purchaseConversionFromCatalog && purchaseUom !== baseUom ? (
-                            <p>
-                              {ITEM_EDITOR_FIELD_HELP.purchaseConversionDefined} (
-                              {purchaseConversionFromCatalog} {baseUom} per {purchaseUom}).
-                            </p>
-                          ) : undefined
-                        }
-                      />
-                    ) : (
-                      <p className={cn(editorEmptyStateClass(isPanelLayout), editorFieldSpanFullClass(isPanelLayout))}>
-                        Add alternate units under Basics → Show advanced to choose a default
-                        purchase unit.
-                      </p>
-                    )}
-                    {showPurchaseConversionField ? (
-                      <Field
-                        label="Purchase conversion factor"
-                        htmlFor="purchase_uom_conversion"
-                        error={errors.purchase_uom_conversion?.message}
-                        hint={ITEM_EDITOR_FIELD_HELP.purchaseConversionFactor(baseUom, purchaseUom)}
-                      >
-                        <Input
-                          id="purchase_uom_conversion"
-                          disabled={disableInput("purchase_uom_conversion")}
-                          className="text-right font-mono"
-                          inputMode="decimal"
-                          {...register("purchase_uom_conversion")}
-                        />
-                      </Field>
-                    ) : null}
-                  </div>
+                <div className={editorPanelDividerClass()}>
                   {itemId ? (
                     isSectionMounted("purchasable") ? (
                       <SupplierCatalogEditor
@@ -2463,7 +2553,31 @@ export function ProductEditorShell({
                       </Button>
                     </div>
                   )}
-                </EditorSectionAdvanced>
+                </div>
+                {showPurchaseConversionField ? (
+                  <EditorSectionAdvanced
+                    open={showPurchasableAdvanced}
+                    onToggle={() => setShowPurchasableAdvanced((open) => !open)}
+                    panel={isPanelLayout}
+                  >
+                    <div className={editorGridClass(isPanelLayout)}>
+                      <Field
+                        label="Purchase conversion factor"
+                        htmlFor="purchase_uom_conversion"
+                        error={errors.purchase_uom_conversion?.message}
+                        hint={ITEM_EDITOR_FIELD_HELP.purchaseConversionFactor(baseUom, purchaseUom)}
+                      >
+                        <Input
+                          id="purchase_uom_conversion"
+                          disabled={disableInput("purchase_uom_conversion")}
+                          className="text-right font-mono"
+                          inputMode="decimal"
+                          {...register("purchase_uom_conversion")}
+                        />
+                      </Field>
+                    </div>
+                  </EditorSectionAdvanced>
+                ) : null}
               </>
             ) : null}
           </SectionBlock>
@@ -2620,7 +2734,7 @@ export function ProductEditorShell({
               panel={isPanelLayout}
             >
               <div className={cn(isPanelLayout ? "space-y-4" : "space-y-6")}>
-                {!isMultiSku && isPhysical && categoryTemplates.length > 0 && (
+                {!isMultiSku && isPhysical && categoryTemplates.length > 0 ? (
                   <div className="space-y-3">
                     <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>
                       Variant attributes
@@ -2638,33 +2752,13 @@ export function ProductEditorShell({
                       }
                     />
                   </div>
-                )}
-                {isMultiSku && isPhysical && categoryTemplates.length > 0 && (
-                  <VariantCompositionPicker
-                    templates={categoryTemplates}
-                    axisKeys={variantAxisKeys}
-                    suggestedAxisKeys={suggestedVariantAxisKeys}
-                    disabled={fieldDisabled}
-                    compact={isPanelLayout}
-                    onChange={(keys) =>
-                      setValue("variant_axes", keys, { shouldDirty: true })
-                    }
-                  />
-                )}
-                <div
-                  className={cn(
-                    isMultiSku &&
-                      isPhysical &&
-                      categoryTemplates.length > 0 &&
-                      isPanelLayout &&
-                      editorPanelDividerClass()
-                  )}
-                >
+                ) : null}
                 <ProductVariantPanel
                   itemId={itemId}
                   variants={variants}
                   categoryTemplates={categoryTemplates}
                   variantAxisKeys={isMultiSku ? variantAxisKeys : undefined}
+                  suggestedVariantAxisKeys={isMultiSku ? suggestedVariantAxisKeys : undefined}
                   onVariantAxisKeysChange={
                     isMultiSku
                       ? (keys) => setValue("variant_axes", keys, { shouldDirty: true })
@@ -2690,26 +2784,15 @@ export function ProductEditorShell({
                   }}
                   variantStrategy={variantStrategy}
                   defaultShowDimensionColumns={isPhysical && isMultiSku}
+                  compositionMode={variantCompositionMode}
+                  onRegisterVariantCommit={(commit) => {
+                    variantCommitRef.current = commit;
+                  }}
+                  onCompositionDraftChange={setCompositionDraft}
                   readOnly={readOnly}
                   onVariantPatch={onVariantPatch}
                   onVariantsReload={onVariantsReload}
                 />
-                </div>
-                {variants.length > 0 ? (
-                  <div className={cn(isPanelLayout && editorPanelDividerClass())}>
-                  <VariantDistributionSection
-                    itemId={itemId}
-                    variants={variants}
-                    catalogContext={catalogContext}
-                    storefrontVisibility={storefrontVisibility}
-                    readOnly={readOnly}
-                    compact={isPanelLayout}
-                    onStorefrontVisibilityChange={(value) =>
-                      setValue("storefront_visibility", value, { shouldDirty: true })
-                    }
-                  />
-                  </div>
-                ) : null}
               </div>
             </SectionBlock>
           ) : null}
@@ -2724,8 +2807,13 @@ export function ProductEditorShell({
               panel={isPanelLayout}
             >
               <ProductCompositionSection
+                itemId={itemId}
+                parentItemType={itemType}
                 classification={currentClassification}
-                hasItemId={Boolean(itemId)}
+                variants={variants}
+                isMultiSku={isMultiSku}
+                currency={catalogContext.base_currency}
+                readOnly={readOnly}
               />
             </SectionBlock>
           ) : null}
@@ -2785,7 +2873,7 @@ export function ProductEditorShell({
           <SectionBlock
             id="reach"
             title="Reach"
-            description="Where it sells: visibility, display name, and price book per storefront channel."
+            description="Storefront channels, physical locations, and where each SKU is offered."
             registerRef={registerSection("reach")}
             hidden={!sectionVisible("reach")}
             panel={isPanelLayout}
@@ -2804,13 +2892,56 @@ export function ProductEditorShell({
               }}
               onChange={handleCatalogChange}
             />
+            {itemId && variants.length > 0 ? (
+              <div className={cn(isPanelLayout && editorPanelDividerClass())}>
+                {isSectionMounted("reach") ? (
+                  <div className={cn(isPanelLayout ? "space-y-4" : "space-y-6")}>
+                    {variants.length > 1 ? (
+                      <VariantChannelAvailabilityMatrix
+                        itemId={itemId}
+                        variants={variants}
+                        readOnly={readOnly || fieldDisabled}
+                      />
+                    ) : null}
+                    {variants.length > 0 ? (
+                      <div
+                        className={cn(
+                          variants.length > 1 && isPanelLayout && editorPanelDividerClass()
+                        )}
+                      >
+                        <VariantDistributionSection
+                          itemId={itemId}
+                          variants={variants}
+                          readOnly={readOnly || fieldDisabled}
+                          compact={isPanelLayout}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Per-variant storefront and location settings load when you open Reach.
+                  </p>
+                )}
+              </div>
+            ) : null}
           </SectionBlock>
+
+          {!readOnly && panelPrimaryAction ? (
+            <div className="flex justify-end pt-2">
+              <PanelMutationPrimaryButton
+                label={panelPrimaryAction.label}
+                disabled={isPending || isNavigatePending}
+                onClick={panelPrimaryAction.onClick}
+              />
+            </div>
+          ) : null}
 
         </div>
       </div>
 
-      {/* Sticky action bar — full page and create wizard; drawer edit uses header actions */}
-      {!readOnly && !(isPanelLayout && !wizard) && (
+      {/* Sticky action bar — full page only; drawer uses header actions */}
+      {!readOnly && !isPanelLayout && (
         <div
           className={cn(
             "sticky bottom-0 z-10 shrink-0 flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",

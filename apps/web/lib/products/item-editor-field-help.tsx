@@ -58,6 +58,8 @@ export const ITEM_EDITOR_FIELD_HELP = {
   trackingMode:
     "Track stock by batch, by serial number, or do not track batches at all.",
   gtin: "Optional UPC/EAN from the package. If blank, scanning may use SKU per workspace settings. Example: 8901234567890.",
+  gtinMultiSku:
+    "This product has more than one variant. Set GTIN on each variant in the Variants stage.",
   valuationMethod: "Set in company settings. Shown here for reference.",
   volume: "Calculated from length × width × height (cm³). Shown as info when all three sides are set.",
   lengthCm: "Package length in centimeters.",
@@ -90,6 +92,12 @@ export const ITEM_EDITOR_TOGGLE_HELP = {
     "Cannot change because this item already has stock movements.",
   composition:
     "On = customers buy one offer made from other items. Stock and tax apply to each component, not this parent.",
+} as const;
+
+export const COMPOSITION_FIELD_HELP = {
+  linesTitle: "Composition lines",
+  linesBody:
+    "Mandatory lines are always included. Optional add-ons can be skipped on quotes. Complimentary lines still appear separately for tax codes.",
 } as const;
 
 export const CATALOG_FIELD_HELP = {

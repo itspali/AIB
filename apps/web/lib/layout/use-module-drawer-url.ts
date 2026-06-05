@@ -157,6 +157,7 @@ export function useModuleDrawerUrl(
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (state.surface === "create") return;
       event.preventDefault();
       close();
     };

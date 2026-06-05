@@ -49,7 +49,6 @@ export function VariantAxisChipSelector({
         <SubsectionHeading
           title={VARIANT_AXES_LABEL}
           compact={compact}
-          className={compact ? "bg-transparent px-0 py-0" : undefined}
           info={fieldHelpText(VARIANT_AXES_HELP)}
         />
       ) : null}
@@ -58,7 +57,7 @@ export function VariantAxisChipSelector({
           Suggested: {suggestionLabels.join(", ")}
         </p>
       ) : null}
-      <div className={cn("flex flex-wrap", compact ? "gap-1" : "gap-2")}>
+      <div className={cn("flex flex-wrap", compact ? "gap-1.5" : "gap-2")}>
         {templates.map((template) => {
           const selected = axisSet.has(template.key);
           return (
@@ -68,13 +67,13 @@ export function VariantAxisChipSelector({
               disabled={disabled}
               onClick={() => toggle(template.key)}
               className={cn(
-                "transition-colors",
+                "cursor-pointer border font-medium transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 "disabled:cursor-not-allowed disabled:opacity-50",
-                compact ? "rounded-md px-2 py-0.5 text-xs" : "rounded-full px-3 py-1.5 text-sm",
+                compact ? "rounded-md px-2.5 py-1 text-xs" : "rounded-full px-3 py-1.5 text-sm",
                 selected
-                  ? "bg-primary/10 font-medium text-foreground ring-1 ring-primary/40"
-                  : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  ? "border-primary bg-primary/10 text-foreground shadow-sm ring-1 ring-inset ring-primary/40"
+                  : "border-border bg-background text-foreground shadow-sm hover:border-primary/30 hover:bg-muted/60 dark:bg-card/70 dark:hover:bg-muted/40"
               )}
               aria-pressed={selected}
               title={template.key}

@@ -15,6 +15,7 @@ import { ExternalLink, LayoutList, Pencil, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { bulkArchiveItems, getItemEditability } from "@/app/items/actions";
 import { ProductItemArchiveAlert } from "@/components/products/product-item-archive-alert";
+import { PanelMutationPrimaryButton } from "@/components/products/panel-mutation-primary-button";
 
 import {
   ProductEditorShell,
@@ -94,13 +95,27 @@ type PanelProps = {
   children: ReactNode;
 };
 
-export type ProductPanelMutationHeader = {
-  onCancel: () => void;
-  onSave: () => void;
-  isPending: boolean;
-  isNavigatePending: boolean;
-  saveLabel: string;
-};
+export type ProductPanelMutationHeader =
+  | {
+      variant: "edit";
+      onCancel: () => void;
+      onSave: () => void;
+      isPending: boolean;
+      isNavigatePending: boolean;
+      saveLabel: string;
+    }
+  | {
+      variant: "wizard";
+      isFirst: boolean;
+      isLast: boolean;
+      onBack: () => void;
+      onCancel: () => void;
+      onSkip: () => void;
+      onPrimary: () => void;
+      isPending: boolean;
+      isNavigatePending: boolean;
+      primaryLabel: string;
+    };
 
 type PanelContextValue = {
   mode: ProductFormMode;
@@ -409,28 +424,58 @@ export function ProductPanelHeaderActions() {
   }, [detail, onDismiss, onItemArchived]);
 
   if (mutationHeader) {
-    const { onCancel, onSave, isPending, isNavigatePending, saveLabel } = mutationHeader;
+    if (mutationHeader.variant === "wizard") {
+      const {
+        isFirst,
+        isLast,
+        onBack,
+        onSkip,
+        onPrimary,
+        isPending,
+        isNavigatePending,
+        primaryLabel,
+      } = mutationHeader;
+      return (
+        <>
+          {!isFirst ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isPending || isNavigatePending}
+              onClick={onBack}
+            >
+              Back
+            </Button>
+          ) : null}
+          {!isFirst && !isLast ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isPending || isNavigatePending}
+              onClick={onSkip}
+              title="Save and finish later"
+            >
+              Skip
+            </Button>
+          ) : null}
+          <PanelMutationPrimaryButton
+            label={primaryLabel}
+            disabled={isPending || isNavigatePending}
+            onClick={onPrimary}
+          />
+        </>
+      );
+    }
+
+    const { onSave, isPending, isNavigatePending, saveLabel } = mutationHeader;
     return (
-      <>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={isPending || isNavigatePending}
-          onClick={onCancel}
-        >
-          {isNavigatePending ? "Leaving…" : "Cancel"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          disabled={isPending || isNavigatePending}
-          onClick={() => void onSave()}
-          title="Save (Ctrl+Enter)"
-        >
-          {saveLabel}
-        </Button>
-      </>
+      <PanelMutationPrimaryButton
+        label={saveLabel}
+        disabled={isPending || isNavigatePending}
+        onClick={() => void onSave()}
+      />
     );
   }
 

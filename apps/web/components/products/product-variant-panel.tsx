@@ -7,7 +7,17 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { deleteItemVariant, saveItemVariant } from "@/app/items/actions";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
-import { VariantMatrixGenerator } from "@/components/products/variant-matrix-generator";
+import {
+  VariantMatrixGenerator,
+  type VariantCompositionMode,
+  type VariantMatrixCommitResult,
+  type VariantMatrixDraftState,
+} from "@/components/products/variant-matrix-generator";
+import {
+  useVariantAttributeDrafts,
+  VariantAxisBulkBar,
+  VariantAxisInlineCell,
+} from "@/components/products/variant-axis-bulk-editor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +65,7 @@ import {
   editorPanelDividerClass,
 } from "@/lib/products/editor-chrome";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import { splitTemplatesByAxis } from "@/lib/products/variant-composition";
 import {
   defaultVariantFormValues,
   variantSnapshotToFormValues,
@@ -76,6 +87,8 @@ type Props = {
   categoryTemplates: AttributeTemplateEntry[];
   /** Category attribute keys the author chose to vary on (drives the matrix). */
   variantAxisKeys?: string[];
+  /** Suggested axes from category templates (shown when none selected yet). */
+  suggestedVariantAxisKeys?: string[];
   onVariantAxisKeysChange?: (keys: string[]) => void;
   skuMask?: string;
   baseSku?: string;
@@ -90,6 +103,12 @@ type Props = {
   variantStrategy?: ProductVariantStrategy;
   /** When true, dimension columns start visible (multi-SKU inherit master dimensions). */
   defaultShowDimensionColumns?: boolean;
+  /** Draft: matrix grid rebuilds in memory; persist on wizard Continue. */
+  compositionMode?: VariantCompositionMode;
+  onRegisterVariantCommit?: (
+    commit: (() => Promise<VariantMatrixCommitResult>) | null
+  ) => void;
+  onCompositionDraftChange?: (state: VariantMatrixDraftState | null) => void;
   readOnly?: boolean;
   /** Merge a saved field onto one variant without reloading the item form. */
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
@@ -162,6 +181,7 @@ export function ProductVariantPanel({
   variants,
   categoryTemplates,
   variantAxisKeys,
+  suggestedVariantAxisKeys,
   onVariantAxisKeysChange,
   skuMask = "",
   baseSku = "",
@@ -174,6 +194,9 @@ export function ProductVariantPanel({
   variantDefaults,
   variantStrategy = "SINGLE_SKU",
   defaultShowDimensionColumns = false,
+  compositionMode = "live",
+  onRegisterVariantCommit,
+  onCompositionDraftChange,
   readOnly = false,
   onVariantPatch,
   onVariantsReload,
@@ -259,6 +282,75 @@ export function ProductVariantPanel({
 
   const showVariantList = sellableVariants.length > 0;
   const canUseMatrix = Boolean(itemId && categoryTemplates.length > 0);
+  const reviewRef = useRef<HTMLDivElement>(null);
+  const [matrixExpanded, setMatrixExpanded] = useState(() => sellableVariants.length === 0);
+  const previousSellableCountRef = useRef(sellableVariants.length);
+  const isDraftComposition = compositionMode === "draft";
+  const inReviewPhase =
+    showVariantList && canUseMatrix && !readOnly && !isDraftComposition;
+  const showMatrixGenerator =
+    canUseMatrix &&
+    !readOnly &&
+    (isDraftComposition || !inReviewPhase || matrixExpanded);
+
+  useEffect(() => {
+    if (sellableVariants.length === 0) {
+      setMatrixExpanded(true);
+      previousSellableCountRef.current = 0;
+      return;
+    }
+    if (sellableVariants.length > previousSellableCountRef.current) {
+      setMatrixExpanded(false);
+      requestAnimationFrame(() => {
+        reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+    previousSellableCountRef.current = sellableVariants.length;
+  }, [sellableVariants.length]);
+
+  const handleVariantsGenerated = useCallback(async () => {
+    await onVariantsReload?.();
+  }, [onVariantsReload]);
+
+  const saveVariantField = useCallback(
+    (
+      variant: ProductVariantSnapshot,
+      patch: Partial<Pick<ItemVariantFormValues, "sku" | "price">>
+    ) => {
+      const payload = {
+        ...variantSnapshotToFormValues(variant, itemId),
+        ...patch,
+      };
+      onVariantPatch?.(variant.id, patch as Partial<ProductVariantSnapshot>);
+      startTransition(async () => {
+        const result = await saveItemVariant(payload);
+        if ("error" in result) {
+          toast.error(result.error ?? "Unable to update variant.");
+          void onVariantsReload?.();
+        }
+      });
+    },
+    [itemId, onVariantPatch, onVariantsReload]
+  );
+
+  const axisTemplates = useMemo(() => {
+    if (!variantAxisKeys?.length) return [];
+    return splitTemplatesByAxis(categoryTemplates, variantAxisKeys).axes;
+  }, [categoryTemplates, variantAxisKeys]);
+
+  const showAxisColumns = axisTemplates.length > 0 && !readOnly && !isDraftComposition;
+
+  const attributeDrafts = useVariantAttributeDrafts({
+    itemId,
+    variants: sellableVariants,
+    axisTemplates,
+    onSaved: onVariantsReload,
+  });
+
+  const anyPending = isPending || attributeDrafts.isPending;
+
+  const tableColSpan =
+    (readOnly ? 6 : 8) + (showDimensions ? 4 : 0) + (showAxisColumns ? axisTemplates.length - 1 : 0);
 
   useEffect(() => {
     if (defaultShowDimensionColumns) {
@@ -376,51 +468,11 @@ export function ProductVariantPanel({
     });
   };
 
-  return (
-    <div className="space-y-0">
-      {!readOnly && itemId && !canUseMatrix ? (
-        <div className="flex justify-end pb-1">
-          <Button type="button" size="sm" variant="outline" onClick={openCreate} disabled={isPending}>
-            <Plus className="h-4 w-4" />
-            Add variant
-          </Button>
-        </div>
-      ) : null}
-
-      {!readOnly && canUseMatrix ? (
-        <div className={editorPanelDividerClass()}>
-        <VariantMatrixGenerator
-          itemId={itemId}
-          categoryTemplates={categoryTemplates}
-          axisKeys={variantAxisKeys ?? []}
-          onAxisKeysChange={onVariantAxisKeysChange}
-          showAxisPicker={!onVariantAxisKeysChange}
-          defaultExpanded={additionalVariants.length === 0}
-          variants={variants}
-          skuMask={skuMask}
-          baseSku={baseSku}
-          defaultSellingPrice={defaultSellingPrice}
-          defaultPurchasePrice={defaultPurchasePrice}
-          defaultStandardCost={defaultStandardCost}
-          defaultMrp={defaultMrp}
-          defaultHsn={defaultHsn}
-          defaultSupplierId={defaultSupplierId}
-          onGenerated={() => {
-            void onVariantsReload?.();
-          }}
-        />
-        </div>
-      ) : !readOnly && !itemId ? (
-        <p className={cn("text-xs text-muted-foreground", editorPanelDividerClass())}>
-          Save the product to generate variants.
-        </p>
-      ) : null}
-
-      {showVariantList ? (
-        <>
+  const renderVariantList = () => (
+    <>
       <div
         className={cn(
-          editorPanelDividerClass(),
+          !inReviewPhase && editorPanelDividerClass(),
           "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
         )}
       >
@@ -449,20 +501,18 @@ export function ProductVariantPanel({
           </Select>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {showVariantList ? (
-            <div className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1">
-              <Ruler className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              <Label htmlFor="variant-show-dimensions" className="text-xs font-medium">
-                {VARIANT_DIMENSIONS_TOGGLE_LABEL}
-              </Label>
-              <Switch
-                id="variant-show-dimensions"
-                checked={showDimensions}
-                onCheckedChange={setShowDimensions}
-                aria-label="Show dimension columns"
-              />
-            </div>
-          ) : null}
+          <div className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1">
+            <Ruler className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            <Label htmlFor="variant-show-dimensions" className="text-xs font-medium">
+              {VARIANT_DIMENSIONS_TOGGLE_LABEL}
+            </Label>
+            <Switch
+              id="variant-show-dimensions"
+              checked={showDimensions}
+              onCheckedChange={setShowDimensions}
+              aria-label="Show dimension columns"
+            />
+          </div>
           {!readOnly ? (
             <Button
               type="button"
@@ -479,24 +529,47 @@ export function ProductVariantPanel({
         </div>
       </div>
 
-      {!readOnly && selectedIds.size > 0 && (
+      {!readOnly && selectedIds.size > 0 ? (
         <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 editor-bulk-bar">
           <span className="text-sm">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" disabled={isPending} onClick={() => runBulkActive(true)}>
+            <Button size="sm" variant="outline" disabled={anyPending} onClick={() => runBulkActive(true)}>
               Activate
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={isPending}
+              disabled={anyPending}
               onClick={() => runBulkActive(false)}
             >
               Discontinue
             </Button>
           </div>
         </div>
-      )}
+      ) : null}
+
+      {showAxisColumns ? (
+        <>
+          {attributeDrafts.axesNeedingBackfill.length > 0 ? (
+            <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+              Some variants are missing{" "}
+              {attributeDrafts.axesNeedingBackfill.map((template) => template.label).join(", ")}.
+              Fill the columns below or use Apply to selected, then Save attributes.
+            </p>
+          ) : null}
+          <VariantAxisBulkBar
+            axisTemplates={axisTemplates}
+            dirtyCount={attributeDrafts.dirtyCount}
+            selectedCount={selectedIds.size}
+            isPending={attributeDrafts.isPending}
+            onDiscard={attributeDrafts.discardDrafts}
+            onSaveAll={attributeDrafts.saveDirtyVariants}
+            onApplyToSelected={(axisKey, value) =>
+              attributeDrafts.applyToVariants(selectedIds, axisKey, value)
+            }
+          />
+        </>
+      ) : null}
 
       <div
         className={cn(
@@ -505,10 +578,15 @@ export function ProductVariantPanel({
           showDimensions && "max-w-full [scrollbar-gutter:stable]"
         )}
       >
-        <table className={cn("w-full text-sm", showDimensions && "min-w-[960px]")}>
+        <table
+          className={cn(
+            "w-full text-sm",
+            (showDimensions || showAxisColumns) && "min-w-[960px]"
+          )}
+        >
           <thead>
             <tr className="border-b border-border/50 text-left">
-              {!readOnly && (
+              {!readOnly ? (
                 <th className="p-3">
                   <Checkbox
                     checked={allOnPageSelected}
@@ -517,7 +595,7 @@ export function ProductVariantPanel({
                     aria-label="Select all on page"
                   />
                 </th>
-              )}
+              ) : null}
               <th className="p-3 font-medium text-muted-foreground">
                 <button
                   type="button"
@@ -528,7 +606,15 @@ export function ProductVariantPanel({
                 </button>
               </th>
               <th className="p-3 font-medium text-muted-foreground">GTIN</th>
-              <th className="p-3 font-medium text-muted-foreground">Attributes</th>
+              {showAxisColumns ? (
+                axisTemplates.map((template) => (
+                  <th key={template.key} className="p-3 font-medium text-muted-foreground">
+                    {template.label}
+                  </th>
+                ))
+              ) : (
+                <th className="p-3 font-medium text-muted-foreground">Attributes</th>
+              )}
               <th className="p-3 font-medium text-muted-foreground">
                 <button
                   type="button"
@@ -549,7 +635,7 @@ export function ProductVariantPanel({
                 </>
               ) : null}
               <th className="p-3 font-medium text-muted-foreground">Status</th>
-              {!readOnly && <th className="p-3 font-medium text-muted-foreground">Actions</th>}
+              {!readOnly ? <th className="p-3 font-medium text-muted-foreground">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -576,158 +662,208 @@ export function ProductVariantPanel({
                 variant.height_cm,
                 resolvedVariantDefaults.height_cm ?? "0"
               );
+              const sellPriceDefault =
+                variant.price && variant.price !== "0" ? variant.price : defaultSellingPrice;
 
               return (
-              <tr key={variant.id} className="border-b border-border/40 last:border-0">
-                {!readOnly && (
+                <tr key={variant.id} className="border-b border-border/40 last:border-0">
+                  {!readOnly ? (
+                    <td className="p-3">
+                      {!variant.is_master ? (
+                        <Checkbox
+                          checked={selectedIds.has(variant.id)}
+                          onCheckedChange={(checked) => toggleSelect(variant.id, Boolean(checked))}
+                          aria-label={`Select ${variant.sku}`}
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
                   <td className="p-3">
-                    {!variant.is_master && (
-                      <Checkbox
-                        checked={selectedIds.has(variant.id)}
-                        onCheckedChange={(checked) => toggleSelect(variant.id, Boolean(checked))}
-                        aria-label={`Select ${variant.sku}`}
+                    <div className="flex items-center gap-2">
+                      {inReviewPhase && !readOnly && !variant.is_master ? (
+                        <Input
+                          className="h-8 min-w-[7rem] font-mono text-xs"
+                          defaultValue={variant.sku}
+                          disabled={isPending}
+                          onBlur={(event) => {
+                            const next = event.target.value.trim();
+                            if (next && next !== variant.sku) {
+                              saveVariantField(variant, { sku: next });
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="font-mono">{variant.sku}</span>
+                      )}
+                      {variant.is_master ? (
+                        <Badge variant={variant.is_sellable === false ? "default" : "active"}>
+                          {masterVariantBadgeLabel(variant)}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="p-3 font-mono">{variant.barcode ?? "—"}</td>
+                  {showAxisColumns ? (
+                    axisTemplates.map((template) => (
+                      <td key={template.key} className="p-3">
+                        {!variant.is_master ? (
+                          <VariantAxisInlineCell
+                            template={template}
+                            value={attributeDrafts.displayValue(variant, template.key)}
+                            disabled={anyPending}
+                            onChange={(value) =>
+                              attributeDrafts.setDraftValue(variant.id, template.key, value)
+                            }
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    ))
+                  ) : (
+                    <td className="p-3 text-muted-foreground">
+                      {attributeSummary(variant.variant_attributes)}
+                    </td>
+                  )}
+                  <td className="p-3 text-right">
+                    {inReviewPhase && !readOnly && !variant.is_master ? (
+                      <Input
+                        className="ml-auto h-8 w-24 text-right font-mono text-xs"
+                        inputMode="decimal"
+                        defaultValue={sellPriceDefault}
+                        disabled={isPending}
+                        onBlur={(event) => {
+                          const next = event.target.value.trim();
+                          if (next !== sellPriceDefault) {
+                            saveVariantField(variant, { price: next || "0" });
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          "font-mono",
+                          sellCell.inherited && "text-muted-foreground"
+                        )}
+                      >
+                        {sellCell.text}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className={cn(
+                      "p-3 text-right font-mono",
+                      mrpCell.inherited && "text-muted-foreground"
+                    )}
+                  >
+                    {mrpCell.text}
+                  </td>
+                  <td
+                    className={cn(
+                      "p-3 text-right font-mono",
+                      buyCell.inherited && "text-muted-foreground"
+                    )}
+                  >
+                    {buyCell.text}
+                  </td>
+                  {showDimensions ? (
+                    <>
+                      <td
+                        className={cn(
+                          "p-3 text-right font-mono text-xs",
+                          lengthCell.inherited && "text-muted-foreground"
+                        )}
+                      >
+                        {lengthCell.text}
+                      </td>
+                      <td
+                        className={cn(
+                          "p-3 text-right font-mono text-xs",
+                          widthCell.inherited && "text-muted-foreground"
+                        )}
+                      >
+                        {widthCell.text}
+                      </td>
+                      <td
+                        className={cn(
+                          "p-3 text-right font-mono text-xs",
+                          heightCell.inherited && "text-muted-foreground"
+                        )}
+                      >
+                        {heightCell.text}
+                      </td>
+                      <td
+                        className={cn(
+                          "p-3 text-right font-mono text-xs",
+                          weightCell.inherited && "text-muted-foreground"
+                        )}
+                      >
+                        {weightCell.text}
+                      </td>
+                    </>
+                  ) : null}
+                  <td className="p-3">
+                    {readOnly || variant.is_master ? (
+                      <Badge variant={variant.is_active ? "completed" : "locked"}>
+                        {variant.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    ) : (
+                      <Switch
+                        checked={variant.is_active}
+                        disabled={isPending}
+                        aria-label="Toggle active"
+                        onCheckedChange={(checked) => setVariantActive(variant, checked)}
                       />
                     )}
                   </td>
-                )}
-                <td className="p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono">{variant.sku}</span>
-                    {variant.is_master && (
-                      <Badge variant={variant.is_sellable === false ? "default" : "active"}>
-                        {masterVariantBadgeLabel(variant)}
-                      </Badge>
-                    )}
-                  </div>
-                </td>
-                <td className="p-3 font-mono">{variant.barcode ?? "—"}</td>
-                <td className="p-3 text-muted-foreground">
-                  {attributeSummary(variant.variant_attributes)}
-                </td>
-                <td
-                  className={cn(
-                    "p-3 text-right font-mono",
-                    sellCell.inherited && "text-muted-foreground"
-                  )}
-                >
-                  {sellCell.text}
-                </td>
-                <td
-                  className={cn(
-                    "p-3 text-right font-mono",
-                    mrpCell.inherited && "text-muted-foreground"
-                  )}
-                >
-                  {mrpCell.text}
-                </td>
-                <td
-                  className={cn(
-                    "p-3 text-right font-mono",
-                    buyCell.inherited && "text-muted-foreground"
-                  )}
-                >
-                  {buyCell.text}
-                </td>
-                {showDimensions ? (
-                  <>
-                    <td
-                      className={cn(
-                        "p-3 text-right font-mono text-xs",
-                        lengthCell.inherited && "text-muted-foreground"
-                      )}
-                    >
-                      {lengthCell.text}
+                  {!readOnly ? (
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        {!variant.is_master ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 px-0"
+                              disabled={isPending}
+                              onClick={() => openEdit(variant)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 px-0 text-destructive hover:text-destructive"
+                              disabled={isPending}
+                              onClick={() => requestDelete(variant)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
-                    <td
-                      className={cn(
-                        "p-3 text-right font-mono text-xs",
-                        widthCell.inherited && "text-muted-foreground"
-                      )}
-                    >
-                      {widthCell.text}
-                    </td>
-                    <td
-                      className={cn(
-                        "p-3 text-right font-mono text-xs",
-                        heightCell.inherited && "text-muted-foreground"
-                      )}
-                    >
-                      {heightCell.text}
-                    </td>
-                    <td
-                      className={cn(
-                        "p-3 text-right font-mono text-xs",
-                        weightCell.inherited && "text-muted-foreground"
-                      )}
-                    >
-                      {weightCell.text}
-                    </td>
-                  </>
-                ) : null}
-                <td className="p-3">
-                  {readOnly || variant.is_master ? (
-                    <Badge variant={variant.is_active ? "completed" : "locked"}>
-                      {variant.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  ) : (
-                    <Switch
-                      checked={variant.is_active}
-                      disabled={isPending}
-                      aria-label="Toggle active"
-                      onCheckedChange={(checked) => setVariantActive(variant, checked)}
-                    />
-                  )}
-                </td>
-                {!readOnly && (
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      {!variant.is_master && (
-                        <>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 px-0"
-                            disabled={isPending}
-                            onClick={() => openEdit(variant)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 px-0 text-destructive hover:text-destructive"
-                            disabled={isPending}
-                            onClick={() => requestDelete(variant)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                )}
-              </tr>
-            );
+                  ) : null}
+                </tr>
+              );
             })}
-            {pagedVariants.length === 0 && (
+            {pagedVariants.length === 0 ? (
               <tr>
                 <td
-                  colSpan={
-                    (readOnly ? 6 : 8) + (showDimensions ? 4 : 0)
-                  }
+                  colSpan={tableColSpan}
                   className="p-6 text-center text-muted-foreground"
                 >
                   No variants match the current filters.
                 </td>
               </tr>
-            )}
+            ) : null}
           </tbody>
         </table>
       </div>
 
-      {pageCount > 1 && (
+      {pageCount > 1 ? (
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
             Page {safePage + 1} of {pageCount}
@@ -753,9 +889,91 @@ export function ProductVariantPanel({
             </Button>
           </div>
         </div>
-      )}
-        </>
       ) : null}
+    </>
+  );
+
+  return (
+    <div className="space-y-0">
+      {!readOnly && itemId && !canUseMatrix ? (
+        <div className="flex justify-end pb-1">
+          <Button type="button" size="sm" variant="outline" onClick={openCreate} disabled={isPending}>
+            <Plus className="h-4 w-4" />
+            Add variant
+          </Button>
+        </div>
+      ) : null}
+
+      {isDraftComposition ? (
+        <div className="mb-3 space-y-1">
+          <h4 className="text-xs font-medium text-foreground">Build variants</h4>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Choose axes and values below. The variant grid rebuilds as you change them. Variants
+            are saved when you continue to the next step.
+          </p>
+        </div>
+      ) : null}
+
+      {inReviewPhase ? (
+        <div className="mb-3 space-y-1">
+          <h4 className="text-xs font-medium text-foreground">Review variants</h4>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Edit SKUs, prices, and variant attributes below, then continue when ready.
+          </p>
+        </div>
+      ) : null}
+
+      {showVariantList && inReviewPhase ? (
+        <div ref={reviewRef} className="space-y-0">
+          {renderVariantList()}
+        </div>
+      ) : null}
+
+      {inReviewPhase ? (
+        <div className={cn("pt-2", editorPanelDividerClass())}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => setMatrixExpanded((open) => !open)}
+          >
+            {matrixExpanded ? "Hide generator" : "Generate more variants"}
+          </Button>
+        </div>
+      ) : null}
+
+      {showMatrixGenerator ? (
+        <div className={cn(inReviewPhase && "pt-3")}>
+          <VariantMatrixGenerator
+            itemId={itemId}
+            categoryTemplates={categoryTemplates}
+            compositionMode={compositionMode}
+            onRegisterCommit={onRegisterVariantCommit}
+            onDraftChange={onCompositionDraftChange}
+            axisKeys={variantAxisKeys ?? []}
+            suggestedAxisKeys={suggestedVariantAxisKeys}
+            onAxisKeysChange={onVariantAxisKeysChange}
+            showAxisPicker
+            variants={variants}
+            skuMask={skuMask}
+            baseSku={baseSku}
+            defaultSellingPrice={defaultSellingPrice}
+            defaultPurchasePrice={defaultPurchasePrice}
+            defaultStandardCost={defaultStandardCost}
+            defaultMrp={defaultMrp}
+            defaultHsn={defaultHsn}
+            defaultSupplierId={defaultSupplierId}
+            onGenerated={handleVariantsGenerated}
+          />
+        </div>
+      ) : !readOnly && !itemId ? (
+        <p className={cn("text-xs text-muted-foreground", editorPanelDividerClass())}>
+          Save the product to generate variants.
+        </p>
+      ) : null}
+
+      {showVariantList && !inReviewPhase && !isDraftComposition ? renderVariantList() : null}
 
       <VariantDrawerForm
         open={drawerOpen}

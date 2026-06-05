@@ -143,7 +143,7 @@ export function VariantAssortmentMatrix({ itemId, variants, readOnly = false }: 
     return (
       <section className="surface-panel space-y-2">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Variant Assortment
+          Location assortment
         </h3>
         <p className="text-sm text-muted-foreground">
           No active locations yet. Create locations to plan which variants are carried where.
@@ -157,7 +157,7 @@ export function VariantAssortmentMatrix({ itemId, variants, readOnly = false }: 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Variant Assortment
+            Location assortment
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Plan which variants are stocked (S) and sellable (Sell) at each location. Stocking is

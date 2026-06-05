@@ -155,7 +155,7 @@ export function VariantChannelAvailabilityMatrix({ itemId, variants, readOnly = 
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Choose which variants are visible on each storefront channel. This refines the
-            product-level visibility set in the product form.
+            product-level defaults set above.
           </p>
         </div>
         {!readOnly && (

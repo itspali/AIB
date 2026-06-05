@@ -140,8 +140,8 @@ Complimentary mandatory add-ons: line price **₹0**, still exploded for SAC/HSN
 
 | Phase | Scope |
 |-------|--------|
-| **Now (foundation)** | Doc, decouple classification/composition, toggle + Composition stage shell, wizard order, DB validation relax, legacy `KIT_BUNDLE` migration |
-| **V2.1** | `item_composition_lines` table + editor grid + save RPC |
+| **Now (foundation)** | Doc, decouple classification/composition, toggle + Composition stage, `item_composition_lines` grid (mandatory/optional, fixed/complimentary), service/digital parents, mixed FG packages |
+| **V2.1** | *(merged into foundation)* |
 | **V2.2** | Quote/order explosion, optional add-ons, per-line tax |
 | **V2.3** | Service/digital parents, mixed FG packages |
 | **V2.4** | WIP consumption, composition versioning on orders |

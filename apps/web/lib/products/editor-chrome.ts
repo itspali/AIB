@@ -36,7 +36,7 @@ export function editorPageSectionClass(variant: "summary" | "section" = "section
 
 /** Padded body below a full-width section heading band. */
 export function editorSectionBodyClass(panel: boolean) {
-  return cn(panel ? "space-y-3 pt-3" : "space-y-4 p-4 pt-4 sm:p-6 sm:pt-5");
+  return cn(panel ? "space-y-3 pt-6" : "space-y-4 p-4 pt-4 sm:p-6 sm:pt-5");
 }
 
 export function editorSubsectionClass(panel: boolean) {
@@ -48,6 +48,24 @@ export function editorSubsectionClass(panel: boolean) {
 /** Divider between sibling blocks inside one panel section (e.g. matrix vs variant table). */
 export function editorPanelDividerClass(className?: string) {
   return cn("border-t border-border/50 pt-4", className);
+}
+
+/** Centered “Show more / Hide advanced” row with a full-width line behind the label. */
+export function editorSectionDisclosureRowClass() {
+  return "relative flex w-full items-center";
+}
+
+export function editorSectionDisclosureLineClass() {
+  return "pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/50";
+}
+
+export function editorSectionDisclosureButtonClass(panel: boolean) {
+  return cn(
+    "relative z-[1] mx-auto h-7 px-3 text-xs font-medium text-primary hover:text-primary",
+    panel
+      ? "bg-muted/15 hover:bg-muted/25 dark:bg-muted/10 dark:hover:bg-muted/20"
+      : "bg-background hover:bg-accent"
+  );
 }
 
 /** Vertical rhythm between top-level panel sections in the scroll column. */
@@ -62,7 +80,7 @@ const editorHeadingBgClass = "w-full bg-secondary text-foreground dark:bg-second
 export function editorSectionHeadingClass(panel: boolean) {
   return cn(
     panel
-      ? "-mx-3.5 -mt-3 mb-0 border-b border-border/50 bg-muted/25 px-3.5 py-2.5 dark:bg-muted/20"
+      ? "-mx-3.5 -mt-3 mb-0 border-b border-border/50 bg-muted/25 px-3.5 pb-3 pt-2.5 dark:bg-muted/20"
       : cn(editorHeadingBgClass, "border-b border-border px-4 py-2.5 sm:px-6")
   );
 }
@@ -140,6 +158,12 @@ export const EDITOR_PANEL_HORIZONTAL_RAIL_MAX_WIDTH_PX = 560;
 /** Viewports below `lg` use the top section strip in drawer editors. */
 export const EDITOR_PANEL_TOP_TABS_VIEWPORT_MEDIA = "(max-width: 1023px)";
 
+/** Minimum drawer pane width for the wizard stage left rail (fallback when vw is unavailable). */
+export const EDITOR_WIZARD_LEFT_RAIL_MIN_PANE_PX = 720;
+
+/** Drawer width preset (vw) at which the wizard shows the left stage rail (matches 60 / 80 presets). */
+export const EDITOR_WIZARD_LEFT_RAIL_MIN_DRAWER_VW = 60;
+
 export function resolveEditorPanelHorizontalRail(paneWidth: number | undefined): boolean {
   return paneWidth != null && paneWidth <= EDITOR_PANEL_HORIZONTAL_RAIL_MAX_WIDTH_PX;
 }
@@ -151,11 +175,91 @@ export function resolveEditorPanelUseTopTabs(
   return compactViewport || resolveEditorPanelHorizontalRail(paneWidth);
 }
 
+/** Wizard stages: left rail on wide drawer panes; top stepper when narrow. */
+export function resolveWizardUseLeftRail(
+  isPanelLayout: boolean,
+  paneWidth: number | undefined,
+  compactViewport: boolean,
+  drawerWidthVw?: number
+): boolean {
+  if (compactViewport) return false;
+  if (!isPanelLayout) return true;
+  if (drawerWidthVw != null) {
+    return drawerWidthVw >= EDITOR_WIZARD_LEFT_RAIL_MIN_DRAWER_VW;
+  }
+  return paneWidth != null && paneWidth >= EDITOR_WIZARD_LEFT_RAIL_MIN_PANE_PX;
+}
+
 /** Width of the sticky section rail in the detail-panel editor (keep in sync with grid class below). */
 export function editorPanelLayoutGridClass(horizontalRail = false) {
   return horizontalRail
     ? "grid min-w-0 grid-cols-1 gap-2"
     : "grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] gap-2";
+}
+
+/** Left wizard stepper rail in the panel drawer (wider than the section nav rail). */
+export function editorPanelWizardLayoutGridClass() {
+  return "grid min-h-0 min-w-0 flex-1 grid-cols-[12rem_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] items-stretch gap-0 overflow-hidden";
+}
+
+/** Left wizard stepper rail on the full-page create flow. */
+export function editorPageWizardLayoutGridClass() {
+  return "lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:gap-0";
+}
+
+/** Horizontal bleed + top flush with drawer body (matches RightDrawer px-4 py-4 sm:px-6). */
+export function editorPanelWizardBleedClass() {
+  return "-mx-4 -mt-4 sm:-mx-6 sm:-mt-6";
+}
+
+/** Same bleed, only from the `lg` breakpoint (when the left stage rail is shown). */
+export function editorPanelWizardBleedLgClass() {
+  return "lg:-mx-6 lg:-mt-6";
+}
+
+/** Bottom inset so the last section can scroll fully above the drawer edge. */
+export function editorPanelWizardScrollClass() {
+  return "pb-4 sm:pb-6";
+}
+
+/** Scroll column beside the wizard left rail — top inset clears the bleed pull-up. */
+export function editorPanelWizardFormScrollClass() {
+  return "h-full max-h-full pl-3 pr-4 pt-5 sm:pr-6 sm:pt-7";
+}
+
+/** Wizard stage rail / top bar surface — visible on light and dark canvases. */
+export function editorWizardRailBgClass() {
+  return "bg-[hsl(214_28%_92%)] dark:bg-secondary";
+}
+
+/** Full-width stage strip above the form when the left rail is hidden. */
+export function editorWizardTopBarClass(panel = false) {
+  return cn(
+    "shrink-0 border-b border-border/60",
+    editorWizardRailBgClass(),
+    panel
+      ? "-mx-4 -mt-4 px-4 pb-1.5 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-1.5 sm:pt-6"
+      : "py-1.5"
+  );
+}
+
+/** Full-height tinted column for the left wizard stage rail. */
+export function editorWizardLeftRailAsideClass(_panel = false) {
+  return cn(
+    "flex h-full min-h-0 min-w-0 flex-col self-stretch border-r border-border/60",
+    editorWizardRailBgClass()
+  );
+}
+
+export function editorWizardLeftRailInnerClass(panel = false) {
+  return cn(
+    "flex h-full min-h-0 w-full flex-1 flex-col bg-inherit",
+    panel ? "pb-3 pl-4 pr-2 pt-4 sm:pl-6 sm:pt-6" : "px-3 py-3"
+  );
+}
+
+export function editorWizardLeftRailStickyClass() {
+  return cn("sticky z-10 w-full min-w-0", PANEL_SCROLL_TOP_OFFSET);
 }
 
 /** Gap between detail-pane scroll top and section content (matches sticky nav offset). */

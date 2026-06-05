@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 /** Tracks the content-box width of an element via ResizeObserver. */
 export function useElementWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
   const [width, setWidth] = useState<number | undefined>(undefined);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
-  useEffect(() => {
-    const node = ref.current;
+  const ref = useCallback((node: T | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+
     if (!node) return;
 
     const measure = () => {
@@ -16,11 +18,9 @@ export function useElementWidth<T extends HTMLElement>() {
     };
 
     measure();
-
     const observer = new ResizeObserver(measure);
     observer.observe(node);
-
-    return () => observer.disconnect();
+    observerRef.current = observer;
   }, []);
 
   return { ref, width };

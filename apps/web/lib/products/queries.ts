@@ -614,7 +614,7 @@ const VARIANT_DETAIL_SELECT = `
 `;
 
 /** Disambiguate composite tenant FK — PostgREST rejects bare `item_variants` embeds. */
-const ITEM_VARIANTS_EMBED = "item_variants!item_variants_item_tenant_fk";
+export const ITEM_VARIANTS_EMBED = "item_variants!item_variants_item_tenant_fk";
 
 async function fetchProductVariants(
   supabase: SupabaseClient,

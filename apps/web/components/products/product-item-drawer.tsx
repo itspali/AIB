@@ -64,6 +64,7 @@ function ProductItemDrawerSheet({
   allowBackgroundInteraction,
   imageUrl,
   imageAlt,
+  closeOnEscape,
 }: {
   open: boolean;
   title: string;
@@ -72,6 +73,7 @@ function ProductItemDrawerSheet({
   allowBackgroundInteraction: boolean;
   imageUrl: string | null;
   imageAlt: string;
+  closeOnEscape: boolean;
 }) {
   const { onDismiss } = useProductPanelContext();
 
@@ -93,8 +95,9 @@ function ProductItemDrawerSheet({
       allowBackgroundInteraction={allowBackgroundInteraction}
       scrollable={false}
       showCloseButton
+      closeOnEscape={closeOnEscape}
     >
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-visible">
         <ProductPanelBody />
       </div>
     </RightDrawer>
@@ -199,6 +202,7 @@ export function ProductItemDrawer({
         allowBackgroundInteraction={allowBackgroundInteraction}
         imageUrl={imageUrl}
         imageAlt={title}
+        closeOnEscape={!isCreateFlow}
       />
     </ProductPanelScope>
   );

@@ -13,7 +13,7 @@ import {
   PRODUCT_LIST_PAGE_SIZE,
 } from "@/lib/products/list-queries";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
-import { fetchProductDetail } from "@/lib/products/queries";
+import { fetchProductDetail, ITEM_VARIANTS_EMBED } from "@/lib/products/queries";
 import { resolveSessionProductFieldPermissions } from "@/lib/products/field-permissions-server";
 import { productMasterSchema } from "@/lib/products/schemas";
 import {
@@ -24,7 +24,17 @@ import { buildReservedCatalogCustomFieldsPayload } from "@/lib/products/catalog-
 import { buildCustomFieldsPayload } from "@/lib/products/sku-mask";
 import type { ProductMasterInput } from "@/lib/products/schemas";
 import { itemMediaSchema, itemVariantSchema } from "@/lib/products/variant-schemas";
-import { itemLifecycleStatusFromActive } from "@/lib/products/item-model";
+import type { ItemClassification } from "@/lib/products/classification-labels";
+import type {
+  CompositionComponentCandidate,
+  CompositionLineRow,
+  CompositionPriceMode,
+} from "@/lib/products/composition";
+import {
+  allowedComponentItemTypes,
+  validateCompositionDraftRows,
+} from "@/lib/products/composition";
+import { itemLifecycleStatusFromActive, type ItemType } from "@/lib/products/item-model";
 import { resolveItemTaxCodePickerOptions } from "@/lib/tax/item-tax-code-picker";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
@@ -1055,6 +1065,203 @@ export async function saveSupplierCatalog(
   if (error) {
     if (isMissingRpcError(error)) {
       return { error: formatRpcDeployError("save_supplier_catalog_entries") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/inventory/items");
+  return { success: true as const };
+}
+
+export type ItemCompositionData = {
+  lines: CompositionLineRow[];
+};
+
+type CompositionLineDbRow = {
+  id: string;
+  parent_variant_id: string | null;
+  component_item_id: string;
+  component_variant_id: string | null;
+  quantity: number | string;
+  is_mandatory: boolean;
+  is_optional_addon: boolean;
+  default_selected: boolean;
+  unit_price: number | string;
+  price_mode: string;
+  sort_order: number;
+  component_item: { name: string; item_type: ItemType } | null;
+  component_variant: { sku: string } | null;
+};
+
+function mapCompositionLineRows(data: CompositionLineDbRow[] | null): CompositionLineRow[] {
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    parent_variant_id: row.parent_variant_id,
+    component_item_id: row.component_item_id,
+    component_variant_id: row.component_variant_id,
+    quantity: Number(row.quantity),
+    is_mandatory: row.is_mandatory,
+    is_optional_addon: row.is_optional_addon,
+    default_selected: row.default_selected,
+    unit_price: Number(row.unit_price),
+    price_mode: (row.price_mode === "COMPLIMENTARY" ? "COMPLIMENTARY" : "FIXED") as CompositionPriceMode,
+    sort_order: row.sort_order,
+    component_name: row.component_item?.name ?? "Unknown item",
+    component_item_type: row.component_item?.item_type ?? "PHYSICAL",
+    component_sku: row.component_variant?.sku ?? null,
+  }));
+}
+
+export async function listCompositionComponentCandidates(
+  parentItemId: string,
+  parentItemType: ItemType,
+  classification: ItemClassification
+): Promise<{ data: CompositionComponentCandidate[] } | { error: string }> {
+  if (!parentItemId.trim()) return { error: "Product id is required." };
+
+  const allowedTypes = allowedComponentItemTypes(parentItemType, classification);
+  if (allowedTypes.length === 0) {
+    return { data: [] };
+  }
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data, error } = await supabase
+    .from("items")
+    .select(
+      `
+      id,
+      name,
+      item_type,
+      classification,
+      ${ITEM_VARIANTS_EMBED} (
+        id,
+        sku,
+        is_sellable,
+        is_master,
+        created_at
+      )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .neq("id", parentItemId)
+    .in("item_type", [...allowedTypes])
+    .order("name")
+    .limit(500);
+
+  if (error) return { error: error.message };
+
+  const candidates: CompositionComponentCandidate[] = (data ?? []).map((row) => {
+    const variants = (row.item_variants ?? []) as Array<{
+      id: string;
+      sku: string;
+      is_sellable: boolean;
+      is_master: boolean;
+      created_at: string;
+    }>;
+    const preferred =
+      variants.find((v) => v.is_sellable) ??
+      variants.find((v) => v.is_master) ??
+      variants[0] ??
+      null;
+
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      item_type: row.item_type as ItemType,
+      classification: row.classification as ItemClassification,
+      default_variant_id: preferred?.id ?? null,
+      default_sku: preferred?.sku ?? null,
+    };
+  });
+
+  return { data: candidates };
+}
+
+export async function getItemComposition(
+  itemId: string
+): Promise<{ data: ItemCompositionData } | { error: string }> {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data, error } = await supabase
+    .from("item_composition_lines")
+    .select(
+      `
+      id,
+      parent_variant_id,
+      component_item_id,
+      component_variant_id,
+      quantity,
+      is_mandatory,
+      is_optional_addon,
+      default_selected,
+      unit_price,
+      price_mode,
+      sort_order,
+      component_item:items!item_composition_lines_component_item_tenant_fk (
+        name,
+        item_type
+      ),
+      component_variant:item_variants!item_composition_lines_component_variant_tenant_fk (
+        sku
+      )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("parent_item_id", itemId)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    if (error.code === "42P01") {
+      return { error: formatRpcDeployError("item_composition_lines") };
+    }
+    return { error: error.message };
+  }
+
+  return { data: { lines: mapCompositionLineRows(data as CompositionLineDbRow[]) } };
+}
+
+export async function saveItemComposition(
+  itemId: string,
+  rows: Array<{
+    parent_variant_id: string | null;
+    component_item_id: string;
+    component_variant_id: string | null;
+    quantity: number;
+    is_mandatory: boolean;
+    is_optional_addon: boolean;
+    default_selected: boolean;
+    unit_price: number;
+    price_mode: CompositionPriceMode;
+    sort_order: number;
+  }>
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const validationMessage = validateCompositionDraftRows(rows);
+  if (validationMessage) return { error: validationMessage };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("save_item_composition_lines", {
+    p_parent_item_id: itemId,
+    p_rows: rows.map((row, index) => ({
+      parent_variant_id: row.parent_variant_id,
+      component_item_id: row.component_item_id,
+      component_variant_id: row.component_variant_id,
+      quantity: row.quantity,
+      is_mandatory: row.is_mandatory,
+      is_optional_addon: row.is_optional_addon,
+      default_selected: row.is_optional_addon ? row.default_selected : true,
+      unit_price: row.price_mode === "COMPLIMENTARY" ? 0 : row.unit_price,
+      price_mode: row.price_mode,
+      sort_order: row.sort_order ?? index,
+    })),
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_item_composition_lines") };
     }
     return { error: error.message };
   }

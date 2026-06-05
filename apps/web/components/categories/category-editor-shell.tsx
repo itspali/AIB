@@ -32,7 +32,14 @@ import {
 } from "@/lib/categories/category-stage-status";
 import type { useCategoryForm } from "@/lib/categories/use-category-form";
 import { CATEGORY_EDITOR_FIELD_HELP } from "@/lib/categories/category-editor-field-help";
-import { CATEGORY_EDITOR_FORM_CLASS } from "@/lib/products/editor-chrome";
+import {
+  CATEGORY_EDITOR_FORM_CLASS,
+  editorPanelWizardBleedLgClass,
+  editorWizardTopBarClass,
+  editorWizardLeftRailAsideClass,
+  editorWizardLeftRailInnerClass,
+  editorWizardLeftRailStickyClass,
+} from "@/lib/products/editor-chrome";
 import { cn } from "@/lib/utils";
 
 export type CategoryWizardChrome = {
@@ -138,7 +145,7 @@ export function CategoryEditorShell({
       )}
 
       {isWizard ? (
-        <div className="shrink-0 lg:hidden">
+        <div className={cn("lg:hidden", editorWizardTopBarClass(isDrawer))}>
           <EditorStepper
             stages={CATEGORY_EDITOR_STAGES}
             activeStage={activeStage}
@@ -172,22 +179,27 @@ export function CategoryEditorShell({
         className={cn(
           scrollableForm && "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
           isWizard &&
-            "gap-2 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:gap-4"
+            cn(
+              "gap-2 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:gap-0",
+              isDrawer && editorPanelWizardBleedLgClass()
+            )
         )}
       >
         {isWizard ? (
-          <aside className="hidden shrink-0 lg:block">
-            <div className="rounded-lg border border-border/60 bg-background/70 p-2">
-              <EditorStepper
-                stages={CATEGORY_EDITOR_STAGES}
-                activeStage={activeStage}
-                statuses={statuses}
-                percent={percent}
-                onSelect={wizard?.onSelectStage}
-                vertical
-                compact
-                showDescription={false}
-              />
+          <aside className={cn("hidden lg:flex", editorWizardLeftRailAsideClass(isDrawer))}>
+            <div className={editorWizardLeftRailInnerClass(isDrawer)}>
+              <div className={editorWizardLeftRailStickyClass()}>
+                <EditorStepper
+                  stages={CATEGORY_EDITOR_STAGES}
+                  activeStage={activeStage}
+                  statuses={statuses}
+                  percent={percent}
+                  onSelect={wizard?.onSelectStage}
+                  vertical
+                  compact
+                  showDescription={false}
+                />
+              </div>
             </div>
           </aside>
         ) : null}

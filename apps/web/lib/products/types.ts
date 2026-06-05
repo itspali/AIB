@@ -327,6 +327,17 @@ export type ProductMasterFormValues = {
   price_is_tax_inclusive: boolean;
 };
 
+/** Master form SKU field: product code for multi-SKU, sellable variant SKU otherwise. */
+export function resolveMasterFormSku(detail: ProductDetailSnapshot): string {
+  if (detail.variant_strategy !== "MULTI_SKU") {
+    return detail.sku;
+  }
+  const code = detail.code?.trim();
+  if (code) return code;
+  const master = detail.variants.find((variant) => variant.is_master);
+  return master?.sku ?? detail.sku;
+}
+
 export function detailToFormValues(detail: ProductDetailSnapshot): ProductMasterFormValues {
   const variantAttributes: Record<string, string> = {};
   for (const [key, value] of Object.entries(detail.variant_attributes)) {
@@ -349,7 +360,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     classification: normalized.classification,
     name: detail.name,
     description: detail.description ?? "",
-    sku: detail.sku,
+    sku: resolveMasterFormSku(detail),
     barcode: detail.barcode ?? "",
     base_unit_of_measure: detail.base_unit_of_measure,
     category_id: detail.category_id,

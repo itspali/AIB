@@ -1,45 +1,61 @@
 "use client";
 
-import { Boxes } from "lucide-react";
+import type { ItemClassification } from "@/lib/products/classification-labels";
 import {
   compositionEmptyStateMessage,
   compositionRoleAllowsComponents,
 } from "@/lib/products/composition";
-import type { ItemClassification } from "@/lib/products/classification-labels";
-import {
-  editorEmptyStateClass,
-  useEditorPanelLayout,
-} from "@/lib/products/editor-chrome";
-import { cn } from "@/lib/utils";
+import { CompositionEditor } from "@/components/products/product-editor/composition-editor";
+import { editorEmptyStateClass, useEditorPanelLayout } from "@/lib/products/editor-chrome";
+import type { ItemType } from "@/lib/products/item-model";
+import type { ProductVariantSnapshot } from "@/lib/products/types";
 
 type Props = {
+  itemId: string | null;
+  parentItemType: ItemType;
   classification: ItemClassification;
-  hasItemId: boolean;
+  variants: ProductVariantSnapshot[];
+  isMultiSku: boolean;
+  currency: string;
+  readOnly?: boolean;
 };
 
-export function ProductCompositionSection({ classification, hasItemId }: Props) {
+export function ProductCompositionSection({
+  itemId,
+  parentItemType,
+  classification,
+  variants,
+  isMultiSku,
+  currency,
+  readOnly = false,
+}: Props) {
   const isPanelLayout = useEditorPanelLayout();
 
-  if (!compositionRoleAllowsComponents(classification)) {
+  if (!compositionRoleAllowsComponents(parentItemType, classification)) {
     return (
       <p className={editorEmptyStateClass(isPanelLayout)}>
-        Sold as a set is only configured for finished goods and work-in-progress items. Change
-        supply-chain role on Basics, or turn off Sold as a set.
+        {compositionEmptyStateMessage(parentItemType, classification, Boolean(itemId))}
+      </p>
+    );
+  }
+
+  if (!itemId) {
+    return (
+      <p className={editorEmptyStateClass(isPanelLayout)}>
+        {compositionEmptyStateMessage(parentItemType, classification, false)}
       </p>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-8 text-center",
-        isPanelLayout ? "text-xs" : "text-sm"
-      )}
-    >
-      <Boxes className="h-8 w-8 text-muted-foreground/70" aria-hidden />
-      <p className="max-w-md text-muted-foreground">
-        {compositionEmptyStateMessage(classification, hasItemId)}
-      </p>
-    </div>
+    <CompositionEditor
+      itemId={itemId}
+      parentItemType={parentItemType}
+      classification={classification}
+      variants={variants}
+      isMultiSku={isMultiSku}
+      currency={currency}
+      readOnly={readOnly}
+    />
   );
 }

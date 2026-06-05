@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
+  deleteItemVariant,
+  getProductDetail,
+  saveItemVariant,
+  saveItemVariantAxes,
   saveItemVariantsBulk,
   syncMatrixVariantSupplierPrices,
   type BulkVariantRow,
@@ -27,8 +30,22 @@ import {
   resolveMatrixCostDefault,
 } from "@/lib/products/variant-matrix-defaults";
 import { editorPanelDividerClass } from "@/lib/products/editor-chrome";
-import type { ProductVariantSnapshot } from "@/lib/products/types";
+import {
+  variantSnapshotToFormValues,
+  type ProductVariantSnapshot,
+} from "@/lib/products/types";
 import { cn } from "@/lib/utils";
+
+export type VariantCompositionMode = "draft" | "live";
+
+export type VariantMatrixCommitResult =
+  | { success: true; updatedAt?: string }
+  | { error: string };
+
+export type VariantMatrixDraftState = {
+  includedCount: number;
+  canCommit: boolean;
+};
 
 type Props = {
   itemId: string;
@@ -37,10 +54,14 @@ type Props = {
   skuMask: string;
   baseSku: string;
   axisKeys: string[];
+  suggestedAxisKeys?: string[];
   onAxisKeysChange?: (keys: string[]) => void;
-  /** When false, SKU axes are chosen in the parent form (VariantCompositionPicker). */
+  /** When false, axis selection is controlled elsewhere (legacy). */
   showAxisPicker?: boolean;
-  defaultExpanded?: boolean;
+  /** Draft: rebuild grid in memory; persist via commitDraft on wizard Continue. */
+  compositionMode?: VariantCompositionMode;
+  onRegisterCommit?: (commit: (() => Promise<VariantMatrixCommitResult>) | null) => void;
+  onDraftChange?: (state: VariantMatrixDraftState | null) => void;
   defaultSellingPrice?: string;
   defaultPurchasePrice?: string;
   defaultStandardCost?: string;
@@ -85,12 +106,12 @@ function ValueToggleChip({
       disabled={disabled}
       onClick={onToggle}
       className={cn(
-        "rounded-md px-2 py-0.5 text-xs transition-colors",
+        "cursor-pointer rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         selected
-          ? "bg-primary/10 font-medium text-foreground ring-1 ring-primary/40"
-          : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+          ? "border-primary bg-primary/10 text-foreground shadow-sm ring-1 ring-inset ring-primary/40"
+          : "border-border bg-background text-foreground shadow-sm hover:border-primary/30 hover:bg-muted/60 dark:bg-card/70 dark:hover:bg-muted/40"
       )}
       aria-pressed={selected}
     >
@@ -144,9 +165,100 @@ function resetMatrixDraft() {
   };
 }
 
+function normalizeVariantAttributes(
+  attributes: Record<string, unknown>,
+  axisKeys?: string[]
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  const keys = axisKeys?.length
+    ? axisKeys
+    : Object.keys(attributes).sort();
+  for (const key of keys) {
+    const value = attributes[key];
+    if (value === null || value === undefined) continue;
+    const trimmed = String(value).trim();
+    if (trimmed) normalized[key] = trimmed;
+  }
+  return normalized;
+}
+
+function seedDraftFromVariants(
+  variants: ProductVariantSnapshot[],
+  axisTemplates: AttributeTemplateEntry[]
+) {
+  const draft = resetMatrixDraft();
+  const sellable = variants.filter((variant) => !variant.is_master);
+  if (!sellable.length || !axisTemplates.length) return draft;
+
+  for (const template of axisTemplates) {
+    const values = new Set<string>();
+    for (const variant of sellable) {
+      const raw = variant.variant_attributes[template.key];
+      if (raw === null || raw === undefined) continue;
+      const trimmed = String(raw).trim();
+      if (trimmed) values.add(trimmed);
+    }
+    if (template.type === "select" && template.options?.length) {
+      for (const option of values) {
+        if (!template.options.includes(option)) continue;
+        draft.selectValues[template.key] = {
+          ...(draft.selectValues[template.key] ?? {}),
+          [option]: true,
+        };
+      }
+    } else if (values.size) {
+      draft.freeValues[template.key] = [...values].join(", ");
+    }
+  }
+
+  for (const variant of sellable) {
+    const attributes = normalizeVariantAttributes(
+      variant.variant_attributes,
+      axisTemplates.map((template) => template.key)
+    );
+    if (!Object.keys(attributes).length) continue;
+    const key = comboKey(attributes);
+    draft.overrides[key] = {
+      include: true,
+      sku: variant.sku,
+      sellPrice:
+        variant.price && variant.price !== "0" ? variant.price : undefined,
+    };
+  }
+
+  return draft;
+}
+
 const compactInputClass = "h-7 text-xs";
 const priceColClass = "w-[4.75rem] min-w-[4.75rem]";
 const hsnColClass = "w-[5.5rem] min-w-[5.5rem]";
+
+const FREE_TEXT_AXIS_EXAMPLES: Record<string, string> = {
+  color: "Red, Blue, Green",
+  colour: "Red, Blue, Green",
+  size: "S, M, L, XL",
+  brand: "Nike, Adidas, Puma",
+  manufacturer: "Samsung, LG, Sony",
+  material: "Cotton, Polyester, Wool",
+  finish: "Matte, Gloss",
+  style: "Classic, Modern",
+  width: "10 cm, 12 cm, 15 cm",
+  length: "1 m, 2 m, 3 m",
+};
+
+function freeTextAxisPlaceholder(template: AttributeTemplateEntry): string {
+  const key = template.key.toLowerCase();
+  const label = template.label.trim();
+  const labelLower = label.toLowerCase();
+
+  for (const [pattern, example] of Object.entries(FREE_TEXT_AXIS_EXAMPLES)) {
+    if (key.includes(pattern) || labelLower.includes(pattern)) {
+      return example;
+    }
+  }
+
+  return `Comma-separated ${labelLower} values`;
+}
 
 export function VariantMatrixGenerator({
   itemId,
@@ -155,23 +267,27 @@ export function VariantMatrixGenerator({
   skuMask,
   baseSku,
   axisKeys,
+  suggestedAxisKeys = [],
   onAxisKeysChange,
-  showAxisPicker = false,
-  defaultExpanded = true,
+  showAxisPicker = true,
   defaultSellingPrice = "",
   defaultPurchasePrice = "",
   defaultStandardCost = "",
   defaultMrp = "",
   defaultHsn = "",
   defaultSupplierId = null,
+  compositionMode = "live",
+  onRegisterCommit,
+  onDraftChange,
   onGenerated,
 }: Props) {
   const router = useRouter();
-  const [expanded, setExpanded] = useState(defaultExpanded);
   const [isPending, startTransition] = useTransition();
   const [selectValues, setSelectValues] = useState(resetMatrixDraft().selectValues);
   const [freeValues, setFreeValues] = useState(resetMatrixDraft().freeValues);
   const [overrides, setOverrides] = useState(resetMatrixDraft().overrides);
+  const draftHydratedRef = useRef(false);
+  const isDraftMode = compositionMode === "draft";
 
   const sellDefault = normalizeMatrixPriceDefault(defaultSellingPrice);
   const costDefault = resolveMatrixCostDefault(defaultPurchasePrice, defaultStandardCost);
@@ -186,15 +302,26 @@ export function VariantMatrixGenerator({
   const existingCombos = useMemo(() => {
     const set = new Set<string>();
     for (const variant of variants) {
-      const normalized: Record<string, string> = {};
-      for (const [key, value] of Object.entries(variant.variant_attributes)) {
-        if (value === null || value === undefined) continue;
-        normalized[key] = String(value);
-      }
+      if (variant.is_master) continue;
+      const normalized = normalizeVariantAttributes(variant.variant_attributes, axisKeys);
+      if (!Object.keys(normalized).length) continue;
       set.add(comboKey(normalized));
     }
     return set;
-  }, [variants]);
+  }, [axisKeys, variants]);
+
+  useEffect(() => {
+    if (!isDraftMode) {
+      draftHydratedRef.current = false;
+      return;
+    }
+    if (draftHydratedRef.current) return;
+    const seeded = seedDraftFromVariants(variants, axisTemplates);
+    setSelectValues(seeded.selectValues);
+    setFreeValues(seeded.freeValues);
+    setOverrides(seeded.overrides);
+    draftHydratedRef.current = true;
+  }, [axisTemplates, isDraftMode, variants]);
 
   const activeAxes = useMemo(() => {
     return axisTemplates
@@ -230,6 +357,7 @@ export function VariantMatrixGenerator({
   }, [activeAxes, existingCombos, effectiveMask, baseSku]);
 
   const newCombos = combos.filter((combo) => !combo.exists);
+  const rowSource = isDraftMode ? combos : newCombos;
 
   const resolveSellPrice = useCallback(
     (key: string) => resolveFieldDefault(key, overrides, "sellPrice", sellDefault),
@@ -242,15 +370,39 @@ export function VariantMatrixGenerator({
   );
 
   const includedRows = useMemo(() => {
-    return newCombos
+    return rowSource
       .filter((combo) => overrides[combo.key]?.include ?? true)
       .map((combo) => ({
+        key: combo.key,
         sku: overrides[combo.key]?.sku ?? combo.defaultSku,
         price: resolveSellPrice(combo.key) || null,
         costPrice: resolveCostPrice(combo.key),
         attributes: combo.attributes,
+        exists: combo.exists,
       }));
-  }, [newCombos, overrides, resolveSellPrice, resolveCostPrice]);
+  }, [overrides, resolveCostPrice, resolveSellPrice, rowSource]);
+
+  useEffect(() => {
+    if (!isDraftMode) {
+      onDraftChange?.(null);
+      return;
+    }
+    onDraftChange?.({
+      includedCount: includedRows.length,
+      canCommit:
+        includedRows.length > 0 &&
+        axisKeys.length > 0 &&
+        activeAxes.length > 0 &&
+        activeAxes.length === axisTemplates.length,
+    });
+  }, [
+    activeAxes.length,
+    axisKeys.length,
+    axisTemplates.length,
+    includedRows.length,
+    isDraftMode,
+    onDraftChange,
+  ]);
 
   const clearDraft = useCallback(() => {
     const empty = resetMatrixDraft();
@@ -259,13 +411,151 @@ export function VariantMatrixGenerator({
     setOverrides(empty.overrides);
   }, []);
 
-  const handleGenerate = useCallback(() => {
+  const finishDraftCommit = useCallback(async (): Promise<VariantMatrixCommitResult> => {
+    await onGenerated();
+    const detailResult = await getProductDetail(itemId);
+    if ("error" in detailResult) {
+      return {
+        error:
+          detailResult.error ??
+          "Variants were saved but the product profile could not be refreshed.",
+      };
+    }
+    return { success: true, updatedAt: detailResult.detail?.updated_at };
+  }, [itemId, onGenerated]);
+
+  const commitDraft = useCallback(async (): Promise<VariantMatrixCommitResult> => {
     if (!axisKeys.length) {
-      toast.error(
-        showAxisPicker
-          ? "Select at least one attribute under “Varies by”."
-          : "Choose what varies above, then pick values here."
+      return { success: true };
+    }
+    if (activeAxes.length !== axisTemplates.length) {
+      return { error: "Pick values for each selected axis." };
+    }
+    if (!includedRows.length) {
+      const sellable = variants.filter((variant) => !variant.is_master);
+      for (const variant of sellable) {
+        const result = await deleteItemVariant(variant.id);
+        if ("error" in result) {
+          return { error: result.error ?? "Unable to remove variant." };
+        }
+      }
+      const axesResult = await saveItemVariantAxes(itemId, axisKeys);
+      if ("error" in axesResult) {
+        return { error: axesResult.error ?? "Unable to save variant axes." };
+      }
+      return finishDraftCommit();
+    }
+
+    const skus = includedRows.map((row) => row.sku.trim());
+    if (skus.some((sku) => !sku)) {
+      return { error: "Every variant combination needs a SKU." };
+    }
+    if (new Set(skus).size !== skus.length) {
+      return { error: "Generated SKUs must be unique." };
+    }
+
+    const targetKeys = new Set(includedRows.map((row) => row.key));
+    const sellable = variants.filter((variant) => !variant.is_master);
+
+    for (const variant of sellable) {
+      const key = comboKey(
+        normalizeVariantAttributes(variant.variant_attributes, axisKeys)
       );
+      if (!targetKeys.has(key)) {
+        const result = await deleteItemVariant(variant.id);
+        if ("error" in result) {
+          return { error: result.error ?? "Unable to remove variant." };
+        }
+      }
+    }
+
+    const axesResult = await saveItemVariantAxes(itemId, axisKeys);
+    if ("error" in axesResult) {
+      return { error: axesResult.error ?? "Unable to save variant axes." };
+    }
+
+    const toCreate: BulkVariantRow[] = includedRows
+      .filter((row) => !row.exists)
+      .map((row) => ({
+        sku: row.sku.trim(),
+        price: row.price,
+        is_active: true,
+        variant_attributes: row.attributes,
+      }));
+
+    if (toCreate.length) {
+      const bulkResult = await saveItemVariantsBulk(itemId, toCreate);
+      if ("error" in bulkResult) {
+        return { error: bulkResult.error ?? "Unable to create variants." };
+      }
+    }
+
+    for (const row of includedRows.filter((entry) => entry.exists)) {
+      const variant = sellable.find((entry) => {
+        const key = comboKey(
+          normalizeVariantAttributes(entry.variant_attributes, axisKeys)
+        );
+        return key === row.key;
+      });
+      if (!variant) continue;
+
+      const payload = {
+        ...variantSnapshotToFormValues(variant, itemId),
+        sku: row.sku.trim(),
+        price: row.price ?? "0",
+        variant_attributes: row.attributes,
+      };
+      const result = await saveItemVariant(payload);
+      if ("error" in result) {
+        return { error: result.error ?? "Unable to update variant." };
+      }
+    }
+
+    if (defaultSupplierId) {
+      const costRows = includedRows
+        .filter((row) => row.costPrice.trim())
+        .map((row) => ({ sku: row.sku.trim(), costPrice: row.costPrice.trim() }));
+      if (costRows.length) {
+        const costResult = await syncMatrixVariantSupplierPrices(
+          itemId,
+          defaultSupplierId,
+          costRows
+        );
+        if ("error" in costResult) {
+          return {
+            error:
+              costResult.error ??
+              "Variants were saved but supplier cost prices could not be updated.",
+          };
+        }
+      }
+    }
+
+    return finishDraftCommit();
+  }, [
+    activeAxes.length,
+    axisKeys,
+    axisTemplates.length,
+    defaultSupplierId,
+    finishDraftCommit,
+    includedRows,
+    itemId,
+    variants,
+  ]);
+
+  useEffect(() => {
+    if (!isDraftMode) {
+      onRegisterCommit?.(null);
+      return;
+    }
+    onRegisterCommit?.(commitDraft);
+    return () => onRegisterCommit?.(null);
+  }, [commitDraft, isDraftMode, onRegisterCommit]);
+
+  const handleGenerate = useCallback(() => {
+    if (isDraftMode) return;
+    if (!axisKeys.length) {
+      toast.error("Select at least one attribute under “Varies by”.");
       return;
     }
     if (!activeAxes.length) {
@@ -334,7 +624,6 @@ export function VariantMatrixGenerator({
     itemId,
     onGenerated,
     router,
-    showAxisPicker,
   ]);
 
   const patchOverride = useCallback((comboKeyValue: string, patch: Partial<RowOverride>) => {
@@ -353,285 +642,241 @@ export function VariantMatrixGenerator({
   }
 
   return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-2 py-1 text-left"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        <span className="text-sm font-medium text-foreground">Generate variants</span>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-            expanded && "rotate-180"
-          )}
+    <div className="space-y-4">
+      {showAxisPicker ? (
+        <VariantAxisChipSelector
+          templates={categoryTemplates}
+          axisKeys={axisKeys}
+          suggestedAxisKeys={suggestedAxisKeys}
+          disabled={isPending}
+          compact
+          onChange={(keys) => {
+            if (onAxisKeysChange) onAxisKeysChange(keys);
+          }}
         />
-      </button>
+      ) : null}
 
-      {expanded ? (
-        <div className="space-y-4 pb-1">
-          {showAxisPicker ? (
-            <div className="space-y-2">
-              <VariantAxisChipSelector
-                templates={categoryTemplates}
-                axisKeys={axisKeys}
-                disabled={isPending}
-                compact
-                onChange={(keys) => {
-                  if (onAxisKeysChange) onAxisKeysChange(keys);
-                }}
-              />
-            </div>
-          ) : axisKeys.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Choose what varies above first.</p>
-          ) : null}
-
-          {axisKeys.length > 0 ? (
-            <section className={cn("space-y-2", editorPanelDividerClass())}>
-              <SectionLabel title="Values" />
-              <div className="space-y-2.5">
-                {axisTemplates.map((template) =>
-                  template.type === "select" && template.options?.length ? (
-                    <div
-                      key={template.key}
-                      className="flex flex-wrap items-center gap-x-2 gap-y-1.5"
-                    >
-                      <span className="w-16 shrink-0 truncate text-xs font-medium text-muted-foreground">
-                        {template.label}
-                      </span>
-                      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-                        {template.options.map((option) => (
-                          <ValueToggleChip
-                            key={option}
-                            label={option}
-                            selected={Boolean(selectValues[template.key]?.[option])}
-                            disabled={isPending}
-                            onToggle={() =>
-                              setSelectValues((prev) => ({
-                                ...prev,
-                                [template.key]: {
-                                  ...(prev[template.key] ?? {}),
-                                  [option]: !prev[template.key]?.[option],
-                                },
-                              }))
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={template.key} className="flex items-center gap-2">
-                      <span className="w-16 shrink-0 truncate text-xs font-medium text-muted-foreground">
-                        {template.label}
-                      </span>
-                      <Input
-                        className={cn(compactInputClass, "flex-1 font-mono")}
-                        disabled={isPending}
-                        placeholder="Red, Blue, Green"
-                        value={freeValues[template.key] ?? ""}
-                        onChange={(event) =>
-                          setFreeValues((prev) => ({
-                            ...prev,
-                            [template.key]: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  )
-                )}
-              </div>
-            </section>
-          ) : null}
-
-                {combos.length > 0 ? (
-                  <section className={cn("space-y-2", editorPanelDividerClass())}>
-                    <SectionLabel
-                      title="Preview"
-                      meta={
-                        <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-                          {newCombos.length} new
-                        </span>
+      {axisKeys.length > 0 ? (
+        <div className={cn("space-y-2.5", showAxisPicker && editorPanelDividerClass())}>
+          {axisTemplates.map((template) =>
+            template.type === "select" && template.options?.length ? (
+              <div
+                key={template.key}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1.5"
+              >
+                <span className="w-16 shrink-0 truncate text-xs font-medium text-muted-foreground">
+                  {template.label}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                  {template.options.map((option) => (
+                    <ValueToggleChip
+                      key={option}
+                      label={option}
+                      selected={Boolean(selectValues[template.key]?.[option])}
+                      disabled={isPending}
+                      onToggle={() =>
+                        setSelectValues((prev) => ({
+                          ...prev,
+                          [template.key]: {
+                            ...(prev[template.key] ?? {}),
+                            [option]: !prev[template.key]?.[option],
+                          },
+                        }))
                       }
                     />
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[36rem] text-xs">
-                        <thead>
-                          <tr className="border-b border-border/50 text-left">
-                      <th className="w-8 px-1.5 py-1.5" />
-                      <th className="min-w-[6rem] px-2 py-1.5 font-medium text-muted-foreground">
-                        Variant
-                      </th>
-                      <th className="min-w-[6.5rem] px-2 py-1.5 font-medium text-muted-foreground">
-                        SKU
-                      </th>
-                      <th
-                        className={cn(
-                          priceColClass,
-                          "px-2 py-1.5 font-medium text-muted-foreground"
-                        )}
-                      >
-                        {COST_PRICE_COLUMN}
-                      </th>
-                      <th
-                        className={cn(
-                          priceColClass,
-                          "px-2 py-1.5 font-medium text-muted-foreground"
-                        )}
-                      >
-                        {SELL_PRICE_COLUMN}
-                      </th>
-                      <th
-                        className={cn(
-                          priceColClass,
-                          "px-2 py-1.5 font-medium text-muted-foreground"
-                        )}
-                      >
-                        {MRP_PRICE_COLUMN}
-                      </th>
-                      <th
-                        className={cn(hsnColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
-                      >
-                        {HSN_COLUMN}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {combos.map((combo) => {
-                      const override = overrides[combo.key];
-                      const include = combo.exists ? false : override?.include ?? true;
-                      const disabledRow = isPending || combo.exists || !include;
-                      const sellValue = resolveFieldDefault(
-                        combo.key,
-                        overrides,
-                        "sellPrice",
-                        sellDefault
-                      );
-                      const costValue = resolveFieldDefault(
-                        combo.key,
-                        overrides,
-                        "costPrice",
-                        costDefault
-                      );
-                      const mrpValue = resolveFieldDefault(
-                        combo.key,
-                        overrides,
-                        "mrp",
-                        mrpDefault
-                      );
-                      const hsnValue = resolveFieldDefault(
-                        combo.key,
-                        overrides,
-                        "hsn",
-                        hsnDefault
-                      );
-
-                      return (
-                        <tr
-                          key={combo.key}
-                                className={cn(
-                                  "border-b border-border/40 last:border-0",
-                                  combo.exists && "opacity-50"
-                                )}
-                        >
-                          <td className="px-1.5 py-1">
-                            <Checkbox
-                              className="h-3.5 w-3.5"
-                              checked={include}
-                              disabled={isPending || combo.exists}
-                              onCheckedChange={(checked) =>
-                                patchOverride(combo.key, { include: Boolean(checked) })
-                              }
-                            />
-                          </td>
-                          <td className="max-w-[9rem] truncate px-2 py-1 text-foreground">
-                            {combo.label}
-                            {combo.exists ? (
-                              <span className="ml-1 text-muted-foreground">(exists)</span>
-                            ) : null}
-                          </td>
-                          <td className="px-2 py-1">
-                            <Input
-                              className={cn(compactInputClass, "font-mono")}
-                              disabled={disabledRow}
-                              value={override?.sku ?? combo.defaultSku}
-                              onChange={(event) =>
-                                patchOverride(combo.key, { sku: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="px-2 py-1">
-                            <Input
-                              className={cn(compactInputClass, "text-right font-mono")}
-                              inputMode="decimal"
-                              placeholder={costDefault || "—"}
-                              disabled={disabledRow}
-                              value={costValue}
-                              onChange={(event) =>
-                                patchOverride(combo.key, { costPrice: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="px-2 py-1">
-                            <Input
-                              className={cn(compactInputClass, "text-right font-mono")}
-                              inputMode="decimal"
-                              placeholder={sellDefault || "—"}
-                              disabled={disabledRow}
-                              value={sellValue}
-                              onChange={(event) =>
-                                patchOverride(combo.key, { sellPrice: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="px-2 py-1">
-                            <Input
-                              className={cn(compactInputClass, "text-right font-mono")}
-                              inputMode="decimal"
-                              placeholder={mrpDefault || "—"}
-                              disabled={disabledRow}
-                              value={mrpValue}
-                              onChange={(event) =>
-                                patchOverride(combo.key, { mrp: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="px-2 py-1">
-                            <Input
-                              className={cn(compactInputClass, "font-mono")}
-                              placeholder={hsnDefault || "—"}
-                              disabled={disabledRow}
-                              value={hsnValue}
-                              onChange={(event) =>
-                                patchOverride(combo.key, { hsn: event.target.value })
-                              }
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  ))}
+                </div>
               </div>
-            </section>
-                ) : axisKeys.length > 0 ? (
-                  <p className="text-xs text-muted-foreground">Pick values to preview SKUs.</p>
-                ) : null}
+            ) : (
+              <div key={template.key} className="flex items-center gap-2">
+                <span className="w-16 shrink-0 truncate text-xs font-medium text-muted-foreground">
+                  {template.label}
+                </span>
+                <Input
+                  className={cn(compactInputClass, "flex-1 font-mono")}
+                  disabled={isPending}
+                  placeholder={freeTextAxisPlaceholder(template)}
+                  value={freeValues[template.key] ?? ""}
+                  onChange={(event) =>
+                    setFreeValues((prev) => ({
+                      ...prev,
+                      [template.key]: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            )
+          )}
+        </div>
+      ) : null}
 
-          {includedRows.length > 0 ? (
-            <div className="flex justify-end pt-1">
-              <Button
-                type="button"
-                size="sm"
-                disabled={isPending}
-                onClick={handleGenerate}
-              >
-                {isPending
-                  ? "Creating…"
-                  : `Create ${includedRows.length} variant${includedRows.length === 1 ? "" : "s"}`}
-              </Button>
-            </div>
-          ) : null}
+      {combos.length > 0 ? (
+        <section className={cn("space-y-2", editorPanelDividerClass())}>
+          <SectionLabel
+            title={isDraftMode ? "Variants" : "Preview"}
+            meta={
+              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                {isDraftMode
+                  ? `${includedRows.length} variant${includedRows.length === 1 ? "" : "s"}`
+                  : `${newCombos.length} new`}
+              </span>
+            }
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[36rem] text-xs">
+              <thead>
+                <tr className="border-b border-border/50 text-left">
+                  <th className="w-8 px-1.5 py-1.5" />
+                  <th className="min-w-[6rem] px-2 py-1.5 font-medium text-muted-foreground">
+                    Variant
+                  </th>
+                  <th className="min-w-[6.5rem] px-2 py-1.5 font-medium text-muted-foreground">
+                    SKU
+                  </th>
+                  <th
+                    className={cn(priceColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
+                  >
+                    {COST_PRICE_COLUMN}
+                  </th>
+                  <th
+                    className={cn(priceColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
+                  >
+                    {SELL_PRICE_COLUMN}
+                  </th>
+                  <th
+                    className={cn(priceColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
+                  >
+                    {MRP_PRICE_COLUMN}
+                  </th>
+                  <th
+                    className={cn(hsnColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
+                  >
+                    {HSN_COLUMN}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {combos.map((combo) => {
+                  const override = overrides[combo.key];
+                  const include = isDraftMode
+                    ? (override?.include ?? true)
+                    : combo.exists
+                      ? false
+                      : (override?.include ?? true);
+                  const disabledRow =
+                    isPending || (!isDraftMode && combo.exists) || !include;
+                  const sellValue = resolveFieldDefault(
+                    combo.key,
+                    overrides,
+                    "sellPrice",
+                    sellDefault
+                  );
+                  const costValue = resolveFieldDefault(
+                    combo.key,
+                    overrides,
+                    "costPrice",
+                    costDefault
+                  );
+                  const mrpValue = resolveFieldDefault(combo.key, overrides, "mrp", mrpDefault);
+                  const hsnValue = resolveFieldDefault(combo.key, overrides, "hsn", hsnDefault);
+
+                  return (
+                    <tr
+                      key={combo.key}
+                      className={cn(
+                        "border-b border-border/40 last:border-0",
+                        !isDraftMode && combo.exists && "opacity-50"
+                      )}
+                    >
+                      <td className="px-1.5 py-1">
+                        <Checkbox
+                          className="h-3.5 w-3.5"
+                          checked={include}
+                          disabled={isPending || (!isDraftMode && combo.exists)}
+                          onCheckedChange={(checked) =>
+                            patchOverride(combo.key, { include: Boolean(checked) })
+                          }
+                        />
+                      </td>
+                      <td className="max-w-[9rem] truncate px-2 py-1 text-foreground">
+                        {combo.label}
+                        {!isDraftMode && combo.exists ? (
+                          <span className="ml-1 text-muted-foreground">(exists)</span>
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input
+                          className={cn(compactInputClass, "font-mono")}
+                          disabled={disabledRow}
+                          value={override?.sku ?? combo.defaultSku}
+                          onChange={(event) =>
+                            patchOverride(combo.key, { sku: event.target.value })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input
+                          className={cn(compactInputClass, "text-right font-mono")}
+                          inputMode="decimal"
+                          placeholder={costDefault || "—"}
+                          disabled={disabledRow}
+                          value={costValue}
+                          onChange={(event) =>
+                            patchOverride(combo.key, { costPrice: event.target.value })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input
+                          className={cn(compactInputClass, "text-right font-mono")}
+                          inputMode="decimal"
+                          placeholder={sellDefault || "—"}
+                          disabled={disabledRow}
+                          value={sellValue}
+                          onChange={(event) =>
+                            patchOverride(combo.key, { sellPrice: event.target.value })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input
+                          className={cn(compactInputClass, "text-right font-mono")}
+                          inputMode="decimal"
+                          placeholder={mrpDefault || "—"}
+                          disabled={disabledRow}
+                          value={mrpValue}
+                          onChange={(event) =>
+                            patchOverride(combo.key, { mrp: event.target.value })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input
+                          className={cn(compactInputClass, "font-mono")}
+                          placeholder={hsnDefault || "—"}
+                          disabled={disabledRow}
+                          value={hsnValue}
+                          onChange={(event) =>
+                            patchOverride(combo.key, { hsn: event.target.value })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {!isDraftMode && includedRows.length > 0 ? (
+        <div className="flex justify-end pt-1">
+          <Button type="button" size="sm" disabled={isPending} onClick={handleGenerate}>
+            {isPending
+              ? "Creating…"
+              : `Create ${includedRows.length} variant${includedRows.length === 1 ? "" : "s"}`}
+          </Button>
         </div>
       ) : null}
     </div>

@@ -78,8 +78,15 @@ export function SubsectionHeading({
   className?: string;
   compact?: boolean;
 }) {
+  const wrapClass = compact
+    ? cn(
+        "flex w-full items-center gap-1.5 bg-transparent px-0 py-0 dark:bg-transparent",
+        className
+      )
+    : editorSubsectionHeadingWrapClass(className);
+
   return (
-    <div className={editorSubsectionHeadingWrapClass(className)}>
+    <div className={wrapClass}>
       <h4
         className={cn(
           "font-medium text-foreground",

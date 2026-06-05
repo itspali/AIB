@@ -21,6 +21,7 @@ import {
   isEditorStageId,
   type EditorStageId,
 } from "@/lib/products/editor-stages";
+import type { WizardNav } from "@/lib/products/use-product-create-wizard";
 import {
   ITEM_CATALOG_ORIGIN_PARAM,
   ITEM_CATALOG_ORIGIN_VALUE,
@@ -36,13 +37,6 @@ import {
   type ProductCatalogContext,
   type ProductDetailSnapshot,
 } from "@/lib/products/types";
-
-/** Where a stage-navigation save should land once the item is persisted. */
-type WizardNav =
-  | { type: "primary" }
-  | { type: "back" }
-  | { type: "exit" }
-  | { type: "stage"; stage: EditorStageId };
 
 function wizardEditHref(itemId: string, stage: EditorStageId, fromCatalog: boolean): string {
   const base = itemEditHref(itemId);
@@ -98,7 +92,7 @@ export function ProductFormRoute({
   const { requestClose, discardDialog } = useDiscardChangesConfirmation();
 
   // The shell hands us its submit trigger; nav buttons set intent then save.
-  const submitRef = useRef<(() => void) | null>(null);
+  const submitRef = useRef<((nav: WizardNav) => void) | null>(null);
   const navRef = useRef<WizardNav>({ type: "primary" });
 
   const initialValues =
@@ -157,19 +151,19 @@ export function ProductFormRoute({
         isLast: renderIndex === renderOrder.length - 1,
         onBack: () => {
           navRef.current = { type: "back" };
-          submitRef.current?.();
+          submitRef.current?.(navRef.current);
         },
         onSkip: () => {
           navRef.current = { type: "exit" };
-          submitRef.current?.();
+          submitRef.current?.(navRef.current);
         },
         onPrimary: () => {
           navRef.current = { type: "primary" };
-          submitRef.current?.();
+          submitRef.current?.(navRef.current);
         },
         onSelectStage: (stage) => {
           navRef.current = { type: "stage", stage };
-          submitRef.current?.();
+          submitRef.current?.(navRef.current);
         },
         registerSubmit: (fn) => {
           submitRef.current = fn;
@@ -195,7 +189,7 @@ export function ProductFormRoute({
 
   const handleHeaderSave = () => {
     navRef.current = { type: "primary" };
-    submitRef.current?.();
+    submitRef.current?.(navRef.current);
   };
 
   // Wizard pages scroll inside the form column only — not the dashboard main pane.

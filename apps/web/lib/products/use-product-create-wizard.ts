@@ -32,7 +32,7 @@ export function useProductCreateWizard({
   const [resolvedStrategy, setResolvedStrategy] = useState(variantStrategy);
   const [resolvedComposition, setResolvedComposition] = useState(hasComposition);
   const navRef = useRef<WizardNav>({ type: "primary" });
-  const submitRef = useRef<(() => void) | null>(null);
+  const submitRef = useRef<((nav: WizardNav) => void) | null>(null);
 
   useEffect(() => {
     setResolvedStrategy(variantStrategy);
@@ -113,20 +113,24 @@ export function useProductCreateWizard({
         isFirst: renderIndex === 0,
         isLast: renderIndex === renderOrder.length - 1,
         onBack: () => {
-          navRef.current = { type: "back" };
-          submitRef.current?.();
+          const nav: WizardNav = { type: "back" };
+          navRef.current = nav;
+          submitRef.current?.(nav);
         },
         onSkip: () => {
-          navRef.current = { type: "exit" };
-          submitRef.current?.();
+          const nav: WizardNav = { type: "exit" };
+          navRef.current = nav;
+          submitRef.current?.(nav);
         },
         onPrimary: () => {
-          navRef.current = { type: "primary" };
-          submitRef.current?.();
+          const nav: WizardNav = { type: "primary" };
+          navRef.current = nav;
+          submitRef.current?.(nav);
         },
         onSelectStage: (nextStage) => {
-          navRef.current = { type: "stage", stage: nextStage };
-          submitRef.current?.();
+          const nav: WizardNav = { type: "stage", stage: nextStage };
+          navRef.current = nav;
+          submitRef.current?.(nav);
         },
         registerSubmit: (fn) => {
           submitRef.current = fn;
@@ -145,8 +149,9 @@ export function useProductCreateWizard({
       resetWizard,
       setStageFromParam,
       triggerPrimarySave: () => {
-        navRef.current = { type: "primary" };
-        submitRef.current?.();
+        const nav: WizardNav = { type: "primary" };
+        navRef.current = nav;
+        submitRef.current?.(nav);
       },
     }),
     [handleSaved, resetWizard, setStageFromParam, wizard]
