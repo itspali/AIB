@@ -39,6 +39,7 @@ import type {
   VariantMatrixCommitResult,
   VariantMatrixDraftState,
 } from "@/components/products/variant-matrix-generator";
+import type { CompositionCommitResult } from "@/components/products/product-editor/composition-editor";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import type { ProductPanelMutationHeader } from "@/components/products/product-panel-form";
 import { ItemExtensionDataProvider } from "@/components/products/item-extension-data-provider";
@@ -131,6 +132,7 @@ import {
   useProductForm,
   type ProductFormMode,
 } from "@/lib/products/use-product-form";
+import { detailToFormValues } from "@/lib/products/types";
 import type {
   ProductCatalogContext,
   ProductDetailSnapshot,
@@ -139,6 +141,7 @@ import type {
   ProductValuationSnapshot,
   ProductVariantSnapshot,
 } from "@/lib/products/types";
+import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import { formatDate } from "@/lib/dashboard/format";
 import {
   isProductFormFieldEditable,
@@ -967,9 +970,13 @@ export function ProductEditorShell({
   const storedVariantAxes = watch("variant_axes");
   const variantAxisKeys = storedVariantAxes ?? [];
   const variantCommitRef = useRef<(() => Promise<VariantMatrixCommitResult>) | null>(null);
+  const compositionCommitRef = useRef<(() => Promise<CompositionCommitResult>) | null>(null);
   const [compositionDraft, setCompositionDraft] = useState<VariantMatrixDraftState | null>(null);
+  const [compositionSectionDirty, setCompositionSectionDirty] = useState(false);
+  const [wizardSubmitPending, setWizardSubmitPending] = useState(false);
   const variantCompositionMode =
     wizard?.stage === "versions" && Boolean(wizard) && isMultiSku ? "draft" : "live";
+  const compositionDeferSave = Boolean(wizard && wizard.stage === "composition");
   const variantAxisCategoryRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const previousCategory = variantAxisCategoryRef.current;
@@ -1292,37 +1299,104 @@ export function ProductEditorShell({
   const submitRef = useRef(handleSave);
   submitRef.current = handleSave;
 
+  const submitPending = isPending || wizardSubmitPending;
+
+  const wizardPrimaryLabel = useMemo(() => {
+    if (submitPending) {
+      if (wizard?.stage === "versions" && variantCompositionMode === "draft") {
+        return "Saving variants…";
+      }
+      if (wizard?.stage === "composition") {
+        return "Saving composition…";
+      }
+      return "Saving…";
+    }
+    if (!wizard) return "Save item";
+    if (wizard.isLast) return "Finish";
+    if (wizard.isFirst) return "Save & continue";
+    return "Continue";
+  }, [submitPending, variantCompositionMode, wizard]);
+
   // Hand the save trigger to the wizard host so its nav buttons can save first.
   useEffect(() => {
     wizard?.registerSubmit((nav) => {
       void (async () => {
-        if (nav.type === "back" && !isDirty && itemId) {
-          onSaved(itemId, detail);
-          return;
-        }
-
-        if (
-          wizard.stage === "versions" &&
-          isMultiSku &&
-          variantCompositionMode === "draft" &&
-          variantCommitRef.current
-        ) {
-          const result = await variantCommitRef.current();
-          if ("error" in result) {
-            toast.error(result.error);
+        setWizardSubmitPending(true);
+        try {
+          if (nav.type === "back" && !isDirty && itemId) {
+            onSaved(itemId, detail);
             return;
           }
-          if (result.updatedAt) {
-            setValue("updated_at", result.updatedAt, { shouldDirty: false });
+
+          let committedDetail: ProductDetailSnapshot | undefined;
+
+          if (
+            wizard.stage === "versions" &&
+            isMultiSku &&
+            variantCompositionMode === "draft" &&
+            variantCommitRef.current
+          ) {
+            const result = await variantCommitRef.current();
+            if ("error" in result) {
+              toast.error(result.error);
+              return;
+            }
+            if (result.updatedAt) {
+              setValue("updated_at", result.updatedAt, { shouldDirty: false });
+            }
+            committedDetail = result.detail;
           }
+
+          if (
+            nav.type === "primary" &&
+            wizard.stage === "composition" &&
+            hasComposition &&
+            compositionCommitRef.current
+          ) {
+            const result = await compositionCommitRef.current();
+            if ("error" in result) {
+              toast.error(result.error);
+              return;
+            }
+            if (!isDirty && itemId) {
+              onSaved(itemId, detail);
+              return;
+            }
+          }
+
+          const skipProfileSave =
+            nav.type === "primary" &&
+            wizard.stage === "versions" &&
+            variantCompositionMode === "draft" &&
+            Boolean(committedDetail) &&
+            itemId;
+
+          if (skipProfileSave && committedDetail) {
+            const hydrated = {
+              ...detailToFormValues(committedDetail),
+              storefront_visibility: mergeStorefrontVisibility(
+                catalogContext.storefronts,
+                detailToFormValues(committedDetail).storefront_visibility
+              ),
+            };
+            form.reset(hydrated);
+            onSaved(itemId, committedDetail);
+            return;
+          }
+
+          await handleSave();
+        } finally {
+          setWizardSubmitPending(false);
         }
-        void handleSave();
       })();
     });
   }, [
     wizard,
+    catalogContext.storefronts,
     detail,
+    form,
     handleSave,
+    hasComposition,
     isDirty,
     isMultiSku,
     itemId,
@@ -1346,15 +1420,9 @@ export function ProductEditorShell({
         onCancel,
         onSkip: wizard.onSkip,
         onPrimary: wizard.onPrimary,
-        isPending,
+        isPending: submitPending,
         isNavigatePending,
-        primaryLabel: isPending
-          ? "Saving…"
-          : wizard.isLast
-            ? "Finish"
-            : wizard.isFirst
-              ? "Save & continue"
-              : "Continue",
+        primaryLabel: wizardPrimaryLabel,
       });
       return () => onMutationHeaderChange(null);
     }
@@ -1365,9 +1433,9 @@ export function ProductEditorShell({
       onSave: () => {
         void handleSave();
       },
-      isPending,
+      isPending: submitPending,
       isNavigatePending,
-      saveLabel: isPending ? "Saving…" : "Save item",
+      saveLabel: submitPending ? "Saving…" : "Save item",
     });
     return () => onMutationHeaderChange(null);
   }, [
@@ -1377,35 +1445,32 @@ export function ProductEditorShell({
     wizard,
     onCancel,
     handleSave,
-    isPending,
+    submitPending,
     isNavigatePending,
+    wizardPrimaryLabel,
   ]);
 
   const panelPrimaryAction = useMemo(() => {
     if (readOnly || !isPanelLayout) return null;
     if (wizard) {
       return {
-        label: isPending
-          ? "Saving…"
-          : wizard.isLast
-            ? "Finish"
-            : wizard.isFirst
-              ? "Save & continue"
-              : "Continue",
+        label: wizardPrimaryLabel,
         onClick: wizard.onPrimary,
       };
     }
     return {
-      label: isPending ? "Saving…" : "Save item",
+      label: submitPending ? "Saving…" : "Save item",
       onClick: () => {
         void handleSave();
       },
     };
-  }, [readOnly, isPanelLayout, wizard, isPending, handleSave]);
+  }, [readOnly, isPanelLayout, wizard, submitPending, wizardPrimaryLabel, handleSave]);
 
   useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
+    onDirtyChange?.(
+      isDirty || Boolean(compositionDraft?.isDirty) || compositionSectionDirty
+    );
+  }, [compositionDraft?.isDirty, compositionSectionDirty, isDirty, onDirtyChange]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1602,7 +1667,7 @@ export function ProductEditorShell({
   );
 
   const primaryImageUrl = useMemo(
-    () => (detail ? pickPrimaryImagePreviewUrl(detail.media, detail.variant_id) : null),
+    () => (detail ? pickPrimaryImagePreviewUrl(detail.media, detail.variant_id, detail.variants) : null),
     [detail]
   );
 
@@ -2814,6 +2879,11 @@ export function ProductEditorShell({
                 isMultiSku={isMultiSku}
                 currency={catalogContext.base_currency}
                 readOnly={readOnly}
+                deferSave={compositionDeferSave}
+                onRegisterCommit={(commit) => {
+                  compositionCommitRef.current = commit;
+                }}
+                onDirtyChange={setCompositionSectionDirty}
               />
             </SectionBlock>
           ) : null}
@@ -2834,6 +2904,7 @@ export function ProductEditorShell({
                   variants={variants}
                   media={media}
                   readOnly={readOnly}
+                  layout={wizard?.stage === "reach" ? "variant-stack" : "scope-select"}
                   onChanged={() => onExtensionsChanged?.()}
                 />
               ) : (
@@ -2931,7 +3002,7 @@ export function ProductEditorShell({
             <div className="flex justify-end pt-2">
               <PanelMutationPrimaryButton
                 label={panelPrimaryAction.label}
-                disabled={isPending || isNavigatePending}
+                disabled={submitPending || isNavigatePending}
                 onClick={panelPrimaryAction.onClick}
               />
             </div>
@@ -2958,7 +3029,7 @@ export function ProductEditorShell({
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={isPending || isNavigatePending}
+                    disabled={submitPending || isNavigatePending}
                     onClick={wizard.onBack}
                   >
                     Back
@@ -2967,7 +3038,7 @@ export function ProductEditorShell({
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={isPending || isNavigatePending}
+                    disabled={submitPending || isNavigatePending}
                     onClick={onCancel}
                   >
                     {isNavigatePending ? "Leaving…" : "Cancel"}
@@ -2979,7 +3050,7 @@ export function ProductEditorShell({
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={isPending || isNavigatePending}
+                    disabled={submitPending || isNavigatePending}
                     onClick={wizard.onSkip}
                   >
                     Skip &amp; finish later
@@ -2987,17 +3058,11 @@ export function ProductEditorShell({
                 ) : null}
                 <Button
                   type="button"
-                  disabled={isPending || isNavigatePending}
+                  disabled={submitPending || isNavigatePending}
                   onClick={wizard.onPrimary}
                   title="Save (Cmd/Ctrl + Enter)"
                 >
-                  {isPending
-                    ? "Saving…"
-                    : wizard.isLast
-                      ? "Finish"
-                      : wizard.isFirst
-                        ? "Save & continue"
-                        : "Continue"}
+                  {wizardPrimaryLabel}
                 </Button>
               </div>
             </>
@@ -3006,13 +3071,13 @@ export function ProductEditorShell({
               <Button
                 type="button"
                 variant="ghost"
-                disabled={isPending || isNavigatePending}
+                disabled={submitPending || isNavigatePending}
                 onClick={onCancel}
               >
                 {isNavigatePending ? "Leaving…" : "Cancel"}
               </Button>
-              <Button type="submit" disabled={isPending || isNavigatePending} title="Save (Cmd/Ctrl + Enter)">
-                {isPending ? "Saving…" : "Save item"}
+              <Button type="submit" disabled={submitPending || isNavigatePending} title="Save (Cmd/Ctrl + Enter)">
+                {submitPending ? "Saving…" : "Save item"}
               </Button>
             </>
           )}

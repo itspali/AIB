@@ -36,6 +36,7 @@ export type CompositionComponentCandidate = {
   classification: ItemClassification;
   default_variant_id: string | null;
   default_sku: string | null;
+  default_selling_price: string | null;
 };
 
 /**

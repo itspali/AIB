@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fieldHelpText, FieldLabelInfo } from "@/components/ui/field-label-info";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -43,9 +44,15 @@ type Props = {
   isMultiSku: boolean;
   currency: string;
   readOnly?: boolean;
+  /** Wizard: persist on Continue instead of a separate save button. */
+  deferSave?: boolean;
+  onRegisterCommit?: (commit: (() => Promise<CompositionCommitResult>) | null) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
-const ALL_VARIANTS = "__all__";
+export type CompositionCommitResult = { success: true } | { error: string };
+
+const ALL_VARIANTS_TAB = "__all__";
 const LINE_KIND_MANDATORY = "mandatory";
 const LINE_KIND_OPTIONAL = "optional";
 
@@ -91,6 +98,16 @@ function componentLabel(
     : `${match.name} · ${typeLabel}`;
 }
 
+function defaultUnitPriceForComponent(
+  componentItemId: string,
+  candidateMap: Map<string, { default_selling_price: string | null }>
+): string {
+  if (!componentItemId) return "";
+  const price = candidateMap.get(componentItemId)?.default_selling_price;
+  if (!price?.trim() || price === "0") return "";
+  return price.trim();
+}
+
 export function CompositionEditor({
   itemId,
   parentItemType,
@@ -99,6 +116,9 @@ export function CompositionEditor({
   isMultiSku,
   currency,
   readOnly = false,
+  deferSave = false,
+  onRegisterCommit,
+  onDirtyChange,
 }: Props) {
   const router = useRouter();
   const isPanelLayout = useEditorPanelLayout();
@@ -111,9 +131,21 @@ export function CompositionEditor({
       item_type: ItemType;
       default_variant_id: string | null;
       default_sku: string | null;
+      default_selling_price: string | null;
     }>
   >([]);
   const [isPending, startTransition] = useTransition();
+  const [compositionDirty, setCompositionDirty] = useState(false);
+  const [activeScope, setActiveScope] = useState(ALL_VARIANTS_TAB);
+
+  const markCompositionDirty = useCallback(() => {
+    setCompositionDirty(true);
+  }, []);
+
+  useEffect(() => {
+    onDirtyChange?.(compositionDirty);
+    return () => onDirtyChange?.(false);
+  }, [compositionDirty, onDirtyChange]);
 
   const candidateMap = useMemo(
     () =>
@@ -125,6 +157,7 @@ export function CompositionEditor({
             item_type: entry.item_type,
             default_sku: entry.default_sku,
             default_variant_id: entry.default_variant_id,
+            default_selling_price: entry.default_selling_price,
           },
         ])
       ),
@@ -135,6 +168,39 @@ export function CompositionEditor({
     () => variants.filter((variant) => variant.is_sellable !== false),
     [variants]
   );
+
+  const showVariantScopes = isMultiSku && sellableVariants.length > 0;
+
+  const scopeParentVariantId = useMemo((): string | null => {
+    if (!showVariantScopes || activeScope === ALL_VARIANTS_TAB) return null;
+    return activeScope;
+  }, [activeScope, showVariantScopes]);
+
+  const visibleRows = useMemo(() => {
+    if (!showVariantScopes) return rows;
+    if (activeScope === ALL_VARIANTS_TAB) {
+      return rows.filter((row) => row.parentVariantId === null);
+    }
+    return rows.filter((row) => row.parentVariantId === activeScope);
+  }, [activeScope, rows, showVariantScopes]);
+
+  const rowCountByScope = useMemo(() => {
+    const counts = new Map<string, number>();
+    counts.set(ALL_VARIANTS_TAB, 0);
+    for (const variant of sellableVariants) {
+      counts.set(variant.id, 0);
+    }
+    for (const row of rows) {
+      const key = row.parentVariantId ?? ALL_VARIANTS_TAB;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [rows, sellableVariants]);
+
+  const activeVariantSku = useMemo(() => {
+    if (activeScope === ALL_VARIANTS_TAB) return null;
+    return sellableVariants.find((variant) => variant.id === activeScope)?.sku ?? null;
+  }, [activeScope, sellableVariants]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -156,6 +222,8 @@ export function CompositionEditor({
 
     setCandidates(candidatesResult.data);
     setRows(rowsFromLines(linesResult.data.lines));
+    setActiveScope(ALL_VARIANTS_TAB);
+    setCompositionDirty(false);
     setLoading(false);
   }, [classification, itemId, parentItemType]);
 
@@ -165,26 +233,30 @@ export function CompositionEditor({
 
   const addRow = (kind: DraftRow["lineKind"]) => {
     const firstCandidate = candidates[0];
+    const componentItemId = firstCandidate?.id ?? "";
+    markCompositionDirty();
     setRows((prev) => [
       ...prev,
       {
         key: nextRowKey(),
-        parentVariantId: null,
-        componentItemId: firstCandidate?.id ?? "",
+        parentVariantId: scopeParentVariantId,
+        componentItemId,
         lineKind: kind,
         defaultSelected: kind === LINE_KIND_OPTIONAL,
         quantity: "1",
         priceMode: "FIXED",
-        unitPrice: "",
+        unitPrice: defaultUnitPriceForComponent(componentItemId, candidateMap),
       },
     ]);
   };
 
   const removeRow = (key: string) => {
+    markCompositionDirty();
     setRows((prev) => prev.filter((row) => row.key !== key));
   };
 
   const patchRow = (key: string, patch: Partial<DraftRow>) => {
+    markCompositionDirty();
     setRows((prev) =>
       prev.map((row) => {
         if (row.key !== key) return row;
@@ -195,31 +267,34 @@ export function CompositionEditor({
         if (patch.lineKind === LINE_KIND_MANDATORY) {
           next.defaultSelected = true;
         }
+        if (patch.componentItemId && patch.componentItemId !== row.componentItemId) {
+          next.unitPrice = defaultUnitPriceForComponent(patch.componentItemId, candidateMap);
+        }
+        if (patch.priceMode === "FIXED" && row.priceMode === "COMPLIMENTARY" && !next.unitPrice.trim()) {
+          next.unitPrice = defaultUnitPriceForComponent(next.componentItemId, candidateMap);
+        }
         return next;
       })
     );
   };
 
-  const handleSave = () => {
+  const buildPayload = useCallback((): Parameters<typeof saveItemComposition>[1] | { error: string } => {
     const seen = new Set<string>();
     const payload: Parameters<typeof saveItemComposition>[1] = [];
 
     for (const [index, row] of rows.entries()) {
       if (!row.componentItemId) {
-        toast.error("Select a component for every line.");
-        return;
+        return { error: "Select a component for every line." };
       }
 
       const qty = Number(row.quantity);
       if (!row.quantity.trim() || !Number.isFinite(qty) || qty <= 0) {
-        toast.error("Enter a valid quantity for each line.");
-        return;
+        return { error: "Enter a valid quantity for each line." };
       }
 
       const combo = `${row.parentVariantId ?? "*"}|${row.componentItemId}`;
       if (seen.has(combo)) {
-        toast.error("The same component is listed twice for one variant scope.");
-        return;
+        return { error: "The same component is listed twice for one variant scope." };
       }
       seen.add(combo);
 
@@ -227,8 +302,7 @@ export function CompositionEditor({
       if (row.priceMode === "FIXED") {
         unitPrice = Number(row.unitPrice);
         if (!row.unitPrice.trim() || !Number.isFinite(unitPrice) || unitPrice < 0) {
-          toast.error("Enter a valid fixed price or choose Complimentary.");
-          return;
+          return { error: "Enter a valid fixed price or choose Complimentary." };
         }
       }
 
@@ -248,15 +322,43 @@ export function CompositionEditor({
       });
     }
 
+    return payload;
+  }, [candidateMap, rows]);
+
+  const commitComposition = useCallback(async (): Promise<CompositionCommitResult> => {
+    const built = buildPayload();
+    if ("error" in built) {
+      return built;
+    }
+
+    const result = await saveItemComposition(itemId, built);
+    if ("error" in result) {
+      return { error: result.error ?? "Unable to save composition." };
+    }
+
+    router.refresh();
+    await load();
+    setCompositionDirty(false);
+    return { success: true };
+  }, [buildPayload, itemId, load, router]);
+
+  useEffect(() => {
+    if (!deferSave) {
+      onRegisterCommit?.(null);
+      return;
+    }
+    onRegisterCommit?.(commitComposition);
+    return () => onRegisterCommit?.(null);
+  }, [commitComposition, deferSave, onRegisterCommit]);
+
+  const handleSave = () => {
     startTransition(async () => {
-      const result = await saveItemComposition(itemId, payload);
+      const result = await commitComposition();
       if ("error" in result) {
-        toast.error(result.error ?? "Unable to save composition.");
+        toast.error(result.error);
         return;
       }
       toast.success("Composition saved.");
-      router.refresh();
-      void load();
     });
   };
 
@@ -275,13 +377,41 @@ export function CompositionEditor({
 
   return (
     <div className="space-y-4">
+      {showVariantScopes ? (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Lines on <span className="font-medium text-foreground">All variants</span> apply to
+            every SKU. Switch to a variant tab to add or override components for that SKU only.
+          </p>
+          <Tabs value={activeScope} onValueChange={setActiveScope}>
+            <TabsList className="h-auto w-full justify-start gap-1">
+              <TabsTrigger value={ALL_VARIANTS_TAB} className="text-xs sm:text-sm">
+                All variants
+                {rowCountByScope.get(ALL_VARIANTS_TAB) ? (
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                    {rowCountByScope.get(ALL_VARIANTS_TAB)}
+                  </span>
+                ) : null}
+              </TabsTrigger>
+              {sellableVariants.map((variant) => (
+                <TabsTrigger key={variant.id} value={variant.id} className="text-xs sm:text-sm">
+                  {variant.sku}
+                  {rowCountByScope.get(variant.id) ? (
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                      {rowCountByScope.get(variant.id)}
+                    </span>
+                  ) : null}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
+      ) : null}
+
       <div className={editorInsetTableWrapClass(isPanelLayout)}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left">
-              {isMultiSku ? (
-                <th className="p-3 font-medium text-muted-foreground">Parent SKU</th>
-              ) : null}
               <th className="p-3 font-medium text-muted-foreground">Component</th>
               <th className="p-3 font-medium text-muted-foreground">Kind</th>
               <th className="p-3 font-medium text-muted-foreground">Qty</th>
@@ -294,41 +424,16 @@ export function CompositionEditor({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={row.key} className="border-b border-border last:border-0">
-                {isMultiSku ? (
-                  <td className="p-3">
-                    <Select
-                      value={row.parentVariantId ?? ALL_VARIANTS}
-                      disabled={readOnly || isPending}
-                      onValueChange={(value) =>
-                        patchRow(row.key, {
-                          parentVariantId: value === ALL_VARIANTS ? null : value,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="min-w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL_VARIANTS}>All SKUs</SelectItem>
-                        {sellableVariants.map((variant) => (
-                          <SelectItem key={variant.id} value={variant.id}>
-                            {variant.sku}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                ) : null}
                 <td className="p-3">
                   <Select
                     value={row.componentItemId || undefined}
                     disabled={readOnly || isPending}
                     onValueChange={(value) => patchRow(row.key, { componentItemId: value })}
                   >
-                    <SelectTrigger className="min-w-52">
-                      <SelectValue placeholder="Select item" />
+                    <SelectTrigger className="no-underline-field min-w-52 h-auto min-h-10 items-start py-2 text-left [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:whitespace-normal [&>span:first-child]:text-left [&>span:first-child]:leading-snug [&>span:last-child]:shrink-0">
+                      <SelectValue placeholder="Select item" className="text-left" />
                     </SelectTrigger>
                     <SelectContent>
                       {candidates.map((candidate) => (
@@ -429,10 +534,14 @@ export function CompositionEditor({
         </table>
       </div>
 
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Add at least one mandatory component. Use optional add-ons for items the customer can
-          include or skip (for example extended warranty).
+          {showVariantScopes && activeScope !== ALL_VARIANTS_TAB && activeVariantSku
+            ? `Add components for ${activeVariantSku}. Shared lines belong on the All variants tab.`
+            : showVariantScopes
+              ? "Add components included with every variant. Use a variant tab above for SKU-specific lines."
+              : "Add a component line, then set Kind to Mandatory or Optional add-on as needed."}
+          {deferSave ? " Composition is saved when you continue to the next step." : null}
         </p>
       ) : null}
 
@@ -446,21 +555,13 @@ export function CompositionEditor({
             onClick={() => addRow(LINE_KIND_MANDATORY)}
           >
             <Plus className="mr-1 h-4 w-4" aria-hidden />
-            Mandatory line
+            Add Item
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isPending}
-            onClick={() => addRow(LINE_KIND_OPTIONAL)}
-          >
-            <Plus className="mr-1 h-4 w-4" aria-hidden />
-            Optional add-on
-          </Button>
-          <Button type="button" size="sm" disabled={isPending} onClick={handleSave}>
-            Save composition
-          </Button>
+          {!deferSave ? (
+            <Button type="button" size="sm" disabled={isPending} onClick={handleSave}>
+              Save composition
+            </Button>
+          ) : null}
           <FieldLabelInfo label={COMPOSITION_FIELD_HELP.linesTitle}>
             {fieldHelpText(COMPOSITION_FIELD_HELP.linesBody)}
           </FieldLabelInfo>

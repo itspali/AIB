@@ -32,6 +32,7 @@ import {
 import { editorPanelDividerClass } from "@/lib/products/editor-chrome";
 import {
   variantSnapshotToFormValues,
+  type ProductDetailSnapshot,
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import { cn } from "@/lib/utils";
@@ -39,12 +40,13 @@ import { cn } from "@/lib/utils";
 export type VariantCompositionMode = "draft" | "live";
 
 export type VariantMatrixCommitResult =
-  | { success: true; updatedAt?: string }
+  | { success: true; updatedAt?: string; detail?: ProductDetailSnapshot }
   | { error: string };
 
 export type VariantMatrixDraftState = {
   includedCount: number;
   canCommit: boolean;
+  isDirty: boolean;
 };
 
 type Props = {
@@ -182,6 +184,34 @@ function normalizeVariantAttributes(
   return normalized;
 }
 
+function listSellableVariants(variants: ProductVariantSnapshot[]) {
+  return variants.filter((variant) => !variant.is_master);
+}
+
+function buildSellableVariantIndex(
+  variants: ProductVariantSnapshot[],
+  axisKeys: string[]
+) {
+  const byKey = new Map<string, ProductVariantSnapshot>();
+  const bySku = new Map<string, ProductVariantSnapshot>();
+  for (const variant of listSellableVariants(variants)) {
+    const sku = variant.sku?.trim();
+    if (sku) bySku.set(sku, variant);
+    const normalized = normalizeVariantAttributes(variant.variant_attributes, axisKeys);
+    if (Object.keys(normalized).length) {
+      byKey.set(comboKey(normalized), variant);
+    }
+  }
+  return { byKey, bySku };
+}
+
+function resolveExistingVariantForRow(
+  row: { key: string; sku: string },
+  index: ReturnType<typeof buildSellableVariantIndex>
+): ProductVariantSnapshot | undefined {
+  return index.byKey.get(row.key) ?? index.bySku.get(row.sku.trim());
+}
+
 function seedDraftFromVariants(
   variants: ProductVariantSnapshot[],
   axisTemplates: AttributeTemplateEntry[]
@@ -286,8 +316,15 @@ export function VariantMatrixGenerator({
   const [selectValues, setSelectValues] = useState(resetMatrixDraft().selectValues);
   const [freeValues, setFreeValues] = useState(resetMatrixDraft().freeValues);
   const [overrides, setOverrides] = useState(resetMatrixDraft().overrides);
+  const [draftDirty, setDraftDirty] = useState(false);
   const draftHydratedRef = useRef(false);
   const isDraftMode = compositionMode === "draft";
+
+  const markDraftDirty = useCallback(() => {
+    if (isDraftMode && draftHydratedRef.current) {
+      setDraftDirty(true);
+    }
+  }, [isDraftMode]);
 
   const sellDefault = normalizeMatrixPriceDefault(defaultSellingPrice);
   const costDefault = resolveMatrixCostDefault(defaultPurchasePrice, defaultStandardCost);
@@ -310,9 +347,20 @@ export function VariantMatrixGenerator({
     return set;
   }, [axisKeys, variants]);
 
+  const existingSkuSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const variant of variants) {
+      if (variant.is_master) continue;
+      const sku = variant.sku?.trim();
+      if (sku) set.add(sku);
+    }
+    return set;
+  }, [variants]);
+
   useEffect(() => {
     if (!isDraftMode) {
       draftHydratedRef.current = false;
+      setDraftDirty(false);
       return;
     }
     if (draftHydratedRef.current) return;
@@ -321,6 +369,7 @@ export function VariantMatrixGenerator({
     setFreeValues(seeded.freeValues);
     setOverrides(seeded.overrides);
     draftHydratedRef.current = true;
+    setDraftDirty(false);
   }, [axisTemplates, isDraftMode, variants]);
 
   const activeAxes = useMemo(() => {
@@ -350,11 +399,15 @@ export function VariantMatrixGenerator({
     if (!activeAxes.length) return [];
     return cartesian(activeAxes).map((attributes) => {
       const key = comboKey(attributes);
-      const exists = existingCombos.has(key);
       const defaultSku = composeSkuFromMask(effectiveMask, baseSku || "ITEM", attributes);
+      const rowSku = overrides[key]?.sku?.trim();
+      const exists =
+        existingCombos.has(key) ||
+        existingSkuSet.has(defaultSku) ||
+        Boolean(rowSku && existingSkuSet.has(rowSku));
       return { key, attributes, exists, defaultSku, label: formatComboLabel(attributes) };
     });
-  }, [activeAxes, existingCombos, effectiveMask, baseSku]);
+  }, [activeAxes, existingCombos, existingSkuSet, effectiveMask, baseSku, overrides]);
 
   const newCombos = combos.filter((combo) => !combo.exists);
   const rowSource = isDraftMode ? combos : newCombos;
@@ -394,11 +447,13 @@ export function VariantMatrixGenerator({
         axisKeys.length > 0 &&
         activeAxes.length > 0 &&
         activeAxes.length === axisTemplates.length,
+      isDirty: draftDirty,
     });
   }, [
     activeAxes.length,
     axisKeys.length,
     axisTemplates.length,
+    draftDirty,
     includedRows.length,
     isDraftMode,
     onDraftChange,
@@ -409,20 +464,24 @@ export function VariantMatrixGenerator({
     setSelectValues(empty.selectValues);
     setFreeValues(empty.freeValues);
     setOverrides(empty.overrides);
+    setDraftDirty(false);
   }, []);
 
   const finishDraftCommit = useCallback(async (): Promise<VariantMatrixCommitResult> => {
-    await onGenerated();
     const detailResult = await getProductDetail(itemId);
-    if ("error" in detailResult) {
+    if ("error" in detailResult || !detailResult.detail) {
       return {
         error:
           detailResult.error ??
           "Variants were saved but the product profile could not be refreshed.",
       };
     }
-    return { success: true, updatedAt: detailResult.detail?.updated_at };
-  }, [itemId, onGenerated]);
+    return {
+      success: true,
+      updatedAt: detailResult.detail.updated_at,
+      detail: detailResult.detail,
+    };
+  }, [itemId]);
 
   const commitDraft = useCallback(async (): Promise<VariantMatrixCommitResult> => {
     if (!axisKeys.length) {
@@ -454,18 +513,29 @@ export function VariantMatrixGenerator({
       return { error: "Generated SKUs must be unique." };
     }
 
+    const detailResult = await getProductDetail(itemId);
+    if ("error" in detailResult || !detailResult.detail) {
+      return {
+        error: detailResult.error ?? "Unable to load current variants before saving.",
+      };
+    }
+
+    const freshVariants = detailResult.detail.variants;
+    const sellable = listSellableVariants(freshVariants);
+    const variantIndex = buildSellableVariantIndex(freshVariants, axisKeys);
+
     const targetKeys = new Set(includedRows.map((row) => row.key));
-    const sellable = variants.filter((variant) => !variant.is_master);
+    const targetSkus = new Set(skus);
 
     for (const variant of sellable) {
       const key = comboKey(
         normalizeVariantAttributes(variant.variant_attributes, axisKeys)
       );
-      if (!targetKeys.has(key)) {
-        const result = await deleteItemVariant(variant.id);
-        if ("error" in result) {
-          return { error: result.error ?? "Unable to remove variant." };
-        }
+      const sku = variant.sku?.trim();
+      if (targetKeys.has(key) || (sku && targetSkus.has(sku))) continue;
+      const result = await deleteItemVariant(variant.id);
+      if ("error" in result) {
+        return { error: result.error ?? "Unable to remove variant." };
       }
     }
 
@@ -475,7 +545,7 @@ export function VariantMatrixGenerator({
     }
 
     const toCreate: BulkVariantRow[] = includedRows
-      .filter((row) => !row.exists)
+      .filter((row) => !resolveExistingVariantForRow(row, variantIndex))
       .map((row) => ({
         sku: row.sku.trim(),
         price: row.price,
@@ -490,13 +560,8 @@ export function VariantMatrixGenerator({
       }
     }
 
-    for (const row of includedRows.filter((entry) => entry.exists)) {
-      const variant = sellable.find((entry) => {
-        const key = comboKey(
-          normalizeVariantAttributes(entry.variant_attributes, axisKeys)
-        );
-        return key === row.key;
-      });
+    for (const row of includedRows) {
+      const variant = resolveExistingVariantForRow(row, variantIndex);
       if (!variant) continue;
 
       const payload = {
@@ -531,6 +596,7 @@ export function VariantMatrixGenerator({
       }
     }
 
+    setDraftDirty(false);
     return finishDraftCommit();
   }, [
     activeAxes.length,
@@ -540,7 +606,6 @@ export function VariantMatrixGenerator({
     finishDraftCommit,
     includedRows,
     itemId,
-    variants,
   ]);
 
   useEffect(() => {
@@ -621,17 +686,22 @@ export function VariantMatrixGenerator({
     clearDraft,
     defaultSupplierId,
     includedRows,
+    isDraftMode,
     itemId,
     onGenerated,
     router,
   ]);
 
-  const patchOverride = useCallback((comboKeyValue: string, patch: Partial<RowOverride>) => {
-    setOverrides((prev) => ({
-      ...prev,
-      [comboKeyValue]: { ...prev[comboKeyValue], ...patch },
-    }));
-  }, []);
+  const patchOverride = useCallback(
+    (comboKeyValue: string, patch: Partial<RowOverride>) => {
+      setOverrides((prev) => ({
+        ...prev,
+        [comboKeyValue]: { ...prev[comboKeyValue], ...patch },
+      }));
+      markDraftDirty();
+    },
+    [markDraftDirty]
+  );
 
   if (categoryTemplates.length === 0) {
     return (
@@ -674,15 +744,16 @@ export function VariantMatrixGenerator({
                       label={option}
                       selected={Boolean(selectValues[template.key]?.[option])}
                       disabled={isPending}
-                      onToggle={() =>
+                      onToggle={() => {
                         setSelectValues((prev) => ({
                           ...prev,
                           [template.key]: {
                             ...(prev[template.key] ?? {}),
                             [option]: !prev[template.key]?.[option],
                           },
-                        }))
-                      }
+                        }));
+                        markDraftDirty();
+                      }}
                     />
                   ))}
                 </div>
@@ -697,12 +768,13 @@ export function VariantMatrixGenerator({
                   disabled={isPending}
                   placeholder={freeTextAxisPlaceholder(template)}
                   value={freeValues[template.key] ?? ""}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setFreeValues((prev) => ({
                       ...prev,
                       [template.key]: event.target.value,
-                    }))
-                  }
+                    }));
+                    markDraftDirty();
+                  }}
                 />
               </div>
             )

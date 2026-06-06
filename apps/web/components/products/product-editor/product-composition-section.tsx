@@ -6,6 +6,7 @@ import {
   compositionRoleAllowsComponents,
 } from "@/lib/products/composition";
 import { CompositionEditor } from "@/components/products/product-editor/composition-editor";
+import type { CompositionCommitResult } from "@/components/products/product-editor/composition-editor";
 import { editorEmptyStateClass, useEditorPanelLayout } from "@/lib/products/editor-chrome";
 import type { ItemType } from "@/lib/products/item-model";
 import type { ProductVariantSnapshot } from "@/lib/products/types";
@@ -18,6 +19,9 @@ type Props = {
   isMultiSku: boolean;
   currency: string;
   readOnly?: boolean;
+  deferSave?: boolean;
+  onRegisterCommit?: (commit: (() => Promise<CompositionCommitResult>) | null) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 export function ProductCompositionSection({
@@ -28,6 +32,9 @@ export function ProductCompositionSection({
   isMultiSku,
   currency,
   readOnly = false,
+  deferSave = false,
+  onRegisterCommit,
+  onDirtyChange,
 }: Props) {
   const isPanelLayout = useEditorPanelLayout();
 
@@ -56,6 +63,9 @@ export function ProductCompositionSection({
       isMultiSku={isMultiSku}
       currency={currency}
       readOnly={readOnly}
+      deferSave={deferSave}
+      onRegisterCommit={onRegisterCommit}
+      onDirtyChange={onDirtyChange}
     />
   );
 }

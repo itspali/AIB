@@ -89,7 +89,8 @@ export function ProductFormRoute({
   });
   const renderIndex = Math.max(0, renderOrder.indexOf(currentStage));
   const [isSaving, setIsSaving] = useState(false);
-  const { requestClose, discardDialog } = useDiscardChangesConfirmation();
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ hasUnsavedChanges });
 
   // The shell hands us its submit trigger; nav buttons set intent then save.
   const submitRef = useRef<((nav: WizardNav) => void) | null>(null);
@@ -292,6 +293,7 @@ export function ProductFormRoute({
         onSaved={handleSaved}
         isNavigatePending={isNavigating}
         onPendingChange={setIsSaving}
+        onDirtyChange={setHasUnsavedChanges}
         onExtensionsChanged={() => refresh()}
           wizard={wizard}
         />

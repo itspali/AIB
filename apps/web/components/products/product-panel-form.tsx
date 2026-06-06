@@ -33,6 +33,7 @@ import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility"
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import {
   detailToFormValues,
+  resolveDetailIdentitySku,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
   type ProductVariantSnapshot,
@@ -196,6 +197,7 @@ export function ProductPanelScope({
   const [mutationHeader, setMutationHeader] = useState<ProductPanelMutationHeader | null>(null);
   const [viewLayout, setViewLayoutState] = useState<PanelViewLayout>("compact");
   const [isLoadingEditability, startEditabilityTransition] = useTransition();
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const setViewLayout = useCallback((layout: PanelViewLayout) => {
     persistLayout(layout);
@@ -209,8 +211,13 @@ export function ProductPanelScope({
   useEffect(() => {
     if (mode === "view") setMutationHeader(null);
   }, [mode]);
+  useEffect(() => {
+    if (mode === "view") setHasUnsavedChanges(false);
+  }, [mode]);
+
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: mode === "create" || mode === "edit",
+    hasUnsavedChanges,
   });
 
   const canEdit = canEditAnyProductFormField(fieldPermissions);
@@ -371,6 +378,7 @@ export function ProductPanelScope({
         onVariantsReload={onVariantsReload}
         wizard={wizard}
         onMutationHeaderChange={setMutationHeader}
+        onDirtyChange={setHasUnsavedChanges}
       />
     );
 
@@ -566,7 +574,10 @@ export function resolveProductPanelDescription(
   detail: ProductDetailSnapshot | null
 ): string | undefined {
   if (mode === "create") return "Create a new product";
-  if (detail?.sku) return detail.sku;
+  if (detail) {
+    const identitySku = resolveDetailIdentitySku(detail).trim();
+    if (identitySku) return identitySku;
+  }
   return undefined;
 }
 
@@ -575,5 +586,5 @@ export function resolveProductPanelImageUrl(
   detail: ProductDetailSnapshot | null
 ): string | null {
   if (mode === "create" || !detail) return null;
-  return pickPrimaryImagePreviewUrl(detail.media, detail.variant_id);
+  return pickPrimaryImagePreviewUrl(detail.media, detail.variant_id, detail.variants);
 }

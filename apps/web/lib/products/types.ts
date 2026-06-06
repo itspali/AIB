@@ -338,6 +338,31 @@ export function resolveMasterFormSku(detail: ProductDetailSnapshot): string {
   return master?.sku ?? detail.sku;
 }
 
+/** True when the detail snapshot represents one sellable multi-SKU variant line. */
+export function isDetailVariantSkuContext(detail: ProductDetailSnapshot): boolean {
+  if (detail.variant_strategy !== "MULTI_SKU") return false;
+  const selected = detail.variants.find((variant) => variant.id === detail.variant_id);
+  if (!selected) return false;
+  return !selected.is_master;
+}
+
+/**
+ * SKU/code shown in product detail identity — aligned with catalog list rows:
+ * variant SKU for expanded variant lines; parent product code otherwise.
+ */
+export function resolveDetailIdentitySku(detail: ProductDetailSnapshot): string {
+  if (isDetailVariantSkuContext(detail)) {
+    const selected = detail.variants.find((variant) => variant.id === detail.variant_id);
+    return selected?.sku?.trim() || detail.sku;
+  }
+  if (detail.variant_strategy === "MULTI_SKU") {
+    return resolveMasterFormSku(detail);
+  }
+  const code = detail.code?.trim();
+  if (code) return code;
+  return detail.sku;
+}
+
 export function detailToFormValues(detail: ProductDetailSnapshot): ProductMasterFormValues {
   const variantAttributes: Record<string, string> = {};
   for (const [key, value] of Object.entries(detail.variant_attributes)) {
@@ -497,7 +522,7 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
   return {
     id: detail.id,
     name: detail.name,
-    image_url: pickPrimaryImagePreviewUrl(detail.media, detail.variant_id),
+    image_url: pickPrimaryImagePreviewUrl(detail.media, detail.variant_id, detail.variants),
     description: detail.description,
     classification: detail.classification,
     base_unit_of_measure: detail.base_unit_of_measure,

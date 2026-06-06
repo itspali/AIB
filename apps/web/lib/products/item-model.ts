@@ -125,3 +125,27 @@ export function isItemTrackingMode(value: string): value is ItemTrackingMode {
 export function isItemSource(value: string): value is ItemSource {
   return (ITEM_SOURCES as readonly string[]).includes(value);
 }
+
+/** Coerce Postgres/JSON booleans that may arrive as strings or numbers. */
+export function parseItemBoolean(value: unknown, fallback = false): boolean {
+  if (value === true || value === false) return value;
+  if (value === "true" || value === "t") return true;
+  if (value === "false" || value === "f") return false;
+  if (value === 1 || value === "1") return true;
+  if (value === 0 || value === "0") return false;
+  return fallback;
+}
+
+/**
+ * Item-level stock tracking flag (applies to every variant SKU).
+ * Only physical goods can track inventory; bundles track component stock instead.
+ */
+export function resolveItemTrackInventory(detail: {
+  item_type: ItemType;
+  track_inventory: boolean;
+  is_bundle?: boolean;
+}): boolean {
+  if (detail.item_type !== "PHYSICAL") return false;
+  if (detail.is_bundle) return false;
+  return parseItemBoolean(detail.track_inventory, true);
+}

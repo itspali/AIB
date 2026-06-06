@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useClientMounted } from "@/lib/dom/use-client-mounted";
 
 import { categoryNewHref } from "@/lib/categories/category-navigation";
 import { itemCreateHref } from "@/lib/products/item-navigation";
@@ -22,19 +23,30 @@ const CREATE_ACTIONS = [
   { href: "/settings/locations", label: "New Location", icon: MapPin },
 ];
 
+const createTriggerClassName = "h-9 w-9 shrink-0 px-0 shadow-none";
+
 export function GlobalCreateMenu() {
+  const mounted = useClientMounted();
+
+  const trigger = (
+    <Button
+      variant="outline"
+      size="sm"
+      className={createTriggerClassName}
+      aria-label="New"
+      type="button"
+    >
+      <Plus className="h-4 w-4" aria-hidden />
+    </Button>
+  );
+
+  if (!mounted) {
+    return trigger;
+  }
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-9 w-9 shrink-0 px-0 shadow-none"
-          aria-label="New"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuLabel>Create</DropdownMenuLabel>
         <DropdownMenuSeparator />

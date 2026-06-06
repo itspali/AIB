@@ -76,6 +76,7 @@ import {
 import {
   computeVolumeCm3FromDimensions,
   formatCalculatedVolumeInfo,
+  resolveShippingDimensionDefault,
 } from "@/lib/products/shipping-dimensions";
 import { cn } from "@/lib/utils";
 
@@ -358,21 +359,31 @@ export function ProductVariantPanel({
     }
   }, [defaultShowDimensionColumns]);
 
+  const masterVariant = useMemo(
+    () => variants.find((variant) => variant.is_master) ?? null,
+    [variants]
+  );
+
   const resolvedVariantDefaults = useMemo((): VariantFormDefaults => {
     const base = variantDefaults ?? {};
-    const length = base.length_cm;
-    const width = base.width_cm;
-    const height = base.height_cm;
+    const length = resolveShippingDimensionDefault(base.length_cm, masterVariant?.length_cm);
+    const width = resolveShippingDimensionDefault(base.width_cm, masterVariant?.width_cm);
+    const height = resolveShippingDimensionDefault(base.height_cm, masterVariant?.height_cm);
     const volumeFromDims = computeVolumeCm3FromDimensions(length, width, height);
     return {
       price: base.price?.trim() || defaultSellingPrice.trim() || undefined,
-      dead_weight_kg: base.dead_weight_kg,
-      volume: volumeFromDims || base.volume,
+      dead_weight_kg: resolveShippingDimensionDefault(
+        base.dead_weight_kg,
+        masterVariant?.dead_weight_kg
+      ),
+      volume:
+        volumeFromDims ||
+        resolveShippingDimensionDefault(base.volume, masterVariant?.volume),
       length_cm: length,
       width_cm: width,
       height_cm: height,
     };
-  }, [defaultSellingPrice, variantDefaults]);
+  }, [defaultSellingPrice, masterVariant, variantDefaults]);
 
   const filteredVariants = useMemo(() => {
     const term = search.trim().toLowerCase();

@@ -171,7 +171,7 @@ export function ProductItemDrawer({
   const imageUrl =
     mode === "create" || !detail
       ? null
-      : pickPrimaryImagePreviewUrl(detail.media, detail.variant_id);
+      : pickPrimaryImagePreviewUrl(detail.media, detail.variant_id, detail.variants);
 
   if (!open || surface === "closed") return null;
 

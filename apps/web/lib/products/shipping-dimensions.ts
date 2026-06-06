@@ -1,3 +1,24 @@
+/** True when a stored/form dimension string carries a positive value. */
+export function hasPositiveDimension(value: string | null | undefined): boolean {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed || trimmed === "0") return false;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n > 0;
+}
+
+/** Prefer an explicit value; otherwise inherit the master/default row. */
+export function resolveShippingDimensionDefault(
+  own: string | null | undefined,
+  fallback: string | null | undefined
+): string | undefined {
+  if (hasPositiveDimension(own)) return String(own).trim();
+  if (hasPositiveDimension(fallback)) return String(fallback).trim();
+  const ownTrimmed = String(own ?? "").trim();
+  if (ownTrimmed) return ownTrimmed;
+  const fallbackTrimmed = String(fallback ?? "").trim();
+  return fallbackTrimmed || undefined;
+}
+
 /** Positive cm dimension from form text; 0 when empty or invalid. */
 export function parseDimensionCm(value: string | null | undefined): number {
   const n = Number(String(value ?? "").trim());

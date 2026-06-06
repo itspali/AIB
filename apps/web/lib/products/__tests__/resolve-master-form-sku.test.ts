@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { resolveMasterFormSku, type ProductDetailSnapshot } from "@/lib/products/types";
+import {
+  isDetailVariantSkuContext,
+  resolveDetailIdentitySku,
+  resolveMasterFormSku,
+  type ProductDetailSnapshot,
+} from "@/lib/products/types";
 
 function minimalDetail(
   overrides: Partial<ProductDetailSnapshot>
@@ -116,5 +121,53 @@ describe("resolveMasterFormSku", () => {
       sku: "SINGLE-SKU",
     });
     expect(resolveMasterFormSku(detail)).toBe("SINGLE-SKU");
+  });
+});
+
+describe("resolveDetailIdentitySku", () => {
+  it("shows the sellable variant SKU when a multi-SKU variant is selected", () => {
+    const detail = minimalDetail({});
+    expect(isDetailVariantSkuContext(detail)).toBe(true);
+    expect(resolveDetailIdentitySku(detail)).toBe("PARENT-CODE-RED");
+  });
+
+  it("shows the parent product code for multi-SKU item-level detail", () => {
+    const detail = minimalDetail({
+      variant_id: "v-master",
+      sku: "PARENT-CODE",
+      variant_attributes: {},
+    });
+    expect(isDetailVariantSkuContext(detail)).toBe(false);
+    expect(resolveDetailIdentitySku(detail)).toBe("PARENT-CODE");
+  });
+
+  it("prefers items.code for single-SKU detail to match list style rows", () => {
+    const detail = minimalDetail({
+      variant_strategy: "SINGLE_SKU",
+      has_variants: false,
+      code: "STYLE-001",
+      sku: "SKU-ONLY",
+      variants: [
+        {
+          id: "v-only",
+          sku: "SKU-ONLY",
+          barcode: null,
+          variant_attributes: {},
+          dead_weight_kg: "0",
+          volume: "0",
+          length_cm: "0",
+          width_cm: "0",
+          height_cm: "0",
+          is_active: true,
+          is_master: true,
+          is_sellable: true,
+          price: "10",
+          purchase_price: null,
+          supplier_name: null,
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(resolveDetailIdentitySku(detail)).toBe("STYLE-001");
   });
 });

@@ -48,13 +48,18 @@ export function DiscardChangesDialog({ open, onOpenChange, onConfirm }: Props) {
 type DiscardConfirmationOptions = {
   /** When false, closes and clears any pending discard (e.g. parent drawer closed). */
   active?: boolean;
+  /** When false, close proceeds without a confirmation dialog. Defaults to true. */
+  hasUnsavedChanges?: boolean;
 };
 
 /**
  * Prompt before closing an edit/create form. Use `requestClose(closeForm)` for Cancel
  * and drawer dismiss; call `closeForm` directly after a successful save.
  */
-export function useDiscardChangesConfirmation({ active = true }: DiscardConfirmationOptions = {}) {
+export function useDiscardChangesConfirmation({
+  active = true,
+  hasUnsavedChanges = true,
+}: DiscardConfirmationOptions = {}) {
   const [open, setOpen] = useState(false);
   const pendingCloseRef = useRef<(() => void) | null>(null);
 
@@ -64,10 +69,17 @@ export function useDiscardChangesConfirmation({ active = true }: DiscardConfirma
     pendingCloseRef.current = null;
   }, [active]);
 
-  const requestClose = useCallback((onConfirm: () => void) => {
-    pendingCloseRef.current = onConfirm;
-    setOpen(true);
-  }, []);
+  const requestClose = useCallback(
+    (onConfirm: () => void) => {
+      if (!hasUnsavedChanges) {
+        onConfirm();
+        return;
+      }
+      pendingCloseRef.current = onConfirm;
+      setOpen(true);
+    },
+    [hasUnsavedChanges]
+  );
 
   const confirmDiscard = useCallback(() => {
     const close = pendingCloseRef.current;

@@ -120,7 +120,8 @@ export function useProductForm({
     defaultValues: buildDefaultValues(),
   });
 
-  const { handleSubmit, watch, setValue } = form;
+  const { handleSubmit, watch, setValue, register } = form;
+  const trackInventoryAutoClearedRef = useRef(false);
 
   const itemId = watch("item_id");
   const categoryId = watch("category_id");
@@ -133,6 +134,10 @@ export function useProductForm({
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
   const previousBaseUomRef = useRef(baseUom);
+
+  useEffect(() => {
+    register("track_inventory");
+  }, [register]);
 
   const categoryOptions = useMemo(
     () => parentSelectOptions(categories).filter((option) => option.id !== null),
@@ -305,8 +310,19 @@ export function useProductForm({
 
   // Non-physical items cannot hold stock, lot/serial tracking, or multi-SKU styles.
   useEffect(() => {
-    if (itemType === "PHYSICAL") return;
+    if (itemType === "PHYSICAL") {
+      if (
+        trackInventoryAutoClearedRef.current &&
+        !isBundle &&
+        !form.getValues("track_inventory")
+      ) {
+        setValue("track_inventory", true, { shouldDirty: true });
+        trackInventoryAutoClearedRef.current = false;
+      }
+      return;
+    }
     if (form.getValues("track_inventory")) {
+      trackInventoryAutoClearedRef.current = true;
       setValue("track_inventory", false, { shouldDirty: true });
     }
     if (form.getValues("tracking_mode") !== "NONE") {
@@ -315,7 +331,7 @@ export function useProductForm({
     if (form.getValues("variant_strategy") === "MULTI_SKU") {
       setValue("variant_strategy", "SINGLE_SKU", { shouldDirty: true });
     }
-  }, [itemType, form, setValue]);
+  }, [itemType, isBundle, form, setValue]);
 
   const trackInventory = watch("track_inventory");
 

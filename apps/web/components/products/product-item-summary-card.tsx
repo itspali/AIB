@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Check, XCircle } from "lucide-react";
+import { Check, Layers, Package, XCircle } from "lucide-react";
 import { formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import {
@@ -9,23 +9,47 @@ import {
   itemOperationalStatusLabel,
   itemTrackingModeLabel,
   itemTypeLabel,
+  resolveItemTrackInventory,
 } from "@/lib/products/item-model";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import { itemTaxCodePickerLabel } from "@/lib/tax/item-tax-code-picker";
 import {
   BUY_PRICE_COLUMN,
   SELL_PRICE_COLUMN,
+  SUMMARY_INHERITED_SUFFIX,
+  SUMMARY_INVENTORY_ALL_VARIANTS_HELP,
+  SUMMARY_INVENTORY_BUNDLE_OFF,
+  SUMMARY_INVENTORY_OFF,
+  SUMMARY_INVENTORY_SECTION,
+  SUMMARY_INVENTORY_VARIANT_HELP,
+  SUMMARY_INVENTORY_VARIANT_SECTION,
+  SUMMARY_MASTER_DEFAULTS_HELP,
+  SUMMARY_MASTER_DEFAULTS_SECTION,
+  SUMMARY_PRODUCT_PROFILE,
+  SUMMARY_PRODUCT_SECTION,
+  SUMMARY_PRODUCT_SECTION_HELP,
+  SUMMARY_VARIANT_LINE_HELP,
+  SUMMARY_VARIANT_LINE_SECTION,
+  SUMMARY_VIEWING_VARIANT,
   VARIANT_DEFAULT_BADGE,
   VARIANT_NOT_SOLD_BADGE,
+  VARIANT_SKU_LABEL,
   VARIANTS_EMPTY_STATE,
   VARIANTS_PEEK_DESCRIPTION,
   VARIANTS_SECTION_LABEL,
 } from "@/lib/products/product-user-labels";
+import {
+  computeVolumeCm3FromDimensions,
+  resolveShippingDimensionDefault,
+} from "@/lib/products/shipping-dimensions";
 import { variantStrategyLabel } from "@/lib/products/variant-strategy";
-import type {
-  ProductCatalogContext,
-  ProductDetailSnapshot,
-  ProductVariantSnapshot,
+import {
+  isDetailVariantSkuContext,
+  resolveDetailIdentitySku,
+  resolveMasterFormSku,
+  type ProductCatalogContext,
+  type ProductDetailSnapshot,
+  type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import { ProfileSectionCard } from "@/components/products/profile-section-card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +61,10 @@ type Props = {
   currency: string;
   catalogContext?: ProductCatalogContext | null;
 };
+
+const fieldLabelClass = "text-xs text-muted-foreground";
+const fieldValueClass = "text-sm font-medium leading-snug text-foreground";
+const fieldValueNumericClass = cn(fieldValueClass, "tabular-nums");
 
 function fmtMoney(value: string | null | undefined, currency: string) {
   const num = value ? parseFloat(value) : NaN;
@@ -60,8 +88,8 @@ function fmtQty(value: string | null | undefined, uom?: string) {
   return uom ? `${formatted} ${uom}` : formatted;
 }
 
-function fmtDim(value: string) {
-  const num = parseFloat(value);
+function fmtDim(value: string | null | undefined) {
+  const num = parseFloat(String(value ?? ""));
   if (!value || isNaN(num) || num <= 0) return null;
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(num);
 }
@@ -70,21 +98,23 @@ function hasText(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
 
-const fieldLabelClass = "text-xs text-muted-foreground";
-const fieldValueClass = "text-sm font-medium leading-snug text-foreground";
-const fieldValueNumericClass = cn(fieldValueClass, "tabular-nums");
+function hasPriceValue(value: string | null | undefined): boolean {
+  const trimmed = value?.trim();
+  return Boolean(trimmed && trimmed !== "0");
+}
 
 function Row({
   label,
   value,
   numeric = false,
   fullWidth = false,
+  hint,
 }: {
   label: string;
   value: React.ReactNode;
-  /** Right-align numbers with tabular figures; same sans typeface as other values. */
   numeric?: boolean;
   fullWidth?: boolean;
+  hint?: string;
 }) {
   const valueClassName = numeric ? fieldValueNumericClass : fieldValueClass;
 
@@ -93,13 +123,20 @@ function Row({
       <div className="space-y-1 py-1.5">
         <p className={fieldLabelClass}>{label}</p>
         <div className={valueClassName}>{value ?? "—"}</div>
+        {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
       </div>
     );
   }
+
   return (
     <div className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0">
       <span className={cn("shrink-0", fieldLabelClass)}>{label}</span>
-      <span className={cn("min-w-0 text-right", valueClassName)}>{value ?? "—"}</span>
+      <span className={cn("min-w-0 text-right", valueClassName)}>
+        {value ?? "—"}
+        {hint ? (
+          <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">{hint}</span>
+        ) : null}
+      </span>
     </div>
   );
 }
@@ -115,9 +152,30 @@ function masterVariantBadgeLabel(variant: ProductVariantSnapshot): string {
   return VARIANT_DEFAULT_BADGE;
 }
 
-function variantWeightLabel(variant: ProductVariantSnapshot): string | null {
-  const kg = fmtDim(variant.dead_weight_kg);
-  return kg != null ? `${kg} kg` : null;
+type ResolvedDimension = { text: string; inherited: boolean };
+
+function resolveDimensionDisplay(
+  own: string | null | undefined,
+  fallback: string | null | undefined
+): ResolvedDimension | null {
+  const resolved = resolveShippingDimensionDefault(own, fallback);
+  if (!resolved || resolved === "0") return null;
+  const ownTrimmed = String(own ?? "").trim();
+  const hasOwn = Boolean(ownTrimmed && ownTrimmed !== "0");
+  return { text: resolved, inherited: !hasOwn };
+}
+
+function formatDimensionsLwh(
+  length: ResolvedDimension | null,
+  width: ResolvedDimension | null,
+  height: ResolvedDimension | null
+): { text: string; inherited: boolean } | null {
+  if (!length || !width || !height) return null;
+  const inherited = length.inherited || width.inherited || height.inherited;
+  return {
+    text: `${length.text} × ${width.text} × ${height.text} cm`,
+    inherited,
+  };
 }
 
 function BehaviorFlagChip({ label, enabled }: { label: string; enabled: boolean }) {
@@ -148,7 +206,7 @@ const BEHAVIOR_FLAG_LABELS = [
   {
     key: "track_inventory",
     label: "Track inventory",
-    getEnabled: (d: ProductDetailSnapshot) => d.track_inventory,
+    getEnabled: (d: ProductDetailSnapshot) => resolveItemTrackInventory(d),
   },
   {
     key: "bundle",
@@ -157,9 +215,169 @@ const BEHAVIOR_FLAG_LABELS = [
   },
 ] as const;
 
+function SummaryContextBanner({
+  detail,
+  variantSkuContext,
+  selectedVariant,
+  productCode,
+}: {
+  detail: ProductDetailSnapshot;
+  variantSkuContext: boolean;
+  selectedVariant: ProductVariantSnapshot | null;
+  productCode: string;
+}) {
+  const isMultiSku = detail.variant_strategy === "MULTI_SKU";
+  const sellableCount = detail.variants.filter((v) => v.is_sellable !== false && !v.is_master).length;
+
+  if (variantSkuContext && selectedVariant) {
+    const attributeLine = formatVariantAttributes(selectedVariant.variant_attributes);
+    return (
+      <div className="rounded-lg border border-primary/25 bg-primary/5 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-background/80">
+            <Layers className="h-4 w-4 text-primary" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-primary/80">
+              {SUMMARY_VIEWING_VARIANT}
+            </p>
+            <p className="font-mono text-base font-semibold leading-tight text-foreground">
+              {selectedVariant.sku}
+            </p>
+            {attributeLine !== "—" ? (
+              <p className="text-sm text-muted-foreground">{attributeLine}</p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <Badge variant={selectedVariant.is_active ? "completed" : "locked"}>
+                {selectedVariant.is_active ? "Active" : "Inactive"}
+              </Badge>
+              {hasText(productCode) && productCode !== selectedVariant.sku ? (
+                <span className="text-xs text-muted-foreground">
+                  Product code <span className="font-mono text-foreground">{productCode}</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background/80">
+          <Package className="h-4 w-4 text-muted-foreground" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {SUMMARY_PRODUCT_PROFILE}
+          </p>
+          <p className="font-mono text-base font-semibold leading-tight text-foreground">
+            {productCode}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {variantStrategyLabel(detail.variant_strategy)}
+            {isMultiSku ? ` · ${sellableCount} sellable variant${sellableCount === 1 ? "" : "s"}` : null}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShippingRows({
+  weight,
+  dimensions,
+  volume,
+}: {
+  weight: ResolvedDimension | null;
+  dimensions: { text: string; inherited: boolean } | null;
+  volume: ResolvedDimension | null;
+}) {
+  const inheritedHint = (inherited: boolean) =>
+    inherited ? `(${SUMMARY_INHERITED_SUFFIX})` : undefined;
+
+  if (!weight && !dimensions && !volume) {
+    return <p className="py-1 text-sm text-muted-foreground">No shipping dimensions set.</p>;
+  }
+
+  return (
+    <>
+      {weight ? (
+        <Row
+          label="Weight"
+          value={`${weight.text} kg`}
+          numeric
+          hint={inheritedHint(weight.inherited)}
+        />
+      ) : null}
+      {dimensions ? (
+        <Row
+          label="Dimensions (L×W×H)"
+          value={dimensions.text}
+          numeric
+          hint={inheritedHint(dimensions.inherited)}
+        />
+      ) : null}
+      {volume ? (
+        <Row
+          label="Volume"
+          value={`${volume.text} cm³`}
+          numeric
+          hint={inheritedHint(volume.inherited)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function resolveShippingFromVariant(
+  variant: ProductVariantSnapshot,
+  master: ProductVariantSnapshot | null
+) {
+  const weight = resolveDimensionDisplay(variant.dead_weight_kg, master?.dead_weight_kg);
+  const length = resolveDimensionDisplay(variant.length_cm, master?.length_cm);
+  const width = resolveDimensionDisplay(variant.width_cm, master?.width_cm);
+  const height = resolveDimensionDisplay(variant.height_cm, master?.height_cm);
+  const dimensions = formatDimensionsLwh(length, width, height);
+  const volumeRaw =
+    computeVolumeCm3FromDimensions(
+      length?.text ?? null,
+      width?.text ?? null,
+      height?.text ?? null
+    ) ||
+    resolveShippingDimensionDefault(variant.volume, master?.volume) ||
+    null;
+  const volumeText = volumeRaw && volumeRaw !== "0" ? volumeRaw : null;
+  const volumeInherited =
+    volumeText != null &&
+    !hasText(variant.volume?.trim()) &&
+    hasText(master?.volume?.trim());
+  const volume: ResolvedDimension | null = volumeText
+    ? { text: volumeText, inherited: volumeInherited }
+    : null;
+
+  return { weight, dimensions, volume };
+}
+
+function resolveShippingFromMaster(detail: ProductDetailSnapshot) {
+  const weight = fmtDim(detail.dead_weight_kg);
+  const dimensions =
+    fmtDim(detail.length_cm) && fmtDim(detail.width_cm) && fmtDim(detail.height_cm)
+      ? `${fmtDim(detail.length_cm)} × ${fmtDim(detail.width_cm)} × ${fmtDim(detail.height_cm)} cm`
+      : null;
+  const volume = fmtDim(detail.volume);
+  return {
+    weight: weight ? { text: weight, inherited: false } : null,
+    dimensions: dimensions ? { text: dimensions, inherited: false } : null,
+    volume: volume ? { text: volume, inherited: false } : null,
+  };
+}
+
 export function ProductItemSummaryCard({ detail, currency, catalogContext }: Props) {
   const { ref: layoutRef, width: layoutWidth } = useElementWidth<HTMLDivElement>();
-  const twoColumns = layoutWidth >= 720;
+  const twoColumns = layoutWidth != null && layoutWidth >= 720;
 
   const taxCodeLabel = useMemo(() => {
     if (!detail.tax_code_id || !catalogContext) return null;
@@ -174,31 +392,54 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
     return map;
   }, [catalogContext?.price_books]);
 
+  const isPhysical = detail.item_type === "PHYSICAL";
+  const tracksInventory = resolveItemTrackInventory(detail);
+  const isMultiSku = detail.variant_strategy === "MULTI_SKU";
+  const variantSkuContext = isDetailVariantSkuContext(detail);
+  const productCode = isMultiSku ? resolveMasterFormSku(detail) : resolveDetailIdentitySku(detail);
+  const masterVariant = detail.variants.find((v) => v.is_master) ?? null;
+  const selectedVariant =
+    detail.variants.find((v) => v.id === detail.variant_id) ??
+    (variantSkuContext ? null : masterVariant);
+
+  const sellableVariants = detail.variants.filter((v) => !v.is_master);
+  const tableVariants = isMultiSku ? sellableVariants : detail.variants;
+  const visibleStorefronts = detail.storefront_visibility.filter((s) => s.is_visible);
+
   const totalStock = detail.valuations.reduce(
     (sum, v) => sum + (parseFloat(v.total_quantity_on_hand) || 0),
     0
   );
 
-  const isPhysical = detail.item_type === "PHYSICAL";
-  const isMultiSku = detail.variant_strategy === "MULTI_SKU";
-  const sellableVariants = detail.variants.filter((v) => v.is_sellable);
-  const visibleStorefronts = detail.storefront_visibility.filter((s) => s.is_visible);
-  const weightKg = fmtDim(detail.dead_weight_kg);
-  const dimensionsCm =
-    fmtDim(detail.length_cm) && fmtDim(detail.width_cm) && fmtDim(detail.height_cm)
-      ? `${fmtDim(detail.length_cm)} × ${fmtDim(detail.width_cm)} × ${fmtDim(detail.height_cm)} cm`
+  const variantShipping =
+    variantSkuContext && selectedVariant
+      ? resolveShippingFromVariant(selectedVariant, masterVariant)
       : null;
-  const volume = fmtDim(detail.volume);
-  const hasShipping =
-    isPhysical && (weightKg != null || dimensionsCm != null || volume != null);
+  const masterShipping = isPhysical && isMultiSku && !variantSkuContext
+    ? resolveShippingFromMaster(detail)
+    : null;
+  const singleShipping =
+    isPhysical && !isMultiSku ? resolveShippingFromMaster(detail) : null;
 
-  const showVariantGtin = detail.variants.some((v) => hasText(v.barcode));
+  const showVariantGtin = tableVariants.some((v) => hasText(v.barcode));
   const showVariantWeight =
-    isPhysical && detail.variants.some((v) => variantWeightLabel(v) != null);
-  const showVariantSellable = isMultiSku;
+    isPhysical && tableVariants.some((v) => resolveShippingFromVariant(v, masterVariant).weight);
+  const showVariantDimensions =
+    isPhysical &&
+    tableVariants.some((v) => resolveShippingFromVariant(v, masterVariant).dimensions);
+
+  const variantSellPrice = selectedVariant?.price;
+  const variantBuyPrice = selectedVariant?.purchase_price;
 
   return (
-    <div ref={layoutRef} className="p-3 pb-6">
+    <div ref={layoutRef} className="space-y-3 p-3 pb-6">
+      <SummaryContextBanner
+        detail={detail}
+        variantSkuContext={variantSkuContext}
+        selectedVariant={selectedVariant}
+        productCode={productCode}
+      />
+
       <div
         className={cn(
           "grid gap-3",
@@ -206,8 +447,8 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
         )}
       >
         <ProfileSectionCard
-          title="Identity"
-          description="Type, status, identifiers, classification, and operational behavior"
+          title={SUMMARY_PRODUCT_SECTION}
+          description={SUMMARY_PRODUCT_SECTION_HELP}
         >
           {hasText(detail.description) ? (
             <Row
@@ -223,23 +464,21 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
           <Row label="Item type" value={itemTypeLabel(detail.item_type)} />
           <Row label="Status" value={itemOperationalStatusLabel(detail.is_active)} />
           <Row label="Variant nature" value={variantStrategyLabel(detail.variant_strategy)} />
-          <Row label="SKU" value={detail.sku} />
-          {hasText(detail.code) &&
-          detail.code.trim().toLowerCase() !== detail.sku.trim().toLowerCase() ? (
-            <Row label="Item code" value={detail.code} />
+          {!variantSkuContext ? (
+            <Row
+              label={isMultiSku ? "Product code" : "SKU"}
+              value={productCode}
+            />
           ) : null}
-          {hasText(detail.barcode) ? <Row label="GTIN" value={detail.barcode} /> : null}
           <Row
             label="Category"
             value={hasText(detail.category_name) ? detail.category_name : ""}
           />
           <Row label="Supply-chain role" value={classificationLabel(detail.classification)} />
           {isMultiSku && detail.variant_axes.length > 0 ? (
-            <Row label="Variant axes" value={detail.variant_axes.join(", ")} />
+            <Row label="Varies by" value={detail.variant_axes.join(", ")} />
           ) : null}
-          {detail.needs_review ? (
-            <Row label="Review" value="Needs review" />
-          ) : null}
+          {detail.needs_review ? <Row label="Review" value="Needs review" /> : null}
           <div className="border-t border-border/40 pt-2">
             <p className={cn(fieldLabelClass, "mb-1.5")}>Behavior</p>
             <div className="flex flex-wrap gap-1.5">
@@ -253,6 +492,92 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
             </div>
           </div>
         </ProfileSectionCard>
+
+        {variantSkuContext && selectedVariant ? (
+          <ProfileSectionCard
+            title={SUMMARY_VARIANT_LINE_SECTION}
+            description={SUMMARY_VARIANT_LINE_HELP}
+          >
+            <Row label={VARIANT_SKU_LABEL} value={selectedVariant.sku} />
+            <Row
+              label="Attributes"
+              value={formatVariantAttributes(selectedVariant.variant_attributes)}
+            />
+            <Row label="GTIN" value={hasText(selectedVariant.barcode) ? selectedVariant.barcode : ""} />
+            <Row
+              label="Status"
+              value={
+                <Badge variant={selectedVariant.is_active ? "completed" : "locked"}>
+                  {selectedVariant.is_active ? "Active" : "Inactive"}
+                </Badge>
+              }
+            />
+            <Row
+              label={SELL_PRICE_COLUMN}
+              value={fmtMoney(variantSellPrice, currency)}
+              numeric
+            />
+            <Row
+              label={BUY_PRICE_COLUMN}
+              value={fmtMoney(variantBuyPrice, currency)}
+              numeric
+            />
+            {isPhysical ? (
+              <div className="border-t border-border/40 pt-1">
+                <p className={cn(fieldLabelClass, "py-2")}>Shipping</p>
+                <ShippingRows
+                  weight={variantShipping?.weight ?? null}
+                  dimensions={variantShipping?.dimensions ?? null}
+                  volume={variantShipping?.volume ?? null}
+                />
+              </div>
+            ) : null}
+          </ProfileSectionCard>
+        ) : null}
+
+        {!variantSkuContext && isMultiSku && isPhysical && masterVariant ? (
+          <ProfileSectionCard
+            title={SUMMARY_MASTER_DEFAULTS_SECTION}
+            description={SUMMARY_MASTER_DEFAULTS_HELP}
+          >
+            <Row
+              label="Master SKU"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-mono">{masterVariant.sku}</span>
+                  <Badge variant="default" className="text-[10px]">
+                    {masterVariantBadgeLabel(masterVariant)}
+                  </Badge>
+                </span>
+              }
+            />
+            <ShippingRows
+              weight={masterShipping?.weight ?? null}
+              dimensions={masterShipping?.dimensions ?? null}
+              volume={masterShipping?.volume ?? null}
+            />
+          </ProfileSectionCard>
+        ) : null}
+
+        {!variantSkuContext && !isMultiSku ? (
+          <ProfileSectionCard title="Identifiers" description="SKU, tax, and regulatory codes">
+            <Row label="SKU" value={productCode} />
+            {hasText(detail.barcode) ? <Row label="GTIN" value={detail.barcode} /> : null}
+            <Row label="Tax" value={taxCategoryLabel(detail.default_tax_category)} />
+            <Row label="Rule" value={taxCodeLabel ?? ""} />
+            <Row label="HSN" value={hasText(detail.hsn_sac_code) ? detail.hsn_sac_code : ""} />
+            {isPhysical && singleShipping ? (
+              <div className="border-t border-border/40 pt-1">
+                <p className={cn(fieldLabelClass, "py-2")}>Shipping</p>
+                <ShippingRows
+                  weight={singleShipping.weight}
+                  dimensions={singleShipping.dimensions}
+                  volume={singleShipping.volume}
+                />
+              </div>
+            ) : null}
+          </ProfileSectionCard>
+        ) : null}
 
         <ProfileSectionCard title="Units" description="Stock and alternate units of measure">
           <Row label="Base unit" value={detail.base_unit_of_measure} />
@@ -284,22 +609,34 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
           ) : null}
         </ProfileSectionCard>
 
-        <ProfileSectionCard title="Pricing" description="Default sell and buy rates">
-          <Row label="Selling rate" value={fmtMoney(detail.selling_price, currency)} numeric />
-          <Row label="Purchase rate" value={fmtMoney(detail.purchase_price, currency)} numeric />
-          {parseFloat(detail.standard_cost) > 0 ? (
-            <Row label="Standard cost" value={fmtMoney(detail.standard_cost, currency)} numeric />
-          ) : null}
-          <Row label="Tax" value={taxCategoryLabel(detail.default_tax_category)} />
-          <Row label="Rule" value={taxCodeLabel ?? ""} />
-          <Row
-            label="HSN"
-            value={hasText(detail.hsn_sac_code) ? detail.hsn_sac_code : ""}
-          />
-        </ProfileSectionCard>
+        {!variantSkuContext ? (
+          <ProfileSectionCard title="Pricing" description="Default sell and buy rates for this product">
+            <Row label="Selling rate" value={fmtMoney(detail.selling_price, currency)} numeric />
+            <Row label="Purchase rate" value={fmtMoney(detail.purchase_price, currency)} numeric />
+            {parseFloat(detail.standard_cost) > 0 ? (
+              <Row label="Standard cost" value={fmtMoney(detail.standard_cost, currency)} numeric />
+            ) : null}
+            {isMultiSku ? (
+              <Row label="Tax" value={taxCategoryLabel(detail.default_tax_category)} />
+            ) : null}
+            {isMultiSku ? <Row label="Rule" value={taxCodeLabel ?? ""} /> : null}
+            {isMultiSku ? (
+              <Row label="HSN" value={hasText(detail.hsn_sac_code) ? detail.hsn_sac_code : ""} />
+            ) : null}
+          </ProfileSectionCard>
+        ) : null}
 
-        {detail.track_inventory ? (
-          <ProfileSectionCard title="Inventory" description="Stock levels and costing">
+        {tracksInventory ? (
+          <ProfileSectionCard
+            title={variantSkuContext ? SUMMARY_INVENTORY_VARIANT_SECTION : SUMMARY_INVENTORY_SECTION}
+            description={
+              variantSkuContext
+                ? SUMMARY_INVENTORY_VARIANT_HELP
+                : isMultiSku
+                  ? SUMMARY_INVENTORY_ALL_VARIANTS_HELP
+                  : "Stock levels and costing"
+            }
+          >
             <Row
               label="Total on hand"
               value={fmtQty(String(totalStock), detail.base_unit_of_measure)}
@@ -318,8 +655,11 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.valuations.map((v) => (
-                      <tr key={v.location_id} className="border-b border-border/40 last:border-0">
+                    {detail.valuations.map((v, index) => (
+                      <tr
+                        key={`${v.location_id}:${index}`}
+                        className="border-b border-border/40 last:border-0"
+                      >
                         <td className={cn("px-2.5 py-1.5", fieldValueClass)}>{v.location_name}</td>
                         <td className={cn("px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
                           {fmtQty(v.total_quantity_on_hand, detail.base_unit_of_measure)}
@@ -335,8 +675,10 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
             ) : null}
           </ProfileSectionCard>
         ) : isPhysical ? (
-          <ProfileSectionCard title="Inventory" description="Stock tracking">
-            <p className="py-1 text-sm text-muted-foreground">Inventory tracking is off for this item.</p>
+          <ProfileSectionCard title={SUMMARY_INVENTORY_SECTION} description="Stock tracking">
+            <p className="py-1 text-sm text-muted-foreground">
+              {detail.is_bundle ? SUMMARY_INVENTORY_BUNDLE_OFF : SUMMARY_INVENTORY_OFF}
+            </p>
           </ProfileSectionCard>
         ) : null}
 
@@ -346,155 +688,127 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
           </ProfileSectionCard>
         ) : null}
 
-        {(isMultiSku || detail.variants.length > 0) && (
+        {(isMultiSku || detail.variants.length > 1) && (
           <ProfileSectionCard
             title={VARIANTS_SECTION_LABEL}
             description={VARIANTS_PEEK_DESCRIPTION(
-              sellableVariants.length,
+              sellableVariants.filter((v) => v.is_sellable !== false).length,
               detail.variants.length
             )}
+            className={twoColumns ? "col-span-full" : undefined}
           >
-            {detail.variants.length === 0 ? (
+            {tableVariants.length === 0 ? (
               <p className="text-sm text-muted-foreground">{VARIANTS_EMPTY_STATE}</p>
             ) : (
-              <div className="max-h-48 overflow-x-auto overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-56 overflow-x-auto overflow-y-auto rounded-md border border-border/60">
                 <table className="w-max min-w-full text-sm">
                   <thead className="sticky top-0 z-[1] bg-muted/80 backdrop-blur">
                     <tr className="border-b border-border text-left">
-                      <th
-                        className={cn(
-                          "whitespace-nowrap px-2.5 py-1.5",
-                          fieldLabelClass
-                        )}
-                      >
-                        SKU
+                      <th className={cn("whitespace-nowrap px-2.5 py-1.5", fieldLabelClass)}>
+                        {VARIANT_SKU_LABEL}
                       </th>
                       {showVariantGtin ? (
-                        <th
-                          className={cn(
-                            "whitespace-nowrap px-2.5 py-1.5",
-                            fieldLabelClass
-                          )}
-                        >
+                        <th className={cn("whitespace-nowrap px-2.5 py-1.5", fieldLabelClass)}>
                           GTIN
                         </th>
                       ) : null}
-                      <th
-                        className={cn(
-                          "min-w-[10rem] whitespace-nowrap px-2.5 py-1.5",
-                          fieldLabelClass
-                        )}
-                      >
+                      <th className={cn("min-w-[10rem] px-2.5 py-1.5", fieldLabelClass)}>
                         Attributes
                       </th>
-                      {showVariantSellable ? (
-                        <th
-                          className={cn(
-                            "whitespace-nowrap px-2.5 py-1.5",
-                            fieldLabelClass
-                          )}
-                        >
-                          Sellable
-                        </th>
-                      ) : null}
-                      <th
-                        className={cn(
-                          "whitespace-nowrap px-2.5 py-1.5 text-right",
-                          fieldLabelClass
-                        )}
-                      >
+                      <th className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldLabelClass)}>
                         {SELL_PRICE_COLUMN}
                       </th>
-                      <th
-                        className={cn(
-                          "whitespace-nowrap px-2.5 py-1.5 text-right",
-                          fieldLabelClass
-                        )}
-                      >
+                      <th className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldLabelClass)}>
                         {BUY_PRICE_COLUMN}
                       </th>
                       {showVariantWeight ? (
-                        <th
-                          className={cn(
-                            "whitespace-nowrap px-2.5 py-1.5 text-right",
-                            fieldLabelClass
-                          )}
-                        >
+                        <th className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldLabelClass)}>
                           Weight
                         </th>
                       ) : null}
-                      <th
-                        className={cn(
-                          "whitespace-nowrap px-2.5 py-1.5 text-right",
-                          fieldLabelClass
-                        )}
-                      >
+                      {showVariantDimensions ? (
+                        <th className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldLabelClass)}>
+                          Dimensions
+                        </th>
+                      ) : null}
+                      <th className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldLabelClass)}>
                         Status
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.variants.map((v) => (
-                      <tr key={v.id} className="border-b border-border/40 last:border-0">
-                        <td className={cn("whitespace-nowrap px-2.5 py-1.5", fieldValueClass)}>
-                          <div className="flex items-center gap-1.5">
+                    {tableVariants.map((v) => {
+                      const shipping = resolveShippingFromVariant(v, masterVariant);
+                      const isSelected = variantSkuContext && v.id === detail.variant_id;
+                      const weightLabel = shipping.weight
+                        ? `${shipping.weight.text} kg${shipping.weight.inherited ? "*" : ""}`
+                        : "—";
+                      const dimLabel = shipping.dimensions
+                        ? `${shipping.dimensions.text}${shipping.dimensions.inherited ? "*" : ""}`
+                        : "—";
+
+                      return (
+                        <tr
+                          key={v.id}
+                          className={cn(
+                            "border-b border-border/40 last:border-0",
+                            isSelected && "bg-primary/8"
+                          )}
+                        >
+                          <td className={cn("whitespace-nowrap px-2.5 py-1.5", fieldValueClass)}>
                             <span className="font-mono">{v.sku}</span>
-                            {v.is_master ? (
-                              <Badge
-                                variant={v.is_sellable === false ? "default" : "active"}
-                                className="shrink-0 text-[10px]"
-                              >
-                                {masterVariantBadgeLabel(v)}
+                            {isSelected ? (
+                              <Badge variant="active" className="ml-1.5 text-[10px]">
+                                Open
                               </Badge>
                             ) : null}
-                          </div>
-                        </td>
-                        {showVariantGtin ? (
+                          </td>
+                          {showVariantGtin ? (
+                            <td className={cn("whitespace-nowrap px-2.5 py-1.5 font-mono", fieldValueClass)}>
+                              {hasText(v.barcode) ? v.barcode : "—"}
+                            </td>
+                          ) : null}
                           <td
                             className={cn(
-                              "whitespace-nowrap px-2.5 py-1.5 font-mono",
+                              "max-w-[14rem] px-2.5 py-1.5 font-normal text-muted-foreground",
                               fieldValueClass
                             )}
                           >
-                            {hasText(v.barcode) ? v.barcode : "—"}
+                            <span className="line-clamp-2">
+                              {formatVariantAttributes(v.variant_attributes)}
+                            </span>
                           </td>
-                        ) : null}
-                        <td
-                          className={cn(
-                            "max-w-[14rem] px-2.5 py-1.5",
-                            fieldValueClass,
-                            "font-normal text-muted-foreground"
-                          )}
-                        >
-                          <span className="line-clamp-2">
-                            {formatVariantAttributes(v.variant_attributes)}
-                          </span>
-                        </td>
-                        {showVariantSellable ? (
-                          <td className={cn("whitespace-nowrap px-2.5 py-1.5", fieldValueClass)}>
-                            {v.is_sellable ? "Yes" : "No"}
-                          </td>
-                        ) : null}
-                        <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
-                          {fmtMoney(v.price, currency)}
-                        </td>
-                        <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
-                          {fmtMoney(v.purchase_price, currency)}
-                        </td>
-                        {showVariantWeight ? (
                           <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
-                            {variantWeightLabel(v) ?? "—"}
+                            {hasPriceValue(v.price) ? fmtMoney(v.price, currency) : "—"}
                           </td>
-                        ) : null}
-                        <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueClass)}>
-                          <Badge variant={v.is_active ? "completed" : "locked"}>
-                            {v.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                            {hasPriceValue(v.purchase_price) ? fmtMoney(v.purchase_price, currency) : "—"}
+                          </td>
+                          {showVariantWeight ? (
+                            <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                              {weightLabel}
+                            </td>
+                          ) : null}
+                          {showVariantDimensions ? (
+                            <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                              {dimLabel}
+                            </td>
+                          ) : null}
+                          <td className={cn("whitespace-nowrap px-2.5 py-1.5 text-right", fieldValueClass)}>
+                            <Badge variant={v.is_active ? "completed" : "locked"}>
+                              {v.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                {showVariantWeight || showVariantDimensions ? (
+                  <p className="border-t border-border/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                    * {SUMMARY_INHERITED_SUFFIX} from variant defaults
+                  </p>
+                ) : null}
               </div>
             )}
           </ProfileSectionCard>
@@ -525,16 +839,6 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
                 </div>
               ))}
             </div>
-          </ProfileSectionCard>
-        ) : null}
-
-        {hasShipping ? (
-          <ProfileSectionCard title="Shipping" description="Weight and dimensions">
-            {weightKg != null ? (
-              <Row label="Weight" value={`${weightKg} kg`} numeric />
-            ) : null}
-            {dimensionsCm ? <Row label="Dimensions (L×W×H)" value={dimensionsCm} numeric /> : null}
-            {volume != null ? <Row label="Volume" value={volume} numeric /> : null}
           </ProfileSectionCard>
         ) : null}
 

@@ -8,6 +8,7 @@ import {
   isItemStatus,
   isItemTrackingMode,
   isItemType,
+  parseItemBoolean,
   type ItemCostingMethod,
   type ItemSource,
   type ItemStatus,
@@ -110,6 +111,7 @@ type SupplierItemRow = {
 
 type ValuationRow = {
   location_id: string;
+  variant_id: string | null;
   total_quantity_on_hand: number | string;
   current_average_cost: number | string;
   tenant_locations: { name: string } | { name: string }[] | null;
@@ -131,6 +133,15 @@ function resolveLocationName(raw: ValuationRow["tenant_locations"]): string {
   if (!raw) return "Unknown location";
   if (Array.isArray(raw)) return raw[0]?.name ?? "Unknown location";
   return raw.name ?? "Unknown location";
+}
+
+function pickMasterVariant(variants: VariantRow[] | null | undefined): VariantRow | null {
+  if (!variants?.length) return null;
+  const master = variants.find((variant) => variant.is_master);
+  if (master) return master;
+  return [...variants].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )[0];
 }
 
 function pickDefaultVariant(variants: VariantRow[] | null | undefined): VariantRow | null {
@@ -514,7 +525,11 @@ async function fetchListPrimaryImagesByItemId(
   const storagePathByItem = new Map<string, string>();
   for (const row of rows) {
     const defaultVariantId = pickDefaultVariant(row.item_variants)?.id ?? null;
-    const storagePath = pickPrimaryImageStoragePath(mediaByItem.get(row.id) ?? [], defaultVariantId);
+    const storagePath = pickPrimaryImageStoragePath(
+      mediaByItem.get(row.id) ?? [],
+      defaultVariantId,
+      row.item_variants ?? undefined
+    );
     if (storagePath) {
       storagePathByItem.set(row.id, storagePath);
     } else {
@@ -832,6 +847,7 @@ export async function fetchProductDetail(
       .select(
         `
         location_id,
+        variant_id,
         total_quantity_on_hand,
         current_average_cost,
         tenant_locations ( name )
@@ -875,6 +891,15 @@ export async function fetchProductDetail(
     parsedCustomFields.defaultPurchaseUom
   );
 
+  const masterVariantRow =
+    pickMasterVariant(sortedVariants) ?? sortedVariants[0] ?? variant;
+
+  const valuationRows = valuations as ValuationRow[] | null;
+  const scopedValuationRows =
+    options?.variantId?.trim()
+      ? valuationRows?.filter((row) => row.variant_id === options.variantId) ?? []
+      : valuationRows;
+
   return {
     id: row.id,
     name: row.name,
@@ -899,7 +924,7 @@ export async function fetchProductDetail(
     item_type: isItemType(row.item_type ?? "")
       ? (row.item_type as ItemType)
       : "PHYSICAL",
-    track_inventory: row.track_inventory ?? true,
+    track_inventory: parseItemBoolean(row.track_inventory, true),
     status: isItemStatus(row.status ?? "") ? (row.status as ItemStatus) : "ACTIVE",
     needs_review: row.needs_review ?? false,
     source: isItemSource(row.source ?? "") ? (row.source as ItemSource) : "MANUAL",
@@ -923,12 +948,12 @@ export async function fetchProductDetail(
       variant.variant_attributes && typeof variant.variant_attributes === "object"
         ? variant.variant_attributes
         : {},
-    dead_weight_kg: formatDecimal(variant.dead_weight_kg, "0"),
-    volume: formatDecimal(variant.volume, "0"),
-    length_cm: formatDecimal(variant.length_cm, "0"),
-    width_cm: formatDecimal(variant.width_cm, "0"),
-    height_cm: formatDecimal(variant.height_cm, "0"),
-    variant_is_active: variant.is_active,
+    dead_weight_kg: formatDecimal(masterVariantRow.dead_weight_kg, "0"),
+    volume: formatDecimal(masterVariantRow.volume, "0"),
+    length_cm: formatDecimal(masterVariantRow.length_cm, "0"),
+    width_cm: formatDecimal(masterVariantRow.width_cm, "0"),
+    height_cm: formatDecimal(masterVariantRow.height_cm, "0"),
+    variant_is_active: masterVariantRow.is_active,
     selling_price: priceEntry
       ? formatDecimal(priceEntry.price, "")
       : extractDefaultSellingPriceFromCustomFieldsRecord(rawCustomFields),
@@ -947,7 +972,7 @@ export async function fetchProductDetail(
       : extractDefaultPurchasePriceFromCustomFieldsRecord(rawCustomFields),
     supplier_id: preferredSupplier?.supplier_id ?? null,
     supplier_name: preferredSupplier ? resolveEntityName(preferredSupplier.entities) : null,
-    valuations: mapValuations(valuations as ValuationRow[] | null),
+    valuations: mapValuations(scopedValuationRows),
     variants,
     media,
     sku_mask: parsedCustomFields.sku_mask,

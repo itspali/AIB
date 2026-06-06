@@ -186,7 +186,10 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_storefront_items: buildStorefrontItemsPayload(values),
     p_variant_strategy: values.variant_strategy,
     p_item_type: values.item_type,
-    p_track_inventory: values.track_inventory,
+    p_track_inventory:
+      values.item_type === "PHYSICAL" && !values.is_bundle
+        ? values.track_inventory
+        : false,
     p_is_active: values.item_id ? values.is_active : true,
     p_status: itemLifecycleStatusFromActive(values.item_id ? values.is_active : true),
     p_needs_review: values.needs_review,
@@ -1136,6 +1139,7 @@ export async function listCompositionComponentCandidates(
       ${ITEM_VARIANTS_EMBED} (
         id,
         sku,
+        price,
         is_sellable,
         is_master,
         created_at
@@ -1155,6 +1159,7 @@ export async function listCompositionComponentCandidates(
     const variants = (row.item_variants ?? []) as Array<{
       id: string;
       sku: string;
+      price: string | number | null;
       is_sellable: boolean;
       is_master: boolean;
       created_at: string;
@@ -1164,6 +1169,11 @@ export async function listCompositionComponentCandidates(
       variants.find((v) => v.is_master) ??
       variants[0] ??
       null;
+    const rawPrice = preferred?.price;
+    const defaultSellingPrice =
+      rawPrice === null || rawPrice === undefined || rawPrice === ""
+        ? null
+        : String(rawPrice);
 
     return {
       id: row.id as string,
@@ -1172,6 +1182,7 @@ export async function listCompositionComponentCandidates(
       classification: row.classification as ItemClassification,
       default_variant_id: preferred?.id ?? null,
       default_sku: preferred?.sku ?? null,
+      default_selling_price: defaultSellingPrice,
     };
   });
 

@@ -36,6 +36,30 @@ export const VARIANT_AXES_HELP =
   "Choose what changes per SKU — for example size or color. Unselected attributes stay the same on every variant.";
 export const VARIANT_SKU_LABEL = "Variant SKU";
 
+export const SUMMARY_PRODUCT_SECTION = "Product";
+export const SUMMARY_PRODUCT_SECTION_HELP =
+  "Shared catalog profile — name, category, tax, and behavior apply to every variant.";
+export const SUMMARY_VARIANT_LINE_SECTION = "This variant";
+export const SUMMARY_VARIANT_LINE_HELP =
+  "Identifiers, pricing, and shipping for the variant row you opened from the list.";
+export const SUMMARY_MASTER_DEFAULTS_SECTION = "Variant defaults";
+export const SUMMARY_MASTER_DEFAULTS_HELP =
+  "Master row values sellable variants inherit until you override them per SKU.";
+export const SUMMARY_VIEWING_VARIANT = "Viewing variant";
+export const SUMMARY_PRODUCT_PROFILE = "Product profile";
+export const SUMMARY_INHERITED_SUFFIX = "inherited";
+
+export const SUMMARY_INVENTORY_SECTION = "Inventory";
+export const SUMMARY_INVENTORY_VARIANT_SECTION = "Inventory · this variant";
+export const SUMMARY_INVENTORY_ALL_VARIANTS_HELP =
+  "Stock levels and costing across all variant SKUs.";
+export const SUMMARY_INVENTORY_VARIANT_HELP =
+  "Stock tracking applies to the whole product; quantities below are for this variant SKU.";
+export const SUMMARY_INVENTORY_OFF =
+  "Inventory tracking is off for this item.";
+export const SUMMARY_INVENTORY_BUNDLE_OFF =
+  "Inventory tracking is off — stock is tracked on bundle components instead.";
+
 export const SELL_PRICE_COLUMN = "Sell price";
 export const BUY_PRICE_COLUMN = "Buy price";
 export const MRP_COLUMN = "MRP";
