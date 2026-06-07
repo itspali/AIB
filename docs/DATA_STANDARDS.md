@@ -7,6 +7,9 @@ standards. Every rule below reflects the conventions already shipped in
 [20260526000000_init_tenants.sql](../supabase/migrations/20260526000000_init_tenants.sql) and
 [20260542000000_item_model_foundation.sql](../supabase/migrations/20260542000000_item_model_foundation.sql)).
 
+For **CI deploy safety** (timestamps, view column order, GRANT signatures, pre-push checklist), see
+[`SUPABASE_CI_MIGRATION_ERRORS.md`](./SUPABASE_CI_MIGRATION_ERRORS.md).
+
 ---
 
 ## 1. Naming Standards, Cases & Conventions

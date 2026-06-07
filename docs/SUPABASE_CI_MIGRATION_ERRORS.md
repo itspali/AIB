@@ -1,6 +1,50 @@
-# Supabase CI/CD Migration Error Reference
+# Supabase CI/CD — Migration Errors, Fixes & Commit Guidelines
 
-This document catalogs **known and likely failures** when pushing schema changes to Supabase via GitHub Actions. Use it before committing migration files so fixes are not accidentally reverted or reintroduced.
+**Canonical reference** for avoiding and fixing failures when schema changes sync to Supabase via GitHub Actions.
+
+Use this document **before** opening a PR or pushing migration files to `develop`. Related: [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md).
+
+---
+
+## Quick guidelines (every commit with SQL)
+
+| Rule | Why |
+|------|-----|
+| **One migration file = one timestamp** (`YYYYMMDDHHMMSS_name.sql`) | Duplicate timestamps break ordering and CI |
+| **Timestamp must sort after** the newest file in `supabase/migrations/` | Out-of-order files need `--include-all` or repair |
+| **Never edit a migration already applied** on sandbox/production | Remote will not re-run it; add a **new** forward migration |
+| **Append new view columns at the end** of `SELECT` | Mid-list inserts fail with SQLSTATE `42P16` |
+| **Match `GRANT` signatures** to `CREATE FUNCTION` exactly | Whole migration rolls back on GRANT failure |
+| **Prefer idempotent DDL** (`IF NOT EXISTS`, `DROP … IF EXISTS`) | Safer re-runs and partial-failure recovery |
+| **Ship schema only via Git** → push `develop` | CI runs `supabase db push --yes --include-all` |
+| **Do not commit** `supabase/.temp/` or `.env` secrets | Local link cache / credentials |
+
+### Pre-push checklist (migrations)
+
+1. List latest migration: sort `supabase/migrations/` — your new file must be **last**.
+2. Grep for duplicate timestamp prefix:
+   ```powershell
+   Get-ChildItem supabase/migrations/*.sql | ForEach-Object { $_.Name.Substring(0,14) } | Group-Object | Where-Object Count -gt 1
+   ```
+3. If changing an **existing view**, confirm new columns are **appended** (see §3.6 and view list below).
+4. If adding `GRANT EXECUTE`, copy the full argument list from `CREATE FUNCTION`.
+5. If adding `CHECK` / `NOT NULL` on a live table, backfill or validate existing rows first.
+6. Push to `develop` and watch **Actions → CI/CD Supabase Deployment Engine**.
+7. If CI fails on migration **N** and never applied on remote: fix file **N** and push again. If **N** already applied: new migration only.
+
+### Views that must use append-only column order
+
+These views are replaced often; **never insert columns in the middle**:
+
+| View | Typical migrations |
+|------|-------------------|
+| `public.product_catalog_search_rows` | `20260531920000+`, `20260533300000` |
+| `public.product_list_workspace_rows` | `20260534000000+`, `20260607120000+`, `20260607160000+` |
+| `public.product_list_workspace_variant_rows` | `20260539500000+`, `20260607160000+` |
+
+To rename, reorder, or remove columns: `DROP VIEW` (check dependents) + `CREATE VIEW`, or introduce a new view name.
+
+---
 
 ## How deployment works
 
@@ -9,28 +53,14 @@ This document catalogs **known and likely failures** when pushing schema changes
 | `develop` | `deploy-sandbox` | `supabase link` + `supabase db push --yes --include-all` | AIB Sandbox |
 | `main` | `deploy-production` | same | AIB Production |
 
-Workflow file: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
+Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 
-**Important:** Migrations are applied **in filename timestamp order**. Each migration runs inside a **single transaction** — if any statement fails, the entire migration rolls back and CI fails. Already-applied migration files are **never re-run** on the remote; editing them after a successful deploy has no effect unless you repair the remote manually.
+**Important:**
 
-**Local CLI:** Supabase CLI is not used on the developer machine for deploy. Schema ships via Git only. See [`docs/AGENT_HANDOVER.md`](AGENT_HANDOVER.md).
-
----
-
-## Pre-commit checklist
-
-Before pushing migrations to `develop`:
-
-1. **Timestamp** — New file name must sort **after** the latest migration already applied on sandbox (check `supabase/migrations/` and recent successful CI runs).
-2. **Dependencies** — Tables, types, functions, and helpers referenced in SQL must exist in an **earlier** migration (or be created in the same file first).
-3. **Idempotency** — Prefer `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `DROP POLICY IF EXISTS` before `CREATE POLICY`, `CREATE OR REPLACE FUNCTION`.
-4. **Views** — New columns on existing views must be **appended at the end** of the `SELECT` list (see §3.7).
-5. **PL/pgSQL in SQL expressions** — No variable assignments inside `RETURN QUERY` / `CASE` branches used as SQL (see §3.3).
-6. **GRANT/REVOKE** — Function signatures in `GRANT`/`REVOKE` must **exactly match** the `CREATE FUNCTION` declaration (see §3.5).
-7. **RLS tenant pattern** — Use `private.current_tenant_id()` and `auth.uid()`; do not rely on `user_metadata` in policies (see §4.2).
-8. **Constraints on live data** — `CHECK` / `NOT NULL` on existing tables can fail if rows violate the rule (see §4.4).
-9. **Do not commit** `supabase/.temp/` (local link cache; gitignored).
-10. **Do not edit** migrations that have already succeeded on sandbox/production unless you understand remote repair implications (see §5).
+- Migrations apply in **filename timestamp order**.
+- Each migration runs in a **single transaction** — one failed statement rolls back the entire file.
+- **Already-applied migrations are never re-run** on remote. Editing them after a successful deploy has **no effect** unless the remote history is repaired manually.
+- **Local Supabase CLI is not used for deploy** in normal workflow — schema ships via Git only ([`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md)).
 
 ---
 
@@ -46,9 +76,7 @@ authentication failed / invalid access token / project ref not found
 
 **Cause:** `SUPABASE_ACCESS_TOKEN` or `SUPABASE_SANDBOX_PROJECT_ID` missing, expired, or wrong.
 
-**Fix:** Update repository secrets in GitHub Settings → Secrets and variables → Actions.
-
-**Prevention:** Failures happen before any migration runs; no migration file change fixes this.
+**Fix:** GitHub → Settings → Secrets and variables → Actions.
 
 ---
 
@@ -58,30 +86,7 @@ authentication failed / invalid access token / project ref not found
 
 **Cause:** `supabase db push` without `--yes` in non-interactive CI.
 
-**Fix:** Workflow uses `supabase db push --yes` (fixed in commit `2e2dbfe`).
-
-**Prevention:** Never remove `--yes` from [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
-
----
-
-### 1.4 Out-of-order local migrations (skipped after duplicate rename)
-
-**Signal:**
-```
-Found local migration files to be inserted before the last migration on remote database.
-Rerun the command with --include-all flag to apply these migrations:
-supabase/migrations/20260603120050_...
-```
-
-**Cause:** A **later** timestamp was recorded on sandbox (e.g. `20260603140000`) while an **earlier** file was renamed or added afterward (e.g. duplicate `20260603120000` resolved by moving supplier catalog to `20260603120050`). `db push` without `--include-all` refuses to apply “backfilled” versions.
-
-**Encountered:** 2026-06-05 — after renaming `20260603120000_supplier_catalog_entries` → `20260603120050`, remote already had `20260603120000` (category) and `20260603140000`, but not `20260603120050` / `20260603120100`.
-
-**Fix:**
-1. One-time: `supabase db push --yes --include-all` (applies missing older timestamps).
-2. CI: keep `--include-all` on both deploy jobs so backfilled migrations apply automatically.
-
-**Prevention:** Avoid duplicate migration timestamps; when renaming an already-pushed version, use `supabase migration repair` per Supabase docs or a new forward-only timestamp instead of inserting a lower version after a higher one is on remote.
+**Fix:** Workflow uses `supabase db push --yes --include-all` (do not remove flags).
 
 ---
 
@@ -92,11 +97,31 @@ supabase/migrations/20260603120050_...
 Remote migration versions differ from local / migration history mismatch
 ```
 
-**Cause:** Migrations applied manually in Supabase Dashboard, or sandbox repaired outside Git, so `supabase_migrations.schema_migrations` no longer matches the repo.
+**Cause:** Manual SQL in Supabase Dashboard, or sandbox repaired outside Git.
 
-**Fix:** Align history with Supabase support/docs — do **not** apply ad-hoc SQL hotfixes for core tables (see AGENT_HANDOVER). Prefer new forward migrations over manual dashboard edits.
+**Fix:** Align with Supabase docs (`migration repair`). Do **not** leave Git and remote permanently diverged. Prefer forward migrations over dashboard hotfixes for core tables.
 
-**Prevention:** All schema changes go through `supabase/migrations/` and CI only.
+---
+
+### 1.4 Out-of-order local migrations
+
+**Signal:**
+```
+Found local migration files to be inserted before the last migration on remote database.
+Rerun the command with --include-all flag to apply these migrations:
+supabase/migrations/20260603120050_...
+```
+
+**Cause:** A **later** timestamp was already applied on sandbox while an **earlier** file was added or renamed afterward (e.g. duplicate `20260603120000` resolved by moving supplier catalog to `20260603120050`).
+
+**Encountered:** 2026-06-05 — commits `f3ca196`, `6667747`.
+
+**Fix:**
+
+1. CI keeps `--include-all` on both deploy jobs (applies backfilled timestamps).
+2. For one-off repair: `supabase db push --yes --include-all` against linked project.
+
+**Prevention:** Never reuse a timestamp. When splitting a migration, use a **new** strictly increasing timestamp — do not insert a lower version after a higher one is on remote.
 
 ---
 
@@ -109,27 +134,36 @@ Remote migration versions differ from local / migration history mismatch
 Migration ... already applied / out of order / duplicate key in schema_migrations
 ```
 
-**Cause:** New migration timestamp is **earlier** than migrations already on sandbox, or duplicate timestamp with another file.
+**Cause:** New migration timestamp is **earlier** than migrations already on sandbox, or **duplicate timestamp** with another file.
 
-**Encountered:** Commit `9b012da` — search filter migrations renamed to `20260531920000+` so they run after `20260531910000` on sandbox.
+**Encountered:** `9b012da` (search filters reordered to `20260531920000+`).
 
-**Fix:**
-- Rename file to a timestamp **after** the latest applied migration.
-- Never reuse a timestamp that already ran on remote.
+**Fix:** Rename to timestamp **after** latest applied migration. Never reuse a version that ran on remote.
 
-**Prevention:** When adding migrations, use `YYYYMMDDHHMMSS` strictly increasing from the newest file in `supabase/migrations/`.
+**Prevention:**
+```powershell
+Get-ChildItem supabase/migrations/*.sql | Sort-Object Name | Select-Object -Last 3 Name
+```
 
 ---
 
-### 2.2 Duplicate migration content / conflicting timestamps
+### 2.2 Duplicate migration timestamp (two files, same prefix)
 
-**Signal:** Second migration fails because object already exists, or first migration never runs because timestamp collision.
+**Signal:** One file applies; the other is skipped or causes history confusion. CI may fail on `--include-all` ordering.
 
-**Encountered:** Commit `9b012da` — removed duplicate `20260531200000_fix_product_filter_null_compare.sql` and folded logic into `20260531920000_search_filter_engine.sql`.
+**Encountered:** 2026-06-03 — two files shared `20260603120000` (category vs supplier catalog). Fixed in `f3ca196` by renaming supplier catalog to `20260603120050`.
 
-**Fix:** Delete or merge duplicate files; one timestamp per migration.
+**Prevention:** Before commit, run duplicate-prefix check (see checklist above). **One timestamp per file.**
 
-**Prevention:** Grep for existing object names before adding a new migration; extend via `CREATE OR REPLACE` in a **new** timestamp file instead of duplicating.
+---
+
+### 2.3 Duplicate migration content
+
+**Signal:** Second migration fails because object already exists.
+
+**Encountered:** `9b012da` — removed duplicate search filter migration; logic folded into earlier file.
+
+**Prevention:** Grep for object names; extend with `CREATE OR REPLACE` in a **new** timestamp file instead of duplicating.
 
 ---
 
@@ -137,51 +171,28 @@ Migration ... already applied / out of order / duplicate key in schema_migration
 
 ### 3.1 `RAISE EXCEPTION` format placeholders (`%` vs `%%`)
 
-**Signal:**
-```
-syntax error at or near "%" / too many parameters for RAISE
-```
+**Signal:** `syntax error at or near "%"` / too many parameters for RAISE
 
-**Cause:** In PL/pgSQL, `RAISE EXCEPTION 'message %', arg` uses `%` as placeholders. Escaping with `%%` is only needed for a **literal** percent sign in the message, not for each substitution.
+**Encountered:** `2e2dbfe` — M7 outbound migration.
 
-**Encountered:** Commit `2e2dbfe` — M7 outbound migration line used `'discount %% exceeds policy maximum %%'`; changed to single `%` per placeholder.
-
-**Correct pattern:**
+**Correct:**
 ```sql
 RAISE EXCEPTION 'returns blocked: discount % exceeds policy maximum %', v_discount_pct, v_max_discount;
 ```
 
-**Prevention:** Count `%` placeholders in the string; each must match one trailing argument. Use `%%` only for a literal `%` in the text.
+Use `%%` only for a **literal** `%` in the message string.
 
 ---
 
 ### 3.2 PL/pgSQL assignments inside SQL `CASE` (invalid in `RETURN QUERY`)
 
-**Signal:**
-```
-syntax error at or near ":=" / cannot assign in SQL expression context
-```
+**Signal:** `syntax error at or near ":="`
 
-**Cause:** Statements like `v_value := clause ->> 'value'` inside a `CASE` branch that is part of a SQL `WHERE` / `RETURN QUERY` query are invalid — assignments belong in PL/pgSQL blocks, not SQL expressions.
+**Encountered:** `ce23eff` — search filter migrations.
 
-**Encountered:** Commit `ce23eff` — `20260531940000_search_filter_ilike.sql` and `20260531950000_search_filter_numeric.sql`.
+**Wrong:** `v_value := clause ->> 'value'` inside a SQL `CASE` branch.
 
-**Wrong:**
-```sql
-WHEN 'ILIKE' THEN
-    v_value := clause ->> 'value';
-    CASE WHEN v_value LIKE '^%' THEN ...
-```
-
-**Correct:**
-```sql
-WHEN 'ILIKE' THEN
-    CASE WHEN (clause ->> 'value') LIKE '^%' THEN
-        lower(pcsr.name) LIKE lower(substring(clause ->> 'value' from 2)) || '%'
-    ...
-```
-
-**Prevention:** In `execute_product_filter`-style RPCs, use inline `(clause ->> 'value')` expressions only.
+**Correct:** Inline `(clause ->> 'value')` in the expression.
 
 ---
 
@@ -193,26 +204,17 @@ function public.update_organization_governance_profile(...) does not exist
 ```
 (often at end of migration during GRANT)
 
-**Cause:** PostgreSQL identifies functions by **name + argument types**. A `GRANT EXECUTE` listing 21 `TEXT` parameters when the function was declared with 20 causes failure; the whole migration rolls back.
+**Encountered:** `9125775` — organization settings RPC.
 
-**Encountered:** Commit `9125775` — `20260531120000_organization_settings_security_rpc.sql`.
-
-**Fix:** Copy the **exact** parameter type list from `CREATE FUNCTION` into `REVOKE`/`GRANT`. When overloaded, include full signature: `function_name(argtype, ...)`.
-
-**Prevention:** After writing `CREATE FUNCTION`, paste the same signature into every `GRANT`, `REVOKE`, and `COMMENT ON FUNCTION`.
+**Prevention:** Paste the **exact** parameter type list from `CREATE FUNCTION` into every `GRANT`, `REVOKE`, and `COMMENT ON FUNCTION`.
 
 ---
 
 ### 3.4 Storage / RLS policy already exists
 
-**Signal:**
-```
-policy "tenant_logos_select_tenant" for table "objects" already exists
-```
+**Signal:** `policy "..." for table "objects" already exists`
 
-**Cause:** Re-running migration logic that `CREATE POLICY` without dropping first (e.g. after a partial failed deploy or idempotent re-apply).
-
-**Encountered:** Commit `9125775` — added `DROP POLICY IF EXISTS ...` before each storage policy.
+**Encountered:** `9125775`.
 
 **Prevention:**
 ```sql
@@ -224,17 +226,11 @@ CREATE POLICY tenant_logos_select_tenant ON storage.objects ...
 
 ### 3.5 Enum / type replacement blocked by dependent functions
 
-**Signal:**
-```
-cannot drop type ... because other objects depend on it
-cannot alter type ... used by function ...
-```
+**Signal:** `cannot drop type ... because other objects depend on it`
 
-**Cause:** Functions referencing the old enum type prevent `CREATE TYPE` replacement or `ALTER TYPE`.
+**Encountered:** `1b8d718` — location topology migration.
 
-**Encountered:** Commit `1b8d718` — `20260531300000_enterprise_location_topology.sql` drops `save_tenant_location` / `save_tenant_location_core` **before** replacing `location_operational_type`.
-
-**Prevention:** Order operations: `DROP FUNCTION ...` (with full signature) → alter/replace type → recreate functions. Mark validation helpers `STABLE` when required.
+**Prevention:** `DROP FUNCTION ...` (full signature) → alter/replace type → recreate functions.
 
 ---
 
@@ -242,156 +238,100 @@ cannot alter type ... used by function ...
 
 **Signal:**
 ```
-ERROR: cannot change name of view column "default_sku" to "is_active" (SQLSTATE 42P16)
-Applying migration 20260533300000_search_filter_is_active.sql...
+ERROR: cannot change name of view column "primary_image_storage_path" to "reorder_point" (SQLSTATE 42P16)
+Applying migration 20260607160000_product_list_reorder_status.sql...
 ```
 
-**Cause:** PostgreSQL matches view columns **by position** on `CREATE OR REPLACE VIEW`. Inserting a new column in the middle makes Postgres think later columns were renamed.
+**Cause:** PostgreSQL matches view columns **by position** on `CREATE OR REPLACE VIEW`. Inserting a new column in the middle makes Postgres treat later columns as renamed.
 
-**Encountered:** Commit `9b721df` (fix for failed `76ca5ab` deploy).
+**Encountered:**
 
-**Wrong** (inserting after `created_at`):
+| Commit | Migration | Mistake |
+|--------|-----------|---------|
+| `76ca5ab` / fix `9b721df` | `20260533300000_search_filter_is_active.sql` | `is_active` inserted before `default_sku` |
+| `f3794b3` / fix `56a9b79` | `20260607160000_product_list_reorder_status.sql` | `reorder_point` / `below_reorder` inserted before `primary_image_storage_path` |
+
+**Wrong:**
 ```sql
-    i.created_at,
-    i.is_active,          -- breaks positional match
-    iv.sku AS default_sku,
+    COALESCE(stock.total_quantity_on_hand, 0) AS stock_on_hand,
+    ... AS reorder_point,        -- NEW: breaks positional match
+    ... AS below_reorder,
+    primary_media.storage_url AS primary_image_storage_path,
     ...
-    ) AS purchase_price
+    COALESCE(vc.sellable_variant_count, 0) AS sellable_variant_count
 ```
 
-**Correct** (append new columns only):
+**Correct:** Keep existing column order; append new columns **after** the last column:
 ```sql
-    i.created_at,
-    iv.sku AS default_sku,
+    COALESCE(stock.total_quantity_on_hand, 0) AS stock_on_hand,
+    primary_media.storage_url AS primary_image_storage_path,
     ...
-    ) AS purchase_price,
-    i.is_active           -- new column at end
+    COALESCE(vc.sellable_variant_count, 0) AS sellable_variant_count,
+    ... AS reorder_point,
+    ... AS below_reorder
 ```
 
-**Prevention:** For `product_catalog_search_rows` and any existing view, **only append** columns at the end. To reorder or remove columns, use `DROP VIEW` + `CREATE VIEW` (watch dependents) or a new view name.
-
-**Related (not yet hit, same rule):** Dropping or reordering columns, or changing a column’s type via replace, triggers the same class of `42P16` errors.
+**Prevention:** For any existing view, **only append** columns. To reorder or drop columns, use `DROP VIEW` + `CREATE VIEW` (watch dependents) or a new view name.
 
 ---
 
-## 4. Likely errors (not yet hit or preventive)
+## 4. Likely errors (preventive)
 
 ### 4.1 Object does not exist (missing dependency)
 
-**Signal:**
-```
-relation "public.custom_module_views" does not exist
-function private.current_tenant_id() does not exist
-```
+**Signal:** `relation "..." does not exist` / `function private.current_tenant_id() does not exist`
 
-**Cause:** Migration assumes an object from a **later** timestamp or from a failed prior migration.
-
-**Mitigation in repo:** `20260533200000_inventory_items_stock_index.sql` guards CHECK constraint with:
-```sql
-IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'custom_module_views')
-```
-
-**Prevention:** Guard optional dependencies with `IF EXISTS` blocks, or enforce strict timestamp ordering.
+**Mitigation:** Guard with `IF EXISTS` blocks, or enforce strict timestamp ordering.
 
 ---
 
 ### 4.2 Wrong RLS tenant resolution pattern
 
-**Signal:** Migration applies but app gets empty results or RLS errors at runtime (CI may still pass).
+**Signal:** Migration applies but app returns empty rows (CI may still pass).
 
-**Cause:** Policies using `auth.jwt() -> 'user_metadata'` instead of `private.current_tenant_id()` / `app_metadata` patterns established in RBAC migrations.
-
-**Prevention:** Copy RLS from existing tables (e.g. `20260533100000_custom_module_views.sql`):
-```sql
-USING (tenant_id = private.current_tenant_id() AND user_id = auth.uid())
-```
-JWT tenant for RPCs: `(auth.jwt() -> 'app_metadata' ->> 'tenant_id')::uuid`.
+**Prevention:** Use `private.current_tenant_id()` and patterns from existing policies (e.g. `20260533100000_custom_module_views.sql`).
 
 ---
 
 ### 4.3 `CHECK` constraint violation on existing rows (SQLSTATE 23514)
 
-**Signal:**
-```
-check constraint "custom_module_views_module_name_chk" is violated by some row
-```
+**Signal:** `check constraint "..." is violated by some row`
 
-**Cause:** Adding `CHECK` or `NOT NULL` when sandbox already has non-conforming data.
-
-**Prevention:** Backfill in the same migration before adding constraint, or guard with `NOT VALID` + validate later. For new tables (empty), safe to add directly.
+**Prevention:** Backfill in the same migration before adding constraint, or use `NOT VALID` + validate later.
 
 ---
 
-### 4.4 Unique / duplicate object names
+### 4.4 Unique / duplicate object names (SQLSTATE 42P07)
 
-**Signal:**
-```
-relation "idx_foo" already exists (SQLSTATE 42P07)
-duplicate key value violates unique constraint
-```
-
-**Prevention:** Use `CREATE INDEX IF NOT EXISTS`, `DROP ... IF EXISTS`, and unique constraint names prefixed by table purpose.
+**Prevention:** `CREATE INDEX IF NOT EXISTS`, `DROP ... IF EXISTS`, unique index names per table/purpose.
 
 ---
 
-### 4.5 `COMMENT ON INDEX` / object not found
+### 4.5 `ON CONFLICT` target must match a unique index
 
-**Signal:**
-```
-index "item_valuations_tenant_item_idx" does not exist
-```
+**Signal:** `there is no unique or exclusion constraint matching the ON CONFLICT specification`
 
-**Cause:** `COMMENT ON INDEX` runs when `CREATE INDEX IF NOT EXISTS` skipped creation (e.g. different index name already serving the same columns).
+**Cause:** `ON CONFLICT (location_id, item_id, variant_id)` must match an exact unique index definition (including expression indexes).
 
-**Prevention:** Comment only immediately after unconditional or verified create; or wrap comment in `IF EXISTS` DO block.
+**Prevention:** Verify unique index columns in earlier migrations (e.g. `inventory_buffer_thresholds_location_item_variant_unique` on `(location_id, item_id, variant_id)` after phase-0 variant foundation).
 
 ---
 
 ### 4.6 `CREATE INDEX CONCURRENTLY` in migrations
 
-**Signal:**
-```
-CREATE INDEX CONCURRENTLY cannot run inside a transaction block
-```
+**Signal:** `CREATE INDEX CONCURRENTLY cannot run inside a transaction block`
 
-**Cause:** Supabase CLI runs each migration in a transaction.
-
-**Prevention:** Use plain `CREATE INDEX` / `CREATE INDEX IF NOT EXISTS` in migration files, not `CONCURRENTLY`.
+**Prevention:** Use plain `CREATE INDEX` / `CREATE INDEX IF NOT EXISTS` in migration files.
 
 ---
 
 ### 4.7 Overloaded function `COMMENT ON FUNCTION` ambiguity
 
-**Signal:**
-```
-function name "execute_product_filter" is not unique
-```
-
-**Cause:** Multiple overloads; comment must specify argument types.
-
-**Prevention:**
-```sql
-COMMENT ON FUNCTION public.execute_product_filter(jsonb) IS '...';
-```
+**Prevention:** Always specify argument types: `COMMENT ON FUNCTION public.foo(jsonb) IS '...';`
 
 ---
 
-### 4.8 Trigger syntax: `EXECUTE FUNCTION` vs `EXECUTE PROCEDURE`
-
-**Signal:**
-```
-syntax error at or near "PROCEDURE" / "FUNCTION"
-```
-
-**Cause:** Postgres 11+ triggers use `EXECUTE FUNCTION` (this repo standard). Older snippets may use `PROCEDURE`.
-
-**Prevention:** Match existing triggers: `EXECUTE FUNCTION public.set_updated_at();`
-
----
-
-### 4.9 Security definer functions without `search_path`
-
-**Signal:** Silent wrong-tenant behavior or CI/runtime privilege errors.
+### 4.8 Security definer functions without `search_path`
 
 **Prevention:** Always set `SET search_path = public` (or `public, private`) on `SECURITY DEFINER` functions.
 
@@ -403,33 +343,40 @@ syntax error at or near "PROCEDURE" / "FUNCTION"
 |-----------|-----|--------|
 | Migration **never** applied on sandbox (CI failed) | Fix the **same** migration file and push again | Leave broken SQL in place |
 | Migration **already** applied on sandbox | Add a **new** forward migration with the fix | Edit the old migration file only |
-| CI failed on migration N | Fix N; migrations N+1 won't run until N succeeds | Assume later migrations partially applied |
-| Need urgent hotfix on dashboard | Document and backport into next migration | Leave Git and remote permanently diverged |
+| CI failed on migration N | Fix N; N+1 won't run until N succeeds | Assume later migrations partially applied |
+| Need urgent dashboard hotfix | Document and backport into next migration | Leave Git and remote permanently diverged |
 
 ---
 
 ## 6. Diagnosing failures
 
 1. GitHub → **Actions** → **CI/CD Supabase Deployment Engine** → failed run on `develop`.
-2. Open the **Link & Push Migrations** step log.
-3. Find the last line `Applying migration YYYYMMDDHHMMSS_name.sql...` — the error immediately below is the failing statement.
-4. Map to sections above using `SQLSTATE` or message text.
-
-Common log patterns:
+2. Open **Link & Push Migrations to AIB Sandbox** step log.
+3. Find the last `Applying migration YYYYMMDDHHMMSS_name.sql...` — the error below is the failing statement.
+4. Map using table below.
 
 | Log fragment | Section |
 |--------------|---------|
 | `SQLSTATE 42P16` | §3.6 View column order |
+| `cannot change name of view column` | §3.6 View column order |
 | `SQLSTATE 23514` | §4.3 CHECK violation |
 | `SQLSTATE 42P07` | §4.4 Duplicate relation |
 | `does not exist` at GRANT | §3.3 Signature mismatch |
 | `does not exist` at CREATE | §4.1 Missing dependency |
 | `syntax error at or near ":="` | §3.2 PL/pgSQL in SQL |
 | `cannot drop type` | §3.5 Enum dependencies |
+| `--include-all` | §1.4 Out-of-order migrations |
+| `duplicate key in schema_migrations` | §2.1 / §2.2 Timestamp collision |
+
+Optional: query applied versions on sandbox (if you have read access):
+```sql
+SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;
+```
+(See also [`supabase/scripts/audit_sandbox.sql`](../supabase/scripts/audit_sandbox.sql).)
 
 ---
 
-## 7. Repo-specific safe patterns (keep these)
+## 7. Repo-specific safe patterns
 
 ```sql
 -- Tables
@@ -445,13 +392,22 @@ CREATE POLICY ...
 CREATE TRIGGER ... EXECUTE FUNCTION public.set_updated_at();
 
 -- RPCs
-CREATE OR REPLACE FUNCTION ... 
-SET search_path = public;
+CREATE OR REPLACE FUNCTION ...
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, private
+AS $$ ... $$;
+
+REVOKE ALL ON FUNCTION public.foo(argtypes) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.foo(argtypes) TO authenticated;
 
--- Views (extend only)
-CREATE OR REPLACE VIEW ... WITH (security_invoker = true) AS
-SELECT ... existing_columns ..., new_column_at_end;
+-- Views (extend only — append columns at end)
+CREATE OR REPLACE VIEW public.some_view
+WITH (security_invoker = true) AS
+SELECT
+    ... existing columns in unchanged order ...,
+    new_column_at_end
+FROM ...;
 
 -- Optional dependency
 DO $$ BEGIN
@@ -472,8 +428,27 @@ END $$;
 | `1b8d718` | Drop enum-pinning RPCs before location type migration |
 | `9b012da` | Migration timestamp reorder; remove duplicate search migration |
 | `ce23eff` | Invalid PL/pgSQL assignments in search filter RPCs |
-| `9b721df` | View column order (`42P16`) for `is_active` on `product_catalog_search_rows` |
+| `9b721df` | View column order (`42P16`) — `is_active` on `product_catalog_search_rows` |
+| `f3ca196` | Duplicate migration version `20260603120000` |
+| `6667747` | CI `--include-all` for out-of-order backfill migrations |
+| `56a9b79` | View column order (`42P16`) — `reorder_point` on `product_list_workspace_rows` |
 
 ---
 
-*Last updated: 2026-05-29 — includes failure from commit `76ca5ab` / fix `9b721df`.*
+## 9. PR / commit message hints
+
+When a PR includes migrations, note in the description:
+
+- New migration filenames (timestamps)
+- Whether any **existing view** was modified (call out append-only)
+- Whether sandbox CI must apply backfilled timestamps (`--include-all` is automatic)
+- Link to the Actions run after push
+
+Example PR note:
+```
+DB: 20260607180000_foo.sql — append-only change to product_list_workspace_rows (reorder_point column at end)
+```
+
+---
+
+*Last updated: 2026-06-07 — includes failures from commits `f3794b3` / fix `56a9b79`, duplicate timestamp `f3ca196`, and CI `--include-all` `6667747`.*

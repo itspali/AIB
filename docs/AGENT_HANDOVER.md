@@ -13,8 +13,9 @@ The fundamental multi-tenant network topology is constructed, initialized, and s
 - **Supabase CLI is not installed locally** on the developer machine. Do **not** run `supabase link`, `supabase db push`, or other Supabase CLI commands in the agent terminal.
 - **Schema changes ship via Git only:** add or edit SQL files under `supabase/migrations/`, then the user commits and pushes to GitHub.
 - **CI/CD applies migrations automatically:**
-  - Push to `develop` → workflow `deploy-sandbox` runs `supabase db push --yes` against the AIB Sandbox (`SUPABASE_SANDBOX_PROJECT_ID`).
+  - Push to `develop` → workflow `deploy-sandbox` runs `supabase db push --yes --include-all` against the AIB Sandbox (`SUPABASE_SANDBOX_PROJECT_ID`).
   - Push to `main` → workflow `deploy-production` runs against production.
+- **Migration CI failures:** Before writing or reviewing SQL migrations, read [`docs/SUPABASE_CI_MIGRATION_ERRORS.md`](./SUPABASE_CI_MIGRATION_ERRORS.md) — common errors (view column order, duplicate timestamps, GRANT signatures), pre-push checklist, and fix rules.
 - **Agent responsibility:** write correct migration files and mention that the user should commit/push to `develop` when a schema change needs to land. Never suggest or attempt local CLI deployment.
 - **Sandbox project ref (reference only):** `jmqdzmgxzwkfnjbciufl` — used by CI secrets, not for local linking.
 
