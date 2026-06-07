@@ -6,6 +6,40 @@ import { parseDutyStatus } from "@/lib/user/duty-status";
 import { claimsToUserShape, readSessionClaims } from "@/lib/supabase/auth";
 import type { OperatorProfile, UserRole } from "@/lib/user/types";
 
+type ModulePageUserRow = {
+  first_name: string | null;
+  last_name: string | null;
+  role: string;
+  assigned_location_id: string | null;
+  avatar_url: string | null;
+  metadata_json: unknown;
+};
+
+export function buildOperatorProfileFromUserRow(
+  userId: string,
+  userRow: ModulePageUserRow,
+  orgName: string,
+  locationName: string | null
+): OperatorProfile {
+  const role = userRow.role as UserRole;
+  const metadata =
+    userRow.metadata_json && typeof userRow.metadata_json === "object"
+      ? (userRow.metadata_json as Record<string, unknown>)
+      : {};
+
+  return {
+    userId,
+    firstName: userRow.first_name,
+    lastName: userRow.last_name,
+    role,
+    avatarUrl: userRow.avatar_url,
+    tenantDisplayName: orgName,
+    locationLabel: resolveLocationLabel(role, userRow.assigned_location_id, locationName),
+    dutyStatus: parseDutyStatus(metadata.duty_status),
+    tenantMembershipCount: 1,
+  };
+}
+
 function resolveLocationLabel(
   role: UserRole,
   assignedLocationId: string | null,

@@ -51,6 +51,10 @@ export async function saveLocation(raw: unknown) {
         ? (values.virtual_configuration ?? DEFAULT_VIRTUAL_LOCATION_CONFIG)
         : undefined,
     naming_sequences: filteredNamingSequences,
+    location_theme_enabled: values.location_theme_enabled,
+    location_theme: values.location_theme,
+    location_primary_hue: values.location_primary_hue,
+    location_accent_hue: values.location_accent_hue,
   });
 
   const { data, error } = await supabase.rpc("save_tenant_location", {

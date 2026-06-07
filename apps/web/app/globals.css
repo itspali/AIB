@@ -4,28 +4,51 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --radius: 0.75rem;
+    --glow-cyan: 187 92% 44%;
+    --glow-violet: 262 83% 58%;
+    /* Fallback tokens (default theme = dark) until a theme class is applied */
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+    --card: 224 47% 8%;
+    --card-foreground: 210 40% 98%;
+    --primary: 187 85% 53%;
+    --primary-foreground: 224 71% 4%;
+    --secondary: 224 47% 12%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 224 47% 12%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 262 70% 58%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 224 35% 28%;
+    --input: 224 35% 30%;
+    --ring: 187 85% 53%;
+    --popover: 224 47% 8%;
+    --popover-foreground: 210 40% 98%;
+  }
+
+  .theme-light-warm {
+    --background: 40 20% 98%;
     --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
+    --card: 40 15% 99.5%;
     --card-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --primary: 221 83% 50%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
+    --secondary: 40 18% 94%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
+    --muted: 40 15% 94%;
+    --muted-foreground: 30 10% 42%;
+    --accent: 40 25% 92%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 22% 78%;
-    --input: 214.3 22% 76%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.75rem;
-    --popover: 0 0% 100%;
+    --border: 40 12% 84%;
+    --input: 40 12% 82%;
+    --ring: 221 83% 50%;
+    --popover: 40 15% 99.5%;
     --popover-foreground: 222.2 84% 4.9%;
-    --glow-cyan: 187 92% 44%;
-    --glow-violet: 262 83% 58%;
   }
 
   .dark {
@@ -93,6 +116,13 @@
       linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)));
   }
 
+  .theme-light-warm .hub-canvas {
+    background-image:
+      radial-gradient(ellipse 90% 60% at 50% -30%, hsl(var(--glow-cyan) / 0.1), transparent 55%),
+      radial-gradient(ellipse 70% 50% at 100% 80%, hsl(var(--glow-violet) / 0.08), transparent 50%),
+      linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)));
+  }
+
   .dark .hub-canvas {
     background-image:
       radial-gradient(ellipse 90% 60% at 50% -30%, hsl(var(--glow-cyan) / 0.12), transparent 55%),
@@ -108,8 +138,14 @@
     mask-image: radial-gradient(ellipse 85% 75% at 50% 40%, black 20%, transparent 100%);
   }
 
+  .theme-light-warm .hub-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.45) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.45) 1px, transparent 1px);
+  }
+
   .glass-panel {
-    @apply rounded-xl border border-border bg-card/70 shadow-md shadow-black/10 backdrop-blur-xl dark:shadow-black/20;
+    @apply rounded-xl border border-border bg-card/70 shadow-md shadow-black/[0.06] backdrop-blur-xl dark:shadow-black/20;
   }
 
   .glass-panel-hover {
@@ -117,11 +153,46 @@
   }
 
   .surface-panel {
-    @apply rounded-xl border border-border bg-card/60 p-4 shadow-sm dark:bg-card/50;
+    @apply rounded-xl border border-border bg-card p-4 shadow-md shadow-black/[0.04] dark:bg-card/50 dark:shadow-sm;
   }
 
   .surface-inset {
-    @apply rounded-lg border border-border bg-muted/20 shadow-sm;
+    @apply rounded-lg border border-border bg-muted/35 shadow-sm dark:bg-muted/20;
+  }
+
+  /* Product list cards: solid surface on every row (same for parent + variant). */
+  .product-list-card {
+    background-color: hsl(var(--card));
+  }
+
+  /* --card (8%) sits too close to --background (4%) in dark; lift cards for separation. */
+  .dark .product-list-card {
+    background-color: hsl(224 47% 14%);
+  }
+
+  /* Column settings dropdown — elevated above cards (not the same surface as .product-list-card). */
+  .column-settings-panel {
+    background-color: hsl(var(--popover)) !important;
+    border-color: hsl(var(--border)) !important;
+    box-shadow:
+      0 0 0 1px hsl(var(--border) / 0.85),
+      0 10px 32px hsl(0 0% 0% / 0.32) !important;
+  }
+
+  .theme-light-warm .column-settings-panel {
+    background-color: hsl(var(--secondary)) !important;
+    border-color: hsl(var(--border)) !important;
+    box-shadow:
+      0 0 0 1px hsl(var(--border) / 0.9),
+      0 12px 36px hsl(30 20% 20% / 0.12) !important;
+  }
+
+  .dark .column-settings-panel {
+    background-color: hsl(224 47% 19%) !important;
+    border-color: hsl(224 35% 34%) !important;
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.22),
+      0 12px 40px hsl(0 0% 0% / 0.55) !important;
   }
 
   /* Detail-panel item editor: flatten nested cards/tables inside the split pane. */

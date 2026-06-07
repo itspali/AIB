@@ -5,7 +5,7 @@ import {
   moduleDrawerPeekHref,
 } from "@/lib/layout/module-drawer-url";
 
-export const CATEGORIES_HREF = "/inventory/categories";
+export const CATEGORIES_HREF = "/items/categories";
 
 export function categoryNewHref(): string {
   return moduleDrawerCreateHref(CATEGORIES_HREF);

@@ -23,7 +23,7 @@ function formatBound(value: number): string {
 export function TaxRulePreview({ isVariable, rate, rules }: Props) {
   if (!isVariable) {
     return (
-      <div className="rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm dark:border-white/10">
+      <div className="rounded-lg border border-border/80 border-black/[0.06] bg-muted/35 px-4 py-3 text-sm dark:border-white/10 dark:bg-muted/20">
         <p className="text-muted-foreground">
           Flat rate: <span className="font-medium text-foreground">{rate}%</span> on every line.
         </p>
@@ -34,7 +34,7 @@ export function TaxRulePreview({ isVariable, rate, rules }: Props) {
   const sorted = [...rules].sort((a, b) => a.threshold_min - b.threshold_min);
 
   return (
-    <div className="space-y-2 rounded-lg border border-border/80 bg-muted/20 px-4 py-3 text-sm dark:border-white/10">
+    <div className="space-y-2 rounded-lg border border-border/80 border-black/[0.06] bg-muted/35 px-4 py-3 text-sm dark:border-white/10 dark:bg-muted/20">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Resolves by {sorted.length ? taxRuleBasisLabel(sorted[0].basis).toLowerCase() : "value"}
       </p>

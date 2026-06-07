@@ -2,6 +2,12 @@
 
 import { Building2, ChevronRight, Globe2 } from "lucide-react";
 import { resolveAxisMicroBadges } from "@/lib/locations/axis-labels";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import type { LocationListColumnId } from "@/lib/locations/list-columns";
+import {
+  renderLocationActiveStatus,
+  renderLocationCentralHqChip,
+} from "@/lib/locations/render-location-chip";
 import type { LocationTreeNode } from "@/lib/locations/types";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +19,7 @@ type Props = {
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
   centralHqLocationId: string | null;
+  columnChipDisplay?: Partial<Record<LocationListColumnId, ColumnChipDisplay>>;
 };
 
 export function LocationHierarchyNodeRow({
@@ -23,6 +30,7 @@ export function LocationHierarchyNodeRow({
   expandedIds,
   onToggleExpand,
   centralHqLocationId,
+  columnChipDisplay,
 }: Props) {
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedIds.has(node.id);
@@ -67,10 +75,9 @@ export function LocationHierarchyNodeRow({
               )}
             />
             <span className="truncate text-sm font-medium">{node.name}</span>
-            {centralHqLocationId === node.id && (
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-indigo-500/15 text-indigo-700 ring-1 ring-indigo-500/30 dark:text-indigo-300">
-                HQ
-              </span>
+            {renderLocationCentralHqChip(
+              centralHqLocationId === node.id,
+              columnChipDisplay
             )}
           </div>
           <div className="flex flex-wrap items-center gap-1 pl-6">
@@ -86,11 +93,9 @@ export function LocationHierarchyNodeRow({
                 {badge.label}
               </span>
             ))}
-            {!node.is_active && (
-              <span className="inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground ring-1 ring-border">
-                Inactive
-              </span>
-            )}
+            {!node.is_active
+              ? renderLocationActiveStatus(false, columnChipDisplay)
+              : null}
           </div>
         </button>
       </div>
@@ -107,6 +112,7 @@ export function LocationHierarchyNodeRow({
               expandedIds={expandedIds}
               onToggleExpand={onToggleExpand}
               centralHqLocationId={centralHqLocationId}
+              columnChipDisplay={columnChipDisplay}
             />
           ))}
         </div>

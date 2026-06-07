@@ -10,7 +10,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,10 +28,24 @@ import {
   fetchMoreProductListRows,
   fetchProductListByFilterIds,
   getProductCatalogContext,
-  getProductDetail,
+  getProductVariants,
+  loadProductDrawer,
+  loadProductPeekSection,
+  loadProductPeekValuations,
   resolveBulkTargetItemIds,
   type ResolveBulkTargetInput,
 } from "@/app/items/actions";
+import {
+  enrichProductDetailSnapshot,
+  peekItemCacheKey,
+  resolvePeekCachedDetail,
+} from "@/lib/products/detail-enrichment";
+import {
+  isPeekSectionLoaded,
+  mergeProductPeekSection,
+  peekPanelToSection,
+  type ProductPeekPanelId,
+} from "@/lib/products/peek-panels";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import {
   type BulkToolbarAction,
@@ -51,12 +65,22 @@ import { NewItemLinkContent } from "@/components/products/new-item-link-content"
 import { ProductItemDrawer } from "@/components/products/product-item-drawer";
 import { ProductStreamPanel } from "@/components/products/product-stream-panel";
 import { Button } from "@/components/ui/button";
+import {
+  buildModuleHref,
+  parseModuleDrawerStateFromLocation,
+  parseProductPeekPanel,
+} from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import {
   LIST_MODULE_PAGE_CHROME,
   LIST_MODULE_VIEWPORT_FALLBACK_HEIGHT,
   LIST_MODULE_VIEWPORT_OFFSET,
 } from "@/lib/layout/list-module-chrome";
+import {
+  allocateItemsRouteSession,
+  invalidateItemsRouteSessions,
+  isItemsRouteSessionActive,
+} from "@/lib/products/items-route-generation";
 import { useListModuleScrollLock } from "@/lib/layout/use-list-module-scroll-lock";
 import { useAvailablePaneHeight } from "@/lib/layout/use-viewport-remaining-height";
 import {
@@ -66,7 +90,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { CategoryRow } from "@/lib/categories/types";
 import {
+  detailMatchesDrawerVariant,
   detailToListRow,
+  isDetailVariantSkuContext,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
   type ProductListRow,
@@ -77,8 +103,11 @@ import type { ProductListPrefs } from "@/lib/products/list-prefs";
 import {
   coerceProductListPrefs,
   resolveProductListExpandVariants,
+  shouldIncludeListImages,
 } from "@/lib/products/list-prefs";
 import {
+  listHasExpandedVariantRows,
+  mergeProductListRowImages,
   productListRowKey,
   resolveBulkSelectionItemIds,
   isProductListRowSelected,
@@ -140,7 +169,30 @@ type Props = {
   categories: CategoryRow[];
   fieldPermissions: ProductFieldPermissions;
   initialListPrefs?: ProductListPrefs | null;
+  initialCatalogContext?: ProductCatalogContext | null;
+  initialDetail?: ProductDetailSnapshot | null;
 };
+
+function detailCacheKey(itemId: string, variantId?: string | null) {
+  return `${itemId}:${variantId?.trim() || ""}`;
+}
+
+function resolveDrawerDetailScope(surface: string): "peek" | "full" {
+  return surface === "edit" ? "full" : "peek";
+}
+
+type DrawerFetchResult =
+  | { ok: true; snapshot: ProductDetailSnapshot }
+  | { ok: false; error?: string };
+
+/** Survives Strict Mode remounts so row-click detail fetches dedupe to one POST. */
+const drawerDetailInflight = new Map<string, Promise<DrawerFetchResult>>();
+const drawerDetailSnapshotCache = new Map<string, ProductDetailSnapshot>();
+const peekValuationsInflight = new Map<
+  string,
+  Promise<{ valuations: ProductDetailSnapshot["valuations"] } | { error: string }>
+>();
+const peekValuationsDone = new Set<string>();
 
 export function ProductCatalogTerminal({
   tenantId,
@@ -152,14 +204,28 @@ export function ProductCatalogTerminal({
   categories,
   fieldPermissions,
   initialListPrefs,
+  initialCatalogContext = null,
+  initialDetail = null,
 }: Props) {
   const router = useRouter();
   const drawer = useModuleDrawerUrl(ITEMS_HREF, { canonicalizeLegacy: true });
+  const searchParams = useSearchParams();
+  const peekPanel = useMemo(() => {
+    if (typeof window !== "undefined") {
+      return parseProductPeekPanel(new URLSearchParams(window.location.search));
+    }
+    return parseProductPeekPanel(searchParams);
+  }, [drawer.historyEpoch, searchParams]);
+  const [peekPanelLoading, setPeekPanelLoading] = useState<ProductPeekPanelId | null>(null);
+  const [valuationsLoadingKey, setValuationsLoadingKey] = useState<string | null>(null);
+  const peekSectionInFlightRef = useRef(new Set<string>());
   const { ref: catalogViewportRef, height: catalogViewportHeight } =
     useAvailablePaneHeight(true, "remaining-viewport");
   const omnibar = useOptionalOmnibarContext();
+  const itemsRouteSessionRef = useRef(allocateItemsRouteSession());
 
   useListModuleScrollLock();
+
   const hasServerFilteredView =
     initialSavedView != null && initialFilteredItemIds != null;
   const serverFilterSnapshotRef = useRef(
@@ -174,6 +240,8 @@ export function ProductCatalogTerminal({
   const [products, setProducts] = useState(
     hasServerFilteredView ? [] : initialProducts
   );
+  const productsRef = useRef(products);
+  productsRef.current = products;
   const [filterProducts, setFilterProducts] = useState<ProductListRow[] | null>(
     hasServerFilteredView ? initialProducts : null
   );
@@ -185,15 +253,28 @@ export function ProductCatalogTerminal({
   const [totalCount, setTotalCount] = useState(listTotalCount);
   const [hasMore, setHasMore] = useState(listHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [detail, setDetail] = useState<ProductDetailSnapshot | null>(null);
-  const [catalogContext, setCatalogContext] = useState<ProductCatalogContext | null>(null);
+  const [detail, setDetail] = useState<ProductDetailSnapshot | null>(initialDetail);
+  const detailRef = useRef(initialDetail);
+  detailRef.current = detail;
+  const [catalogContext, setCatalogContext] = useState<ProductCatalogContext | null>(
+    initialCatalogContext
+  );
   const [isLoadingDetail, startDetailTransition] = useTransition();
   const [isLoadingCatalogContext, setIsLoadingCatalogContext] = useState(false);
   const catalogContextRequestRef = useRef<Promise<ProductCatalogContext | null> | null>(null);
+  const drawerFetchTargetRef = useRef<string | null>(null);
+  const activeDrawerTargetRef = useRef<{ itemId: string; variantId: string | null }>({
+    itemId: "",
+    variantId: null,
+  });
+  const detailCacheRef = useRef<Map<string, ProductDetailSnapshot>>(new Map());
+  const [detailLoadingKey, setDetailLoadingKey] = useState<string | null>(null);
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listIncludeImagesRef = useRef(shouldIncludeListImages(initialListPrefs));
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const initialExpandVariants = resolveProductListExpandVariants(
-    coerceProductListPrefs(initialListPrefs ?? {}).showVariants,
+    false,
     coerceProductListPrefs(initialListPrefs ?? {}).viewMode
   );
   const expandVariantsRef = useRef(initialExpandVariants);
@@ -209,6 +290,18 @@ export function ProductCatalogTerminal({
   const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
   const [storefrontDialogOpen, setStorefrontDialogOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+
+  const handleListIncludeImagesChange = useCallback((includeImages: boolean) => {
+    listIncludeImagesRef.current = includeImages;
+  }, []);
+
+  const listFetchOptions = useCallback(
+    () => ({
+      expandVariants,
+      includeImages: listIncludeImagesRef.current,
+    }),
+    [expandVariants]
+  );
 
   const selectedId = drawer.recordId;
   const selectedVariantId = drawer.variantId;
@@ -241,6 +334,19 @@ export function ProductCatalogTerminal({
     }
     omnibar.markDefaultViewResolvedOnServer("items");
   }, [initialFilteredItemIds, initialSavedView, omnibar]);
+
+  const initialDrawerUrlSyncedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (initialDrawerUrlSyncedRef.current) return;
+    initialDrawerUrlSyncedRef.current = true;
+    if (typeof window === "undefined") return;
+    const { recordId } = parseModuleDrawerStateFromLocation(window.location);
+    if (recordId) return;
+    drawer.close();
+    setDetail(null);
+    drawerFetchTargetRef.current = null;
+    activeDrawerTargetRef.current = { itemId: "", variantId: null };
+  }, [drawer]);
 
   const matchesServerSnapshot = useCallback(() => {
     const snapshot = serverFilterSnapshotRef.current;
@@ -282,6 +388,12 @@ export function ProductCatalogTerminal({
 
   useEffect(() => {
     if (!omnibar) return;
+
+    if (hasServerFilteredView && initialFilteredItemIds) {
+      setFilterProducts((current) => current ?? initialProducts);
+      setIsLoadingFilterProducts(false);
+      return;
+    }
 
     if (matchesServerSnapshot()) {
       const snapshot = serverFilterSnapshotRef.current!;
@@ -359,9 +471,11 @@ export function ProductCatalogTerminal({
     filterFetchRequestRef.current = requestId;
     setIsLoadingFilterProducts(true);
 
+    const routeSession = itemsRouteSessionRef.current;
     void (async () => {
       try {
-        const page = await fetchProductListByFilterIds(itemIds, { expandVariants });
+        const page = await fetchProductListByFilterIds(itemIds, listFetchOptions());
+        if (!isItemsRouteSessionActive(routeSession)) return;
         if (filterFetchRequestRef.current !== requestId) return;
         setFilterProducts(page.rows);
       } catch {
@@ -375,6 +489,9 @@ export function ProductCatalogTerminal({
       }
     })();
   }, [
+    hasServerFilteredView,
+    initialFilteredItemIds,
+    initialProducts,
     isResolvingDefaultView,
     matchesServerSnapshot,
     omnibar?.filteredItemIds,
@@ -390,6 +507,7 @@ export function ProductCatalogTerminal({
 
   useEffect(() => {
     if (!omnibar) return;
+    if (hasServerFilteredView) return;
     if (isResolvingDefaultView || structuralFilterActive || matchesServerSnapshot()) return;
     if (products.length > 0) return;
     if (omnibar.appliedQuery.trim() || omnibar.activeSavedView) return;
@@ -398,9 +516,11 @@ export function ProductCatalogTerminal({
     fullCatalogFetchRequestRef.current = requestId;
     setIsLoadingFullCatalog(true);
 
+    const routeSession = itemsRouteSessionRef.current;
     void (async () => {
       try {
-        const page = await fetchMoreProductListRows(0, { expandVariants });
+        const page = await fetchMoreProductListRows(0, listFetchOptions());
+        if (!isItemsRouteSessionActive(routeSession)) return;
         if (fullCatalogFetchRequestRef.current !== requestId) return;
         setProducts(page.rows);
         setTotalCount(page.totalCount);
@@ -415,6 +535,7 @@ export function ProductCatalogTerminal({
       }
     })();
   }, [
+    hasServerFilteredView,
     isResolvingDefaultView,
     matchesServerSnapshot,
     omnibar?.activeSavedView,
@@ -425,6 +546,19 @@ export function ProductCatalogTerminal({
     expandVariants,
     omnibar,
   ]);
+
+  useEffect(() => {
+    return () => {
+      invalidateItemsRouteSessions();
+      filterFetchRequestRef.current += 1;
+      fullCatalogFetchRequestRef.current += 1;
+      expandVariantsFetchRequestRef.current += 1;
+      if (prefetchTimerRef.current) {
+        clearTimeout(prefetchTimerRef.current);
+        prefetchTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const unfilteredCatalogActive =
     !isResolvingDefaultView &&
@@ -475,32 +609,77 @@ export function ProductCatalogTerminal({
   }, []);
 
   const refetchCatalog = useCallback(async (nextExpandVariants: boolean) => {
-    const page = await fetchMoreProductListRows(0, { expandVariants: nextExpandVariants });
-    setProducts(page.rows);
+    const sourceRows = productsRef.current;
+    const page = await fetchMoreProductListRows(0, {
+      expandVariants: nextExpandVariants,
+      includeImages: false,
+    });
+    const rows = mergeProductListRowImages(page.rows, sourceRows, nextExpandVariants);
+    setProducts(rows);
     setTotalCount(page.totalCount);
     setHasMore(page.hasMore);
     setFilterProducts(null);
   }, []);
 
   const handleExpandVariantsChange = useCallback(
-    (nextExpandVariants: boolean) => {
+    (nextExpandVariants: boolean, source: "sync" | "user" = "sync") => {
       if (expandVariantsRef.current === nextExpandVariants) return;
       clearBulkSelection();
+
+      const ssrListReady = initialProducts.length > 0 || hasServerFilteredView;
+      const ssrShapeMatches = nextExpandVariants === initialExpandVariants;
+
+      expandVariantsRef.current = nextExpandVariants;
+      setExpandVariants(nextExpandVariants);
+
+      if (source === "sync" && ssrListReady && ssrShapeMatches) {
+        return;
+      }
+
+      // Collapsed mode is rendered client-side from the rows already in memory.
+      if (!nextExpandVariants) {
+        return;
+      }
+
+      const currentRows = productsRef.current;
+      if (listHasExpandedVariantRows(currentRows)) {
+        return;
+      }
+
+      const filterCatalogActive =
+        structuralFilterActive ||
+        Boolean(omnibar?.activeSavedView) ||
+        Boolean(omnibar?.appliedQuery.trim());
+
+      // Filtered lists refetch via the structural-filter effect when expandVariants changes.
+      if (filterCatalogActive) {
+        return;
+      }
+
       const requestId = expandVariantsFetchRequestRef.current + 1;
       expandVariantsFetchRequestRef.current = requestId;
+      const routeSession = itemsRouteSessionRef.current;
       void (async () => {
         try {
           await refetchCatalog(nextExpandVariants);
+          if (!isItemsRouteSessionActive(routeSession)) return;
           if (expandVariantsFetchRequestRef.current !== requestId) return;
-          expandVariantsRef.current = nextExpandVariants;
-          setExpandVariants(nextExpandVariants);
         } catch {
           if (expandVariantsFetchRequestRef.current !== requestId) return;
           toast.error("Unable to reload items.");
         }
       })();
     },
-    [clearBulkSelection, refetchCatalog]
+    [
+      clearBulkSelection,
+      hasServerFilteredView,
+      initialExpandVariants,
+      initialProducts.length,
+      omnibar?.activeSavedView,
+      omnibar?.appliedQuery,
+      refetchCatalog,
+      structuralFilterActive,
+    ]
   );
 
   const handleBulkRowToggle = useCallback((rowKey: string, checked: boolean) => {
@@ -529,7 +708,7 @@ export function ProductCatalogTerminal({
     async (itemIds: string[]) => {
       if (!itemIds.length) return;
       try {
-        const page = await fetchProductListByFilterIds(itemIds, { expandVariants });
+        const page = await fetchProductListByFilterIds(itemIds, listFetchOptions());
         const affectedSet = new Set(itemIds);
         const mergeRows = (current: ProductListRow[]) => {
           if (expandVariants) {
@@ -636,7 +815,9 @@ export function ProductCatalogTerminal({
         if (visibleMatches.length === resolved.itemIds.length) {
           rows = visibleMatches;
         } else {
-          const page = await fetchProductListByFilterIds(resolved.itemIds);
+          const page = await fetchProductListByFilterIds(resolved.itemIds, {
+            includeImages: listIncludeImagesRef.current,
+          });
           rows = page.rows;
         }
 
@@ -814,7 +995,7 @@ export function ProductCatalogTerminal({
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     try {
-      const page = await fetchMoreProductListRows(products.length, { expandVariants });
+      const page = await fetchMoreProductListRows(products.length, listFetchOptions());
       setProducts((current) => {
         const seen = new Set(current.map((row) => productListRowKey(row, expandVariants)));
         const appended = page.rows.filter(
@@ -867,48 +1048,225 @@ export function ProductCatalogTerminal({
     return request;
   }, [catalogContext]);
 
-  const detailRequestKeyRef = useRef<string | null>(null);
+  const resolveCachedDetail = useCallback(
+    (itemId: string, variantId: string | null, scope: "peek" | "full") => {
+      if (scope === "peek") {
+        const itemPeek = detailCacheRef.current.get(peekItemCacheKey(itemId));
+        if (itemPeek) {
+          const resolved = catalogContext
+            ? enrichProductDetailSnapshot(itemPeek, catalogContext)
+            : itemPeek;
+          const peekCached = resolvePeekCachedDetail(resolved, variantId);
+          if (peekCached) return peekCached;
+        }
+      }
 
-  const loadDetail = useCallback(
+      const variantKey = detailCacheKey(itemId, variantId);
+      const exact = detailCacheRef.current.get(variantKey);
+      if (exact) {
+        const exactScope = exact.detail_scope ?? "full";
+        if (scope === "full" && exactScope !== "full") {
+          return null;
+        }
+        if (exactScope === "full" || scope === "peek") {
+          const resolved = catalogContext
+            ? enrichProductDetailSnapshot(exact, catalogContext)
+            : exact;
+          if (scope === "peek") {
+            return resolvePeekCachedDetail(resolved, variantId);
+          }
+          return resolved;
+        }
+      }
+
+      return null;
+    },
+    [catalogContext]
+  );
+
+  const loadDrawerData = useCallback(
     (
       itemId: string,
       variantId?: string | null,
-      onLoaded?: (snapshot: ProductDetailSnapshot) => void
+      options?: {
+        scope?: "peek" | "full";
+        prefetch?: boolean;
+        onLoaded?: (snapshot: ProductDetailSnapshot) => void;
+      }
     ) => {
       const variant = variantId?.trim() || null;
-      const requestKey = `${itemId}:${variant ?? ""}`;
-      if (detailRequestKeyRef.current === requestKey) return;
-      detailRequestKeyRef.current = requestKey;
-      startDetailTransition(async () => {
-        try {
-          const result = await getProductDetail(itemId, variant);
-          if ("error" in result) {
+      const scope = options?.scope ?? "peek";
+      const cacheKey = detailCacheKey(itemId, variant);
+      const requestKey = `${cacheKey}:${scope}`;
+
+      const isActiveTarget = () => {
+        const target = activeDrawerTargetRef.current;
+        return target.itemId === itemId && target.variantId === variant;
+      };
+
+      const applyDetail = (snapshot: ProductDetailSnapshot) => {
+        if (options?.prefetch) return;
+        if (!isActiveTarget()) return;
+        setDetail(snapshot);
+        options?.onLoaded?.(snapshot);
+      };
+
+      const cached = resolveCachedDetail(itemId, variant, scope);
+      if (cached) {
+        applyDetail(cached);
+        return;
+      }
+
+      const moduleCached = drawerDetailSnapshotCache.get(requestKey);
+      if (moduleCached) {
+        const resolved = catalogContext
+          ? enrichProductDetailSnapshot(moduleCached, catalogContext)
+          : moduleCached;
+        detailCacheRef.current.set(cacheKey, resolved);
+        if (scope === "peek") {
+          detailCacheRef.current.set(peekItemCacheKey(itemId), resolved);
+        }
+        applyDetail(resolved);
+        return;
+      }
+
+      const beginLoadingUi = () => {
+        if (options?.prefetch || !isActiveTarget()) return;
+        setDetailLoadingKey(cacheKey);
+      };
+
+      const finishLoadingUi = () => {
+        if (options?.prefetch || !isActiveTarget()) return;
+        setDetailLoadingKey(null);
+      };
+
+      const consumeResult = (result: DrawerFetchResult) => {
+        if (!result.ok) {
+          drawerFetchTargetRef.current = null;
+          if (!options?.prefetch && isActiveTarget()) {
             toast.error(result.error ?? "Unable to load product profile.");
-            setDetail(null);
-            return;
           }
-          setDetail(result.detail);
-          onLoaded?.(result.detail);
+          finishLoadingUi();
+          return;
+        }
+        applyDetail(result.snapshot);
+        finishLoadingUi();
+      };
+
+      const existing = drawerDetailInflight.get(requestKey);
+      if (existing) {
+        if (!options?.prefetch) {
+          beginLoadingUi();
+          startDetailTransition(async () => {
+            if (!isActiveTarget()) {
+              finishLoadingUi();
+              return;
+            }
+            consumeResult(await existing);
+          });
+        }
+        return;
+      }
+
+      beginLoadingUi();
+
+      const fetchPromise = (async (): Promise<DrawerFetchResult> => {
+        try {
+          const result = await loadProductDrawer(itemId, {
+            variantId: variant,
+            scope,
+            skipCatalogContext: Boolean(catalogContext) || scope === "peek",
+          });
+          if ("error" in result) {
+            return { ok: false, error: result.error };
+          }
+
+          if (result.catalogContext && !catalogContext) {
+            setCatalogContext(result.catalogContext);
+          }
+
+          const resolved = catalogContext
+            ? enrichProductDetailSnapshot(result.detail, catalogContext)
+            : result.detail;
+
+          detailCacheRef.current.set(cacheKey, resolved);
+          if (scope === "peek") {
+            detailCacheRef.current.set(peekItemCacheKey(itemId), resolved);
+          }
+          drawerDetailSnapshotCache.set(requestKey, resolved);
+
+          return { ok: true, snapshot: resolved };
+        } catch {
+          return { ok: false, error: "Unable to load product profile." };
         } finally {
-          if (detailRequestKeyRef.current === requestKey) {
-            detailRequestKeyRef.current = null;
+          if (drawerDetailInflight.get(requestKey) === fetchPromise) {
+            drawerDetailInflight.delete(requestKey);
           }
         }
+      })();
+
+      drawerDetailInflight.set(requestKey, fetchPromise);
+
+      if (options?.prefetch) {
+        void fetchPromise;
+        return;
+      }
+
+      startDetailTransition(async () => {
+        if (!isActiveTarget()) {
+          finishLoadingUi();
+          return;
+        }
+        consumeResult(await fetchPromise);
       });
     },
-    []
+    [catalogContext, resolveCachedDetail]
   );
+
+  const loadDrawerDataRef = useRef(loadDrawerData);
+  loadDrawerDataRef.current = loadDrawerData;
+  const ensureCatalogContextRef = useRef(ensureCatalogContext);
+  ensureCatalogContextRef.current = ensureCatalogContext;
+
+  useEffect(() => {
+    if (!drawerOpen || !drawer.recordId) return;
+    activeDrawerTargetRef.current = {
+      itemId: drawer.recordId,
+      variantId: drawer.variantId ?? null,
+    };
+  }, [drawerOpen, drawer.recordId, drawer.variantId]);
 
   const handleSelect = (productId: string, variantId?: string | null) => {
     const variant = variantId?.trim() || null;
-    drawer.openPeek(productId, variant);
-    const sameItem = detail?.id === productId;
-    const sameVariant = (detail?.variant_id ?? null) === variant;
-    if (!sameItem || !sameVariant) {
-      setDetail(null);
+    if (
+      drawer.isOpen &&
+      drawer.surface === "peek" &&
+      drawer.recordId === productId &&
+      (drawer.variantId ?? null) === variant
+    ) {
+      return;
     }
-    void ensureCatalogContext();
+    if (
+      drawer.isOpen &&
+      drawer.recordId === productId &&
+      (drawer.variantId ?? null) === variant &&
+      detail &&
+      detail.id === productId &&
+      detailMatchesDrawerVariant(detail, variant)
+    ) {
+      return;
+    }
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+    activeDrawerTargetRef.current = { itemId: productId, variantId: variant };
+    drawer.openPeek(productId, variant);
   };
+
+  // Peek loads on row click only — hover prefetch caused extra loadProductDrawer POSTs.
+  const handleProductHover = undefined;
+  const handleProductPointerEnter = undefined;
 
   const handleNewItem = () => {
     setDetail(null);
@@ -917,38 +1275,191 @@ export function ProductCatalogTerminal({
   };
 
   useEffect(() => {
-    if (!drawerOpen) return;
+    if (initialDetail) {
+      detailCacheRef.current.set(
+        detailCacheKey(initialDetail.id, initialDetail.variant_id),
+        initialDetail
+      );
+      detailCacheRef.current.set(peekItemCacheKey(initialDetail.id), initialDetail);
+    }
+  }, [initialDetail]);
+
+  useEffect(() => {
+    return () => {
+      if (prefetchTimerRef.current) {
+        clearTimeout(prefetchTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!catalogContext) return;
+
+    setDetail((current) => {
+      if (!current) return current;
+      const needsStorefrontLabels = current.storefront_visibility.some(
+        (row) => row.storefront_id && !row.storefront_name
+      );
+      if (!needsStorefrontLabels) return current;
+
+      const enriched = enrichProductDetailSnapshot(current, catalogContext);
+      detailCacheRef.current.set(
+        detailCacheKey(current.id, current.variant_id),
+        enriched
+      );
+      detailCacheRef.current.set(peekItemCacheKey(current.id), enriched);
+      return enriched;
+    });
+  }, [catalogContext]);
+
+  useEffect(() => {
+    if (!drawerOpen || drawer.surface !== "peek" || !drawer.recordId || !detail) return;
+    if (detail.id !== drawer.recordId || detail.detail_scope !== "peek") return;
+    if (!detailMatchesDrawerVariant(detail, drawer.variantId ?? null)) return;
+    if (detail.item_type !== "PHYSICAL" || detail.is_bundle || !detail.track_inventory) return;
+
+    const cacheKey = detailCacheKey(drawer.recordId, drawer.variantId ?? null);
+    if (detail.valuations.length > 0) {
+      peekValuationsDone.add(cacheKey);
+      setValuationsLoadingKey((current) => (current === cacheKey ? null : current));
+      return;
+    }
+    if (peekValuationsDone.has(cacheKey)) {
+      setValuationsLoadingKey((current) => (current === cacheKey ? null : current));
+      return;
+    }
+
+    setValuationsLoadingKey(cacheKey);
+
+    const itemId = drawer.recordId;
+    const variantId = drawer.variantId ?? null;
+
+    const applyValuationsResult = (
+      result: { valuations: ProductDetailSnapshot["valuations"] } | { error: string }
+    ) => {
+      setValuationsLoadingKey((current) => (current === cacheKey ? null : current));
+      peekValuationsDone.add(cacheKey);
+      if ("error" in result) return;
+
+      const target = activeDrawerTargetRef.current;
+      if (target.itemId !== itemId || target.variantId !== variantId) return;
+
+      setDetail((current) => {
+        if (!current || current.id !== itemId || !detailMatchesDrawerVariant(current, variantId)) {
+          return current;
+        }
+        const next = { ...current, valuations: result.valuations };
+        detailCacheRef.current.set(detailCacheKey(next.id, next.variant_id), next);
+        detailCacheRef.current.set(peekItemCacheKey(next.id), next);
+        const requestKey = `${detailCacheKey(next.id, next.variant_id)}:peek`;
+        drawerDetailSnapshotCache.set(requestKey, next);
+        return next;
+      });
+    };
+
+    const existingRequest = peekValuationsInflight.get(cacheKey);
+    if (existingRequest) {
+      void existingRequest.then(applyValuationsResult);
+      return;
+    }
+
+    const request = loadProductPeekValuations(itemId, variantId, {
+      skipEligibilityCheck: true,
+    }).then((result) => {
+      if ("error" in result) return { error: result.error ?? "Unable to load stock." };
+      return { valuations: result.valuations };
+    });
+    peekValuationsInflight.set(cacheKey, request);
+
+    void request
+      .then((result) => {
+        peekValuationsInflight.delete(cacheKey);
+        applyValuationsResult(result);
+      })
+      .catch(() => {
+        peekValuationsInflight.delete(cacheKey);
+        applyValuationsResult({ error: "Unable to load stock." });
+      });
+  }, [
+    detail?.id,
+    detail?.variant_id,
+    detail?.detail_scope,
+    detail?.item_type,
+    detail?.is_bundle,
+    detail?.track_inventory,
+    detail?.valuations.length,
+    drawer.recordId,
+    drawer.surface,
+    drawer.variantId,
+    drawerOpen,
+  ]);
+
+  useEffect(() => {
+    if (!drawerOpen) {
+      drawerFetchTargetRef.current = null;
+      setValuationsLoadingKey(null);
+      return;
+    }
+
+    if (drawer.surface === "create" || drawer.recordId) {
+      void ensureCatalogContextRef.current();
+    }
 
     if (drawer.surface === "create") {
-      void ensureCatalogContext();
       return;
     }
 
     if (!drawer.recordId) return;
     const drawerVariant = drawer.variantId ?? null;
-    if (detail?.id === drawer.recordId && (detail.variant_id ?? null) === drawerVariant) {
+    const fetchScope = resolveDrawerDetailScope(drawer.surface);
+    const fetchTargetKey = `${drawer.recordId}:${drawerVariant ?? ""}:${fetchScope}`;
+    const currentDetail = detailRef.current;
+
+    if (
+      currentDetail?.id === drawer.recordId &&
+      detailMatchesDrawerVariant(currentDetail, drawerVariant) &&
+      (drawer.surface !== "edit" || currentDetail.detail_scope === "full")
+    ) {
+      drawerFetchTargetRef.current = fetchTargetKey;
       return;
     }
 
-    void ensureCatalogContext();
-    loadDetail(drawer.recordId, drawerVariant);
-  }, [
-    detail?.id,
-    detail?.variant_id,
-    drawer.recordId,
-    drawer.surface,
-    drawer.variantId,
-    drawerOpen,
-    ensureCatalogContext,
-    loadDetail,
-  ]);
+    if (drawerFetchTargetRef.current === fetchTargetKey) {
+      return;
+    }
+    drawerFetchTargetRef.current = fetchTargetKey;
+
+    loadDrawerDataRef.current(drawer.recordId, drawerVariant, {
+      scope: fetchScope,
+    });
+  }, [drawer.recordId, drawer.surface, drawer.variantId, drawerOpen]);
 
   const refreshDetail = () => {
     const itemId = drawer.recordId ?? detail?.id ?? null;
     if (!itemId) return;
-    detailRequestKeyRef.current = null;
-    loadDetail(itemId, drawer.variantId);
+    const variant = drawer.variantId ?? detail?.variant_id ?? null;
+    const cacheKey = detailCacheKey(itemId, variant);
+    const fullRequestKey = `${cacheKey}:full`;
+    const peekRequestKey = `${cacheKey}:peek`;
+    drawerDetailInflight.delete(fullRequestKey);
+    drawerDetailInflight.delete(peekRequestKey);
+    drawerDetailSnapshotCache.delete(fullRequestKey);
+    drawerDetailSnapshotCache.delete(peekRequestKey);
+    detailCacheRef.current.delete(cacheKey);
+    detailCacheRef.current.delete(peekItemCacheKey(itemId));
+    loadDrawerData(itemId, drawer.variantId, { scope: "full" });
   };
+
+  const handleRequestFullDetail = useCallback(() => {
+    const itemId = drawer.recordId ?? detail?.id ?? null;
+    if (!itemId) return;
+    if (detail?.detail_scope === "full") return;
+    const variant = drawer.variantId ?? detail?.variant_id ?? null;
+    const fullRequestKey = `${detailCacheKey(itemId, variant)}:full`;
+    drawerDetailInflight.delete(fullRequestKey);
+    drawerDetailSnapshotCache.delete(fullRequestKey);
+    loadDrawerData(itemId, drawer.variantId, { scope: "full" });
+  }, [detail?.detail_scope, detail?.id, detail?.variant_id, drawer.recordId, drawer.variantId, loadDrawerData]);
 
   const patchVariantInDetail = useCallback(
     (variantId: string, patch: Partial<ProductDetailSnapshot["variants"][number]>) => {
@@ -969,27 +1480,42 @@ export function ProductCatalogTerminal({
   const reloadVariantsQuietly = useCallback(async () => {
     const itemId = drawer.recordId ?? detail?.id ?? null;
     if (!itemId) return;
-    const result = await getProductDetail(itemId, drawer.variantId);
-    if ("error" in result || !result.detail) {
+    const result = await getProductVariants(itemId);
+    if ("error" in result || !result.bundle) {
       toast.error(result.error ?? "Unable to refresh variants.");
       return;
     }
-    setDetail((prev) =>
-      prev
+    setDetail((prev) => {
+      const next = prev
         ? {
             ...prev,
-            updated_at: result.detail.updated_at,
-            variants: result.detail.variants,
-            has_variants: result.detail.has_variants,
-            variant_axes: result.detail.variant_axes,
+            updated_at: result.bundle.updated_at,
+            variants: result.bundle.variants,
+            has_variants: result.bundle.has_variants,
+            variant_axes: result.bundle.variant_axes,
           }
-        : result.detail
-    );
+        : null;
+      if (next) {
+        const cacheVariant = prev?.variant_id ?? drawer.variantId;
+        detailCacheRef.current.set(detailCacheKey(itemId, cacheVariant), next);
+        if ((next.detail_scope ?? "full") === "peek") {
+          detailCacheRef.current.set(peekItemCacheKey(itemId), next);
+        }
+      }
+      return next;
+    });
   }, [detail?.id, drawer.recordId, drawer.variantId]);
 
   const handleSaved = (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
     if (savedDetail) {
       setDetail(savedDetail);
+      detailCacheRef.current.set(
+        detailCacheKey(itemId, savedDetail.variant_id),
+        savedDetail
+      );
+      if ((savedDetail.detail_scope ?? "full") === "peek") {
+        detailCacheRef.current.set(peekItemCacheKey(itemId), savedDetail);
+      }
       const mergeSavedRow = (current: ProductListRow[]) => {
         const nextRow = redactProductListRow(
           detailToListRow(savedDetail),
@@ -1005,7 +1531,7 @@ export function ProductCatalogTerminal({
       setProducts(mergeSavedRow);
       setFilterProducts((current) => (current ? mergeSavedRow(current) : current));
     } else {
-      loadDetail(itemId, drawer.variantId);
+      loadDrawerData(itemId, drawer.variantId, { scope: "full" });
     }
   };
 
@@ -1023,10 +1549,96 @@ export function ProductCatalogTerminal({
         handleSaved(itemId, savedDetail);
         return;
       }
-      loadDetail(itemId);
+      loadDrawerData(itemId, null, { scope: "full" });
     },
-    [handleSaved, loadDetail]
+    [handleSaved, loadDrawerData]
   );
+
+  const syncPeekPanelUrl = useCallback(
+    (panel: ProductPeekPanelId) => {
+      if (!drawer.recordId || drawer.surface !== "peek") return;
+      const preserveParams =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search)
+          : searchParams;
+      const href = buildModuleHref(ITEMS_HREF, {
+        recordId: drawer.recordId,
+        variantId: drawer.variantId,
+        preserveParams,
+        panel,
+      });
+      drawer.replaceDrawerHref(href);
+    },
+    [drawer, searchParams]
+  );
+
+  const loadPeekPanelSection = useCallback(
+    async (panel: ProductPeekPanelId) => {
+      const section = peekPanelToSection(panel);
+      if (!section || !drawer.recordId) return;
+
+      if (
+        detail?.id === drawer.recordId &&
+        isPeekSectionLoaded(detail, section)
+      ) {
+        return;
+      }
+
+      const requestKey = `${drawer.recordId}:${section}`;
+      if (peekSectionInFlightRef.current.has(requestKey)) return;
+      peekSectionInFlightRef.current.add(requestKey);
+      setPeekPanelLoading(panel);
+
+      try {
+        const result = await loadProductPeekSection(
+          drawer.recordId,
+          section,
+          drawer.variantId
+        );
+        if ("error" in result) {
+          toast.error(result.error ?? "Unable to load product section.");
+          return;
+        }
+
+        setDetail((current) => {
+          if (!current || current.id !== drawer.recordId) return current;
+          const merged = mergeProductPeekSection(current, section, result.patch);
+          detailCacheRef.current.set(
+            detailCacheKey(merged.id, merged.variant_id),
+            merged
+          );
+          detailCacheRef.current.set(peekItemCacheKey(merged.id), merged);
+          return merged;
+        });
+      } finally {
+        peekSectionInFlightRef.current.delete(requestKey);
+        setPeekPanelLoading(null);
+      }
+    },
+    [detail, drawer.recordId, drawer.variantId]
+  );
+
+  const handlePeekPanelChange = useCallback(
+    (panel: ProductPeekPanelId) => {
+      syncPeekPanelUrl(panel);
+      void loadPeekPanelSection(panel);
+    },
+    [loadPeekPanelSection, syncPeekPanelUrl]
+  );
+
+  useEffect(() => {
+    if (!drawerOpen || drawer.surface !== "peek" || !drawer.recordId || !detail) return;
+    if (detail.id !== drawer.recordId) return;
+    if (peekPanel === "essentials") return;
+    void loadPeekPanelSection(peekPanel);
+  }, [
+    detail,
+    drawer.recordId,
+    drawer.surface,
+    drawerOpen,
+    loadPeekPanelSection,
+    peekPanel,
+  ]);
 
   const handlePanelCloseStable = useCallback(() => {
     drawer.close();
@@ -1044,20 +1656,49 @@ export function ProductCatalogTerminal({
   const urlNavigation = useMemo(
     () => ({
       onOpenEdit: () => {
-        if (drawer.recordId) drawer.openEdit(drawer.recordId, drawer.variantId);
+        if (!drawer.recordId) return;
+        const variantId =
+          detail && isDetailVariantSkuContext(detail) ? drawer.variantId : null;
+        drawer.openEdit(drawer.recordId, variantId);
       },
       onPeekAfterSave: handlePeekAfterSave,
       onClose: handlePanelCloseStable,
     }),
-    [drawer, handlePeekAfterSave, handlePanelCloseStable]
+    [detail, drawer, handlePeekAfterSave, handlePanelCloseStable]
   );
 
+  const drawerTargetKey = drawer.recordId
+    ? detailCacheKey(drawer.recordId, drawer.variantId)
+    : null;
+  const hasMatchingDetail =
+    Boolean(detail) &&
+    Boolean(drawer.recordId) &&
+    detail?.id === drawer.recordId &&
+    detailMatchesDrawerVariant(detail, drawer.variantId) &&
+    (drawer.surface !== "edit" || detail?.detail_scope === "full");
+
+  const isDetailRefreshing = Boolean(
+    drawerTargetKey && detailLoadingKey === drawerTargetKey && isLoadingDetail
+  );
+
+  const isValuationsLoading = Boolean(
+    drawerTargetKey &&
+      valuationsLoadingKey === drawerTargetKey &&
+      !peekValuationsDone.has(drawerTargetKey)
+  );
+
+  const drawerDetail =
+    drawer.surface === "create" || hasMatchingDetail ? detail : null;
+
+  const drawerNeedsCatalog =
+    drawer.surface === "create" || drawer.surface === "edit";
+
   const drawerIsLoading =
-    !catalogContext ||
-    isLoadingCatalogContext ||
+    (drawerNeedsCatalog && (!catalogContext || isLoadingCatalogContext)) ||
     (drawer.surface !== "create" &&
       Boolean(drawer.recordId) &&
-      (isLoadingDetail || !detail));
+      !hasMatchingDetail &&
+      (isLoadingDetail || detailLoadingKey === drawerTargetKey));
 
   const streamPanelProps = {
     products: catalogProducts,
@@ -1089,9 +1730,17 @@ export function ProductCatalogTerminal({
     onBulkSelectAllMatching: () => setBulkSelectAllMatching(true),
     onBulkAction: handleBulkToolbarAction,
     onSelect: handleSelect,
+    onProductHover: handleProductHover,
+    onProductPointerEnter: handleProductPointerEnter,
+    onListIncludeImagesChange: handleListIncludeImagesChange,
     onImagesHydrated: handleImagesHydrated,
     expandVariants,
     onExpandVariantsChange: handleExpandVariantsChange,
+    initialListImagesIncluded:
+      initialProducts.some((row) => Boolean(row.image_url)) ||
+      shouldIncludeListImages(initialListPrefs),
+    ssrListReady: initialProducts.length > 0 || hasServerFilteredView,
+    itemsRouteSession: itemsRouteSessionRef.current,
     detailPaneOpen: drawerOpen,
     bulkToolbarEmbedded: true,
   } as const;
@@ -1212,16 +1861,22 @@ export function ProductCatalogTerminal({
         tenantId={tenantId}
         categories={categories}
         catalogContext={catalogContext}
-        detail={detail}
+        detail={drawerDetail}
         fieldPermissions={fieldPermissions}
         isLoading={drawerIsLoading}
+        isDetailRefreshing={isDetailRefreshing}
         urlNavigation={urlNavigation}
         onExtensionsChanged={refreshDetail}
+        onRequestFullDetail={handleRequestFullDetail}
         onVariantPatch={patchVariantInDetail}
         onVariantsReload={reloadVariantsQuietly}
         onCreatePersisted={handleCreatePersisted}
         onDetailSaved={handleSaved}
         onItemArchived={handleItemArchived}
+        peekPanel={drawer.surface === "peek" ? peekPanel : undefined}
+        onPeekPanelChange={drawer.surface === "peek" ? handlePeekPanelChange : undefined}
+        peekPanelLoading={drawer.surface === "peek" ? peekPanelLoading : null}
+        isValuationsLoading={isValuationsLoading}
       />
     </>
   );

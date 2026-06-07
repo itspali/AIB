@@ -1,9 +1,29 @@
 export type {
+  ChipColorPreset,
+  ColumnChipDisplay,
+  ColumnValueColorRule,
   ListColumnAlign,
   ListColumnDef,
   ListColumnPrefs,
   ListColumnRegistry,
 } from "@/lib/list-columns/types";
+export { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
+export {
+  BOOLEAN_ACTIVE_INACTIVE_CATALOG,
+  BOOLEAN_YES_NO_CATALOG,
+  CHIP_COLOR_PRESET_CLASSES,
+  CHIP_COLOR_PRESET_LABELS,
+  CHIP_COLOR_PRESET_ORDER,
+  booleanValueKey,
+  getEffectiveChipDisplay,
+  isChipColorPreset,
+  isChipModeEnabled,
+  isValidCustomHex,
+  normalizeColorRule,
+  resolveChipColorRule,
+  resolveValueColorRule,
+} from "@/lib/list-columns/chip-colors";
+export { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 export {
   getColumnDef,
   getDefaultColumnOrder,

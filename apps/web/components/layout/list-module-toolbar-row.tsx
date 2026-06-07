@@ -3,8 +3,10 @@
 import type { ReactNode } from "react";
 import {
   LIST_TOOLBAR_CONTROL_HEIGHT,
+  LIST_TOOLBAR_ROW_GAP,
   LIST_TOOLBAR_ROW_MIN_HEIGHT,
   LIST_TOOLBAR_TEXT,
+  LIST_TOOLBAR_TOOLS_GAP,
 } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +75,8 @@ export function ListModuleToolbarRow({
     <div className={cn("space-y-2", className)}>
       <div
         className={cn(
-          "flex min-w-0 flex-nowrap items-center gap-2 text-muted-foreground md:gap-x-3",
+          "flex min-w-0 flex-nowrap items-center text-muted-foreground",
+          LIST_TOOLBAR_ROW_GAP,
           LIST_TOOLBAR_ROW_MIN_HEIGHT,
           LIST_TOOLBAR_TEXT
         )}
@@ -86,7 +89,8 @@ export function ListModuleToolbarRow({
         />
         <div
           className={cn(
-            "relative z-10 flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto overflow-y-visible",
+            "relative z-10 flex min-w-0 flex-1 items-center justify-end overflow-x-auto overflow-y-visible",
+            LIST_TOOLBAR_TOOLS_GAP,
             LIST_TOOLBAR_CONTROL_HEIGHT,
             "flex-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           )}

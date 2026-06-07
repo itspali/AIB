@@ -5,6 +5,7 @@ import { CURRENCY_OPTIONS } from "@/lib/organization/currency-options";
 import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
 import { SCAN_IDENTIFIER_POLICIES } from "@/lib/products/catalog-item-settings";
 import { isValidTimezone } from "@/lib/settings/timezone-options";
+import { THEMES, type Theme } from "@/lib/theme/themes";
 
 const phonePattern = /^\+?[0-9\s().-]{7,30}$/;
 
@@ -60,6 +61,11 @@ export const organizationSettingsSchema = z.object({
   allow_line_item_discounts: z.boolean(),
   accounting_period_closing_date: z.string().trim(),
   search_financial_fields_mode: z.enum(["role_default", "enabled", "disabled"]),
+  default_theme: z.enum(THEMES as [Theme, ...Theme[]]),
+  primary_hue: z.number().int().min(0).max(360).nullable(),
+  accent_hue: z.number().int().min(0).max(360).nullable(),
+  allow_location_theme_override: z.boolean(),
+  allow_user_theme_override: z.boolean(),
   show_advanced: z.boolean(),
 });
 

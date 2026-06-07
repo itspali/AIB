@@ -22,7 +22,7 @@ type Props = {
 };
 
 export function UserProfileControls({ profile, onDutyStatusChange }: Props) {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, canChangeTheme } = useTheme();
   const [isPending, startTransition] = useTransition();
 
   const handleDutyChange = (value: DutyStatus) => {
@@ -58,17 +58,30 @@ export function UserProfileControls({ profile, onDutyStatusChange }: Props) {
         </Select>
       </div>
 
-      <div className="flex h-10 items-center justify-between gap-3 rounded-md border border-input bg-background px-3">
-        <Label htmlFor="dark-theme-override" className="text-sm font-medium text-muted-foreground">
-          Dark Theme Override
-        </Label>
-        <Switch
-          id="dark-theme-override"
-          checked={theme === "dark"}
-          onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-        />
-      </div>
-      <p className="text-xs text-muted-foreground">Theme toggle is also available in the top bar.</p>
+      {canChangeTheme ? (
+        <>
+          <div className="flex h-10 items-center justify-between gap-3 rounded-md border border-input bg-background px-3">
+            <Label
+              htmlFor="dark-theme-override"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Dark Theme Override
+            </Label>
+            <Switch
+              id="dark-theme-override"
+              checked={theme === "dark"}
+              onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Theme toggle is also available in the top bar.
+          </p>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Workspace administrators have locked the theme for this account.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
+  applyModuleDrawerHistory,
   buildModuleHref,
   isDrawerOpen,
   moduleDrawerCreateHref,
   moduleDrawerEditHref,
   moduleDrawerPeekHref,
   parseModuleDrawerState,
+  parseModuleDrawerStateFromHref,
+  parseModuleDrawerStateFromLocation,
   type DrawerSurface,
   type ModuleDrawerAction,
   type ModuleDrawerState,
@@ -29,12 +32,20 @@ type PendingNavigation = {
 export type UseModuleDrawerUrlResult = ModuleDrawerState & {
   isOpen: boolean;
   href: string;
+  /** Bumps when drawer history changes without a Next.js navigation. */
+  historyEpoch: number;
+  replaceDrawerHref: (href: string) => void;
   openPeek: (recordId: string, variantId?: string | null) => void;
   openEdit: (recordId: string, variantId?: string | null) => void;
   openCreate: () => void;
   close: () => void;
   afterSave: (recordId: string, variantId?: string | null) => void;
 };
+
+function livePreserveParams(fallback: ReturnType<typeof useSearchParams>): URLSearchParams {
+  if (typeof window === "undefined") return new URLSearchParams(fallback.toString());
+  return new URLSearchParams(window.location.search);
+}
 
 function pendingMatchesUrl(
   pending: PendingNavigation,
@@ -48,19 +59,30 @@ function pendingMatchesUrl(
   );
 }
 
+function drawerStateToPending(state: ModuleDrawerState): PendingNavigation {
+  return {
+    recordId: state.recordId,
+    variantId: state.variantId,
+    action: state.action,
+    surface: state.surface,
+  };
+}
+
 export function useModuleDrawerUrl(
   basePath: string,
   options: UseModuleDrawerUrlOptions = {}
 ): UseModuleDrawerUrlResult {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const canonicalizedRef = useRef(false);
   const [pendingNav, setPendingNav] = useState<PendingNavigation | null>(null);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
 
-  const urlState = useMemo(
-    () => parseModuleDrawerState(searchParams),
-    [searchParams]
-  );
+  const urlState = useMemo(() => {
+    if (typeof window !== "undefined") {
+      return parseModuleDrawerStateFromLocation(window.location);
+    }
+    return parseModuleDrawerState(searchParams);
+  }, [searchParams, historyEpoch]);
 
   const state = useMemo((): ModuleDrawerState => {
     if (!pendingNav) return urlState;
@@ -81,52 +103,90 @@ export function useModuleDrawerUrl(
     }
   }, [pendingNav, urlState]);
 
-  const navigate = useCallback(
-    (href: string, method: "push" | "replace" = "push") => {
-      if (method === "replace") {
-        router.replace(href, { scroll: false });
-      } else {
-        router.push(href, { scroll: false });
-      }
+  // Real Next.js navigations (filters, links) update searchParams — drop stale pending state.
+  const searchParamsSnapshotRef = useRef<string | null>(null);
+  useEffect(() => {
+    setHistoryEpoch((epoch) => epoch + 1);
+    const snapshot = searchParams.toString();
+    if (searchParamsSnapshotRef.current === null) {
+      searchParamsSnapshotRef.current = snapshot;
+      return;
+    }
+    if (searchParamsSnapshotRef.current === snapshot) return;
+    searchParamsSnapshotRef.current = snapshot;
+    setPendingNav(null);
+  }, [searchParams]);
+
+  const syncHistory = useCallback(
+    (href: string, pending: PendingNavigation, method: "push" | "replace" = "push") => {
+      setPendingNav(pending);
+      applyModuleDrawerHistory(href, method);
+      setHistoryEpoch((epoch) => epoch + 1);
     },
-    [router]
+    []
   );
+
+  const replaceDrawerHref = useCallback((href: string) => {
+    applyModuleDrawerHistory(href, "replace");
+    setHistoryEpoch((epoch) => epoch + 1);
+  }, []);
 
   const openPeek = useCallback(
     (recordId: string, variantId?: string | null) => {
       const variant = variantId?.trim() || null;
-      setPendingNav({ recordId, variantId: variant, action: null, surface: "peek" });
-      navigate(moduleDrawerPeekHref(basePath, recordId, searchParams, variant));
+      if (
+        state.surface === "peek" &&
+        state.recordId === recordId &&
+        (state.variantId ?? null) === variant
+      ) {
+        return;
+      }
+      syncHistory(
+        moduleDrawerPeekHref(basePath, recordId, livePreserveParams(searchParams), variant),
+        { recordId, variantId: variant, action: null, surface: "peek" }
+      );
     },
-    [basePath, navigate, searchParams]
+    [basePath, searchParams, state.recordId, state.surface, state.variantId, syncHistory]
   );
 
   const openEdit = useCallback(
     (recordId: string, variantId?: string | null) => {
       const variant = variantId?.trim() || null;
-      setPendingNav({ recordId, variantId: variant, action: "edit", surface: "edit" });
-      navigate(moduleDrawerEditHref(basePath, recordId, searchParams, variant));
+      syncHistory(
+        moduleDrawerEditHref(basePath, recordId, livePreserveParams(searchParams), variant),
+        { recordId, variantId: variant, action: "edit", surface: "edit" }
+      );
     },
-    [basePath, navigate, searchParams]
+    [basePath, searchParams, syncHistory]
   );
 
   const openCreate = useCallback(() => {
-    setPendingNav({ recordId: null, variantId: null, action: "new", surface: "create" });
-    navigate(moduleDrawerCreateHref(basePath, searchParams));
-  }, [basePath, navigate, searchParams]);
+    syncHistory(moduleDrawerCreateHref(basePath, livePreserveParams(searchParams)), {
+      recordId: null,
+      variantId: null,
+      action: "new",
+      surface: "create",
+    });
+  }, [basePath, searchParams, syncHistory]);
 
   const close = useCallback(() => {
-    setPendingNav({ recordId: null, variantId: null, action: null, surface: "closed" });
-    navigate(buildModuleHref(basePath, { preserveParams: searchParams }), "replace");
-  }, [basePath, navigate, searchParams]);
+    syncHistory(
+      buildModuleHref(basePath, { preserveParams: livePreserveParams(searchParams) }),
+      { recordId: null, variantId: null, action: null, surface: "closed" },
+      "replace"
+    );
+  }, [basePath, searchParams, syncHistory]);
 
   const afterSave = useCallback(
     (recordId: string, variantId?: string | null) => {
       const variant = variantId?.trim() || null;
-      setPendingNav({ recordId, variantId: variant, action: null, surface: "peek" });
-      navigate(moduleDrawerPeekHref(basePath, recordId, searchParams, variant), "replace");
+      syncHistory(
+        moduleDrawerPeekHref(basePath, recordId, livePreserveParams(searchParams), variant),
+        { recordId, variantId: variant, action: null, surface: "peek" },
+        "replace"
+      );
     },
-    [basePath, navigate, searchParams]
+    [basePath, searchParams, syncHistory]
   );
 
   useEffect(() => {
@@ -140,17 +200,29 @@ export function useModuleDrawerUrl(
       action: state.action,
       preserveParams: searchParams,
     });
-    router.replace(href, { scroll: false });
+    syncHistory(href, drawerStateToPending(parseModuleDrawerStateFromHref(href)), "replace");
   }, [
     basePath,
     options.canonicalizeLegacy,
-    router,
     searchParams,
     state.action,
     state.needsCanonicalize,
     state.recordId,
     state.variantId,
+    syncHistory,
   ]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      setHistoryEpoch((epoch) => epoch + 1);
+      setPendingNav(
+        drawerStateToPending(parseModuleDrawerStateFromLocation(window.location))
+      );
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     if (!isDrawerOpen(state.surface)) return;
@@ -181,6 +253,8 @@ export function useModuleDrawerUrl(
     ...state,
     isOpen: isDrawerOpen(state.surface),
     href,
+    historyEpoch,
+    replaceDrawerHref,
     openPeek,
     openEdit,
     openCreate,

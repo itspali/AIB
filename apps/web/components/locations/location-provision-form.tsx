@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LocationVirtualAdvancedPanel } from "@/components/locations/location-virtual-advanced-panel";
+import { ThemeSettingsFields } from "@/components/theme/theme-settings-fields";
 import { LocationNumberingSection } from "@/components/locations/location-numbering-section";
 import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
 import {
@@ -50,6 +51,8 @@ import {
 import { LocationValuationRuleField } from "@/components/locations/location-valuation-rule-field";
 import { locationSupportsValuationRule } from "@/lib/locations/valuation-rule";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type { TenantThemeSettings } from "@/lib/theme/governance";
+import { locationThemeToFormValues } from "@/lib/theme/governance";
 import type { ValuationMethodOption } from "@/lib/organization/naming-options";
 import { COUNTRY_OPTIONS } from "@/lib/organization/country-options";
 import { cn } from "@/lib/utils";
@@ -57,6 +60,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   rows: LocationRow[];
   governance: OrganizationLocationGovernanceConfig;
+  themeSettings: TenantThemeSettings;
   defaultInventoryValuationMethod: ValuationMethodOption;
   revenueAccounts: RevenueAccountOption[];
   documentSequencesByLocationId: Record<string, DocumentSequenceRow[]>;
@@ -103,6 +107,10 @@ const defaultForm: LocationFormValues = {
   virtual_configuration: DEFAULT_VIRTUAL_LOCATION_CONFIG,
   naming_sequences: emptyNamingSequencesForm(),
   existing_location_meta: {},
+  location_theme_enabled: false,
+  location_theme: "dark",
+  location_primary_hue: null,
+  location_accent_hue: null,
 };
 
 function normalizeVirtualAddress(form: LocationFormValues): LocationFormValues {
@@ -119,6 +127,7 @@ function normalizeVirtualAddress(form: LocationFormValues): LocationFormValues {
 export function LocationProvisionForm({
   rows,
   governance,
+  themeSettings,
   defaultInventoryValuationMethod,
   revenueAccounts,
   documentSequencesByLocationId,
@@ -200,6 +209,7 @@ export function LocationProvisionForm({
         virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
         naming_sequences: namingSequences,
         existing_location_meta: editingLocation.location_meta,
+        ...locationThemeToFormValues(editingLocation.location_meta),
         })
       );
     } else {
@@ -641,6 +651,40 @@ export function LocationProvisionForm({
                     </div>
                   )}
                 </CapabilityCard>
+
+                {themeSettings.allow_location_theme_override && (
+                  <CapabilityCard title="Location Theme">
+                    <SwitchRow
+                      label="Use a custom theme for this location"
+                      checked={form.location_theme_enabled}
+                      onCheckedChange={(checked) => updateField("location_theme_enabled", checked)}
+                    />
+                    {form.location_theme_enabled ? (
+                      <div className="mt-4">
+                        <ThemeSettingsFields
+                          showGovernanceToggles={false}
+                          value={{
+                            default_theme: form.location_theme,
+                            primary_hue: form.location_primary_hue,
+                            accent_hue: form.location_accent_hue,
+                            allow_location_theme_override: false,
+                            allow_user_theme_override: false,
+                          }}
+                          onChange={(next) => {
+                            updateField("location_theme", next.default_theme);
+                            updateField("location_primary_hue", next.primary_hue);
+                            updateField("location_accent_hue", next.accent_hue);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Staff assigned to this location inherit the workspace theme unless a custom
+                        override is enabled here.
+                      </p>
+                    )}
+                  </CapabilityCard>
+                )}
               </>
             )}
 

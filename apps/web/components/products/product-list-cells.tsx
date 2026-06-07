@@ -9,9 +9,13 @@ import {
   type TextWrapMode,
 } from "@/lib/display/text-wrap";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
+import { booleanValueKey } from "@/lib/list-columns/chip-colors";
+import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
-import { taxCategoryLabel } from "@/lib/products/tax-options";
+import { normalizeTaxCategory, taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
 import {
   productListVariantNameIndentClass,
@@ -19,38 +23,67 @@ import {
 } from "@/lib/products/list-row-presentation";
 import { cn } from "@/lib/utils";
 import type { ProductListViewMode } from "@/lib/products/list-prefs";
-import { Badge } from "@/components/ui/badge";
-
 function formatOptionalCurrency(value: string | null): string {
   if (!value || value.trim() === "") return "—";
   const parsed = Number(value);
   return Number.isFinite(parsed) ? formatCurrency(parsed) : value;
 }
 
-function formatBoolean(value: boolean): ReactNode {
+function formatBooleanText(value: boolean): string {
+  return value ? "Yes" : "No";
+}
+
+function formatBoolean(
+  columnId: ProductListColumnId,
+  value: boolean,
+  chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>
+): ReactNode {
+  const column = getColumnDef(columnId);
+  const label = formatBooleanText(value);
+  return renderChipOrText({
+    column,
+    valueKey: booleanValueKey(value),
+    label,
+    textNode: (
+      <span
+        className={cn(
+          "text-xs font-medium",
+          value ? "text-emerald-600" : "text-muted-foreground"
+        )}
+      >
+        {label}
+      </span>
+    ),
+    chipDisplay: chipDisplay?.[columnId],
+  });
+}
+
+function formatActiveStatusText(value: boolean): ReactNode {
   return (
-    <span className={cn("text-xs font-medium", value ? "text-emerald-600" : "text-muted-foreground")}>
-      {value ? "Yes" : "No"}
+    <span
+      className={cn(
+        "text-xs font-medium",
+        value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+      )}
+    >
+      {value ? "Active" : "Inactive"}
     </span>
   );
 }
 
-function formatActiveStatus(value: boolean): ReactNode {
-  return (
-    <Badge
-      variant={value ? "completed" : "locked"}
-      className={cn(
-        "shrink-0 whitespace-nowrap ring-0",
-        value ? "border border-emerald-500/30" : "border border-border"
-      )}
-    >
-      {value ? "Active" : "Inactive"}
-    </Badge>
-  );
-}
-
-export function renderProductListActiveStatus(value: boolean): ReactNode {
-  return formatActiveStatus(value);
+export function renderProductListActiveStatus(
+  value: boolean,
+  chipDisplay?: ColumnChipDisplay
+): ReactNode {
+  const column = getColumnDef("is_active");
+  const label = value ? "Active" : "Inactive";
+  return renderChipOrText({
+    column,
+    valueKey: booleanValueKey(value),
+    label,
+    textNode: formatActiveStatusText(value),
+    chipDisplay,
+  });
 }
 
 export function resolveProductListCellTextWrapClass(
@@ -94,6 +127,7 @@ type RenderProductListCellOptions = {
   onImageClick?: (product: ProductListRow) => void;
   showVariants?: boolean;
   wrapMode?: TextWrapMode;
+  chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
 };
 
 export function renderProductListCell(
@@ -173,45 +207,91 @@ export function renderProductListCell(
       return (
         <span className="font-mono text-muted-foreground">{product.barcode ?? "—"}</span>
       );
-    case "classification":
-      return (
-        <span className={resolveProductListCellTextWrapClass("classification", options?.wrapMode)}>
-          {classificationLabel(product.classification)}
-        </span>
-      );
-    case "category_name":
-      return wrappedTextValue(
-        product.category_name,
-        resolveProductListCellTextWrapClass("category_name", options?.wrapMode)
-      );
+    case "classification": {
+      const label = classificationLabel(product.classification);
+      const column = getColumnDef("classification");
+      return renderChipOrText({
+        column,
+        valueKey: product.classification,
+        label,
+        textNode: (
+          <span
+            className={resolveProductListCellTextWrapClass("classification", options?.wrapMode)}
+          >
+            {label}
+          </span>
+        ),
+        chipDisplay: options?.chipDisplay?.classification,
+      });
+    }
+    case "category_name": {
+      const label = product.category_name?.trim() || "—";
+      const column = getColumnDef("category_name");
+      const valueKey = product.category_name?.trim() || CHIP_DEFAULT_FALLBACK_KEY;
+      return renderChipOrText({
+        column,
+        valueKey,
+        label,
+        textNode: wrappedTextValue(
+          product.category_name,
+          resolveProductListCellTextWrapClass("category_name", options?.wrapMode)
+        ),
+        chipDisplay: options?.chipDisplay?.category_name,
+      });
+    }
     case "description":
       return wrappedTextValue(
         product.description,
         resolveProductListCellTextWrapClass("description", options?.wrapMode),
         { muted: true, block: true }
       );
-    case "base_unit_of_measure":
-      return <span className="font-mono">{product.base_unit_of_measure}</span>;
+    case "base_unit_of_measure": {
+      const label = product.base_unit_of_measure;
+      const column = getColumnDef("base_unit_of_measure");
+      return renderChipOrText({
+        column,
+        valueKey: label,
+        label,
+        textNode: <span className="font-mono">{label}</span>,
+        chipDisplay: options?.chipDisplay?.base_unit_of_measure,
+      });
+    }
     case "hsn_sac_code":
       return product.hsn_sac_code ?? "—";
     case "has_variants":
-      return formatBoolean(product.has_variants);
-    case "default_tax_category":
-      return (
-        <span
-          className={resolveProductListCellTextWrapClass("default_tax_category", options?.wrapMode)}
-        >
-          {taxCategoryLabel(product.default_tax_category)}
-        </span>
-      );
+      return formatBoolean("has_variants", product.has_variants, options?.chipDisplay);
+    case "default_tax_category": {
+      const normalized = normalizeTaxCategory(product.default_tax_category);
+      const label = taxCategoryLabel(product.default_tax_category);
+      const column = getColumnDef("default_tax_category");
+      return renderChipOrText({
+        column,
+        valueKey: normalized,
+        label,
+        textNode: (
+          <span
+            className={resolveProductListCellTextWrapClass(
+              "default_tax_category",
+              options?.wrapMode
+            )}
+          >
+            {label}
+          </span>
+        ),
+        chipDisplay: options?.chipDisplay?.default_tax_category,
+      });
+    }
     case "is_active":
-      return formatActiveStatus(product.is_active);
+      return renderProductListActiveStatus(
+        product.is_active,
+        options?.chipDisplay?.is_active
+      );
     case "is_purchasable":
-      return formatBoolean(product.is_purchasable);
+      return formatBoolean("is_purchasable", product.is_purchasable, options?.chipDisplay);
     case "is_salable":
-      return formatBoolean(product.is_salable);
+      return formatBoolean("is_salable", product.is_salable, options?.chipDisplay);
     case "is_returnable":
-      return formatBoolean(product.is_returnable);
+      return formatBoolean("is_returnable", product.is_returnable, options?.chipDisplay);
     case "selling_price":
       return (
         <span className="tabular-nums">{formatOptionalCurrency(product.selling_price)}</span>

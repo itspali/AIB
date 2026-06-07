@@ -1,6 +1,10 @@
+import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
+import { isProductPeekPanelId } from "@/lib/products/peek-panels";
+
 export const MODULE_DRAWER_ID_PARAM = "id";
 export const MODULE_DRAWER_VARIANT_PARAM = "variant";
 export const MODULE_DRAWER_ACTION_PARAM = "action";
+export const MODULE_DRAWER_PANEL_PARAM = "panel";
 
 export const MODULE_DRAWER_ACTION_EDIT = "edit";
 export const MODULE_DRAWER_ACTION_NEW = "new";
@@ -34,6 +38,7 @@ export type BuildModuleHrefOptions = {
   recordId?: string | null;
   variantId?: string | null;
   action?: ModuleDrawerAction | null;
+  panel?: ProductPeekPanelId | null;
   /** Extra query params preserved when navigating (e.g. omnibar filters). */
   preserveParams?: URLSearchParams | PreservedQueryParams;
 };
@@ -125,6 +130,7 @@ export function buildModuleHref(
         key === MODULE_DRAWER_ID_PARAM ||
         key === MODULE_DRAWER_VARIANT_PARAM ||
         key === MODULE_DRAWER_ACTION_PARAM ||
+        key === MODULE_DRAWER_PANEL_PARAM ||
         key === LEGACY_ITEM_LIST_SELECTION_PARAM ||
         key === LEGACY_CATEGORY_SELECTED_PARAM ||
         key === LEGACY_CATEGORY_CREATE_PARAM
@@ -147,6 +153,10 @@ export function buildModuleHref(
 
   if (options.action) {
     params.set(MODULE_DRAWER_ACTION_PARAM, options.action);
+  }
+
+  if (options.panel && options.panel !== "essentials") {
+    params.set(MODULE_DRAWER_PANEL_PARAM, options.panel);
   }
 
   const query = params.toString();
@@ -184,4 +194,40 @@ export function moduleDrawerCreateHref(
     action: MODULE_DRAWER_ACTION_NEW,
     preserveParams,
   });
+}
+
+/** Next.js internal flag — skips router sync so pushState does not refetch RSC. */
+const NEXT_HISTORY_BYPASS_STATE = { __NA: true } as const;
+
+/** Update the browser URL without triggering a Next.js RSC navigation. */
+export function parseProductPeekPanel(
+  searchParams: SearchParamsLike
+): ProductPeekPanelId {
+  const raw = searchParams.get(MODULE_DRAWER_PANEL_PARAM)?.trim().toLowerCase();
+  return isProductPeekPanelId(raw) ? raw : "essentials";
+}
+
+export function applyModuleDrawerHistory(
+  href: string,
+  method: "push" | "replace" = "push"
+): void {
+  if (typeof window === "undefined") return;
+  const currentState = window.history.state;
+  const state =
+    currentState && typeof currentState === "object"
+      ? { ...currentState, ...NEXT_HISTORY_BYPASS_STATE }
+      : { ...NEXT_HISTORY_BYPASS_STATE };
+  window.history[method === "replace" ? "replaceState" : "pushState"](state, "", href);
+}
+
+export function parseModuleDrawerStateFromHref(href: string): ModuleDrawerState {
+  const queryIndex = href.indexOf("?");
+  const search = queryIndex >= 0 ? href.slice(queryIndex + 1) : "";
+  return parseModuleDrawerState(new URLSearchParams(search));
+}
+
+export function parseModuleDrawerStateFromLocation(
+  location: Pick<Location, "search">
+): ModuleDrawerState {
+  return parseModuleDrawerState(new URLSearchParams(location.search));
 }

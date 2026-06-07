@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  detailMatchesDrawerVariant,
   isDetailVariantSkuContext,
+  isVariantCatalogEditMode,
   resolveDetailIdentitySku,
   resolveMasterFormSku,
+  selectedSellableVariant,
   type ProductDetailSnapshot,
 } from "@/lib/products/types";
 
@@ -169,5 +172,87 @@ describe("resolveDetailIdentitySku", () => {
       ],
     });
     expect(resolveDetailIdentitySku(detail)).toBe("STYLE-001");
+  });
+});
+
+describe("selectedSellableVariant", () => {
+  it("returns the selected sellable variant in variant-scoped detail", () => {
+    const detail = minimalDetail({});
+    expect(selectedSellableVariant(detail)?.sku).toBe("PARENT-CODE-RED");
+  });
+
+  it("returns null for item-level multi-SKU detail", () => {
+    const detail = minimalDetail({
+      variant_id: "v-master",
+      sku: "PARENT-CODE",
+      variant_attributes: {},
+    });
+    expect(selectedSellableVariant(detail)).toBeNull();
+  });
+});
+
+describe("isVariantCatalogEditMode", () => {
+  it("is true only for edit mode on a sellable variant line", () => {
+    const detail = minimalDetail({});
+    expect(isVariantCatalogEditMode("edit", detail)).toBe(true);
+    expect(isVariantCatalogEditMode("view", detail)).toBe(false);
+    expect(
+      isVariantCatalogEditMode(
+        "edit",
+        minimalDetail({ variant_id: "v-master", sku: "PARENT-CODE", variant_attributes: {} })
+      )
+    ).toBe(false);
+  });
+});
+
+describe("detailMatchesDrawerVariant", () => {
+  it("matches item-level opens when detail is master-anchored", () => {
+    const detail = minimalDetail({
+      variant_id: "v-master",
+      sku: "PARENT-CODE",
+      variant_attributes: {},
+    });
+
+    expect(detailMatchesDrawerVariant(detail, null)).toBe(true);
+    expect(detailMatchesDrawerVariant(detail, undefined)).toBe(true);
+    expect(detailMatchesDrawerVariant(detail, "v-master")).toBe(true);
+  });
+
+  it("matches explicit sellable variant opens", () => {
+    const detail = minimalDetail({});
+
+    expect(detailMatchesDrawerVariant(detail, "v-sellable")).toBe(true);
+    expect(detailMatchesDrawerVariant(detail, null)).toBe(false);
+  });
+
+  it("matches single-SKU detail without a drawer variant", () => {
+    const detail = minimalDetail({
+      variant_strategy: "SINGLE_SKU",
+      has_variants: false,
+      variant_id: "v-only",
+      sku: "SKU-ONLY",
+      variants: [
+        {
+          id: "v-only",
+          sku: "SKU-ONLY",
+          barcode: null,
+          variant_attributes: {},
+          dead_weight_kg: "0",
+          volume: "0",
+          length_cm: "0",
+          width_cm: "0",
+          height_cm: "0",
+          is_active: true,
+          is_master: true,
+          is_sellable: true,
+          price: "10",
+          purchase_price: null,
+          supplier_name: null,
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(detailMatchesDrawerVariant(detail, null)).toBe(true);
   });
 });

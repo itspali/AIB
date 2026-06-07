@@ -12,6 +12,7 @@ import {
   WEBHOOK_VERIFICATION_STATUSES,
 } from "@/lib/locations/virtual-config";
 import { locationNamingSequencesSchema } from "@/lib/naming/sequences";
+import { THEMES, type Theme } from "@/lib/theme/themes";
 
 export const virtualLocationConfigurationSchema = z.object({
   fulfillment_assignment_mode: z.enum(VIRTUAL_FULFILLMENT_MODES),
@@ -61,6 +62,10 @@ export const locationFormSchema = z
       .nullable()
       .optional(),
     existing_location_meta: z.record(z.unknown()).optional(),
+    location_theme_enabled: z.boolean(),
+    location_theme: z.enum(THEMES as [Theme, ...Theme[]]),
+    location_primary_hue: z.number().int().min(0).max(360).nullable(),
+    location_accent_hue: z.number().int().min(0).max(360).nullable(),
     virtual_configuration: virtualLocationConfigurationSchema.optional(),
     naming_sequences: locationNamingSequencesSchema.optional(),
   })

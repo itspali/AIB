@@ -2,7 +2,6 @@
 
 import { Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +9,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { resolveProductListCellTextWrapClass } from "@/components/products/product-list-cells";
+import { ProductCardBulkCheckbox } from "@/components/products/product-list-card-parts";
+import {
+  renderProductListActiveStatus,
+  resolveProductListCellTextWrapClass,
+} from "@/components/products/product-list-cells";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import { buildCardLayoutPlan } from "@/lib/products/card-layout-plan";
 import type { ProductListRow } from "@/lib/products/types";
+import {
+  productListCardHoverClass,
+  productListCardShellClass,
+  productListCardSurfaceClass,
+} from "@/lib/products/list-card-surface";
 import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import {
   productListHasVariantsBadgeLabel,
@@ -31,10 +40,13 @@ type CardProps = {
   product: ProductListRow;
   columns: ProductListColumnId[];
   columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
+  columnChipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
   showVariants?: boolean;
   selected: boolean;
   bulkSelected: boolean;
   onSelect: (productId: string, variantId?: string | null) => void;
+  onProductHover?: (productId: string, variantId?: string | null) => void;
+  onProductPointerEnter?: (productId: string, variantId?: string | null) => void;
   onBulkToggle: (checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
 };
@@ -107,10 +119,13 @@ export function ProductListCompactCardShop({
   product,
   columns,
   columnWrapModes,
+  columnChipDisplay,
   showVariants = false,
   selected,
   bulkSelected,
   onSelect,
+  onProductHover,
+  onProductPointerEnter,
   onBulkToggle,
   onImageClick,
 }: CardProps) {
@@ -125,11 +140,16 @@ export function ProductListCompactCardShop({
   const showImageWell = plan.hero.showImage;
   const secondaryFields = [...plan.details, ...plan.detailOverflow];
 
+  const cardSurfaceClass = productListCardSurfaceClass(presentation, selected);
+
   return (
     <article
+      data-row-kind={presentation.kind}
       role="button"
       tabIndex={0}
       onClick={() => onSelect(product.id, product.variant_id)}
+      onMouseEnter={() => onProductHover?.(product.id, product.variant_id)}
+      onPointerEnter={() => onProductPointerEnter?.(product.id, product.variant_id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -137,32 +157,25 @@ export function ProductListCompactCardShop({
         }
       }}
       className={cn(
-        "group flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-xl border border-border/80 bg-card text-left shadow-sm transition-all duration-200",
-        "hover:-translate-y-0.5 hover:border-border hover:shadow-md",
-        presentation.isExpandedVariantRow && "border-dashed bg-muted/20",
-        rowInactive && "opacity-60",
-        selected && "border-primary/60 ring-2 ring-primary/25"
+        "group relative flex h-full w-full cursor-pointer flex-col overflow-hidden text-left",
+        productListCardShellClass,
+        productListCardHoverClass,
+        cardSurfaceClass,
+        rowInactive && "opacity-60"
       )}
     >
+      <ProductCardBulkCheckbox
+        product={product}
+        bulkSelected={bulkSelected}
+        onBulkToggle={onBulkToggle}
+      />
       {showImageWell ? (
-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-muted/30 sm:aspect-square">
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-muted/40 sm:aspect-square">
           <ShopProductImage
             product={product}
             showImage={showImageWell}
             onImageClick={onImageClick}
           />
-
-          <div
-            className="absolute left-2 top-2 z-10"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Checkbox
-              checked={bulkSelected}
-              onCheckedChange={(checked) => onBulkToggle(checked === true)}
-              className="h-4 w-4 border-background/80 bg-background/90 shadow-sm backdrop-blur-sm data-[state=checked]:bg-primary"
-              aria-label={`Select ${product.name}`}
-            />
-          </div>
 
           <div className="absolute right-2 top-2 z-10 flex max-w-[55%] flex-col items-end gap-1">
             {presentation.isExpandedVariantRow ? (
@@ -177,13 +190,11 @@ export function ProductListCompactCardShop({
                 variant={productListRowKindBadgeVariant("style")}
                 className="shrink-0 text-[10px] shadow-sm"
               >
-                {productListHasVariantsBadgeLabel()}
+                {productListHasVariantsBadgeLabel(product.sellable_variant_count)}
               </Badge>
             ) : null}
-            {plan.chrome.showStatus && !rowActive ? (
-              <Badge variant="locked" className="text-[10px] shadow-sm">
-                Inactive
-              </Badge>
+            {plan.chrome.showStatus ? (
+              renderProductListActiveStatus(rowActive, columnChipDisplay?.is_active)
             ) : null}
           </div>
 
@@ -193,23 +204,14 @@ export function ProductListCompactCardShop({
             </div>
           ) : null}
         </div>
-      ) : (
+      ) : plan.chrome.showStatus ? (
         <div
-          className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2"
+          className="flex items-center justify-end gap-2 border-b border-border/60 px-3 py-2"
           onClick={(event) => event.stopPropagation()}
         >
-          <Checkbox
-            checked={bulkSelected}
-            onCheckedChange={(checked) => onBulkToggle(checked === true)}
-            aria-label={`Select ${product.name}`}
-          />
-          {plan.chrome.showStatus && !rowActive ? (
-            <Badge variant="locked" className="text-[10px]">
-              Inactive
-            </Badge>
-          ) : null}
+          {renderProductListActiveStatus(rowActive, columnChipDisplay?.is_active)}
         </div>
-      )}
+      ) : null}
 
       <div className="flex flex-1 flex-col gap-1.5 p-3">
         {shop.showCategory && shop.category ? (
@@ -221,7 +223,7 @@ export function ProductListCompactCardShop({
         {plan.hero.showTitle ? (
           <h3
             className={cn(
-              "line-clamp-2 text-sm font-medium leading-snug text-foreground",
+              "min-w-0 text-sm font-medium leading-snug text-foreground",
               resolveProductListCellTextWrapClass("name", columnWrapModes?.name, "card")
             )}
           >

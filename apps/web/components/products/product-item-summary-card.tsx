@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Check, Layers, Package, XCircle } from "lucide-react";
 import { formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
@@ -25,9 +25,15 @@ import {
   SUMMARY_INVENTORY_VARIANT_SECTION,
   SUMMARY_MASTER_DEFAULTS_HELP,
   SUMMARY_MASTER_DEFAULTS_SECTION,
+  SUMMARY_MEDIA_EMPTY,
+  SUMMARY_MEDIA_PRODUCT_HELP,
+  SUMMARY_MEDIA_SECTION,
+  SUMMARY_MEDIA_VARIANT_HELP,
   SUMMARY_PRODUCT_PROFILE,
   SUMMARY_PRODUCT_SECTION,
   SUMMARY_PRODUCT_SECTION_HELP,
+  CATEGORY_FIELDS_SECTION_HELP,
+  categoryFieldsSectionTitle,
   SUMMARY_VARIANT_LINE_HELP,
   SUMMARY_VARIANT_LINE_SECTION,
   SUMMARY_VIEWING_VARIANT,
@@ -37,12 +43,40 @@ import {
   VARIANTS_EMPTY_STATE,
   VARIANTS_PEEK_DESCRIPTION,
   VARIANTS_SECTION_LABEL,
+  CATALOG_REACH_CHANNELS_EMPTY,
+  CATALOG_REACH_CUSTOM_FIELDS_EMPTY,
+  CATALOG_REACH_RECORD_SUBSECTION,
+  CATALOG_REACH_TAB_LABEL,
+  CATALOG_REACH_TAGS_EMPTY,
+  CUSTOM_FIELDS_SECTION_HELP,
+  CUSTOM_FIELDS_SECTION_LABEL,
+  DISCOVERY_TAGS_SECTION_HELP,
+  DISCOVERY_TAGS_SECTION_LABEL,
+  VISIBILITY_CHANNELS_SUBSECTION,
+  VISIBILITY_SECTION_HELP,
+  VISIBILITY_SECTION_LABEL,
 } from "@/lib/products/product-user-labels";
 import {
   computeVolumeCm3FromDimensions,
   resolveShippingDimensionDefault,
 } from "@/lib/products/shipping-dimensions";
+import {
+  filterSharedMedia,
+  findMasterVariant,
+  resolveMediaVariantSkuBadge,
+  sortMediaEntries,
+} from "@/lib/products/media-variants";
+import {
+  resolveEffectivePrimaryMediaId,
+  resolveVariantMediaGallery,
+} from "@/lib/products/primary-image";
 import { variantStrategyLabel } from "@/lib/products/variant-strategy";
+import { ProductMediaSummaryGallery } from "@/components/products/product-media-gallery";
+import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import {
+  formatDescriptiveVariantAttributes,
+  formatVariantAxisLabels,
+} from "@/lib/products/variant-composition";
 import {
   isDetailVariantSkuContext,
   resolveDetailIdentitySku,
@@ -53,13 +87,31 @@ import {
 } from "@/lib/products/types";
 import { ProfileSectionCard } from "@/components/products/profile-section-card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useElementWidth } from "@/lib/layout/use-element-width";
+import {
+  isPeekSectionLoaded,
+  peekPanelToSection,
+  resolveSellableVariantCount,
+  resolveTotalVariantCount,
+  type ProductPeekPanelId,
+} from "@/lib/products/peek-panels";
 import { cn } from "@/lib/utils";
 
 type Props = {
   detail: ProductDetailSnapshot;
   currency: string;
   catalogContext?: ProductCatalogContext | null;
+  categoryTemplates?: AttributeTemplateEntry[];
+  /** Replaces the read-only gallery with an editor slot (e.g. ProductMediaGallery). */
+  mediaEditable?: boolean;
+  mediaEditorSlot?: ReactNode;
+  peekPanel?: ProductPeekPanelId;
+  onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
+  peekPanelLoading?: ProductPeekPanelId | null;
+  isValuationsLoading?: boolean;
 };
 
 const fieldLabelClass = "text-xs text-muted-foreground";
@@ -103,6 +155,50 @@ function hasPriceValue(value: string | null | undefined): boolean {
   return Boolean(trimmed && trimmed !== "0");
 }
 
+function InventoryRowSkeleton() {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <Skeleton className="h-3.5 w-24 shimmer" />
+      <Skeleton className="h-4 w-20 shimmer" />
+    </div>
+  );
+}
+
+function InventorySectionSkeleton({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <ProfileSectionCard title={title} description={description}>
+      <InventoryRowSkeleton />
+      <InventoryRowSkeleton />
+      <InventoryRowSkeleton />
+      <div className="mt-2 overflow-hidden rounded-md border border-border/60">
+        <div className="border-b border-border bg-muted/40 px-2.5 py-1.5">
+          <div className="flex justify-between gap-3">
+            <Skeleton className="h-3 w-16 shimmer" />
+            <Skeleton className="h-3 w-14 shimmer" />
+            <Skeleton className="h-3 w-14 shimmer" />
+          </div>
+        </div>
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div
+            key={index}
+            className="flex justify-between gap-3 border-b border-border/40 px-2.5 py-2 last:border-0"
+          >
+            <Skeleton className="h-4 w-24 shimmer" />
+            <Skeleton className="h-4 w-12 shimmer" />
+            <Skeleton className="h-4 w-16 shimmer" />
+          </div>
+        ))}
+      </div>
+    </ProfileSectionCard>
+  );
+}
+
 function Row({
   label,
   value,
@@ -129,7 +225,7 @@ function Row({
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0">
+    <div className="flex items-start justify-between gap-3 border-b border-border/60 py-2 last:border-0">
       <span className={cn("shrink-0", fieldLabelClass)}>{label}</span>
       <span className={cn("min-w-0 text-right", valueClassName)}>
         {value ?? "—"}
@@ -185,7 +281,7 @@ function BehaviorFlagChip({ label, enabled }: { label: string; enabled: boolean 
         "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium leading-none",
         enabled
           ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-          : "border-border/70 bg-muted/35 text-muted-foreground"
+          : "border-border/80 bg-muted/40 text-muted-foreground"
       )}
       aria-label={`${label}: ${enabled ? "yes" : "no"}`}
     >
@@ -227,7 +323,7 @@ function SummaryContextBanner({
   productCode: string;
 }) {
   const isMultiSku = detail.variant_strategy === "MULTI_SKU";
-  const sellableCount = detail.variants.filter((v) => v.is_sellable !== false && !v.is_master).length;
+  const sellableCount = resolveSellableVariantCount(detail);
 
   if (variantSkuContext && selectedVariant) {
     const attributeLine = formatVariantAttributes(selectedVariant.variant_attributes);
@@ -375,7 +471,67 @@ function resolveShippingFromMaster(detail: ProductDetailSnapshot) {
   };
 }
 
-export function ProductItemSummaryCard({ detail, currency, catalogContext }: Props) {
+function buildSummaryMediaEntries(
+  detail: ProductDetailSnapshot,
+  variantSkuContext: boolean
+) {
+  const masterVariant = findMasterVariant(detail.variants);
+  const sharedMedia = filterSharedMedia(detail.media, masterVariant);
+  const sharedIds = new Set(sharedMedia.map((entry) => entry.id));
+
+  if (variantSkuContext && detail.variant_id) {
+    const gallery = resolveVariantMediaGallery(
+      detail.media,
+      detail.variant_id,
+      detail.variants
+    );
+    return gallery.map((entry) => {
+      const inherited = sharedIds.has(entry.id) && entry.variant_id !== detail.variant_id;
+      return {
+        entry,
+        inherited,
+        variantSku: inherited
+          ? null
+          : resolveMediaVariantSkuBadge(entry.variant_id, detail.variants, masterVariant),
+      };
+    });
+  }
+
+  const variantOnly = sortMediaEntries(
+    detail.media.filter(
+      (entry) =>
+        entry.variant_id !== null &&
+        entry.variant_id !== masterVariant?.id &&
+        !sharedIds.has(entry.id)
+    )
+  );
+
+  return [
+    ...sharedMedia.map((entry) => ({
+      entry,
+      inherited: false,
+      variantSku: resolveMediaVariantSkuBadge(entry.variant_id, detail.variants, masterVariant),
+    })),
+    ...variantOnly.map((entry) => ({
+      entry,
+      inherited: false,
+      variantSku: resolveMediaVariantSkuBadge(entry.variant_id, detail.variants, masterVariant),
+    })),
+  ];
+}
+
+export function ProductItemSummaryCard({
+  detail,
+  currency,
+  catalogContext,
+  categoryTemplates = [],
+  mediaEditable = false,
+  mediaEditorSlot,
+  peekPanel = "essentials",
+  onPeekPanelChange,
+  peekPanelLoading = null,
+  isValuationsLoading = false,
+}: Props) {
   const { ref: layoutRef, width: layoutWidth } = useElementWidth<HTMLDivElement>();
   const twoColumns = layoutWidth != null && layoutWidth >= 720;
 
@@ -395,6 +551,19 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
   const isPhysical = detail.item_type === "PHYSICAL";
   const tracksInventory = resolveItemTrackInventory(detail);
   const isMultiSku = detail.variant_strategy === "MULTI_SKU";
+  const productAttributeSummary = useMemo(
+    () =>
+      formatDescriptiveVariantAttributes(
+        detail.variant_attributes,
+        categoryTemplates,
+        detail.variant_axes
+      ),
+    [categoryTemplates, detail.variant_attributes, detail.variant_axes]
+  );
+  const variesBySummary = useMemo(
+    () => formatVariantAxisLabels(detail.variant_axes, categoryTemplates),
+    [categoryTemplates, detail.variant_axes]
+  );
   const variantSkuContext = isDetailVariantSkuContext(detail);
   const productCode = isMultiSku ? resolveMasterFormSku(detail) : resolveDetailIdentitySku(detail);
   const masterVariant = detail.variants.find((v) => v.is_master) ?? null;
@@ -431,6 +600,34 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
   const variantSellPrice = selectedVariant?.price;
   const variantBuyPrice = selectedVariant?.purchase_price;
 
+  const summaryMediaEntries = useMemo(
+    () => buildSummaryMediaEntries(detail, variantSkuContext),
+    [detail, variantSkuContext]
+  );
+  const summaryMediaPrimaryId = useMemo(
+    () =>
+      resolveEffectivePrimaryMediaId(
+        summaryMediaEntries.map(({ entry }) => entry),
+        variantSkuContext && detail.variant_id
+          ? {
+              variantId: detail.variant_id,
+              masterVariantId: masterVariant?.id ?? null,
+            }
+          : { masterVariantId: masterVariant?.id ?? null }
+      ),
+    [detail.variant_id, masterVariant?.id, summaryMediaEntries, variantSkuContext]
+  );
+  const storefrontVisibleCount = detail.media.filter((entry) => entry.show_on_storefront).length;
+  const usePeekTabs = Boolean(onPeekPanelChange);
+  const showVariantsTab =
+    isMultiSku || resolveTotalVariantCount(detail) > 1 || detail.variants.length > 1;
+  const activeSection = peekPanelToSection(peekPanel);
+  const isActivePanelLoading =
+    Boolean(activeSection) &&
+    !isPeekSectionLoaded(detail, activeSection!) &&
+    peekPanelLoading === peekPanel;
+  const showPanel = (panel: ProductPeekPanelId) => !usePeekTabs || peekPanel === panel;
+
   return (
     <div ref={layoutRef} className="space-y-3 p-3 pb-6">
       <SummaryContextBanner
@@ -440,12 +637,80 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
         productCode={productCode}
       />
 
+      {usePeekTabs ? (
+        <Tabs
+          value={peekPanel}
+          onValueChange={(value) => onPeekPanelChange?.(value as ProductPeekPanelId)}
+        >
+          <TabsList className="w-full">
+            <TabsTrigger value="essentials" className="flex-1">
+              Essentials
+            </TabsTrigger>
+            {showVariantsTab ? (
+              <TabsTrigger value="variants" className="flex-1">
+                Variants
+              </TabsTrigger>
+            ) : null}
+            <TabsTrigger value="media" className="flex-1">
+              Media
+            </TabsTrigger>
+            <TabsTrigger value="reach" className="flex-1">
+              {CATALOG_REACH_TAB_LABEL}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : null}
+
+      {isActivePanelLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Spinner className="h-6 w-6" />
+        </div>
+      ) : (
       <div
         className={cn(
           "grid gap-3",
           twoColumns ? "grid-cols-2 items-start" : "grid-cols-1"
         )}
       >
+        {showPanel("media") ? (
+        <ProfileSectionCard
+          title={SUMMARY_MEDIA_SECTION}
+          description={
+            variantSkuContext ? SUMMARY_MEDIA_VARIANT_HELP : SUMMARY_MEDIA_PRODUCT_HELP
+          }
+          className={twoColumns ? "col-span-full" : undefined}
+        >
+          {mediaEditable && mediaEditorSlot ? (
+            mediaEditorSlot
+          ) : summaryMediaEntries.length > 0 ? (
+            <ProductMediaSummaryGallery
+              entries={summaryMediaEntries}
+              effectivePrimaryId={summaryMediaPrimaryId}
+            />
+          ) : (
+            <p className="py-1 text-sm text-muted-foreground">{SUMMARY_MEDIA_EMPTY}</p>
+          )}
+          {summaryMediaEntries.length > 0 ? (
+            <div className="mt-2 space-y-0 border-t border-border/40 pt-2">
+              <Row
+                label="Images"
+                value={`${summaryMediaEntries.length} in this view`}
+              />
+              <Row
+                label="Storefront"
+                value={
+                  storefrontVisibleCount > 0
+                    ? `${storefrontVisibleCount} visible`
+                    : "None flagged"
+                }
+              />
+            </div>
+          ) : null}
+        </ProfileSectionCard>
+        ) : null}
+
+        {showPanel("essentials") ? (
+        <>
         <ProfileSectionCard
           title={SUMMARY_PRODUCT_SECTION}
           description={SUMMARY_PRODUCT_SECTION_HELP}
@@ -475,8 +740,14 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
             value={hasText(detail.category_name) ? detail.category_name : ""}
           />
           <Row label="Supply-chain role" value={classificationLabel(detail.classification)} />
-          {isMultiSku && detail.variant_axes.length > 0 ? (
-            <Row label="Varies by" value={detail.variant_axes.join(", ")} />
+          {isMultiSku && variesBySummary ? (
+            <Row label="Varies by" value={variesBySummary} />
+          ) : null}
+          {productAttributeSummary && !usePeekTabs ? (
+            <Row
+              label={categoryFieldsSectionTitle(detail.category_name)}
+              value={productAttributeSummary}
+            />
           ) : null}
           {detail.needs_review ? <Row label="Review" value="Needs review" /> : null}
           <div className="border-t border-border/40 pt-2">
@@ -627,53 +898,66 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
         ) : null}
 
         {tracksInventory ? (
-          <ProfileSectionCard
-            title={variantSkuContext ? SUMMARY_INVENTORY_VARIANT_SECTION : SUMMARY_INVENTORY_SECTION}
-            description={
-              variantSkuContext
-                ? SUMMARY_INVENTORY_VARIANT_HELP
-                : isMultiSku
-                  ? SUMMARY_INVENTORY_ALL_VARIANTS_HELP
-                  : "Stock levels and costing"
-            }
-          >
-            <Row
-              label="Total on hand"
-              value={fmtQty(String(totalStock), detail.base_unit_of_measure)}
-              numeric
+          isValuationsLoading && detail.valuations.length === 0 ? (
+            <InventorySectionSkeleton
+              title={variantSkuContext ? SUMMARY_INVENTORY_VARIANT_SECTION : SUMMARY_INVENTORY_SECTION}
+              description={
+                variantSkuContext
+                  ? SUMMARY_INVENTORY_VARIANT_HELP
+                  : isMultiSku
+                    ? SUMMARY_INVENTORY_ALL_VARIANTS_HELP
+                    : "Stock levels and costing"
+              }
             />
-            <Row label="Costing method" value={itemCostingMethodLabel(detail.costing_method)} />
-            <Row label="Tracking mode" value={itemTrackingModeLabel(detail.tracking_mode)} />
-            {detail.valuations.length > 0 ? (
-              <div className="mt-2 overflow-x-auto rounded-md border border-border/60">
-                <table className="w-full min-w-[16rem]">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40 text-left">
-                      <th className={cn("px-2.5 py-1.5", fieldLabelClass)}>Location</th>
-                      <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>On hand</th>
-                      <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>Avg cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.valuations.map((v, index) => (
-                      <tr
-                        key={`${v.location_id}:${index}`}
-                        className="border-b border-border/40 last:border-0"
-                      >
-                        <td className={cn("px-2.5 py-1.5", fieldValueClass)}>{v.location_name}</td>
-                        <td className={cn("px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
-                          {fmtQty(v.total_quantity_on_hand, detail.base_unit_of_measure)}
-                        </td>
-                        <td className={cn("px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
-                          {fmtMoney(v.current_average_cost, currency)}
-                        </td>
+          ) : (
+            <ProfileSectionCard
+              title={variantSkuContext ? SUMMARY_INVENTORY_VARIANT_SECTION : SUMMARY_INVENTORY_SECTION}
+              description={
+                variantSkuContext
+                  ? SUMMARY_INVENTORY_VARIANT_HELP
+                  : isMultiSku
+                    ? SUMMARY_INVENTORY_ALL_VARIANTS_HELP
+                    : "Stock levels and costing"
+              }
+            >
+              <Row
+                label="Total on hand"
+                value={fmtQty(String(totalStock), detail.base_unit_of_measure)}
+                numeric
+              />
+              <Row label="Costing method" value={itemCostingMethodLabel(detail.costing_method)} />
+              <Row label="Tracking mode" value={itemTrackingModeLabel(detail.tracking_mode)} />
+              {detail.valuations.length > 0 ? (
+                <div className="mt-2 overflow-x-auto rounded-md border border-border/60">
+                  <table className="w-full min-w-[16rem]">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40 text-left">
+                        <th className={cn("px-2.5 py-1.5", fieldLabelClass)}>Location</th>
+                        <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>On hand</th>
+                        <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>Avg cost</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </ProfileSectionCard>
+                    </thead>
+                    <tbody>
+                      {detail.valuations.map((v, index) => (
+                        <tr
+                          key={`${v.location_id}:${index}`}
+                          className="border-b border-border/40 last:border-0"
+                        >
+                          <td className={cn("px-2.5 py-1.5", fieldValueClass)}>{v.location_name}</td>
+                          <td className={cn("px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                            {fmtQty(v.total_quantity_on_hand, detail.base_unit_of_measure)}
+                          </td>
+                          <td className={cn("px-2.5 py-1.5 text-right", fieldValueNumericClass)}>
+                            {fmtMoney(v.current_average_cost, currency)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </ProfileSectionCard>
+          )
         ) : isPhysical ? (
           <ProfileSectionCard title={SUMMARY_INVENTORY_SECTION} description="Stock tracking">
             <p className="py-1 text-sm text-muted-foreground">
@@ -687,13 +971,15 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
             <Row label="Supplier" value={detail.supplier_name} />
           </ProfileSectionCard>
         ) : null}
+        </>
+        ) : null}
 
-        {(isMultiSku || detail.variants.length > 1) && (
+        {showPanel("variants") && (isMultiSku || detail.variants.length > 1) ? (
           <ProfileSectionCard
             title={VARIANTS_SECTION_LABEL}
             description={VARIANTS_PEEK_DESCRIPTION(
               sellableVariants.filter((v) => v.is_sellable !== false).length,
-              detail.variants.length
+              resolveTotalVariantCount(detail)
             )}
             className={twoColumns ? "col-span-full" : undefined}
           >
@@ -812,83 +1098,94 @@ export function ProductItemSummaryCard({ detail, currency, catalogContext }: Pro
               </div>
             )}
           </ProfileSectionCard>
-        )}
-
-        {visibleStorefronts.length > 0 ? (
-          <ProfileSectionCard title="Reach" description="Visible on storefront channels">
-            <div className="space-y-1.5">
-              {visibleStorefronts.map((row) => (
-                <div
-                  key={row.storefront_id}
-                  className="flex items-start justify-between gap-2 rounded-md border border-border/50 px-2.5 py-1.5"
-                >
-                  <div className="min-w-0">
-                    <p className={fieldValueClass}>{row.storefront_name}</p>
-                    <p className={fieldLabelClass}>{row.channel_type}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    {row.store_custom_name ? (
-                      <p className={fieldValueClass}>{row.store_custom_name}</p>
-                    ) : null}
-                    {row.store_price_book_id ? (
-                      <p className={cn(fieldValueClass, "font-normal text-muted-foreground")}>
-                        {priceBookNameById.get(row.store_price_book_id) ?? "Price book"}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ProfileSectionCard>
         ) : null}
 
-        {detail.custom_fields.length > 0 ? (
-          <ProfileSectionCard title="Custom fields" description="Catalog extensions">
-            {detail.custom_fields.map((field) => (
-              <Row key={field.key} label={field.key} value={field.value || "—"} />
-            ))}
-          </ProfileSectionCard>
-        ) : null}
-
-        {detail.tags.length > 0 ? (
-          <ProfileSectionCard title="Tags" description="Discovery and grouping">
-            <div className="flex flex-wrap gap-1.5 py-1">
-              {detail.tags.map((tag) => (
-                <Badge key={tag.id} variant="administrative">
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
-          </ProfileSectionCard>
-        ) : null}
-
-        <ProfileSectionCard title="Media" description="Images and assets">
-          <Row
-            label="Assets"
-            value={
-              detail.media.length === 0
-                ? "None"
-                : `${detail.media.length} file${detail.media.length === 1 ? "" : "s"}`
-            }
-          />
-          {detail.media.length > 0 ? (
-            <Row
-              label="Primary on storefront"
-              value={
-                detail.media.filter((m) => m.show_on_storefront).length > 0
-                  ? `${detail.media.filter((m) => m.show_on_storefront).length} visible`
-                  : "None flagged"
-              }
-            />
+        {showPanel("reach") ? (
+        <>
+          {productAttributeSummary ? (
+            <ProfileSectionCard
+              title={categoryFieldsSectionTitle(detail.category_name)}
+              description={CATEGORY_FIELDS_SECTION_HELP}
+            >
+              <Row label="Attributes" value={productAttributeSummary} />
+            </ProfileSectionCard>
           ) : null}
-        </ProfileSectionCard>
 
-        <ProfileSectionCard title="Record" description="Audit trail">
-          <Row label="Source" value={detail.source.replace(/_/g, " ")} />
-          <Row label="Created" value={formatDate(detail.created_at)} />
-          <Row label="Updated" value={formatDate(detail.updated_at)} />
-        </ProfileSectionCard>
+          <ProfileSectionCard
+            title={CUSTOM_FIELDS_SECTION_LABEL}
+            description={CUSTOM_FIELDS_SECTION_HELP}
+          >
+            {detail.custom_fields.length > 0 ? (
+              detail.custom_fields.map((field) => (
+                <Row key={field.key} label={field.key} value={field.value || "—"} />
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">{CATALOG_REACH_CUSTOM_FIELDS_EMPTY}</p>
+            )}
+          </ProfileSectionCard>
+
+          <ProfileSectionCard
+            title={DISCOVERY_TAGS_SECTION_LABEL}
+            description={DISCOVERY_TAGS_SECTION_HELP}
+          >
+            {detail.tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 py-0.5">
+                {detail.tags.map((tag) => (
+                  <Badge key={tag.id} variant="administrative">
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{CATALOG_REACH_TAGS_EMPTY}</p>
+            )}
+          </ProfileSectionCard>
+
+          <ProfileSectionCard
+            title={VISIBILITY_SECTION_LABEL}
+            description={VISIBILITY_SECTION_HELP}
+          >
+            <p className={cn(fieldLabelClass, "mb-1.5 font-medium text-foreground/80")}>
+              {VISIBILITY_CHANNELS_SUBSECTION}
+            </p>
+            {visibleStorefronts.length > 0 ? (
+              <div className="space-y-1.5">
+                {visibleStorefronts.map((row) => (
+                  <div
+                    key={row.storefront_id}
+                    className="flex items-start justify-between gap-2 rounded-md border border-border/50 px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0">
+                      <p className={fieldValueClass}>{row.storefront_name}</p>
+                      <p className={fieldLabelClass}>{row.channel_type}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {row.store_custom_name ? (
+                        <p className={fieldValueClass}>{row.store_custom_name}</p>
+                      ) : null}
+                      {row.store_price_book_id ? (
+                        <p className={cn(fieldValueClass, "font-normal text-muted-foreground")}>
+                          {priceBookNameById.get(row.store_price_book_id) ?? "Price book"}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{CATALOG_REACH_CHANNELS_EMPTY}</p>
+            )}
+          </ProfileSectionCard>
+
+          <ProfileSectionCard title={CATALOG_REACH_RECORD_SUBSECTION} description="Audit trail">
+            <Row label="Source" value={detail.source.replace(/_/g, " ")} />
+            <Row label="Created" value={formatDate(detail.created_at)} />
+            <Row label="Updated" value={formatDate(detail.updated_at)} />
+          </ProfileSectionCard>
+        </>
+        ) : null}
       </div>
+      )}
     </div>
   );
 }

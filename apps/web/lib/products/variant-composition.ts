@@ -15,14 +15,89 @@ export type VariantCompositionSplit = {
  */
 const DEFAULT_AXIS_TYPES: ReadonlySet<AttributeFieldType> = new Set<AttributeFieldType>([
   "select",
-  "multiselect",
 ]);
 
 export function isDefaultAxisTemplate(template: AttributeTemplateEntry): boolean {
+  if (!isVariantAxisCandidate(template)) return false;
   // An explicit category role wins over the type-based heuristic.
   if (template.role === "axis") return true;
   if (template.role === "descriptive") return false;
   return DEFAULT_AXIS_TYPES.has(template.type) && (template.options?.length ?? 0) > 0;
+}
+
+/** Attributes that may appear in the “Varies by” picker (excludes multiselect). */
+export function isVariantAxisCandidate(template: AttributeTemplateEntry): boolean {
+  if (template.type === "multiselect") return false;
+  if (template.role === "descriptive") return false;
+  return true;
+}
+
+export function filterVariantAxisCandidateTemplates(
+  templates: AttributeTemplateEntry[]
+): AttributeTemplateEntry[] {
+  return templates.filter(isVariantAxisCandidate);
+}
+
+export function sanitizeVariantAxisKeys(
+  axisKeys: Iterable<string>,
+  templates: AttributeTemplateEntry[]
+): string[] {
+  const allowed = new Set(
+    filterVariantAxisCandidateTemplates(templates).map((template) => template.key)
+  );
+  return [...axisKeys].filter((key) => allowed.has(key));
+}
+
+export function countSellableVariants(
+  variants: Array<{ is_master?: boolean; is_sellable?: boolean }>
+): number {
+  return variants.filter((variant) => !variant.is_master && variant.is_sellable !== false).length;
+}
+
+/** Product-level attribute values — category fields not used as variant axes. */
+export function pickDescriptiveVariantAttributes(
+  attributes: Record<string, string>,
+  templates: AttributeTemplateEntry[],
+  axisKeys: Iterable<string>
+): Record<string, string> {
+  const { descriptive } = splitTemplatesByAxis(templates, axisKeys);
+  const picked: Record<string, string> = {};
+  for (const template of descriptive) {
+    if (attributes[template.key] !== undefined) {
+      picked[template.key] = attributes[template.key] ?? "";
+    }
+  }
+  return picked;
+}
+
+export function formatVariantAxisLabels(
+  axisKeys: string[],
+  templates: AttributeTemplateEntry[]
+): string {
+  if (!axisKeys.length) return "";
+  return axisKeys
+    .map((key) => templates.find((template) => template.key === key)?.label ?? key)
+    .join(", ");
+}
+
+export function formatDescriptiveVariantAttributes(
+  attributes: Record<string, unknown> | null | undefined,
+  templates: AttributeTemplateEntry[],
+  axisKeys: Iterable<string>
+): string {
+  const { descriptive } = splitTemplatesByAxis(templates, axisKeys);
+  const parts = descriptive
+    .map((template) => {
+      const raw = attributes?.[template.key];
+      if (raw === null || raw === undefined) return null;
+      const text = Array.isArray(raw)
+        ? raw.map(String).filter(Boolean).join(", ")
+        : String(raw).trim();
+      if (!text) return null;
+      return `${template.label}: ${text}`;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+  return parts.length ? parts.join(" · ") : "";
 }
 
 /** Attribute keys already used (with a non-empty value) by existing variants. */
@@ -54,7 +129,9 @@ export function defaultVariantAxisKeys(
   usedKeys: Iterable<string> = []
 ): string[] {
   const used = new Set(usedKeys);
-  const fromVariants = templates.filter((template) => used.has(template.key));
+  const fromVariants = templates.filter(
+    (template) => used.has(template.key) && isVariantAxisCandidate(template)
+  );
   if (fromVariants.length > 0) {
     return fromVariants.map((template) => template.key);
   }
@@ -81,7 +158,7 @@ export function splitTemplatesByAxis(
 
 /** Category defines at least one attribute that could split versions. */
 export function categoryHasComposableAxes(templates: AttributeTemplateEntry[]): boolean {
-  return templates.some(
+  return filterVariantAxisCandidateTemplates(templates).some(
     (template) =>
       template.role === "axis" ||
       ((template.options?.length ?? 0) > 0 && template.role !== "descriptive")
@@ -109,9 +186,19 @@ export function validateVariantAxesSelection(input: {
   if (input.variant_axes.length < 1) {
     return "Choose at least one attribute that varies by variant.";
   }
-  const templateKeys = new Set(input.categoryTemplates.map((template) => template.key));
+  const allowedTemplates = new Map(
+    filterVariantAxisCandidateTemplates(input.categoryTemplates).map((template) => [
+      template.key,
+      template,
+    ])
+  );
   for (const key of input.variant_axes) {
-    if (!templateKeys.has(key)) {
+    const template = allowedTemplates.get(key);
+    if (!template) {
+      const onCategory = input.categoryTemplates.some((entry) => entry.key === key);
+      if (onCategory) {
+        return `"${key}" cannot be used as a variant axis.`;
+      }
       return `"${key}" is not defined on this category.`;
     }
   }

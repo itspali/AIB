@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { deactivateLocation, reactivateLocation } from "@/app/settings/locations/actions";
 import { LocationDetailViewport } from "@/components/locations/location-detail-viewport";
 import { LocationGovernanceBanner } from "@/components/locations/location-governance-banner";
 import { LocationHierarchyRail } from "@/components/locations/location-hierarchy-rail";
+import { LocationListColumnSettings } from "@/components/locations/location-list-column-settings";
 import { LocationModuleHeader } from "@/components/locations/location-module-header";
 import { LocationPristineCanvas } from "@/components/locations/location-pristine-canvas";
 import { LocationProvisionForm } from "@/components/locations/location-provision-form";
@@ -14,6 +15,12 @@ import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { OmnibarFilterChipBar } from "@/components/search/omnibar-filter-chip-bar";
 import { Button } from "@/components/ui/button";
 import { canAddLocation } from "@/lib/locations/governance";
+import {
+  getDefaultLocationListPrefs,
+  loadLocationListPrefs,
+  saveLocationListPrefs,
+  type LocationListPrefs,
+} from "@/lib/locations/list-prefs";
 import type { LocationModuleContext, LocationRow } from "@/lib/locations/types";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +36,18 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("empty");
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [listPrefs, setListPrefs] = useState<LocationListPrefs>(getDefaultLocationListPrefs);
+  const [listPrefsHydrated, setListPrefsHydrated] = useState(false);
+
+  useEffect(() => {
+    setListPrefs(loadLocationListPrefs() ?? getDefaultLocationListPrefs());
+    setListPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!listPrefsHydrated) return;
+    saveLocationListPrefs(listPrefs);
+  }, [listPrefs, listPrefsHydrated]);
 
   const activeRows = initialRows.filter((row) => row.is_active);
   const selectedLocation = initialRows.find((row) => row.id === selectedId) ?? null;
@@ -104,9 +123,12 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
         )}
       </div>
 
-      <div className="mb-3 space-y-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <ModuleViewSelect triggerClassName="w-full sm:w-[10rem]" />
-        <OmnibarFilterChipBar variant="inline" />
+        <LocationListColumnSettings prefs={listPrefs} onChange={setListPrefs} />
+        <div className="w-full">
+          <OmnibarFilterChipBar variant="inline" />
+        </div>
       </div>
 
       <div
@@ -126,6 +148,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
             selectedId={selectedId}
             onSelect={handleSelect}
             centralHqLocationId={moduleContext.centralHqLocationId}
+            columnChipDisplay={listPrefs.columnPrefs.columnChipDisplay}
           />
         </aside>
 
@@ -134,6 +157,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Props
             <LocationProvisionForm
               rows={initialRows}
               governance={moduleContext.governance}
+              themeSettings={moduleContext.themeSettings}
               defaultInventoryValuationMethod={moduleContext.defaultInventoryValuationMethod}
               revenueAccounts={moduleContext.revenueAccounts}
               documentSequencesByLocationId={moduleContext.documentSequencesByLocationId}

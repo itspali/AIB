@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   deactivateSystemCategory,
@@ -32,6 +31,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeleted?: (categoryId: string) => void;
+  onDeactivated?: (category: CategoryRow) => void;
 };
 
 export function CategoryDeleteDialog({
@@ -41,8 +41,8 @@ export function CategoryDeleteDialog({
   open,
   onOpenChange,
   onDeleted,
+  onDeactivated,
 }: Props) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const blockers = useMemo(
@@ -56,11 +56,6 @@ export function CategoryDeleteDialog({
   const blocked = blockers.length > 0;
   const canMarkInactive = Boolean(category?.is_active);
 
-  const finish = () => {
-    onOpenChange(false);
-    router.refresh();
-  };
-
   const handleDelete = () => {
     if (!category || blocked) return;
 
@@ -73,7 +68,7 @@ export function CategoryDeleteDialog({
 
       toast.success("Category deleted");
       onDeleted?.(category.id);
-      finish();
+      onOpenChange(false);
     });
   };
 
@@ -88,7 +83,8 @@ export function CategoryDeleteDialog({
       }
 
       toast.success("Category marked inactive");
-      finish();
+      onDeactivated?.(result.category);
+      onOpenChange(false);
     });
   };
 

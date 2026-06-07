@@ -3,8 +3,13 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { locationCapabilitySummary } from "@/lib/locations/axis-labels";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import type { LocationListColumnId } from "@/lib/locations/list-columns";
+import {
+  renderLocationActiveStatus,
+  renderLocationCentralHqChip,
+} from "@/lib/locations/render-location-chip";
 import type { LocationRow } from "@/lib/locations/types";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +18,7 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   centralHqLocationId: string | null;
+  columnChipDisplay?: Partial<Record<LocationListColumnId, ColumnChipDisplay>>;
 };
 
 export function LocationStreamPanel({
@@ -20,6 +26,7 @@ export function LocationStreamPanel({
   selectedId,
   onSelect,
   centralHqLocationId,
+  columnChipDisplay,
 }: Props) {
   const [query, setQuery] = useState("");
 
@@ -68,12 +75,11 @@ export function LocationStreamPanel({
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                {centralHqLocationId === row.id && (
-                  <Badge variant="active">CENTRAL HQ</Badge>
+                {renderLocationCentralHqChip(
+                  centralHqLocationId === row.id,
+                  columnChipDisplay
                 )}
-                <Badge variant={row.is_active ? "completed" : "locked"}>
-                  {row.is_active ? "ACTIVE" : "INACTIVE"}
-                </Badge>
+                {renderLocationActiveStatus(row.is_active, columnChipDisplay, undefined)}
               </div>
             </button>
           ))

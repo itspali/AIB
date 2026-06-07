@@ -5,6 +5,11 @@ export function productListRowKey(row: ProductListRow, showVariants: boolean): s
   return showVariants && row.variant_id ? row.variant_id : row.id;
 }
 
+/** True when rows already include per-variant lines (expanded list shape). */
+export function listHasExpandedVariantRows(rows: ProductListRow[]): boolean {
+  return rows.some((row) => isVariantChildListRow(row));
+}
+
 /** True when the row is a sellable variant line in an expanded variant list. */
 export function isVariantChildListRow(row: ProductListRow): boolean {
   if (!row.variant_id) return false;
@@ -30,6 +35,58 @@ export function toVariantParentListRow(row: ProductListRow): ProductListRow {
  * Used when variants are expanded so parent cards/rows can show the "Has variants" badge
  * while variant rows keep their own presentation.
  */
+/** One item-level row per product when variant expansion is off. */
+export function collapseVariantListRows(rows: ProductListRow[]): ProductListRow[] {
+  const groups = new Map<string, ProductListRow[]>();
+  const order: string[] = [];
+
+  for (const row of rows) {
+    if (!groups.has(row.id)) {
+      order.push(row.id);
+      groups.set(row.id, []);
+    }
+    groups.get(row.id)!.push(row);
+  }
+
+  return order.map((itemId) => {
+    const group = groups.get(itemId)!;
+    const master = group.find((row) => !row.variant_id);
+    if (master) return master;
+
+    const firstVariantChild = group.find((row) => isVariantChildListRow(row));
+    if (firstVariantChild) return toVariantParentListRow(firstVariantChild);
+
+    return group[0]!;
+  });
+}
+
+/** Reuse signed image URLs from an already-loaded list when refetching without images. */
+export function mergeProductListRowImages(
+  rows: ProductListRow[],
+  sourceRows: ProductListRow[],
+  expandVariants: boolean
+): ProductListRow[] {
+  if (!sourceRows.length) return rows;
+
+  const imageByItemId = new Map<string, string | null>();
+  const imageByRowKey = new Map<string, string | null>();
+
+  for (const row of sourceRows) {
+    if (!row.image_url) continue;
+    imageByItemId.set(row.id, row.image_url);
+    imageByRowKey.set(productListRowKey(row, true), row.image_url);
+    imageByRowKey.set(productListRowKey(row, false), row.image_url);
+  }
+
+  return rows.map((row) => {
+    const merged =
+      imageByRowKey.get(productListRowKey(row, expandVariants)) ??
+      imageByItemId.get(row.id) ??
+      row.image_url;
+    return merged === row.image_url ? row : { ...row, image_url: merged };
+  });
+}
+
 export function injectVariantParentRows(rows: ProductListRow[]): ProductListRow[] {
   const result: ProductListRow[] = [];
   const seenParentIds = new Set<string>();

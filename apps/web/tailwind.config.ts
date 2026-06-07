@@ -67,8 +67,8 @@ const config: Config = {
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       },
       boxShadow: {
-        glow: "0 0 24px hsl(var(--primary) / 0.15)",
-        "glow-sm": "0 0 12px hsl(var(--primary) / 0.12)",
+        glow: "0 0 24px hsl(var(--primary) / 0.18)",
+        "glow-sm": "0 0 12px hsl(var(--primary) / 0.16)",
       },
     },
   },

@@ -10,6 +10,11 @@ import {
   type TenantLocationOption,
 } from "@/lib/organization/types";
 import { parseTenantProductFieldsAccess } from "@/lib/products/field-permissions";
+import {
+  DEFAULT_TENANT_THEME_SETTINGS,
+  parseTenantThemeSettings,
+  THEME_SETTINGS_REGISTRY_KEY,
+} from "@/lib/theme/governance";
 
 const DELEGATE_REGISTRY_KEY = "allow_organization_settings_modification";
 
@@ -38,7 +43,12 @@ export async function fetchOrganizationSettingsSnapshot(
       .eq("tenant_id", tenantId)
       .eq("scope_level", "TENANT_GLOBAL")
       .is("target_reference_id", null)
-      .in("registry_key", ["SALES_SETTINGS", "FINANCIAL_SETTINGS", "SEARCH_SETTINGS"]),
+      .in("registry_key", [
+        "SALES_SETTINGS",
+        "FINANCIAL_SETTINGS",
+        "SEARCH_SETTINGS",
+        THEME_SETTINGS_REGISTRY_KEY,
+      ]),
     supabase
       .from("workspace_control_registry")
       .select("target_reference_id, created_at, configuration_metadata")
@@ -73,6 +83,7 @@ export async function fetchOrganizationSettingsSnapshot(
   let allowLineItemDiscounts = true;
   let accountingPeriodClosingDate: string | null = null;
   let searchFinancialFieldsMode: SearchFinancialFieldsMode = "role_default";
+  let themeSettings = DEFAULT_TENANT_THEME_SETTINGS;
 
   for (const row of registryRows ?? []) {
     const meta = row.configuration_metadata as Record<string, unknown>;
@@ -90,6 +101,9 @@ export async function fetchOrganizationSettingsSnapshot(
       } else if (meta?.search_financial_fields_visible === false) {
         searchFinancialFieldsMode = "disabled";
       }
+    }
+    if (row.registry_key === THEME_SETTINGS_REGISTRY_KEY) {
+      themeSettings = parseTenantThemeSettings(meta);
     }
   }
 
@@ -184,6 +198,7 @@ export async function fetchOrganizationSettingsSnapshot(
     allow_line_item_discounts: allowLineItemDiscounts,
     accounting_period_closing_date: accountingPeriodClosingDate,
     search_financial_fields_mode: searchFinancialFieldsMode,
+    theme_settings: themeSettings,
     product_fields_access: productFieldsAccess,
     delegates,
     locations: (locations ?? []) as TenantLocationOption[],

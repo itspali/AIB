@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildModuleHref,
   parseModuleDrawerState,
+  parseModuleDrawerStateFromHref,
   MODULE_DRAWER_ACTION_EDIT,
   MODULE_DRAWER_ACTION_NEW,
 } from "@/lib/layout/module-drawer-url";
@@ -40,20 +41,37 @@ describe("parseModuleDrawerState", () => {
 
 describe("buildModuleHref", () => {
   it("builds canonical query strings", () => {
-    expect(buildModuleHref("/inventory/items", { recordId: "x" })).toBe(
-      "/inventory/items?id=x"
+    expect(buildModuleHref("/items", { recordId: "x" })).toBe(
+      "/items?id=x"
     );
     expect(
-      buildModuleHref("/inventory/items", { recordId: "x", variantId: "v1" })
-    ).toBe("/inventory/items?id=x&variant=v1");
+      buildModuleHref("/items", { recordId: "x", variantId: "v1" })
+    ).toBe("/items?id=x&variant=v1");
     expect(
-      buildModuleHref("/inventory/items", {
+      buildModuleHref("/items", {
         recordId: "x",
         action: MODULE_DRAWER_ACTION_EDIT,
       })
-    ).toBe("/inventory/items?id=x&action=edit");
+    ).toBe("/items?id=x&action=edit");
     expect(
-      buildModuleHref("/inventory/items", { action: MODULE_DRAWER_ACTION_NEW })
-    ).toBe("/inventory/items?action=new");
+      buildModuleHref("/items", { action: MODULE_DRAWER_ACTION_NEW })
+    ).toBe("/items?action=new");
+    expect(
+      buildModuleHref("/items", {
+        recordId: "x",
+        panel: "variants",
+      })
+    ).toBe("/items?id=x&panel=variants");
+  });
+});
+
+describe("parseModuleDrawerStateFromHref", () => {
+  it("parses drawer state from a module href", () => {
+    const state = parseModuleDrawerStateFromHref(
+      "/items?id=x&variant=v1&action=edit"
+    );
+    expect(state.recordId).toBe("x");
+    expect(state.variantId).toBe("v1");
+    expect(state.surface).toBe("edit");
   });
 });

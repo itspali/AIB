@@ -1,5 +1,10 @@
 import { columnSupportsWrapControl, isTextWrapMode, type TextWrapMode } from "@/lib/display/text-wrap";
-import type { ListColumnPrefs, ListColumnRegistry } from "@/lib/list-columns/types";
+import { normalizeColorRule } from "@/lib/list-columns/chip-colors";
+import type {
+  ColumnChipDisplay,
+  ListColumnPrefs,
+  ListColumnRegistry,
+} from "@/lib/list-columns/types";
 import {
   getColumnDef,
   getDefaultColumnOrder,
@@ -45,6 +50,38 @@ function normalizeColumnWidths<TId extends string>(
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
+function normalizeColumnChipDisplay<TId extends string>(
+  registry: ListColumnRegistry<TId>,
+  raw?: Partial<Record<TId, ColumnChipDisplay>> | null
+): Partial<Record<TId, ColumnChipDisplay>> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+
+  const result: Partial<Record<TId, ColumnChipDisplay>> = {};
+  for (const [columnId, display] of Object.entries(raw) as [TId, ColumnChipDisplay][]) {
+    if (!isColumnId(registry, columnId)) continue;
+    const column = getColumnDef(registry, columnId);
+    if (!column.chipEligible) continue;
+    if (!display || typeof display !== "object") continue;
+
+    const mode = display.mode === "chip" ? "chip" : "text";
+    const valueColors: NonNullable<ColumnChipDisplay["valueColors"]> = {};
+
+    if (display.valueColors && typeof display.valueColors === "object") {
+      for (const [valueKey, rule] of Object.entries(display.valueColors)) {
+        const normalized = normalizeColorRule(rule);
+        if (normalized) valueColors[valueKey] = normalized;
+      }
+    }
+
+    result[columnId] = {
+      mode,
+      valueColors: Object.keys(valueColors).length > 0 ? valueColors : undefined,
+    };
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export function getDefaultListColumnPrefs<TId extends string>(
   registry: ListColumnRegistry<TId>
 ): ListColumnPrefs<TId> {
@@ -76,6 +113,7 @@ export function normalizeListColumnPrefs<TId extends string>(
     visibleColumns: visibleColumns.length ? visibleColumns : defaults.visibleColumns,
     columnWrapModes: normalizeColumnWrapModes(registry, prefs?.columnWrapModes),
     columnWidths: normalizeColumnWidths(registry, prefs?.columnWidths),
+    columnChipDisplay: normalizeColumnChipDisplay(registry, prefs?.columnChipDisplay),
   };
 }
 

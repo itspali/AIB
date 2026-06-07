@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowLeftRight,
   Boxes,
   Building2,
   ClipboardList,
@@ -68,14 +69,30 @@ export const moduleNavItems: ModuleNavItem[] = [
     ],
   },
   {
-    href: "/inventory",
-    label: "Inventory",
-    shortLabel: "Inv",
+    href: "/items",
+    label: "Items",
+    shortLabel: "Items",
     icon: Package,
     mobilePrimary: true,
     children: [
-      { href: "/inventory/items", label: "Items", icon: Package },
-      { href: "/inventory/categories", label: "Categories", icon: FolderTree },
+      { href: "/items", label: "Catalog", icon: Package },
+      { href: "/items/categories", label: "Categories", icon: FolderTree },
+    ],
+  },
+  {
+    href: "/inventory",
+    label: "Inventory",
+    shortLabel: "Inv",
+    icon: Boxes,
+    children: [
+      { href: "/inventory", label: "Overview", icon: LayoutDashboard },
+      { href: "/inventory/stock", label: "Stock", icon: Package, comingSoon: true },
+      {
+        href: "/inventory/transfers",
+        label: "Transfers",
+        icon: ArrowLeftRight,
+        comingSoon: true,
+      },
     ],
   },
   {
@@ -92,8 +109,8 @@ export const moduleNavItems: ModuleNavItem[] = [
     ],
   },
   {
-    href: "/logistics",
-    label: "Logistics",
+    href: "/fulfillment/shipping",
+    label: "Fulfillment & Shipping",
     shortLabel: "Ship",
     icon: Truck,
     comingSoon: true,

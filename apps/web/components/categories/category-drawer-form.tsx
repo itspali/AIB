@@ -21,7 +21,7 @@ type Props = {
   peekCategory: CategoryRow | null;
   onClose: () => void;
   onOpenEdit: (categoryId: string) => void;
-  onAfterSave: (categoryId: string) => void;
+  onAfterSave: (categoryId: string, category: CategoryRow) => void;
   onDelete?: (category: CategoryRow) => void;
 };
 
@@ -53,8 +53,8 @@ export function CategoryDrawerForm({
   const formApi = useCategoryForm({
     rows,
     editingCategory,
-    onSaved: (categoryId) => {
-      onAfterSave(categoryId);
+    onSaved: (category) => {
+      onAfterSave(category.id, category);
     },
   });
 

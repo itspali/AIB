@@ -5,6 +5,11 @@ import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
 import type { TenantProductFieldsAccess } from "@/lib/products/field-permissions";
 import {
+  DEFAULT_TENANT_THEME_SETTINGS,
+  type TenantThemeSettings,
+} from "@/lib/theme/governance";
+import type { Theme } from "@/lib/theme/themes";
+import {
   DEFAULT_CATALOG_ITEM_SETTINGS,
   isScanIdentifierPolicy,
   type CatalogItemSettings,
@@ -90,6 +95,7 @@ export type OrganizationSettingsSnapshot = {
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string | null;
   search_financial_fields_mode: SearchFinancialFieldsMode;
+  theme_settings: TenantThemeSettings;
   product_fields_access: TenantProductFieldsAccess | null;
   delegates: OrganizationDelegateRow[];
   locations: TenantLocationOption[];
@@ -132,6 +138,11 @@ export type OrganizationSettingsFormValues = {
   allow_line_item_discounts: boolean;
   accounting_period_closing_date: string;
   search_financial_fields_mode: SearchFinancialFieldsMode;
+  default_theme: Theme;
+  primary_hue: number | null;
+  accent_hue: number | null;
+  allow_location_theme_override: boolean;
+  allow_user_theme_override: boolean;
   show_advanced: boolean;
 };
 
@@ -229,6 +240,11 @@ export function snapshotToFormValues(
       ? snapshot.accounting_period_closing_date.slice(0, 10)
       : "",
     search_financial_fields_mode: snapshot.search_financial_fields_mode,
+    default_theme: snapshot.theme_settings.default_theme,
+    primary_hue: snapshot.theme_settings.primary_hue,
+    accent_hue: snapshot.theme_settings.accent_hue,
+    allow_location_theme_override: snapshot.theme_settings.allow_location_theme_override,
+    allow_user_theme_override: snapshot.theme_settings.allow_user_theme_override,
     show_advanced: Boolean(
       snapshot.logo_url ||
         snapshot.secondary_phone ||
@@ -242,7 +258,12 @@ export function snapshotToFormValues(
         snapshot.accounting_config.credit_control_enforcement !== "STRICT" ||
         !snapshot.allow_line_item_discounts ||
         snapshot.accounting_period_closing_date ||
-        snapshot.search_financial_fields_mode !== "role_default"
+        snapshot.search_financial_fields_mode !== "role_default" ||
+        snapshot.theme_settings.default_theme !== DEFAULT_TENANT_THEME_SETTINGS.default_theme ||
+        snapshot.theme_settings.primary_hue !== null ||
+        snapshot.theme_settings.accent_hue !== null ||
+        snapshot.theme_settings.allow_location_theme_override ||
+        !snapshot.theme_settings.allow_user_theme_override
     ),
   };
 }

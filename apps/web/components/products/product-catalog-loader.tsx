@@ -6,12 +6,14 @@ import { ProductCatalogTerminal } from "@/components/products/product-catalog-te
 
 export async function ProductCatalogLoader() {
   const { supabase, tenantId, userId, operatorRole } = await getModulePageContext();
+  const prefsPromise = loadUserProductListPrefs(supabase, userId, tenantId);
 
-  const initialListPrefs = await loadUserProductListPrefs(supabase, userId, tenantId);
-
-  const [categories, catalogState] = await Promise.all([
+  const [initialListPrefs, categories, catalogState] = await Promise.all([
+    prefsPromise,
     fetchCategoryRows(supabase, tenantId),
-    resolveProductCatalogInitialState(supabase, tenantId, userId, operatorRole, initialListPrefs),
+    prefsPromise.then((prefs) =>
+      resolveProductCatalogInitialState(supabase, tenantId, userId, operatorRole, prefs)
+    ),
   ]);
 
   return (

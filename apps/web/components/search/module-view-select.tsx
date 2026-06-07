@@ -317,7 +317,8 @@ export function ModuleViewSelect({
   const omnibar = useOptionalOmnibarContext();
   const [views, setViews] = useState<CustomModuleView[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [viewsLoaded, setViewsLoaded] = useState(false);
+  const [isLoadingViews, setIsLoadingViews] = useState(false);
   const [, startTransition] = useTransition();
 
   const scope = omnibar?.scope;
@@ -325,18 +326,35 @@ export function ModuleViewSelect({
 
   const loadViews = useCallback(async () => {
     if (!moduleDef) return;
-    const result = await listCustomModuleViews(moduleDef.moduleName);
-    if (!result.ok) {
-      toast.error(result.error ?? "Unable to load saved views.");
-      return;
+    setIsLoadingViews(true);
+    try {
+      const result = await listCustomModuleViews(moduleDef.moduleName);
+      if (!result.ok) {
+        toast.error(result.error ?? "Unable to load saved views.");
+        return;
+      }
+      setViews(result.views ?? []);
+      setViewsLoaded(true);
+    } finally {
+      setIsLoadingViews(false);
     }
-    setViews(result.views ?? []);
-    setIsInitialLoading(false);
   }, [moduleDef]);
 
   useEffect(() => {
+    setViews([]);
+    setViewsLoaded(false);
+    setIsLoadingViews(false);
+  }, [moduleDef?.moduleName]);
+
+  useEffect(() => {
+    if (!viewsLoaded) return;
     void loadViews();
-  }, [loadViews, omnibar?.savedViewsRevision]);
+  }, [loadViews, omnibar?.savedViewsRevision, viewsLoaded]);
+
+  useEffect(() => {
+    if (!menuOpen || viewsLoaded || isLoadingViews) return;
+    void loadViews();
+  }, [isLoadingViews, loadViews, menuOpen, viewsLoaded]);
 
   const patchDefaultLocally = useCallback((defaultViewId: string | null) => {
     setViews((previous) =>
@@ -477,7 +495,6 @@ export function ModuleViewSelect({
           <Button
             type="button"
             variant="ghost"
-            disabled={isInitialLoading}
             aria-busy={isFilterLoading || isDefaultViewBootstrapping}
             className={cn(
               "min-w-0 max-w-full overflow-hidden font-normal",

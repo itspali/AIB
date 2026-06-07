@@ -15,6 +15,7 @@ import {
   type TenantProductFieldsAccess,
 } from "@/lib/products/field-permissions";
 import type { UserRole } from "@/lib/user/types";
+import { buildTenantThemeSettingsPayload, THEME_SETTINGS_REGISTRY_KEY } from "@/lib/theme/governance";
 
 const ORGANIZATION_PATHS = ["/settings/organization", "/dashboard"];
 
@@ -100,6 +101,16 @@ export async function saveOrganizationSettings(raw: unknown) {
       p_metadata_patch: {
         accounting_period_closing_date: closingDate,
       },
+    }),
+    supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: THEME_SETTINGS_REGISTRY_KEY,
+      p_metadata_patch: buildTenantThemeSettingsPayload({
+        default_theme: values.default_theme,
+        primary_hue: values.primary_hue,
+        accent_hue: values.accent_hue,
+        allow_location_theme_override: values.allow_location_theme_override,
+        allow_user_theme_override: values.allow_user_theme_override,
+      }),
     }),
   ]);
 

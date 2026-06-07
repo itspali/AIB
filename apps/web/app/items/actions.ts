@@ -6,6 +6,7 @@ import {
   normalizeGtinInput,
   parseCatalogItemSettings,
 } from "@/lib/products/catalog-item-settings";
+import { enrichProductDetailSnapshot } from "@/lib/products/detail-enrichment";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import {
   fetchProductListByIds,
@@ -13,7 +14,16 @@ import {
   PRODUCT_LIST_PAGE_SIZE,
 } from "@/lib/products/list-queries";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
-import { fetchProductDetail, ITEM_VARIANTS_EMBED } from "@/lib/products/queries";
+import {
+  fetchProductDetail,
+  fetchProductPeekSection,
+  fetchProductPeekValuations,
+  fetchProductVariantReload,
+  ITEM_VARIANTS_EMBED,
+  type FetchProductDetailOptions,
+} from "@/lib/products/queries";
+import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
+import type { ProductPeekSection } from "@/lib/products/peek-panels";
 import { resolveSessionProductFieldPermissions } from "@/lib/products/field-permissions-server";
 import { productMasterSchema } from "@/lib/products/schemas";
 import {
@@ -21,6 +31,10 @@ import {
   buildCommerceCustomFieldDefaults,
 } from "@/lib/products/item-uom-commerce";
 import { buildReservedCatalogCustomFieldsPayload } from "@/lib/products/catalog-reserved-fields";
+import {
+  extractStoredReorderPoint,
+  reorderPointChanged,
+} from "@/lib/products/buffer-thresholds";
 import { buildCustomFieldsPayload } from "@/lib/products/sku-mask";
 import type { ProductMasterInput } from "@/lib/products/schemas";
 import { itemMediaSchema, itemVariantSchema } from "@/lib/products/variant-schemas";
@@ -80,6 +94,14 @@ function buildStorefrontItemsPayload(values: ProductMasterInput) {
     }));
 }
 
+function slugifyTagName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export async function ensureProductTag(name: string, tagGroup?: string) {
   const trimmed = name.trim();
   if (!trimmed) return { error: "Tag name is required." };
@@ -97,8 +119,52 @@ export async function ensureProductTag(name: string, tagGroup?: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, tagId: data as string };
+}
+
+export async function updateProductTag(tagId: string, name: string) {
+  const trimmed = name.trim();
+  if (!tagId.trim()) return { error: "Tag id is required." };
+  if (!trimmed) return { error: "Tag name is required." };
+
+  const slug = slugifyTagName(trimmed);
+  if (!slug) return { error: "Tag name must contain letters or numbers." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data: existing, error: existingError } = await supabase
+    .from("tags")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("slug", slug)
+    .neq("id", tagId)
+    .maybeSingle();
+
+  if (existingError) return { error: existingError.message };
+  if (existing) return { error: "Another tag already uses that name." };
+
+  const { error } = await supabase
+    .from("tags")
+    .update({ name: trimmed, slug })
+    .eq("tenant_id", tenantId)
+    .eq("id", tagId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/items");
+  return { success: true as const, tag: { id: tagId, name: trimmed, slug } };
+}
+
+export async function deleteProductTag(tagId: string) {
+  if (!tagId.trim()) return { error: "Tag id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { error } = await supabase.from("tags").delete().eq("tenant_id", tenantId).eq("id", tagId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/items");
+  return { success: true as const };
 }
 
 export async function saveProductMasterProfile(raw: unknown) {
@@ -109,6 +175,20 @@ export async function saveProductMasterProfile(raw: unknown) {
 
   const values = parsed.data;
   const { supabase, tenantId } = await requireTenantId();
+
+  let previousReorderPoint = "";
+  if (values.item_id) {
+    const { data: existingItem, error: existingItemError } = await supabase
+      .from("items")
+      .select("custom_fields")
+      .eq("tenant_id", tenantId)
+      .eq("id", values.item_id)
+      .maybeSingle();
+    if (existingItemError) return { error: existingItemError.message };
+    previousReorderPoint = extractStoredReorderPoint(
+      (existingItem?.custom_fields as Record<string, unknown> | null) ?? null
+    );
+  }
 
   const { data: tenantRow } = await supabase
     .from("tenants")
@@ -225,10 +305,23 @@ export async function saveProductMasterProfile(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
-  revalidatePath("/inventory/categories");
+  revalidatePath("/items");
+  revalidatePath("/items/categories");
 
   const itemId = data as string;
+
+  if (
+    values.item_id &&
+    values.track_inventory &&
+    reorderPointChanged(previousReorderPoint, values.reorder_point)
+  ) {
+    const propagateResult = await supabase.rpc("propagate_item_reorder_default", {
+      p_item_id: itemId,
+    });
+    if (propagateResult.error && !isMissingRpcError(propagateResult.error)) {
+      return { error: propagateResult.error.message };
+    }
+  }
 
   // Bind the canonical tax rule via an isolated RPC so we don't have to
   // re-deploy the large save_product_master_profile signature.
@@ -255,11 +348,186 @@ export async function saveProductMasterProfile(raw: unknown) {
   return { success: true as const, itemId, detail };
 }
 
-export async function getProductDetail(itemId: string, variantId?: string | null) {
+export async function getProductDetail(
+  itemId: string,
+  variantId?: string | null,
+  options?: Pick<FetchProductDetailOptions, "scope">
+) {
   const { supabase, tenantId } = await requireTenantId();
-  const detail = await fetchProductDetail(supabase, tenantId, itemId, { variantId });
+  const detail = await fetchProductDetail(supabase, tenantId, itemId, {
+    variantId,
+    scope: options?.scope ?? "full",
+  });
   if (!detail) return { error: "Product profile not found." };
   return { detail };
+}
+
+export async function getProductVariants(itemId: string) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+  const { supabase, tenantId } = await requireTenantId();
+  const bundle = await fetchProductVariantReload(supabase, tenantId, itemId);
+  if (!bundle) return { error: "Product variants not found." };
+  return { bundle };
+}
+
+export async function loadProductDrawer(
+  itemId: string,
+  options?: {
+    variantId?: string | null;
+    scope?: "peek" | "full";
+    skipCatalogContext?: boolean;
+  }
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const scope = options?.scope ?? "peek";
+  const skipCatalogContext = options?.skipCatalogContext ?? false;
+
+  const shouldFetchCatalog = !skipCatalogContext && scope !== "peek";
+
+  const [catalogContext, detail] = await Promise.all([
+    shouldFetchCatalog
+      ? fetchProductCatalogContext(supabase, tenantId)
+      : Promise.resolve(null),
+    fetchProductDetail(supabase, tenantId, itemId, {
+      variantId: options?.variantId,
+      scope,
+    }),
+  ]);
+
+  if (!detail) return { error: "Product profile not found." };
+
+  const enrichedDetail = catalogContext
+    ? enrichProductDetailSnapshot(detail, catalogContext)
+    : detail;
+
+  return {
+    catalogContext,
+    detail: enrichedDetail,
+  };
+}
+
+export async function loadProductPeekValuations(
+  itemId: string,
+  variantId?: string | null,
+  options?: { skipEligibilityCheck?: boolean }
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const valuations = await fetchProductPeekValuations(
+    supabase,
+    tenantId,
+    itemId,
+    variantId,
+    options?.skipEligibilityCheck
+  );
+
+  return { valuations };
+}
+
+export async function loadProductPeekSection(
+  itemId: string,
+  section: ProductPeekSection,
+  variantId?: string | null
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const patch = await fetchProductPeekSection(
+    supabase,
+    tenantId,
+    itemId,
+    section,
+    variantId
+  );
+  if (!patch) return { error: "Product section not found." };
+
+  let detailPatch = patch;
+  if (section === "reach") {
+    const catalogContext = await fetchProductCatalogContext(supabase, tenantId);
+    if (catalogContext && patch.storefront_visibility) {
+      detailPatch = {
+        ...patch,
+        storefront_visibility: patch.storefront_visibility.map((row) => {
+          const channel = catalogContext.storefronts.find(
+            (entry) => entry.id === row.storefront_id
+          );
+          if (!channel) return row;
+          return {
+            ...row,
+            storefront_name: channel.name,
+            channel_type: channel.channel_type,
+          };
+        }),
+      };
+    }
+  }
+
+  return { section, patch: detailPatch };
+}
+
+export async function upgradeProductDetailToFull(
+  itemId: string,
+  variantId?: string | null
+) {
+  const { supabase, tenantId } = await requireTenantId();
+  const detail = await fetchProductDetail(supabase, tenantId, itemId, {
+    variantId,
+    scope: "full",
+  });
+  if (!detail) return { error: "Product profile not found." };
+  return { detail };
+}
+
+export async function hydrateProductDetailMedia(itemId: string) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+  const { supabase, tenantId } = await requireTenantId();
+  const { data, error } = await supabase
+    .from("item_media")
+    .select(
+      `
+      id,
+      item_id,
+      variant_id,
+      storage_url,
+      sort_order,
+      is_primary,
+      show_on_storefront,
+      show_in_digital_catalog,
+      show_on_internal_transactions,
+      created_at
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .order("sort_order")
+    .order("created_at");
+
+  if (error) return { error: error.message };
+  if (!data?.length) return { media: [] as ProductDetailSnapshot["media"] };
+
+  const signedUrls = await resolveProductMediaSignedUrls(
+    supabase,
+    data.map((row) => row.storage_url as string)
+  );
+
+  return {
+    media: data.map((row) => ({
+      id: row.id as string,
+      item_id: row.item_id as string,
+      variant_id: (row.variant_id as string | null) ?? null,
+      storage_url: row.storage_url as string,
+      preview_url: signedUrls.get(row.storage_url as string) ?? null,
+      sort_order: row.sort_order as number,
+      is_primary: row.is_primary as boolean,
+      show_on_storefront: row.show_on_storefront as boolean,
+      show_in_digital_catalog: row.show_in_digital_catalog as boolean,
+      show_on_internal_transactions: row.show_on_internal_transactions as boolean,
+      created_at: row.created_at as string,
+    })),
+  };
 }
 
 type ItemEditability = {
@@ -398,7 +666,7 @@ export async function quickCreateItem(input: QuickCreateItemInput) {
     return { error: variantError?.message ?? "Created item is missing its sellable variant." };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
 
   return {
     success: true as const,
@@ -419,30 +687,50 @@ export async function getProductCatalogContext() {
 
 export async function fetchMoreProductListRows(
   offset: number,
-  options?: { expandVariants?: boolean }
+  options?: { expandVariants?: boolean; includeImages?: boolean }
 ) {
   const { supabase, tenantId } = await requireTenantId();
-  const permissions = await resolveSessionProductFieldPermissions(supabase, tenantId);
 
-  return fetchProductListPage(supabase, tenantId, permissions ?? undefined, {
-    offset,
-    limit: PRODUCT_LIST_PAGE_SIZE,
-    includeImages: false,
-    expandVariants: options?.expandVariants,
-  });
+  const [permissions, page] = await Promise.all([
+    resolveSessionProductFieldPermissions(supabase, tenantId),
+    fetchProductListPage(supabase, tenantId, undefined, {
+      offset,
+      limit: PRODUCT_LIST_PAGE_SIZE,
+      includeImages: options?.includeImages ?? false,
+      expandVariants: options?.expandVariants,
+    }),
+  ]);
+
+  if (!permissions) return page;
+
+  const { redactProductListRows } = await import("@/lib/products/field-permissions");
+  return {
+    ...page,
+    rows: redactProductListRows(page.rows, permissions.allowedFields),
+  };
 }
 
 export async function fetchProductListByFilterIds(
   itemIds: string[],
-  options?: { expandVariants?: boolean }
+  options?: { expandVariants?: boolean; includeImages?: boolean }
 ) {
   const { supabase, tenantId } = await requireTenantId();
-  const permissions = await resolveSessionProductFieldPermissions(supabase, tenantId);
 
-  return fetchProductListByIds(supabase, tenantId, itemIds, permissions ?? undefined, {
-    includeImages: false,
-    expandVariants: options?.expandVariants,
-  });
+  const [permissions, page] = await Promise.all([
+    resolveSessionProductFieldPermissions(supabase, tenantId),
+    fetchProductListByIds(supabase, tenantId, itemIds, undefined, {
+      includeImages: options?.includeImages ?? false,
+      expandVariants: options?.expandVariants,
+    }),
+  ]);
+
+  if (!permissions) return page;
+
+  const { redactProductListRows } = await import("@/lib/products/field-permissions");
+  return {
+    ...page,
+    rows: redactProductListRows(page.rows, permissions.allowedFields),
+  };
 }
 
 export async function hydrateProductListImageUrls(itemIds: string[]) {
@@ -580,7 +868,7 @@ export async function saveItemVariant(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, variantId: data as string };
 }
 
@@ -618,7 +906,7 @@ export async function saveItemVariantsBulk(itemId: string, variants: BulkVariant
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, createdCount: (data as number) ?? payload.length };
 }
 
@@ -713,6 +1001,7 @@ export type VariantAssortmentData = {
     name: string;
     presence_type: string;
     is_stock_holding: boolean;
+    is_commercial_storefront: boolean;
   }>;
   cells: VariantAssortmentCell[];
 };
@@ -726,7 +1015,7 @@ export async function getVariantAssortment(
   const [{ data: locations, error: locError }, { data: rows, error: rowError }] = await Promise.all([
     supabase
       .from("tenant_locations")
-      .select("id, name, presence_type, is_stock_holding")
+      .select("id, name, presence_type, is_stock_holding, is_commercial_storefront")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name"),
@@ -764,7 +1053,84 @@ export async function saveVariantAssortment(itemId: string, rows: VariantAssortm
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
+  return { success: true as const };
+}
+
+export type BufferThresholdCell = {
+  variant_id: string;
+  location_id: string;
+  reorder_point_qty: string;
+};
+
+export type BufferThresholdData = {
+  locations: VariantAssortmentData["locations"];
+  cells: BufferThresholdCell[];
+};
+
+export async function getItemBufferThresholds(
+  itemId: string
+): Promise<{ data: BufferThresholdData } | { error: string }> {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const [{ data: locations, error: locError }, { data: rows, error: rowError }] = await Promise.all([
+    supabase
+      .from("tenant_locations")
+      .select("id, name, presence_type, is_stock_holding, is_commercial_storefront")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("inventory_buffer_thresholds")
+      .select("variant_id, location_id, reorder_point_qty")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId),
+  ]);
+
+  if (locError) return { error: locError.message };
+  if (rowError) return { error: rowError.message };
+
+  return {
+    data: {
+      locations: (locations ?? []) as BufferThresholdData["locations"],
+      cells: ((rows ?? []) as Array<{
+        variant_id: string;
+        location_id: string;
+        reorder_point_qty: number | string;
+      }>).map((row) => ({
+        variant_id: row.variant_id,
+        location_id: row.location_id,
+        reorder_point_qty: String(row.reorder_point_qty),
+      })),
+    },
+  };
+}
+
+export async function saveItemBufferThresholds(itemId: string, rows: BufferThresholdCell[]) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const { supabase } = await requireTenantId();
+  const payload = rows.map((row) => ({
+    variant_id: row.variant_id,
+    location_id: row.location_id,
+    reorder_point_qty:
+      row.reorder_point_qty.trim() === "" ? null : Number(row.reorder_point_qty),
+  }));
+
+  const { error } = await supabase.rpc("save_item_buffer_thresholds", {
+    p_item_id: itemId,
+    p_rows: payload,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_item_buffer_thresholds") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -831,7 +1197,7 @@ export async function saveVariantChannelAvailability(itemId: string, rows: Varia
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -865,6 +1231,7 @@ export type SupplierCatalogData = {
 
 export type ItemDrawerExtensionData = {
   assortment: VariantAssortmentData;
+  bufferThresholds: BufferThresholdData;
   channels: VariantChannelData;
   priceBooks: PriceBookEntryData;
   supplierCatalog: SupplierCatalogData;
@@ -872,23 +1239,18 @@ export type ItemDrawerExtensionData = {
 
 /** Single round-trip for drawer editor extension panels (assortment, channels, price books). */
 export async function getItemDrawerExtensionData(
-  itemId: string
+  itemId: string,
+  catalogContext?: ProductCatalogContext | null
 ): Promise<{ data: ItemDrawerExtensionData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
   const { supabase, tenantId } = await requireTenantId();
-  const [
-    { data: locations, error: locError },
-    { data: assortmentRows, error: assortmentError },
-    { data: channels, error: channelError },
-    { data: channelRows, error: channelRowError },
-    { data: books, error: bookError },
-    { data: entries, error: entryError },
-    { data: supplierRows, error: supplierError },
-  ] = await Promise.all([
+  const useCatalogReference = Boolean(catalogContext);
+
+  const itemScopedQueries = Promise.all([
     supabase
       .from("tenant_locations")
-      .select("id, name, presence_type, is_stock_holding")
+      .select("id, name, presence_type, is_stock_holding, is_commercial_storefront")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name"),
@@ -898,22 +1260,15 @@ export async function getItemDrawerExtensionData(
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId),
     supabase
-      .from("storefront_channels")
-      .select("id, name, channel_type")
+      .from("inventory_buffer_thresholds")
+      .select("variant_id, location_id, reorder_point_qty")
       .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .order("name"),
+      .eq("item_id", itemId),
     supabase
       .from("storefront_variant_items")
       .select("storefront_id, variant_id, is_visible")
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId),
-    supabase
-      .from("price_books")
-      .select("id, name, currency_code")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .order("name"),
     supabase
       .from("price_book_entries")
       .select("price_book_id, variant_id, uom_code, min_quantity, price")
@@ -939,12 +1294,60 @@ export async function getItemDrawerExtensionData(
       .order("is_preferred", { ascending: false }),
   ]);
 
+  const referenceQueries = useCatalogReference
+    ? Promise.resolve({
+        channels: catalogContext!.storefronts.map((row) => ({
+          id: row.id,
+          name: row.name,
+          channel_type: row.channel_type,
+        })),
+        books: catalogContext!.price_books.map((row) => ({
+          id: row.id,
+          name: row.name,
+          currency_code: row.currency_code,
+        })),
+        channelError: null as null,
+        bookError: null as null,
+      })
+    : Promise.all([
+        supabase
+          .from("storefront_channels")
+          .select("id, name, channel_type")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name"),
+        supabase
+          .from("price_books")
+          .select("id, name, currency_code")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name"),
+      ]).then(([channelsResult, booksResult]) => ({
+        channels: channelsResult.data ?? [],
+        books: booksResult.data ?? [],
+        channelError: channelsResult.error,
+        bookError: booksResult.error,
+      }));
+
+  const [
+    [
+      { data: locations, error: locError },
+      { data: assortmentRows, error: assortmentError },
+      { data: bufferRows, error: bufferError },
+      { data: channelRows, error: channelRowError },
+      { data: entries, error: entryError },
+      { data: supplierRows, error: supplierError },
+    ],
+    referenceData,
+  ] = await Promise.all([itemScopedQueries, referenceQueries]);
+
   const firstError =
     locError ??
     assortmentError ??
-    channelError ??
+    bufferError ??
+    referenceData.channelError ??
     channelRowError ??
-    bookError ??
+    referenceData.bookError ??
     entryError ??
     supplierError;
   if (firstError) return { error: firstError.message };
@@ -955,12 +1358,24 @@ export async function getItemDrawerExtensionData(
         locations: (locations ?? []) as VariantAssortmentData["locations"],
         cells: (assortmentRows ?? []) as VariantAssortmentCell[],
       },
+      bufferThresholds: {
+        locations: (locations ?? []) as BufferThresholdData["locations"],
+        cells: ((bufferRows ?? []) as Array<{
+          variant_id: string;
+          location_id: string;
+          reorder_point_qty: number | string;
+        }>).map((row) => ({
+          variant_id: row.variant_id,
+          location_id: row.location_id,
+          reorder_point_qty: String(row.reorder_point_qty),
+        })),
+      },
       channels: {
-        channels: (channels ?? []) as VariantChannelData["channels"],
+        channels: referenceData.channels as VariantChannelData["channels"],
         cells: (channelRows ?? []) as VariantChannelCell[],
       },
       priceBooks: {
-        books: (books ?? []) as PriceBookEntryData["books"],
+        books: referenceData.books as PriceBookEntryData["books"],
         entries: ((entries ?? []) as Array<{
           price_book_id: string;
           variant_id: string | null;
@@ -1072,7 +1487,7 @@ export async function saveSupplierCatalog(
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -1277,7 +1692,7 @@ export async function saveItemComposition(
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -1353,7 +1768,7 @@ export async function savePriceBookEntries(
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -1373,7 +1788,7 @@ export async function saveItemVariantAxes(itemId: string, axes: string[]) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -1391,7 +1806,7 @@ export async function deleteItemVariant(variantId: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
@@ -1423,7 +1838,7 @@ export async function saveItemMedia(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, mediaId: data as string };
 }
 
@@ -1445,15 +1860,20 @@ export async function deleteItemMedia(mediaId: string, storagePath?: string) {
     await supabase.storage.from("product-media").remove([storagePath.trim()]);
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const };
 }
 
 export async function saveProductListUserPrefs(raw: unknown) {
   const { supabase } = await requireTenantId();
 
-  const { coerceProductListPrefs } = await import("@/lib/products/list-prefs");
-  const prefs = coerceProductListPrefs(raw);
+  const { coerceProductListPrefs, DEFAULT_SHOW_VARIANTS } = await import(
+    "@/lib/products/list-prefs"
+  );
+  const prefs = {
+    ...coerceProductListPrefs(raw),
+    showVariants: DEFAULT_SHOW_VARIANTS,
+  };
 
   const { error } = await supabase.rpc("save_user_product_list_prefs", {
     p_prefs: prefs,
@@ -1597,7 +2017,7 @@ export async function bulkAdjustItemPricing(
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, affectedCount: (data as number) ?? idsResult.itemIds.length };
 }
 
@@ -1629,7 +2049,7 @@ export async function bulkSyncItemJurisdiction(
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, affectedCount: (data as number) ?? idsResult.itemIds.length };
 }
 
@@ -1650,7 +2070,7 @@ export async function bulkArchiveItems(target: ResolveBulkTargetInput) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, affectedCount: (data as number) ?? idsResult.itemIds.length };
 }
 
@@ -1675,7 +2095,7 @@ async function runBulkRpc(
     return { error: error.message };
   }
 
-  revalidatePath("/inventory/items");
+  revalidatePath("/items");
   return { success: true as const, affectedCount: (data as number) ?? idsResult.itemIds.length };
 }
 

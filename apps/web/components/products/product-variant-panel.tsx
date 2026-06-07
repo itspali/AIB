@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpDown, Pencil, Plus, RotateCw, Ruler, Search, Trash2 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { ArrowUpDown, Pencil, Plus, Ruler, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteItemVariant, saveItemVariant } from "@/app/items/actions";
+import { VariantDrawerForm } from "@/components/products/variant-drawer-form";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
 import {
   VariantMatrixGenerator,
@@ -32,8 +31,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
-import { VARIANT_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import {
   BUY_PRICE_COLUMN,
   MRP_COLUMN,
@@ -41,12 +38,9 @@ import {
   VARIANT_DEFAULT_BADGE,
   VARIANT_DIMENSIONS_TOGGLE_LABEL,
   VARIANT_NOT_SOLD_BADGE,
-  VARIANT_SKU_LABEL,
   VARIANTS_PANEL_NOT_SOLD_HELP,
 } from "@/lib/products/product-user-labels";
 import { Label } from "@/components/ui/label";
-import { RightDrawer } from "@/components/ui/right-drawer";
-import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import {
   Select,
   SelectContent,
@@ -56,26 +50,24 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { composeSkuFromMask } from "@/lib/products/sku-mask";
-import { itemVariantSchema } from "@/lib/products/variant-schemas";
 import {
-  editorDimensionsLwhGridClass,
-  editorFieldSpanFullClass,
-  editorGridClass,
   editorPanelDividerClass,
 } from "@/lib/products/editor-chrome";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
-import { splitTemplatesByAxis } from "@/lib/products/variant-composition";
+import {
+  countSellableVariants,
+  splitTemplatesByAxis,
+} from "@/lib/products/variant-composition";
 import {
   defaultVariantFormValues,
   variantSnapshotToFormValues,
   type ItemVariantFormValues,
+  type ProductMediaSnapshot,
   type ProductVariantSnapshot,
   type VariantFormDefaults,
 } from "@/lib/products/types";
 import {
   computeVolumeCm3FromDimensions,
-  formatCalculatedVolumeInfo,
   resolveShippingDimensionDefault,
 } from "@/lib/products/shipping-dimensions";
 import { cn } from "@/lib/utils";
@@ -115,6 +107,9 @@ type Props = {
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
   /** Refresh the variant list in place (no full item reload / skeleton). */
   onVariantsReload?: () => void | Promise<void>;
+  tenantId?: string;
+  media?: ProductMediaSnapshot[];
+  onMediaChanged?: () => void;
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -201,6 +196,9 @@ export function ProductVariantPanel({
   readOnly = false,
   onVariantPatch,
   onVariantsReload,
+  tenantId,
+  media,
+  onMediaChanged,
 }: Props) {
   const [showDimensions, setShowDimensions] = useState(defaultShowDimensionColumns);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -287,6 +285,7 @@ export function ProductVariantPanel({
   const [matrixExpanded, setMatrixExpanded] = useState(() => sellableVariants.length === 0);
   const previousSellableCountRef = useRef(sellableVariants.length);
   const isDraftComposition = compositionMode === "draft";
+  const axesLocked = countSellableVariants(variants) > 0 && !isDraftComposition;
   const inReviewPhase =
     showVariantList && canUseMatrix && !readOnly && !isDraftComposition;
   const showMatrixGenerator =
@@ -316,7 +315,7 @@ export function ProductVariantPanel({
   const saveVariantField = useCallback(
     (
       variant: ProductVariantSnapshot,
-      patch: Partial<Pick<ItemVariantFormValues, "sku" | "price">>
+      patch: Partial<Pick<ItemVariantFormValues, "sku" | "price" | "barcode">>
     ) => {
       const payload = {
         ...variantSnapshotToFormValues(variant, itemId),
@@ -589,12 +588,7 @@ export function ProductVariantPanel({
           showDimensions && "max-w-full [scrollbar-gutter:stable]"
         )}
       >
-        <table
-          className={cn(
-            "w-full text-sm",
-            (showDimensions || showAxisColumns) && "min-w-[960px]"
-          )}
-        >
+        <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="border-b border-border/50 text-left">
               {!readOnly ? (
@@ -713,7 +707,24 @@ export function ProductVariantPanel({
                       ) : null}
                     </div>
                   </td>
-                  <td className="p-3 font-mono">{variant.barcode ?? "—"}</td>
+                  <td className="p-3">
+                    {!readOnly && !variant.is_master ? (
+                      <Input
+                        className="h-8 min-w-[8rem] font-mono text-xs"
+                        defaultValue={variant.barcode ?? ""}
+                        disabled={isPending}
+                        placeholder="GTIN"
+                        onBlur={(event) => {
+                          const next = event.target.value.trim();
+                          if (next !== (variant.barcode ?? "").trim()) {
+                            saveVariantField(variant, { barcode: next });
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="font-mono">{variant.barcode?.trim() ? variant.barcode : "—"}</span>
+                    )}
+                  </td>
                   {showAxisColumns ? (
                     axisTemplates.map((template) => (
                       <td key={template.key} className="p-3">
@@ -965,6 +976,7 @@ export function ProductVariantPanel({
             axisKeys={variantAxisKeys ?? []}
             suggestedAxisKeys={suggestedVariantAxisKeys}
             onAxisKeysChange={onVariantAxisKeysChange}
+            axesLocked={axesLocked}
             showAxisPicker
             variants={variants}
             skuMask={skuMask}
@@ -1004,6 +1016,12 @@ export function ProductVariantPanel({
           setDrawerOpen(false);
           void onVariantsReload?.();
         }}
+        tenantId={tenantId}
+        variants={variants}
+        media={media}
+        focusedVariantId={editingVariant?.id ?? null}
+        onMediaChanged={onMediaChanged}
+        variantAxisKeys={variantAxisKeys ?? []}
       />
 
       <AlertDialog
@@ -1036,307 +1054,5 @@ export function ProductVariantPanel({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function VariantDrawerForm({
-  open,
-  onOpenChange,
-  itemId,
-  categoryTemplates,
-  siblingVariants,
-  skuMask,
-  baseSku,
-  initialValues,
-  isEditing,
-  onSaved,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  itemId: string;
-  categoryTemplates: AttributeTemplateEntry[];
-  siblingVariants: ProductVariantSnapshot[];
-  skuMask: string;
-  baseSku: string;
-  initialValues: ItemVariantFormValues;
-  isEditing: boolean;
-  onSaved: () => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-  const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
-  const skuManualRef = useRef(isEditing);
-
-  const form = useForm<ItemVariantFormValues>({
-    resolver: zodResolver(itemVariantSchema),
-    defaultValues: initialValues,
-  });
-
-  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = form;
-  const variantAttributes = watch("variant_attributes");
-  const lengthCm = watch("length_cm");
-  const widthCm = watch("width_cm");
-  const heightCm = watch("height_cm");
-
-  useEffect(() => {
-    const computed = computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm);
-    if (form.getValues("volume") === computed) return;
-    setValue("volume", computed, { shouldDirty: true });
-  }, [lengthCm, widthCm, heightCm, form, setValue]);
-
-  const regenerateSku = useCallback(() => {
-    const composed = composeSkuFromMask(skuMask, baseSku || "ITEM", variantAttributes);
-    if (composed) {
-      setValue("sku", composed, { shouldDirty: true });
-      skuManualRef.current = false;
-    }
-  }, [skuMask, baseSku, variantAttributes, setValue]);
-
-  useEffect(() => {
-    if (open) {
-      reset(initialValues);
-      skuManualRef.current = isEditing;
-    }
-  }, [open, initialValues, reset, isEditing]);
-
-  useEffect(() => {
-    if (!open || isEditing || skuManualRef.current || !skuMask.trim()) return;
-    const composed = composeSkuFromMask(skuMask, baseSku || "ITEM", variantAttributes);
-    if (composed) {
-      setValue("sku", composed, { shouldDirty: true });
-    }
-  }, [open, isEditing, skuMask, baseSku, variantAttributes, setValue]);
-
-  const onSubmit = useCallback(
-    (values: ItemVariantFormValues) => {
-      // Required-attribute validation (driven by category templates).
-      for (const template of categoryTemplates) {
-        if (template.required && !values.variant_attributes[template.key]?.trim()) {
-          toast.error(`${template.label} is required for this category.`);
-          return;
-        }
-      }
-
-      // Attribute-combination uniqueness (client-side check against siblings).
-      const combo = comboKeyOf(values.variant_attributes);
-      if (combo) {
-        const clash = siblingVariants.some(
-          (variant) => comboKeyOf(variant.variant_attributes) === combo
-        );
-        if (clash) {
-          toast.error("Another variant already uses this exact attribute combination.");
-          return;
-        }
-      }
-
-      startTransition(async () => {
-        const volume = computeVolumeCm3FromDimensions(
-          values.length_cm,
-          values.width_cm,
-          values.height_cm
-        );
-        const result = await saveItemVariant({
-          ...values,
-          volume,
-          item_id: itemId,
-        });
-        if ("error" in result) {
-          toast.error(result.error ?? "Unable to save variant.");
-          return;
-        }
-        toast.success(isEditing ? "Variant updated." : "Variant created.");
-        onSaved();
-      });
-    },
-    [categoryTemplates, siblingVariants, itemId, isEditing, onSaved]
-  );
-
-  const closeForm = () => {
-    onOpenChange(false);
-  };
-
-  return (
-    <>
-      <RightDrawer
-        open={open}
-        onOpenChange={(next) => (next ? onOpenChange(true) : requestClose(closeForm))}
-        title={isEditing ? "Edit variant" : "Add variant"}
-      >
-      <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
-        <div className="flex-1 space-y-4 overflow-y-auto p-6">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="variant_sku">{VARIANT_SKU_LABEL}</Label>
-                {skuMask.trim() ? (
-                  <FieldLabelInfo label="Variant SKU">
-                    <p className="font-mono">{VARIANT_FIELD_HELP.variantSkuMask(skuMask)}</p>
-                  </FieldLabelInfo>
-                ) : null}
-              </div>
-              {skuMask.trim() && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 gap-1 px-2 text-xs"
-                  disabled={isPending}
-                  onClick={regenerateSku}
-                >
-                  <RotateCw className="h-3 w-3" />
-                  Regenerate
-                </Button>
-              )}
-            </div>
-            <Input
-              id="variant_sku"
-              disabled={isPending}
-              className="font-mono"
-              {...register("sku", {
-                onChange: () => {
-                  skuManualRef.current = true;
-                },
-              })}
-            />
-            {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="variant_barcode">GTIN</Label>
-              <FieldLabelInfo label="GTIN">
-                {fieldHelpText(VARIANT_FIELD_HELP.gtin)}
-              </FieldLabelInfo>
-            </div>
-            <Input
-              id="variant_barcode"
-              disabled={isPending}
-              className="font-mono"
-              {...register("barcode")}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="variant_price">{SELL_PRICE_COLUMN}</Label>
-              <FieldLabelInfo label={SELL_PRICE_COLUMN}>
-                {fieldHelpText(VARIANT_FIELD_HELP.sellPrice)}
-              </FieldLabelInfo>
-            </div>
-            <Input
-              id="variant_price"
-              disabled={isPending}
-              className="text-right font-mono"
-              inputMode="decimal"
-              {...register("price")}
-            />
-            {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-medium">Variant active</p>
-              <FieldLabelInfo label="Variant active">
-                {fieldHelpText(VARIANT_FIELD_HELP.active)}
-              </FieldLabelInfo>
-            </div>
-            <Switch
-              checked={watch("is_active")}
-              disabled={isPending}
-              onCheckedChange={(checked) => setValue("is_active", checked, { shouldDirty: true })}
-            />
-          </div>
-
-          <div className="space-y-3 border-t border-border pt-4">
-            <h4 className="text-sm font-medium">Shipping & dimensions</h4>
-            <div className={editorGridClass(true)}>
-              <div
-                className={cn(editorFieldSpanFullClass(true), editorDimensionsLwhGridClass())}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="variant_length">Length (cm)</Label>
-                  <Input
-                    id="variant_length"
-                    disabled={isPending}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("length_cm")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="variant_width">Width (cm)</Label>
-                  <Input
-                    id="variant_width"
-                    disabled={isPending}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("width_cm")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="variant_height">Height (cm)</Label>
-                  <Input
-                    id="variant_height"
-                    disabled={isPending}
-                    className="text-right font-mono"
-                    inputMode="decimal"
-                    {...register("height_cm")}
-                  />
-                </div>
-              </div>
-              <div className={cn("space-y-2", editorFieldSpanFullClass(true))}>
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="variant_dead_weight">Weight (kg)</Label>
-                  <FieldLabelInfo label="Weight (kg)">
-                    {fieldHelpText(VARIANT_FIELD_HELP.weight)}
-                  </FieldLabelInfo>
-                </div>
-                <Input
-                  id="variant_dead_weight"
-                  disabled={isPending}
-                  className="text-right font-mono"
-                  inputMode="decimal"
-                  {...register("dead_weight_kg")}
-                />
-              </div>
-              <p
-                className={cn(
-                  "text-xs text-muted-foreground",
-                  editorFieldSpanFullClass(true)
-                )}
-              >
-                {formatCalculatedVolumeInfo(lengthCm, widthCm, heightCm)}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3 border-t border-border pt-4">
-            <h4 className="text-sm font-medium">Variant attributes</h4>
-            <VariantAttributeFields
-              templates={categoryTemplates}
-              values={variantAttributes}
-              disabled={isPending}
-              onChange={(key, value) =>
-                setValue(
-                  "variant_attributes",
-                  { ...variantAttributes, [key]: value },
-                  { shouldDirty: true }
-                )
-              }
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={() => requestClose(closeForm)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isPending}>
-            {isEditing ? "Save Variant" : "Create Variant"}
-          </Button>
-        </div>
-      </form>
-    </RightDrawer>
-    {discardDialog}
-    </>
   );
 }

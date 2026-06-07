@@ -171,7 +171,7 @@ export function TaxCodeDrawerForm({ open, onOpenChange, editing = null, onSaved 
             </Select>
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 p-3 dark:border-white/10">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 border-black/[0.06] p-3 dark:border-white/10">
             <div>
               <Label htmlFor="tax-variable" className="text-sm font-medium">
                 Variable (slab) rates
@@ -327,7 +327,7 @@ export function TaxCodeDrawerForm({ open, onOpenChange, editing = null, onSaved 
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 p-3 dark:border-white/10">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 border-black/[0.06] p-3 dark:border-white/10">
             <Label htmlFor="tax-inclusive" className="text-sm font-medium text-muted-foreground">
               Prices include this tax by default
             </Label>
@@ -339,7 +339,7 @@ export function TaxCodeDrawerForm({ open, onOpenChange, editing = null, onSaved 
             />
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 p-3 dark:border-white/10">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 border-black/[0.06] p-3 dark:border-white/10">
             <Label htmlFor="tax-active" className="text-sm font-medium text-muted-foreground">
               Active
             </Label>
@@ -354,7 +354,7 @@ export function TaxCodeDrawerForm({ open, onOpenChange, editing = null, onSaved 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
-        <div className="sticky bottom-0 mt-8 flex justify-end gap-2 border-t border-border/80 bg-background/95 pt-4 backdrop-blur-sm dark:border-white/10">
+        <div className="sticky bottom-0 mt-8 flex justify-end gap-2 border-t border-border/80 border-black/[0.06] bg-background/95 pt-4 backdrop-blur-sm dark:border-white/10">
           <Button type="button" variant="ghost" disabled={isPending} onClick={() => requestClose(closeForm)}>
             Cancel
           </Button>

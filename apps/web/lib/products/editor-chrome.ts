@@ -20,7 +20,7 @@ export function useEditorPanelLayout() {
 export function editorPanelSectionClass() {
   return cn(
     "editor-section-panel overflow-hidden rounded-md border border-border/50",
-    "bg-muted/15 px-3.5 py-3 dark:bg-muted/10"
+    "bg-muted/25 px-3.5 py-3 dark:bg-muted/10"
   );
 }
 
@@ -229,7 +229,7 @@ export function editorPanelWizardFormScrollClass() {
 
 /** Wizard stage rail / top bar surface — visible on light and dark canvases. */
 export function editorWizardRailBgClass() {
-  return "bg-[hsl(214_28%_92%)] dark:bg-secondary";
+  return "bg-muted/50 dark:bg-secondary";
 }
 
 /** Full-width stage strip above the form when the left rail is hidden. */

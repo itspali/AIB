@@ -16,7 +16,7 @@ export function CategoryEmptyState({
   const label = hasExistingCategories ? "Create Product Category" : "Create Initial Product Category";
 
   return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center dark:border-white/10">
+    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 border-black/[0.06] bg-muted/35 px-6 py-12 text-center dark:border-white/10 dark:bg-muted/20">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
         <FolderTree className="h-8 w-8 text-primary" aria-hidden />
       </div>

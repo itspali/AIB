@@ -25,6 +25,7 @@ type ListViewRow = {
   category_name: string | null;
   hsn_sac_code: string | null;
   has_variants: boolean;
+  sellable_variant_count?: number | null;
   default_tax_category: string;
   is_active: boolean;
   is_purchasable: boolean;
@@ -39,6 +40,8 @@ type ListViewRow = {
   purchase_price: number | string | null;
   supplier_name: string | null;
   stock_on_hand: number | string | null;
+  reorder_point?: number | string | null;
+  below_reorder?: boolean | null;
   primary_image_storage_path: string | null;
   variant_id?: string | null;
   variant_attributes?: Record<string, unknown> | null;
@@ -92,6 +95,8 @@ function mapListViewRow(row: ListViewRow, imageUrl: string | null): ProductListR
     category_name: row.category_name,
     hsn_sac_code: row.hsn_sac_code,
     has_variants: row.has_variants,
+    sellable_variant_count:
+      row.sellable_variant_count != null ? Number(row.sellable_variant_count) : undefined,
     default_tax_category: taxCategory,
     is_active: row.is_active,
     is_purchasable: row.is_purchasable,
@@ -104,6 +109,11 @@ function mapListViewRow(row: ListViewRow, imageUrl: string | null): ProductListR
     purchase_price: row.purchase_price != null ? formatDecimal(row.purchase_price) : null,
     supplier_name: row.supplier_name,
     stock_on_hand: formatDecimal(row.stock_on_hand, "0"),
+    reorder_point:
+      row.reorder_point != null && Number(row.reorder_point) > 0
+        ? formatDecimal(row.reorder_point)
+        : null,
+    below_reorder: row.below_reorder === true,
     created_at: row.created_at,
     updated_at: row.updated_at,
     variant_id: row.variant_id ?? null,
@@ -176,8 +186,11 @@ async function fetchListViewRows(
     .select("*", { count: "exact" })
     .eq("tenant_id", tenantId)
     .order("name")
-    .order("default_sku")
-    .order("variant_id");
+    .order("default_sku");
+
+  if (options.expandVariants) {
+    query = query.order("variant_id");
+  }
 
   if (options.itemIds?.length) {
     query = query.in("id", options.itemIds);

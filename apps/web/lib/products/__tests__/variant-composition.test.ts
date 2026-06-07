@@ -3,7 +3,13 @@ import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import {
   categoryHasComposableAxes,
   defaultVariantAxisKeys,
+  filterVariantAxisCandidateTemplates,
   isDefaultAxisTemplate,
+  isVariantAxisCandidate,
+  formatDescriptiveVariantAttributes,
+  formatVariantAxisLabels,
+  pickDescriptiveVariantAttributes,
+  sanitizeVariantAxisKeys,
   splitTemplatesByAxis,
   usedVariantAttributeKeys,
   validateVariantAxesSelection,
@@ -45,6 +51,73 @@ describe("isDefaultAxisTemplate", () => {
   it("honors an explicit category role over the type heuristic", () => {
     expect(isDefaultAxisTemplate({ ...size, role: "descriptive" })).toBe(false);
     expect(isDefaultAxisTemplate({ ...brand, role: "axis" })).toBe(true);
+  });
+
+  it("does not treat multiselect templates as default axes", () => {
+    expect(
+      isDefaultAxisTemplate({
+        key: "tags",
+        label: "Tags",
+        type: "multiselect",
+        options: ["A", "B"],
+      })
+    ).toBe(false);
+  });
+});
+
+describe("isVariantAxisCandidate", () => {
+  it("excludes multiselect and descriptive templates", () => {
+    expect(
+      isVariantAxisCandidate({
+        key: "tags",
+        label: "Tags",
+        type: "multiselect",
+        options: ["A"],
+      })
+    ).toBe(false);
+    expect(isVariantAxisCandidate({ ...size, role: "descriptive" })).toBe(false);
+    expect(isVariantAxisCandidate(size)).toBe(true);
+  });
+});
+
+describe("pickDescriptiveVariantAttributes", () => {
+  it("keeps only non-axis template values", () => {
+    const picked = pickDescriptiveVariantAttributes(
+      { size: "1kg", brand: "Acme", color: "Red" },
+      templates,
+      ["size"]
+    );
+    expect(picked).toEqual({ brand: "Acme", color: "Red" });
+  });
+});
+
+describe("formatVariantAxisLabels", () => {
+  it("uses template labels when available", () => {
+    expect(formatVariantAxisLabels(["size", "color"], templates)).toBe("Size, Color");
+  });
+});
+
+describe("formatDescriptiveVariantAttributes", () => {
+  it("formats descriptive values with labels", () => {
+    expect(
+      formatDescriptiveVariantAttributes({ brand: "Acme" }, templates, ["size"])
+    ).toBe("Brand: Acme");
+  });
+});
+
+describe("sanitizeVariantAxisKeys", () => {
+  it("drops multiselect and unknown keys", () => {
+    const templates = [
+      size,
+      {
+        key: "tags",
+        label: "Tags",
+        type: "multiselect" as const,
+        options: ["A"],
+      },
+    ];
+    expect(sanitizeVariantAxisKeys(["size", "tags", "missing"], templates)).toEqual(["size"]);
+    expect(filterVariantAxisCandidateTemplates(templates).map((t) => t.key)).toEqual(["size"]);
   });
 });
 
@@ -143,5 +216,24 @@ describe("validateVariantAxesSelection", () => {
         categoryTemplates: templates,
       })
     ).toBeNull();
+  });
+
+  it("rejects multiselect keys even when defined on the category", () => {
+    expect(
+      validateVariantAxesSelection({
+        variant_strategy: "MULTI_SKU",
+        item_type: "PHYSICAL",
+        variant_axes: ["tags"],
+        categoryTemplates: [
+          size,
+          {
+            key: "tags",
+            label: "Tags",
+            type: "multiselect",
+            options: ["A"],
+          },
+        ],
+      })
+    ).toMatch(/cannot be used as a variant axis/i);
   });
 });

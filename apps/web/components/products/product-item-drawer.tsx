@@ -15,11 +15,13 @@ import type { CategoryRow } from "@/lib/categories/types";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import {
+  isDetailVariantSkuContext,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
+import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 import { useProductCreateWizard } from "@/lib/products/use-product-create-wizard";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 
@@ -38,14 +40,20 @@ type Props = {
   detail: ProductDetailSnapshot | null;
   fieldPermissions: ProductFieldPermissions;
   isLoading?: boolean;
+  isDetailRefreshing?: boolean;
   urlNavigation: UrlNavigation;
   onExtensionsChanged?: () => void;
+  onRequestFullDetail?: () => void;
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
   onVariantsReload?: () => void | Promise<void>;
   onCreatePersisted?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   /** Keeps catalog detail/variants in sync during the create wizard. */
   onDetailSaved?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onItemArchived?: (itemId: string) => void;
+  peekPanel?: ProductPeekPanelId;
+  onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
+  peekPanelLoading?: ProductPeekPanelId | null;
+  isValuationsLoading?: boolean;
 };
 
 function surfaceToMode(surface: DrawerSurface, persistedCreateId: string | null): ProductFormMode {
@@ -65,6 +73,7 @@ function ProductItemDrawerSheet({
   imageUrl,
   imageAlt,
   closeOnEscape,
+  showHeaderThumbnail,
 }: {
   open: boolean;
   title: string;
@@ -74,6 +83,7 @@ function ProductItemDrawerSheet({
   imageUrl: string | null;
   imageAlt: string;
   closeOnEscape: boolean;
+  showHeaderThumbnail: boolean;
 }) {
   const { onDismiss } = useProductPanelContext();
 
@@ -87,19 +97,23 @@ function ProductItemDrawerSheet({
       title={title}
       description={description}
       titleLeading={
-        mode !== "create" ? (
+        showHeaderThumbnail ? (
           <ProductPrimaryImage imageUrl={imageUrl} alt={imageAlt} size="drawer-header" />
         ) : undefined
       }
       headerActions={<ProductPanelHeaderActions />}
       allowBackgroundInteraction={allowBackgroundInteraction}
-      scrollable={false}
+      scrollable={mode === "view"}
       showCloseButton
       closeOnEscape={closeOnEscape}
     >
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-visible">
+      {mode === "view" ? (
         <ProductPanelBody />
-      </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <ProductPanelBody />
+        </div>
+      )}
     </RightDrawer>
   );
 }
@@ -113,18 +127,29 @@ export function ProductItemDrawer({
   detail,
   fieldPermissions,
   isLoading = false,
+  isDetailRefreshing = false,
   urlNavigation,
   onExtensionsChanged,
+  onRequestFullDetail,
   onVariantPatch,
   onVariantsReload,
   onCreatePersisted,
   onDetailSaved,
   onItemArchived,
+  peekPanel,
+  onPeekPanelChange,
+  peekPanelLoading,
+  isValuationsLoading = false,
 }: Props) {
   const [persistedCreateId, setPersistedCreateId] = useState<string | null>(null);
   const isCreateFlow = surface === "create";
+  const isVariantEdit =
+    surface === "edit" && detail != null && isDetailVariantSkuContext(detail);
+  const isEditAccordion = surface === "edit" && !isVariantEdit;
+  const isWizardFlow = isCreateFlow || isEditAccordion;
   const wizardHost = useProductCreateWizard({
-    active: isCreateFlow,
+    active: isWizardFlow,
+    layout: isEditAccordion ? "accordion" : "steps",
     variantStrategy: detail?.variant_strategy ?? "SINGLE_SKU",
     hasComposition: detail?.is_bundle ?? false,
     onFinished: (itemId) => {
@@ -134,11 +159,15 @@ export function ProductItemDrawer({
   });
 
   useEffect(() => {
-    if (!open || surface !== "create") {
+    if (!open) {
       setPersistedCreateId(null);
       wizardHost.resetWizard();
+      return;
     }
-  }, [open, surface, wizardHost.resetWizard]);
+    if (isWizardFlow) {
+      wizardHost.resetWizard();
+    }
+  }, [open, isWizardFlow, wizardHost.resetWizard]);
 
   const mode = surfaceToMode(surface, persistedCreateId);
   const allowBackgroundInteraction = surface === "peek";
@@ -152,14 +181,25 @@ export function ProductItemDrawer({
         wizardHost.handleSaved(itemId, savedDetail);
         return;
       }
-      if (isCreateFlow && persistedCreateId) {
+      if (isWizardFlow) {
         onDetailSaved?.(itemId, savedDetail);
-        wizardHost.handleSaved(itemId, savedDetail);
+        if (!isEditAccordion) {
+          wizardHost.handleSaved(itemId, savedDetail);
+        }
         return;
       }
       urlNavigation.onPeekAfterSave(itemId, savedDetail);
     },
-    [isCreateFlow, onCreatePersisted, onDetailSaved, persistedCreateId, urlNavigation, wizardHost]
+    [
+      isCreateFlow,
+      isEditAccordion,
+      isWizardFlow,
+      onCreatePersisted,
+      onDetailSaved,
+      persistedCreateId,
+      urlNavigation,
+      wizardHost,
+    ]
   );
 
   const handleModeChange = useCallback((_next: ProductFormMode) => {
@@ -184,15 +224,21 @@ export function ProductItemDrawer({
       detail={detail}
       fieldPermissions={fieldPermissions}
       isLoading={isLoading}
+      isDetailRefreshing={isDetailRefreshing}
       onModeChange={handleModeChange}
       onSaved={handleSaved}
       onExtensionsChanged={onExtensionsChanged}
+      onRequestFullDetail={onRequestFullDetail}
       onVariantPatch={onVariantPatch}
       onVariantsReload={onVariantsReload}
       onClose={urlNavigation.onClose}
       onItemArchived={onItemArchived}
       urlNavigation={urlNavigation}
-      wizard={isCreateFlow ? wizardHost.wizard : undefined}
+      wizard={isWizardFlow ? wizardHost.wizard : undefined}
+      peekPanel={peekPanel}
+      onPeekPanelChange={onPeekPanelChange}
+      peekPanelLoading={peekPanelLoading}
+      isValuationsLoading={isValuationsLoading}
     >
       <ProductItemDrawerSheet
         open={open}
@@ -202,7 +248,8 @@ export function ProductItemDrawer({
         allowBackgroundInteraction={allowBackgroundInteraction}
         imageUrl={imageUrl}
         imageAlt={title}
-        closeOnEscape={!isCreateFlow}
+        closeOnEscape={!isWizardFlow}
+        showHeaderThumbnail={mode === "view" || (mode === "edit" && isVariantEdit)}
       />
     </ProductPanelScope>
   );

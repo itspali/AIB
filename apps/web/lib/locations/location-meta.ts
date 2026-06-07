@@ -2,6 +2,8 @@ import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import { parseNamingSequences } from "@/lib/naming/sequences";
 import type { VirtualLocationConfiguration } from "@/lib/locations/virtual-config";
 import { buildVirtualConfigurationMetadataPatch } from "@/lib/locations/virtual-config";
+import { buildLocationThemeMetaPatch } from "@/lib/theme/governance";
+import type { Theme } from "@/lib/theme/themes";
 
 export function parseLocationNamingSequences(
   raw: unknown,
@@ -40,6 +42,10 @@ export type BuildLocationMetaInput = {
   code_manually_edited?: boolean;
   virtual_configuration?: VirtualLocationConfiguration;
   naming_sequences?: Record<string, { prefix: string; digits: string | number }>;
+  location_theme_enabled?: boolean;
+  location_theme?: Theme;
+  location_primary_hue?: number | null;
+  location_accent_hue?: number | null;
 };
 
 export function buildLocationMetaPatch(input: BuildLocationMetaInput): Record<string, unknown> {
@@ -80,5 +86,10 @@ export function buildLocationMetaPatch(input: BuildLocationMetaInput): Record<st
     delete merged.configuration_metadata;
   }
 
-  return merged;
+  return buildLocationThemeMetaPatch(merged, {
+    enabled: Boolean(input.location_theme_enabled),
+    theme: input.location_theme,
+    primary_hue: input.location_primary_hue,
+    accent_hue: input.location_accent_hue,
+  });
 }

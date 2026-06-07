@@ -1,5 +1,6 @@
-import { ProductCatalogPageSkeleton } from "@/components/products/product-catalog-page-skeleton";
+import { ModuleWorkspaceSkeleton } from "@/components/layout/module-workspace-skeleton";
 
+/** Neutral inventory module segment loader. */
 export default function Loading() {
-  return <ProductCatalogPageSkeleton />;
+  return <ModuleWorkspaceSkeleton titleWidth="w-32" />;
 }

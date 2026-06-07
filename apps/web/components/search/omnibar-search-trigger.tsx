@@ -18,7 +18,7 @@ export function OmnibarSearchTrigger({ className }: Props) {
       type="button"
       onClick={openCommandPalette}
       className={cn(
-        "flex h-10 w-full min-w-0 items-center gap-2 rounded-xl border border-border bg-card/60 px-3 text-sm text-muted-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:shadow-glow-sm",
+        "flex h-10 w-full min-w-0 items-center gap-2 rounded-xl border border-border bg-card/60 px-3 text-sm text-muted-foreground shadow-sm shadow-glow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:shadow-glow-sm",
         commandOpen && "border-primary/40 ring-2 ring-primary/20",
         className
       )}

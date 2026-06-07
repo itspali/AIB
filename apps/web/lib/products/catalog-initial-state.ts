@@ -7,6 +7,7 @@ import { resolveSearchFieldPermissionsFromSession } from "@/lib/search/permissio
 import { fetchDefaultCustomModuleView } from "@/lib/search/views/queries";
 import {
   savedViewNeedsNativeFilter,
+  toSavedViewSnapshot,
   type SavedViewSnapshot,
 } from "@/lib/search/views/saved-view-utils";
 import type { CustomModuleView } from "@/lib/search/types";
@@ -18,7 +19,12 @@ import {
   fetchProductListByIds,
   fetchProductListPage,
 } from "@/lib/products/list-queries";
-import { coerceProductListPrefs, resolveProductListExpandVariants } from "@/lib/products/list-prefs";
+import {
+  coerceProductListPrefs,
+  DEFAULT_SHOW_VARIANTS,
+  resolveProductListExpandVariants,
+  shouldIncludeListImages,
+} from "@/lib/products/list-prefs";
 import type { ProductListRow } from "@/lib/products/types";
 import type { UserRole } from "@/lib/user/types";
 import type { ProductListPrefs } from "@/lib/products/list-prefs";
@@ -32,16 +38,6 @@ export type ProductCatalogInitialState = {
   fieldPermissions: ProductFieldPermissions;
 };
 
-function toSavedViewSnapshot(view: CustomModuleView): SavedViewSnapshot {
-  return {
-    id: view.id,
-    module_name: view.module_name,
-    view_name: view.view_name,
-    raw_search_text: view.raw_search_text,
-    compiled_ast: view.compiled_ast,
-  };
-}
-
 export async function resolveProductCatalogInitialState(
   supabase: SupabaseClient,
   tenantId: string,
@@ -51,18 +47,18 @@ export async function resolveProductCatalogInitialState(
 ): Promise<ProductCatalogInitialState> {
   const coercedPrefs = listPrefs ? coerceProductListPrefs(listPrefs) : null;
   const expandVariants = coercedPrefs
-    ? resolveProductListExpandVariants(coercedPrefs.showVariants, coercedPrefs.viewMode)
+    ? resolveProductListExpandVariants(DEFAULT_SHOW_VARIANTS, coercedPrefs.viewMode)
     : false;
+  const includeImages = shouldIncludeListImages(coercedPrefs);
 
-  const [fieldPermissions, searchPermissions, defaultView] = await Promise.all([
+  const [fieldPermissions, defaultView] = await Promise.all([
     resolveProductFieldPermissions(supabase, tenantId, operatorRole),
-    resolveSearchFieldPermissionsFromSession(supabase, tenantId, userId, operatorRole),
     fetchDefaultCustomModuleView(supabase, tenantId, userId, "items"),
   ]);
 
   if (!defaultView) {
     const page = await fetchProductListPage(supabase, tenantId, fieldPermissions, {
-      includeImages: false,
+      includeImages,
       expandVariants,
     });
     return {
@@ -78,13 +74,19 @@ export async function resolveProductCatalogInitialState(
   const initialSavedView = toSavedViewSnapshot(defaultView);
 
   if (savedViewNeedsNativeFilter(defaultView.compiled_ast)) {
+    const searchPermissions = await resolveSearchFieldPermissionsFromSession(
+      supabase,
+      tenantId,
+      userId,
+      operatorRole
+    );
     const validation = validateFilterAst(defaultView.compiled_ast, "items", searchPermissions);
     if (validation.ok) {
       try {
         const normalizedAst = await normalizeItemsAst(supabase, tenantId, validation.ast);
         const itemIds = await executeItemsFilterRpc(supabase, tenantId, normalizedAst);
         const page = await fetchProductListByIds(supabase, tenantId, itemIds, fieldPermissions, {
-          includeImages: false,
+          includeImages,
           expandVariants,
         });
         return {
@@ -102,7 +104,7 @@ export async function resolveProductCatalogInitialState(
   }
 
   const page = await fetchProductListPage(supabase, tenantId, fieldPermissions, {
-    includeImages: false,
+    includeImages,
     expandVariants,
   });
   return {

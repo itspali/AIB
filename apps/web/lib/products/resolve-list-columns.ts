@@ -9,6 +9,7 @@ import { filterAllowedColumnIds } from "@/lib/products/field-permissions";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import {
   getColumnPrefsSlice,
+  isCardViewMode,
   type DeviceClass,
   type ProductListPrefs,
   type ProductListViewMode,
@@ -27,7 +28,14 @@ export function resolveVisibleColumns({
   deviceClass,
   allowedFields,
 }: ResolveVisibleColumnsInput): ProductListColumnId[] {
-  const slice = getColumnPrefsSlice(prefs, viewMode, deviceClass);
+  const slice = getColumnPrefsSlice(
+    prefs,
+    viewMode,
+    deviceClass,
+    isCardViewMode(viewMode)
+      ? { cardLayout: prefs.cardLayout, cardOrientation: prefs.cardOrientation }
+      : undefined
+  );
   const orderedVisible = getOrderedVisibleListColumns(slice);
   return filterAllowedColumnIds(orderedVisible, allowedFields);
 }

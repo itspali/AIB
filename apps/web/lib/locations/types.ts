@@ -1,4 +1,6 @@
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
+import type { TenantThemeSettings } from "@/lib/theme/governance";
+import type { Theme } from "@/lib/theme/themes";
 import type { ValuationMethodOption } from "@/lib/organization/naming-options";
 import type { DocumentSequenceRow } from "@/lib/organization/types";
 import type { NamingSequenceEntry } from "@/lib/naming/sequences";
@@ -80,6 +82,7 @@ export type LocationModuleContext = {
   governance: LocationGovernanceSnapshot;
   centralHqLocationId: string | null;
   canManage: boolean;
+  themeSettings: TenantThemeSettings;
   defaultInventoryValuationMethod: ValuationMethodOption;
   revenueAccounts: RevenueAccountOption[];
   documentSequencesByLocationId: Record<string, DocumentSequenceRow[]>;
@@ -112,6 +115,10 @@ export type LocationFormValues = {
   virtual_configuration: VirtualLocationConfiguration;
   naming_sequences: Record<string, NamingSequenceEntry>;
   existing_location_meta?: Record<string, unknown>;
+  location_theme_enabled: boolean;
+  location_theme: Theme;
+  location_primary_hue: number | null;
+  location_accent_hue: number | null;
   code_manually_edited?: boolean;
   code_generation?: {
     scope: string;

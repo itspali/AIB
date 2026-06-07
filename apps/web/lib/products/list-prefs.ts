@@ -29,6 +29,23 @@ export function isCardViewMode(viewMode: ProductListViewMode): boolean {
   return viewMode === "card";
 }
 
+/** Primary images are needed on first paint for card grid and table image column. */
+export function shouldIncludeListImages(prefs: ProductListPrefs | null | undefined): boolean {
+  if (!prefs) return false;
+  const coerced = coerceProductListPrefs(prefs);
+  if (isCardViewMode(coerced.viewMode)) return true;
+  if (!isTableLikeViewMode(coerced.viewMode)) return false;
+  const slice = getColumnPrefsSlice(
+    coerced,
+    coerced.viewMode,
+    "desktop",
+    isCardViewMode(coerced.viewMode)
+      ? { cardLayout: coerced.cardLayout, cardOrientation: coerced.cardOrientation }
+      : undefined
+  );
+  return getOrderedVisibleListColumns(slice).includes("image");
+}
+
 /** Card grid tile style: detailed structured tiles or shop catalog grid. */
 export type ProductCardLayout = "v2" | "shop";
 
@@ -41,6 +58,24 @@ export function isShopCardLayout(layout: ProductCardLayout): boolean {
 export function parseProductCardLayout(value: unknown): ProductCardLayout {
   if (value === "shop") return "shop";
   return "v2";
+}
+
+/** Detail card tile orientation (shop tiles stay vertical). */
+export type ProductCardOrientation = "vertical" | "horizontal";
+
+export const PRODUCT_CARD_ORIENTATIONS: ProductCardOrientation[] = ["vertical", "horizontal"];
+
+export function parseProductCardOrientation(value: unknown): ProductCardOrientation {
+  return value === "horizontal" ? "horizontal" : "vertical";
+}
+
+/** Footer meta on horizontal/detail cards: full labels or compact icons. */
+export type ProductCardMetaDisplay = "labels" | "icons";
+
+export const PRODUCT_CARD_META_DISPLAYS: ProductCardMetaDisplay[] = ["labels", "icons"];
+
+export function parseProductCardMetaDisplay(value: unknown): ProductCardMetaDisplay {
+  return value === "icons" ? "icons" : "labels";
 }
 
 export function isTableLikeViewMode(viewMode: ProductListViewMode): boolean {
@@ -60,12 +95,28 @@ export const AUTO_LAYOUT_PREF = "auto" as const;
 export type CardGridColumnPref = CardGridColumnCount | typeof AUTO_LAYOUT_PREF;
 export type FrozenColumnPref = ProductListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const PRODUCT_LIST_PREFS_VERSION = 6;
+export const PRODUCT_LIST_PREFS_VERSION = 9;
+
+/** Variants list toggle defaults off on every load; not restored from storage. */
+export const DEFAULT_SHOW_VARIANTS = false;
 
 export type ProductListColumnPrefsByContext = Record<
   ProductListViewMode,
   Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>
 >;
+
+/** Per card tile style — column selections do not bleed across Shop / Detail layouts. */
+export type CardColumnVariant = "shop" | "v2Vertical" | "v2Horizontal";
+
+export type CardVariantColumnPrefs = Record<
+  CardColumnVariant,
+  Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>
+>;
+
+export type ColumnPrefsCardContext = {
+  cardLayout: ProductCardLayout;
+  cardOrientation: ProductCardOrientation;
+};
 
 export type CardGridColumnsByDevice = Record<DeviceClass, CardGridColumnPref>;
 
@@ -82,6 +133,12 @@ export type ProductListPrefs = {
   showVariants: boolean;
   /** Tile style when viewMode is card. */
   cardLayout: ProductCardLayout;
+  /** Detail card row layout (ignored for shop tiles). */
+  cardOrientation: ProductCardOrientation;
+  /** Footer meta density on detail cards. */
+  cardMetaDisplay: ProductCardMetaDisplay;
+  /** Column prefs for each card tile variant (shop, detail vertical, detail horizontal). */
+  cardVariantColumnPrefs: CardVariantColumnPrefs;
 };
 
 const TABLE_MOBILE_VISIBLE: ProductListColumnId[] = [
@@ -253,6 +310,9 @@ function cloneColumnPrefsSlice(
     visibleColumns: [...slice.visibleColumns],
     columnWidths: slice.columnWidths ? { ...slice.columnWidths } : undefined,
     columnWrapModes: slice.columnWrapModes ? { ...slice.columnWrapModes } : undefined,
+    columnChipDisplay: slice.columnChipDisplay
+      ? JSON.parse(JSON.stringify(slice.columnChipDisplay))
+      : undefined,
   });
 }
 
@@ -263,6 +323,23 @@ function cloneDeviceColumnPrefs(
     mobile: cloneColumnPrefsSlice(source.mobile),
     tablet: cloneColumnPrefsSlice(source.tablet),
     desktop: cloneColumnPrefsSlice(source.desktop),
+  };
+}
+
+export function resolveCardColumnVariant(
+  cardLayout: ProductCardLayout,
+  cardOrientation: ProductCardOrientation
+): CardColumnVariant {
+  if (cardLayout === "shop") return "shop";
+  return cardOrientation === "horizontal" ? "v2Horizontal" : "v2Vertical";
+}
+
+export function getDefaultCardVariantColumnPrefs(): CardVariantColumnPrefs {
+  const cardDefaults = getDefaultProductListColumnPrefsByContext().card;
+  return {
+    shop: cloneDeviceColumnPrefs(cardDefaults),
+    v2Vertical: cloneDeviceColumnPrefs(cardDefaults),
+    v2Horizontal: cloneDeviceColumnPrefs(cardDefaults),
   };
 }
 
@@ -300,8 +377,11 @@ export function getDefaultProductListPrefs(): ProductListPrefs {
     frozenColumnCount: AUTO_LAYOUT_PREF,
     columnPrefs: getDefaultProductListColumnPrefsByContext(),
     cardGridColumns: getDefaultCardGridColumns(),
-    showVariants: false,
+    showVariants: DEFAULT_SHOW_VARIANTS,
     cardLayout: "v2",
+    cardOrientation: "vertical",
+    cardMetaDisplay: "labels",
+    cardVariantColumnPrefs: getDefaultCardVariantColumnPrefs(),
   });
 }
 
@@ -456,8 +536,40 @@ function parseColumnPrefsByContext(raw: unknown): ProductListColumnPrefsByContex
   return result;
 }
 
+function parseCardVariantColumnPrefs(
+  raw: unknown,
+  legacyCard: Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>,
+  prefsVersion: number
+): CardVariantColumnPrefs {
+  const defaults = getDefaultCardVariantColumnPrefs();
+
+  if (prefsVersion >= PRODUCT_LIST_PREFS_VERSION && raw && typeof raw === "object") {
+    const parsed = raw as Partial<CardVariantColumnPrefs>;
+    const result = {} as CardVariantColumnPrefs;
+
+    for (const variant of ["shop", "v2Vertical", "v2Horizontal"] as const) {
+      result[variant] = {} as Record<DeviceClass, ListColumnPrefs<ProductListColumnId>>;
+      for (const deviceClass of DEVICE_CLASSES) {
+        const slice = parsed[variant]?.[deviceClass];
+        result[variant][deviceClass] = normalizeListColumnPrefs(
+          PRODUCT_LIST_COLUMN_REGISTRY,
+          slice ?? defaults[variant][deviceClass]
+        );
+      }
+    }
+
+    return result;
+  }
+
+  return {
+    shop: cloneDeviceColumnPrefs(legacyCard),
+    v2Vertical: cloneDeviceColumnPrefs(legacyCard),
+    v2Horizontal: cloneDeviceColumnPrefs(legacyCard),
+  };
+}
+
 function parseViewMode(value: unknown, prefsVersion: number): ProductListViewMode {
-  if (prefsVersion >= PRODUCT_LIST_PREFS_VERSION) {
+  if (prefsVersion >= 8) {
     if (value === "table" || value === "compact" || value === "card") return value;
     return "table";
   }
@@ -499,12 +611,24 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     : parseColumnPrefsByContext(parsed.columnPrefs) ?? defaults.columnPrefs;
 
   const cardGridColumns =
-    parsed.prefsVersion === PRODUCT_LIST_PREFS_VERSION
+    parsed.prefsVersion >= 8
       ? parseCardGridColumns(parsed.cardGridColumns)
       : getDefaultCardGridColumns();
   const showVariants = parsed.showVariants === true;
-  const cardLayout = parseProductCardLayout(
-    (parsed as Partial<ProductListPrefs>).cardLayout
+  const partial = parsed as Partial<ProductListPrefs>;
+  const cardLayout = parseProductCardLayout(partial.cardLayout);
+  const cardOrientation =
+    parsed.prefsVersion >= 8
+      ? parseProductCardOrientation(partial.cardOrientation)
+      : defaults.cardOrientation;
+  const cardMetaDisplay =
+    parsed.prefsVersion >= 8
+      ? parseProductCardMetaDisplay(partial.cardMetaDisplay)
+      : defaults.cardMetaDisplay;
+  const cardVariantColumnPrefs = parseCardVariantColumnPrefs(
+    partial.cardVariantColumnPrefs,
+    columnPrefs.card,
+    rawVersion
   );
 
   return clampCardGridColumns({
@@ -518,6 +642,9 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     cardGridColumns,
     showVariants,
     cardLayout,
+    cardOrientation,
+    cardMetaDisplay,
+    cardVariantColumnPrefs,
   });
 }
 
@@ -566,11 +693,16 @@ export function loadProductListPrefs(): ProductListPrefs | null {
   }
 }
 
+export function applyShowVariantsDefault(prefs: ProductListPrefs): ProductListPrefs {
+  return { ...prefs, showVariants: DEFAULT_SHOW_VARIANTS };
+}
+
 export function saveProductListPrefs(prefs: ProductListPrefs): void {
   if (typeof window === "undefined") return;
   try {
     const normalized = clampCardGridColumns({
       ...prefs,
+      showVariants: DEFAULT_SHOW_VARIANTS,
       prefsVersion: PRODUCT_LIST_PREFS_VERSION,
     });
     localStorage.setItem(
@@ -582,11 +714,29 @@ export function saveProductListPrefs(prefs: ProductListPrefs): void {
   }
 }
 
+function resolveCardContext(
+  prefs: ProductListPrefs,
+  cardContext?: ColumnPrefsCardContext
+): ColumnPrefsCardContext {
+  return {
+    cardLayout: cardContext?.cardLayout ?? prefs.cardLayout,
+    cardOrientation: cardContext?.cardOrientation ?? prefs.cardOrientation,
+  };
+}
+
 export function getColumnPrefsSlice(
   prefs: ProductListPrefs,
   viewMode: ProductListViewMode,
-  deviceClass: DeviceClass
+  deviceClass: DeviceClass,
+  cardContext?: ColumnPrefsCardContext
 ): ListColumnPrefs<ProductListColumnId> {
+  if (viewMode === "card") {
+    const variant = resolveCardColumnVariant(
+      resolveCardContext(prefs, cardContext).cardLayout,
+      resolveCardContext(prefs, cardContext).cardOrientation
+    );
+    return prefs.cardVariantColumnPrefs[variant][deviceClass];
+  }
   return prefs.columnPrefs[viewMode][deviceClass];
 }
 
@@ -594,8 +744,26 @@ export function setColumnPrefsSlice(
   prefs: ProductListPrefs,
   viewMode: ProductListViewMode,
   deviceClass: DeviceClass,
-  slice: ListColumnPrefs<ProductListColumnId>
+  slice: ListColumnPrefs<ProductListColumnId>,
+  cardContext?: ColumnPrefsCardContext
 ): ProductListPrefs {
+  if (viewMode === "card") {
+    const variant = resolveCardColumnVariant(
+      resolveCardContext(prefs, cardContext).cardLayout,
+      resolveCardContext(prefs, cardContext).cardOrientation
+    );
+    return {
+      ...prefs,
+      cardVariantColumnPrefs: {
+        ...prefs.cardVariantColumnPrefs,
+        [variant]: {
+          ...prefs.cardVariantColumnPrefs[variant],
+          [deviceClass]: slice,
+        },
+      },
+    };
+  }
+
   return {
     ...prefs,
     columnPrefs: {
@@ -640,9 +808,12 @@ export function setCardGridColumnsSlice(
 export function getOrderedVisibleColumns(
   prefs: ProductListPrefs,
   viewMode: ProductListViewMode,
-  deviceClass: DeviceClass
+  deviceClass: DeviceClass,
+  cardContext?: ColumnPrefsCardContext
 ): ProductListColumnId[] {
-  return getOrderedVisibleListColumns(getColumnPrefsSlice(prefs, viewMode, deviceClass));
+  return getOrderedVisibleListColumns(
+    getColumnPrefsSlice(prefs, viewMode, deviceClass, cardContext)
+  );
 }
 
 export function bumpProductListPrefsRevision(prefs: ProductListPrefs): ProductListPrefs {
@@ -660,16 +831,16 @@ export function resolvePrefsOnMount(
   const local = localPrefs ? coerceProductListPrefs(localPrefs) : null;
 
   if (!server && !local) return getDefaultProductListPrefs();
-  if (!server && local) return local;
-  if (server && !local) return server;
+  if (!server && local) return applyShowVariantsDefault(local);
+  if (server && !local) return applyShowVariantsDefault(server);
 
   const resolvedLocal = local!;
   const resolvedServer = server!;
   const localRevision = resolvedLocal.clientRevision ?? 0;
   const serverRevision = resolvedServer.clientRevision ?? 0;
 
-  if (localRevision > serverRevision) return resolvedLocal;
-  return resolvedServer;
+  if (localRevision > serverRevision) return applyShowVariantsDefault(resolvedLocal);
+  return applyShowVariantsDefault(resolvedServer);
 }
 
 export function mergeInitialProductListPrefs(
@@ -679,13 +850,27 @@ export function mergeInitialProductListPrefs(
   return resolvePrefsOnMount(serverPrefs, localPrefs ?? null);
 }
 
+export function isShowVariantsOnlyPrefChange(
+  previous: ProductListPrefs,
+  next: ProductListPrefs
+): boolean {
+  if (previous.showVariants === next.showVariants) return false;
+  const { showVariants: _prev, ...prevRest } = previous;
+  const { showVariants: _next, ...nextRest } = next;
+  return JSON.stringify(prevRest) === JSON.stringify(nextRest);
+}
+
 export function shouldPersistPrefsImmediately(
   previous: ProductListPrefs,
   next: ProductListPrefs
 ): boolean {
   if (previous.viewMode !== next.viewMode) return true;
-  if (previous.showVariants !== next.showVariants) return true;
+  if (previous.showVariants !== next.showVariants && !isShowVariantsOnlyPrefChange(previous, next)) {
+    return true;
+  }
   if (previous.cardLayout !== next.cardLayout) return true;
+  if (previous.cardOrientation !== next.cardOrientation) return true;
+  if (previous.cardMetaDisplay !== next.cardMetaDisplay) return true;
   if (previous.frozenColumnCount !== next.frozenColumnCount) return true;
   if (previous.sortField !== next.sortField || previous.sortDirection !== next.sortDirection) {
     return true;
@@ -702,9 +887,17 @@ export function didColumnSettingsChange(
 ): boolean {
   if (previous.frozenColumnCount !== next.frozenColumnCount) return true;
   if (JSON.stringify(previous.columnPrefs) !== JSON.stringify(next.columnPrefs)) return true;
+  if (
+    JSON.stringify(previous.cardVariantColumnPrefs) !==
+    JSON.stringify(next.cardVariantColumnPrefs)
+  ) {
+    return true;
+  }
   if (JSON.stringify(previous.cardGridColumns) !== JSON.stringify(next.cardGridColumns)) {
     return true;
   }
   if (previous.cardLayout !== next.cardLayout) return true;
+  if (previous.cardOrientation !== next.cardOrientation) return true;
+  if (previous.cardMetaDisplay !== next.cardMetaDisplay) return true;
   return false;
 }

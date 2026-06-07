@@ -8,22 +8,24 @@ import {
   useMemo,
   useState,
 } from "react";
-
-export type Theme = "light" | "dark";
-
-const STORAGE_KEY = "aib-theme";
+import { applyBrandColorsToDocument } from "@/lib/theme/brand-colors";
+import type { ResolvedThemePolicy } from "@/lib/theme/governance";
+import {
+  applyThemeToDocument,
+  DEFAULT_THEME,
+  normalizeStoredTheme,
+  STORAGE_KEY,
+  type Theme,
+} from "@/lib/theme/themes";
 
 type ThemeContextValue = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+  canChangeTheme: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
-
-function applyTheme(theme: Theme) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-}
 
 function persistTheme(theme: Theme) {
   try {
@@ -32,53 +34,101 @@ function persistTheme(theme: Theme) {
     /* ignore */
   }
   try {
-    document.cookie = `aib-theme=${theme}; path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `${STORAGE_KEY}=${theme}; path=/; max-age=31536000; SameSite=Lax`;
   } catch {
     /* ignore */
   }
 }
 
 function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return DEFAULT_THEME;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "light" || stored === "dark") return stored;
+    return normalizeStoredTheme(localStorage.getItem(STORAGE_KEY));
   } catch {
     /* ignore */
   }
-  return "dark";
+  return DEFAULT_THEME;
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
+function applyResolvedTheme(theme: Theme, policy: ResolvedThemePolicy) {
+  applyThemeToDocument(theme);
+  applyBrandColorsToDocument(theme, {
+    primaryHue: policy.primaryHue,
+    accentHue: policy.accentHue,
+  });
+}
+
+type ThemeProviderProps = {
+  children: React.ReactNode;
+  policy?: ResolvedThemePolicy | null;
+};
+
+export function ThemeProvider({ children, policy = null }: ThemeProviderProps) {
+  const resolvedPolicy = policy;
+  const canChangeTheme = resolvedPolicy?.canChangeTheme ?? true;
+  const enforcedTheme = resolvedPolicy?.enforcedTheme ?? DEFAULT_THEME;
+  const policyKey = resolvedPolicy
+    ? [
+        resolvedPolicy.canChangeTheme,
+        resolvedPolicy.enforcedTheme,
+        resolvedPolicy.primaryHue,
+        resolvedPolicy.accentHue,
+      ].join(":")
+    : "default";
+
+  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const stored = readStoredTheme();
-    setThemeState(stored);
-    applyTheme(stored);
-    persistTheme(stored);
+    const initialTheme = canChangeTheme ? readStoredTheme() : enforcedTheme;
+    setThemeState(initialTheme);
+    if (resolvedPolicy) {
+      applyResolvedTheme(initialTheme, resolvedPolicy);
+    } else {
+      applyThemeToDocument(initialTheme);
+    }
+    if (canChangeTheme) {
+      persistTheme(initialTheme);
+    }
     setMounted(true);
-  }, []);
+  }, [canChangeTheme, enforcedTheme, policyKey, resolvedPolicy]);
 
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-    applyTheme(next);
-    persistTheme(next);
-  }, []);
+  const setTheme = useCallback(
+    (next: Theme) => {
+      if (!canChangeTheme) return;
+      setThemeState(next);
+      if (resolvedPolicy) {
+        applyResolvedTheme(next, resolvedPolicy);
+      } else {
+        applyThemeToDocument(next);
+      }
+      persistTheme(next);
+    },
+    [canChangeTheme, resolvedPolicy]
+  );
 
   const toggleTheme = useCallback(() => {
+    if (!canChangeTheme) return;
     setThemeState((prev) => {
       const next: Theme = prev === "dark" ? "light" : "dark";
-      applyTheme(next);
+      if (resolvedPolicy) {
+        applyResolvedTheme(next, resolvedPolicy);
+      } else {
+        applyThemeToDocument(next);
+      }
       persistTheme(next);
       return next;
     });
-  }, []);
+  }, [canChangeTheme, resolvedPolicy]);
 
   const value = useMemo(
-    () => ({ theme: mounted ? theme : "dark", setTheme, toggleTheme }),
-    [mounted, theme, setTheme, toggleTheme]
+    () => ({
+      theme: mounted ? theme : enforcedTheme,
+      setTheme,
+      toggleTheme,
+      canChangeTheme,
+    }),
+    [mounted, theme, enforcedTheme, setTheme, toggleTheme, canChangeTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -1,15 +1,14 @@
 "use client";
 
-import { LayoutGrid, Rows3, Table2 } from "lucide-react";
+import { ArrowUpDown, LayoutGrid, Rows3, Table2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { ProductListToolbarFilters } from "@/components/products/product-list-toolbar-filters";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { ProductListColumnSettings } from "@/components/products/product-list-column-settings";
 import { Button } from "@/components/ui/button";
-import { FieldLabelInfo } from "@/components/ui/field-label-info";
 import { Label } from "@/components/ui/label";
-import { VARIANTS_LIST_TOGGLE_HELP, VARIANTS_LIST_TOGGLE_LABEL } from "@/lib/products/product-user-labels";
+import { VARIANTS_LIST_TOGGLE_LABEL } from "@/lib/products/product-user-labels";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -21,25 +20,30 @@ import {
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import {
   isCardViewMode,
+  resolveProductListExpandVariants,
   supportsProductListVariantExpansion,
   type DeviceClass,
   type ProductListPrefs,
   type ProductListViewMode,
 } from "@/lib/products/list-prefs";
 import {
+  DEFAULT_PRODUCT_LIST_SORT_DIRECTION,
+  DEFAULT_PRODUCT_LIST_SORT_FIELD,
   PRODUCT_LIST_SORT_OPTIONS,
   sortOptionKey,
 } from "@/lib/products/list-sort";
 import {
-  listToolbarIconButtonClass,
   LIST_TOOLBAR_MODULE_VIEW_WIDTH,
   listToolbarModuleViewTriggerClass,
   listToolbarSelectClass,
-  listToolbarViewToggleButtonClass,
+  listToolbarSortTriggerClass,
+  listToolbarViewToggleSegmentClass,
   listToolbarViewToggleShellClass,
   LIST_TOOLBAR_CONTROL_HEIGHT,
+  LIST_TOOLBAR_ROW_GAP,
   LIST_TOOLBAR_ROW_MIN_HEIGHT,
   LIST_TOOLBAR_TEXT,
+  LIST_TOOLBAR_TOOLS_GAP,
 } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +62,10 @@ type Props = {
   onPrefsChange: (
     prefs: ProductListPrefs | ((current: ProductListPrefs) => ProductListPrefs)
   ) => void;
+  /** Fired when the user toggles variant expansion (triggers list refetch). */
+  onShowVariantsChange?: (showVariants: boolean) => void;
+  /** Fired when view mode changes and variant expansion eligibility changes. */
+  onExpandVariantsChange?: (expandVariants: boolean) => void;
   fieldPermissions: ProductFieldPermissions;
   detectedDeviceClass: DeviceClass;
   resultCount: number;
@@ -80,6 +88,8 @@ export function ProductListToolbar({
   categoryOptions,
   prefs,
   onPrefsChange,
+  onShowVariantsChange,
+  onExpandVariantsChange,
   fieldPermissions,
   detectedDeviceClass,
   resultCount,
@@ -101,6 +111,9 @@ export function ProductListToolbar({
   const setViewMode = (nextViewMode: ProductListViewMode) => {
     if (controlsDisabled || viewModeToggleLocked || prefs.viewMode === nextViewMode) return;
     onPrefsChange({ ...prefs, viewMode: nextViewMode });
+    onExpandVariantsChange?.(
+      resolveProductListExpandVariants(prefs.showVariants, nextViewMode)
+    );
   };
 
   const sortValue = sortOptionKey(prefs.sortField, prefs.sortDirection);
@@ -108,6 +121,13 @@ export function ProductListToolbar({
   const sortOptions = PRODUCT_LIST_SORT_OPTIONS.filter((option) =>
     allowedSortFields.has(option.field)
   );
+  const activeSortLabel =
+    sortOptions.find(
+      (option) => sortOptionKey(option.field, option.direction) === sortValue
+    )?.label ?? "Sort";
+  const isSortActive =
+    prefs.sortField !== DEFAULT_PRODUCT_LIST_SORT_FIELD ||
+    prefs.sortDirection !== DEFAULT_PRODUCT_LIST_SORT_DIRECTION;
 
   const countLabel =
     supportsProductListVariantExpansion(viewMode) && prefs.showVariants
@@ -122,7 +142,8 @@ export function ProductListToolbar({
     <div className="space-y-2">
       <div
         className={cn(
-          "flex min-w-0 flex-nowrap items-center gap-2 text-muted-foreground md:gap-x-3",
+          "flex min-w-0 flex-nowrap items-center text-muted-foreground",
+          LIST_TOOLBAR_ROW_GAP,
           LIST_TOOLBAR_ROW_MIN_HEIGHT,
           LIST_TOOLBAR_TEXT
         )}
@@ -149,7 +170,8 @@ export function ProductListToolbar({
 
         <div
           className={cn(
-            "relative z-10 flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto overflow-y-visible",
+            "relative z-10 flex min-w-0 flex-1 items-center justify-end overflow-x-auto overflow-y-visible",
+            LIST_TOOLBAR_TOOLS_GAP,
             LIST_TOOLBAR_CONTROL_HEIGHT,
             "flex-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           )}
@@ -190,58 +212,21 @@ export function ProductListToolbar({
             </SelectContent>
           </Select>
 
-          {isCardViewMode(viewMode) ? (
-            <Select
-              value={sortValue}
-              disabled={controlsDisabled}
-              onValueChange={(value) => {
-                const option = PRODUCT_LIST_SORT_OPTIONS.find(
-                  (entry) => sortOptionKey(entry.field, entry.direction) === value
-                );
-                if (!option) return;
-                onPrefsChange({
-                  ...prefs,
-                  sortField: option.field,
-                  sortDirection: option.direction,
-                });
-              }}
-            >
-              <SelectTrigger
-                className={cn(
-                  listToolbarSelectClass(false),
-                  "hidden w-[8.5rem] shrink-0 sm:flex"
-                )}
-                title="Sort products"
-                aria-label="Sort products"
-              >
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {sortOptions.map((option) => (
-                  <SelectItem
-                    key={sortOptionKey(option.field, option.direction)}
-                    value={sortOptionKey(option.field, option.direction)}
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
-
           {supportsProductListVariantExpansion(viewMode) ? (
-            <div className="flex shrink-0 items-center gap-0.5">
+            <div className="flex shrink-0 items-center gap-0.5 dark:rounded-md dark:bg-[hsl(224_47%_13%)] dark:px-1.5 dark:py-0.5">
               <Switch
                 id="show-variants-toggle"
                 checked={prefs.showVariants}
                 disabled={controlsDisabled || isExpandVariantsSyncing}
                 className="h-5 w-9 shrink-0 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4 [&>span]:shadow-sm"
-                onCheckedChange={(checked) =>
+                onCheckedChange={(checked) => {
+                  const showVariants = checked === true;
                   onPrefsChange((current) => ({
                     ...current,
-                    showVariants: checked === true,
-                  }))
-                }
+                    showVariants,
+                  }));
+                  onShowVariantsChange?.(showVariants);
+                }}
                 aria-label={VARIANTS_LIST_TOGGLE_LABEL}
               />
               <Label
@@ -250,11 +235,45 @@ export function ProductListToolbar({
               >
                 {VARIANTS_LIST_TOGGLE_LABEL}
               </Label>
-              <span className="hidden md:inline-flex">
-                <FieldLabelInfo label={VARIANTS_LIST_TOGGLE_LABEL}>
-                  {VARIANTS_LIST_TOGGLE_HELP}
-                </FieldLabelInfo>
-              </span>
+            </div>
+          ) : null}
+
+          {isCardViewMode(viewMode) ? (
+            <div className={cn(listToolbarViewToggleShellClass(), "hidden sm:inline-flex")}>
+              <Select
+                value={sortValue}
+                disabled={controlsDisabled}
+                onValueChange={(value) => {
+                  const option = PRODUCT_LIST_SORT_OPTIONS.find(
+                    (entry) => sortOptionKey(entry.field, entry.direction) === value
+                  );
+                  if (!option) return;
+                  onPrefsChange({
+                    ...prefs,
+                    sortField: option.field,
+                    sortDirection: option.direction,
+                  });
+                }}
+              >
+                <SelectTrigger
+                  className={listToolbarSortTriggerClass(isSortActive)}
+                  title={`Sort: ${activeSortLabel}`}
+                  aria-label={`Sort products: ${activeSortLabel}`}
+                >
+                  <SelectValue />
+                  <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {sortOptions.map((option) => (
+                    <SelectItem
+                      key={sortOptionKey(option.field, option.direction)}
+                      value={sortOptionKey(option.field, option.direction)}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
 
@@ -318,12 +337,7 @@ export function ProductListToolbar({
               type="button"
               size="sm"
               variant="ghost"
-              className={cn(
-                listToolbarViewToggleButtonClass(),
-                viewMode === "table"
-                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={listToolbarViewToggleSegmentClass(viewMode === "table")}
               disabled={controlsDisabled || viewModeToggleLocked}
               onClick={() => setViewMode("table")}
               title="Table view"
@@ -340,12 +354,7 @@ export function ProductListToolbar({
               type="button"
               size="sm"
               variant="ghost"
-              className={cn(
-                listToolbarViewToggleButtonClass(),
-                viewMode === "compact"
-                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={listToolbarViewToggleSegmentClass(viewMode === "compact")}
               disabled={controlsDisabled || viewModeToggleLocked}
               onClick={() => setViewMode("compact")}
               title="Compact table"
@@ -362,12 +371,7 @@ export function ProductListToolbar({
               type="button"
               size="sm"
               variant="ghost"
-              className={cn(
-                listToolbarViewToggleButtonClass(),
-                viewMode === "card"
-                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={listToolbarViewToggleSegmentClass(viewMode === "card")}
               disabled={controlsDisabled || viewModeToggleLocked}
               onClick={() => setViewMode("card")}
               title="Card view"
@@ -389,8 +393,6 @@ export function ProductListToolbar({
             detectedDeviceClass={detectedDeviceClass}
             disabled={controlsDisabled}
             isSaving={isSavingColumnPrefs}
-            triggerVariant="ghost"
-            triggerClassName={listToolbarIconButtonClass(false)}
           />
         </div>
       </div>

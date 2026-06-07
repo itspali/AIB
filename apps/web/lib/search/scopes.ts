@@ -35,10 +35,10 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
 };
 
 const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
-  { prefix: "/inventory/categories", scope: "categories" },
-  { prefix: "/inventory/items", scope: "items" },
   { prefix: "/items/categories", scope: "categories" },
   { prefix: "/items", scope: "items" },
+  { prefix: "/inventory/categories", scope: "categories" },
+  { prefix: "/inventory/items", scope: "items" },
   { prefix: "/settings/locations", scope: "locations" },
   { prefix: "/settings", scope: "settings" },
 ];
@@ -51,6 +51,12 @@ export function resolveScopeFromPath(pathname: string): FilterScope {
     }
   }
   return "all";
+}
+
+/** True when the current route is the active module page (not a stale in-flight action). */
+export function pathnameMatchesScope(pathname: string, scope: FilterScope): boolean {
+  if (scope === "all") return true;
+  return resolveScopeFromPath(pathname) === scope;
 }
 
 export function getScopePlaceholder(scope: FilterScope): string {

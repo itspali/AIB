@@ -41,6 +41,7 @@ import {
   parseVirtualLocationConfiguration,
 } from "@/lib/locations/virtual-config";
 import { parseLocationNamingSequences } from "@/lib/locations/location-meta";
+import { locationThemeToFormValues } from "@/lib/theme/governance";
 
 type Props = {
   open: boolean;
@@ -90,6 +91,10 @@ const defaultForm: LocationFormValues = {
   virtual_configuration: DEFAULT_VIRTUAL_LOCATION_CONFIG,
   naming_sequences: emptyNamingSequencesForm(),
   existing_location_meta: {},
+  location_theme_enabled: false,
+  location_theme: "dark",
+  location_primary_hue: null,
+  location_accent_hue: null,
 };
 
 export function LocationDrawerForm({
@@ -159,6 +164,7 @@ export function LocationDrawerForm({
           virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
           naming_sequences: parseLocationNamingSequences(editingLocation.location_meta, keys),
           existing_location_meta: editingLocation.location_meta,
+          ...locationThemeToFormValues(editingLocation.location_meta),
         })
       );
     } else {

@@ -19,10 +19,11 @@ import {
   Package,
   Plus,
   ShoppingCart,
-  Store,
   Tag,
+  Tags,
   Wallet,
   Warehouse,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { findSimilarItems, type SimilarItem } from "@/app/items/actions";
@@ -43,8 +44,8 @@ import type { CompositionCommitResult } from "@/components/products/product-edit
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import type { ProductPanelMutationHeader } from "@/components/products/product-panel-form";
 import { ItemExtensionDataProvider } from "@/components/products/item-extension-data-provider";
-import { VariantDistributionSection } from "@/components/products/variant-distribution-section";
-import { VariantChannelAvailabilityMatrix } from "@/components/products/variant-channel-availability-matrix";
+import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
+import { VariantBufferThresholdMatrix } from "@/components/products/variant-buffer-threshold-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
@@ -67,6 +68,20 @@ import {
   VARIANTS_SECTION_LABEL,
   VARIANTS_SECTION_SHORT_LABEL,
   MRP_PRICE_COLUMN,
+  CATALOG_REACH_DISTRIBUTION_LOADING,
+  CUSTOM_FIELDS_SECTION_HELP,
+  CUSTOM_FIELDS_SECTION_LABEL,
+  DISCOVERY_TAGS_SECTION_HELP,
+  DISCOVERY_TAGS_SECTION_LABEL,
+  CATEGORY_FIELDS_SECTION_HELP,
+  CATEGORY_FIELDS_SECTION_LABEL,
+  categoryFieldsSectionTitle,
+  VISIBILITY_LOCATIONS_HELP,
+  VISIBILITY_LOCATIONS_SUBSECTION,
+  VISIBILITY_SECTION_HELP,
+  VISIBILITY_SECTION_LABEL,
+  BUFFER_THRESHOLDS_LOADING,
+  BUFFER_THRESHOLDS_SUBSECTION,
 } from "@/lib/products/product-user-labels";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -126,6 +141,9 @@ import {
 } from "@/lib/products/variant-strategy";
 import {
   defaultVariantAxisKeys,
+  pickDescriptiveVariantAttributes,
+  sanitizeVariantAxisKeys,
+  splitTemplatesByAxis,
   usedVariantAttributeKeys,
 } from "@/lib/products/variant-composition";
 import {
@@ -170,6 +188,7 @@ import {
   editorSectionHeadingClass,
   editorSubsectionClass,
   editorSubsectionHeadingClass,
+  editorCatalogBlockClass,
   editorSwitchSize,
   editorPanelLayoutGridClass,
   editorPanelWizardLayoutGridClass,
@@ -205,8 +224,10 @@ import {
 import {
   EDITOR_STAGES,
   editorStageById,
+  stageForSection,
   type EditorStageId,
 } from "@/lib/products/editor-stages";
+import { EditorStageAccordionHeader } from "@/components/products/product-editor/editor-stage-accordion-header";
 import type { WizardNav } from "@/lib/products/use-product-create-wizard";
 import {
   overallCompletenessPercent,
@@ -234,8 +255,30 @@ const SECTIONS: Array<{
   { id: "variants", label: VARIANTS_SECTION_LABEL, shortLabel: VARIANTS_SECTION_SHORT_LABEL, icon: Layers },
   { id: "composition", label: COMPOSITION_SECTION_LABEL, shortLabel: "Set", icon: Boxes },
   { id: "media", label: "Media", shortLabel: "Media", icon: ListTree },
-  { id: "catalog", label: "Catalog & tags", shortLabel: "Catalog", icon: Tag },
-  { id: "reach", label: "Reach", shortLabel: "Reach", icon: Store },
+  {
+    id: "product_attributes",
+    label: CATEGORY_FIELDS_SECTION_LABEL,
+    shortLabel: "Category",
+    icon: Package,
+  },
+  {
+    id: "custom_fields",
+    label: CUSTOM_FIELDS_SECTION_LABEL,
+    shortLabel: "Fields",
+    icon: Tag,
+  },
+  {
+    id: "tags",
+    label: DISCOVERY_TAGS_SECTION_LABEL,
+    shortLabel: "Tags",
+    icon: Tags,
+  },
+  {
+    id: "visibility",
+    label: VISIBILITY_SECTION_LABEL,
+    shortLabel: "Visibility",
+    icon: Store,
+  },
 ];
 
 const SECTION_IDS = SECTIONS.map((section) => section.id);
@@ -293,7 +336,7 @@ const FIELD_SECTION: Partial<Record<keyof ProductMasterFormValues, SectionId>> =
   length_cm: "overview",
   width_cm: "overview",
   height_cm: "overview",
-  custom_fields: "catalog",
+  custom_fields: "custom_fields",
   alternate_uoms: "overview",
 };
 
@@ -342,7 +385,10 @@ type Props = {
   pinnedSections?: EditorSectionId[];
 };
 
+export type WizardLayout = "steps" | "accordion";
+
 export type EditorWizardChrome = {
+  layout?: WizardLayout;
   stage: EditorStageId;
   isFirst: boolean;
   isLast: boolean;
@@ -806,9 +852,16 @@ export function ProductEditorShell({
 }: Props) {
   // When pinnedSections is provided, nav is always hidden.
   const effectiveHideNav = hideNav || !!pinnedSections;
+  const wizardAccordion = wizard?.layout === "accordion";
+  const wizardSteps = Boolean(wizard && !wizardAccordion);
   const [activeSection, setActiveSection] = useState<SectionId>("overview");
+  const [expandedStage, setExpandedStage] = useState<EditorStageId>("essentials");
+  const activeWizardStage: EditorStageId | null = wizardAccordion
+    ? expandedStage
+    : wizard?.stage ?? null;
+  const stageHeaderRefs = useRef<Partial<Record<EditorStageId, HTMLDivElement>>>({});
   const isSectionMounted = useMountedEditorSections(activeSection, {
-    wizardStage: wizard?.stage ?? null,
+    wizardStage: activeWizardStage,
   });
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
   const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
@@ -873,7 +926,8 @@ export function ProductEditorShell({
     Boolean(itemId) &&
     (isSectionMounted("salable") ||
       isSectionMounted("purchasable") ||
-      isSectionMounted("variants"));
+      isSectionMounted("variants") ||
+      isSectionMounted("inventory"));
 
   const disableInput = useCallback(
     (formField: keyof ProductMasterFormValues | string, lockKey?: string) => {
@@ -905,6 +959,7 @@ export function ProductEditorShell({
   const sku = watch("sku");
   const isActive = watch("is_active");
   const trackInventory = watch("track_inventory");
+  const defaultReorderPoint = watch("reorder_point");
   const costingMethod = watch("costing_method");
   const trackingMode = watch("tracking_mode");
   const variantAttributes = watch("variant_attributes");
@@ -913,6 +968,12 @@ export function ProductEditorShell({
   const alternateUoms = watch("alternate_uoms");
   const tagIds = watch("tag_ids");
   const storefrontVisibility = watch("storefront_visibility");
+  const hasListedChannels = useMemo(
+    () =>
+      Array.isArray(storefrontVisibility) &&
+      storefrontVisibility.some((entry) => entry.is_visible),
+    [storefrontVisibility]
+  );
   const needsReview = watch("needs_review");
   const isSalable = watch("is_salable");
   const isBundle = watch("is_bundle");
@@ -935,18 +996,36 @@ export function ProductEditorShell({
 
   const categoryId = watch("category_id");
   const currentClassification = watch("classification");
+  const categoryName = useMemo(
+    () => categories.find((category) => category.id === categoryId)?.name ?? null,
+    [categories, categoryId]
+  );
+  const categoryFieldsTitle = useMemo(
+    () => categoryFieldsSectionTitle(categoryName),
+    [categoryName]
+  );
 
   const showVariantsSection = isMultiSku || variants.length > 1;
   const hasComposition = isBundle;
   const visibleSections = useMemo(
     () =>
-      editorSections(itemId, hasComposition).filter((section) => {
-        if (section.id === "variants" && !showVariantsSection) return false;
-        if (section.id === "composition" && !hasComposition) return false;
-        if (section.id === "inventory" && !isPhysical) return false;
-        return true;
-      }),
-    [itemId, hasComposition, showVariantsSection, isPhysical]
+      editorSections(itemId, hasComposition)
+        .filter((section) => {
+          if (section.id === "variants" && !showVariantsSection) return false;
+          if (section.id === "composition" && !hasComposition) return false;
+          if (section.id === "inventory" && !isPhysical) return false;
+          return true;
+        })
+        .map((section) =>
+          section.id === "product_attributes"
+            ? {
+                ...section,
+                label: categoryFieldsTitle,
+                shortLabel: categoryName?.trim() || section.shortLabel,
+              }
+            : section
+        ),
+    [itemId, hasComposition, showVariantsSection, isPhysical, categoryFieldsTitle, categoryName]
   );
   const visibleSectionIds = useMemo(
     () => visibleSections.map((section) => section.id),
@@ -969,26 +1048,41 @@ export function ProductEditorShell({
   );
   const storedVariantAxes = watch("variant_axes");
   const variantAxisKeys = storedVariantAxes ?? [];
+  const descriptiveAttributeTemplates = useMemo(
+    () => splitTemplatesByAxis(categoryTemplates, variantAxisKeys).descriptive,
+    [categoryTemplates, variantAxisKeys]
+  );
   const variantCommitRef = useRef<(() => Promise<VariantMatrixCommitResult>) | null>(null);
   const compositionCommitRef = useRef<(() => Promise<CompositionCommitResult>) | null>(null);
   const [compositionDraft, setCompositionDraft] = useState<VariantMatrixDraftState | null>(null);
   const [compositionSectionDirty, setCompositionSectionDirty] = useState(false);
   const [wizardSubmitPending, setWizardSubmitPending] = useState(false);
   const variantCompositionMode =
-    wizard?.stage === "versions" && Boolean(wizard) && isMultiSku ? "draft" : "live";
-  const compositionDeferSave = Boolean(wizard && wizard.stage === "composition");
+    activeWizardStage === "versions" && Boolean(wizard) && isMultiSku ? "draft" : "live";
+  const compositionDeferSave = Boolean(wizard && activeWizardStage === "composition");
   const variantAxisCategoryRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const previousCategory = variantAxisCategoryRef.current;
     variantAxisCategoryRef.current = categoryId;
-    if (previousCategory === undefined || previousCategory === categoryId) return;
-    const templateKeys = new Set(categoryTemplates.map((template) => template.key));
     const current = getValues("variant_axes") ?? [];
-    const filtered = current.filter((key) => templateKeys.has(key));
-    if (filtered.length !== current.length) {
-      setValue("variant_axes", filtered, { shouldDirty: true });
+    const filtered = sanitizeVariantAxisKeys(current, categoryTemplates);
+    const categoryChanged = previousCategory !== undefined && previousCategory !== categoryId;
+    if (categoryChanged || filtered.length !== current.length) {
+      setValue("variant_axes", filtered, { shouldDirty: categoryChanged });
     }
   }, [categoryId, categoryTemplates, getValues, setValue]);
+
+  useEffect(() => {
+    const current = getValues("variant_attributes") ?? {};
+    const descriptiveOnly = pickDescriptiveVariantAttributes(
+      current,
+      categoryTemplates,
+      variantAxisKeys
+    );
+    if (JSON.stringify(descriptiveOnly) !== JSON.stringify(current)) {
+      setValue("variant_attributes", descriptiveOnly, { shouldDirty: false });
+    }
+  }, [categoryTemplates, getValues, setValue, variantAxisKeys]);
 
   const classificationOptions = useMemo(
     () =>
@@ -1303,10 +1397,10 @@ export function ProductEditorShell({
 
   const wizardPrimaryLabel = useMemo(() => {
     if (submitPending) {
-      if (wizard?.stage === "versions" && variantCompositionMode === "draft") {
+      if (activeWizardStage === "versions" && variantCompositionMode === "draft") {
         return "Saving variants…";
       }
-      if (wizard?.stage === "composition") {
+      if (activeWizardStage === "composition") {
         return "Saving composition…";
       }
       return "Saving…";
@@ -1331,7 +1425,7 @@ export function ProductEditorShell({
           let committedDetail: ProductDetailSnapshot | undefined;
 
           if (
-            wizard.stage === "versions" &&
+            activeWizardStage === "versions" &&
             isMultiSku &&
             variantCompositionMode === "draft" &&
             variantCommitRef.current
@@ -1349,7 +1443,7 @@ export function ProductEditorShell({
 
           if (
             nav.type === "primary" &&
-            wizard.stage === "composition" &&
+            activeWizardStage === "composition" &&
             hasComposition &&
             compositionCommitRef.current
           ) {
@@ -1366,7 +1460,7 @@ export function ProductEditorShell({
 
           const skipProfileSave =
             nav.type === "primary" &&
-            wizard.stage === "versions" &&
+            activeWizardStage === "versions" &&
             variantCompositionMode === "draft" &&
             Boolean(committedDetail) &&
             itemId;
@@ -1391,6 +1485,7 @@ export function ProductEditorShell({
       })();
     });
   }, [
+    activeWizardStage,
     wizard,
     catalogContext.storefronts,
     detail,
@@ -1411,7 +1506,7 @@ export function ProductEditorShell({
       return;
     }
 
-    if (wizard) {
+    if (wizard && wizardSteps) {
       onMutationHeaderChange({
         variant: "wizard",
         isFirst: wizard.isFirst,
@@ -1443,6 +1538,7 @@ export function ProductEditorShell({
     isPanelLayout,
     readOnly,
     wizard,
+    wizardSteps,
     onCancel,
     handleSave,
     submitPending,
@@ -1452,7 +1548,7 @@ export function ProductEditorShell({
 
   const panelPrimaryAction = useMemo(() => {
     if (readOnly || !isPanelLayout) return null;
-    if (wizard) {
+    if (wizard && wizardSteps) {
       return {
         label: wizardPrimaryLabel,
         onClick: wizard.onPrimary,
@@ -1464,7 +1560,7 @@ export function ProductEditorShell({
         void handleSave();
       },
     };
-  }, [readOnly, isPanelLayout, wizard, submitPending, wizardPrimaryLabel, handleSave]);
+  }, [readOnly, isPanelLayout, wizard, wizardSteps, submitPending, wizardPrimaryLabel, handleSave]);
 
   useEffect(() => {
     onDirtyChange?.(
@@ -1491,9 +1587,12 @@ export function ProductEditorShell({
       purchasable: false,
       inventory: false,
       variants: false,
+      composition: false,
       media: false,
-      catalog: false,
-      reach: false,
+      product_attributes: false,
+      custom_fields: false,
+      tags: false,
+      visibility: false,
     };
     (Object.keys(errors) as Array<keyof ProductMasterFormValues>).forEach((key) => {
       const section = FIELD_SECTION[key];
@@ -1526,12 +1625,15 @@ export function ProductEditorShell({
           return "empty";
         case "media":
           return media.length > 0 ? "complete" : "empty";
-        case "catalog": {
-          const hasTags = Array.isArray(tagIds) && tagIds.length > 0;
-          const hasCustom = Array.isArray(customFields) && customFields.length > 0;
-          return hasTags || hasCustom ? "complete" : "empty";
-        }
-        case "reach":
+        case "product_attributes":
+          return Object.values(variantAttributes).some((value) => String(value ?? "").trim())
+            ? "complete"
+            : "empty";
+        case "custom_fields":
+          return Array.isArray(customFields) && customFields.length > 0 ? "complete" : "empty";
+        case "tags":
+          return Array.isArray(tagIds) && tagIds.length > 0 ? "complete" : "empty";
+        case "visibility":
           return Array.isArray(storefrontVisibility) &&
             storefrontVisibility.some((entry) => entry.is_visible)
             ? "complete"
@@ -1563,6 +1665,7 @@ export function ProductEditorShell({
       tagIds,
       customFields,
       storefrontVisibility,
+      variantAttributes,
       alternateUoms,
       baseUom,
     ]
@@ -1572,12 +1675,22 @@ export function ProductEditorShell({
   // Only the active stage's sections render; the rest of the chrome (stepper,
   // completeness, footer) is computed from the same sectionStatus.
   const wizardSectionSet = useMemo(
-    () => (wizard ? new Set(editorStageById(wizard.stage).sections) : null),
-    [wizard]
+    () =>
+      wizardSteps && wizard ? new Set(editorStageById(wizard.stage).sections) : null,
+    [wizard, wizardSteps]
   );
   const sectionInStage = useCallback(
     (id: SectionId) => !wizardSectionSet || wizardSectionSet.has(id),
     [wizardSectionSet]
+  );
+  const sectionInExpandedStage = useCallback(
+    (id: SectionId) => {
+      if (!wizardAccordion) return true;
+      const stage = stageForSection(id);
+      if (!stage) return true;
+      return expandedStage === stage;
+    },
+    [wizardAccordion, expandedStage]
   );
 
   const pinnedSet = useMemo(
@@ -1587,11 +1700,12 @@ export function ProductEditorShell({
 
   const sectionVisible = useCallback(
     (id: SectionId) =>
+      sectionInExpandedStage(id) &&
       sectionInStage(id) &&
       (id !== "inventory" || isPhysical) &&
       (id !== "composition" || hasComposition) &&
       (!pinnedSet || pinnedSet.has(id)),
-    [sectionInStage, pinnedSet, isPhysical, hasComposition]
+    [sectionInExpandedStage, sectionInStage, pinnedSet, isPhysical, hasComposition]
   );
   const wizardStages = useMemo(
     () =>
@@ -1632,20 +1746,95 @@ export function ProductEditorShell({
     [wizardStages, sectionStatus, applicableWizardSections]
   );
 
-  // Shared by the Catalog and Reach cards (both render ProductCatalogExtensions).
+  useEffect(() => {
+    if (wizardAccordion) {
+      setExpandedStage("essentials");
+    }
+  }, [wizardAccordion, itemId]);
+
+  const jumpToStage = useCallback(
+    (stageId: EditorStageId) => {
+      setExpandedStage(stageId);
+      ignoreSpyUntilRef.current = Date.now() + 900;
+      requestAnimationFrame(() => {
+        const el = stageHeaderRefs.current[stageId];
+        if (!el) return;
+        if (isPanelLayout && panelScrollRef.current) {
+          const root = panelScrollRef.current;
+          const rootRect = root.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const top = root.scrollTop + (elRect.top - rootRect.top) - 12;
+          root.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+          return;
+        }
+        scrollElementInDashboardRoot(el, {
+          offsetTop: isPanelLayout ? 20 : 96,
+          scrollRootRef,
+        });
+      });
+    },
+    [isPanelLayout]
+  );
+
+  const toggleExpandedStage = useCallback((stageId: EditorStageId) => {
+    setExpandedStage((prev) => (prev === stageId ? prev : stageId));
+    ignoreSpyUntilRef.current = Date.now() + 400;
+  }, []);
+
+  const registerStageHeader = useCallback(
+    (stageId: EditorStageId) => (el: HTMLDivElement | null) => {
+      if (el) {
+        stageHeaderRefs.current[stageId] = el;
+      } else {
+        delete stageHeaderRefs.current[stageId];
+      }
+    },
+    []
+  );
+
+  const renderStageAccordionHeader = useCallback(
+    (stageId: EditorStageId) => {
+      if (!wizardAccordion) return null;
+      const stage = wizardStages.find((entry) => entry.id === stageId);
+      if (!stage) return null;
+      const index = wizardStages.findIndex((entry) => entry.id === stageId);
+      return (
+        <EditorStageAccordionHeader
+          stage={stage}
+          index={index}
+          status={wizardStageStatuses[stageId] ?? "empty"}
+          expanded={expandedStage === stageId}
+          onToggle={() => toggleExpandedStage(stageId)}
+          registerRef={registerStageHeader(stageId)}
+          panel={isPanelLayout}
+        />
+      );
+    },
+    [
+      wizardAccordion,
+      wizardStages,
+      wizardStageStatuses,
+      expandedStage,
+      toggleExpandedStage,
+      registerStageHeader,
+      isPanelLayout,
+    ]
+  );
+
+  const wizardStepperActiveStage = wizardAccordion ? expandedStage : wizard?.stage ?? "essentials";
+  const wizardStepperOnSelect = wizardAccordion
+    ? jumpToStage
+    : wizard?.onSelectStage;
+
   const handleCatalogChange = useCallback(
     (
-      key: "sku_mask" | "custom_fields" | "tag_ids" | "storefront_visibility",
+      key: "custom_fields" | "tag_ids" | "storefront_visibility",
       value:
-        | ProductMasterFormValues["sku_mask"]
         | ProductMasterFormValues["custom_fields"]
         | ProductMasterFormValues["tag_ids"]
         | ProductMasterFormValues["storefront_visibility"]
     ) => {
       switch (key) {
-        case "sku_mask":
-          setValue("sku_mask", value as string, { shouldDirty: true });
-          break;
         case "custom_fields":
           setValue("custom_fields", value as ProductMasterFormValues["custom_fields"], {
             shouldDirty: true,
@@ -1689,7 +1878,7 @@ export function ProductEditorShell({
 
   return (
     <EditorPanelContext.Provider value={isPanelLayout}>
-    <ItemExtensionDataProvider itemId={itemId} enabled={loadExtensionData}>
+    <ItemExtensionDataProvider itemId={itemId} catalogContext={catalogContext} enabled={loadExtensionData}>
     <form
       ref={formRef}
       onSubmit={handleSave}
@@ -1705,8 +1894,8 @@ export function ProductEditorShell({
           (wizard ? "h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden" : "gap-4")
       )}
     >
-      {/* Summary header — skip on create; the wizard stepper + fields are the focus */}
-      {!isPanelLayout && mode !== "create" ? (
+      {/* Summary header — wizard focuses on the stepper + fields */}
+      {!isPanelLayout && mode !== "create" && !wizard ? (
         <div className={editorCardClassName(false, "summary")}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-3">
@@ -1785,10 +1974,11 @@ export function ProductEditorShell({
           <div className={editorWizardTopBarClass(isPanelLayout)}>
             <EditorStepper
               stages={wizardStages}
-              activeStage={wizard.stage}
+              activeStage={wizardStepperActiveStage}
               statuses={wizardStageStatuses}
               percent={wizardPercent}
-              onSelect={wizard.onSelectStage}
+              onSelect={wizardStepperOnSelect}
+              freeNavigation={wizardAccordion}
               compact
               showDescription={false}
             />
@@ -1801,10 +1991,11 @@ export function ProductEditorShell({
               <div className={editorWizardLeftRailStickyClass()}>
                 <EditorStepper
                   stages={wizardStages}
-                  activeStage={wizard.stage}
+                  activeStage={wizardStepperActiveStage}
                   statuses={wizardStageStatuses}
                   percent={wizardPercent}
-                  onSelect={wizard.onSelectStage}
+                  onSelect={wizardStepperOnSelect}
+                  freeNavigation={wizardAccordion}
                   vertical
                   compact
                   showDescription={false}
@@ -1852,7 +2043,7 @@ export function ProductEditorShell({
               )
           )}
         >
-          {isPanelLayout && mode !== "create" ? (
+          {isPanelLayout && mode !== "create" && !wizard ? (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className={editorPanelBadgesClass()}>
                 <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
@@ -1888,6 +2079,7 @@ export function ProductEditorShell({
               ) : null}
             </div>
           ) : null}
+          {renderStageAccordionHeader("essentials")}
           <SectionBlock
             id="overview"
             title="Basics"
@@ -1922,7 +2114,7 @@ export function ProductEditorShell({
                         ) : null}
                       </span>
                       <Link
-                        href={`/inventory/items/${match.id}`}
+                        href={`/items/${match.id}`}
                         prefetch
                         className="shrink-0 text-xs font-medium text-amber-900 underline-offset-2 hover:underline dark:text-amber-200"
                       >
@@ -2438,6 +2630,7 @@ export function ProductEditorShell({
                 </div>
               </div>
             ) : null}
+
           </SectionBlock>
 
           <SectionBlock
@@ -2466,15 +2659,6 @@ export function ProductEditorShell({
             {isSalable ? (
               <>
                 <div className={editorGridClass(isPanelLayout)}>
-                  <ToggleRow
-                    label="Returnable"
-                    description={ITEM_EDITOR_TOGGLE_HELP.returnable}
-                    checked={watch("is_returnable")}
-                    disabled={disableInput("is_returnable")}
-                    onCheckedChange={(checked) =>
-                      setValue("is_returnable", checked, { shouldDirty: true })
-                    }
-                  />
                   <Field
                     label={`Selling rate (${catalogContext.base_currency})`}
                     htmlFor="selling_price"
@@ -2504,6 +2688,15 @@ export function ProductEditorShell({
                     />
                   </Field>
                 </div>
+                <ToggleRow
+                  label="Returnable"
+                  description={ITEM_EDITOR_TOGGLE_HELP.returnable}
+                  checked={watch("is_returnable")}
+                  disabled={disableInput("is_returnable")}
+                  onCheckedChange={(checked) =>
+                    setValue("is_returnable", checked, { shouldDirty: true })
+                  }
+                />
                 {showSellingUnitField ? (
                   <EditorSectionAdvanced
                     open={showSalableAdvanced}
@@ -2750,6 +2943,27 @@ export function ProductEditorShell({
                   </div>
                 ) : null}
 
+                {trackInventory && itemId && variants.length > 0 ? (
+                  <div className={editorPanelDividerClass()}>
+                    <SubsectionHeading
+                      title={BUFFER_THRESHOLDS_SUBSECTION}
+                      compact={isPanelLayout}
+                      info={fieldHelpText(ITEM_EDITOR_FIELD_HELP.reorderPoint)}
+                    />
+                    {isSectionMounted("inventory") ? (
+                      <VariantBufferThresholdMatrix
+                        itemId={itemId}
+                        variants={variants}
+                        defaultReorderPoint={defaultReorderPoint}
+                        readOnly={readOnly || fieldDisabled}
+                        embedded
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{BUFFER_THRESHOLDS_LOADING}</p>
+                    )}
+                  </div>
+                ) : null}
+
                 {trackInventory && valuations.length > 0 ? (
                   <div className={editorPanelDividerClass()}>
                     <SubsectionHeading
@@ -2784,6 +2998,8 @@ export function ProductEditorShell({
           ) : null}
 
           {itemId && showVariantsSection ? (
+            <>
+            {renderStageAccordionHeader("versions")}
             <SectionBlock
               id="variants"
               title={VARIANTS_SECTION_LABEL}
@@ -2799,25 +3015,6 @@ export function ProductEditorShell({
               panel={isPanelLayout}
             >
               <div className={cn(isPanelLayout ? "space-y-4" : "space-y-6")}>
-                {!isMultiSku && isPhysical && categoryTemplates.length > 0 ? (
-                  <div className="space-y-3">
-                    <h4 className={editorSubsectionHeadingClass(isPanelLayout)}>
-                      Variant attributes
-                    </h4>
-                    <VariantAttributeFields
-                      templates={categoryTemplates}
-                      values={variantAttributes}
-                      disabled={fieldDisabled}
-                      onChange={(key, value) =>
-                        setValue(
-                          "variant_attributes",
-                          { ...variantAttributes, [key]: value },
-                          { shouldDirty: true }
-                        )
-                      }
-                    />
-                  </div>
-                ) : null}
                 <ProductVariantPanel
                   itemId={itemId}
                   variants={variants}
@@ -2857,12 +3054,18 @@ export function ProductEditorShell({
                   readOnly={readOnly}
                   onVariantPatch={onVariantPatch}
                   onVariantsReload={onVariantsReload}
+                  tenantId={tenantId}
+                  media={media}
+                  onMediaChanged={() => onExtensionsChanged?.()}
                 />
               </div>
             </SectionBlock>
+            </>
           ) : null}
 
           {itemId && hasComposition ? (
+            <>
+            {renderStageAccordionHeader("composition")}
             <SectionBlock
               id="composition"
               title={COMPOSITION_SECTION_LABEL}
@@ -2886,9 +3089,12 @@ export function ProductEditorShell({
                 onDirtyChange={setCompositionSectionDirty}
               />
             </SectionBlock>
+            </>
           ) : null}
 
           {itemId ? (
+            <>
+            {renderStageAccordionHeader("reach")}
             <SectionBlock
               id="media"
               title="Media"
@@ -2897,41 +3103,83 @@ export function ProductEditorShell({
               hidden={!sectionVisible("media")}
               panel={isPanelLayout}
             >
-              {isSectionMounted("media") ? (
-                <ProductMediaGallery
-                  tenantId={tenantId}
-                  itemId={itemId}
-                  variants={variants}
-                  media={media}
-                  readOnly={readOnly}
-                  layout={wizard?.stage === "reach" ? "variant-stack" : "scope-select"}
-                  onChanged={() => onExtensionsChanged?.()}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Media gallery loads when you open this section.
-                </p>
-              )}
+              <ProductMediaGallery
+                tenantId={tenantId}
+                itemId={itemId}
+                variants={variants}
+                media={media}
+                readOnly={readOnly}
+                layout={
+                  activeWizardStage === "reach" || (isPanelLayout && isMultiSku)
+                    ? "variant-rows"
+                    : "scope-select"
+                }
+                density="compact"
+                onChanged={() => onExtensionsChanged?.()}
+              />
+            </SectionBlock>
+
+          {isPhysical && descriptiveAttributeTemplates.length > 0 ? (
+            <SectionBlock
+              id="product_attributes"
+              title={categoryFieldsTitle}
+              description={CATEGORY_FIELDS_SECTION_HELP}
+              registerRef={registerSection("product_attributes")}
+              hidden={!sectionVisible("product_attributes")}
+              panel={isPanelLayout}
+            >
+              <VariantAttributeFields
+                templates={descriptiveAttributeTemplates}
+                values={variantAttributes}
+                disabled={fieldDisabled}
+                emptyMessage="Choose a category with shared product attributes."
+                onChange={(key, value) =>
+                  setValue(
+                    "variant_attributes",
+                    { ...variantAttributes, [key]: value },
+                    { shouldDirty: true }
+                  )
+                }
+              />
             </SectionBlock>
           ) : null}
 
           <SectionBlock
-            id="catalog"
-            title="Catalog & tags"
-            description="Cataloguing details: SKU mask, custom fields, and discovery tags."
-            registerRef={registerSection("catalog")}
-            hidden={!sectionVisible("catalog")}
+            id="custom_fields"
+            title={CUSTOM_FIELDS_SECTION_LABEL}
+            description={CUSTOM_FIELDS_SECTION_HELP}
+            registerRef={registerSection("custom_fields")}
+            hidden={!sectionVisible("custom_fields")}
             panel={isPanelLayout}
           >
             <ProductCatalogExtensions
-              only="catalog"
               compact={isPanelLayout}
-              showSkuMask={isMultiSku}
+              blocks={["custom_fields"]}
               catalogContext={{ ...catalogContext, tags: tagOptions }}
-              categoryTemplates={categoryTemplates}
               disabled={fieldDisabled}
               values={{
-                sku_mask: skuMask,
+                custom_fields: customFields,
+                tag_ids: tagIds,
+                storefront_visibility: storefrontVisibility,
+              }}
+              onChange={handleCatalogChange}
+            />
+          </SectionBlock>
+
+          <SectionBlock
+            id="tags"
+            title={DISCOVERY_TAGS_SECTION_LABEL}
+            description={DISCOVERY_TAGS_SECTION_HELP}
+            registerRef={registerSection("tags")}
+            hidden={!sectionVisible("tags")}
+            panel={isPanelLayout}
+          >
+            <ProductCatalogExtensions
+              compact={isPanelLayout}
+              blocks={["tags"]}
+              catalogContext={{ ...catalogContext, tags: tagOptions }}
+              disabled={fieldDisabled}
+              values={{
                 custom_fields: customFields,
                 tag_ids: tagIds,
                 storefront_visibility: storefrontVisibility,
@@ -2942,21 +3190,19 @@ export function ProductEditorShell({
           </SectionBlock>
 
           <SectionBlock
-            id="reach"
-            title="Reach"
-            description="Storefront channels, physical locations, and where each SKU is offered."
-            registerRef={registerSection("reach")}
-            hidden={!sectionVisible("reach")}
+            id="visibility"
+            title={VISIBILITY_SECTION_LABEL}
+            description={VISIBILITY_SECTION_HELP}
+            registerRef={registerSection("visibility")}
+            hidden={!sectionVisible("visibility")}
             panel={isPanelLayout}
           >
             <ProductCatalogExtensions
-              only="reach"
               compact={isPanelLayout}
+              blocks={["channels"]}
               catalogContext={{ ...catalogContext, tags: tagOptions }}
-              categoryTemplates={categoryTemplates}
               disabled={fieldDisabled}
               values={{
-                sku_mask: skuMask,
                 custom_fields: customFields,
                 tag_ids: tagIds,
                 storefront_visibility: storefrontVisibility,
@@ -2964,39 +3210,39 @@ export function ProductEditorShell({
               onChange={handleCatalogChange}
             />
             {itemId && variants.length > 0 ? (
-              <div className={cn(isPanelLayout && editorPanelDividerClass())}>
-                {isSectionMounted("reach") ? (
-                  <div className={cn(isPanelLayout ? "space-y-4" : "space-y-6")}>
-                    {variants.length > 1 ? (
-                      <VariantChannelAvailabilityMatrix
+              <div className={cn(isPanelLayout ? "mt-3 space-y-3" : "mt-4 space-y-4")}>
+                {isSectionMounted("visibility") ? (
+                  <>
+                    <div className={editorCatalogBlockClass(isPanelLayout)}>
+                      <SubsectionHeading
+                        title={VISIBILITY_LOCATIONS_SUBSECTION}
+                        compact={isPanelLayout}
+                        info={fieldHelpText(
+                          hasListedChannels
+                            ? `${VISIBILITY_LOCATIONS_HELP} Listed channels appear as columns on the right for per-variant listings.`
+                            : VISIBILITY_LOCATIONS_HELP
+                        )}
+                      />
+                      <VariantAssortmentMatrix
                         itemId={itemId}
                         variants={variants}
+                        sellableVariantsOnly={hasListedChannels}
+                        storefrontVisibility={storefrontVisibility}
                         readOnly={readOnly || fieldDisabled}
+                        embedded
                       />
-                    ) : null}
-                    {variants.length > 0 ? (
-                      <div
-                        className={cn(
-                          variants.length > 1 && isPanelLayout && editorPanelDividerClass()
-                        )}
-                      >
-                        <VariantDistributionSection
-                          itemId={itemId}
-                          variants={variants}
-                          readOnly={readOnly || fieldDisabled}
-                          compact={isPanelLayout}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Per-variant storefront and location settings load when you open Reach.
+                    {CATALOG_REACH_DISTRIBUTION_LOADING}
                   </p>
                 )}
               </div>
             ) : null}
           </SectionBlock>
+            </>
+          ) : null}
 
           {!readOnly && panelPrimaryAction ? (
             <div className="flex justify-end pt-2">
@@ -3016,13 +3262,13 @@ export function ProductEditorShell({
         <div
           className={cn(
             "sticky bottom-0 z-10 shrink-0 flex items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-            wizard ? "justify-between" : "justify-end",
+            wizardSteps ? "justify-between" : "justify-end",
             isPanelLayout
               ? "-mx-4 border-t border-border/60 px-4 py-2"
               : "border-t border-border py-3"
           )}
         >
-          {wizard ? (
+          {wizardSteps && wizard ? (
             <>
               <div>
                 {!wizard.isFirst ? (

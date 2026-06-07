@@ -6,10 +6,13 @@ import {
   GripVertical,
   LayoutGrid,
   Monitor,
+  RectangleHorizontal,
+  RectangleVertical,
   Rows3,
   Smartphone,
   Tablet,
   Table2,
+  Type,
   X,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -36,7 +39,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { ListColumnPrefs, ListColumnRegistry } from "@/lib/list-columns/types";
+import { ColumnChipColorEditor } from "@/components/list-columns/column-chip-color-editor";
+import type {
+  ColumnChipDisplay,
+  ListColumnPrefs,
+  ListColumnRegistry,
+} from "@/lib/list-columns/types";
 import { getColumnDef } from "@/lib/list-columns/types";
 import type {
   CardGridColumnCount,
@@ -51,7 +59,13 @@ import {
   getMaxCardGridColumns,
   isCardGridColumnCount,
   parseProductCardLayout,
+  type ProductCardMetaDisplay,
+  type ProductCardOrientation,
 } from "@/lib/products/list-prefs";
+import {
+  listToolbarViewToggleSegmentClass,
+  listToolbarViewToggleShellClass,
+} from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
 export type ColumnSettingsLayout = "table" | "compact" | "card";
@@ -73,6 +87,12 @@ type Props<TId extends string> = {
   onCardGridColumnsChange?: (count: CardGridColumnPref) => void;
   cardLayout?: ProductCardLayout;
   onCardLayoutChange?: (layout: ProductCardLayout) => void;
+  cardOrientation?: ProductCardOrientation;
+  onCardOrientationChange?: (orientation: ProductCardOrientation) => void;
+  cardMetaDisplay?: ProductCardMetaDisplay;
+  onCardMetaDisplayChange?: (display: ProductCardMetaDisplay) => void;
+  isColumnApplicable?: (columnId: TId) => boolean;
+  columnDisabledReason?: (columnId: TId) => string | undefined;
   disabled?: boolean;
   isSaving?: boolean;
   triggerClassName?: string;
@@ -86,13 +106,7 @@ const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
 };
 
 function segmentIconButtonClass(selected: boolean, className?: string) {
-  return cn(
-    "h-6 p-0 focus-visible:ring-1 focus-visible:ring-ring",
-    className,
-    selected
-      ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
-      : "text-muted-foreground hover:text-foreground"
-  );
+  return cn(listToolbarViewToggleSegmentClass(selected), className);
 }
 
 export function ListColumnSettings<TId extends string>({
@@ -111,6 +125,12 @@ export function ListColumnSettings<TId extends string>({
   onCardGridColumnsChange,
   cardLayout = "v2",
   onCardLayoutChange,
+  cardOrientation = "vertical",
+  onCardOrientationChange,
+  cardMetaDisplay = "labels",
+  onCardMetaDisplayChange,
+  isColumnApplicable,
+  columnDisabledReason,
   disabled = false,
   isSaving = false,
   triggerClassName,
@@ -119,6 +139,7 @@ export function ListColumnSettings<TId extends string>({
   const dragIdRef = useRef<TId | null>(null);
   const [dragOverId, setDragOverId] = useState<TId | null>(null);
   const [open, setOpen] = useState(false);
+  const [expandedChipColumnId, setExpandedChipColumnId] = useState<TId | null>(null);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -133,6 +154,20 @@ export function ListColumnSettings<TId extends string>({
     () => prefs.columnOrder.filter((columnId) => allowedSet.has(columnId)),
     [allowedSet, prefs.columnOrder]
   );
+
+  const columnDisplayGroups = useMemo(() => {
+    if (!isColumnApplicable) {
+      return { applicable: editableColumnOrder, notApplicable: [] as TId[] };
+    }
+
+    const applicable: TId[] = [];
+    const notApplicable: TId[] = [];
+    for (const columnId of editableColumnOrder) {
+      if (isColumnApplicable(columnId)) applicable.push(columnId);
+      else notApplicable.push(columnId);
+    }
+    return { applicable, notApplicable };
+  }, [editableColumnOrder, isColumnApplicable]);
 
   const maxCardGridColumns = getMaxCardGridColumns(editingDevice);
   const cardGridOptions = useMemo(() => {
@@ -181,6 +216,31 @@ export function ListColumnSettings<TId extends string>({
     });
   };
 
+  const setChipDisplay = (columnId: TId, display: ColumnChipDisplay | undefined) => {
+    const next: Partial<Record<TId, ColumnChipDisplay>> = {
+      ...(prefs.columnChipDisplay ?? {}),
+    };
+    if (!display || display.mode === "text") {
+      delete next[columnId];
+    } else {
+      next[columnId] = display;
+    }
+    onChange({
+      ...prefs,
+      columnChipDisplay: Object.keys(next).length > 0 ? next : undefined,
+    });
+  };
+
+  const toggleChipMode = (columnId: TId, enabled: boolean) => {
+    if (!enabled) {
+      setExpandedChipColumnId((current) => (current === columnId ? null : current));
+      setChipDisplay(columnId, undefined);
+      return;
+    }
+    setChipDisplay(columnId, { mode: "chip" });
+    setExpandedChipColumnId(columnId);
+  };
+
   const effectiveWrapMode = (columnId: TId): TextWrapMode => {
     const column = getColumnDef(registry, columnId);
     const override = prefs.columnWrapModes?.[columnId];
@@ -196,29 +256,158 @@ export function ListColumnSettings<TId extends string>({
     editingLayout === "table" ? "Table" : editingLayout === "compact" ? "Compact" : "Card";
   const editingLabel = `${layoutLabel} · ${DEVICE_LABEL[editingDevice]}`;
 
+  const renderColumnRow = (columnId: TId) => {
+    const column = getColumnDef(registry, columnId);
+    const applicable = isColumnApplicable?.(columnId) ?? true;
+    const disabledReason = columnDisabledReason?.(columnId);
+    const rowDisabled = disabled || !applicable;
+    const visible = prefs.visibleColumns.includes(columnId);
+    const isDragOver = dragOverId === columnId;
+    const chipEnabled = prefs.columnChipDisplay?.[columnId]?.mode === "chip";
+
+    return (
+      <div
+        key={columnId}
+        onDragOver={(event) => {
+          if (!applicable) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setDragOverId(columnId);
+        }}
+        onDragLeave={() => {
+          if (dragOverId === columnId) setDragOverId(null);
+        }}
+        onDrop={(event) => {
+          if (!applicable) return;
+          event.preventDefault();
+          const fromId =
+            dragIdRef.current ?? (event.dataTransfer.getData("text/plain") as TId);
+          if (fromId) moveColumn(fromId, columnId);
+          dragIdRef.current = null;
+          setDragOverId(null);
+        }}
+        className={cn(
+          "rounded-sm px-0.5 py-0.5 transition-colors",
+          applicable && "hover:bg-accent/50",
+          !applicable && "opacity-45",
+          isDragOver && applicable && "bg-accent/60 ring-1 ring-primary/30"
+        )}
+        title={disabledReason}
+      >
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            draggable={applicable}
+            disabled={!applicable}
+            className={cn(
+              "flex h-6 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground",
+              applicable &&
+                "cursor-grab hover:bg-accent hover:text-foreground active:cursor-grabbing"
+            )}
+            aria-label={`Drag ${column.label} to reorder`}
+            onDragStart={(event) => {
+              dragIdRef.current = columnId;
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", columnId);
+            }}
+            onDragEnd={() => {
+              dragIdRef.current = null;
+              setDragOverId(null);
+            }}
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <Switch
+            checked={visible}
+            disabled={rowDisabled}
+            onCheckedChange={(checked) => toggleVisible(columnId, checked)}
+            aria-label={`Toggle ${column.label}`}
+            className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
+          />
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-xs leading-tight">{column.label}</span>
+          </div>
+          {visible && applicable && columnSupportsWrapControl(column.valueKind) ? (
+            <Select
+              value={effectiveWrapMode(columnId)}
+              disabled={rowDisabled}
+              onValueChange={(value) => setWrapMode(columnId, value as TextWrapMode)}
+            >
+              <SelectTrigger
+                className="h-6 w-[4.5rem] shrink-0 px-1.5 py-0 text-[11px] [&>span]:truncate [&>svg]:h-3 [&>svg]:w-3"
+                aria-label={`Text wrap for ${column.label}`}
+                title="Text wrap"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {TEXT_WRAP_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode} className="text-xs py-1">
+                    {TEXT_WRAP_MODE_LABELS[mode]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="w-[4.5rem] shrink-0" aria-hidden />
+          )}
+          {visible && applicable && column.chipEligible ? (
+            <label
+              className="flex h-6 shrink-0 cursor-pointer items-center gap-1 pr-0.5"
+              title="Show as chips"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Switch
+                checked={chipEnabled}
+                disabled={rowDisabled}
+                onCheckedChange={(checked) => toggleChipMode(columnId, checked)}
+                aria-label={`Show ${column.label} as chips`}
+                className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
+              />
+              <span className="text-[10px] text-muted-foreground">Chip</span>
+            </label>
+          ) : null}
+        </div>
+        {visible && applicable && column.chipEligible && chipEnabled ? (
+          <ColumnChipColorEditor
+            column={column}
+            display={prefs.columnChipDisplay?.[columnId]}
+            disabled={rowDisabled}
+            expanded={expandedChipColumnId === columnId}
+            onExpandedChange={(next) => setExpandedChipColumnId(next ? columnId : null)}
+            onChange={(display) => setChipDisplay(columnId, display)}
+          />
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant={triggerVariant}
-          size="sm"
-          className={cn("h-8 w-8 p-0", triggerClassName)}
-          title="Column settings"
-          aria-label="Column settings"
-          aria-busy={isSaving}
-          disabled={disabled}
-        >
-          {isSaving ? (
-            <Spinner />
-          ) : (
-            <Columns3 className="h-4 w-4" aria-hidden />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
+      <div className={cn(listToolbarViewToggleShellClass(), "inline-flex shrink-0")}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(listToolbarViewToggleSegmentClass(open), triggerClassName)}
+            title="Column settings"
+            aria-label="Column settings"
+            aria-busy={isSaving}
+            disabled={disabled}
+          >
+            {isSaving ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <Columns3 className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+      </div>
       <DropdownMenuContent
         align="end"
-        className="w-[17.5rem] p-0 text-xs"
+        className="column-settings-panel z-50 w-[min(26rem,calc(100vw-2rem))] min-w-[22rem] border p-0 text-xs ring-1 ring-border/80 dark:ring-primary/25"
         onPointerDownOutside={(event) => {
           if (dragIdRef.current) event.preventDefault();
         }}
@@ -243,7 +432,7 @@ export function ListColumnSettings<TId extends string>({
           {editingLabel}
           {editingDevice === detectedDevice ? " · auto" : null}
         </p>
-        <div className="flex items-center gap-1.5 px-2 pb-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 px-2 pb-1.5">
           <div
             className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
             role="group"
@@ -328,11 +517,79 @@ export function ListColumnSettings<TId extends string>({
               <Monitor className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </div>
+          {editingLayout === "card" && cardLayout === "v2" ? (
+            <>
+              <div
+                className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
+                role="group"
+                aria-label="Card orientation"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={segmentIconButtonClass(cardOrientation === "vertical", "w-7")}
+                  onClick={() => onCardOrientationChange?.("vertical")}
+                  title="Vertical card"
+                  aria-label="Vertical card"
+                  aria-pressed={cardOrientation === "vertical"}
+                  disabled={disabled}
+                >
+                  <RectangleVertical className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={segmentIconButtonClass(cardOrientation === "horizontal", "w-7")}
+                  onClick={() => onCardOrientationChange?.("horizontal")}
+                  title="Horizontal row"
+                  aria-label="Horizontal row"
+                  aria-pressed={cardOrientation === "horizontal"}
+                  disabled={disabled}
+                >
+                  <RectangleHorizontal className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+              </div>
+              <div
+                className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
+                role="group"
+                aria-label="Card metadata display"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={segmentIconButtonClass(cardMetaDisplay === "labels", "w-7")}
+                  onClick={() => onCardMetaDisplayChange?.("labels")}
+                  title="Labeled metadata"
+                  aria-label="Labeled metadata"
+                  aria-pressed={cardMetaDisplay === "labels"}
+                  disabled={disabled}
+                >
+                  <Type className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={segmentIconButtonClass(cardMetaDisplay === "icons", "w-7")}
+                  onClick={() => onCardMetaDisplayChange?.("icons")}
+                  title="Icon-only metadata"
+                  aria-label="Icon-only metadata"
+                  aria-pressed={cardMetaDisplay === "icons"}
+                  disabled={disabled}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+              </div>
+            </>
+          ) : null}
         </div>
         <div className="flex items-center justify-between gap-2 px-2 py-1">
           {editingLayout === "card" ? (
-            <div className="flex w-full flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
+            <div className="flex w-full min-w-0 items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
                 <label
                   htmlFor="card-grid-columns-select"
                   className="shrink-0 text-[11px] text-muted-foreground"
@@ -374,7 +631,7 @@ export function ListColumnSettings<TId extends string>({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <label
                   htmlFor="card-layout-style-settings"
                   className="shrink-0 text-[11px] text-muted-foreground"
@@ -450,88 +707,17 @@ export function ListColumnSettings<TId extends string>({
           )}
         </div>
         <DropdownMenuSeparator />
-        <div className="max-h-64 space-y-px overflow-y-auto px-1 pb-1">
-          {editableColumnOrder.map((columnId) => {
-            const column = getColumnDef(registry, columnId);
-            const visible = prefs.visibleColumns.includes(columnId);
-            const isDragOver = dragOverId === columnId;
-
-            return (
-              <div
-                key={columnId}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  setDragOverId(columnId);
-                }}
-                onDragLeave={() => {
-                  if (dragOverId === columnId) setDragOverId(null);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const fromId =
-                    dragIdRef.current ?? (event.dataTransfer.getData("text/plain") as TId);
-                  if (fromId) moveColumn(fromId, columnId);
-                  dragIdRef.current = null;
-                  setDragOverId(null);
-                }}
-                className={cn(
-                  "flex items-center gap-1 rounded-sm px-0.5 py-0.5 transition-colors hover:bg-accent/50",
-                  isDragOver && "bg-accent/60 ring-1 ring-primary/30"
-                )}
-              >
-                <button
-                  type="button"
-                  draggable
-                  className="flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
-                  aria-label={`Drag ${column.label} to reorder`}
-                  onDragStart={(event) => {
-                    dragIdRef.current = columnId;
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", columnId);
-                  }}
-                  onDragEnd={() => {
-                    dragIdRef.current = null;
-                    setDragOverId(null);
-                  }}
-                >
-                  <GripVertical className="h-3.5 w-3.5" />
-                </button>
-                <Switch
-                  checked={visible}
-                  onCheckedChange={(checked) => toggleVisible(columnId, checked)}
-                  aria-label={`Toggle ${column.label}`}
-                  className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <span className="block truncate text-xs leading-tight">{column.label}</span>
-                </div>
-                {visible && columnSupportsWrapControl(column.valueKind) ? (
-                  <Select
-                    value={effectiveWrapMode(columnId)}
-                    disabled={disabled}
-                    onValueChange={(value) => setWrapMode(columnId, value as TextWrapMode)}
-                  >
-                    <SelectTrigger
-                      className="h-6 w-[4.5rem] shrink-0 px-1.5 py-0 text-[11px] [&>span]:truncate [&>svg]:h-3 [&>svg]:w-3"
-                      aria-label={`Text wrap for ${column.label}`}
-                      title="Text wrap"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      {TEXT_WRAP_MODES.map((mode) => (
-                        <SelectItem key={mode} value={mode} className="text-xs py-1">
-                          {TEXT_WRAP_MODE_LABELS[mode]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </div>
-            );
-          })}
+        <div className="max-h-80 space-y-px overflow-y-auto px-1 pb-1">
+          {columnDisplayGroups.applicable.map(renderColumnRow)}
+          {columnDisplayGroups.notApplicable.length > 0 ? (
+            <>
+              <div className="mx-1 my-1 border-t border-border/70" />
+              <p className="px-1.5 pb-0.5 pt-1 text-[10px] font-medium text-muted-foreground">
+                Not on this card layout
+              </p>
+              {columnDisplayGroups.notApplicable.map(renderColumnRow)}
+            </>
+          ) : null}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

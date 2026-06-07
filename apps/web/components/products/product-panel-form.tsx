@@ -23,29 +23,35 @@ import {
 } from "@/components/products/product-editor/product-editor-shell";
 import { ProductEditorSkeleton } from "@/components/products/product-editor/product-editor-skeleton";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import type { CategoryRow } from "@/lib/categories/types";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import {
   canEditAnyProductFormField,
   type ProductFieldPermissions,
 } from "@/lib/products/field-permissions";
+import { resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import {
   detailToFormValues,
+  isVariantCatalogEditMode,
   resolveDetailIdentitySku,
+  selectedSellableVariant,
   type ProductCatalogContext,
   type ProductDetailSnapshot,
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import { blurActiveElement } from "@/lib/dom/focus";
+import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 
 import {
   itemFullPageHref,
   ITEMS_HREF,
 } from "@/lib/products/item-navigation";
 import { ProductItemSummaryCard } from "@/components/products/product-item-summary-card";
+import { VariantCatalogEditForm } from "@/components/products/variant-drawer-form";
 
 export type PanelViewLayout = "compact" | "full";
 
@@ -83,9 +89,11 @@ type PanelProps = {
   detail?: ProductDetailSnapshot | null;
   fieldPermissions: ProductFieldPermissions;
   isLoading?: boolean;
+  isDetailRefreshing?: boolean;
   onModeChange: (mode: ProductFormMode) => void;
   onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   onExtensionsChanged?: () => void;
+  onRequestFullDetail?: () => void;
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
   onVariantsReload?: () => void | Promise<void>;
   onClose: () => void;
@@ -93,6 +101,10 @@ type PanelProps = {
   onItemArchived?: (itemId: string) => void;
   urlNavigation?: ProductPanelUrlNavigation;
   wizard?: EditorWizardChrome;
+  peekPanel?: ProductPeekPanelId;
+  onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
+  peekPanelLoading?: ProductPeekPanelId | null;
+  isValuationsLoading?: boolean;
   children: ReactNode;
 };
 
@@ -123,6 +135,7 @@ type PanelContextValue = {
   detail: ProductDetailSnapshot | null;
   canEdit: boolean;
   isLoadingEditability: boolean;
+  isDetailRefreshing: boolean;
   fullPageHref: string;
   onEdit: () => void;
   onDismiss: () => void;
@@ -148,7 +161,8 @@ export function useProductPanelContext(): PanelContextValue {
 function resolveFullPageHref(mode: ProductFormMode, detail: ProductDetailSnapshot | null): string {
   if (mode === "create") return itemFullPageHref("create", null, { fromCatalog: true });
   if (!detail) return ITEMS_HREF;
-  return itemFullPageHref(mode, detail.id, { fromCatalog: true });
+  const variantId = isVariantCatalogEditMode(mode, detail) ? detail.variant_id : null;
+  return itemFullPageHref(mode, detail.id, { fromCatalog: true, variantId });
 }
 
 /** Shares panel edit/save state between the detail header actions and editor body. */
@@ -182,15 +196,21 @@ export function ProductPanelScope({
   detail = null,
   fieldPermissions,
   isLoading = false,
+  isDetailRefreshing = false,
   onModeChange,
   onSaved,
   onExtensionsChanged,
+  onRequestFullDetail,
   onVariantPatch,
   onVariantsReload,
   onClose,
   onItemArchived,
   urlNavigation,
   wizard,
+  peekPanel,
+  onPeekPanelChange,
+  peekPanelLoading,
+  isValuationsLoading = false,
   children,
 }: PanelProps) {
   const [lockedFields, setLockedFields] = useState<string[]>([]);
@@ -199,14 +219,26 @@ export function ProductPanelScope({
   const [isLoadingEditability, startEditabilityTransition] = useTransition();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const setViewLayout = useCallback((layout: PanelViewLayout) => {
-    persistLayout(layout);
-    setViewLayoutState(layout);
-  }, []);
+  const setViewLayout = useCallback(
+    (layout: PanelViewLayout) => {
+      if (mode !== "view") {
+        persistLayout(layout);
+      }
+      setViewLayoutState(layout);
+      if (layout === "full" && detail?.detail_scope === "peek") {
+        onRequestFullDetail?.();
+      }
+    },
+    [detail?.detail_scope, mode, onRequestFullDetail]
+  );
 
   useEffect(() => {
+    if (mode === "view") {
+      setViewLayoutState("compact");
+      return;
+    }
     setViewLayoutState(readStoredLayout());
-  }, []);
+  }, [mode, detail?.id, detail?.variant_id]);
 
   useEffect(() => {
     if (mode === "view") setMutationHeader(null);
@@ -247,7 +279,7 @@ export function ProductPanelScope({
   }, [detail]);
 
   useEffect(() => {
-    if (mode === "edit" && detail) {
+    if (mode === "edit" && detail && !isVariantCatalogEditMode(mode, detail)) {
       loadEditability();
     }
   }, [detail?.id, loadEditability, mode]);
@@ -255,17 +287,21 @@ export function ProductPanelScope({
   const handleEdit = useCallback(() => {
     if (!detail) return;
     blurActiveElement();
+    if (detail.detail_scope === "peek") {
+      onRequestFullDetail?.();
+    }
     if (urlNavigation) {
       urlNavigation.onOpenEdit();
       return;
     }
     onModeChange("edit");
     loadEditability();
-  }, [detail, loadEditability, onModeChange, urlNavigation]);
+  }, [detail, loadEditability, onModeChange, onRequestFullDetail, urlNavigation]);
 
   const handleCancel = useCallback(() => {
     if (mode === "edit" && detail) {
       setLockedFields([]);
+      setHasUnsavedChanges(false);
       if (urlNavigation) {
         urlNavigation.onPeekAfterSave(detail.id);
         return;
@@ -317,6 +353,7 @@ export function ProductPanelScope({
       detail,
       canEdit,
       isLoadingEditability,
+      isDetailRefreshing,
       fullPageHref,
       onEdit: handleEdit,
       onDismiss,
@@ -333,6 +370,7 @@ export function ProductPanelScope({
       detail,
       canEdit,
       isLoadingEditability,
+      isDetailRefreshing,
       fullPageHref,
       handleEdit,
       onDismiss,
@@ -345,15 +383,49 @@ export function ProductPanelScope({
     ]
   );
 
+  const variantCatalogEdit = isVariantCatalogEditMode(mode, detail);
+
+  const summaryCategoryTemplates = useMemo(() => {
+    if (!detail?.category_id) return [];
+    return resolveEffectiveAttributeTemplates(detail.category_id, categories);
+  }, [categories, detail?.category_id]);
+
+  const handleVariantCatalogSaved = useCallback(() => {
+    if (!detail) return;
+    setHasUnsavedChanges(false);
+    void onVariantsReload?.();
+    handleSaved(detail.id);
+  }, [detail, handleSaved, onVariantsReload]);
+
+  const needsCatalogForBody = mode !== "view";
+
   const body =
-    isLoading || !catalogContext ? (
+    isLoading ||
+    (needsCatalogForBody && !catalogContext) ||
+    (mode === "view" && !detail) ? (
       <ProductEditorSkeleton />
     ) : mode === "view" && detail && viewLayout === "compact" ? (
-      <div className="overflow-y-auto overscroll-contain h-full">
-        <ProductItemSummaryCard
+      <ProductItemSummaryCard
+        detail={detail}
+        currency={catalogContext?.base_currency ?? "USD"}
+        catalogContext={catalogContext}
+        categoryTemplates={summaryCategoryTemplates}
+        peekPanel={peekPanel}
+        onPeekPanelChange={onPeekPanelChange}
+        peekPanelLoading={peekPanelLoading}
+        isValuationsLoading={isValuationsLoading}
+      />
+    ) : variantCatalogEdit && detail ? (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <VariantCatalogEditForm
           detail={detail}
-          currency={catalogContext.base_currency}
-          catalogContext={catalogContext}
+          categories={categories}
+          tenantId={tenantId}
+          onSaved={handleVariantCatalogSaved}
+          onCancel={handleRequestCancel}
+          onMutationHeaderChange={setMutationHeader}
+          onDirtyChange={setHasUnsavedChanges}
+          onMediaChanged={onExtensionsChanged}
         />
       </div>
     ) : (
@@ -398,6 +470,7 @@ export function ProductPanelHeaderActions() {
     detail,
     canEdit,
     isLoadingEditability,
+    isDetailRefreshing,
     fullPageHref,
     onEdit,
     onDismiss,
@@ -491,6 +564,9 @@ export function ProductPanelHeaderActions() {
 
   return (
     <>
+      {isDetailRefreshing ? (
+        <Spinner className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Loading item" />
+      ) : null}
       {mode === "view" && detail ? (
         <Button
           type="button"
@@ -566,6 +642,10 @@ export function resolveProductPanelTitle(
   detail: ProductDetailSnapshot | null
 ): string {
   if (mode === "create") return "New item";
+  if (detail && isVariantCatalogEditMode(mode, detail)) {
+    const variant = selectedSellableVariant(detail);
+    if (variant?.sku?.trim()) return `Edit ${variant.sku.trim()}`;
+  }
   return detail?.name?.trim() ? detail.name : "Item";
 }
 
@@ -574,6 +654,10 @@ export function resolveProductPanelDescription(
   detail: ProductDetailSnapshot | null
 ): string | undefined {
   if (mode === "create") return "Create a new product";
+  if (detail && isVariantCatalogEditMode(mode, detail)) {
+    const productName = detail.name?.trim();
+    if (productName) return productName;
+  }
   if (detail) {
     const identitySku = resolveDetailIdentitySku(detail).trim();
     if (identitySku) return identitySku;

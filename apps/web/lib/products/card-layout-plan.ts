@@ -3,7 +3,9 @@ import { classificationLabel } from "@/lib/products/classification-labels";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
+import { resolveStockStatus } from "@/lib/products/stock-status";
 import type { ProductListRow } from "@/lib/products/types";
+import { productListHasVariantsBadgeLabel } from "@/lib/products/variant-strategy";
 
 export const CARD_CONTEXT_SEGMENT_CAP = 3;
 export const CARD_DETAIL_ROW_CAP = 4;
@@ -11,8 +13,14 @@ export const CARD_DETAIL_ROW_CAP = 4;
 const HERO_CONTEXT_ORDER: ProductListColumnId[] = [
   "default_sku",
   "category_name",
-  "classification",
   "barcode",
+];
+
+const CARD_FOOTER_RAIL_ORDER: ProductListColumnId[] = [
+  "default_sku",
+  "has_variants",
+  "stock_on_hand",
+  "category_name",
 ];
 
 const METRIC_ORDER: ProductListColumnId[] = [
@@ -59,11 +67,19 @@ export type CardContextSegment = {
   mono?: boolean;
 };
 
+export type CardLayoutFooterItem = {
+  columnId: ProductListColumnId;
+  label: string;
+  value: string;
+};
+
 export type CardLayoutPlan = {
   hero: {
     showImage: boolean;
     showTitle: boolean;
     showDescription: boolean;
+    showHeroSku: boolean;
+    heroSkuLabel: string | null;
     contextSegments: CardContextSegment[];
     contextOverflowCount: number;
     attributeSubline: string | null;
@@ -77,6 +93,7 @@ export type CardLayoutPlan = {
   details: CardLayoutDetailField[];
   detailOverflow: CardLayoutDetailField[];
   flags: CardLayoutFlagField[];
+  footerRail: CardLayoutFooterItem[];
   metaLine: string | null;
   shop: {
     category: string | null;
@@ -98,6 +115,8 @@ export type CardLayoutPlan = {
     meta: boolean;
     heroContext: boolean;
     description: boolean;
+    footerRail: boolean;
+    heroSku: boolean;
   };
 };
 
@@ -204,9 +223,11 @@ function formatCardFieldValue(
 function buildContextSegments(
   columns: ProductListColumnId[],
   product: ProductListRow,
-  showVariants: boolean
+  showVariants: boolean,
+  options?: { omitColumnIds?: ProductListColumnId[] }
 ): { visible: CardContextSegment[]; overflowCount: number } {
   const presentation = resolveProductListRowPresentation(product, showVariants);
+  const omit = new Set(options?.omitColumnIds ?? []);
 
   if (presentation.isExpandedVariantRow) {
     return { visible: [], overflowCount: 0 };
@@ -214,6 +235,7 @@ function buildContextSegments(
 
   const all: CardContextSegment[] = [];
   for (const columnId of HERO_CONTEXT_ORDER) {
+    if (omit.has(columnId)) continue;
     if (!columnVisible(columns, columnId)) continue;
     if (!cardFieldHasDisplayValue(columnId, product, showVariants)) continue;
     const value = formatCardFieldValue(columnId, product, showVariants);
@@ -306,15 +328,42 @@ function buildMetaLine(
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-function resolveStockStatus(
-  qty: string | null | undefined
-): { label: string; status: "in_stock" | "low_stock" | "out_of_stock" } | null {
-  if (qty == null || qty.trim() === "") return null;
-  const parsed = Number(qty);
-  if (!Number.isFinite(parsed)) return { label: qty, status: "in_stock" };
-  if (parsed <= 0) return { label: "Out of stock", status: "out_of_stock" };
-  if (parsed <= 5) return { label: `${parsed.toLocaleString()} in stock`, status: "low_stock" };
-  return { label: `${parsed.toLocaleString()} in stock`, status: "in_stock" };
+function buildFooterRail(
+  columns: ProductListColumnId[],
+  product: ProductListRow,
+  showVariants: boolean,
+  showHeroSku: boolean
+): CardLayoutFooterItem[] {
+  const presentation = resolveProductListRowPresentation(product, showVariants);
+  const items: CardLayoutFooterItem[] = [];
+
+  for (const columnId of CARD_FOOTER_RAIL_ORDER) {
+    if (!columnVisible(columns, columnId)) continue;
+    if (columnId === "default_sku" && showHeroSku) continue;
+
+    if (columnId === "has_variants") {
+      if (presentation.isExpandedVariantRow) continue;
+      if (!presentation.showHasVariantsIndicator) continue;
+      items.push({
+        columnId,
+        label: getColumnDef(columnId).label,
+        value: productListHasVariantsBadgeLabel(product.sellable_variant_count),
+      });
+      continue;
+    }
+
+    if (!cardFieldHasDisplayValue(columnId, product, showVariants)) continue;
+    const value = formatCardFieldValue(columnId, product, showVariants);
+    if (!value) continue;
+
+    items.push({
+      columnId,
+      label: getColumnDef(columnId).label,
+      value,
+    });
+  }
+
+  return items;
 }
 
 function buildShopBlock(
@@ -329,7 +378,13 @@ function buildShopBlock(
   const showStock = columnVisible(columns, "stock_on_hand");
   const showSku = columnVisible(columns, "default_sku");
 
-  const stock = showStock ? resolveStockStatus(product.stock_on_hand) : null;
+  const stock = showStock
+    ? resolveStockStatus({
+        stockOnHand: product.stock_on_hand,
+        reorderPoint: product.reorder_point,
+        belowReorder: product.below_reorder,
+      })
+    : null;
   const skuRaw =
     presentation.isExpandedVariantRow && presentation.displaySku?.trim()
       ? presentation.displaySku.trim()
@@ -363,10 +418,26 @@ export function buildCardLayoutPlan(
   options?: { rowActive?: boolean }
 ): CardLayoutPlan {
   const presentation = resolveProductListRowPresentation(product, showVariants);
+  const showHeroSku =
+    columnVisible(columns, "default_sku") &&
+    cardFieldHasDisplayValue("default_sku", product, showVariants);
+  const heroSkuLabel = showHeroSku
+    ? formatCardFieldValue("default_sku", product, showVariants)
+    : null;
+  const contextOmit: ProductListColumnId[] = [];
+  if (showHeroSku) contextOmit.push("default_sku");
+  for (const columnId of CARD_FOOTER_RAIL_ORDER) {
+    if (columnVisible(columns, columnId)) {
+      if (columnId === "default_sku" && showHeroSku) continue;
+      contextOmit.push(columnId);
+    }
+  }
+
   const { visible: contextSegments, overflowCount: contextOverflowCount } = buildContextSegments(
     columns,
     product,
-    showVariants
+    showVariants,
+    { omitColumnIds: contextOmit }
   );
 
   const metrics: CardLayoutMetricField[] = [];
@@ -388,6 +459,7 @@ export function buildCardLayoutPlan(
     showVariants
   );
   const flags = buildFlagFields(columns, product, showVariants);
+  const footerRail = buildFooterRail(columns, product, showVariants, showHeroSku);
   const metaLine = buildMetaLine(columns, product, showVariants);
 
   const showDescription =
@@ -404,6 +476,8 @@ export function buildCardLayoutPlan(
       showImage: columnVisible(columns, "image"),
       showTitle: columnVisible(columns, "name"),
       showDescription,
+      showHeroSku,
+      heroSkuLabel,
       contextSegments,
       contextOverflowCount,
       attributeSubline: presentation.attributeSubline,
@@ -417,6 +491,7 @@ export function buildCardLayoutPlan(
     details,
     detailOverflow,
     flags,
+    footerRail,
     metaLine,
     shop: buildShopBlock(columns, product, showVariants, presentation),
     regions: {
@@ -426,6 +501,8 @@ export function buildCardLayoutPlan(
       meta: metaLine != null,
       heroContext: contextSegments.length > 0 || contextOverflowCount > 0,
       description: showDescription,
+      footerRail: footerRail.length > 0,
+      heroSku: showHeroSku && Boolean(heroSkuLabel),
     },
   };
 }

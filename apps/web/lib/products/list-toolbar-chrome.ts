@@ -8,6 +8,8 @@ export {
   listToolbarIconButtonClass,
   listToolbarModuleViewTriggerClass,
   listToolbarSelectClass,
+  listToolbarSortTriggerClass,
   listToolbarViewToggleButtonClass,
+  listToolbarViewToggleSegmentClass,
   listToolbarViewToggleShellClass,
 } from "@/lib/layout/list-toolbar-chrome";

@@ -12,6 +12,7 @@ import type {
 } from "@/lib/locations/types";
 import type { DocumentSequenceRow } from "@/lib/organization/types";
 import { mapTenantRowToSnapshotParts } from "@/lib/organization/types";
+import { fetchTenantThemeSettings } from "@/lib/theme/queries";
 import { VALUATION_METHOD_OPTIONS } from "@/lib/organization/naming-options";
 import type { ValuationMethodOption } from "@/lib/organization/naming-options";
 
@@ -189,12 +190,14 @@ export async function fetchLocationModuleContext(
   tenantId: string,
   canManage: boolean
 ): Promise<LocationModuleContext | null> {
-  const [governance, revenueAccounts, documentSequencesByLocationId, tenantRow] = await Promise.all([
-    fetchLocationGovernanceSnapshot(supabase, tenantId),
-    fetchRevenueAccounts(supabase, tenantId),
-    fetchLocationDocumentSequenceMap(supabase, tenantId),
-    supabase.from("tenants").select("accounting_config").eq("id", tenantId).maybeSingle(),
-  ]);
+  const [governance, revenueAccounts, documentSequencesByLocationId, tenantRow, themeSettings] =
+    await Promise.all([
+      fetchLocationGovernanceSnapshot(supabase, tenantId),
+      fetchRevenueAccounts(supabase, tenantId),
+      fetchLocationDocumentSequenceMap(supabase, tenantId),
+      supabase.from("tenants").select("accounting_config").eq("id", tenantId).maybeSingle(),
+      fetchTenantThemeSettings(supabase, tenantId),
+    ]);
   if (!governance) return null;
 
   const accountingConfig =
@@ -206,6 +209,7 @@ export async function fetchLocationModuleContext(
     governance,
     centralHqLocationId: governance.central_hq_location_id,
     canManage,
+    themeSettings,
     defaultInventoryValuationMethod: parseDefaultInventoryValuationMethod(accountingConfig),
     revenueAccounts,
     documentSequencesByLocationId,

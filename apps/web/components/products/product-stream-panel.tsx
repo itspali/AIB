@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,13 @@ import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import { redactProductListRow } from "@/lib/products/field-permissions";
 import {
   bumpProductListPrefsRevision,
+  coerceProductListPrefs,
   getColumnPrefsSlice,
   isCardViewMode,
   isTableLikeViewMode,
+  type ColumnPrefsCardContext,
   loadProductListPrefs,
+  resolveProductListExpandVariants,
   AUTO_LAYOUT_PREF,
   resolveCardGridColumns,
   resolveFrozenColumnCount,
@@ -35,18 +39,29 @@ import {
   shouldPersistPrefsImmediately,
   supportsProductListVariantExpansion,
   didColumnSettingsChange,
+  isShowVariantsOnlyPrefChange,
   type ProductListPrefs,
 } from "@/lib/products/list-prefs";
 import { resolveColumnWrapModes, resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
-import { productListRowKey, injectVariantParentRows } from "@/lib/products/list-row-key";
+import {
+  collapseVariantListRows,
+  productListRowKey,
+  injectVariantParentRows,
+} from "@/lib/products/list-row-key";
 import { sortProductListRows } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
 import { resolveListPaneLayoutOverrides } from "@/lib/products/list-pane-layout";
 import { useElementWidth } from "@/lib/layout/use-element-width";
 import { applyFallbackTextFilter } from "@/lib/search/executor/apply-fallback-text";
+import { ITEMS_HREF } from "@/lib/products/item-navigation";
+import { isItemsRouteSessionActive } from "@/lib/products/items-route-generation";
 
 const PREFS_SAVE_DEBOUNCE_MS = 500;
+/** One hydration request per list load; avoids menu navigation POST storms. */
+const LIST_IMAGE_HYDRATION_MAX = 500;
+/** Defer lazy image signing so quick menu hops do not start in-flight POSTs. */
+const LIST_IMAGE_HYDRATION_DEFER_MS = 200;
 
 type Props = {
   products: ProductListRow[];
@@ -71,9 +86,18 @@ type Props = {
   onBulkSelectAllMatching?: () => void;
   onBulkAction?: (action: BulkToolbarAction) => void;
   onSelect: (productId: string, variantId?: string | null) => void;
+  onProductHover?: (productId: string, variantId?: string | null) => void;
+  onProductPointerEnter?: (productId: string, variantId?: string | null) => void;
+  onListIncludeImagesChange?: (includeImages: boolean) => void;
   onImagesHydrated?: (imageUrls: Record<string, string | null>) => void;
   expandVariants?: boolean;
-  onExpandVariantsChange?: (expandVariants: boolean) => void;
+  onExpandVariantsChange?: (expandVariants: boolean, source?: "sync" | "user") => void;
+  /** SSR already signed list images; skip client hydration POSTs. */
+  initialListImagesIncluded?: boolean;
+  /** SSR provided the initial list rows — avoid refetching on prefs hydration. */
+  ssrListReady?: boolean;
+  /** Invalidated when the items catalog unmounts. */
+  itemsRouteSession?: number;
   /** Desktop split detail open — list pane uses narrower responsive layout. */
   detailPaneOpen?: boolean;
   bulkToolbarEmbedded?: boolean;
@@ -108,13 +132,26 @@ export function ProductStreamPanel({
   onBulkSelectAllMatching,
   onBulkAction,
   onSelect,
+  onProductHover,
+  onProductPointerEnter,
+  onListIncludeImagesChange,
   onImagesHydrated,
   expandVariants = false,
   onExpandVariantsChange,
+  initialListImagesIncluded = false,
+  ssrListReady = false,
+  itemsRouteSession = 0,
   detailPaneOpen = false,
   bulkToolbarEmbedded = false,
   renderLayout,
 }: Props) {
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const isOnItemsRoute = useCallback(() => {
+    const current = pathnameRef.current;
+    return current === ITEMS_HREF || current.startsWith(`${ITEMS_HREF}/`);
+  }, []);
   const omnibar = useOptionalOmnibarContext();
   const { deviceClass } = useDeviceClass();
   const { ref: listPaneRef, width: listPaneWidth } = useElementWidth<HTMLDivElement>();
@@ -132,41 +169,84 @@ export function ProductStreamPanel({
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryItem, setGalleryItem] = useState<{ id: string; name: string } | null>(null);
   const prevPrefsRef = useRef(prefs);
+  const suppressPrefsPersistRef = useRef(ssrListReady);
+  const userEditedPrefsRef = useRef(false);
+  const onExpandVariantsChangeRef = useRef(onExpandVariantsChange);
+  onExpandVariantsChangeRef.current = onExpandVariantsChange;
 
   useEffect(() => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     const localPrefs = loadProductListPrefs();
-    const hydrated = resolvePrefsOnMount(initialListPrefsRef.current, localPrefs);
+    let hydrated = resolvePrefsOnMount(initialListPrefsRef.current, localPrefs);
+    if (ssrListReady && initialListPrefsRef.current) {
+      const serverPrefs = coerceProductListPrefs(initialListPrefsRef.current);
+      hydrated = {
+        ...hydrated,
+        viewMode: serverPrefs.viewMode,
+        columnPrefs: serverPrefs.columnPrefs,
+      };
+    }
     // Sync the comparison ref so the save effect does not treat hydration as a
     // user edit (which would fire a needless saveProductListUserPrefs action).
     prevPrefsRef.current = hydrated;
+    suppressPrefsPersistRef.current = true;
     setPrefs(hydrated);
     setPrefsHydrated(true);
-  }, []);
 
-  const persistToServer = useCallback(async (nextPrefs: ProductListPrefs) => {
-    setIsSavingPrefs(true);
-    setIsSavingColumnPrefs(savingColumnPrefsRef.current);
-    saveProductListPrefs(nextPrefs);
-    try {
-      const result = await saveProductListUserPrefs(nextPrefs);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to save list layout preferences.");
-        return;
-      }
-    } finally {
-      setIsSavingPrefs(false);
-      setIsSavingColumnPrefs(false);
-      savingColumnPrefsRef.current = false;
+    const syncExpand = onExpandVariantsChangeRef.current;
+    if (syncExpand) {
+      const desired = resolveProductListExpandVariants(
+        hydrated.showVariants,
+        hydrated.viewMode
+      );
+      syncExpand(desired, "sync");
     }
   }, []);
+
+  const persistToServer = useCallback(
+    async (nextPrefs: ProductListPrefs) => {
+      if (!isOnItemsRoute() || !isItemsRouteSessionActive(itemsRouteSession)) return;
+      setIsSavingPrefs(true);
+      setIsSavingColumnPrefs(savingColumnPrefsRef.current);
+      saveProductListPrefs(nextPrefs);
+      try {
+        const result = await saveProductListUserPrefs(nextPrefs);
+        if (!isItemsRouteSessionActive(itemsRouteSession)) return;
+        if ("error" in result) {
+          toast.error(result.error ?? "Unable to save list layout preferences.");
+          return;
+        }
+      } finally {
+        setIsSavingPrefs(false);
+        setIsSavingColumnPrefs(false);
+        savingColumnPrefsRef.current = false;
+      }
+    },
+    [isOnItemsRoute, itemsRouteSession]
+  );
 
   useEffect(() => {
     if (!prefsHydrated) return;
 
+    if (suppressPrefsPersistRef.current) {
+      suppressPrefsPersistRef.current = false;
+      prevPrefsRef.current = prefs;
+      return;
+    }
+
+    if (ssrListReady && !userEditedPrefsRef.current) {
+      prevPrefsRef.current = prefs;
+      return;
+    }
+
     const previous = prevPrefsRef.current;
     if (previous === prefs) return;
+
+    if (isShowVariantsOnlyPrefChange(previous, prefs)) {
+      prevPrefsRef.current = prefs;
+      return;
+    }
 
     prevPrefsRef.current = prefs;
     saveProductListPrefs(prefs);
@@ -188,7 +268,7 @@ export function ProductStreamPanel({
     saveTimerRef.current = setTimeout(() => {
       void persistToServer(prefs);
     }, PREFS_SAVE_DEBOUNCE_MS);
-  }, [persistToServer, prefs, prefsHydrated]);
+  }, [persistToServer, prefs, prefsHydrated, ssrListReady]);
 
   useEffect(() => {
     return () => {
@@ -198,6 +278,7 @@ export function ProductStreamPanel({
 
   const handlePrefsChange = useCallback(
     (next: ProductListPrefs | ((current: ProductListPrefs) => ProductListPrefs)) => {
+      userEditedPrefsRef.current = true;
       setPrefs((current) => {
         const resolved = typeof next === "function" ? next(current) : next;
         return bumpProductListPrefsRevision(resolved);
@@ -214,10 +295,6 @@ export function ProductStreamPanel({
   const effectiveExpandVariants = supportsVariantExpansion && expandVariants;
   const isExpandVariantsSyncing =
     supportsVariantExpansion && prefs.showVariants !== expandVariants;
-
-  useEffect(() => {
-    onExpandVariantsChange?.(desiredExpandVariants);
-  }, [desiredExpandVariants, onExpandVariantsChange]);
 
   useEffect(() => {
     if (omnibar?.scopePinnedToAll) {
@@ -283,7 +360,9 @@ export function ProductStreamPanel({
     const sorted = sortProductListRows(filteredProducts, prefs.sortField, prefs.sortDirection, {
       showVariants: effectiveExpandVariants,
     });
-    return effectiveExpandVariants ? injectVariantParentRows(sorted) : sorted;
+    return effectiveExpandVariants
+      ? injectVariantParentRows(sorted)
+      : collapseVariantListRows(sorted);
   }, [effectiveExpandVariants, filteredProducts, prefs.sortField, prefs.sortDirection]);
 
   const displayedRowKeys = useMemo(
@@ -329,6 +408,17 @@ export function ProductStreamPanel({
 
   const listDisplayDeviceClass = listPaneLayout.deviceClass;
 
+  const cardColumnContext = useMemo<ColumnPrefsCardContext | undefined>(
+    () =>
+      isCardViewMode(displayViewMode)
+        ? {
+            cardLayout: prefs.cardLayout,
+            cardOrientation: prefs.cardOrientation,
+          }
+        : undefined,
+    [displayViewMode, prefs.cardLayout, prefs.cardOrientation]
+  );
+
   const visibleColumns = useMemo(
     () =>
       resolveVisibleColumns({
@@ -341,19 +431,44 @@ export function ProductStreamPanel({
   );
 
   const columnWrapModes = useMemo(() => {
-    const slice = getColumnPrefsSlice(prefs, displayViewMode, listDisplayDeviceClass);
+    const slice = getColumnPrefsSlice(
+      prefs,
+      displayViewMode,
+      listDisplayDeviceClass,
+      cardColumnContext
+    );
     return resolveColumnWrapModes(visibleColumns, slice, displayViewMode);
-  }, [displayViewMode, listDisplayDeviceClass, prefs, visibleColumns]);
+  }, [cardColumnContext, displayViewMode, listDisplayDeviceClass, prefs, visibleColumns]);
+
+  const columnChipDisplay = useMemo(() => {
+    const slice = getColumnPrefsSlice(
+      prefs,
+      displayViewMode,
+      listDisplayDeviceClass,
+      cardColumnContext
+    );
+    return slice.columnChipDisplay;
+  }, [cardColumnContext, displayViewMode, listDisplayDeviceClass, prefs]);
 
   const columnWidths = useMemo(() => {
     if (!isTableLikeViewMode(displayViewMode)) return undefined;
-    return getColumnPrefsSlice(prefs, displayViewMode, listDisplayDeviceClass).columnWidths;
-  }, [displayViewMode, listDisplayDeviceClass, prefs]);
+    return getColumnPrefsSlice(
+      prefs,
+      displayViewMode,
+      listDisplayDeviceClass,
+      cardColumnContext
+    ).columnWidths;
+  }, [cardColumnContext, displayViewMode, listDisplayDeviceClass, prefs]);
 
   const handleColumnWidthChange = useCallback(
     (columnId: ProductListColumnId, width: number | null) => {
       handlePrefsChange((current) => {
-        const slice = getColumnPrefsSlice(current, displayViewMode, deviceClass);
+        const slice = getColumnPrefsSlice(
+          current,
+          displayViewMode,
+          deviceClass,
+          cardColumnContext
+        );
         const nextWidths = { ...(slice.columnWidths ?? {}) };
 
         if (width == null) {
@@ -365,13 +480,19 @@ export function ProductStreamPanel({
         const normalizedWidths =
           Object.keys(nextWidths).length > 0 ? nextWidths : undefined;
 
-        return setColumnPrefsSlice(current, displayViewMode, deviceClass, {
-          ...slice,
-          columnWidths: normalizedWidths,
-        });
+        return setColumnPrefsSlice(
+          current,
+          displayViewMode,
+          deviceClass,
+          {
+            ...slice,
+            columnWidths: normalizedWidths,
+          },
+          cardColumnContext
+        );
       });
     },
-    [deviceClass, displayViewMode, handlePrefsChange]
+    [cardColumnContext, deviceClass, displayViewMode, handlePrefsChange]
   );
 
   const shouldHydrateImages = useMemo(
@@ -379,31 +500,73 @@ export function ProductStreamPanel({
     [displayViewMode, visibleColumns]
   );
 
-  const imageHydrationKeyRef = useRef("");
+  const imageHydrationRequestedRef = useRef(new Set<string>());
+  const imageHydrationFlightRef = useRef(0);
+  const productsRef = useRef(products);
+  productsRef.current = products;
 
   useEffect(() => {
-    if (!shouldHydrateImages || !onImagesHydrated || !prefsHydrated) return;
+    onListIncludeImagesChange?.(isCardViewMode(prefs.viewMode));
+  }, [onListIncludeImagesChange, prefs.viewMode]);
 
-    const pendingIds = products
-      .filter((row) => row.image_url == null)
-      .map((row) => row.id);
-    if (!pendingIds.length) return;
-
-    const hydrationKey = pendingIds.join(",");
-    if (imageHydrationKeyRef.current === hydrationKey) return;
-    imageHydrationKeyRef.current = hydrationKey;
+  useEffect(() => {
+    if (!isOnItemsRoute() || initialListImagesIncluded || !onImagesHydrated) {
+      return;
+    }
 
     let cancelled = false;
-    void (async () => {
-      const result = await hydrateProductListImageUrls(pendingIds);
-      if (cancelled) return;
-      onImagesHydrated(result.imageUrls);
-    })();
+    const flightId = imageHydrationFlightRef.current + 1;
+    imageHydrationFlightRef.current = flightId;
+
+    const deferTimer = window.setTimeout(() => {
+      if (
+        cancelled ||
+        imageHydrationFlightRef.current !== flightId ||
+        !isOnItemsRoute() ||
+        !isItemsRouteSessionActive(itemsRouteSession) ||
+        !prefsHydrated ||
+        !shouldHydrateImages
+      ) {
+        return;
+      }
+
+      const pendingIds = productsRef.current
+        .filter(
+          (row) =>
+            !row.image_url && !imageHydrationRequestedRef.current.has(row.id)
+        )
+        .map((row) => row.id);
+      if (!pendingIds.length) return;
+
+      const batch = pendingIds.slice(0, LIST_IMAGE_HYDRATION_MAX);
+      for (const id of batch) {
+        imageHydrationRequestedRef.current.add(id);
+      }
+
+      void hydrateProductListImageUrls(batch).then((result) => {
+        if (
+          cancelled ||
+          imageHydrationFlightRef.current !== flightId ||
+          !isItemsRouteSessionActive(itemsRouteSession)
+        ) {
+          return;
+        }
+        onImagesHydrated(result.imageUrls);
+      });
+    }, LIST_IMAGE_HYDRATION_DEFER_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(deferTimer);
     };
-  }, [onImagesHydrated, prefsHydrated, products, shouldHydrateImages]);
+  }, [
+    initialListImagesIncluded,
+    isOnItemsRoute,
+    itemsRouteSession,
+    onImagesHydrated,
+    prefsHydrated,
+    shouldHydrateImages,
+  ]);
 
   const handleImageClick = useCallback((product: ProductListRow) => {
     setGalleryItem({ id: product.id, name: product.name });
@@ -430,13 +593,18 @@ export function ProductStreamPanel({
         products={displayedProducts}
         columns={visibleColumns}
         columnWrapModes={columnWrapModes}
+        columnChipDisplay={columnChipDisplay}
         gridColumns={listPaneLayout.cardGridColumns}
         cardLayout={prefs.cardLayout}
+        cardOrientation={prefs.cardOrientation}
+        cardMetaDisplay={prefs.cardMetaDisplay}
         showVariants={effectiveExpandVariants}
         selectedId={selectedId}
         selectedVariantId={selectedVariantId}
         bulkSelectedIds={bulkSelectedIds}
         onSelect={onSelect}
+        onProductHover={onProductHover}
+        onProductPointerEnter={onProductPointerEnter}
         onBulkRowToggle={onBulkRowToggle}
         onImageClick={handleImageClick}
       />
@@ -446,6 +614,7 @@ export function ProductStreamPanel({
       products={displayedProducts}
       columns={visibleColumns}
       columnWrapModes={columnWrapModes}
+      columnChipDisplay={columnChipDisplay}
       columnWidths={columnWidths}
       deviceClass={listDisplayDeviceClass}
       compactRows={displayViewMode === "compact"}
@@ -464,6 +633,8 @@ export function ProductStreamPanel({
       }
       onColumnWidthChange={handleColumnWidthChange}
       onSelect={onSelect}
+      onProductHover={onProductHover}
+      onProductPointerEnter={onProductPointerEnter}
       onBulkRowToggle={onBulkRowToggle}
       onBulkPageToggle={(checked) => onBulkPageToggle(displayedRowKeys, checked)}
       onImageClick={handleImageClick}
@@ -480,6 +651,13 @@ export function ProductStreamPanel({
       categoryOptions={categoryOptions}
       prefs={prefs}
       onPrefsChange={handlePrefsChange}
+      onShowVariantsChange={(checked) => {
+        const nextExpand = resolveProductListExpandVariants(checked, displayViewMode);
+        onExpandVariantsChange?.(nextExpand, "user");
+      }}
+      onExpandVariantsChange={(nextExpand) => {
+        onExpandVariantsChange?.(nextExpand, "user");
+      }}
       fieldPermissions={fieldPermissions}
       detectedDeviceClass={deviceClass}
       resultCount={filteredProducts.length}

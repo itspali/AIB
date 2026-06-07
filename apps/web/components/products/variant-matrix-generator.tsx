@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   deleteItemVariant,
   getProductDetail,
+  getProductVariants,
   saveItemVariant,
   saveItemVariantAxes,
   saveItemVariantsBulk,
@@ -58,6 +59,8 @@ type Props = {
   axisKeys: string[];
   suggestedAxisKeys?: string[];
   onAxisKeysChange?: (keys: string[]) => void;
+  /** When true, axis chips are read-only (sellable variants already exist). */
+  axesLocked?: boolean;
   /** When false, axis selection is controlled elsewhere (legacy). */
   showAxisPicker?: boolean;
   /** Draft: rebuild grid in memory; persist via commitDraft on wizard Continue. */
@@ -113,7 +116,7 @@ function ValueToggleChip({
         "disabled:cursor-not-allowed disabled:opacity-50",
         selected
           ? "border-primary bg-primary/10 text-foreground shadow-sm ring-1 ring-inset ring-primary/40"
-          : "border-border bg-background text-foreground shadow-sm hover:border-primary/30 hover:bg-muted/60 dark:bg-card/70 dark:hover:bg-muted/40"
+          : "border-border bg-card text-foreground shadow-sm ring-1 ring-border/50 hover:border-primary/30 hover:bg-muted/60 dark:bg-card/70 dark:ring-0 dark:hover:bg-muted/40"
       )}
       aria-pressed={selected}
     >
@@ -299,6 +302,7 @@ export function VariantMatrixGenerator({
   axisKeys,
   suggestedAxisKeys = [],
   onAxisKeysChange,
+  axesLocked = false,
   showAxisPicker = true,
   defaultSellingPrice = "",
   defaultPurchasePrice = "",
@@ -513,14 +517,14 @@ export function VariantMatrixGenerator({
       return { error: "Generated SKUs must be unique." };
     }
 
-    const detailResult = await getProductDetail(itemId);
-    if ("error" in detailResult || !detailResult.detail) {
+    const variantResult = await getProductVariants(itemId);
+    if ("error" in variantResult || !variantResult.bundle) {
       return {
-        error: detailResult.error ?? "Unable to load current variants before saving.",
+        error: variantResult.error ?? "Unable to load current variants before saving.",
       };
     }
 
-    const freshVariants = detailResult.detail.variants;
+    const freshVariants = variantResult.bundle.variants;
     const sellable = listSellableVariants(freshVariants);
     const variantIndex = buildSellableVariantIndex(freshVariants, axisKeys);
 
@@ -719,9 +723,11 @@ export function VariantMatrixGenerator({
           axisKeys={axisKeys}
           suggestedAxisKeys={suggestedAxisKeys}
           disabled={isPending}
+          locked={axesLocked}
           compact
           onChange={(keys) => {
-            if (onAxisKeysChange) onAxisKeysChange(keys);
+            if (axesLocked || !onAxisKeysChange) return;
+            onAxisKeysChange(keys);
           }}
         />
       ) : null}

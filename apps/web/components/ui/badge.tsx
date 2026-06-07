@@ -18,7 +18,7 @@ function Badge({ className, variant = "default", ...props }: BadgeProps) {
           "bg-amber-500/15 text-amber-800 ring-1 ring-amber-500/30 dark:text-amber-300 dark:ring-amber-500/25",
         variant === "administrative" &&
           "bg-red-500/15 text-red-800 ring-1 ring-red-500/30 dark:text-red-300 dark:ring-red-500/25",
-        variant === "locked" && "bg-muted/80 text-muted-foreground ring-1 ring-border",
+        variant === "locked" && "bg-muted text-muted-foreground ring-1 ring-border/80",
         variant === "default" && "bg-secondary text-secondary-foreground",
         className
       )}

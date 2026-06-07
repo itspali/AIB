@@ -29,12 +29,14 @@ import {
   resolveColumnWidthStyles,
 } from "@/lib/list-columns/sizing";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
   rows: CategoryListRow[];
   columns: CategoryListColumnId[];
   columnWrapModes?: Partial<Record<CategoryListColumnId, TextWrapMode>>;
+  columnChipDisplay?: Partial<Record<CategoryListColumnId, ColumnChipDisplay>>;
   columnWidths?: Partial<Record<CategoryListColumnId, number>>;
   deviceClass: DeviceClass;
   selectedId: string | null;
@@ -71,17 +73,17 @@ function SortIndicator({
 
 const ROW_DIVIDER = "box-border border-b border-border";
 const FROZEN_CELL_BG =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--background)))] dark:bg-muted";
+  "bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--background)))] dark:bg-muted";
 const FROZEN_CELL_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
+  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
 const FROZEN_CELL_SELECTED =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
+  "bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
 const FROZEN_CELL_SELECTED_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_20%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
+  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_22%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
 const FROZEN_EDGE_SHADOW =
-  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.08)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
+  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.16)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
 const HEADER_HOVER =
-  "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
+  "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
 const TABLE_HEADER_Z = 10;
 const SELECTION_COLUMN_Z_HEADER = 50;
 const FROZEN_HEADER_Z_BASE = 40;
@@ -104,6 +106,7 @@ export function CategoryListTable({
   rows,
   columns,
   columnWrapModes,
+  columnChipDisplay,
   columnWidths,
   deviceClass,
   selectedId,
@@ -228,8 +231,8 @@ export function CategoryListTable({
       rowEdgeClass(isFrozen && isLastFrozenColumn),
       !isFrozen &&
         (selected
-          ? "bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(214_28%_94%))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
-          : "group-hover:bg-[hsl(214_28%_96%)] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
+          ? "bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_12%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
+          : "group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_35%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
       isFrozen &&
         (selected
           ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
@@ -282,7 +285,7 @@ export function CategoryListTable({
 
   return (
     <div className="relative min-h-0 w-full flex-1 basis-0 self-stretch">
-      <div className="absolute inset-0 flex flex-col overflow-hidden border border-border bg-muted/20 shadow-sm [border-radius:0]">
+      <div className="absolute inset-0 flex flex-col overflow-hidden border border-border bg-muted/35 shadow-sm [border-radius:0] dark:bg-muted/20">
         <div
           ref={scrollContainerRef}
           className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
@@ -470,7 +473,9 @@ export function CategoryListTable({
                             style={sticky.style}
                           >
                             <div className={categoryListCellWrapClassName(columnId)}>
-                              {renderCategoryListCell(columnId, row)}
+                              {renderCategoryListCell(columnId, row, {
+                                chipDisplay: columnChipDisplay,
+                              })}
                             </div>
                           </td>
                         );

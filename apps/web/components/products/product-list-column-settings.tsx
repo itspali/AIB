@@ -7,7 +7,11 @@ import {
   type ColumnSettingsLayout,
 } from "@/components/list-columns/list-column-settings";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
-import { PRODUCT_LIST_COLUMN_REGISTRY } from "@/lib/products/list-columns";
+import {
+  isProductCardColumnApplicable,
+  productCardColumnDisabledReason,
+} from "@/lib/products/card-column-applicability";
+import { PRODUCT_LIST_COLUMN_REGISTRY, type ProductListColumnId } from "@/lib/products/list-columns";
 import {
   getColumnPrefsSlice,
   setCardGridColumnsSlice,
@@ -49,10 +53,16 @@ export function ProductListColumnSettings({
     setEditingDevice(detectedDeviceClass);
   }, [detectedDeviceClass]);
 
+  const cardColumnContext =
+    editingLayout === "card"
+      ? { cardLayout: prefs.cardLayout, cardOrientation: prefs.cardOrientation }
+      : undefined;
+
   const slice = getColumnPrefsSlice(
     prefs,
     editingLayout as ProductListViewMode,
-    editingDevice as DeviceClass
+    editingDevice as DeviceClass,
+    cardColumnContext
   );
 
   return (
@@ -71,7 +81,8 @@ export function ProductListColumnSettings({
             prefs,
             editingLayout as ProductListViewMode,
             editingDevice as DeviceClass,
-            columnPrefs
+            columnPrefs,
+            cardColumnContext
           )
         )
       }
@@ -85,6 +96,28 @@ export function ProductListColumnSettings({
       }
       cardLayout={prefs.cardLayout}
       onCardLayoutChange={(cardLayout) => onChange({ ...prefs, cardLayout })}
+      cardOrientation={prefs.cardOrientation}
+      onCardOrientationChange={(cardOrientation) => onChange({ ...prefs, cardOrientation })}
+      cardMetaDisplay={prefs.cardMetaDisplay}
+      onCardMetaDisplayChange={(cardMetaDisplay) => onChange({ ...prefs, cardMetaDisplay })}
+      isColumnApplicable={(columnId) =>
+        editingLayout !== "card"
+          ? true
+          : isProductCardColumnApplicable(
+              columnId as ProductListColumnId,
+              prefs.cardLayout,
+              prefs.cardOrientation
+            )
+      }
+      columnDisabledReason={(columnId) =>
+        editingLayout !== "card"
+          ? undefined
+          : productCardColumnDisabledReason(
+              columnId as ProductListColumnId,
+              prefs.cardLayout,
+              prefs.cardOrientation
+            )
+      }
       disabled={disabled}
       isSaving={isSaving}
       triggerClassName={triggerClassName}

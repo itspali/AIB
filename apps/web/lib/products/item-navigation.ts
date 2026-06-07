@@ -8,7 +8,7 @@ import {
   type PreservedQueryParams,
 } from "@/lib/layout/module-drawer-url";
 
-export const ITEMS_HREF = "/inventory/items";
+export const ITEMS_HREF = "/items";
 
 export const ITEM_CATALOG_ORIGIN_PARAM = "from";
 export const ITEM_CATALOG_ORIGIN_VALUE = "catalog";
@@ -20,18 +20,20 @@ export function isCatalogPopOutOrigin(searchParams: Pick<URLSearchParams, "get">
   return searchParams.get(ITEM_CATALOG_ORIGIN_PARAM) === ITEM_CATALOG_ORIGIN_VALUE;
 }
 
-export function itemPeekHref(
-  itemId: string,
-  preserveParams?: URLSearchParams | PreservedQueryParams
-): string {
-  return moduleDrawerPeekHref(ITEMS_HREF, itemId, preserveParams);
-}
-
 export function itemEditHref(
   itemId: string,
-  preserveParams?: URLSearchParams | PreservedQueryParams
+  preserveParams?: URLSearchParams | PreservedQueryParams,
+  variantId?: string | null
 ): string {
-  return moduleDrawerEditHref(ITEMS_HREF, itemId, preserveParams);
+  return moduleDrawerEditHref(ITEMS_HREF, itemId, preserveParams, variantId);
+}
+
+export function itemPeekHref(
+  itemId: string,
+  preserveParams?: URLSearchParams | PreservedQueryParams,
+  variantId?: string | null
+): string {
+  return moduleDrawerPeekHref(ITEMS_HREF, itemId, preserveParams, variantId);
 }
 
 export function itemCreateHref(
@@ -47,7 +49,7 @@ export function itemListReturnHref(itemId?: string | null): string {
 export function itemFullPageHref(
   mode: ProductFormMode,
   itemId?: string | null,
-  options?: { fromCatalog?: boolean }
+  options?: { fromCatalog?: boolean; variantId?: string | null }
 ): string {
   let path = ITEMS_HREF;
 
@@ -56,9 +58,9 @@ export function itemFullPageHref(
   }
   if (itemId) {
     if (mode === "edit") {
-      path = itemEditHref(itemId);
+      path = itemEditHref(itemId, undefined, options?.variantId);
     } else {
-      path = itemPeekHref(itemId);
+      path = itemPeekHref(itemId, undefined, options?.variantId);
     }
   }
 

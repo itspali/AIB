@@ -40,7 +40,7 @@ export const EDITOR_STAGES: EditorStage[] = [
     id: "reach",
     label: "Catalog & reach",
     description: "Media, tags, custom fields, and where it sells.",
-    sections: ["media", "catalog", "reach"],
+    sections: ["media", "product_attributes", "custom_fields", "tags", "visibility"],
   },
 ];
 

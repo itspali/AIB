@@ -11,6 +11,30 @@ export type ListColumnValueKind =
   | "boolean"
   | "date";
 
+export type ChipColorPreset =
+  | "emerald"
+  | "red"
+  | "amber"
+  | "indigo"
+  | "sky"
+  | "violet"
+  | "slate"
+  | "neutral";
+
+export type ColumnValueColorRule = {
+  preset?: ChipColorPreset;
+  /** "#RRGGBB" — when set, overrides preset */
+  customHex?: string;
+};
+
+export type ColumnChipDisplay = {
+  mode: "text" | "chip";
+  valueColors?: Record<string, ColumnValueColorRule>;
+};
+
+/** Fallback key for unmapped dynamic enum values (e.g. category names). */
+export const CHIP_DEFAULT_FALLBACK_KEY = "__default__";
+
 export type ListColumnDef<TId extends string = string> = {
   id: TId;
   label: string;
@@ -27,6 +51,12 @@ export type ListColumnDef<TId extends string = string> = {
   widths?: ResponsiveColumnWidths;
   /** Extra min-width pixels when wrap mode is line-clamp-2 or wrap. */
   wrapWidthBoost?: number;
+  /** When true, column selector offers chip display + per-value colors. */
+  chipEligible?: boolean;
+  /** Static value catalog for chip color rules; dynamic columns use CHIP_DEFAULT_FALLBACK_KEY. */
+  chipValueCatalog?: readonly { value: string; label: string }[];
+  /** Module-specific default color rules keyed by stable value id. */
+  chipDefaultColors?: Record<string, ColumnValueColorRule>;
 };
 
 export type ListColumnRegistry<TId extends string = string> = {
@@ -41,6 +71,8 @@ export type ListColumnPrefs<TId extends string = string> = {
   columnWrapModes?: Partial<Record<TId, TextWrapMode>>;
   /** User-resized column widths in pixels (table view, per device slice). */
   columnWidths?: Partial<Record<TId, number>>;
+  /** Per-column chip display mode and value color overrides. */
+  columnChipDisplay?: Partial<Record<TId, ColumnChipDisplay>>;
 };
 
 export function getDefaultColumnOrder<TId extends string>(

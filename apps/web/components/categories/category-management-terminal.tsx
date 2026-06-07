@@ -1,13 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   bulkActivateCategories,
   bulkDeactivateCategories,
   bulkDeleteCategories,
+  loadCategoryItemCounts,
 } from "@/app/items/categories/actions";
 import { CategoryBulkActionToolbar } from "@/components/categories/category-bulk-action-toolbar";
 import type { CategoryBulkToolbarAction } from "@/components/categories/category-bulk-action-toolbar";
@@ -42,9 +50,16 @@ import {
   type CategoryTableViewMode,
 } from "@/lib/categories/list-prefs";
 import { sortCategoryListRows } from "@/lib/categories/list-sort";
+import {
+  patchCategoryActiveState,
+  removeCategoryRow,
+  upsertCategoryRow,
+} from "@/lib/categories/row-state";
 import type { CategoryRow } from "@/lib/categories/types";
 import { flattenTree } from "@/lib/categories/tree";
 import { useFilteredCategories } from "@/lib/categories/use-filtered-categories";
+import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
+import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 
 const CATEGORIES_PAGE_DESCRIPTION =
@@ -53,6 +68,7 @@ const CATEGORIES_PAGE_DESCRIPTION =
 type Props = {
   initialRows: CategoryRow[];
   itemCountByCategoryId?: Record<string, number>;
+  initialSavedView?: SavedViewSnapshot | null;
 };
 
 function CategoriesPageTitleHeader({ onNewCategory }: { onNewCategory: () => void }) {
@@ -96,11 +112,20 @@ function resolveBulkCategoryIds(
 
 export function CategoryManagementTerminal({
   initialRows,
-  itemCountByCategoryId = {},
+  itemCountByCategoryId: initialItemCountByCategoryId = {},
+  initialSavedView = null,
 }: Props) {
-  const router = useRouter();
   const drawer = useModuleDrawerUrl(CATEGORIES_HREF, { canonicalizeLegacy: true });
+  const omnibar = useOptionalOmnibarContext();
+  const serverViewHydratedRef = useRef(false);
   const { deviceClass } = useDeviceClass();
+  const [rows, setRows] = useState(initialRows);
+  const [itemCountByCategoryId, setItemCountByCategoryId] = useState(
+    initialItemCountByCategoryId
+  );
+  const itemCountsRequestedRef = useRef(
+    Object.keys(initialItemCountByCategoryId).length > 0
+  );
   const [pendingDelete, setPendingDelete] = useState<CategoryRow | null>(null);
   const [prefs, setPrefs] = useState<CategoryListPrefs>(getDefaultCategoryListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
@@ -109,13 +134,19 @@ export function CategoryManagementTerminal({
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
 
+  useEffect(() => {
+    if (itemCountsRequestedRef.current) return;
+    itemCountsRequestedRef.current = true;
+    void loadCategoryItemCounts().then(setItemCountByCategoryId);
+  }, []);
+
   const { filteredTree, filteredRows, totalCount, resultCount } =
-    useFilteredCategories(initialRows);
+    useFilteredCategories(rows);
 
   const selectedId = drawer.recordId;
   const peekCategory =
     drawer.recordId != null
-      ? (initialRows.find((row) => row.id === drawer.recordId) ?? null)
+      ? (rows.find((row) => row.id === drawer.recordId) ?? null)
       : null;
 
   const tableViewMode: CategoryTableViewMode =
@@ -124,13 +155,13 @@ export function CategoryManagementTerminal({
   const listRows = useMemo(() => {
     const enriched = enrichCategoryListRows(
       filteredRows,
-      initialRows,
+      rows,
       itemCountByCategoryId
     );
     return sortCategoryListRows(enriched, prefs.sortField, prefs.sortDirection);
   }, [
     filteredRows,
-    initialRows,
+    rows,
     itemCountByCategoryId,
     prefs.sortDirection,
     prefs.sortField,
@@ -213,14 +244,44 @@ export function CategoryManagementTerminal({
   );
 
   const handleBulkSuccess = useCallback(
-    (affectedCount: number, message?: string) => {
-      toast.success(message ?? `${affectedCount} categor${affectedCount === 1 ? "y" : "ies"} updated.`);
+    (message: string, patch?: (current: CategoryRow[]) => CategoryRow[]) => {
+      toast.success(message);
+      if (patch) setRows(patch);
       clearBulkSelection();
       setBulkDeleteOpen(false);
-      router.refresh();
     },
-    [clearBulkSelection, router]
+    [clearBulkSelection]
   );
+
+  const handleCategorySaved = useCallback(
+    (categoryId: string, category: CategoryRow) => {
+      setRows((current) => upsertCategoryRow(current, category));
+      drawer.afterSave(categoryId);
+    },
+    [drawer]
+  );
+
+  const handleCategoryDeleted = useCallback(
+    (categoryId: string) => {
+      setRows((current) => removeCategoryRow(current, categoryId));
+      setItemCountByCategoryId((current) => {
+        if (!(categoryId in current)) return current;
+        const next = { ...current };
+        delete next[categoryId];
+        return next;
+      });
+      if (drawer.recordId === categoryId) {
+        drawer.close();
+      }
+      setPendingDelete(null);
+      clearBulkSelection();
+    },
+    [clearBulkSelection, drawer]
+  );
+
+  const handleCategoryDeactivated = useCallback((category: CategoryRow) => {
+    setRows((current) => upsertCategoryRow(current, category));
+  }, []);
 
   const runBulkActivate = useCallback(() => {
     const ids = resolveSelectedIds();
@@ -234,7 +295,11 @@ export function CategoryManagementTerminal({
         toast.error(result.error);
         return;
       }
-      handleBulkSuccess(result.affectedCount ?? 0);
+      const count = result.affectedIds?.length ?? 0;
+      handleBulkSuccess(
+        `${count} categor${count === 1 ? "y" : "ies"} activated.`,
+        (current) => patchCategoryActiveState(current, result.affectedIds ?? [], true)
+      );
     });
   }, [handleBulkSuccess, resolveSelectedIds]);
 
@@ -250,7 +315,11 @@ export function CategoryManagementTerminal({
         toast.error(result.error);
         return;
       }
-      handleBulkSuccess(result.affectedCount ?? 0);
+      const count = result.affectedIds?.length ?? 0;
+      handleBulkSuccess(
+        `${count} categor${count === 1 ? "y" : "ies"} deactivated.`,
+        (current) => patchCategoryActiveState(current, result.affectedIds ?? [], false)
+      );
     });
   }, [handleBulkSuccess, resolveSelectedIds]);
 
@@ -266,23 +335,34 @@ export function CategoryManagementTerminal({
         toast.error(result.error);
         return;
       }
+      const deletedCount = result.deletedIds?.length ?? 0;
       if (result.skippedCount && result.skippedCount > 0) {
         toast.warning(
-          `Deleted ${result.affectedCount}; ${result.skippedCount} could not be deleted (children or assigned items).`
+          `Deleted ${deletedCount}; ${result.skippedCount} could not be deleted (children or assigned items).`
         );
       } else {
         toast.success(
-          `Deleted ${result.affectedCount} categor${result.affectedCount === 1 ? "y" : "ies"}.`
+          `Deleted ${deletedCount} categor${deletedCount === 1 ? "y" : "ies"}.`
         );
       }
-      if (drawer.recordId && ids.includes(drawer.recordId)) {
+      setRows((current) =>
+        result.deletedIds?.reduce((next, categoryId) => removeCategoryRow(next, categoryId), current) ??
+        current
+      );
+      setItemCountByCategoryId((current) => {
+        const next = { ...current };
+        for (const categoryId of result.deletedIds ?? []) {
+          delete next[categoryId];
+        }
+        return next;
+      });
+      if (drawer.recordId && result.deletedIds?.includes(drawer.recordId)) {
         drawer.close();
       }
       clearBulkSelection();
       setBulkDeleteOpen(false);
-      router.refresh();
     });
-  }, [clearBulkSelection, drawer, resolveSelectedIds, router]);
+  }, [clearBulkSelection, drawer, resolveSelectedIds]);
 
   const runBulkExport = useCallback(() => {
     const ids = resolveSelectedIds();
@@ -295,7 +375,7 @@ export function CategoryManagementTerminal({
     if (rows.length === 0) {
       const enriched = enrichCategoryListRows(
         filteredRows.filter((row) => idSet.has(row.id)),
-        initialRows,
+        rows,
         itemCountByCategoryId
       );
       downloadCategoryListCsv(enriched);
@@ -303,7 +383,7 @@ export function CategoryManagementTerminal({
       downloadCategoryListCsv(rows);
     }
     toast.success(`Exported ${ids.length} categor${ids.length === 1 ? "y" : "ies"}.`);
-  }, [filteredRows, initialRows, itemCountByCategoryId, listRows, resolveSelectedIds]);
+  }, [filteredRows, rows, itemCountByCategoryId, listRows, resolveSelectedIds]);
 
   const handleBulkToolbarAction = useCallback(
     (action: CategoryBulkToolbarAction) => {
@@ -325,6 +405,16 @@ export function CategoryManagementTerminal({
     [runBulkActivate, runBulkDeactivate, runBulkExport]
   );
 
+  useLayoutEffect(() => {
+    if (!omnibar || serverViewHydratedRef.current) return;
+    serverViewHydratedRef.current = true;
+    if (initialSavedView) {
+      omnibar.hydrateModuleViewFromServer(initialSavedView, null);
+      return;
+    }
+    omnibar.markDefaultViewResolvedOnServer("categories");
+  }, [initialSavedView, omnibar]);
+
   useEffect(() => {
     setPrefs(loadCategoryListPrefs());
     setPrefsHydrated(true);
@@ -339,16 +429,8 @@ export function CategoryManagementTerminal({
     setPendingDelete(category);
   };
 
-  const handleDeleted = (categoryId: string) => {
-    if (drawer.recordId === categoryId) {
-      drawer.close();
-    }
-    setPendingDelete(null);
-    clearBulkSelection();
-  };
-
   const listPrimary =
-    initialRows.length === 0 ? (
+    rows.length === 0 ? (
       <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
         <CategoryEmptyState onCreate={drawer.openCreate} hasExistingCategories={false} />
       </div>
@@ -357,6 +439,7 @@ export function CategoryManagementTerminal({
         rows={listRows}
         columns={visibleColumns}
         columnWrapModes={columnPrefsSlice.columnWrapModes}
+        columnChipDisplay={columnPrefsSlice.columnChipDisplay}
         columnWidths={columnPrefsSlice.columnWidths}
         deviceClass={deviceClass}
         selectedId={selectedId}
@@ -398,7 +481,7 @@ export function CategoryManagementTerminal({
   );
 
   const bulkToolbar =
-    initialRows.length > 0 && bulkSelectionCount > 0 ? (
+    rows.length > 0 && bulkSelectionCount > 0 ? (
       <CategoryBulkActionToolbar
         selectedCount={bulkSelectedIds.size}
         totalMatchingCount={matchingCategoryIds.length}
@@ -424,7 +507,7 @@ export function CategoryManagementTerminal({
       <ListModuleShell
         title={<CategoriesPageTitleHeader onNewCategory={drawer.openCreate} />}
         toolbar={
-          initialRows.length > 0 ? (
+          rows.length > 0 ? (
             <CategoryListToolbar
               prefs={prefs}
               onPrefsChange={setPrefs}
@@ -444,21 +527,22 @@ export function CategoryManagementTerminal({
       <CategoryDrawerForm
         open={drawerOpen}
         surface={drawer.surface}
-        rows={initialRows}
+        rows={rows}
         peekCategory={peekCategory}
         onClose={drawer.close}
         onOpenEdit={drawer.openEdit}
-        onAfterSave={drawer.afterSave}
+        onAfterSave={handleCategorySaved}
         onDelete={openDelete}
       />
 
       <CategoryDeleteDialog
         category={pendingDelete}
-        rows={initialRows}
+        rows={rows}
         itemCountByCategoryId={itemCountByCategoryId}
         open={Boolean(pendingDelete)}
         onOpenChange={(next) => !next && setPendingDelete(null)}
-        onDeleted={handleDeleted}
+        onDeleted={handleCategoryDeleted}
+        onDeactivated={handleCategoryDeactivated}
       />
 
       <CategoryBulkDeleteAlert

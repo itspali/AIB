@@ -3,7 +3,7 @@ import { ComingSoonModule } from "@/components/layout/coming-soon-module";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
-export default async function LogisticsPage() {
+export default async function FulfillmentShippingPage() {
   const { orgName, approvalAlertCount, operatorProfile, tenantId } =
     await getModulePageContext();
 
@@ -15,10 +15,10 @@ export default async function LogisticsPage() {
       tenantId={tenantId}
     >
       <ComingSoonModule
-        title="Logistics"
-        description="Coordinate shipments and inter-location stock transfers."
+        title="Fulfillment & Shipping"
+        description="Pick, pack, and ship customer orders to delivery partners."
         icon={Truck}
-        plannedSections={["Shipments", "Transfers"]}
+        plannedSections={["Shipments", "Packing slips", "Carrier tracking"]}
       />
     </DashboardShell>
   );

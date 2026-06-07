@@ -66,7 +66,7 @@ export function TaxSlabEditor({ rules, disabled = false, onChange }: Props) {
           {rules.map((rule, index) => (
             <div
               key={index}
-              className="grid grid-cols-1 gap-3 rounded-lg border border-border/80 p-3 sm:grid-cols-[1fr_auto] dark:border-white/10"
+              className="grid grid-cols-1 gap-3 rounded-lg border border-border/80 border-black/[0.06] p-3 sm:grid-cols-[1fr_auto] dark:border-white/10"
             >
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="col-span-2 space-y-1 sm:col-span-1">

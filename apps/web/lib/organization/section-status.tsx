@@ -65,7 +65,12 @@ export function orgSectionStatus(
     case ORG_SETTINGS_TAB_IDS.branding:
       return hasText(values.logo_url) ||
         hasText(values.website_url) ||
-        hasText(values.secondary_phone)
+        hasText(values.secondary_phone) ||
+        values.primary_hue !== null ||
+        values.accent_hue !== null ||
+        values.default_theme !== "dark" ||
+        values.allow_location_theme_override ||
+        !values.allow_user_theme_override
         ? "complete"
         : "empty";
 

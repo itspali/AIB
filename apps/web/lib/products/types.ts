@@ -11,8 +11,18 @@ import {
 } from "@/lib/products/item-model";
 import { filterUserCustomFieldEntries } from "@/lib/products/catalog-reserved-fields";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
+import { valuationsBelowReorder } from "@/lib/products/stock-status";
 import { normalizeTaxCategory, type TaxCategory } from "@/lib/products/tax-options";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+
+export type ProductPeekSection = "variants" | "media" | "reach";
+
+export type ProductPeekPanelId = "essentials" | "variants" | "media" | "reach";
+
+export type ProductVariantCountSummary = {
+  total: number;
+  sellable: number;
+};
 
 export type ProductListRow = {
   id: string;
@@ -25,6 +35,8 @@ export type ProductListRow = {
   category_name: string | null;
   hsn_sac_code: string | null;
   has_variants: boolean;
+  /** Sellable SKUs on the item (from list workspace view). */
+  sellable_variant_count?: number;
   default_tax_category: TaxCategory;
   is_active: boolean;
   is_purchasable: boolean;
@@ -37,6 +49,10 @@ export type ProductListRow = {
   purchase_price: string | null;
   supplier_name: string | null;
   stock_on_hand: string | null;
+  /** Product default reorder (item custom_fields); per-location overrides drive below_reorder. */
+  reorder_point?: string | null;
+  /** True when any stocked location is at or below its effective reorder threshold. */
+  below_reorder?: boolean;
   created_at: string;
   updated_at: string;
   variant_strategy?: ProductVariantStrategy;
@@ -78,7 +94,7 @@ export type ProductCatalogContext = {
   suppliers: Array<{ id: string; name: string }>;
   tags: ProductTagSnapshot[];
   storefronts: Array<{ id: string; name: string; channel_type: string; slug: string }>;
-  price_books: Array<{ id: string; name: string }>;
+  price_books: Array<{ id: string; name: string; currency_code: string }>;
   tax_codes: Array<{
     id: string;
     code: string;
@@ -193,6 +209,12 @@ export type ProductDetailSnapshot = {
   alternate_uoms: ProductAlternateUomSnapshot[];
   tags: ProductTagSnapshot[];
   storefront_visibility: ProductStorefrontVisibilitySnapshot[];
+  /** Present when loaded with a scoped fetch; full editor paths upgrade to `full`. */
+  detail_scope?: "peek" | "full";
+  /** Lightweight counts when peek essentials omit the full variant list. */
+  variant_count_summary?: ProductVariantCountSummary;
+  /** Deferred peek sections already merged into this snapshot. */
+  peek_loaded_sections?: ProductPeekSection[];
   created_at: string;
   updated_at: string;
 };
@@ -344,6 +366,37 @@ export function isDetailVariantSkuContext(detail: ProductDetailSnapshot): boolea
   const selected = detail.variants.find((variant) => variant.id === detail.variant_id);
   if (!selected) return false;
   return !selected.is_master;
+}
+
+/**
+ * Whether loaded detail matches the drawer/list variant target.
+ * Item-level opens (no variant in URL) anchor on the master row for multi-SKU items,
+ * so variant_id on the snapshot is the master id — not null.
+ */
+export function detailMatchesDrawerVariant(
+  detail: ProductDetailSnapshot,
+  variantId?: string | null
+): boolean {
+  const drawerVariant = variantId?.trim() || null;
+  if (!drawerVariant) {
+    return !isDetailVariantSkuContext(detail);
+  }
+  return (detail.variant_id ?? null) === drawerVariant;
+}
+
+/** Selected sellable variant when the detail snapshot is variant-scoped. */
+export function selectedSellableVariant(
+  detail: ProductDetailSnapshot
+): ProductVariantSnapshot | null {
+  if (!isDetailVariantSkuContext(detail)) return null;
+  return detail.variants.find((variant) => variant.id === detail.variant_id) ?? null;
+}
+
+export function isVariantCatalogEditMode(
+  mode: "create" | "edit" | "view",
+  detail: ProductDetailSnapshot | null | undefined
+): boolean {
+  return mode === "edit" && detail != null && isDetailVariantSkuContext(detail);
 }
 
 /**
@@ -518,6 +571,9 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
     (sum, row) => sum + Number(row.total_quantity_on_hand),
     0
   );
+  const belowReorder =
+    detail.track_inventory &&
+    valuationsBelowReorder(detail.valuations, detail.reorder_point);
 
   return {
     id: detail.id,
@@ -542,6 +598,8 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
     purchase_price: detail.purchase_price || null,
     supplier_name: detail.supplier_name,
     stock_on_hand: String(stockTotal),
+    reorder_point: detail.reorder_point || null,
+    below_reorder: belowReorder,
     created_at: detail.created_at,
     updated_at: detail.updated_at,
     variant_id: detail.variant_id,

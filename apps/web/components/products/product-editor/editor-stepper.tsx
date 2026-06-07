@@ -21,6 +21,8 @@ type Props<T extends string> = {
   compact?: boolean;
   vertical?: boolean;
   showDescription?: boolean;
+  /** When true, every stage is clickable (edit accordion). */
+  freeNavigation?: boolean;
 };
 
 function dotClasses(status: StageStatus, active: boolean): string {
@@ -80,6 +82,7 @@ export function EditorStepper<T extends string>({
   compact = false,
   vertical = false,
   showDescription = true,
+  freeNavigation = false,
 }: Props<T>) {
   const activeIndex = stages.findIndex((stage) => stage.id === activeStage);
   const active = stages[activeIndex];
@@ -117,8 +120,8 @@ export function EditorStepper<T extends string>({
         {stages.map((stage, index) => {
           const status = statuses[stage.id] ?? "empty";
           const isActive = stage.id === activeStage;
-          // Earlier stages (and the active one) are navigable; future stages are not.
-          const navigable = index <= activeIndex && !isActive && Boolean(onSelect);
+          const navigable =
+            Boolean(onSelect) && (freeNavigation || (index <= activeIndex && !isActive));
 
           if (vertical) {
             const isLast = index === stages.length - 1;

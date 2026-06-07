@@ -40,7 +40,7 @@ export const ITEM_EDITOR_FIELD_HELP = {
   mrp:
     "Maximum retail price (MRP) printed on the label. Optional; used as a default for new variants. Example: 0.00.",
   reorderPoint:
-    "When on-hand stock falls to this level, the item is due for replenishment. Applies as the product default. Example: 0.",
+    "Default reorder point for all variants and locations. Changing this updates inherited cells in the grid below; explicit overrides are kept. Example: 0.",
   purchaseRate:
     "Default buy quote for all variants. Override per variant in the Suppliers grid. Example: 0.00.",
   salesUnit: "Unit shown by default on sales (piece, box, kg, etc.).",
@@ -108,10 +108,12 @@ export const CATALOG_FIELD_HELP = {
   customFieldValue: "Value stored for that label.",
   tags: "Labels to search and filter this item.",
   newTag: "Type a new tag name, then click Add tag.",
-  storefront: "Pick which online shops can show this item.",
-  channelVisible: "Off = hidden on that shop, even if it is for sale elsewhere.",
+  storefront:
+    "Control whether this product appears on each sales channel and how it is priced there.",
+  channelVisible:
+    "When off, this product is hidden on that channel. Other channels are unaffected.",
   displayName: (channelName: string) =>
-    `Different name on that shop only. Leave blank to use the item name (shows as “${channelName}” on this channel).`,
+    `Customer-facing title on ${channelName} only. Leave blank to show the product name from Essentials.`,
   priceBook: "Special price list for that shop. Blank = company default prices.",
   priceBookSelect: "Pick a price book for this channel, or use the tenant default.",
 } as const;

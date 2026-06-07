@@ -263,7 +263,7 @@ export function Omnibar({
     <div className={cn("relative w-full", className)}>
       <div
         className={cn(
-          "flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 shadow-sm backdrop-blur-md transition-all duration-200 dark:shadow-glow-sm",
+          "flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 shadow-sm shadow-glow-sm backdrop-blur-md transition-all duration-200 dark:shadow-glow-sm",
           mobile ? "h-11" : "h-10",
           focused && "border-primary/40 ring-2 ring-primary/20",
           hasPendingFilter && "border-amber-500/40",

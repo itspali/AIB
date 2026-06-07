@@ -27,6 +27,8 @@ import {
 } from "@/lib/products/catalog-reserved-fields";
 import { parseCustomFields } from "@/lib/products/sku-mask";
 import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import type { ProductPeekSection } from "@/lib/products/types";
+import { resolvePeekFocusVariantIds } from "@/lib/products/peek-panels";
 import type {
   ProductDetailSnapshot,
   ProductListRow,
@@ -34,6 +36,7 @@ import type {
   ProductStorefrontVisibilitySnapshot,
   ProductTagSnapshot,
   ProductValuationSnapshot,
+  ProductVariantCountSummary,
   ProductVariantSnapshot,
 } from "@/lib/products/types";
 
@@ -165,7 +168,8 @@ function pickVariantForDetail(
     const match = variants.find((variant) => variant.id === preferred);
     if (match) return match;
   }
-  return pickDefaultVariant(variants);
+  // Item-level peek/edit (no variant in URL): anchor on the master row, not a sellable child.
+  return pickMasterVariant(variants) ?? pickDefaultVariant(variants);
 }
 
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
@@ -251,38 +255,31 @@ type StorefrontItemRow = {
   is_visible: boolean;
   store_custom_name: string | null;
   store_price_book_id: string | null;
-  storefront_channels:
+  storefront_channels?:
     | { id: string; name: string; channel_type: string }
     | { id: string; name: string; channel_type: string }[]
     | null;
 };
-
-function resolveTagRow(raw: TagAssignmentRow["tags"]): ProductTagSnapshot | null {
-  if (!raw) return null;
-  const row = Array.isArray(raw) ? raw[0] : raw;
-  if (!row) return null;
-  return { id: row.id, name: row.name, slug: row.slug };
-}
 
 function mapStorefrontVisibility(rows: StorefrontItemRow[] | null | undefined): ProductStorefrontVisibilitySnapshot[] {
   if (!rows?.length) return [];
 
   return rows
     .map((row) => {
-      const channel = Array.isArray(row.storefront_channels)
-        ? row.storefront_channels[0]
-        : row.storefront_channels;
-      if (!channel) return null;
+      const channel = row.storefront_channels
+        ? Array.isArray(row.storefront_channels)
+          ? row.storefront_channels[0]
+          : row.storefront_channels
+        : null;
       return {
         storefront_id: row.storefront_id,
-        storefront_name: channel.name,
-        channel_type: channel.channel_type,
+        storefront_name: channel?.name ?? "",
+        channel_type: channel?.channel_type ?? "",
         is_visible: row.is_visible,
         store_custom_name: row.store_custom_name,
         store_price_book_id: row.store_price_book_id,
       };
-    })
-    .filter((row): row is ProductStorefrontVisibilitySnapshot => row !== null);
+    });
 }
 
 async function fetchProductTags(
@@ -308,6 +305,13 @@ async function fetchProductTags(
     .filter((row): row is ProductTagSnapshot => row !== null);
 }
 
+function resolveTagRow(raw: TagAssignmentRow["tags"]): ProductTagSnapshot | null {
+  if (!raw) return null;
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  if (!row) return null;
+  return { id: row.id, name: row.name, slug: row.slug };
+}
+
 async function fetchProductStorefrontVisibility(
   supabase: SupabaseClient,
   tenantId: string,
@@ -320,8 +324,7 @@ async function fetchProductStorefrontVisibility(
       storefront_id,
       is_visible,
       store_custom_name,
-      store_price_book_id,
-      storefront_channels ( id, name, channel_type )
+      store_price_book_id
     `
     )
     .eq("tenant_id", tenantId)
@@ -344,6 +347,11 @@ type MediaRow = {
   created_at: string;
 };
 
+function cloneVariantAttributes(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return { ...(value as Record<string, unknown>) };
+}
+
 function mapVariantRow(
   row: VariantRow,
   masterVariantId: string,
@@ -354,10 +362,7 @@ function mapVariantRow(
     id: row.id,
     sku: row.sku,
     barcode: row.barcode,
-    variant_attributes:
-      row.variant_attributes && typeof row.variant_attributes === "object"
-        ? row.variant_attributes
-        : {},
+    variant_attributes: cloneVariantAttributes(row.variant_attributes),
     dead_weight_kg: formatDecimal(row.dead_weight_kg, "0"),
     volume: formatDecimal(row.volume, "0"),
     length_cm: formatDecimal(row.length_cm, "0"),
@@ -376,7 +381,8 @@ function mapVariantRow(
 async function fetchProductMedia(
   supabase: SupabaseClient,
   tenantId: string,
-  itemId: string
+  itemId: string,
+  options?: { signScope?: "all" | "primary" }
 ): Promise<ProductMediaSnapshot[]> {
   const { data, error } = await supabase
     .from("item_media")
@@ -402,17 +408,27 @@ async function fetchProductMedia(
   if (error || !data?.length) return [];
 
   const rows = data as MediaRow[];
-  const signedUrls = await resolveProductMediaSignedUrls(
-    supabase,
-    rows.map((row) => row.storage_url)
-  );
+  const signScope = options?.signScope ?? "all";
+  const primaryPath = pickPrimaryImageStoragePath(rows);
+  const pathsToSign =
+    signScope === "primary"
+      ? primaryPath
+        ? [primaryPath]
+        : []
+      : rows.map((row) => row.storage_url);
+  const signedUrls = await resolveProductMediaSignedUrls(supabase, pathsToSign);
 
   return rows.map((row) => ({
     id: row.id,
     item_id: row.item_id,
     variant_id: row.variant_id,
     storage_url: row.storage_url,
-    preview_url: signedUrls.get(row.storage_url) ?? null,
+    preview_url:
+      signScope === "primary"
+        ? row.storage_url === primaryPath
+          ? signedUrls.get(row.storage_url) ?? null
+          : null
+        : signedUrls.get(row.storage_url) ?? null,
     sort_order: row.sort_order,
     is_primary: row.is_primary,
     show_on_storefront: row.show_on_storefront,
@@ -428,6 +444,29 @@ function mapValuations(rows: ValuationRow[] | null | undefined): ProductValuatio
   return rows.map((row) => ({
     location_id: row.location_id,
     location_name: resolveLocationName(row.tenant_locations),
+    total_quantity_on_hand: formatDecimal(row.total_quantity_on_hand, "0"),
+    current_average_cost: formatDecimal(row.current_average_cost, "0"),
+  }));
+}
+
+type ValuationPeekRow = {
+  location_id: string;
+  variant_id: string | null;
+  total_quantity_on_hand: number | string;
+  current_average_cost: number | string;
+  tenant_locations?: { name: string } | { name: string }[] | null;
+};
+
+function mapPeekValuations(
+  rows: ValuationPeekRow[] | null | undefined
+): ProductValuationSnapshot[] {
+  if (!rows?.length) return [];
+
+  return rows.map((row) => ({
+    location_id: row.location_id,
+    location_name: row.tenant_locations
+      ? resolveLocationName(row.tenant_locations)
+      : "",
     total_quantity_on_hand: formatDecimal(row.total_quantity_on_hand, "0"),
     current_average_cost: formatDecimal(row.current_average_cost, "0"),
   }));
@@ -628,10 +667,77 @@ const VARIANT_DETAIL_SELECT = `
   price
 `;
 
+/** Lean item projection for peek drawer — omits fields not rendered in essentials. */
+const PEEK_ITEM_DETAIL_SELECT = `
+  id,
+  name,
+  classification,
+  base_unit_of_measure,
+  category_id,
+  hsn_sac_code,
+  is_purchasable,
+  is_salable,
+  has_variants,
+  variant_strategy,
+  variant_axes,
+  item_type,
+  track_inventory,
+  status,
+  needs_review,
+  source,
+  costing_method,
+  standard_cost,
+  tracking_mode,
+  is_bundle,
+  price_is_tax_inclusive,
+  default_tax_category,
+  tax_code_id,
+  is_returnable,
+  is_active,
+  custom_fields,
+  created_at,
+  updated_at,
+  item_categories ( name )
+`;
+
+const ITEM_DETAIL_SELECT = `
+  id,
+  name,
+  code,
+  description,
+  classification,
+  base_unit_of_measure,
+  category_id,
+  hsn_sac_code,
+  is_purchasable,
+  is_salable,
+  has_variants,
+  variant_strategy,
+  variant_axes,
+  item_type,
+  track_inventory,
+  status,
+  needs_review,
+  source,
+  costing_method,
+  standard_cost,
+  tracking_mode,
+  is_bundle,
+  price_is_tax_inclusive,
+  default_tax_category,
+  tax_code_id,
+  is_returnable,
+  is_active,
+  custom_fields,
+  created_at,
+  updated_at,
+  item_categories ( name )
+`;
+
 /** Disambiguate composite tenant FK — PostgREST rejects bare `item_variants` embeds. */
 export const ITEM_VARIANTS_EMBED = "item_variants!item_variants_item_tenant_fk";
 
-async function fetchProductVariants(
+export async function fetchProductVariants(
   supabase: SupabaseClient,
   tenantId: string,
   itemId: string
@@ -737,98 +843,323 @@ export async function fetchProductListRows(
     : mapped;
 }
 
-export async function fetchProductDetail(
+export type FetchProductDetailOptions = {
+  variantId?: string | null;
+  scope?: "peek" | "full";
+  peekSections?: ProductPeekSection[];
+};
+
+const VARIANT_PEEK_INDEX_SELECT = "id, is_master, is_sellable, created_at";
+
+async function fetchVariantPeekIndex(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<Array<{ id: string; is_master?: boolean | null; is_sellable?: boolean | null; created_at: string }>> {
+  const { data, error } = await supabase
+    .from("item_variants")
+    .select(VARIANT_PEEK_INDEX_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .order("created_at");
+
+  if (error || !data) return [];
+  return data as Array<{
+    id: string;
+    is_master?: boolean | null;
+    is_sellable?: boolean | null;
+    created_at: string;
+  }>;
+}
+
+function shouldFetchPeekValuations(row: ItemRow): boolean {
+  if (row.item_type !== "PHYSICAL") return false;
+  if (row.is_bundle) return false;
+  return parseItemBoolean(row.track_inventory, true);
+}
+
+export async function fetchProductPeekSection(
   supabase: SupabaseClient,
   tenantId: string,
   itemId: string,
-  options?: { variantId?: string | null }
-): Promise<ProductDetailSnapshot | null> {
-  const { data, error } = await supabase
-    .from("items")
+  section: ProductPeekSection,
+  variantId?: string | null
+): Promise<Partial<ProductDetailSnapshot> | null> {
+  if (section === "variants") {
+    const bundle = await fetchProductVariantReload(supabase, tenantId, itemId);
+    if (!bundle) return null;
+    return {
+      variants: bundle.variants,
+      variant_axes: bundle.variant_axes,
+      has_variants: bundle.has_variants,
+      updated_at: bundle.updated_at,
+    };
+  }
+
+  if (section === "media") {
+    const media = await fetchProductMedia(supabase, tenantId, itemId, { signScope: "all" });
+    return { media };
+  }
+
+  const [tags, storefrontVisibility] = await Promise.all([
+    fetchProductTags(supabase, tenantId, itemId),
+    fetchProductStorefrontVisibility(supabase, tenantId, itemId),
+  ]);
+
+  void variantId;
+  return { tags, storefront_visibility: storefrontVisibility };
+}
+
+function assemblePeekEssentialsSnapshot(
+  row: ItemRow,
+  focusVariantRows: VariantRow[],
+  variant: VariantRow,
+  variant_count_summary: ProductVariantCountSummary
+): ProductDetailSnapshot {
+  const taxCategory = normalizeTaxCategory(row.default_tax_category);
+  const sortedVariants = [...focusVariantRows].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const masterVariantId =
+    sortedVariants.find((entry) => entry.is_master)?.id ?? sortedVariants[0]?.id ?? variant.id;
+  const variants = sortedVariants.map((entry) => mapVariantRow(entry, masterVariantId));
+
+  const rawCustomFields =
+    row.custom_fields && typeof row.custom_fields === "object"
+      ? (row.custom_fields as Record<string, unknown>)
+      : {};
+  const parsedCustomFields = parseCustomFields(rawCustomFields);
+
+  const masterVariantRow =
+    pickMasterVariant(sortedVariants) ?? sortedVariants[0] ?? variant;
+
+  const focusedVariant = sortedVariants.find((entry) => entry.id === variant.id) ?? variant;
+
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    description: row.description,
+    classification: row.classification,
+    base_unit_of_measure: row.base_unit_of_measure,
+    category_id: row.category_id,
+    category_name: resolveCategoryName(row.item_categories),
+    hsn_sac_code: row.hsn_sac_code,
+    is_purchasable: row.is_purchasable,
+    is_salable: row.is_salable,
+    has_variants: row.has_variants,
+    variant_strategy: isProductVariantStrategy(row.variant_strategy ?? "")
+      ? (row.variant_strategy as ProductVariantStrategy)
+      : "SINGLE_SKU",
+    variant_axes: Array.isArray(row.variant_axes)
+      ? (row.variant_axes as unknown[]).filter(
+          (entry): entry is string => typeof entry === "string" && entry.trim() !== ""
+        )
+      : [],
+    item_type: isItemType(row.item_type ?? "")
+      ? (row.item_type as ItemType)
+      : "PHYSICAL",
+    track_inventory: parseItemBoolean(row.track_inventory, true),
+    status: isItemStatus(row.status ?? "") ? (row.status as ItemStatus) : "ACTIVE",
+    needs_review: row.needs_review ?? false,
+    source: isItemSource(row.source ?? "") ? (row.source as ItemSource) : "MANUAL",
+    costing_method: isItemCostingMethod(row.costing_method ?? "")
+      ? (row.costing_method as ItemCostingMethod)
+      : "WEIGHTED_AVG",
+    standard_cost: formatDecimal(row.standard_cost, ""),
+    tracking_mode: isItemTrackingMode(row.tracking_mode ?? "")
+      ? (row.tracking_mode as ItemTrackingMode)
+      : "NONE",
+    is_bundle: row.is_bundle ?? false,
+    price_is_tax_inclusive: row.price_is_tax_inclusive ?? false,
+    default_tax_category: taxCategory,
+    tax_code_id: row.tax_code_id ?? null,
+    is_returnable: row.is_returnable,
+    is_active: row.is_active,
+    variant_id: variant.id,
+    sku: variant.sku,
+    barcode: variant.barcode,
+    variant_attributes: cloneVariantAttributes(variant.variant_attributes),
+    dead_weight_kg: formatDecimal(masterVariantRow.dead_weight_kg, "0"),
+    volume: formatDecimal(masterVariantRow.volume, "0"),
+    length_cm: formatDecimal(masterVariantRow.length_cm, "0"),
+    width_cm: formatDecimal(masterVariantRow.width_cm, "0"),
+    height_cm: formatDecimal(masterVariantRow.height_cm, "0"),
+    variant_is_active: masterVariantRow.is_active,
+    selling_price:
+      formatDecimal(focusedVariant.price, "") ||
+      extractDefaultSellingPriceFromCustomFieldsRecord(rawCustomFields),
+    mrp: extractMrpFromCustomFieldsRecord(rawCustomFields),
+    reorder_point: extractReorderPointFromCustomFieldsRecord(rawCustomFields),
+    selling_uom: parsedCustomFields.defaultSellingUom ?? row.base_unit_of_measure,
+    purchase_uom: parsedCustomFields.defaultPurchaseUom ?? row.base_unit_of_measure,
+    purchase_uom_conversion: "1",
+    purchase_price: extractDefaultPurchasePriceFromCustomFieldsRecord(rawCustomFields),
+    supplier_id: null,
+    supplier_name: null,
+    valuations: [],
+    variants,
+    media: [],
+    sku_mask: parsedCustomFields.sku_mask,
+    custom_fields: parsedCustomFields.entries,
+    alternate_uoms: [],
+    tags: [],
+    storefront_visibility: [],
+    detail_scope: "peek",
+    variant_count_summary,
+    peek_loaded_sections: [],
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export async function fetchProductPeekValuations(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string,
+  preferredVariantId?: string | null,
+  skipEligibilityCheck = false
+): Promise<ProductValuationSnapshot[]> {
+  if (!skipEligibilityCheck) {
+    const { data: row, error } = await supabase
+      .from("items")
+      .select("item_type, is_bundle, track_inventory")
+      .eq("tenant_id", tenantId)
+      .eq("id", itemId)
+      .maybeSingle();
+
+    if (error || !row || !shouldFetchPeekValuations(row as ItemRow)) return [];
+  }
+
+  const preferred = preferredVariantId?.trim();
+  let valuationQuery = supabase
+    .from("item_valuations")
     .select(
       `
-      id,
-      name,
-      code,
-      description,
-      classification,
-      base_unit_of_measure,
-      category_id,
-      hsn_sac_code,
-      is_purchasable,
-      is_salable,
-      has_variants,
-      variant_strategy,
-      variant_axes,
-      item_type,
-      track_inventory,
-      status,
-      needs_review,
-      source,
-      costing_method,
-      standard_cost,
-      tracking_mode,
-      is_bundle,
-      price_is_tax_inclusive,
-      default_tax_category,
-      tax_code_id,
-      is_returnable,
-      is_active,
-      custom_fields,
-      created_at,
-      updated_at,
-      item_categories ( name ),
-      ${ITEM_VARIANTS_EMBED} (
-        ${VARIANT_DETAIL_SELECT}
-      )
-    `
+        location_id,
+        variant_id,
+        total_quantity_on_hand,
+        current_average_cost,
+        tenant_locations ( name )
+      `
     )
     .eq("tenant_id", tenantId)
-    .eq("id", itemId)
-    .maybeSingle();
+    .eq("item_id", itemId);
+
+  if (preferred) {
+    valuationQuery = valuationQuery.eq("variant_id", preferred);
+  }
+
+  const { data: valuations } = await valuationQuery
+    .order("total_quantity_on_hand", { ascending: false })
+    .limit(24);
+
+  return mapPeekValuations(valuations as ValuationPeekRow[] | null);
+}
+
+async function fetchProductPeekEssentials(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string,
+  preferredVariantId?: string | null
+): Promise<ProductDetailSnapshot | null> {
+  const preferred = preferredVariantId?.trim();
+
+  if (preferred) {
+    const [{ data, error }, { data: variantRows, error: variantError }] = await Promise.all([
+      supabase
+        .from("items")
+        .select(PEEK_ITEM_DETAIL_SELECT)
+        .eq("tenant_id", tenantId)
+        .eq("id", itemId)
+        .maybeSingle(),
+      supabase
+        .from("item_variants")
+        .select(VARIANT_DETAIL_SELECT)
+        .eq("tenant_id", tenantId)
+        .eq("item_id", itemId)
+        .or(`id.eq.${preferred},is_master.eq.true`)
+        .order("created_at"),
+    ]);
+
+    if (error || !data || variantError || !variantRows?.length) return null;
+
+    const row = data as ItemRow;
+    if (!isItemClassification(row.classification)) return null;
+
+    const focusVariantRows = variantRows as VariantRow[];
+    const variant = pickVariantForDetail(focusVariantRows, preferred);
+    if (!variant) return null;
+
+    const peekSellable = focusVariantRows.filter(
+      (entry) => !entry.is_master && entry.is_sellable !== false
+    ).length;
+
+    return assemblePeekEssentialsSnapshot(row, focusVariantRows, variant, {
+      total: row.has_variants ? Math.max(peekSellable + 1, focusVariantRows.length) : 1,
+      sellable: peekSellable,
+    });
+  }
+
+  const [{ data, error }, variantIndex] = await Promise.all([
+    supabase
+      .from("items")
+      .select(PEEK_ITEM_DETAIL_SELECT)
+      .eq("tenant_id", tenantId)
+      .eq("id", itemId)
+      .maybeSingle(),
+    fetchVariantPeekIndex(supabase, tenantId, itemId),
+  ]);
 
   if (error || !data) return null;
 
   const row = data as ItemRow;
   if (!isItemClassification(row.classification)) return null;
 
-  let variantRows = row.item_variants ?? [];
-  if (!variantRows.length) {
-    variantRows = await fetchProductVariants(supabase, tenantId, itemId);
-    row.item_variants = variantRows;
-  }
+  const { focusIds, counts: variant_count_summary } = resolvePeekFocusVariantIds(
+    variantIndex,
+    preferredVariantId
+  );
 
-  const variant = pickVariantForDetail(variantRows, options?.variantId);
+  if (!focusIds.length) return null;
+
+  const { data: variantRows, error: variantError } = await supabase
+    .from("item_variants")
+    .select(VARIANT_DETAIL_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .in("id", focusIds)
+    .order("created_at");
+
+  if (variantError || !variantRows?.length) return null;
+
+  const focusVariantRows = variantRows as VariantRow[];
+  const variant = pickVariantForDetail(focusVariantRows, preferredVariantId);
   if (!variant) return null;
 
-  const taxCategory = normalizeTaxCategory(row.default_tax_category);
+  return assemblePeekEssentialsSnapshot(
+    row,
+    focusVariantRows,
+    variant,
+    variant_count_summary
+  );
+}
 
-  const [
-    { data: priceEntries },
-    { data: itemUoms },
-    { data: supplierItems },
-    { data: valuations },
-    media,
-    tags,
-    storefrontVisibility,
-  ] = await Promise.all([
+export async function fetchProductVariantReload(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<
+  Pick<ProductDetailSnapshot, "variants" | "variant_axes" | "has_variants" | "updated_at"> | null
+> {
+  const [{ data: itemRow, error: itemError }, variantRows, { data: supplierItems }] = await Promise.all([
     supabase
-      .from("price_book_entries")
-      .select(
-        `
-        price,
-        uom_code,
-        min_quantity,
-        price_books ( id, is_active, created_at )
-      `
-      )
+      .from("items")
+      .select("has_variants, variant_axes, updated_at")
       .eq("tenant_id", tenantId)
-      .eq("item_id", itemId),
-    supabase
-      .from("item_uoms")
-      .select("uom_code, conversion_factor")
-      .eq("tenant_id", tenantId)
-      .eq("item_id", itemId),
+      .eq("id", itemId)
+      .maybeSingle(),
+    fetchProductVariants(supabase, tenantId, itemId),
     supabase
       .from("supplier_items")
       .select(
@@ -842,24 +1173,133 @@ export async function fetchProductDetail(
       )
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId),
-    supabase
-      .from("item_valuations")
-      .select(
-        `
+  ]);
+
+  if (itemError || !itemRow || !variantRows.length) return null;
+
+  const sortedVariants = [...variantRows].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const masterVariantId =
+    sortedVariants.find((entry) => entry.is_master)?.id ?? sortedVariants[0]?.id ?? "";
+  const purchaseByVariant = buildVariantPurchaseMap(supplierItems as SupplierItemRow[] | null);
+  const variants = sortedVariants.map((entry) =>
+    mapVariantRow(entry, masterVariantId, purchaseByVariant)
+  );
+
+  return {
+    has_variants: Boolean(itemRow.has_variants),
+    variant_axes: Array.isArray(itemRow.variant_axes)
+      ? (itemRow.variant_axes as unknown[]).filter(
+          (entry): entry is string => typeof entry === "string" && entry.trim() !== ""
+        )
+      : [],
+    variants,
+    updated_at: itemRow.updated_at as string,
+  };
+}
+
+export async function fetchProductDetail(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string,
+  options?: FetchProductDetailOptions
+): Promise<ProductDetailSnapshot | null> {
+  const scope = options?.scope ?? "full";
+  if (scope === "peek") {
+    return fetchProductPeekEssentials(supabase, tenantId, itemId, options?.variantId);
+  }
+
+  const itemQuery = supabase
+    .from("items")
+    .select(ITEM_DETAIL_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("id", itemId)
+    .maybeSingle();
+
+  const priceQuery = supabase
+    .from("price_book_entries")
+    .select(
+      `
+        price,
+        uom_code,
+        min_quantity,
+        price_books ( id, is_active, created_at )
+      `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+  const uomQuery = supabase
+    .from("item_uoms")
+    .select("uom_code, conversion_factor")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+  const supplierQuery = supabase
+    .from("supplier_items")
+    .select(
+      `
+        variant_id,
+        supplier_id,
+        supplier_price,
+        is_preferred,
+        entities!supplier_items_supplier_id_fkey ( name )
+      `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+  const tagsQuery = fetchProductTags(supabase, tenantId, itemId);
+  const storefrontQuery = fetchProductStorefrontVisibility(supabase, tenantId, itemId);
+  const mediaQuery = fetchProductMedia(supabase, tenantId, itemId, { signScope: "all" });
+  const variantsQuery = fetchProductVariants(supabase, tenantId, itemId);
+  const valuationQuery = supabase
+    .from("item_valuations")
+    .select(
+      `
         location_id,
         variant_id,
         total_quantity_on_hand,
         current_average_cost,
         tenant_locations ( name )
       `
-      )
-      .eq("tenant_id", tenantId)
-      .eq("item_id", itemId)
-      .order("total_quantity_on_hand", { ascending: false }),
-    fetchProductMedia(supabase, tenantId, itemId),
-    fetchProductTags(supabase, tenantId, itemId),
-    fetchProductStorefrontVisibility(supabase, tenantId, itemId),
+    )
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .order("total_quantity_on_hand", { ascending: false })
+    .limit(1000);
+
+  const [
+    { data, error },
+    variantRows,
+    { data: priceEntries },
+    { data: itemUoms },
+    { data: supplierItems },
+    media,
+    tags,
+    storefrontVisibility,
+    { data: valuations },
+  ] = await Promise.all([
+    itemQuery,
+    variantsQuery,
+    priceQuery,
+    uomQuery,
+    supplierQuery,
+    mediaQuery,
+    tagsQuery,
+    storefrontQuery,
+    valuationQuery,
   ]);
+
+  if (error || !data) return null;
+
+  const row = data as ItemRow;
+  if (!isItemClassification(row.classification)) return null;
+
+  row.item_variants = variantRows.length ? variantRows : row.item_variants ?? [];
+
+  const variant = pickVariantForDetail(row.item_variants ?? [], options?.variantId);
+  if (!variant) return null;
+
+  const taxCategory = normalizeTaxCategory(row.default_tax_category);
 
   const sortedVariants = [...(row.item_variants ?? [])].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -944,10 +1384,7 @@ export async function fetchProductDetail(
     variant_id: variant.id,
     sku: variant.sku,
     barcode: variant.barcode,
-    variant_attributes:
-      variant.variant_attributes && typeof variant.variant_attributes === "object"
-        ? variant.variant_attributes
-        : {},
+    variant_attributes: cloneVariantAttributes(variant.variant_attributes),
     dead_weight_kg: formatDecimal(masterVariantRow.dead_weight_kg, "0"),
     volume: formatDecimal(masterVariantRow.volume, "0"),
     length_cm: formatDecimal(masterVariantRow.length_cm, "0"),
@@ -980,6 +1417,7 @@ export async function fetchProductDetail(
     alternate_uoms: alternateUoms,
     tags,
     storefront_visibility: storefrontVisibility,
+    detail_scope: scope,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

@@ -180,7 +180,7 @@ export function SplitPaneLayout({
     showDetail
       ? "h-full max-h-full overflow-hidden"
       : "h-full max-h-full flex-1 basis-0 overflow-hidden",
-    insetList && "rounded-none border border-border/70 bg-background dark:border-white/10",
+    insetList && "rounded-none border border-border/70 border-black/[0.06] bg-background dark:border-white/10",
     primaryClassName
   );
 
@@ -202,7 +202,7 @@ export function SplitPaneLayout({
       {showDetail ? (
         <aside
           className={cn(
-            "relative flex h-full max-h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border border-border/70 bg-background dark:border-white/10",
+            "relative flex h-full max-h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-none border border-border/70 border-black/[0.06] bg-background dark:border-white/10",
             detailClassName
           )}
         >
@@ -222,7 +222,7 @@ export function SplitPaneLayout({
 
           <header
             className={cn(
-              "flex shrink-0 items-center justify-between gap-2 border-b border-border/80 dark:border-white/10",
+              "flex shrink-0 items-center justify-between gap-2 border-b border-border/80 border-black/[0.06] dark:border-white/10",
               detailHeaderCompact ? "px-3 py-1.5" : "px-4 py-3"
             )}
           >

@@ -58,14 +58,14 @@ export async function fetchGettingStartedSnapshot(
       id: "first_product",
       title: "Add your first product",
       description: "Create a catalog item to start inventory and sales workflows.",
-      href: "/inventory/items?action=new",
+      href: "/items?action=new",
       completed: itemCount >= 1,
     },
     {
       id: "categories",
       title: "Set up product categories",
       description: "Group items for reporting, pricing, and storefront merchandising.",
-      href: "/inventory/categories",
+      href: "/items/categories",
       completed: categoryCount >= 1,
     },
     {

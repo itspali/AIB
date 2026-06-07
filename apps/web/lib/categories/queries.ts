@@ -53,21 +53,49 @@ function mapCategoryRow(row: {
   };
 }
 
+export async function fetchCategoryRowById(
+  supabase: SupabaseClient,
+  tenantId: string,
+  categoryId: string
+): Promise<CategoryRow | null> {
+  const { data, error } = await supabase
+    .from("item_categories")
+    .select(
+      "id, name, parent_id, is_active, attribute_templates, inherit_parent_attributes, default_variant_strategy, default_item_type, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", categoryId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapCategoryRow(data);
+}
+
 /** Item counts per category_id for delete validation in the UI. */
 export async function fetchCategoryItemCounts(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<Record<string, number>> {
-  const { data, error } = await supabase
+  const { data, error } = await supabase.rpc("count_items_by_category");
+
+  if (!error && data) {
+    const counts: Record<string, number> = {};
+    for (const row of data as { category_id: string; item_count: number | string }[]) {
+      counts[row.category_id] = Number(row.item_count) || 0;
+    }
+    return counts;
+  }
+
+  const { data: rows, error: fallbackError } = await supabase
     .from("items")
     .select("category_id")
     .eq("tenant_id", tenantId)
     .not("category_id", "is", null);
 
-  if (error || !data) return {};
+  if (fallbackError || !rows) return {};
 
   const counts: Record<string, number> = {};
-  for (const row of data) {
+  for (const row of rows) {
     const categoryId = row.category_id as string;
     counts[categoryId] = (counts[categoryId] ?? 0) + 1;
   }

@@ -100,8 +100,11 @@ export function shouldShowHasVariantsIndicator(
   return Boolean(hasVariants);
 }
 
-export function productListHasVariantsBadgeLabel(): string {
-  return "Multiple variants";
+export function productListHasVariantsBadgeLabel(count?: number | null): string {
+  if (typeof count === "number" && Number.isFinite(count) && count > 0) {
+    return count === 1 ? "1 variant" : `${count} variants`;
+  }
+  return "variants";
 }
 
 export function productListRowKindBadgeVariant(

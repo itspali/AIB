@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  collapseVariantListRows,
   formatVariantAttributesSubline,
   injectVariantParentRows,
   isProductListRowInactive,
+  listHasExpandedVariantRows,
+  mergeProductListRowImages,
   productListRowKey,
   resolveBulkSelectionItemIds,
   resolveProductListDisplaySku,
@@ -103,6 +106,70 @@ describe("resolveBulkSelectionItemIds", () => {
     expect(
       resolveBulkSelectionItemIds(["variant-1", "variant-2"], rows, true)
     ).toEqual(["item-1"]);
+  });
+});
+
+describe("listHasExpandedVariantRows", () => {
+  it("detects expanded multi-variant rows", () => {
+    expect(
+      listHasExpandedVariantRows([
+        sampleRow({ variant_strategy: "MULTI_SKU", variant_id: "variant-a" }),
+      ])
+    ).toBe(true);
+    expect(listHasExpandedVariantRows([sampleRow({ variant_id: null })])).toBe(false);
+  });
+});
+
+describe("mergeProductListRowImages", () => {
+  it("reuses item images from the prior list shape", () => {
+    const source = [sampleRow({ image_url: "https://cdn.example/item.jpg" })];
+    const target = [
+      sampleRow({
+        variant_id: "variant-b",
+        default_sku: "SKU-B",
+        image_url: null,
+      }),
+    ];
+
+    const merged = mergeProductListRowImages(target, source, true);
+    expect(merged[0]?.image_url).toBe("https://cdn.example/item.jpg");
+  });
+});
+
+describe("collapseVariantListRows", () => {
+  it("collapses expanded multi-variant rows to one parent row per item", () => {
+    const variantA = sampleRow({
+      id: "item-1",
+      variant_id: "variant-a",
+      default_sku: "ITM001-RED",
+      style_code: "ITM001",
+      variant_strategy: "MULTI_SKU",
+    });
+    const variantB = sampleRow({
+      id: "item-1",
+      variant_id: "variant-b",
+      default_sku: "ITM001-BLUE",
+      style_code: "ITM001",
+      variant_strategy: "MULTI_SKU",
+    });
+    const single = sampleRow({
+      id: "item-2",
+      has_variants: false,
+      variant_strategy: "SINGLE_SKU",
+      variant_id: null,
+      default_sku: "SKU-ONLY",
+    });
+
+    const rows = collapseVariantListRows([variantA, variantB, single]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.id).toBe("item-1");
+    expect(rows[0]?.variant_id).toBeNull();
+    expect(rows[0]?.default_sku).toBe("ITM001");
+    expect(rows[1]?.id).toBe("item-2");
+    expect(new Set(rows.map((row) => productListRowKey(row, false)))).toEqual(
+      new Set(["item-1", "item-2"])
+    );
   });
 });
 

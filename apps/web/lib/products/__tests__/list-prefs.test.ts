@@ -7,8 +7,11 @@ import {
   PRODUCT_LIST_PREFS_VERSION,
   resolveCardGridColumns,
   resolveFrozenColumnCount,
+  isShowVariantsOnlyPrefChange,
   resolvePrefsOnMount,
   resolveProductListExpandVariants,
+  setColumnPrefsSlice,
+  shouldPersistPrefsImmediately,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
 
@@ -93,8 +96,10 @@ describe("product list prefs migration", () => {
 
   it("preserves nested v6 card column prefs", () => {
     const defaults = getDefaultProductListPrefs();
+    const { cardVariantColumnPrefs: _variants, ...withoutVariants } = defaults;
     const custom = {
-      ...defaults,
+      ...withoutVariants,
+      prefsVersion: 8,
       columnPrefs: {
         ...defaults.columnPrefs,
         card: {
@@ -113,10 +118,12 @@ describe("product list prefs migration", () => {
     };
 
     const parsed = coerceProductListPrefs(custom);
-    expect(getOrderedVisibleColumns(parsed, "card", "desktop")).toEqual([
-      "name",
-      "classification",
-    ]);
+    expect(
+      getOrderedVisibleColumns(parsed, "card", "desktop", {
+        cardLayout: "v2",
+        cardOrientation: "vertical",
+      })
+    ).toEqual(["name", "classification"]);
     expect(parsed.cardGridColumns.desktop).toBe(4);
   });
 
@@ -142,6 +149,36 @@ describe("product list prefs migration", () => {
     const parsed = coerceProductListPrefs(custom);
     expect(parsed.columnPrefs.table.desktop.columnWrapModes).toEqual({
       description: "wrap",
+    });
+  });
+
+  it("preserves column chip display prefs through v8 coerce", () => {
+    const defaults = getDefaultProductListPrefs();
+    const custom = {
+      ...defaults,
+      prefsVersion: 8,
+      columnPrefs: {
+        ...defaults.columnPrefs,
+        table: {
+          ...defaults.columnPrefs.table,
+          desktop: {
+            ...defaults.columnPrefs.table.desktop,
+            columnChipDisplay: {
+              is_active: {
+                mode: "chip",
+                valueColors: { false: { preset: "amber", customHex: "#FFAA00" } },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const parsed = coerceProductListPrefs(custom);
+    expect(parsed.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
+    expect(parsed.columnPrefs.table.desktop.columnChipDisplay?.is_active).toEqual({
+      mode: "chip",
+      valueColors: { false: { preset: "amber", customHex: "#FFAA00" } },
     });
   });
 });
@@ -257,6 +294,36 @@ describe("resolveCardGridColumns", () => {
     ).toBe(true);
   });
 
+  it("treats variants toggle changes as session-only prefs", () => {
+    const base = getDefaultProductListPrefs();
+    expect(
+      isShowVariantsOnlyPrefChange(base, { ...base, showVariants: true })
+    ).toBe(true);
+    expect(
+      shouldPersistPrefsImmediately(base, { ...base, showVariants: true })
+    ).toBe(false);
+  });
+
+  it("resolvePrefsOnMount always starts with variants toggle off", () => {
+    const withVariantsOn = {
+      ...getDefaultProductListPrefs(),
+      showVariants: true,
+      clientRevision: 5,
+    };
+    expect(
+      resolvePrefsOnMount(withVariantsOn, null).showVariants
+    ).toBe(false);
+    expect(
+      resolvePrefsOnMount(null, withVariantsOn).showVariants
+    ).toBe(false);
+    expect(
+      resolvePrefsOnMount(withVariantsOn, {
+        ...withVariantsOn,
+        clientRevision: 10,
+      }).showVariants
+    ).toBe(false);
+  });
+
   it("preserves cardLayout when coerced", () => {
     expect(
       coerceProductListPrefs({
@@ -279,6 +346,93 @@ describe("resolveCardGridColumns", () => {
         cardLayout: "unknown",
       }).cardLayout
     ).toBe("v2");
+  });
+
+  it("migrates legacy card column prefs into per-variant buckets on v9", () => {
+    const defaults = getDefaultProductListPrefs();
+    const customCard = {
+      columnOrder: ["name", "default_sku", "selling_price", "stock_on_hand"],
+      visibleColumns: ["name", "selling_price", "stock_on_hand"],
+    };
+    const parsed = coerceProductListPrefs({
+      ...defaults,
+      prefsVersion: 8,
+      columnPrefs: {
+        ...defaults.columnPrefs,
+        card: {
+          ...defaults.columnPrefs.card,
+          desktop: customCard,
+        },
+      },
+    });
+
+    expect(parsed.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
+    expect(
+      getOrderedVisibleColumns(parsed, "card", "desktop", {
+        cardLayout: "shop",
+        cardOrientation: "vertical",
+      })
+    ).toEqual(["name", "selling_price", "stock_on_hand"]);
+    expect(
+      getOrderedVisibleColumns(parsed, "card", "desktop", {
+        cardLayout: "v2",
+        cardOrientation: "horizontal",
+      })
+    ).toEqual(["name", "selling_price", "stock_on_hand"]);
+  });
+
+  it("retains independent column selections per card tile variant", () => {
+    let prefs = getDefaultProductListPrefs();
+    const shopSlice = {
+      columnOrder: ["name", "default_sku", "selling_price", "stock_on_hand"],
+      visibleColumns: ["name", "selling_price"],
+    };
+    const detailSlice = {
+      columnOrder: ["name", "default_sku", "classification", "category_name"],
+      visibleColumns: ["name", "classification"],
+    };
+
+    prefs = setColumnPrefsSlice(prefs, "card", "desktop", shopSlice, {
+      cardLayout: "shop",
+      cardOrientation: "vertical",
+    });
+    prefs = setColumnPrefsSlice(prefs, "card", "desktop", detailSlice, {
+      cardLayout: "v2",
+      cardOrientation: "vertical",
+    });
+
+    expect(
+      getOrderedVisibleColumns(prefs, "card", "desktop", {
+        cardLayout: "shop",
+        cardOrientation: "vertical",
+      })
+    ).toEqual(["name", "selling_price"]);
+    expect(
+      getOrderedVisibleColumns(prefs, "card", "desktop", {
+        cardLayout: "v2",
+        cardOrientation: "vertical",
+      })
+    ).toEqual(["name", "classification"]);
+
+    const roundTrip = coerceProductListPrefs(prefs);
+    expect(
+      getOrderedVisibleColumns(roundTrip, "card", "desktop", {
+        cardLayout: "shop",
+        cardOrientation: "vertical",
+      })
+    ).toEqual(["name", "selling_price"]);
+  });
+
+  it("preserves card orientation and meta display through v8 coerce", () => {
+    const parsed = coerceProductListPrefs({
+      ...getDefaultProductListPrefs(),
+      prefsVersion: 8,
+      cardOrientation: "horizontal",
+      cardMetaDisplay: "icons",
+    });
+    expect(parsed.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
+    expect(parsed.cardOrientation).toBe("horizontal");
+    expect(parsed.cardMetaDisplay).toBe("icons");
   });
 });
 

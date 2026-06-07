@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { saveSystemCategory } from "@/app/items/categories/actions";
 import {
@@ -93,7 +92,7 @@ export function validateCategoryStage(
 export type UseCategoryFormOptions = {
   rows: CategoryRow[];
   editingCategory?: CategoryRow | null;
-  onSaved: (categoryId: string) => void;
+  onSaved: (category: CategoryRow) => void;
   notifyOnSave?: boolean;
 };
 
@@ -103,7 +102,6 @@ export function useCategoryForm({
   onSaved,
   notifyOnSave = true,
 }: UseCategoryFormOptions) {
-  const router = useRouter();
   const isEditing = Boolean(editingCategory);
   const [form, setForm] = useState<CategoryFormState>(defaultCategoryFormState);
   const [baseline, setBaseline] = useState<CategoryFormState>(defaultCategoryFormState);
@@ -195,10 +193,9 @@ export function useCategoryForm({
         );
       }
       setBaseline(form);
-      router.refresh();
-      onSaved(result.categoryId);
+      onSaved(result.category);
     });
-  }, [editingCategory?.id, form, isEditing, notifyOnSave, onSaved, router]);
+  }, [editingCategory?.id, form, isEditing, notifyOnSave, onSaved]);
 
   return {
     form,

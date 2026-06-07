@@ -12,6 +12,7 @@ import {
   resolveColumnWidthStyles,
 } from "@/lib/list-columns/sizing";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import type { ProductListFrozenColumnCount } from "@/lib/products/list-prefs";
 import {
@@ -38,6 +39,7 @@ type Props = {
   products: ProductListRow[];
   columns: ProductListColumnId[];
   columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
+  columnChipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
   columnWidths?: Partial<Record<ProductListColumnId, number>>;
   deviceClass: DeviceClass;
   showVariants?: boolean;
@@ -55,6 +57,8 @@ type Props = {
   onSortChange: (field: ProductListSortField, direction: ProductListSortDirection) => void;
   onColumnWidthChange?: (columnId: ProductListColumnId, width: number | null) => void;
   onSelect: (productId: string, variantId?: string | null) => void;
+  onProductHover?: (productId: string, variantId?: string | null) => void;
+  onProductPointerEnter?: (productId: string, variantId?: string | null) => void;
   onBulkRowToggle: (rowKey: string, checked: boolean) => void;
   onBulkPageToggle: (checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
@@ -78,17 +82,17 @@ function SortIndicator({
 
 const ROW_DIVIDER = "box-border border-b border-border";
 const FROZEN_CELL_BG =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--background)))] dark:bg-muted";
+  "bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--background)))] dark:bg-muted";
 const FROZEN_CELL_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
+  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
 const FROZEN_CELL_SELECTED =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
+  "bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
 const FROZEN_CELL_SELECTED_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_20%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
+  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_22%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
 const FROZEN_EDGE_SHADOW =
-  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.08)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
+  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.16)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
 const HEADER_HOVER =
-  "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_15%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
+  "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
 /** Sticky header tiers — must stay above scrolling header cells and body, below page chrome. */
 const TABLE_HEADER_Z = 10;
 const SELECTION_COLUMN_Z_HEADER = 50;
@@ -113,6 +117,7 @@ export function ProductListTable({
   products,
   columns,
   columnWrapModes,
+  columnChipDisplay,
   columnWidths,
   deviceClass,
   showVariants = false,
@@ -129,6 +134,8 @@ export function ProductListTable({
   onSortChange,
   onColumnWidthChange,
   onSelect,
+  onProductHover,
+  onProductPointerEnter,
   onBulkRowToggle,
   onBulkPageToggle,
   onImageClick,
@@ -241,8 +248,8 @@ export function ProductListTable({
       rowEdgeClass(isFrozen && isLastFrozenColumn),
       !isFrozen &&
         (selected
-          ? "bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(214_28%_94%))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
-          : "group-hover:bg-[hsl(214_28%_96%)] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
+          ? "bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_12%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
+          : "group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_35%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
       isFrozen &&
         (selected
           ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
@@ -429,6 +436,8 @@ export function ProductListTable({
                 tabIndex={0}
                 role="button"
                 onClick={() => onSelect(product.id, product.variant_id)}
+                onMouseEnter={() => onProductHover?.(product.id, product.variant_id)}
+                onPointerEnter={() => onProductPointerEnter?.(product.id, product.variant_id)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
@@ -488,6 +497,7 @@ export function ProductListTable({
                           onImageClick,
                           showVariants,
                           wrapMode: columnWrapModes?.[columnId],
+                          chipDisplay: columnChipDisplay,
                         })}
                       </div>
                     </td>

@@ -1,5 +1,12 @@
+import {
+  BOOLEAN_ACTIVE_INACTIVE_CATALOG,
+  BOOLEAN_YES_NO_CATALOG,
+} from "@/lib/list-columns/chip-colors";
 import { columnWidths } from "@/lib/list-columns/sizing";
 import type { ListColumnDef, ListColumnRegistry } from "@/lib/list-columns/types";
+import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
+import { ITEM_TYPES } from "@/lib/products/item-model";
+import { PRODUCT_VARIANT_STRATEGIES } from "@/lib/products/variant-strategy";
 
 export const CATEGORY_LIST_COLUMN_IDS = [
   "name",
@@ -47,6 +54,28 @@ const W_DATE = columnWidths({
   default: { min: 100, max: 140 },
 });
 
+const VARIANT_STRATEGY_CHIP_CATALOG = PRODUCT_VARIANT_STRATEGIES.map((value) => ({
+  value,
+  label: value === "SINGLE_SKU" ? "Single SKU" : "Multi SKU",
+}));
+
+const ITEM_TYPE_CHIP_CATALOG = ITEM_TYPES.map((value) => ({
+  value,
+  label: value.charAt(0) + value.slice(1).toLowerCase(),
+}));
+
+const ACTIVE_INACTIVE_DEFAULTS = {
+  true: { preset: "emerald" as const },
+  false: { preset: "red" as const },
+  [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" as const },
+};
+
+const BOOLEAN_YES_NO_DEFAULTS = {
+  true: { preset: "emerald" as const },
+  false: { preset: "slate" as const },
+  [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" as const },
+};
+
 export const CATEGORY_LIST_COLUMNS: CategoryListColumnDef[] = [
   {
     id: "name",
@@ -71,6 +100,9 @@ export const CATEGORY_LIST_COLUMNS: CategoryListColumnDef[] = [
     align: "center",
     group: "Status",
     widths: W_STATUS,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_ACTIVE_INACTIVE_CATALOG,
+    chipDefaultColors: ACTIVE_INACTIVE_DEFAULTS,
   },
   {
     id: "item_count",
@@ -88,6 +120,13 @@ export const CATEGORY_LIST_COLUMNS: CategoryListColumnDef[] = [
     group: "Defaults",
     valueKind: "text",
     widths: W_TEXT,
+    chipEligible: true,
+    chipValueCatalog: VARIANT_STRATEGY_CHIP_CATALOG,
+    chipDefaultColors: {
+      SINGLE_SKU: { preset: "indigo" },
+      MULTI_SKU: { preset: "violet" },
+      [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
+    },
   },
   {
     id: "default_item_type",
@@ -96,6 +135,14 @@ export const CATEGORY_LIST_COLUMNS: CategoryListColumnDef[] = [
     group: "Defaults",
     valueKind: "text",
     widths: W_TEXT,
+    chipEligible: true,
+    chipValueCatalog: ITEM_TYPE_CHIP_CATALOG,
+    chipDefaultColors: {
+      PHYSICAL: { preset: "sky" },
+      SERVICE: { preset: "amber" },
+      DIGITAL: { preset: "violet" },
+      [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
+    },
   },
   {
     id: "attribute_count",
@@ -113,6 +160,9 @@ export const CATEGORY_LIST_COLUMNS: CategoryListColumnDef[] = [
     align: "center",
     group: "Schema",
     widths: W_BOOLEAN,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_YES_NO_CATALOG,
+    chipDefaultColors: BOOLEAN_YES_NO_DEFAULTS,
   },
   {
     id: "created_at",

@@ -6,12 +6,14 @@ import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-context";
 import { createClient } from "@/lib/supabase/server";
-import { getSessionTenantId } from "@/lib/supabase/auth";
+import { getSessionClaims, getSessionTenantId } from "@/lib/supabase/auth";
+import { fetchThemePolicyForSession } from "@/lib/theme/queries";
+import { buildThemeInitScript, normalizeStoredTheme, themeToHtmlClass } from "@/lib/theme/themes";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 
-const themeInitScript = `(function(){try{var t=localStorage.getItem('aib-theme');if(t!=='light'&&t!=='dark'){t='dark'}if(t==='light'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}document.cookie='aib-theme='+t+'; path=/; max-age=31536000; SameSite=Lax'}catch(e){document.documentElement.classList.add('dark')}})();`;
+const themeInitScript = buildThemeInitScript();
 
 export const metadata: Metadata = {
   title: "AIB Smart ERP",
@@ -19,38 +21,50 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [tenantId, themeCookie] = await Promise.all([
+  const [tenantId, themeCookie, claims] = await Promise.all([
     getSessionTenantId(),
     cookies().then((store) => store.get("aib-theme")?.value),
+    getSessionClaims(),
   ]);
-  const isDarkTheme = themeCookie !== "light";
 
+  let themePolicy = null;
   let initialComplete = false;
   let initialWorkspaceAccess = false;
+
   if (tenantId) {
     const supabase = await createClient();
-    const [{ data }, { count: locationCount }] = await Promise.all([
+    const [{ data }, { count: locationCount }, resolvedThemePolicy] = await Promise.all([
       supabase.from("tenants").select("onboarding_status").eq("id", tenantId).single(),
       supabase
         .from("tenant_locations")
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", tenantId),
+      claims?.userId
+        ? fetchThemePolicyForSession(supabase, tenantId, claims.userId)
+        : Promise.resolve(null),
     ]);
+    themePolicy = resolvedThemePolicy;
     initialComplete = data?.onboarding_status === "GO_LIVE_READY";
     initialWorkspaceAccess = (locationCount ?? 0) > 0;
   }
 
+  const storedTheme = normalizeStoredTheme(themeCookie);
+  const ssrTheme = themePolicy?.canChangeTheme
+    ? storedTheme
+    : (themePolicy?.enforcedTheme ?? storedTheme);
+  const themeClass = themeToHtmlClass(ssrTheme);
+
   return (
     <html
       lang="en"
-      className={`${inter.variable}${isDarkTheme ? " dark" : ""}`}
+      className={`${inter.variable} ${themeClass}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen font-sans antialiased" suppressHydrationWarning>
         <Script id="aib-theme-init" strategy="beforeInteractive">
           {themeInitScript}
         </Script>
-        <Providers>
+        <Providers themePolicy={themePolicy}>
           <OnboardingProvider
             initialComplete={initialComplete}
             initialWorkspaceAccess={initialWorkspaceAccess}

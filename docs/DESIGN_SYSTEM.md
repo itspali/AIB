@@ -183,12 +183,27 @@ Because data entry occurs within the sliding drawer space rather than an isolate
 ### 7.2 Design Tokens
 Semantic HSL CSS variables in `globals.css` (`--background`, `--foreground`, `--card`, `--primary`, `--secondary`, `--muted`, `--muted-foreground`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--radius: 0.75rem`, glow tokens `--glow-cyan`, `--glow-violet`) are mapped to Tailwind color keys in `tailwind.config.ts`. **Use semantic token classes (`bg-card`, `text-muted-foreground`, `border-border`) — never hardcode hex colors.**
 
+**Themes** (class on `<html>`, persisted in `localStorage` / `aib-theme` cookie via `lib/theme/themes.ts`):
+
+| Theme id | HTML class | Character |
+|----------|------------|-----------|
+| `dark` (default) | `dark` | Navy canvas, cyan primary, violet accent — **do not modify** |
+| `light` | `theme-light-warm` | Warm off-white canvas; blue primary, warm gray accent |
+
+Users toggle via the Sun/Moon control in the top bar or the profile switch. Light uses **≥3 distinct surface steps** (background → muted → card) so layered UI does not collapse to flat white. Legacy stored values (`light-cyan`, `light-blue`, `light-warm`) map to `light`.
+
+**Light-depth conventions** (pair with existing `dark:` polish, do not replace it):
+
+- Borders: add `border-black/[0.06]` on light where dark uses `dark:border-white/10`.
+- Elevation: `shadow-md shadow-black/[0.04–0.05]` on cards/panels in light mode.
+- Glow: `shadow-glow-sm` on omnibar and primary chrome (not only `dark:shadow-glow-sm`).
+
 ### 7.3 Surface & Layout Utilities
 
 | Utility | Definition | Use |
 |---------|------------|-----|
-| `surface-panel` | `rounded-xl border border-border bg-card/60 p-4 shadow-sm dark:bg-card/50` | Standalone cards / panels |
-| `surface-inset` | `rounded-lg border border-border bg-muted/20 shadow-sm` | Table/scroll containers |
+| `surface-panel` | `rounded-xl border border-border bg-card p-4 shadow-md shadow-black/[0.04] dark:bg-card/50 dark:shadow-sm` | Standalone cards / panels |
+| `surface-inset` | `rounded-lg border border-border bg-muted/35 shadow-sm dark:bg-muted/20` | Table/scroll containers |
 | `hub-canvas` / `hub-grid` | gradient + grid background | Main scroll canvas |
 | `canvas-workspace-pad` | `px-4 pt-4 md:px-6 md:pt-6 lg:px-8 lg:pt-8` | Canvas content padding |
 | `canvas-scroll-endpad` | `pb-16 md:pb-6 lg:pb-8` | Bottom clearance for mobile nav |

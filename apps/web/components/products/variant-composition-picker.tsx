@@ -8,6 +8,7 @@ type Props = {
   axisKeys: string[];
   suggestedAxisKeys?: string[];
   disabled?: boolean;
+  locked?: boolean;
   compact?: boolean;
   onChange: (axisKeys: string[]) => void;
 };

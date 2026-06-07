@@ -73,3 +73,29 @@ export function resolveMasterVariantIdFromVariants(
   if (!variants?.length) return null;
   return findMasterVariant(variants)?.id ?? null;
 }
+
+/** SKU label for sellable variant-owned media; null for shared/master/product-level images. */
+export function resolveMediaVariantSkuBadge(
+  variantId: string | null,
+  variants: ProductVariantSnapshot[],
+  masterVariant?: ProductVariantSnapshot | null
+): string | null {
+  if (!variantId) return null;
+
+  const master = masterVariant ?? findMasterVariant(variants);
+  if (master?.id === variantId) return null;
+
+  const variant = variants.find((row) => row.id === variantId);
+  if (!variant || variant.is_master || variant.is_sellable === false) return null;
+
+  const sku = variant.sku?.trim();
+  return sku || null;
+}
+
+/** Compact SKU label for small media thumbnails; hides the shared product-code prefix. */
+export function formatMediaSkuBadgeLabel(sku: string, maxLength = 14): string {
+  const normalized = sku.trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  return `…${normalized.slice(-(maxLength - 1))}`;
+}

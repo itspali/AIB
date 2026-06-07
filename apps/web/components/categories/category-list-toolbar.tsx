@@ -1,6 +1,6 @@
 "use client";
 
-import { ListTree, Rows3, Table2 } from "lucide-react";
+import { ArrowUpDown, ListTree, Rows3, Table2 } from "lucide-react";
 import { CategoryListColumnSettings } from "@/components/categories/category-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
@@ -18,15 +18,17 @@ import type { CategoryListPrefs, CategoryListViewMode } from "@/lib/categories/l
 import { isCategoryTableLikeViewMode } from "@/lib/categories/list-prefs";
 import {
   CATEGORY_LIST_SORT_OPTIONS,
+  DEFAULT_CATEGORY_LIST_SORT_DIRECTION,
+  DEFAULT_CATEGORY_LIST_SORT_FIELD,
   sortOptionKey,
 } from "@/lib/categories/list-sort";
 import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   LIST_TOOLBAR_MODULE_VIEW_WIDTH,
-  listToolbarIconButtonClass,
   listToolbarModuleViewTriggerClass,
   listToolbarSelectClass,
-  listToolbarViewToggleButtonClass,
+  listToolbarSortTriggerClass,
+  listToolbarViewToggleSegmentClass,
   listToolbarViewToggleShellClass,
 } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
@@ -61,6 +63,13 @@ export function CategoryListToolbar({
   };
 
   const sortValue = sortOptionKey(prefs.sortField, prefs.sortDirection);
+  const activeSortLabel =
+    CATEGORY_LIST_SORT_OPTIONS.find(
+      (option) => sortOptionKey(option.field, option.direction) === sortValue
+    )?.label ?? "Sort";
+  const isSortActive =
+    prefs.sortField !== DEFAULT_CATEGORY_LIST_SORT_FIELD ||
+    prefs.sortDirection !== DEFAULT_CATEGORY_LIST_SORT_DIRECTION;
 
   return (
     <ListModuleToolbarRow
@@ -84,39 +93,42 @@ export function CategoryListToolbar({
           />
 
           {isTableLike ? (
-            <Select
-              value={sortValue}
-              disabled={controlsDisabled}
-              onValueChange={(value) => {
-                const option = CATEGORY_LIST_SORT_OPTIONS.find(
-                  (entry) => sortOptionKey(entry.field, entry.direction) === value
-                );
-                if (!option) return;
-                onPrefsChange({
-                  ...prefs,
-                  sortField: option.field,
-                  sortDirection: option.direction,
-                });
-              }}
-            >
-              <SelectTrigger
-                className={cn(listToolbarSelectClass(false), "hidden w-[8.5rem] shrink-0 sm:flex")}
-                title="Sort categories"
-                aria-label="Sort categories"
+            <div className={cn(listToolbarViewToggleShellClass(), "hidden sm:inline-flex")}>
+              <Select
+                value={sortValue}
+                disabled={controlsDisabled}
+                onValueChange={(value) => {
+                  const option = CATEGORY_LIST_SORT_OPTIONS.find(
+                    (entry) => sortOptionKey(entry.field, entry.direction) === value
+                  );
+                  if (!option) return;
+                  onPrefsChange({
+                    ...prefs,
+                    sortField: option.field,
+                    sortDirection: option.direction,
+                  });
+                }}
               >
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {CATEGORY_LIST_SORT_OPTIONS.map((option) => (
-                  <SelectItem
-                    key={sortOptionKey(option.field, option.direction)}
-                    value={sortOptionKey(option.field, option.direction)}
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className={listToolbarSortTriggerClass(isSortActive)}
+                  title={`Sort: ${activeSortLabel}`}
+                  aria-label={`Sort categories: ${activeSortLabel}`}
+                >
+                  <SelectValue />
+                  <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {CATEGORY_LIST_SORT_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={sortOptionKey(option.field, option.direction)}
+                      value={sortOptionKey(option.field, option.direction)}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
 
           <div className="shrink-0 sm:hidden">
@@ -171,12 +183,7 @@ export function CategoryListToolbar({
               type="button"
               size="sm"
               variant="ghost"
-              className={cn(
-                listToolbarViewToggleButtonClass(),
-                prefs.viewMode === "tree"
-                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={listToolbarViewToggleSegmentClass(prefs.viewMode === "tree")}
               disabled={controlsDisabled}
               onClick={() => setViewMode("tree")}
               title="Tree view"
@@ -189,12 +196,7 @@ export function CategoryListToolbar({
               type="button"
               size="sm"
               variant="ghost"
-              className={cn(
-                listToolbarViewToggleButtonClass(),
-                prefs.viewMode === "table"
-                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={listToolbarViewToggleSegmentClass(prefs.viewMode === "table")}
               disabled={controlsDisabled}
               onClick={() => setViewMode("table")}
               title="Table view"
@@ -207,12 +209,7 @@ export function CategoryListToolbar({
               type="button"
               size="sm"
               variant="ghost"
-              className={cn(
-                listToolbarViewToggleButtonClass(),
-                prefs.viewMode === "compact"
-                  ? "bg-background/80 text-primary hover:bg-background/80 hover:text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={listToolbarViewToggleSegmentClass(prefs.viewMode === "compact")}
               disabled={controlsDisabled}
               onClick={() => setViewMode("compact")}
               title="Compact table"
@@ -229,8 +226,6 @@ export function CategoryListToolbar({
               onChange={onPrefsChange}
               detectedDeviceClass={detectedDeviceClass}
               disabled={controlsDisabled}
-              triggerVariant="ghost"
-              triggerClassName={listToolbarIconButtonClass(false)}
             />
           ) : null}
         </>

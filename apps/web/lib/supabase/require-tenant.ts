@@ -1,7 +1,9 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { readSessionClaims } from "@/lib/supabase/auth";
 
-export async function requireTenantId() {
+/** One Supabase client + JWT verify per server-action request. */
+export const requireTenantId = cache(async () => {
   const supabase = await createClient();
   const claims = await readSessionClaims(supabase);
   if (!claims) throw new Error("Not authenticated");
@@ -12,4 +14,4 @@ export async function requireTenantId() {
     userId: claims.userId,
     email: claims.email,
   };
-}
+});

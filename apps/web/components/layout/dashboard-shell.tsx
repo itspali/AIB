@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchApprovalAlertCountAction } from "@/lib/layout/shell-actions";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
@@ -29,10 +30,22 @@ export function DashboardShell({
   tenantId = null,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [liveApprovalAlertCount, setLiveApprovalAlertCount] = useState(approvalAlertCount);
 
   // Only the locked first-run onboarding canvas hides module navigation.
   const isOnboardingLayout = onboardingMode;
   const showModuleNav = !onboardingMode;
+
+  useEffect(() => {
+    if (!showModuleNav) return;
+    let cancelled = false;
+    void fetchApprovalAlertCountAction().then((count) => {
+      if (!cancelled) setLiveApprovalAlertCount(count);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showModuleNav]);
 
   return (
     <OmnibarProvider operatorProfile={operatorProfile} tenantId={tenantId}>
@@ -43,7 +56,7 @@ export function DashboardShell({
             progressPercent={progressPercent}
             showProgress={isOnboardingLayout}
             hideWorkspaceTools={isOnboardingLayout}
-            approvalAlertCount={showModuleNav ? approvalAlertCount : 0}
+            approvalAlertCount={showModuleNav ? liveApprovalAlertCount : 0}
             operatorProfile={operatorProfile}
             embedded
             showSidebarToggle={showModuleNav}

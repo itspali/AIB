@@ -42,7 +42,7 @@ export async function fetchProductCatalogContext(
       .order("name"),
     supabase
       .from("price_books")
-      .select("id, name")
+      .select("id, name, currency_code")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name"),
@@ -88,7 +88,11 @@ export async function fetchProductCatalogContext(
       channel_type: row.channel_type,
       slug: row.slug,
     })),
-    price_books: (priceBooks ?? []).map((row) => ({ id: row.id, name: row.name })),
+    price_books: (priceBooks ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      currency_code: (row.currency_code as string) ?? "USD",
+    })),
     tax_codes: (taxCodes ?? []).map((row) => ({
       id: row.id as string,
       code: row.code as string,

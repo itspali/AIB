@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { LocationHierarchyNodeRow } from "@/components/locations/location-hierarchy-node";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { buildLocationTreeFromRows, filterLocationTopologyTree } from "@/lib/locations/topology";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import type { LocationListColumnId } from "@/lib/locations/list-columns";
 import type { LocationRow } from "@/lib/locations/types";
 import { filterLocationsByAst } from "@/lib/search/executor/client-scopes";
 
@@ -12,6 +14,7 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   centralHqLocationId: string | null;
+  columnChipDisplay?: Partial<Record<LocationListColumnId, ColumnChipDisplay>>;
 };
 
 export function LocationHierarchyRail({
@@ -19,6 +22,7 @@ export function LocationHierarchyRail({
   selectedId,
   onSelect,
   centralHqLocationId,
+  columnChipDisplay,
 }: Props) {
   const omnibar = useOptionalOmnibarContext();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -80,6 +84,7 @@ export function LocationHierarchyRail({
               expandedIds={expandedIds}
               onToggleExpand={toggleExpand}
               centralHqLocationId={centralHqLocationId}
+              columnChipDisplay={columnChipDisplay}
             />
           ))
         )}

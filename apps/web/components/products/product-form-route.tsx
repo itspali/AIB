@@ -40,7 +40,7 @@ import {
 
 function wizardEditHref(itemId: string, stage: EditorStageId, fromCatalog: boolean): string {
   const base = itemEditHref(itemId);
-  const params = new URLSearchParams({ wizard: "1", stage });
+  const params = new URLSearchParams({ stage });
   if (fromCatalog) params.set(ITEM_CATALOG_ORIGIN_PARAM, ITEM_CATALOG_ORIGIN_VALUE);
   return `${base}&${params.toString()}`;
 }
@@ -73,11 +73,9 @@ export function ProductFormRoute({
   const fromCatalog = isCatalogPopOutOrigin(searchParams);
   const itemId = detail?.id;
 
-  // --- Guided create wizard ------------------------------------------------
-  // Create is always staged; an existing item only stages when ?wizard=1 is
-  // present (so editing from the list keeps the full sectioned editor).
+  // --- Guided item wizard (create + edit) ------------------------------------
   const stageParam = searchParams.get("stage");
-  const wizardActive = mode === "create" || (mode === "edit" && searchParams.get("wizard") === "1");
+  const wizardActive = mode === "create" || mode === "edit";
   const currentStage: EditorStageId =
     mode === "create" ? "essentials" : isEditorStageId(stageParam) ? stageParam : "essentials";
 
@@ -111,9 +109,8 @@ export function ProductFormRoute({
     savedItemId: string,
     savedDetail?: ProductDetailSnapshot | null
   ) => {
-    // Create always runs the wizard, so a non-wizard save here is an existing
-    // item being edited from the list — nothing to navigate.
     if (!wizardActive) return;
+    if (wizardLayout === "accordion") return;
 
     // Recompute the stage order from the just-saved strategy so single-SKU
     // Single-SKU products skip the Variants stage even when strategy changed during Essentials.
@@ -145,8 +142,11 @@ export function ProductFormRoute({
     return next ? replace(wizardEditHref(savedItemId, next, fromCatalog)) : finish();
   };
 
+  const wizardLayout = mode === "edit" ? "accordion" : "steps";
+
   const wizard: EditorWizardChrome | undefined = wizardActive
     ? {
+        layout: wizardLayout,
         stage: currentStage,
         isFirst: renderIndex === 0,
         isLast: renderIndex === renderOrder.length - 1,
@@ -246,7 +246,11 @@ export function ProductFormRoute({
               onClick={handleHeaderSave}
               title="Save (Cmd/Ctrl + Enter)"
             >
-              {isSaving ? "Saving..." : wizardActive ? "Save & continue" : "Save item"}
+              {isSaving
+                ? "Saving..."
+                : wizardLayout === "accordion"
+                  ? "Save item"
+                  : "Save & continue"}
             </Button>
           ) : null}
           {mode === "view" && detail ? (

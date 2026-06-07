@@ -32,7 +32,7 @@ export type CategoryListFrozenColumnCount = 0 | 1 | 2 | 3;
 export const AUTO_LAYOUT_PREF = "auto" as const;
 export type FrozenColumnPref = CategoryListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const CATEGORY_LIST_PREFS_VERSION = 2;
+export const CATEGORY_LIST_PREFS_VERSION = 3;
 
 export type CategoryTableViewMode = "table" | "compact";
 

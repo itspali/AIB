@@ -12,6 +12,7 @@ import {
   getItemDrawerExtensionData,
   type ItemDrawerExtensionData,
 } from "@/app/items/actions";
+import type { ProductCatalogContext } from "@/lib/products/types";
 
 type ExtensionState =
   | { status: "idle" }
@@ -23,19 +24,23 @@ const ItemExtensionDataContext = createContext<ExtensionState | null>(null);
 
 const inflightLoads = new Map<string, Promise<ItemDrawerExtensionData | { error: string }>>();
 
-function fetchExtensionData(itemId: string): Promise<ItemDrawerExtensionData | { error: string }> {
-  const existing = inflightLoads.get(itemId);
+function fetchExtensionData(
+  itemId: string,
+  catalogContext?: ProductCatalogContext | null
+): Promise<ItemDrawerExtensionData | { error: string }> {
+  const cacheKey = catalogContext ? `${itemId}:ctx` : itemId;
+  const existing = inflightLoads.get(cacheKey);
   if (existing) return existing;
 
-  const request = getItemDrawerExtensionData(itemId).then((result) => {
+  const request = getItemDrawerExtensionData(itemId, catalogContext).then((result) => {
     if ("error" in result) return { error: result.error ?? "Unable to load item data." };
     return result.data;
   });
 
-  inflightLoads.set(itemId, request);
+  inflightLoads.set(cacheKey, request);
   void request.finally(() => {
-    if (inflightLoads.get(itemId) === request) {
-      inflightLoads.delete(itemId);
+    if (inflightLoads.get(cacheKey) === request) {
+      inflightLoads.delete(cacheKey);
     }
   });
 
@@ -44,10 +49,12 @@ function fetchExtensionData(itemId: string): Promise<ItemDrawerExtensionData | {
 
 export function ItemExtensionDataProvider({
   itemId,
+  catalogContext = null,
   enabled = true,
   children,
 }: {
   itemId: string | null | undefined;
+  catalogContext?: ProductCatalogContext | null;
   /** When false, skips the batched extension fetch until heavy sections need it. */
   enabled?: boolean;
   children: ReactNode;
@@ -63,7 +70,7 @@ export function ItemExtensionDataProvider({
     let cancelled = false;
     setState({ status: "loading" });
 
-    void fetchExtensionData(itemId).then((result) => {
+    void fetchExtensionData(itemId, catalogContext).then((result) => {
       if (cancelled) return;
       if ("error" in result) {
         setState({ status: "error", error: result.error });
@@ -75,7 +82,7 @@ export function ItemExtensionDataProvider({
     return () => {
       cancelled = true;
     };
-  }, [enabled, itemId]);
+  }, [catalogContext, enabled, itemId]);
 
   const value = useMemo(() => state, [state]);
 

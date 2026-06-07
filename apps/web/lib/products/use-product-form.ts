@@ -20,6 +20,9 @@ import {
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import {
   defaultVariantAxisKeys,
+  pickDescriptiveVariantAttributes,
+  sanitizeVariantAxisKeys,
+  splitTemplatesByAxis,
   validateVariantAxesSelection,
   variantAxesZodIssuePath,
 } from "@/lib/products/variant-composition";
@@ -151,12 +154,14 @@ export function useProductForm({
 
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
-      const variantAxes =
+      const variantAxes = sanitizeVariantAxisKeys(
         values.variant_axes.length > 0
           ? values.variant_axes
           : values.variant_strategy === "MULTI_SKU" && values.item_type === "PHYSICAL"
             ? defaultVariantAxisKeys(categoryTemplates, [])
-            : values.variant_axes;
+            : values.variant_axes,
+        categoryTemplates
+      );
 
       const axesMessage = validateVariantAxesSelection({
         variant_strategy: values.variant_strategy,
@@ -184,6 +189,21 @@ export function useProductForm({
         return;
       }
 
+      if (values.item_type === "PHYSICAL") {
+        const descriptiveTemplates = splitTemplatesByAxis(categoryTemplates, variantAxes).descriptive;
+        for (const template of descriptiveTemplates) {
+          if (!template.required) continue;
+          const value = values.variant_attributes[template.key]?.trim() ?? "";
+          if (!value) {
+            const message = `${template.label} is required.`;
+            if (notifyOnSave) {
+              toast.error(message);
+            }
+            return;
+          }
+        }
+      }
+
       const taxable = isTaxableSupplyCategory(values.default_tax_category);
       const normalizedRole = normalizeCompositionFromDetail({
         classification: values.classification,
@@ -193,6 +213,11 @@ export function useProductForm({
         ...values,
         sku: skuTrim,
         variant_axes: variantAxes,
+        variant_attributes: pickDescriptiveVariantAttributes(
+          values.variant_attributes,
+          categoryTemplates,
+          variantAxes
+        ),
         classification: normalizedRole.classification,
         is_bundle: normalizedRole.is_bundle,
         hsn_sac_code: taxable ? values.hsn_sac_code : "",

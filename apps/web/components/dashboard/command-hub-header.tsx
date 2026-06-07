@@ -6,7 +6,7 @@ type CommandHubHeaderProps = {
 
 export function CommandHubHeader({ approvalAlertCount = 0 }: CommandHubHeaderProps) {
   return (
-    <header className="relative mb-10 overflow-hidden rounded-2xl border border-border/80 bg-card/60 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:shadow-glow-sm md:p-8">
+    <header className="relative mb-10 overflow-hidden rounded-2xl border border-border/80 border-black/[0.06] bg-card p-6 shadow-md shadow-black/[0.04] shadow-glow-sm backdrop-blur-xl dark:border-white/10 dark:bg-card/60 dark:shadow-sm md:p-8">
       <div
         className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl"
         aria-hidden
@@ -39,11 +39,11 @@ export function CommandHubHeader({ approvalAlertCount = 0 }: CommandHubHeaderPro
         </div>
 
         <div className="flex shrink-0 gap-2 text-xs text-muted-foreground">
-          <div className="rounded-lg border border-border/80 bg-background/60 px-3 py-2 dark:border-white/10 dark:bg-background/40">
+          <div className="rounded-lg border border-border/80 border-black/[0.06] bg-muted/40 px-3 py-2 dark:border-white/10 dark:bg-background/40">
             <span className="block font-medium text-foreground">Zone C</span>
             Active workspace
           </div>
-          <div className="rounded-lg border border-border/80 bg-background/60 px-3 py-2 dark:border-white/10 dark:bg-background/40">
+          <div className="rounded-lg border border-border/80 border-black/[0.06] bg-muted/40 px-3 py-2 dark:border-white/10 dark:bg-background/40">
             <span className="block font-medium text-foreground">RLS</span>
             Tenant scoped
           </div>

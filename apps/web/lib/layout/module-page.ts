@@ -3,11 +3,10 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { tenantHasLocations } from "@/lib/auth/post-login-route";
 import { createClient } from "@/lib/supabase/server";
 import { claimsToUserShape, getSessionClaims } from "@/lib/supabase/auth";
-import { fetchOperatorProfile } from "@/lib/user/queries";
+import { buildOperatorProfileFromUserRow } from "@/lib/user/queries";
 import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile";
 import type { OperatorProfile } from "@/lib/user/types";
 import type { UserRole } from "@/lib/user/types";
@@ -35,7 +34,7 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
   const tenantId = claims.tenantId;
   if (!tenantId) redirect("/signup");
 
-  const [{ data: tenant, error: tenantError }, hasLocations, approvalAlertCount, operatorProfile] =
+  const [{ data: tenant, error: tenantError }, hasLocations, { data: userRow }] =
     await Promise.all([
       supabase
         .from("tenants")
@@ -43,8 +42,13 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
         .eq("id", tenantId)
         .single(),
       tenantHasLocations(supabase, tenantId),
-      fetchApprovalAlertCount(supabase, tenantId),
-      fetchOperatorProfile(supabase, claims.userId, tenantId),
+      supabase
+        .from("users")
+        .select(
+          "first_name, last_name, role, assigned_location_id, avatar_url, metadata_json"
+        )
+        .eq("id", claims.userId)
+        .maybeSingle(),
     ]);
 
   if (tenantError || !tenant) redirect("/signup");
@@ -52,8 +56,31 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
   if (!hasLocations) redirect("/onboarding");
 
   const orgName = tenant.trade_name || tenant.name;
-  const resolvedProfile =
-    operatorProfile ?? buildFallbackOperatorProfile(claimsToUserShape(claims) as User, orgName);
+
+  let resolvedProfile: OperatorProfile;
+  if (userRow) {
+    let locationName: string | null = null;
+    if (userRow.assigned_location_id) {
+      const { data: location } = await supabase
+        .from("tenant_locations")
+        .select("name")
+        .eq("id", userRow.assigned_location_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      locationName = location?.name ?? null;
+    }
+    resolvedProfile = buildOperatorProfileFromUserRow(
+      claims.userId,
+      userRow,
+      orgName,
+      locationName
+    );
+  } else {
+    resolvedProfile = buildFallbackOperatorProfile(
+      claimsToUserShape(claims) as User,
+      orgName
+    );
+  }
 
   return {
     supabase,
@@ -62,7 +89,8 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
     orgName,
     operatorProfile: resolvedProfile,
     operatorRole: resolvedProfile.role,
-    approvalAlertCount,
+    // Fetched client-side in DashboardShell to avoid four count queries on every SSR.
+    approvalAlertCount: 0,
   };
 }
 

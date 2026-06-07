@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { EditorWizardChrome } from "@/components/products/product-editor/product-editor-shell";
+import type {
+  EditorWizardChrome,
+  WizardLayout,
+} from "@/components/products/product-editor/product-editor-shell";
 import {
   editorStageOrder,
   isEditorStageId,
@@ -17,6 +20,7 @@ export type WizardNav =
 
 type Options = {
   active: boolean;
+  layout?: WizardLayout;
   variantStrategy?: string | null;
   hasComposition?: boolean;
   onFinished: (itemId: string) => void;
@@ -24,6 +28,7 @@ type Options = {
 
 export function useProductCreateWizard({
   active,
+  layout = "steps",
   variantStrategy = "SINGLE_SKU",
   hasComposition = false,
   onFinished,
@@ -109,6 +114,7 @@ export function useProductCreateWizard({
 
   const wizard: EditorWizardChrome | undefined = active
     ? {
+        layout,
         stage,
         isFirst: renderIndex === 0,
         isLast: renderIndex === renderOrder.length - 1,

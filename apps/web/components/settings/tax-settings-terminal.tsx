@@ -116,7 +116,7 @@ export function TaxSettingsTerminal({ initialRows, canEdit }: Props) {
       )}
 
       {initialRows.length === 0 ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center dark:border-white/10">
+        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 border-black/[0.06] bg-muted/35 px-6 py-12 text-center dark:border-white/10 dark:bg-muted/20">
           <p className="max-w-md text-sm font-medium">No tax rules defined yet.</p>
           <p className="mt-2 max-w-sm text-sm text-muted-foreground">
             Create flat rates (e.g. GST 18%) or value-based slabs (e.g. apparel 5% / 12%) once, then

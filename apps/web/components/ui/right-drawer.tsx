@@ -15,13 +15,7 @@ import {
 import { createPortal } from "react-dom";
 import { blurActiveElement } from "@/lib/dom/focus";
 import { Maximize2, X } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
 import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
@@ -200,7 +194,7 @@ function DrawerChrome({
 
       <SheetHeader
         className={cn(
-          "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b border-border/80 dark:border-white/10",
+          "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b border-border/80 border-black/[0.06] dark:border-white/10",
           APP_HEADER_HEIGHT_CLASS,
           APP_HEADER_PADDING_X_CLASS
         )}
@@ -302,8 +296,6 @@ export function RightDrawer({
   useEffect(() => {
     setWidthVw(readStoredWidthVw());
   }, []);
-  /** Tablet/desktop: always the fixed right panel (peek, edit, create) — no full-screen modal overlay. */
-  const useFixedPanel = isPartialDrawer;
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const cycleWidth = useCallback(() => {
@@ -340,13 +332,14 @@ export function RightDrawer({
     onOpenChange(false);
   }, [onOpenChange, onRequestClose]);
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) {
-      onOpenChange(true);
-      return;
-    }
-    requestClose();
-  };
+  useEffect(() => {
+    if (!open || !closeOnEscape) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") requestClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeOnEscape, open, requestClose]);
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!isPartialDrawer) return;
@@ -383,7 +376,7 @@ export function RightDrawer({
     headerActions,
     showCloseButton,
     onClose: () => requestClose(),
-    inSheet: !useFixedPanel,
+    inSheet: false,
     isPartialDrawer,
     widthVw,
     onCycleWidth: cycleWidth,
@@ -404,46 +397,22 @@ export function RightDrawer({
     </RightDrawerLayoutProvider>
   );
 
-  if (useFixedPanel) {
-    const panel = (
-      <div
-        role="dialog"
-        aria-modal="false"
-        aria-label={title}
-        data-drawer-root
-        className={cn(
-          "fixed inset-y-0 right-0 flex h-full max-h-[100dvh] flex-col gap-0 overflow-hidden border-l border-border/80 bg-background shadow-2xl dark:border-white/10",
-          itemDrawerClassName,
-          open && "aib-right-drawer-enter",
-          className
-        )}
-        style={panelStyle}
-      >
-        {drawerLayout}
-      </div>
-    );
-    return portalReady ? createPortal(panel, document.body) : panel;
-  }
-
-  // Mobile: full-width sheet without dimmed backdrop (panel covers the canvas).
-  return (
-    <Sheet open={open} onOpenChange={handleOpenChange} modal={!allowBackgroundInteraction}>
-      <SheetContent
-        side="right"
-        variableWidth
-        showOverlay={false}
-        className={cn(
-          "relative flex h-full flex-col gap-0 overflow-visible border-l border-border/80 bg-background p-0 shadow-2xl dark:border-white/10 [&>button:last-of-type]:hidden",
-          "w-full max-w-full sm:max-w-full",
-          className
-        )}
-        style={panelStyle}
-        onEscapeKeyDown={(event) => {
-          if (!closeOnEscape) event.preventDefault();
-        }}
-      >
-        {drawerLayout}
-      </SheetContent>
-    </Sheet>
+  const panel = (
+    <div
+      role="dialog"
+      aria-modal={!isPartialDrawer || !allowBackgroundInteraction}
+      aria-label={title}
+      data-drawer-root
+      className={cn(
+        "fixed inset-y-0 right-0 flex h-full max-h-[100dvh] flex-col gap-0 overflow-hidden border-l border-border/80 border-black/[0.06] bg-background shadow-2xl dark:border-white/10",
+        itemDrawerClassName,
+        open && "aib-right-drawer-enter",
+        className
+      )}
+      style={panelStyle}
+    >
+      {drawerLayout}
+    </div>
   );
+  return portalReady ? createPortal(panel, document.body) : panel;
 }

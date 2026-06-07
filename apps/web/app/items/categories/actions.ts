@@ -3,10 +3,24 @@
 import { revalidatePath } from "next/cache";
 import { finalizeAttributeTemplateRows } from "@/lib/categories/attribute-key";
 import { attributeTypeNeedsOptions } from "@/lib/categories/attribute-types";
+import { fetchCategoryItemCounts, fetchCategoryRowById } from "@/lib/categories/queries";
+import type { AttributeTemplateEntry, CategoryRow, SystemCategoryFormValues } from "@/lib/categories/types";
 import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
 import { validateCategoryParentAssignment } from "@/lib/categories/validate-parent";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
-import type { AttributeTemplateEntry, SystemCategoryFormValues } from "@/lib/categories/types";
+
+const CATEGORY_PATHS = ["/items/categories", "/items"] as const;
+
+export async function loadCategoryItemCounts(): Promise<Record<string, number>> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchCategoryItemCounts(supabase, tenantId);
+}
+
+function revalidateCategoryPaths() {
+  for (const path of CATEGORY_PATHS) {
+    revalidatePath(path);
+  }
+}
 
 function buildAttributeTemplates(
   entries: AttributeTemplateEntry[]
@@ -33,113 +47,80 @@ function buildAttributeTemplates(
     });
 }
 
-export async function saveSystemCategory(values: SystemCategoryFormValues) {
+type CategoryMutationSuccess = { success: true; category: CategoryRow };
+type CategoryMutationError = { error: string };
+type CategoryMutationResult = CategoryMutationSuccess | CategoryMutationError;
+
+export async function saveSystemCategory(
+  values: SystemCategoryFormValues
+): Promise<CategoryMutationResult> {
   const { supabase, tenantId } = await requireTenantId();
 
   const name = values.name.trim();
   if (!name) return { error: "Category name is required" };
 
-  const templates = buildAttributeTemplates(
-    finalizeAttributeTemplateRows(values.attribute_templates)
-  );
-  const templateError = validateAttributeTemplates(
-    finalizeAttributeTemplateRows(values.attribute_templates)
-  );
+  const finalizedTemplates = finalizeAttributeTemplateRows(values.attribute_templates);
+  const templateError = validateAttributeTemplates(finalizedTemplates);
   if (templateError) return { error: templateError };
 
+  const templates = buildAttributeTemplates(finalizedTemplates);
+
   if (values.category_id) {
-    return updateSystemCategory(supabase, tenantId, values.category_id, {
-      name,
-      parent_id: values.parent_id,
-      is_active: values.is_active,
-      attribute_templates: templates,
-      inherit_parent_attributes: values.inherit_parent_attributes,
-      default_variant_strategy: values.default_variant_strategy,
-    });
+    const { data: parentRows, error: fetchError } = await supabase
+      .from("item_categories")
+      .select("id, parent_id")
+      .eq("tenant_id", tenantId);
+
+    if (fetchError) return { error: fetchError.message };
+
+    const parentError = validateCategoryParentAssignment(
+      values.category_id,
+      values.parent_id,
+      parentRows ?? []
+    );
+    if (parentError) return { error: parentError };
   }
 
-  const { data, error } = await supabase.rpc("save_system_category", {
+  const { data: categoryId, error } = await supabase.rpc("save_system_category", {
     p_name: name,
     p_parent_id: values.parent_id,
     p_is_active: values.is_active,
     p_attribute_templates: templates,
+    p_category_id: values.category_id ?? null,
     p_default_variant_strategy: values.default_variant_strategy,
-    p_inherit_parent_attributes: values.inherit_parent_attributes,
+    p_inherit_parent_attributes: values.parent_id ? values.inherit_parent_attributes : true,
   });
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, categoryId: data as string };
+  const category = await fetchCategoryRowById(supabase, tenantId, categoryId as string);
+  if (!category) return { error: "Category saved but could not be loaded." };
+
+  revalidateCategoryPaths();
+  return { success: true, category };
 }
 
-async function updateSystemCategory(
+async function deleteSystemCategoryInternal(
   supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
-  tenantId: string,
-  categoryId: string,
-  payload: {
-    name: string;
-    parent_id: string | null;
-    is_active: boolean;
-    attribute_templates: Record<string, unknown>[];
-    inherit_parent_attributes: boolean;
-    default_variant_strategy: SystemCategoryFormValues["default_variant_strategy"];
-  }
-) {
-  const { data: rows, error: fetchError } = await supabase
-    .from("item_categories")
-    .select("id, parent_id")
-    .eq("tenant_id", tenantId);
+  categoryId: string
+): Promise<{ ok: true; outcome: string } | { ok: false; error: string }> {
+  const { data, error } = await supabase.rpc("delete_system_category", {
+    p_category_id: categoryId,
+  });
 
-  if (fetchError) return { error: fetchError.message };
-
-  const categoryExists = rows?.some((row) => row.id === categoryId);
-  if (!categoryExists) return { error: "Category not found" };
-
-  const parentError = validateCategoryParentAssignment(
-    categoryId,
-    payload.parent_id,
-    rows ?? []
-  );
-  if (parentError) return { error: parentError };
-
-  const { data, error } = await supabase
-    .from("item_categories")
-    .update({
-      name: payload.name,
-      parent_id: payload.parent_id,
-      is_active: payload.is_active,
-      attribute_templates: payload.attribute_templates,
-      inherit_parent_attributes: payload.inherit_parent_attributes,
-      default_variant_strategy: payload.default_variant_strategy,
-    })
-    .eq("id", categoryId)
-    .eq("tenant_id", tenantId)
-    .select("id")
-    .single();
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, categoryId: data.id as string };
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, outcome: (data as string) ?? "DELETED" };
 }
 
 export async function deleteSystemCategory(categoryId: string) {
   if (!categoryId) return { error: "Category id is required." };
 
   const { supabase } = await requireTenantId();
+  const result = await deleteSystemCategoryInternal(supabase, categoryId);
+  if (!result.ok) return { error: result.error };
 
-  const { data, error } = await supabase.rpc("delete_system_category", {
-    p_category_id: categoryId,
-  });
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, outcome: (data as string) ?? "DELETED" };
+  revalidateCategoryPaths();
+  return { success: true as const, categoryId, outcome: result.outcome };
 }
 
 export async function deactivateSystemCategory(categoryId: string) {
@@ -147,7 +128,7 @@ export async function deactivateSystemCategory(categoryId: string) {
 
   const { supabase, tenantId } = await requireTenantId();
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("item_categories")
     .update({ is_active: false })
     .eq("id", categoryId)
@@ -156,11 +137,12 @@ export async function deactivateSystemCategory(categoryId: string) {
     .single();
 
   if (error) return { error: error.message };
-  if (!data) return { error: "Category not found" };
 
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, categoryId: data.id as string };
+  const category = await fetchCategoryRowById(supabase, tenantId, categoryId);
+  if (!category) return { error: "Category updated but could not be loaded." };
+
+  revalidateCategoryPaths();
+  return { success: true as const, category };
 }
 
 export async function activateSystemCategory(categoryId: string) {
@@ -179,9 +161,11 @@ export async function activateSystemCategory(categoryId: string) {
   if (error) return { error: error.message };
   if (!data) return { error: "Category not found" };
 
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, categoryId: data.id as string };
+  const category = await fetchCategoryRowById(supabase, tenantId, data.id);
+  if (!category) return { error: "Category updated but could not be loaded." };
+
+  revalidateCategoryPaths();
+  return { success: true as const, category };
 }
 
 function uniqueCategoryIds(categoryIds: string[]): string[] {
@@ -203,9 +187,11 @@ export async function bulkActivateCategories(categoryIds: string[]) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, affectedCount: data?.length ?? 0 };
+  revalidateCategoryPaths();
+  return {
+    success: true as const,
+    affectedIds: (data ?? []).map((row) => row.id as string),
+  };
 }
 
 export async function bulkDeactivateCategories(categoryIds: string[]) {
@@ -223,35 +209,46 @@ export async function bulkDeactivateCategories(categoryIds: string[]) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory/categories");
-  revalidatePath("/inventory/items");
-  return { success: true as const, affectedCount: data?.length ?? 0 };
+  revalidateCategoryPaths();
+  return {
+    success: true as const,
+    affectedIds: (data ?? []).map((row) => row.id as string),
+  };
 }
 
 export async function bulkDeleteCategories(categoryIds: string[]) {
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  let deletedCount = 0;
+  const { supabase } = await requireTenantId();
+
+  const results = await Promise.all(
+    ids.map(async (categoryId) => ({
+      categoryId,
+      result: await deleteSystemCategoryInternal(supabase, categoryId),
+    }))
+  );
+
+  const deletedIds: string[] = [];
   const errors: string[] = [];
 
-  for (const categoryId of ids) {
-    const result = await deleteSystemCategory(categoryId);
-    if ("error" in result) {
-      errors.push(result.error ?? "Unable to delete category.");
+  for (const { categoryId, result } of results) {
+    if (result.ok) {
+      deletedIds.push(categoryId);
       continue;
     }
-    deletedCount += 1;
+    errors.push(result.error ?? "Unable to delete category.");
   }
 
-  if (deletedCount === 0) {
+  if (deletedIds.length === 0) {
     return { error: errors[0] ?? "Unable to delete selected categories." };
   }
 
+  revalidateCategoryPaths();
   return {
     success: true as const,
-    affectedCount: deletedCount,
-    skippedCount: ids.length - deletedCount,
+    deletedIds,
+    skippedCount: ids.length - deletedIds.length,
     errors: errors.length > 0 ? errors : undefined,
   };
 }

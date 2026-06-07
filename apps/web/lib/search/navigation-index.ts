@@ -7,19 +7,29 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["dashboard", "home", "overview", "command hub"],
   },
   {
-    label: "Inventory",
-    href: "/inventory/items",
-    keywords: ["inventory", "stock", "warehouse", "items"],
-  },
-  {
     label: "Items",
-    href: "/inventory/items",
-    keywords: ["items", "products", "catalog", "sku", "master", "inventory"],
+    href: "/items",
+    keywords: ["items", "products", "catalog", "sku", "master", "product master"],
   },
   {
     label: "Categories",
-    href: "/inventory/categories",
-    keywords: ["categories", "taxonomy", "classification", "inventory", "new category"],
+    href: "/items/categories",
+    keywords: ["categories", "taxonomy", "classification", "items", "new category"],
+  },
+  {
+    label: "Inventory",
+    href: "/inventory",
+    keywords: ["inventory", "stock", "warehouse", "on hand", "transfers"],
+  },
+  {
+    label: "Stock",
+    href: "/inventory/stock",
+    keywords: ["stock", "on hand", "quantity", "inventory", "warehouse"],
+  },
+  {
+    label: "Transfers",
+    href: "/inventory/transfers",
+    keywords: ["transfers", "stock transfer", "inter-location", "inventory"],
   },
   {
     label: "Inventory Locations",
@@ -82,9 +92,9 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["invoices", "billing", "accounts receivable", "sales"],
   },
   {
-    label: "Logistics",
-    href: "/logistics",
-    keywords: ["logistics", "shipments", "transfers", "delivery"],
+    label: "Fulfillment & Shipping",
+    href: "/fulfillment/shipping",
+    keywords: ["fulfillment", "shipping", "shipments", "delivery", "carrier"],
   },
   {
     label: "Financials",

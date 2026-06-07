@@ -1,5 +1,12 @@
+import {
+  BOOLEAN_ACTIVE_INACTIVE_CATALOG,
+  BOOLEAN_YES_NO_CATALOG,
+  buildClassificationDefaultColors,
+} from "@/lib/list-columns/chip-colors";
 import { columnWidths } from "@/lib/list-columns/sizing";
 import type { ListColumnDef, ListColumnRegistry } from "@/lib/list-columns/types";
+import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
+import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
 
 export const PRODUCT_LIST_COLUMN_IDS = [
   "image",
@@ -80,6 +87,34 @@ const W_DATE = columnWidths({
   default: { min: 100, max: 140 },
 });
 
+const UOM_CHIP_CATALOG = [
+  { value: "pieces", label: "Pieces" },
+  { value: "kg", label: "Kilograms" },
+  { value: "liters", label: "Liters" },
+  { value: "meters", label: "Meters" },
+  { value: "boxes", label: "Boxes" },
+] as const;
+
+const TAX_CHIP_CATALOG = TAX_CATEGORY_OPTIONS.map((value) => ({
+  value,
+  label: value
+    .split("_")
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(" "),
+}));
+
+const BOOLEAN_YES_NO_DEFAULTS = {
+  true: { preset: "emerald" as const },
+  false: { preset: "slate" as const },
+  [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" as const },
+};
+
+const ACTIVE_INACTIVE_DEFAULTS = {
+  true: { preset: "emerald" as const },
+  false: { preset: "red" as const },
+  [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" as const },
+};
+
 export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
   {
     id: "image",
@@ -121,6 +156,8 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     group: "Identity",
     valueKind: "text",
     widths: W_TEXT,
+    chipEligible: true,
+    chipDefaultColors: buildClassificationDefaultColors(),
   },
   {
     id: "category_name",
@@ -129,6 +166,8 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     group: "Identity",
     valueKind: "text",
     widths: W_TEXT,
+    chipEligible: true,
+    chipDefaultColors: { [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "indigo" } },
   },
   {
     id: "description",
@@ -147,6 +186,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     group: "Units & tax",
     valueKind: "code",
     widths: W_CODE,
+    chipEligible: true,
+    chipValueCatalog: UOM_CHIP_CATALOG,
+    chipDefaultColors: { [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "slate" } },
   },
   {
     id: "hsn_sac_code",
@@ -163,6 +205,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     align: "center",
     group: "Units & tax",
     widths: W_BOOLEAN,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_YES_NO_CATALOG,
+    chipDefaultColors: BOOLEAN_YES_NO_DEFAULTS,
   },
   {
     id: "default_tax_category",
@@ -171,6 +216,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     group: "Units & tax",
     valueKind: "text",
     widths: W_TEXT,
+    chipEligible: true,
+    chipValueCatalog: TAX_CHIP_CATALOG,
+    chipDefaultColors: { [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "amber" } },
   },
   {
     id: "is_active",
@@ -179,6 +227,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     align: "center",
     group: "Status",
     widths: W_STATUS,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_ACTIVE_INACTIVE_CATALOG,
+    chipDefaultColors: ACTIVE_INACTIVE_DEFAULTS,
   },
   {
     id: "is_purchasable",
@@ -187,6 +238,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     align: "center",
     group: "Status",
     widths: W_BOOLEAN,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_YES_NO_CATALOG,
+    chipDefaultColors: BOOLEAN_YES_NO_DEFAULTS,
   },
   {
     id: "is_salable",
@@ -195,6 +249,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     align: "center",
     group: "Status",
     widths: W_BOOLEAN,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_YES_NO_CATALOG,
+    chipDefaultColors: BOOLEAN_YES_NO_DEFAULTS,
   },
   {
     id: "is_returnable",
@@ -203,6 +260,9 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     align: "center",
     group: "Status",
     widths: W_BOOLEAN,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_YES_NO_CATALOG,
+    chipDefaultColors: BOOLEAN_YES_NO_DEFAULTS,
   },
   {
     id: "selling_price",

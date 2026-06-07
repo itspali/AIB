@@ -10,7 +10,9 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, canChangeTheme } = useTheme();
+
+  if (!canChangeTheme) return null;
 
   return (
     <Button

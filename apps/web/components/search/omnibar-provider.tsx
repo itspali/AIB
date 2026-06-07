@@ -35,6 +35,7 @@ import {
 } from "@/lib/search/telemetry/signatures";
 import {
   getScopePlaceholder,
+  pathnameMatchesScope,
   resolveScopeFromPath,
   type ScopeDefinition,
   SCOPE_DEFINITIONS,
@@ -122,6 +123,24 @@ type OmnibarContextValue = {
 
 const OmnibarContext = createContext<OmnibarContextValue | null>(null);
 
+const defaultViewFetchByModule = new Map<
+  string,
+  ReturnType<typeof getDefaultCustomModuleView>
+>();
+
+function fetchDefaultCustomModuleViewDeduped(moduleName: string) {
+  const inFlight = defaultViewFetchByModule.get(moduleName);
+  if (inFlight) return inFlight;
+
+  const request = getDefaultCustomModuleView(moduleName).finally(() => {
+    if (defaultViewFetchByModule.get(moduleName) === request) {
+      defaultViewFetchByModule.delete(moduleName);
+    }
+  });
+  defaultViewFetchByModule.set(moduleName, request);
+  return request;
+}
+
 type Props = {
   children: ReactNode;
   operatorProfile?: OperatorProfile | null;
@@ -199,6 +218,22 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     // re-derive the scope. Toggling the pin (e.g. switching from "all" to a
     // module via the dropdown) must not clobber the scope the user just chose.
     if (!routeChanged) return;
+
+    runRequestIdRef.current += 1;
+    setIsExecuting(false);
+
+    // Items/Categories SSR loaders hydrate the saved view. Do not prefetch defaults
+    // client-side — sibling /items routes share OmnibarProvider and stale scope
+    // state otherwise POSTs to the wrong page.
+    if (nextScope === "items" || nextScope === "categories") {
+      setScopeState(nextScope);
+      setIsDefaultViewBootstrapping(false);
+      defaultFetchScopeRef.current = nextScope;
+      defaultFetchResultRef.current = null;
+      defaultAppliedRef.current = false;
+      setResolvingDefaultView(null);
+      return;
+    }
 
     setRawQuery("");
     setAppliedQuery("");
@@ -385,6 +420,11 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       const requestId = ++runRequestIdRef.current;
       setFilterError(null);
 
+      if (!pathnameMatchesScope(pathname, activeScope)) {
+        setIsExecuting(false);
+        return;
+      }
+
       if (!permissions) {
         setIsExecuting(false);
         return;
@@ -528,7 +568,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
         }
       }
     },
-    [permissions, userId, cacheTenantId]
+    [pathname, permissions, userId, cacheTenantId]
   );
 
   const loadSavedView = useCallback(
@@ -628,21 +668,15 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
 
       if (filteredItemIds !== null) {
         setFilteredItemIds(new Set(filteredItemIds));
-        setIsExecuting(false);
-      } else if (viewScope === "items" && savedViewNeedsNativeFilter(view.compiled_ast)) {
-        setFilteredItemIds(null);
-        setIsExecuting(true);
-        void runAppliedFilter(view.raw_search_text, viewScope, { savedView: view });
       } else {
         setFilteredItemIds(null);
-        setIsExecuting(false);
-        void runAppliedFilter(view.raw_search_text, viewScope, { savedView: view });
       }
+      setIsExecuting(false);
 
       compileSavedViewQuery(view, viewScope);
       finishDefaultViewBootstrap();
     },
-    [scope, runAppliedFilter, compileSavedViewQuery, finishDefaultViewBootstrap]
+    [scope, compileSavedViewQuery, finishDefaultViewBootstrap]
   );
 
   const markDefaultViewResolvedOnServer = useCallback(
@@ -658,7 +692,12 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   const tryApplyDefaultViewRef = useRef<() => void>(() => {});
 
   const tryApplyDefaultView = useCallback(() => {
-    if (!isSavedViewsScope(scope)) {
+    const routeScope = resolveScopeFromPath(pathname);
+    if (routeScope === "items" || routeScope === "categories") {
+      finishDefaultViewBootstrap();
+      return;
+    }
+    if (!isSavedViewsScope(routeScope)) {
       finishDefaultViewBootstrap();
       return;
     }
@@ -688,7 +727,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     defaultAppliedRef.current = true;
     setResolvingDefaultView(fetchResult);
     loadSavedView(fetchResult);
-  }, [scope, permissions, loadSavedView, finishDefaultViewBootstrap]);
+  }, [pathname, permissions, loadSavedView, finishDefaultViewBootstrap]);
 
   tryApplyDefaultViewRef.current = tryApplyDefaultView;
 
@@ -717,53 +756,85 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   ]);
 
   useEffect(() => {
-    if (!isSavedViewsScope(scope)) {
+    const routeScope = resolveScopeFromPath(pathname);
+
+    if (scope !== routeScope) {
+      setScopeState(routeScope);
+    }
+
+    if (!isSavedViewsScope(routeScope)) {
       defaultFetchResultRef.current = null;
       defaultFetchScopeRef.current = null;
       defaultAppliedRef.current = false;
       finishDefaultViewBootstrap();
       return;
     }
+
+    // Items and Categories resolve default views on the server; client fetch races
+    // sibling route changes under /items (stale scope state → wrong POST target).
+    if (routeScope === "items" || routeScope === "categories") {
+      defaultFetchScopeRef.current = routeScope;
+      finishDefaultViewBootstrap();
+      return;
+    }
+
     if (appliedQueryRef.current.trim().length > 0) {
       finishDefaultViewBootstrap();
       return;
     }
-    if (defaultAppliedRef.current && defaultFetchScopeRef.current === scope) {
+    if (defaultAppliedRef.current && defaultFetchScopeRef.current === routeScope) {
+      finishDefaultViewBootstrap();
       return;
     }
-    if (defaultFetchScopeRef.current === scope) {
+    if (defaultFetchScopeRef.current === routeScope) {
       tryApplyDefaultViewRef.current();
       return;
     }
 
-    const moduleDef = getModuleViewDefinition(scope);
+    const moduleDef = getModuleViewDefinition(routeScope);
     if (!moduleDef) {
       defaultFetchResultRef.current = null;
       finishDefaultViewBootstrap();
       return;
     }
 
-    defaultFetchScopeRef.current = scope;
+    defaultFetchScopeRef.current = routeScope;
     defaultFetchResultRef.current = undefined;
     defaultAppliedRef.current = false;
     setResolvingDefaultView(null);
     setIsDefaultViewBootstrapping(true);
 
-    void getDefaultCustomModuleView(moduleDef.moduleName).then((result) => {
-      if (defaultFetchScopeRef.current !== scope) return;
+    if (!pathnameMatchesScope(pathname, routeScope)) {
+      finishDefaultViewBootstrap();
+      return;
+    }
+
+    void fetchDefaultCustomModuleViewDeduped(moduleDef.moduleName).then((result) => {
+      if (defaultFetchScopeRef.current !== routeScope) return;
+      if (!pathnameMatchesScope(pathname, routeScope)) return;
       defaultFetchResultRef.current =
         result.ok && result.view ? result.view : null;
       tryApplyDefaultViewRef.current();
     });
-  }, [scope, finishDefaultViewBootstrap]);
+  }, [pathname, scope, finishDefaultViewBootstrap]);
 
   useEffect(() => {
-    tryApplyDefaultViewRef.current();
+    const routeScope = resolveScopeFromPath(pathname);
+    if (routeScope !== "items" && routeScope !== "categories") {
+      tryApplyDefaultViewRef.current();
+    }
     if (permissions && activeSavedView && defaultAppliedRef.current && !compileResult) {
       const viewScope = activeSavedView.module_name as FilterScope;
       compileSavedViewQuery(activeSavedView, viewScope);
     }
-  }, [permissions, tryApplyDefaultView, activeSavedView, compileResult, compileSavedViewQuery]);
+  }, [
+    pathname,
+    permissions,
+    tryApplyDefaultView,
+    activeSavedView,
+    compileResult,
+    compileSavedViewQuery,
+  ]);
 
   const applyModalFilters = useCallback(() => {
     if (!permissions) return;

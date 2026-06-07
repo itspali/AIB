@@ -1,26 +1,38 @@
 "use client";
 
-import { Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import {
+  ProductCardBulkCheckbox,
+  ProductCardChromeBadges,
+  ProductCardFooterRail,
+  ProductCardImageWell,
+  ProductCardTypeIcon,
+} from "@/components/products/product-list-card-parts";
+import {
+  renderProductListCell,
   resolveProductListCellTextWrapClass,
   renderProductListActiveStatus,
 } from "@/components/products/product-list-cells";
-import type { TextWrapMode } from "@/lib/display/text-wrap";
-import type { ProductListColumnId } from "@/lib/products/list-columns";
+import { defaultWrapModeForValueKind, type TextWrapMode } from "@/lib/display/text-wrap";
+import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import { buildCardLayoutPlan } from "@/lib/products/card-layout-plan";
+import type { ProductCardMetaDisplay, ProductCardOrientation } from "@/lib/products/list-prefs";
 import type { ProductListRow } from "@/lib/products/types";
+import {
+  productListCardHoverClass,
+  productListCardShellClass,
+  productListCardSurfaceClass,
+} from "@/lib/products/list-card-surface";
 import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import {
-  productListHasVariantsBadgeLabel,
   productListRowKindBadgeVariant,
   productListRowKindLabel,
 } from "@/lib/products/variant-strategy";
@@ -30,65 +42,22 @@ import {
 } from "@/lib/products/list-row-key";
 import { cn } from "@/lib/utils";
 
-type CardProps = {
+export type ProductListCardProps = {
   product: ProductListRow;
   columns: ProductListColumnId[];
   columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
+  columnChipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
+  orientation?: ProductCardOrientation;
+  metaDisplay?: ProductCardMetaDisplay;
   showVariants?: boolean;
   selected: boolean;
   bulkSelected: boolean;
   onSelect: (productId: string, variantId?: string | null) => void;
+  onProductHover?: (productId: string, variantId?: string | null) => void;
+  onProductPointerEnter?: (productId: string, variantId?: string | null) => void;
   onBulkToggle: (checked: boolean) => void;
   onImageClick?: (product: ProductListRow) => void;
 };
-
-function CardImage({
-  product,
-  onImageClick,
-}: {
-  product: ProductListRow;
-  onImageClick?: (product: ProductListRow) => void;
-}) {
-  const thumbClass =
-    "h-14 w-14 rounded-lg border border-border object-cover bg-muted sm:h-16 sm:w-16";
-
-  if (product.image_url && onImageClick) {
-    return (
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={(event) => {
-          event.stopPropagation();
-          onImageClick(product);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            event.stopPropagation();
-            onImageClick(product);
-          }
-        }}
-        className="inline-flex cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        aria-label={`View images for ${product.name}`}
-      >
-        <img src={product.image_url} alt="" className={thumbClass} loading="lazy" />
-      </span>
-    );
-  }
-
-  if (product.image_url) {
-    return <img src={product.image_url} alt="" className={thumbClass} loading="lazy" />;
-  }
-
-  return (
-    <span
-      className="inline-flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-border bg-muted/60 text-muted-foreground sm:h-16 sm:w-16"
-      aria-hidden
-    >
-      <Package className="h-5 w-5" />
-    </span>
-  );
-}
 
 function FlagToken({ label, enabled }: { label: string; enabled: boolean }) {
   return (
@@ -103,34 +72,243 @@ function FlagToken({ label, enabled }: { label: string; enabled: boolean }) {
   );
 }
 
-/** Structured regional card layout (preview / comparison). */
+function SkuHero({
+  product,
+  showVariants,
+  chipDisplay,
+  isHorizontal,
+  underImage = false,
+  skuText,
+}: {
+  product: ProductListRow;
+  showVariants: boolean;
+  chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
+  isHorizontal: boolean;
+  underImage?: boolean;
+  skuText?: string | null;
+}) {
+  return (
+    <div
+      className={cn(
+        "max-w-full truncate font-mono font-medium text-muted-foreground",
+        underImage
+          ? "w-full text-center text-xs sm:text-sm"
+          : cn("w-fit", isHorizontal ? "text-sm sm:text-base" : "text-sm")
+      )}
+    >
+      {skuText ??
+        renderProductListCell("default_sku", product, { showVariants, chipDisplay })}
+    </div>
+  );
+}
+
+function DetailOverflowMenu({
+  product,
+  plan,
+  showVariants,
+  chipDisplay,
+}: {
+  product: ProductListRow;
+  plan: ReturnType<typeof buildCardLayoutPlan>;
+  showVariants: boolean;
+  chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
+}) {
+  if (plan.detailOverflow.length === 0) return null;
+
+  return (
+    <div className="mt-1 flex justify-end" onClick={(event) => event.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs">
+            +{plan.detailOverflow.length} more fields
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="max-w-xs">
+          {plan.detailOverflow.map((field) => (
+            <DropdownMenuItem key={field.columnId} className="flex flex-col items-start gap-0.5">
+              <span className="text-[11px] text-muted-foreground">{field.label}</span>
+              <span className="text-sm font-medium">
+                {getColumnDef(field.columnId).chipEligible
+                  ? renderProductListCell(field.columnId, product, {
+                      showVariants,
+                      chipDisplay,
+                    })
+                  : field.value}
+              </span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+/** Structured detail card — vertical stack or horizontal catalog row. */
 export function ProductListCompactCardV2({
   product,
   columns,
   columnWrapModes,
+  columnChipDisplay,
+  orientation = "vertical",
+  metaDisplay = "labels",
   showVariants = false,
   selected,
   bulkSelected,
   onSelect,
+  onProductHover,
+  onProductPointerEnter,
   onBulkToggle,
   onImageClick,
-}: CardProps) {
+}: ProductListCardProps) {
+  const isHorizontal = orientation === "horizontal";
   const presentation = resolveProductListRowPresentation(product, showVariants);
   const rowInactive = isProductListRowInactive(product, showVariants);
   const rowActive = resolveProductListRowActiveStatus(product, showVariants);
   const plan = buildCardLayoutPlan(columns, product, showVariants, { rowActive });
 
   const hasLowerRegion =
-    plan.regions.metrics ||
-    plan.regions.details ||
-    plan.regions.flags ||
-    plan.regions.meta;
+    !isHorizontal &&
+    (plan.regions.metrics ||
+      plan.regions.details ||
+      plan.regions.flags ||
+      plan.regions.meta);
+
+  const nameWrapMode =
+    columnWrapModes?.name ??
+    getColumnDef("name").defaultWrapMode ??
+    defaultWrapModeForValueKind("text", "card");
+  const nameWrapClass = resolveProductListCellTextWrapClass(
+    "name",
+    columnWrapModes?.name,
+    "card"
+  );
+
+  const variantSkuText =
+    presentation.isExpandedVariantRow && plan.hero.variantSkuLine
+      ? plan.hero.variantSkuLine
+      : null;
+  const showMasterSkuSubline =
+    !presentation.isExpandedVariantRow &&
+    plan.regions.heroSku &&
+    Boolean(plan.hero.heroSkuLabel);
+  const showSkuSublineUnderName = Boolean(variantSkuText) || showMasterSkuSubline;
+
+  const descriptionBlock = plan.regions.description ? (
+    <p
+      className={cn(
+        "text-xs leading-relaxed text-muted-foreground",
+        isHorizontal ? "line-clamp-2" : undefined,
+        resolveProductListCellTextWrapClass("description", columnWrapModes?.description, "card")
+      )}
+    >
+      {product.description}
+    </p>
+  ) : null;
+
+  const heroSublineUnderName = showSkuSublineUnderName ? (
+    <SkuHero
+      product={product}
+      showVariants={showVariants}
+      chipDisplay={columnChipDisplay}
+      isHorizontal={isHorizontal}
+      skuText={variantSkuText}
+    />
+  ) : isHorizontal ? (
+    descriptionBlock
+  ) : null;
+
+  const showVariantBadge = presentation.isExpandedVariantRow;
+  const showStatusBadge = plan.chrome.showStatus;
+  const hasChromeBadges = showVariantBadge || showStatusBadge;
+
+  const cardSurfaceClass = productListCardSurfaceClass(presentation, selected);
+
+  const chromeBadges = (
+    <>
+      {showVariantBadge ? (
+        <Badge variant={productListRowKindBadgeVariant("variant")} className="shrink-0">
+          {productListRowKindLabel("variant")}
+        </Badge>
+      ) : null}
+      {showStatusBadge ? (
+        <div onClick={(event) => event.stopPropagation()}>
+          {renderProductListActiveStatus(rowActive, columnChipDisplay?.is_active)}
+        </div>
+      ) : null}
+    </>
+  );
+
+  const heroBody = (
+    <div className="flex min-w-0 flex-1 items-start gap-2">
+      <ProductCardTypeIcon />
+      <div
+        className={cn(
+          "min-w-0 flex-1 space-y-1 overflow-hidden",
+          isHorizontal && "pr-1 sm:pr-1.5"
+        )}
+      >
+        <div className="flex min-w-0 items-start gap-2">
+          {plan.hero.showTitle ? (
+            <p
+              className={cn(
+                "min-w-0 flex-1 font-semibold leading-tight text-foreground",
+                isHorizontal ? "text-sm sm:text-base" : "text-base",
+                nameWrapClass
+              )}
+              title={
+                nameWrapMode === "truncate" ? product.name?.trim() || undefined : undefined
+              }
+            >
+              {product.name?.trim() || "—"}
+            </p>
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
+          {hasChromeBadges ? (
+            <ProductCardChromeBadges className="shrink-0">{chromeBadges}</ProductCardChromeBadges>
+          ) : null}
+        </div>
+
+        {heroSublineUnderName}
+
+        {plan.hero.attributeSubline ? (
+          <p className="truncate text-xs text-muted-foreground">{plan.hero.attributeSubline}</p>
+        ) : null}
+
+        {plan.regions.heroContext ? (
+          <p className="truncate text-xs text-muted-foreground">
+            {plan.hero.contextSegments.map((segment, index) => (
+              <span key={index}>
+                {index > 0 ? <span aria-hidden> · </span> : null}
+                <span className={segment.mono ? "font-mono" : undefined}>{segment.text}</span>
+              </span>
+            ))}
+            {plan.hero.contextOverflowCount > 0 ? (
+              <span className="text-muted-foreground/80">
+                {" "}
+                · +{plan.hero.contextOverflowCount} more
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+
+        {!isHorizontal ? descriptionBlock : null}
+
+        {plan.regions.footerRail ? (
+          <ProductCardFooterRail items={plan.footerRail} metaDisplay={metaDisplay} />
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <article
+      data-row-kind={presentation.kind}
       role="button"
       tabIndex={0}
       onClick={() => onSelect(product.id, product.variant_id)}
+      onMouseEnter={() => onProductHover?.(product.id, product.variant_id)}
+      onPointerEnter={() => onProductPointerEnter?.(product.id, product.variant_id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -138,105 +316,43 @@ export function ProductListCompactCardV2({
         }
       }}
       className={cn(
-        "surface-panel flex min-h-[7.5rem] w-full cursor-pointer flex-col rounded-xl p-3 text-left transition-colors duration-200 sm:p-4",
-        "hover:border-primary/30 hover:bg-accent/20",
-        presentation.isExpandedVariantRow &&
-          "border border-dashed border-border/80 bg-muted/25 hover:bg-muted/35",
-        presentation.isStyleRow && "bg-background",
+        "relative w-full min-w-0 cursor-pointer overflow-hidden text-left",
+        productListCardShellClass,
+        productListCardHoverClass,
+        cardSurfaceClass,
+        isHorizontal
+          ? "flex items-stretch gap-3 p-3 sm:gap-4 sm:p-4"
+          : "flex min-h-[7.5rem] flex-col p-3 sm:p-4",
         rowInactive && "opacity-50",
-        selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
-        !hasLowerRegion && "justify-between"
+        !hasLowerRegion && !isHorizontal && "justify-between"
       )}
     >
-      <header className="mb-2 flex items-center justify-between gap-2">
-        <Checkbox
-          checked={bulkSelected}
-          onCheckedChange={(checked) => onBulkToggle(checked === true)}
-          onClick={(event) => event.stopPropagation()}
-          aria-label={`Select ${product.name}`}
-        />
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {presentation.isExpandedVariantRow ? (
-            <Badge variant={productListRowKindBadgeVariant("variant")} className="shrink-0">
-              {productListRowKindLabel("variant")}
-            </Badge>
-          ) : presentation.showHasVariantsIndicator ? (
-            <Badge variant={productListRowKindBadgeVariant("style")} className="shrink-0">
-              {productListHasVariantsBadgeLabel()}
-            </Badge>
-          ) : null}
-          {plan.chrome.showStatus ? (
-            <div onClick={(event) => event.stopPropagation()}>
-              {renderProductListActiveStatus(plan.chrome.statusActive)}
+      <ProductCardBulkCheckbox
+        product={product}
+        bulkSelected={bulkSelected}
+        onBulkToggle={onBulkToggle}
+      />
+      <div className={cn("flex gap-3", isHorizontal ? "min-w-0 flex-1 items-stretch" : "flex-col")}>
+        <div className={cn("flex min-w-0 gap-3", isHorizontal ? "flex-1" : "flex-row")}>
+          {plan.hero.showImage ? (
+            <div
+              className={cn(
+                "flex shrink-0 flex-col gap-1.5",
+                isHorizontal && "w-[5.5rem] sm:w-24"
+              )}
+            >
+              <ProductCardImageWell
+                product={product}
+                onImageClick={onImageClick}
+                size={isHorizontal ? "lg" : "md"}
+              />
             </div>
           ) : null}
-        </div>
-      </header>
-
-      <div className="flex gap-3">
-        {plan.hero.showImage ? (
-          <div className="shrink-0">
-            <CardImage product={product} onImageClick={onImageClick} />
-          </div>
-        ) : null}
-
-        <div className="min-w-0 flex-1 space-y-1">
-          {plan.hero.showTitle ? (
-            <p
-              className={cn(
-                "text-base font-semibold leading-tight text-foreground",
-                resolveProductListCellTextWrapClass("name", columnWrapModes?.name, "card")
-              )}
-            >
-              {product.name?.trim() || "—"}
-            </p>
-          ) : null}
-
-          {plan.hero.attributeSubline ? (
-            <p className="truncate text-xs text-muted-foreground">{plan.hero.attributeSubline}</p>
-          ) : null}
-
-          {plan.hero.variantSkuLine ? (
-            <p className="truncate font-mono text-xs text-muted-foreground">
-              {plan.hero.variantSkuLine}
-            </p>
-          ) : null}
-
-          {plan.regions.heroContext ? (
-            <p className="truncate text-xs text-muted-foreground">
-              {plan.hero.contextSegments.map((segment, index) => (
-                <span key={index}>
-                  {index > 0 ? <span aria-hidden> · </span> : null}
-                  <span className={segment.mono ? "font-mono" : undefined}>{segment.text}</span>
-                </span>
-              ))}
-              {plan.hero.contextOverflowCount > 0 ? (
-                <span className="text-muted-foreground/80">
-                  {" "}
-                  · +{plan.hero.contextOverflowCount} more
-                </span>
-              ) : null}
-            </p>
-          ) : null}
-
-          {plan.regions.description ? (
-            <p
-              className={cn(
-                "text-xs text-muted-foreground",
-                resolveProductListCellTextWrapClass(
-                  "description",
-                  columnWrapModes?.description,
-                  "card"
-                )
-              )}
-            >
-              {product.description}
-            </p>
-          ) : null}
+          {heroBody}
         </div>
       </div>
 
-      {plan.regions.metrics ? (
+      {!isHorizontal && plan.regions.metrics ? (
         <div
           className={cn(
             "mt-3 grid gap-2 border-t border-border/60 pt-3",
@@ -254,46 +370,50 @@ export function ProductListCompactCardV2({
         </div>
       ) : null}
 
-      {plan.regions.details ? (
+      {!isHorizontal && plan.regions.details ? (
         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-border/60 pt-2 text-xs">
           {plan.details.map((field) => (
             <div key={field.columnId} className="contents">
               <dt className="truncate text-muted-foreground">{field.label}</dt>
-              <dd className="truncate font-medium text-foreground">{field.value}</dd>
+              <dd className="truncate font-medium text-foreground">
+                {getColumnDef(field.columnId).chipEligible
+                  ? renderProductListCell(field.columnId, product, {
+                      showVariants,
+                      chipDisplay: columnChipDisplay,
+                    })
+                  : field.value}
+              </dd>
             </div>
           ))}
         </dl>
       ) : null}
 
-      {plan.detailOverflow.length > 0 ? (
-        <div className="mt-1 flex justify-end" onClick={(event) => event.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                +{plan.detailOverflow.length} more fields
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-w-xs">
-              {plan.detailOverflow.map((field) => (
-                <DropdownMenuItem key={field.columnId} className="flex flex-col items-start gap-0.5">
-                  <span className="text-[11px] text-muted-foreground">{field.label}</span>
-                  <span className="text-sm font-medium">{field.value}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ) : null}
+      <DetailOverflowMenu
+        product={product}
+        plan={plan}
+        showVariants={showVariants}
+        chipDisplay={columnChipDisplay}
+      />
 
-      {plan.regions.flags ? (
+      {!isHorizontal && plan.regions.flags ? (
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-border/60 pt-2">
-          {plan.flags.map((flag) => (
-            <FlagToken key={flag.columnId} label={flag.label} enabled={flag.enabled} />
-          ))}
+          {plan.flags.map((flag) =>
+            getColumnDef(flag.columnId).chipEligible &&
+            columnChipDisplay?.[flag.columnId]?.mode === "chip" ? (
+              <span key={flag.columnId}>
+                {renderProductListCell(flag.columnId, product, {
+                  showVariants,
+                  chipDisplay: columnChipDisplay,
+                })}
+              </span>
+            ) : (
+              <FlagToken key={flag.columnId} label={flag.label} enabled={flag.enabled} />
+            )
+          )}
         </div>
       ) : null}
 
-      {plan.regions.meta ? (
+      {!isHorizontal && plan.regions.meta ? (
         <footer className="mt-auto pt-2 text-[11px] leading-relaxed text-muted-foreground">
           {plan.metaLine}
         </footer>

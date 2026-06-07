@@ -3,6 +3,8 @@ import {
   filterSharedMedia,
   filterVariantSpecificMedia,
   listMediaVariantRows,
+  formatMediaSkuBadgeLabel,
+  resolveMediaVariantSkuBadge,
 } from "@/lib/products/media-variants";
 import type { ProductMediaSnapshot, ProductVariantSnapshot } from "@/lib/products/types";
 
@@ -65,5 +67,16 @@ describe("media-variants", () => {
   it("returns only variant-owned media for a SKU", () => {
     const redOnly = filterVariantSpecificMedia(media, redId);
     expect(redOnly.map((entry) => entry.id)).toEqual(["r1"]);
+  });
+
+  it("returns SKU badges only for sellable variant-owned media", () => {
+    expect(resolveMediaVariantSkuBadge(redId, variants, variants[0]!)).toBe("SHIRT-RED");
+    expect(resolveMediaVariantSkuBadge(masterId, variants, variants[0]!)).toBeNull();
+    expect(resolveMediaVariantSkuBadge(null, variants, variants[0]!)).toBeNull();
+  });
+
+  it("abbreviates long SKU labels with a left ellipsis", () => {
+    expect(formatMediaSkuBadgeLabel("SHIRT-RED")).toBe("SHIRT-RED");
+    expect(formatMediaSkuBadgeLabel("SHIRT-RED-SMALL-EXTRA")).toBe("…D-SMALL-EXTRA");
   });
 });

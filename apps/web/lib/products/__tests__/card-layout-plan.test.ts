@@ -40,7 +40,11 @@ describe("buildCardLayoutPlan", () => {
     const plan = buildCardLayoutPlan(essentials, sampleRow(), false);
 
     expect(plan.hero.showTitle).toBe(true);
-    expect(plan.hero.contextSegments).toEqual([{ text: "WGT-001", mono: true }]);
+    expect(plan.hero.contextSegments).toEqual([]);
+    expect(plan.footerRail).toEqual([]);
+    expect(plan.regions.heroSku).toBe(true);
+    expect(plan.hero.heroSkuLabel).toBe("WGT-001");
+    expect(plan.regions.footerRail).toBe(false);
     expect(plan.regions.metrics).toBe(false);
     expect(plan.regions.details).toBe(false);
     expect(plan.regions.flags).toBe(false);
@@ -57,8 +61,11 @@ describe("buildCardLayoutPlan", () => {
     ];
     const plan = buildCardLayoutPlan(columns, sampleRow(), false);
 
-    expect(plan.hero.contextSegments).toHaveLength(CARD_CONTEXT_SEGMENT_CAP);
-    expect(plan.hero.contextOverflowCount).toBe(1);
+    expect(plan.regions.heroSku).toBe(true);
+    expect(plan.hero.heroSkuLabel).toBe("WGT-001");
+    expect(plan.hero.contextSegments).toEqual([{ text: "8900001", mono: false }]);
+    expect(plan.hero.contextOverflowCount).toBe(0);
+    expect(plan.footerRail.map((item) => item.columnId)).toEqual(["category_name"]);
   });
 
   it("places stock and prices in metrics region", () => {
@@ -119,5 +126,25 @@ describe("buildCardLayoutPlan", () => {
     expect(plan.shop.comparePrice).toBeTruthy();
     expect(plan.shop.stockStatus).toBe("in_stock");
     expect(plan.shop.category).toBe("Apparel");
+  });
+
+  it("marks shop stock low when below_reorder is set from list view", () => {
+    const plan = buildCardLayoutPlan(
+      ["name", "stock_on_hand"],
+      sampleRow({ stock_on_hand: "42", below_reorder: true }),
+      false
+    );
+
+    expect(plan.shop.stockStatus).toBe("low_stock");
+  });
+
+  it("marks shop stock low from reorder point when below_reorder is absent", () => {
+    const plan = buildCardLayoutPlan(
+      ["name", "stock_on_hand"],
+      sampleRow({ stock_on_hand: "4", reorder_point: "10" }),
+      false
+    );
+
+    expect(plan.shop.stockStatus).toBe("low_stock");
   });
 });

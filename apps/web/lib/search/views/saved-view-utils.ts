@@ -48,3 +48,13 @@ export type SavedViewSnapshot = Pick<
   CustomModuleView,
   "id" | "raw_search_text" | "compiled_ast" | "module_name" | "view_name"
 >;
+
+export function toSavedViewSnapshot(view: CustomModuleView): SavedViewSnapshot {
+  return {
+    id: view.id,
+    module_name: view.module_name,
+    view_name: view.view_name,
+    raw_search_text: view.raw_search_text,
+    compiled_ast: view.compiled_ast,
+  };
+}
