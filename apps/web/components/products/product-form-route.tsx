@@ -22,6 +22,7 @@ import {
   type EditorStageId,
 } from "@/lib/products/editor-stages";
 import type { WizardNav } from "@/lib/products/use-product-create-wizard";
+import { SAVE_ITEM_LABEL, UPDATE_ITEM_LABEL } from "@/lib/products/product-user-labels";
 import {
   ITEM_CATALOG_ORIGIN_PARAM,
   ITEM_CATALOG_ORIGIN_VALUE,
@@ -249,7 +250,9 @@ export function ProductFormRoute({
               {isSaving
                 ? "Saving..."
                 : wizardLayout === "accordion"
-                  ? "Save item"
+                  ? mode === "edit"
+                    ? UPDATE_ITEM_LABEL
+                    : SAVE_ITEM_LABEL
                   : "Save & continue"}
             </Button>
           ) : null}

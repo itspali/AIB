@@ -18,6 +18,7 @@ describe("document-numbering", () => {
       "GOODS_RECEIPT_NOTE",
       "PURCHASE_INVOICE",
       "STOCK_TRANSFER",
+      "STOCK_ADJUSTMENT",
     ]);
   });
 
@@ -57,7 +58,7 @@ describe("document-numbering", () => {
     expect(keys).toContain("PURCHASE_ORDER");
     expect(keys).toContain("SALES_INVOICE");
     expect(keys).toContain("GENERAL_LEDGER");
-    expect(keys).toHaveLength(10);
+    expect(keys).toHaveLength(11);
   });
 
   it("returns no keys for manufacturing-only locations", () => {

@@ -44,8 +44,11 @@ import type { CompositionCommitResult } from "@/components/products/product-edit
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import type { ProductPanelMutationHeader } from "@/components/products/product-panel-form";
 import { ItemExtensionDataProvider } from "@/components/products/item-extension-data-provider";
-import { VariantAssortmentMatrix } from "@/components/products/variant-assortment-matrix";
-import { VariantBufferThresholdMatrix } from "@/components/products/variant-buffer-threshold-matrix";
+import {
+  VariantAssortmentMatrix,
+  type ReachPersistFailures,
+  type VariantAssortmentMatrixHandle,
+} from "@/components/products/variant-assortment-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
@@ -80,8 +83,8 @@ import {
   VISIBILITY_LOCATIONS_SUBSECTION,
   VISIBILITY_SECTION_HELP,
   VISIBILITY_SECTION_LABEL,
-  BUFFER_THRESHOLDS_LOADING,
-  BUFFER_THRESHOLDS_SUBSECTION,
+  SAVE_ITEM_LABEL,
+  UPDATE_ITEM_LABEL,
 } from "@/lib/products/product-user-labels";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -889,12 +892,30 @@ export function ProductEditorShell({
   );
 
   const formRef = useRef<HTMLFormElement | null>(null);
+  const locationMatrixRef = useRef<VariantAssortmentMatrixHandle>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
   const panelRailRef = useRef<HTMLElement | null>(null);
   const panelScrollRef = useRef<HTMLDivElement | null>(null);
   const scrollRootRef = useRef<HTMLElement | null>(null);
   const sectionRefs = useRef<Partial<Record<SectionId, HTMLDivElement | null>>>({});
   const ignoreSpyUntilRef = useRef(0);
+  const onSavedParentRef = useRef(onSaved);
+  onSavedParentRef.current = onSaved;
+  const [reachSaveErrors, setReachSaveErrors] = useState<ReachPersistFailures | null>(null);
+  const itemSavedHandlerRef = useRef<
+    (savedId: string, savedDetail?: ProductDetailSnapshot | null) => Promise<boolean>
+  >(async (savedId, savedDetail) => {
+    onSavedParentRef.current?.(savedId, savedDetail ?? null);
+    return true;
+  });
+  const scrollToSectionRef = useRef<(id: SectionId) => void>(() => {});
+  const handleItemSaved = useCallback(
+    async (savedId: string, savedDetail?: ProductDetailSnapshot | null) =>
+      itemSavedHandlerRef.current(savedId, savedDetail),
+    []
+  );
+
+  const itemSaveLabel = mode === "edit" ? UPDATE_ITEM_LABEL : SAVE_ITEM_LABEL;
 
   const {
     form,
@@ -916,7 +937,7 @@ export function ProductEditorShell({
     catalogContext,
     initialValues,
     mode,
-    onSaved,
+    onSaved: handleItemSaved,
     onPendingChange,
     refreshOnSave: !wizard,
     hydrateOnInitialValuesChange: Boolean(wizard),
@@ -927,7 +948,7 @@ export function ProductEditorShell({
     (isSectionMounted("salable") ||
       isSectionMounted("purchasable") ||
       isSectionMounted("variants") ||
-      isSectionMounted("inventory"));
+      isSectionMounted("visibility"));
 
   const disableInput = useCallback(
     (formField: keyof ProductMasterFormValues | string, lockKey?: string) => {
@@ -1366,6 +1387,24 @@ export function ProductEditorShell({
     [isPanelLayout, panelUseTopSectionTabs]
   );
 
+  scrollToSectionRef.current = scrollToSection;
+  itemSavedHandlerRef.current = async (savedId, savedDetail) => {
+    setReachSaveErrors(null);
+    if (savedId && locationMatrixRef.current) {
+      const persistResult = await locationMatrixRef.current.persist({
+        storefrontVisibility: getValues("storefront_visibility"),
+      });
+      if (!persistResult.ok) {
+        setReachSaveErrors(persistResult.failures);
+        scrollToSectionRef.current("visibility");
+        onSavedParentRef.current?.(savedId, savedDetail ?? null);
+        return false;
+      }
+    }
+    onSavedParentRef.current?.(savedId, savedDetail ?? null);
+    return true;
+  };
+
   const registerSection = useCallback(
     (id: SectionId) => (el: HTMLDivElement | null) => {
       sectionRefs.current[id] = el;
@@ -1405,11 +1444,11 @@ export function ProductEditorShell({
       }
       return "Saving…";
     }
-    if (!wizard) return "Save item";
+    if (!wizard) return itemSaveLabel;
     if (wizard.isLast) return "Finish";
     if (wizard.isFirst) return "Save & continue";
     return "Continue";
-  }, [submitPending, variantCompositionMode, wizard]);
+  }, [itemSaveLabel, submitPending, variantCompositionMode, wizard]);
 
   // Hand the save trigger to the wizard host so its nav buttons can save first.
   useEffect(() => {
@@ -1530,10 +1569,11 @@ export function ProductEditorShell({
       },
       isPending: submitPending,
       isNavigatePending,
-      saveLabel: submitPending ? "Saving…" : "Save item",
+      saveLabel: submitPending ? "Saving…" : itemSaveLabel,
     });
     return () => onMutationHeaderChange(null);
   }, [
+    itemSaveLabel,
     onMutationHeaderChange,
     isPanelLayout,
     readOnly,
@@ -1555,12 +1595,21 @@ export function ProductEditorShell({
       };
     }
     return {
-      label: submitPending ? "Saving…" : "Save item",
+      label: submitPending ? "Saving…" : itemSaveLabel,
       onClick: () => {
         void handleSave();
       },
     };
-  }, [readOnly, isPanelLayout, wizard, wizardSteps, submitPending, wizardPrimaryLabel, handleSave]);
+  }, [
+    itemSaveLabel,
+    readOnly,
+    isPanelLayout,
+    wizard,
+    wizardSteps,
+    submitPending,
+    wizardPrimaryLabel,
+    handleSave,
+  ]);
 
   useEffect(() => {
     onDirtyChange?.(
@@ -1580,6 +1629,16 @@ export function ProductEditorShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [readOnly]);
 
+  const reachPersistErrorMessage = useMemo(() => {
+    if (!reachSaveErrors) return undefined;
+    const parts = [
+      reachSaveErrors.locations,
+      reachSaveErrors.reorder,
+      reachSaveErrors.channels,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(" ") : undefined;
+  }, [reachSaveErrors]);
+
   const sectionErrors = useMemo(() => {
     const map: Record<SectionId, boolean> = {
       overview: false,
@@ -1598,8 +1657,11 @@ export function ProductEditorShell({
       const section = FIELD_SECTION[key];
       if (section) map[section] = true;
     });
+    if (reachPersistErrorMessage) {
+      map.visibility = true;
+    }
     return map;
-  }, [errors]);
+  }, [errors, reachPersistErrorMessage]);
 
   const sectionStatus = useCallback(
     (id: SectionId): SectionStatus => {
@@ -2943,27 +3005,6 @@ export function ProductEditorShell({
                   </div>
                 ) : null}
 
-                {trackInventory && itemId && variants.length > 0 ? (
-                  <div className={editorPanelDividerClass()}>
-                    <SubsectionHeading
-                      title={BUFFER_THRESHOLDS_SUBSECTION}
-                      compact={isPanelLayout}
-                      info={fieldHelpText(ITEM_EDITOR_FIELD_HELP.reorderPoint)}
-                    />
-                    {isSectionMounted("inventory") ? (
-                      <VariantBufferThresholdMatrix
-                        itemId={itemId}
-                        variants={variants}
-                        defaultReorderPoint={defaultReorderPoint}
-                        readOnly={readOnly || fieldDisabled}
-                        embedded
-                      />
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{BUFFER_THRESHOLDS_LOADING}</p>
-                    )}
-                  </div>
-                ) : null}
-
                 {trackInventory && valuations.length > 0 ? (
                   <div className={editorPanelDividerClass()}>
                     <SubsectionHeading
@@ -3217,17 +3258,31 @@ export function ProductEditorShell({
                       <SubsectionHeading
                         title={VISIBILITY_LOCATIONS_SUBSECTION}
                         compact={isPanelLayout}
+                        error={reachPersistErrorMessage}
                         info={fieldHelpText(
-                          hasListedChannels
-                            ? `${VISIBILITY_LOCATIONS_HELP} Listed channels appear as columns on the right for per-variant listings.`
-                            : VISIBILITY_LOCATIONS_HELP
+                          [
+                            VISIBILITY_LOCATIONS_HELP,
+                            hasListedChannels
+                              ? "Listed channels appear as columns on the right for per-variant listings."
+                              : null,
+                            trackInventory
+                              ? "Reorder inherits the product default from Inventory until you override it here."
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" ")
                         )}
                       />
                       <VariantAssortmentMatrix
+                        ref={locationMatrixRef}
                         itemId={itemId}
                         variants={variants}
                         sellableVariantsOnly={hasListedChannels}
+                        trackInventory={trackInventory}
+                        defaultReorderPoint={defaultReorderPoint}
+                        deferSaveToParent={!readOnly && !fieldDisabled}
                         storefrontVisibility={storefrontVisibility}
+                        persistError={reachPersistErrorMessage}
                         readOnly={readOnly || fieldDisabled}
                         embedded
                       />
@@ -3323,7 +3378,7 @@ export function ProductEditorShell({
                 {isNavigatePending ? "Leaving…" : "Cancel"}
               </Button>
               <Button type="submit" disabled={submitPending || isNavigatePending} title="Save (Cmd/Ctrl + Enter)">
-                {submitPending ? "Saving…" : "Save item"}
+                {submitPending ? "Saving…" : itemSaveLabel}
               </Button>
             </>
           )}

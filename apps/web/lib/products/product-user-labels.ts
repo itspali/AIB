@@ -94,10 +94,17 @@ export const VISIBILITY_VARIANT_CHANNELS_EMPTY =
 export const VISIBILITY_MATRIX_BULK_LIST = "List selected on all channels";
 export const VISIBILITY_MATRIX_BULK_UNLIST = "Unlist selected on all channels";
 export const VISIBILITY_MATRIX_STOCK_LABEL = "Stock";
+export const VISIBILITY_MATRIX_REORDER_LABEL = "Reorder";
+export const VISIBILITY_MATRIX_SHOW_REORDER_LEVELS = "Reorder levels";
+export const SAVE_ITEM_LABEL = "Save item";
+export const UPDATE_ITEM_LABEL = "Update item";
+export const ITEM_SAVE_PARTIAL_REACH_ERROR =
+  "Product profile saved, but some Reach settings could not be saved. See highlighted sections.";
+export const ITEM_SAVE_SUCCESS = "Product master profile saved successfully";
 export const VISIBILITY_MATRIX_SELL_LABEL = "Sell";
 export const VISIBILITY_LOCATIONS_SUBSECTION = "Locations";
 export const VISIBILITY_LOCATIONS_HELP =
-  "Which locations stock and sell each variant SKU.";
+  "Which locations stock and sell each sellable variant SKU. Storage locations also include a Reorder column when inventory tracking is on.";
 export const CUSTOM_FIELDS_SECTION_LABEL = "Custom fields";
 export const CUSTOM_FIELDS_SECTION_HELP = "Extra catalog details you define for this product.";
 export const DISCOVERY_TAGS_SECTION_LABEL = "Discovery tags";
@@ -113,7 +120,7 @@ export const CATALOG_REACH_DISTRIBUTION_LOADING =
 
 export const BUFFER_THRESHOLDS_SUBSECTION = "Reorder by location";
 export const BUFFER_THRESHOLDS_MATRIX_HELP =
-  "Set when each variant SKU should be replenished at each stock-holding location. Leave blank to use the product default above. Enter 0 to disable reorder alerts for that cell.";
+  "Set when each sellable variant SKU should be replenished at each stock-holding location. Leave blank to use the product default above. Enter 0 to disable reorder alerts for that cell.";
 export const BUFFER_THRESHOLDS_LOADING =
   "Per-variant reorder thresholds load when you open Inventory.";
 

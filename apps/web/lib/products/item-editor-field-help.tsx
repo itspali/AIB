@@ -40,7 +40,7 @@ export const ITEM_EDITOR_FIELD_HELP = {
   mrp:
     "Maximum retail price (MRP) printed on the label. Optional; used as a default for new variants. Example: 0.00.",
   reorderPoint:
-    "Default reorder point for all variants and locations. Changing this updates inherited cells in the grid below; explicit overrides are kept. Example: 0.",
+    "Default reorder for all sellable variants and stocked locations. Override per SKU and location in Reach → Locations. Example: 0.",
   purchaseRate:
     "Default buy quote for all variants. Override per variant in the Suppliers grid. Example: 0.00.",
   salesUnit: "Unit shown by default on sales (piece, box, kg, etc.).",

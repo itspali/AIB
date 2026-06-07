@@ -70,32 +70,37 @@ export function mergeFieldLabelInfo(
 export function SubsectionHeading({
   title,
   info,
+  error,
   className,
   compact,
 }: {
   title: string;
   info?: ReactNode;
+  error?: string;
   className?: string;
   compact?: boolean;
 }) {
   const wrapClass = compact
     ? cn(
-        "flex w-full items-center gap-1.5 bg-transparent px-0 py-0 dark:bg-transparent",
+        "flex w-full flex-col gap-1 bg-transparent px-0 py-0 dark:bg-transparent",
         className
       )
-    : editorSubsectionHeadingWrapClass(className);
+    : cn(editorSubsectionHeadingWrapClass(className), "flex-col items-start gap-1");
 
   return (
     <div className={wrapClass}>
-      <h4
-        className={cn(
-          "font-medium text-foreground",
-          compact ? "text-xs" : "text-sm"
-        )}
-      >
-        {title}
-      </h4>
-      {info ? <FieldLabelInfo label={title}>{info}</FieldLabelInfo> : null}
+      <div className="flex w-full items-center gap-1.5">
+        <h4
+          className={cn(
+            "font-medium text-foreground",
+            compact ? "text-xs" : "text-sm"
+          )}
+        >
+          {title}
+        </h4>
+        {info ? <FieldLabelInfo label={title}>{info}</FieldLabelInfo> : null}
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

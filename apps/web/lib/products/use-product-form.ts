@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { saveProductMasterProfile } from "@/app/items/actions";
 import { parentSelectOptions, resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
+import {
+  ITEM_SAVE_PARTIAL_REACH_ERROR,
+  ITEM_SAVE_SUCCESS,
+} from "@/lib/products/product-user-labels";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import { productMasterSchema } from "@/lib/products/schemas";
 import {
@@ -43,8 +47,14 @@ export type UseProductFormOptions = {
   catalogContext: ProductCatalogContext;
   initialValues?: ProductMasterFormValues;
   mode?: ProductFormMode;
-  /** Fired after a successful save with the persisted item id + fresh detail. */
-  onSaved?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
+  /**
+   * Fired after the profile saves. Return `false` when follow-up persistence
+   * (e.g. Reach matrix) failed so the success toast is suppressed.
+   */
+  onSaved?: (
+    itemId: string,
+    detail?: ProductDetailSnapshot | null
+  ) => void | Promise<boolean | void>;
   /** Mirrors the in-flight save state to a parent (e.g. drawer footer). */
   onPendingChange?: (pending: boolean) => void;
   /** Show a success/error toast on save. Defaults to true. */
@@ -246,18 +256,23 @@ export function useProductForm({
           previousBaseUomRef.current = hydrated.base_unit_of_measure;
         }
 
+        const followUpOk = (await onSaved?.(result.itemId, result.detail ?? null)) !== false;
+
         if (notifyOnSave) {
-          const savedStrategy = payload.variant_strategy;
-          const loadedStrategy = (initialValues ?? buildDefaultValues()).variant_strategy;
-          const switchedToMulti =
-            savedStrategy === "MULTI_SKU" && loadedStrategy !== "MULTI_SKU";
-          toast.success(
-            switchedToMulti
-              ? "Product saved. Add sellable SKUs under Variants."
-              : "Product master profile saved successfully"
-          );
+          if (followUpOk) {
+            const savedStrategy = payload.variant_strategy;
+            const loadedStrategy = (initialValues ?? buildDefaultValues()).variant_strategy;
+            const switchedToMulti =
+              savedStrategy === "MULTI_SKU" && loadedStrategy !== "MULTI_SKU";
+            toast.success(
+              switchedToMulti
+                ? "Product saved. Add sellable SKUs under Variants."
+                : ITEM_SAVE_SUCCESS
+            );
+          } else {
+            toast.error(ITEM_SAVE_PARTIAL_REACH_ERROR);
+          }
         }
-        onSaved?.(result.itemId, result.detail ?? null);
         if (refreshOnSave) {
           router.refresh();
         }

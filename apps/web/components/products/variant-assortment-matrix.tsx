@@ -1,13 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  getItemBufferThresholds,
   getVariantAssortment,
   getVariantChannelAvailability,
+  saveItemBufferThresholds,
   saveVariantAssortment,
   saveVariantChannelAvailability,
+  type BufferThresholdData,
   type VariantAssortmentCell,
   type VariantAssortmentData,
   type VariantChannelCell,
@@ -21,22 +33,59 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
+  buildBufferThresholdSaveRows,
+  bufferCellKey,
+  formatBufferQuantity,
+  resolveBufferReorderDisplay,
+} from "@/lib/products/buffer-thresholds";
+import {
+  VISIBILITY_MATRIX_REORDER_LABEL,
   VISIBILITY_MATRIX_SELL_LABEL,
+  VISIBILITY_MATRIX_SHOW_REORDER_LEVELS,
   VISIBILITY_MATRIX_STOCK_LABEL,
 } from "@/lib/products/product-user-labels";
 import type { ProductMasterFormValues, ProductVariantSnapshot } from "@/lib/products/types";
 import { cn } from "@/lib/utils";
+
+export type ReachPersistFailures = {
+  locations?: string;
+  reorder?: string;
+  channels?: string;
+};
+
+export type ReachPersistResult = { ok: true } | { ok: false; failures: ReachPersistFailures };
+
+export type ReachPersistOptions = {
+  storefrontVisibility?: ProductMasterFormValues["storefront_visibility"];
+};
+
+export type VariantAssortmentMatrixHandle = {
+  persist: (options?: ReachPersistOptions) => Promise<ReachPersistResult>;
+};
 
 type Props = {
   itemId: string;
   variants: ProductVariantSnapshot[];
   /** When channels are listed, show sellable variant rows only. */
   sellableVariantsOnly?: boolean;
+  /** Enables reorder persistence and the optional reorder column toggle. */
+  trackInventory?: boolean;
+  /** Product default reorder; blank cells inherit this value. */
+  defaultReorderPoint?: string;
+  /** Hide the local save button; parent persists via {@link VariantAssortmentMatrixHandle}. */
+  deferSaveToParent?: boolean;
   storefrontVisibility?: ProductMasterFormValues["storefront_visibility"];
+  /** Shown after a deferred parent save when Reach persistence failed. */
+  persistError?: string;
   readOnly?: boolean;
   embedded?: boolean;
 };
+
+type VariantAssortmentMatrixProps = Props;
 
 type ChannelMeta = {
   id: string;
@@ -52,9 +101,20 @@ type LocationMeta = {
   is_commercial_storefront: boolean;
 };
 
-type LocationColumnKind = "stock" | "sell";
+type LocationColumnKind = "stock" | "reorder" | "sell";
 
 type CellState = { is_stocked: boolean; is_sellable: boolean };
+
+/** Fixed sub-column widths — table uses w-max so overflow scrolls instead of cramping. */
+const MATRIX_STOCK_COL_CLASS = "w-12 min-w-12 shrink-0";
+const MATRIX_REORDER_COL_CLASS = "w-14 min-w-14 shrink-0";
+const MATRIX_SELL_COL_CLASS = "w-12 min-w-12 shrink-0";
+
+function matrixSubcolumnClass(kind: LocationColumnKind): string {
+  if (kind === "reorder") return MATRIX_REORDER_COL_CLASS;
+  if (kind === "stock") return MATRIX_STOCK_COL_CLASS;
+  return MATRIX_SELL_COL_CLASS;
+}
 
 function cellKey(variantId: string, locationId: string): string {
   return `${variantId}:${locationId}`;
@@ -62,6 +122,36 @@ function cellKey(variantId: string, locationId: string): string {
 
 function channelCellKey(variantId: string, channelId: string): string {
   return `${variantId}:${channelId}`;
+}
+
+function resolveListedChannelIds(
+  storefrontVisibility: ProductMasterFormValues["storefront_visibility"]
+): Set<string> {
+  return new Set(
+    storefrontVisibility.filter((row) => row.is_visible).map((row) => row.storefront_id)
+  );
+}
+
+function buildChannelSaveRows(
+  variants: ProductVariantSnapshot[],
+  channels: ChannelMeta[],
+  listedChannelIds: Set<string>,
+  channelCells: Record<string, boolean>
+): VariantChannelCell[] {
+  const rows: VariantChannelCell[] = [];
+  for (const variant of variants) {
+    for (const channel of channels) {
+      if (!listedChannelIds.has(channel.id)) continue;
+      const visible = channelCells[channelCellKey(variant.id, channel.id)];
+      if (visible === undefined) continue;
+      rows.push({
+        storefront_id: channel.id,
+        variant_id: variant.id,
+        is_visible: visible,
+      });
+    }
+  }
+  return rows;
 }
 
 function locationSupportsStock(location: LocationMeta): boolean {
@@ -72,11 +162,30 @@ function locationSupportsSell(location: LocationMeta): boolean {
   return location.is_commercial_storefront;
 }
 
-function locationColumns(location: LocationMeta): LocationColumnKind[] {
+function locationColumns(location: LocationMeta, showReorder: boolean): LocationColumnKind[] {
   const columns: LocationColumnKind[] = [];
-  if (locationSupportsStock(location)) columns.push("stock");
+  if (locationSupportsStock(location)) {
+    columns.push("stock");
+    if (showReorder) columns.push("reorder");
+  }
   if (locationSupportsSell(location)) columns.push("sell");
   return columns;
+}
+
+function applyBufferThresholdData(
+  data: BufferThresholdData,
+  setReorderCells: (cells: Record<string, string>) => void,
+  setReorderOverrides: (overrides: Record<string, boolean>) => void
+) {
+  const nextCells: Record<string, string> = {};
+  const nextOverrides: Record<string, boolean> = {};
+  for (const cell of data.cells) {
+    const key = bufferCellKey(cell.variant_id, cell.location_id);
+    nextCells[key] = formatBufferQuantity(cell.reorder_point_qty);
+    nextOverrides[key] = true;
+  }
+  setReorderCells(nextCells);
+  setReorderOverrides(nextOverrides);
 }
 
 function applyAssortmentData(
@@ -95,14 +204,24 @@ function applyAssortmentData(
   setCells(map);
 }
 
-export function VariantAssortmentMatrix({
-  itemId,
-  variants,
-  sellableVariantsOnly = false,
-  storefrontVisibility = [],
-  readOnly = false,
-  embedded = false,
-}: Props) {
+export const VariantAssortmentMatrix = forwardRef<
+  VariantAssortmentMatrixHandle,
+  VariantAssortmentMatrixProps
+>(function VariantAssortmentMatrix(
+  {
+    itemId,
+    variants,
+    sellableVariantsOnly = false,
+    trackInventory = false,
+    defaultReorderPoint = "",
+    deferSaveToParent = false,
+    storefrontVisibility = [],
+    persistError,
+    readOnly = false,
+    embedded = false,
+  },
+  ref
+) {
   const router = useRouter();
   const extension = useOptionalItemExtensionData();
   const [loading, setLoading] = useState(true);
@@ -110,14 +229,20 @@ export function VariantAssortmentMatrix({
   const [cells, setCells] = useState<Record<string, CellState>>({});
   const [channels, setChannels] = useState<ChannelMeta[]>([]);
   const [channelCells, setChannelCells] = useState<Record<string, boolean>>({});
+  const [reorderCells, setReorderCells] = useState<Record<string, string>>({});
+  const [reorderOverrides, setReorderOverrides] = useState<Record<string, boolean>>({});
+  const [showReorderColumns, setShowReorderColumns] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const showReorderInGrid = trackInventory && showReorderColumns;
 
   const activeVariants = useMemo(() => {
     const active = variants.filter((variant) => variant.is_active);
-    if (!sellableVariantsOnly) return active;
+    const restrictToSellable = sellableVariantsOnly || trackInventory;
+    if (!restrictToSellable) return active;
     const sellable = active.filter((variant) => variant.is_sellable !== false);
     return sellable.length > 0 ? sellable : active;
-  }, [sellableVariantsOnly, variants]);
+  }, [sellableVariantsOnly, trackInventory, variants]);
 
   const activeVariantIds = useMemo(
     () => activeVariants.map((variant) => variant.id),
@@ -126,15 +251,20 @@ export function VariantAssortmentMatrix({
   const selection = useVariantMatrixSelection(activeVariantIds);
 
   const visibleLocations = useMemo(
-    () => locations.filter((location) => locationColumns(location).length > 0),
+    () => locations.filter((location) => locationColumns(location, showReorderInGrid).length > 0),
+    [locations, showReorderInGrid]
+  );
+
+  const stockLocationIds = useMemo(
+    () =>
+      locations
+        .filter((location) => locationSupportsStock(location))
+        .map((location) => location.id),
     [locations]
   );
 
   const listedChannelIds = useMemo(
-    () =>
-      new Set(
-        storefrontVisibility.filter((row) => row.is_visible).map((row) => row.storefront_id)
-      ),
+    () => resolveListedChannelIds(storefrontVisibility),
     [storefrontVisibility]
   );
 
@@ -169,9 +299,10 @@ export function VariantAssortmentMatrix({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [assortmentResult, channelResult] = await Promise.all([
+    const [assortmentResult, channelResult, bufferResult] = await Promise.all([
       getVariantAssortment(itemId),
       getVariantChannelAvailability(itemId),
+      trackInventory ? getItemBufferThresholds(itemId) : Promise.resolve(null),
     ]);
     if ("error" in assortmentResult) {
       toast.error(assortmentResult.error ?? "Unable to load assortment.");
@@ -183,10 +314,18 @@ export function VariantAssortmentMatrix({
       setLoading(false);
       return;
     }
+    if (bufferResult && "error" in bufferResult) {
+      toast.error(bufferResult.error ?? "Unable to load reorder thresholds.");
+      setLoading(false);
+      return;
+    }
     applyAssortmentData(assortmentResult.data, setLocations, setCells);
     applyChannelData(channelResult.data.channels, channelResult.data.cells);
+    if (bufferResult && "data" in bufferResult) {
+      applyBufferThresholdData(bufferResult.data, setReorderCells, setReorderOverrides);
+    }
     setLoading(false);
-  }, [applyChannelData, itemId]);
+  }, [applyChannelData, itemId, trackInventory]);
 
   useEffect(() => {
     if (!extension) {
@@ -204,8 +343,15 @@ export function VariantAssortmentMatrix({
     }
     applyAssortmentData(extension.data.assortment, setLocations, setCells);
     applyChannelData(extension.data.channels.channels, extension.data.channels.cells);
+    if (trackInventory) {
+      applyBufferThresholdData(
+        extension.data.bufferThresholds,
+        setReorderCells,
+        setReorderOverrides
+      );
+    }
     setLoading(false);
-  }, [applyChannelData, extension, load]);
+  }, [applyChannelData, extension, load, trackInventory]);
 
   useEffect(() => {
     setChannelCells((prev) => {
@@ -231,6 +377,15 @@ export function VariantAssortmentMatrix({
       const current = prev[key] ?? { is_stocked: false, is_sellable: false };
       return { ...prev, [key]: { ...current, ...patch } };
     });
+  };
+
+  const setReorderCell = (variantId: string, locationId: string, value: string) => {
+    const key = bufferCellKey(variantId, locationId);
+    setReorderCells((prev) => ({ ...prev, [key]: value }));
+    setReorderOverrides((prev) => ({
+      ...prev,
+      [key]: value.trim() !== "" ? true : prev[key] ?? false,
+    }));
   };
 
   const toggleLocationColumn = (
@@ -286,23 +441,18 @@ export function VariantAssortmentMatrix({
   };
 
   const handleSaveChannels = () => {
-    const rows: VariantChannelCell[] = [];
-    for (const variant of activeVariants) {
-      for (const channel of listedChannels) {
-        const visible = channelCells[channelCellKey(variant.id, channel.id)];
-        if (visible === undefined) continue;
-        rows.push({
-          storefront_id: channel.id,
-          variant_id: variant.id,
-          is_visible: visible,
-        });
-      }
-    }
-
     startTransition(async () => {
-      const result = await saveVariantChannelAvailability(itemId, rows);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to save channel availability.");
+      const result = await persistReach({
+        storefrontVisibility,
+        channelsOnly: true,
+      });
+      if (!result.ok) {
+        const message =
+          result.failures.channels ??
+          result.failures.locations ??
+          result.failures.reorder ??
+          "Unable to save channel availability.";
+        toast.error(message);
         return;
       }
       toast.success("Channel listings saved.");
@@ -311,32 +461,105 @@ export function VariantAssortmentMatrix({
     });
   };
 
-  const handleSave = () => {
-    const rows: VariantAssortmentCell[] = [];
-    for (const variant of activeVariants) {
-      for (const location of visibleLocations) {
-        const state = cells[cellKey(variant.id, location.id)];
-        if (!state) continue;
-        const isStocked = state.is_stocked && locationSupportsStock(location);
-        const isSellable = state.is_sellable && locationSupportsSell(location);
-        if (!isStocked && !isSellable) continue;
-        rows.push({
-          variant_id: variant.id,
-          location_id: location.id,
-          is_stocked: isStocked,
-          is_sellable: isSellable,
-          is_orderable: isSellable,
-        });
-      }
-    }
+  const persistReach = useCallback(
+    async (
+      options?: ReachPersistOptions & { channelsOnly?: boolean }
+    ): Promise<ReachPersistResult> => {
+      const failures: ReachPersistFailures = {};
+      const visibility = options?.storefrontVisibility ?? storefrontVisibility;
+      const listedIds = resolveListedChannelIds(visibility);
+      const hasListedChannels = listedIds.size > 0;
+      const saveLocations = !options?.channelsOnly;
+      const saveChannels = options?.channelsOnly || hasListedChannels;
 
+      if (saveLocations) {
+        const rows: VariantAssortmentCell[] = [];
+        for (const variant of activeVariants) {
+          for (const location of locations.filter(
+            (entry) => locationColumns(entry, false).length > 0
+          )) {
+            const state = cells[cellKey(variant.id, location.id)];
+            if (!state) continue;
+            const isStocked = state.is_stocked && locationSupportsStock(location);
+            const isSellable = state.is_sellable && locationSupportsSell(location);
+            if (!isStocked && !isSellable) continue;
+            rows.push({
+              variant_id: variant.id,
+              location_id: location.id,
+              is_stocked: isStocked,
+              is_sellable: isSellable,
+              is_orderable: isSellable,
+            });
+          }
+        }
+
+        const result = await saveVariantAssortment(itemId, rows);
+        if ("error" in result) {
+          failures.locations = result.error ?? "Unable to save assortment.";
+        } else if (trackInventory) {
+          const reorderRows = buildBufferThresholdSaveRows(
+            activeVariantIds,
+            stockLocationIds,
+            reorderCells,
+            reorderOverrides
+          );
+          const reorderResult = await saveItemBufferThresholds(itemId, reorderRows);
+          if ("error" in reorderResult) {
+            failures.reorder = reorderResult.error ?? "Unable to save reorder thresholds.";
+          }
+        }
+      }
+
+      if (saveChannels && hasListedChannels) {
+        const channelRows = buildChannelSaveRows(
+          activeVariants,
+          channels,
+          listedIds,
+          channelCells
+        );
+        const channelResult = await saveVariantChannelAvailability(itemId, channelRows);
+        if ("error" in channelResult) {
+          failures.channels =
+            channelResult.error ?? "Unable to save channel availability.";
+        }
+      }
+
+      if (Object.keys(failures).length > 0) {
+        return { ok: false, failures };
+      }
+      return { ok: true };
+    },
+    [
+      activeVariantIds,
+      activeVariants,
+      cells,
+      channelCells,
+      channels,
+      itemId,
+      locations,
+      reorderCells,
+      reorderOverrides,
+      stockLocationIds,
+      storefrontVisibility,
+      trackInventory,
+    ]
+  );
+
+  useImperativeHandle(ref, () => ({ persist: persistReach }), [persistReach]);
+
+  const handleSave = () => {
     startTransition(async () => {
-      const result = await saveVariantAssortment(itemId, rows);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to save assortment.");
+      const result = await persistReach({ storefrontVisibility });
+      if (!result.ok) {
+        const message =
+          result.failures.locations ??
+          result.failures.reorder ??
+          result.failures.channels ??
+          "Unable to save locations.";
+        toast.error(message);
         return;
       }
-      toast.success("Assortment saved.");
+      toast.success("Locations saved.");
       router.refresh();
       void load();
     });
@@ -367,19 +590,42 @@ export function VariantAssortmentMatrix({
 
   return (
     <section className={shellClass}>
+      {persistError ? (
+        <p className="text-xs text-destructive" role="alert">
+          {persistError}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {selection.someSelected ? (
-          <span className="mr-auto text-xs text-muted-foreground">
-            {selection.selectedList.length} variant
-            {selection.selectedList.length === 1 ? "" : "s"} selected
-          </span>
-        ) : null}
-        {!readOnly && visibleLocations.length > 0 ? (
+        <div className="mr-auto flex flex-wrap items-center gap-3">
+          {trackInventory && !readOnly ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id={`show-reorder-levels-${itemId}`}
+                checked={showReorderColumns}
+                disabled={isPending}
+                onCheckedChange={setShowReorderColumns}
+              />
+              <Label
+                htmlFor={`show-reorder-levels-${itemId}`}
+                className="text-xs font-normal text-muted-foreground"
+              >
+                {VISIBILITY_MATRIX_SHOW_REORDER_LEVELS}
+              </Label>
+            </div>
+          ) : null}
+          {selection.someSelected ? (
+            <span className="text-xs text-muted-foreground">
+              {selection.selectedList.length} variant
+              {selection.selectedList.length === 1 ? "" : "s"} selected
+            </span>
+          ) : null}
+        </div>
+        {!readOnly && !deferSaveToParent && visibleLocations.length > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={handleSave} disabled={isPending}>
             Save locations
           </Button>
         ) : null}
-        {!readOnly && showChannelColumns ? (
+        {!readOnly && !deferSaveToParent && showChannelColumns ? (
           <Button
             type="button"
             size="sm"
@@ -393,11 +639,12 @@ export function VariantAssortmentMatrix({
       </div>
 
       <div
-        className={
-          embedded ? "overflow-x-auto rounded-md border border-border/60" : "surface-inset overflow-x-auto"
-        }
+        className={cn(
+          "max-w-full overflow-x-auto",
+          embedded ? "rounded-md border border-border/60" : "surface-inset"
+        )}
       >
-        <table className="w-full text-sm">
+        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left">
               <th
@@ -420,7 +667,7 @@ export function VariantAssortmentMatrix({
                 Variant
               </th>
               {visibleLocations.map((location) => {
-                const columns = locationColumns(location);
+                const columns = locationColumns(location, showReorderInGrid);
                 return (
                   <th
                     key={location.id}
@@ -474,22 +721,29 @@ export function VariantAssortmentMatrix({
             </tr>
             <tr className="border-b border-border bg-muted/30 text-left">
               {visibleLocations.flatMap((location) => {
-                const columns = locationColumns(location);
-                return columns.map((kind, index) => (
-                  <LocationBulkHeader
-                    key={`${location.id}-${kind}`}
-                    kind={kind}
-                    locationId={location.id}
-                    canStock={locationSupportsStock(location)}
-                    canSell={locationSupportsSell(location)}
-                    readOnly={readOnly}
-                    isPending={isPending}
-                    showLeftBorder={index === 0}
-                    onToggle={toggleLocationColumn}
-                    variantIds={bulkVariantIds}
-                    cells={cells}
-                  />
-                ));
+                const columns = locationColumns(location, showReorderInGrid);
+                return columns.map((kind, index) =>
+                  kind === "reorder" ? (
+                    <LocationReorderBulkHeader
+                      key={`${location.id}-${kind}`}
+                      showLeftBorder={index === 0}
+                    />
+                  ) : (
+                    <LocationBulkHeader
+                      key={`${location.id}-${kind}`}
+                      kind={kind}
+                      locationId={location.id}
+                      canStock={locationSupportsStock(location)}
+                      canSell={locationSupportsSell(location)}
+                      readOnly={readOnly}
+                      isPending={isPending}
+                      showLeftBorder={index === 0}
+                      onToggle={toggleLocationColumn}
+                      variantIds={bulkVariantIds}
+                      cells={cells}
+                    />
+                  )
+                );
               })}
             </tr>
           </thead>
@@ -517,25 +771,42 @@ export function VariantAssortmentMatrix({
                     is_stocked: false,
                     is_sellable: false,
                   };
-                  const columns = locationColumns(location);
-                  return columns.map((kind, index) => (
-                    <LocationVariantCell
-                      key={`${location.id}-${kind}`}
-                      kind={kind}
-                      state={state}
-                      canStock={locationSupportsStock(location)}
-                      canSell={locationSupportsSell(location)}
-                      readOnly={readOnly}
-                      isPending={isPending}
-                      showLeftBorder={index === 0}
-                      onStockChange={(checked) =>
-                        setCell(variant.id, location.id, { is_stocked: Boolean(checked) })
-                      }
-                      onSellChange={(checked) =>
-                        setCell(variant.id, location.id, { is_sellable: Boolean(checked) })
-                      }
-                    />
-                  ));
+                  const columns = locationColumns(location, showReorderInGrid);
+                  return columns.map((kind, index) =>
+                    kind === "reorder" ? (
+                      <LocationReorderCell
+                        key={`${location.id}-${kind}`}
+                        variantSku={variant.sku}
+                        locationName={location.name}
+                        enabled={locationSupportsStock(location)}
+                        display={resolveBufferReorderDisplay(
+                          reorderCells[bufferCellKey(variant.id, location.id)],
+                          defaultReorderPoint
+                        )}
+                        readOnly={readOnly}
+                        isPending={isPending}
+                        showLeftBorder={index === 0}
+                        onChange={(value) => setReorderCell(variant.id, location.id, value)}
+                      />
+                    ) : (
+                      <LocationVariantCell
+                        key={`${location.id}-${kind}`}
+                        kind={kind}
+                        state={state}
+                        canStock={locationSupportsStock(location)}
+                        canSell={locationSupportsSell(location)}
+                        readOnly={readOnly}
+                        isPending={isPending}
+                        showLeftBorder={index === 0}
+                        onStockChange={(checked) =>
+                          setCell(variant.id, location.id, { is_stocked: Boolean(checked) })
+                        }
+                        onSellChange={(checked) =>
+                          setCell(variant.id, location.id, { is_sellable: Boolean(checked) })
+                        }
+                      />
+                    )
+                  );
                 })}
                 {showChannelColumns
                   ? listedChannels.map((channel) => {
@@ -567,6 +838,40 @@ export function VariantAssortmentMatrix({
       </div>
     </section>
   );
+});
+
+function MatrixSubcolumnHeader({
+  label,
+  widthClass,
+  showLeftBorder,
+  control,
+}: {
+  label: string;
+  widthClass: string;
+  showLeftBorder: boolean;
+  control?: ReactNode;
+}) {
+  return (
+    <th
+      className={cn(
+        widthClass,
+        "px-1 py-1 text-center align-bottom",
+        showLeftBorder && "border-l border-border/60"
+      )}
+    >
+      <div className="flex min-h-11 flex-col items-center justify-end gap-1">
+        <span
+          className="max-w-full truncate px-0.5 text-[10px] font-medium leading-none text-muted-foreground"
+          title={label}
+        >
+          {label}
+        </span>
+        <div className="flex h-4 w-4 items-center justify-center">
+          {control ?? <span className="h-4 w-4 shrink-0" aria-hidden />}
+        </div>
+      </div>
+    </th>
+  );
 }
 
 function LocationBulkHeader({
@@ -581,7 +886,7 @@ function LocationBulkHeader({
   variantIds,
   cells,
 }: {
-  kind: LocationColumnKind;
+  kind: Exclude<LocationColumnKind, "reorder">;
   locationId: string;
   canStock: boolean;
   canSell: boolean;
@@ -601,15 +906,12 @@ function LocationBulkHeader({
   const enabled = kind === "stock" ? canStock : canSell;
   const label = kind === "stock" ? VISIBILITY_MATRIX_STOCK_LABEL : VISIBILITY_MATRIX_SELL_LABEL;
   return (
-    <th
-      className={cn(
-        "px-2 py-1 text-center text-[11px] font-medium text-muted-foreground",
-        showLeftBorder && "border-l border-border/60"
-      )}
-    >
-      <div className="flex flex-col items-center gap-0.5">
-        <span>{label}</span>
-        {!readOnly && enabled ? (
+    <MatrixSubcolumnHeader
+      label={label}
+      widthClass={matrixSubcolumnClass(kind)}
+      showLeftBorder={showLeftBorder}
+      control={
+        !readOnly && enabled ? (
           <BulkColumnCheckbox
             disabled={isPending}
             variantIds={variantIds}
@@ -623,9 +925,9 @@ function LocationBulkHeader({
             ariaLabel={`Toggle ${label} for variants`}
             onCheckedChange={(checked) => onToggle(locationId, field, checked, variantIds)}
           />
-        ) : null}
-      </div>
-    </th>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -657,6 +959,68 @@ function BulkColumnCheckbox({
   );
 }
 
+function LocationReorderBulkHeader({ showLeftBorder }: { showLeftBorder: boolean }) {
+  return (
+    <MatrixSubcolumnHeader
+      label={VISIBILITY_MATRIX_REORDER_LABEL}
+      widthClass={MATRIX_REORDER_COL_CLASS}
+      showLeftBorder={showLeftBorder}
+    />
+  );
+}
+
+function LocationReorderCell({
+  variantSku,
+  locationName,
+  enabled,
+  display,
+  readOnly,
+  isPending,
+  showLeftBorder,
+  onChange,
+}: {
+  variantSku: string;
+  locationName: string;
+  /** Storage location column — reorder is editable independent of Stock checkbox. */
+  enabled: boolean;
+  display: ReturnType<typeof resolveBufferReorderDisplay>;
+  readOnly: boolean;
+  isPending: boolean;
+  showLeftBorder: boolean;
+  onChange: (value: string) => void;
+}) {
+  const inheritedHint =
+    display.inherited && display.placeholder && display.placeholder !== "Default"
+      ? `Default: ${display.placeholder}`
+      : display.inherited
+        ? "Uses product default"
+        : undefined;
+
+  return (
+    <td
+      className={cn(
+        MATRIX_REORDER_COL_CLASS,
+        "px-1 py-1.5 align-middle",
+        showLeftBorder && "border-l border-border/40"
+      )}
+    >
+      <Input
+        className={cn(
+          "h-7 w-full min-w-0 max-w-full px-1 text-right font-mono text-[11px]",
+          display.inherited && "text-muted-foreground"
+        )}
+        inputMode="decimal"
+        value={display.value}
+        placeholder=""
+        title={inheritedHint}
+        disabled={readOnly || isPending || !enabled}
+        aria-label={`Reorder for ${variantSku} at ${locationName}${inheritedHint ? ` (${inheritedHint})` : ""}`}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </td>
+  );
+}
+
 function LocationVariantCell({
   kind,
   state,
@@ -668,7 +1032,7 @@ function LocationVariantCell({
   onStockChange,
   onSellChange,
 }: {
-  kind: LocationColumnKind;
+  kind: Exclude<LocationColumnKind, "reorder">;
   state: CellState;
   canStock: boolean;
   canSell: boolean;
@@ -681,7 +1045,13 @@ function LocationVariantCell({
   const isStock = kind === "stock";
 
   return (
-    <td className={cn("px-2 py-1.5", showLeftBorder && "border-l border-border/40")}>
+    <td
+      className={cn(
+        matrixSubcolumnClass(kind),
+        "px-1 py-1.5 align-middle",
+        showLeftBorder && "border-l border-border/40"
+      )}
+    >
       <div className="flex items-center justify-center">
         <Checkbox
           checked={isStock ? state.is_stocked && canStock : state.is_sellable && canSell}
