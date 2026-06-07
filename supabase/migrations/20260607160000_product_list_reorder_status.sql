@@ -60,6 +60,12 @@ SELECT
         LIMIT 1
     ) AS supplier_name,
     COALESCE(stock.total_quantity_on_hand, 0) AS stock_on_hand,
+    primary_media.storage_url AS primary_image_storage_path,
+    i.variant_strategy::TEXT AS variant_strategy,
+    i.code AS style_code,
+    dv.is_master AS variant_is_master,
+    dv.is_sellable AS variant_is_sellable,
+    COALESCE(vc.sellable_variant_count, 0) AS sellable_variant_count,
     COALESCE(
         NULLIF(TRIM(i.custom_fields ->> 'reorder_point'), '')::NUMERIC,
         NULLIF(TRIM(i.custom_fields ->> 'reorder_point_qty'), '')::NUMERIC,
@@ -105,13 +111,7 @@ SELECT
                         0::NUMERIC
                     )
         )
-    ) AS below_reorder,
-    primary_media.storage_url AS primary_image_storage_path,
-    i.variant_strategy::TEXT AS variant_strategy,
-    i.code AS style_code,
-    dv.is_master AS variant_is_master,
-    dv.is_sellable AS variant_is_sellable,
-    COALESCE(vc.sellable_variant_count, 0) AS sellable_variant_count
+    ) AS below_reorder
 FROM public.items i
 LEFT JOIN public.item_categories ic
     ON ic.tenant_id = i.tenant_id
@@ -225,6 +225,11 @@ SELECT
         LIMIT 1
     ) AS supplier_name,
     COALESCE(variant_stock.total_quantity_on_hand, 0) AS stock_on_hand,
+    variant_media.storage_url AS primary_image_storage_path,
+    i.variant_strategy::TEXT AS variant_strategy,
+    i.code AS style_code,
+    v.is_master AS variant_is_master,
+    v.is_sellable AS variant_is_sellable,
     COALESCE(
         NULLIF(TRIM(i.custom_fields ->> 'reorder_point'), '')::NUMERIC,
         NULLIF(TRIM(i.custom_fields ->> 'reorder_point_qty'), '')::NUMERIC,
@@ -270,12 +275,7 @@ SELECT
             ),
             FALSE
         )
-    ) AS below_reorder,
-    variant_media.storage_url AS primary_image_storage_path,
-    i.variant_strategy::TEXT AS variant_strategy,
-    i.code AS style_code,
-    v.is_master AS variant_is_master,
-    v.is_sellable AS variant_is_sellable
+    ) AS below_reorder
 FROM public.items i
 LEFT JOIN public.item_categories ic
     ON ic.tenant_id = i.tenant_id
@@ -375,6 +375,11 @@ SELECT
         LIMIT 1
     ) AS supplier_name,
     COALESCE(stock.total_quantity_on_hand, 0) AS stock_on_hand,
+    primary_media.storage_url AS primary_image_storage_path,
+    i.variant_strategy::TEXT AS variant_strategy,
+    i.code AS style_code,
+    dv.is_master AS variant_is_master,
+    dv.is_sellable AS variant_is_sellable,
     COALESCE(
         NULLIF(TRIM(i.custom_fields ->> 'reorder_point'), '')::NUMERIC,
         NULLIF(TRIM(i.custom_fields ->> 'reorder_point_qty'), '')::NUMERIC,
@@ -421,12 +426,7 @@ SELECT
             ),
             FALSE
         )
-    ) AS below_reorder,
-    primary_media.storage_url AS primary_image_storage_path,
-    i.variant_strategy::TEXT AS variant_strategy,
-    i.code AS style_code,
-    dv.is_master AS variant_is_master,
-    dv.is_sellable AS variant_is_sellable
+    ) AS below_reorder
 FROM public.items i
 LEFT JOIN public.item_categories ic
     ON ic.tenant_id = i.tenant_id
