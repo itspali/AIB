@@ -55,6 +55,8 @@ export type ReachPersistFailures = {
   locations?: string;
   reorder?: string;
   channels?: string;
+  opening?: string;
+  openingAction?: { href: string; label: string };
 };
 
 export type ReachPersistResult = { ok: true } | { ok: false; failures: ReachPersistFailures };
@@ -71,7 +73,6 @@ type Props = {
   itemId: string;
   variants: ProductVariantSnapshot[];
   /** When channels are listed, show sellable variant rows only. */
-  sellableVariantsOnly?: boolean;
   /** Enables reorder persistence and the optional reorder column toggle. */
   trackInventory?: boolean;
   /** Product default reorder; blank cells inherit this value. */
@@ -81,6 +82,8 @@ type Props = {
   storefrontVisibility?: ProductMasterFormValues["storefront_visibility"];
   /** Shown after a deferred parent save when Reach persistence failed. */
   persistError?: string;
+  /** Live assortment rows (including unsaved Stock toggles) for Opening stock. */
+  onAssortmentCellsChange?: (cells: VariantAssortmentCell[]) => void;
   readOnly?: boolean;
   embedded?: boolean;
 };
@@ -204,6 +207,33 @@ function applyAssortmentData(
   setCells(map);
 }
 
+function buildAssortmentRowsFromCells(
+  activeVariants: ProductVariantSnapshot[],
+  locations: LocationMeta[],
+  cells: Record<string, CellState>
+): VariantAssortmentCell[] {
+  const rows: VariantAssortmentCell[] = [];
+  for (const variant of activeVariants) {
+    for (const location of locations.filter(
+      (entry) => locationColumns(entry, false).length > 0
+    )) {
+      const state = cells[cellKey(variant.id, location.id)];
+      if (!state) continue;
+      const isStocked = state.is_stocked && locationSupportsStock(location);
+      const isSellable = state.is_sellable && locationSupportsSell(location);
+      if (!isStocked && !isSellable) continue;
+      rows.push({
+        variant_id: variant.id,
+        location_id: location.id,
+        is_stocked: isStocked,
+        is_sellable: isSellable,
+        is_orderable: isSellable,
+      });
+    }
+  }
+  return rows;
+}
+
 export const VariantAssortmentMatrix = forwardRef<
   VariantAssortmentMatrixHandle,
   VariantAssortmentMatrixProps
@@ -211,12 +241,12 @@ export const VariantAssortmentMatrix = forwardRef<
   {
     itemId,
     variants,
-    sellableVariantsOnly = false,
     trackInventory = false,
     defaultReorderPoint = "",
     deferSaveToParent = false,
     storefrontVisibility = [],
     persistError,
+    onAssortmentCellsChange,
     readOnly = false,
     embedded = false,
   },
@@ -237,12 +267,11 @@ export const VariantAssortmentMatrix = forwardRef<
   const showReorderInGrid = trackInventory && showReorderColumns;
 
   const activeVariants = useMemo(() => {
-    const active = variants.filter((variant) => variant.is_active);
-    const restrictToSellable = sellableVariantsOnly || trackInventory;
-    if (!restrictToSellable) return active;
-    const sellable = active.filter((variant) => variant.is_sellable !== false);
-    return sellable.length > 0 ? sellable : active;
-  }, [sellableVariantsOnly, trackInventory, variants]);
+    // Style anchors (MULTI_SKU master, is_sellable = false) are not stocked or sold per location.
+    return variants.filter(
+      (variant) => variant.is_active && variant.is_sellable !== false
+    );
+  }, [variants]);
 
   const activeVariantIds = useMemo(
     () => activeVariants.map((variant) => variant.id),
@@ -254,6 +283,16 @@ export const VariantAssortmentMatrix = forwardRef<
     () => locations.filter((location) => locationColumns(location, showReorderInGrid).length > 0),
     [locations, showReorderInGrid]
   );
+
+  const draftAssortmentRows = useMemo(
+    () => buildAssortmentRowsFromCells(activeVariants, locations, cells),
+    [activeVariants, cells, locations]
+  );
+
+  useEffect(() => {
+    if (loading) return;
+    onAssortmentCellsChange?.(draftAssortmentRows);
+  }, [draftAssortmentRows, loading, onAssortmentCellsChange]);
 
   const stockLocationIds = useMemo(
     () =>
@@ -473,25 +512,7 @@ export const VariantAssortmentMatrix = forwardRef<
       const saveChannels = options?.channelsOnly || hasListedChannels;
 
       if (saveLocations) {
-        const rows: VariantAssortmentCell[] = [];
-        for (const variant of activeVariants) {
-          for (const location of locations.filter(
-            (entry) => locationColumns(entry, false).length > 0
-          )) {
-            const state = cells[cellKey(variant.id, location.id)];
-            if (!state) continue;
-            const isStocked = state.is_stocked && locationSupportsStock(location);
-            const isSellable = state.is_sellable && locationSupportsSell(location);
-            if (!isStocked && !isSellable) continue;
-            rows.push({
-              variant_id: variant.id,
-              location_id: location.id,
-              is_stocked: isStocked,
-              is_sellable: isSellable,
-              is_orderable: isSellable,
-            });
-          }
-        }
+        const rows = buildAssortmentRowsFromCells(activeVariants, locations, cells);
 
         const result = await saveVariantAssortment(itemId, rows);
         if ("error" in result) {

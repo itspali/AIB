@@ -7,6 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import { editorSubsectionHeadingWrapClass } from "@/lib/products/editor-chrome";
 import { cn } from "@/lib/utils";
 
@@ -71,12 +72,14 @@ export function SubsectionHeading({
   title,
   info,
   error,
+  errorAction,
   className,
   compact,
 }: {
   title: string;
   info?: ReactNode;
   error?: string;
+  errorAction?: { href: string; label: string };
   className?: string;
   compact?: boolean;
 }) {
@@ -100,7 +103,9 @@ export function SubsectionHeading({
         </h4>
         {info ? <FieldLabelInfo label={title}>{info}</FieldLabelInfo> : null}
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <UserFacingErrorMessage message={error} action={errorAction} />
+      ) : null}
     </div>
   );
 }

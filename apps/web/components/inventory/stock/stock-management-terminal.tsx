@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { Info, Plus } from "lucide-react";
 import {
   loadStockAdjustments,
@@ -24,7 +25,7 @@ import {
   saveStockListPrefs,
   type StockListPrefs,
 } from "@/lib/inventory/stock/list-prefs";
-import { STOCK_HREF } from "@/lib/inventory/stock/navigation";
+import { STOCK_DRAWER_LOCATION_PARAM, STOCK_HREF } from "@/lib/inventory/stock/navigation";
 import type {
   StockAdjustmentRow,
   StockBalanceRow,
@@ -78,7 +79,10 @@ export function StockManagementTerminal({
   initialAdjustments,
   locations,
 }: Props) {
-  const drawer = useModuleDrawerUrl(STOCK_HREF);
+  const searchParams = useSearchParams();
+  const drawer = useModuleDrawerUrl(STOCK_HREF, {
+    clearParamsOnClose: [STOCK_DRAWER_LOCATION_PARAM],
+  });
   const [balances, setBalances] = useState(initialBalances);
   const [adjustments, setAdjustments] = useState(initialAdjustments);
   const [prefs, setPrefs] = useState<StockListPrefs>(getDefaultStockListPrefs);
@@ -128,6 +132,44 @@ export function StockManagementTerminal({
     [drawer]
   );
 
+  const createPrefill = useMemo(() => {
+    if (drawer.surface !== "create") return null;
+    const variantId = drawer.variantId;
+    const locationId = searchParams.get(STOCK_DRAWER_LOCATION_PARAM)?.trim();
+    if (!variantId || !locationId) return null;
+
+    const row = balances.find(
+      (balance) => balance.variant_id === variantId && balance.location_id === locationId
+    );
+    if (!row) {
+      return {
+        location_id: locationId,
+        variant_id: variantId,
+        variant_sku: "",
+        item_name: "",
+        unit_cost: "0",
+      };
+    }
+
+    return {
+      location_id: row.location_id,
+      variant_id: row.variant_id,
+      variant_sku: row.variant_sku,
+      item_name: row.item_name,
+      unit_cost: row.current_average_cost || "0",
+    };
+  }, [balances, drawer.surface, drawer.variantId, searchParams]);
+
+  const handleAdjustBalance = useCallback(
+    (row: StockBalanceRow) => {
+      drawer.openCreate({
+        variantId: row.variant_id,
+        extraParams: { [STOCK_DRAWER_LOCATION_PARAM]: row.location_id },
+      });
+    },
+    [drawer]
+  );
+
   const handleAfterSave = useCallback(
     (adjustmentId: string) => {
       refreshLists();
@@ -158,7 +200,11 @@ export function StockManagementTerminal({
         </div>
       </div>
     ) : isBalancesView ? (
-      <StockBalancesTable rows={filteredRows as StockBalanceRow[]} selectedId={null} />
+      <StockBalancesTable
+        rows={filteredRows as StockBalanceRow[]}
+        selectedId={null}
+        onAdjust={handleAdjustBalance}
+      />
     ) : (
       <StockAdjustmentsTable
         rows={filteredRows as StockAdjustmentRow[]}
@@ -195,6 +241,7 @@ export function StockManagementTerminal({
         surface={drawer.surface}
         locations={locations}
         peekAdjustment={peekAdjustment}
+        createPrefill={createPrefill}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
       />

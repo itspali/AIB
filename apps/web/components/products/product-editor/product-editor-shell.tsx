@@ -26,7 +26,11 @@ import {
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
-import { findSimilarItems, type SimilarItem } from "@/app/items/actions";
+import {
+  findSimilarItems,
+  type SimilarItem,
+  type VariantAssortmentCell,
+} from "@/app/items/actions";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
 import { PanelMutationPrimaryButton } from "@/components/products/panel-mutation-primary-button";
 import {
@@ -49,6 +53,10 @@ import {
   type ReachPersistFailures,
   type VariantAssortmentMatrixHandle,
 } from "@/components/products/variant-assortment-matrix";
+import {
+  VariantOpeningStockMatrix,
+  type VariantOpeningStockMatrixHandle,
+} from "@/components/products/variant-opening-stock-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
@@ -81,6 +89,9 @@ import {
   categoryFieldsSectionTitle,
   VISIBILITY_LOCATIONS_HELP,
   VISIBILITY_LOCATIONS_SUBSECTION,
+  VISIBILITY_OPENING_STOCK_HELP,
+  VISIBILITY_OPENING_STOCK_SERIAL_BLOCKED,
+  VISIBILITY_OPENING_STOCK_SUBSECTION,
   VISIBILITY_SECTION_HELP,
   VISIBILITY_SECTION_LABEL,
   SAVE_ITEM_LABEL,
@@ -893,6 +904,7 @@ export function ProductEditorShell({
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const locationMatrixRef = useRef<VariantAssortmentMatrixHandle>(null);
+  const openingStockMatrixRef = useRef<VariantOpeningStockMatrixHandle>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
   const panelRailRef = useRef<HTMLElement | null>(null);
   const panelScrollRef = useRef<HTMLDivElement | null>(null);
@@ -902,6 +914,9 @@ export function ProductEditorShell({
   const onSavedParentRef = useRef(onSaved);
   onSavedParentRef.current = onSaved;
   const [reachSaveErrors, setReachSaveErrors] = useState<ReachPersistFailures | null>(null);
+  const [draftAssortmentCells, setDraftAssortmentCells] = useState<
+    VariantAssortmentCell[] | null
+  >(null);
   const itemSavedHandlerRef = useRef<
     (savedId: string, savedDetail?: ProductDetailSnapshot | null) => Promise<boolean>
   >(async (savedId, savedDetail) => {
@@ -1401,6 +1416,20 @@ export function ProductEditorShell({
         return false;
       }
     }
+    if (
+      savedId &&
+      trackInventory &&
+      trackingMode === "NONE" &&
+      openingStockMatrixRef.current
+    ) {
+      const openingResult = await openingStockMatrixRef.current.persist();
+      if (!openingResult.ok) {
+        setReachSaveErrors(openingResult.failures);
+        scrollToSectionRef.current("visibility");
+        onSavedParentRef.current?.(savedId, savedDetail ?? null);
+        return false;
+      }
+    }
     onSavedParentRef.current?.(savedId, savedDetail ?? null);
     return true;
   };
@@ -1629,7 +1658,7 @@ export function ProductEditorShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [readOnly]);
 
-  const reachPersistErrorMessage = useMemo(() => {
+  const reachLocationsPersistErrorMessage = useMemo(() => {
     if (!reachSaveErrors) return undefined;
     const parts = [
       reachSaveErrors.locations,
@@ -1638,6 +1667,9 @@ export function ProductEditorShell({
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(" ") : undefined;
   }, [reachSaveErrors]);
+
+  const reachOpeningPersistErrorMessage = reachSaveErrors?.opening;
+  const reachOpeningPersistErrorAction = reachSaveErrors?.openingAction;
 
   const sectionErrors = useMemo(() => {
     const map: Record<SectionId, boolean> = {
@@ -1657,11 +1689,11 @@ export function ProductEditorShell({
       const section = FIELD_SECTION[key];
       if (section) map[section] = true;
     });
-    if (reachPersistErrorMessage) {
+    if (reachLocationsPersistErrorMessage || reachOpeningPersistErrorMessage) {
       map.visibility = true;
     }
     return map;
-  }, [errors, reachPersistErrorMessage]);
+  }, [errors, reachLocationsPersistErrorMessage, reachOpeningPersistErrorMessage]);
 
   const sectionStatus = useCallback(
     (id: SectionId): SectionStatus => {
@@ -3258,7 +3290,7 @@ export function ProductEditorShell({
                       <SubsectionHeading
                         title={VISIBILITY_LOCATIONS_SUBSECTION}
                         compact={isPanelLayout}
-                        error={reachPersistErrorMessage}
+                        error={reachLocationsPersistErrorMessage}
                         info={fieldHelpText(
                           [
                             VISIBILITY_LOCATIONS_HELP,
@@ -3277,16 +3309,49 @@ export function ProductEditorShell({
                         ref={locationMatrixRef}
                         itemId={itemId}
                         variants={variants}
-                        sellableVariantsOnly={hasListedChannels}
                         trackInventory={trackInventory}
                         defaultReorderPoint={defaultReorderPoint}
                         deferSaveToParent={!readOnly && !fieldDisabled}
                         storefrontVisibility={storefrontVisibility}
-                        persistError={reachPersistErrorMessage}
+                        persistError={reachLocationsPersistErrorMessage}
+                        onAssortmentCellsChange={setDraftAssortmentCells}
                         readOnly={readOnly || fieldDisabled}
                         embedded
                       />
                     </div>
+                    {trackInventory ? (
+                      <div className={editorCatalogBlockClass(isPanelLayout)}>
+                        <SubsectionHeading
+                          title={VISIBILITY_OPENING_STOCK_SUBSECTION}
+                          compact={isPanelLayout}
+                          error={reachOpeningPersistErrorMessage}
+                          errorAction={reachOpeningPersistErrorAction}
+                          info={fieldHelpText(
+                            trackingMode === "NONE"
+                              ? VISIBILITY_OPENING_STOCK_HELP
+                              : VISIBILITY_OPENING_STOCK_SERIAL_BLOCKED
+                          )}
+                        />
+                        {trackingMode === "NONE" ? (
+                          <VariantOpeningStockMatrix
+                            ref={openingStockMatrixRef}
+                            itemId={itemId}
+                            variants={variants}
+                            purchasePrice={purchasePrice}
+                            standardCost={standardCost}
+                            stockedCellsOverride={draftAssortmentCells ?? undefined}
+                            persistError={reachOpeningPersistErrorMessage}
+                            persistErrorAction={reachOpeningPersistErrorAction}
+                            readOnly={readOnly || fieldDisabled}
+                            embedded
+                          />
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            {VISIBILITY_OPENING_STOCK_SERIAL_BLOCKED}
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">

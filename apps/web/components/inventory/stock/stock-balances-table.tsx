@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { StockBalanceRow } from "@/lib/inventory/stock/types";
 import { cn } from "@/lib/utils";
 
@@ -8,9 +9,10 @@ type Props = {
   rows: StockBalanceRow[];
   selectedId: string | null;
   onSelect?: (row: StockBalanceRow) => void;
+  onAdjust?: (row: StockBalanceRow) => void;
 };
 
-export function StockBalancesTable({ rows, selectedId, onSelect }: Props) {
+export function StockBalancesTable({ rows, selectedId, onSelect, onAdjust }: Props) {
   return (
     <div className="surface-inset h-full min-h-0 overflow-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
@@ -22,6 +24,7 @@ export function StockBalancesTable({ rows, selectedId, onSelect }: Props) {
             <th className="p-2.5 text-right font-medium">On hand</th>
             <th className="p-2.5 text-right font-medium">Avg cost</th>
             <th className="p-2.5 text-right font-medium">Reorder</th>
+            {onAdjust ? <th className="p-2.5 text-right font-medium">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -65,6 +68,22 @@ export function StockBalancesTable({ rows, selectedId, onSelect }: Props) {
                 <td className="p-2.5 text-right tabular-nums text-muted-foreground">
                   {row.reorder_point ?? "—"}
                 </td>
+                {onAdjust ? (
+                  <td className="p-2.5 text-right">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onAdjust(row);
+                      }}
+                    >
+                      Adjust
+                    </Button>
+                  </td>
+                ) : null}
               </tr>
             );
           })}

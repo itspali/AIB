@@ -12,6 +12,7 @@ export default defineConfig({
       "lib/theme/__tests__/**/*.test.ts",
       "lib/list-columns/__tests__/**/*.test.ts",
       "lib/locations/__tests__/**/*.test.ts",
+      "lib/inventory/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

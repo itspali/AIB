@@ -102,6 +102,13 @@ export const ITEM_SAVE_PARTIAL_REACH_ERROR =
   "Product profile saved, but some Reach settings could not be saved. See highlighted sections.";
 export const ITEM_SAVE_SUCCESS = "Product master profile saved successfully";
 export const VISIBILITY_MATRIX_SELL_LABEL = "Sell";
+export const VISIBILITY_OPENING_STOCK_SUBSECTION = "Opening stock";
+export const VISIBILITY_OPENING_STOCK_HELP =
+  "Set initial on-hand quantities for stocked locations. Cells lock after stock is posted. Use Inventory → Stock for changes after go-live.";
+export const VISIBILITY_OPENING_STOCK_SERIAL_BLOCKED =
+  "Opening stock via product setup supports quantity-tracked (non-serial/lot) items only. Use Inventory → Stock for serial-tracked products.";
+export const VISIBILITY_OPENING_STOCK_EMPTY_ASSORTMENT =
+  "Mark variants as stocked under Locations before entering opening quantities.";
 export const VISIBILITY_LOCATIONS_SUBSECTION = "Locations";
 export const VISIBILITY_LOCATIONS_HELP =
   "Which locations stock and sell each sellable variant SKU. Storage locations also include a Reorder column when inventory tracking is on.";

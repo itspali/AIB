@@ -5,14 +5,18 @@ import {
   fetchStockAdjustmentById,
   fetchStockAdjustments,
   fetchStockBalances,
+  fetchStockLocationLabel,
   fetchStockLocations,
   resolveVariantBySku,
+  searchStockVariants,
 } from "@/lib/inventory/stock/queries";
+import { formatStockAdjustmentRpcError } from "@/lib/inventory/stock/rpc-errors";
 import { postStockAdjustmentSchema } from "@/lib/inventory/stock/schemas";
 import type {
   StockAdjustmentRow,
   StockBalanceRow,
   StockLocationOption,
+  StockVariantOption,
 } from "@/lib/inventory/stock/types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
@@ -54,6 +58,21 @@ export async function loadStockAdjustmentDetail(
   const adjustment = await fetchStockAdjustmentById(supabase, tenantId, adjustmentId);
   if (!adjustment) return { error: "Adjustment not found." };
   return { adjustment };
+}
+
+export async function searchStockVariantsForAdjustment(
+  query: string
+): Promise<{ variants: StockVariantOption[] } | { error: string }> {
+  const trimmed = query.trim();
+  if (trimmed.length < 1) return { variants: [] };
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const variants = await searchStockVariants(supabase, tenantId, trimmed);
+    return { variants };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to search variants." };
+  }
 }
 
 export async function lookupStockVariantBySku(sku: string) {
@@ -98,13 +117,23 @@ export async function postStockAdjustment(raw: unknown) {
     if (isMissingRpcError(error)) {
       return { error: formatRpcDeployError("post_stock_adjustment") };
     }
-    if (error.message.toLowerCase().includes("document sequence not configured")) {
-      return {
-        error:
-          "Document numbering is not configured for stock adjustments at this location. Add a STOCK_ADJUSTMENT prefix under Settings → Locations.",
-      };
-    }
-    return { error: error.message };
+
+    const locationMeta = await fetchStockLocationLabel(
+      supabase,
+      tenantId,
+      values.location_id
+    );
+
+    const formatted = formatStockAdjustmentRpcError(error.message, {
+      locationId: values.location_id,
+      locationName: locationMeta?.locationName,
+      locationCode: locationMeta?.locationCode,
+    });
+
+    return {
+      error: formatted.message,
+      errorAction: formatted.action,
+    };
   }
 
   revalidateStockPaths();

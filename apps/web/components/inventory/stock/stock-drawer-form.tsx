@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  loadStockAdjustmentDetail,
-  lookupStockVariantBySku,
-  postStockAdjustment,
-} from "@/app/inventory/stock/actions";
+import { loadStockAdjustmentDetail, postStockAdjustment } from "@/app/inventory/stock/actions";
+import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
+import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,11 +48,20 @@ type CreateFormState = {
   lines: DraftLine[];
 };
 
+export type StockDrawerCreatePrefill = {
+  location_id: string;
+  variant_id: string;
+  variant_sku: string;
+  item_name: string;
+  unit_cost: string;
+};
+
 type Props = {
   open: boolean;
   surface: DrawerSurface;
   locations: StockLocationOption[];
   peekAdjustment: StockAdjustmentRow | null;
+  createPrefill?: StockDrawerCreatePrefill | null;
   onClose: () => void;
   onAfterSave: (adjustmentId: string) => void;
 };
@@ -72,13 +80,30 @@ function createEmptyLine(): DraftLine {
   };
 }
 
-function defaultCreateForm(locations: StockLocationOption[]): CreateFormState {
+function defaultCreateForm(
+  locations: StockLocationOption[],
+  prefill?: StockDrawerCreatePrefill | null
+): CreateFormState {
+  const locationId =
+    prefill?.location_id && locations.some((location) => location.id === prefill.location_id)
+      ? prefill.location_id
+      : (locations[0]?.id ?? "");
+
+  const line = createEmptyLine();
+  if (prefill?.variant_id) {
+    line.variant_id = prefill.variant_id;
+    line.variant_sku = prefill.variant_sku;
+    line.sku = prefill.variant_sku;
+    line.item_name = prefill.item_name;
+    line.unit_cost = prefill.unit_cost || "0";
+  }
+
   return {
-    location_id: locations[0]?.id ?? "",
+    location_id: locationId,
     kind: "CORRECTION",
     reason: "",
     notes: "",
-    lines: [createEmptyLine()],
+    lines: [line],
   };
 }
 
@@ -92,6 +117,7 @@ export function StockDrawerForm({
   surface,
   locations,
   peekAdjustment,
+  createPrefill = null,
   onClose,
   onAfterSave,
 }: Props) {
@@ -103,19 +129,29 @@ export function StockDrawerForm({
 
   const [form, setForm] = useState<CreateFormState>(() => defaultCreateForm(locations));
   const [error, setError] = useState<string | null>(null);
+  const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [detail, setDetail] = useState<StockAdjustmentRow | null>(peekAdjustment);
   const [detailLoading, setDetailLoading] = useState(false);
   const submitRef = useRef<() => void>(() => {});
 
+  const createPrefillSignature = createPrefill
+    ? `${createPrefill.location_id}:${createPrefill.variant_id}:${createPrefill.variant_sku}`
+    : "";
+
   useEffect(() => {
     if (!open) return;
-    setForm(defaultCreateForm(locations));
+    const nextForm =
+      surface === "create"
+        ? defaultCreateForm(locations, createPrefill)
+        : defaultCreateForm(locations);
+    setForm(nextForm);
     setError(null);
+    setErrorAction(null);
     setIsDirty(false);
     setDetail(peekAdjustment);
-  }, [open, surface, peekAdjustment?.id, locations]);
+  }, [open, surface, peekAdjustment?.id, locations, createPrefillSignature, createPrefill]);
 
   useEffect(() => {
     if (!open || surface !== "peek" || !peekAdjustment?.id) return;
@@ -131,6 +167,7 @@ export function StockDrawerForm({
       setDetailLoading(false);
       if ("error" in result) {
         setError(result.error);
+        setErrorAction(result.errorAction ?? null);
         return;
       }
       setDetail(result.adjustment);
@@ -156,6 +193,7 @@ export function StockDrawerForm({
 
   const closeForm = useCallback(() => {
     setError(null);
+    setErrorAction(null);
     setIsDirty(false);
     onClose();
   }, [onClose]);
@@ -168,41 +206,6 @@ export function StockDrawerForm({
     closeForm();
   }, [closeForm, isDirty, isMutating, requestClose]);
 
-  const resolveSku = useCallback(
-    async (key: string, sku: string) => {
-      const trimmed = sku.trim();
-      if (!trimmed) {
-        patchLine(key, {
-          variant_id: "",
-          item_name: "",
-          variant_sku: "",
-          skuError: null,
-        });
-        return;
-      }
-
-      const result = await lookupStockVariantBySku(trimmed);
-      if ("error" in result) {
-        patchLine(key, {
-          variant_id: "",
-          item_name: "",
-          variant_sku: "",
-          skuError: result.error,
-        });
-        return;
-      }
-
-      patchLine(key, {
-        variant_id: result.variant.variant_id,
-        item_name: result.variant.item_name,
-        variant_sku: result.variant.variant_sku,
-        unit_cost: result.variant.standard_cost ?? "0",
-        skuError: null,
-      });
-    },
-    [patchLine]
-  );
-
   const addLine = () => {
     patchForm({ lines: [...form.lines, createEmptyLine()] });
   };
@@ -214,6 +217,7 @@ export function StockDrawerForm({
 
   const handleSubmit = useCallback(() => {
     setError(null);
+    setErrorAction(null);
     startTransition(async () => {
       const payload = {
         location_id: form.location_id,
@@ -231,6 +235,7 @@ export function StockDrawerForm({
       const result = await postStockAdjustment(payload);
       if ("error" in result) {
         setError(result.error ?? "Unable to post adjustment.");
+        setErrorAction(result.errorAction ?? null);
         return;
       }
 
@@ -297,9 +302,13 @@ export function StockDrawerForm({
       >
         <div className="flex min-h-0 flex-1 flex-col">
           {error ? (
-            <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
+            <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+              <UserFacingErrorMessage
+                message={error}
+                action={errorAction ?? undefined}
+                className="text-sm"
+              />
+            </div>
           ) : null}
 
           {readOnly ? (
@@ -444,115 +453,100 @@ export function StockDrawerForm({
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold">Lines</h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={isPending}
-                    onClick={addLine}
-                  >
-                    <Plus className="h-3.5 w-3.5" aria-hidden />
-                    Add line
-                  </Button>
-                </div>
+              <div className="space-y-2.5">
+                <h3 className="text-sm font-semibold">Lines</h3>
 
-                <div className="space-y-3">
-                  {form.lines.map((line, index) => (
-                    <div
-                      key={line.key}
-                      className="rounded-lg border border-border/80 border-black/[0.06] p-3 dark:border-white/10"
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Line {index + 1}
-                        </p>
-                        {form.lines.length > 1 ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            disabled={isPending}
-                            onClick={() => removeLine(line.key)}
-                            aria-label="Remove line"
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden />
-                          </Button>
-                        ) : null}
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label className="text-sm font-medium text-muted-foreground">SKU</Label>
-                          <Input
-                            className="font-mono"
-                            value={line.sku}
-                            disabled={isPending}
-                            placeholder="Scan or enter SKU"
-                            onChange={(event) =>
-                              patchLine(line.key, { sku: event.target.value, skuError: null })
-                            }
-                            onBlur={() => void resolveSku(line.key, line.sku)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void resolveSku(line.key, line.sku);
+                <div className="surface-inset overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="min-w-[12rem] p-2.5 font-medium">SKU</th>
+                        <th className="w-28 p-2.5 font-medium">Qty Δ</th>
+                        <th className="w-28 p-2.5 font-medium">Unit cost</th>
+                        <th className="min-w-[8rem] p-2.5 font-medium">Notes</th>
+                        <th className="w-10 p-2.5">
+                          <span className="sr-only">Remove</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {form.lines.map((line) => (
+                        <tr key={line.key} className="border-b border-border align-top">
+                          <td className="p-2">
+                            <StockVariantSkuField
+                              compact
+                              disabled={isPending}
+                              value={line}
+                              onChange={(patch) => patchLine(line.key, patch)}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              className="h-9 tabular-nums"
+                              value={line.quantity_delta}
+                              disabled={isPending}
+                              placeholder="10"
+                              aria-label="Quantity delta"
+                              onChange={(event) =>
+                                patchLine(line.key, { quantity_delta: event.target.value })
                               }
-                            }}
-                          />
-                          {line.skuError ? (
-                            <p className="text-xs text-destructive">{line.skuError}</p>
-                          ) : line.variant_id ? (
-                            <p className="text-xs text-muted-foreground">{line.item_name}</p>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-muted-foreground">
-                            Quantity Δ
-                          </Label>
-                          <Input
-                            className="tabular-nums"
-                            value={line.quantity_delta}
-                            disabled={isPending}
-                            placeholder="e.g. 10 or -2"
-                            onChange={(event) =>
-                              patchLine(line.key, { quantity_delta: event.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-muted-foreground">
-                            Unit cost
-                          </Label>
-                          <Input
-                            className="tabular-nums"
-                            value={line.unit_cost}
-                            disabled={isPending}
-                            onChange={(event) =>
-                              patchLine(line.key, { unit_cost: event.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label className="text-sm font-medium text-muted-foreground">
-                            Line notes (optional)
-                          </Label>
-                          <Input
-                            value={line.line_notes}
-                            disabled={isPending}
-                            onChange={(event) =>
-                              patchLine(line.key, { line_notes: event.target.value })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              className="h-9 tabular-nums"
+                              value={line.unit_cost}
+                              disabled={isPending}
+                              aria-label="Unit cost"
+                              onChange={(event) =>
+                                patchLine(line.key, { unit_cost: event.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              className="h-9"
+                              value={line.line_notes}
+                              disabled={isPending}
+                              placeholder="Optional"
+                              aria-label="Line notes"
+                              onChange={(event) =>
+                                patchLine(line.key, { line_notes: event.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="p-2">
+                            {form.lines.length > 1 ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 w-9 p-0 text-destructive hover:text-destructive"
+                                disabled={isPending}
+                                onClick={() => removeLine(line.key)}
+                                aria-label="Remove line"
+                              >
+                                <Trash2 className="h-4 w-4" aria-hidden />
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={isPending}
+                  onClick={addLine}
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden />
+                  Add line
+                </Button>
               </div>
             </div>
           )}

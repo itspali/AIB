@@ -11,6 +11,7 @@ import {
   moduleDrawerPeekHref,
   parseModuleDrawerState,
   parseModuleDrawerStateFromHref,
+  MODULE_DRAWER_ACTION_NEW,
   parseModuleDrawerStateFromLocation,
   type DrawerSurface,
   type ModuleDrawerAction,
@@ -20,6 +21,14 @@ import {
 type UseModuleDrawerUrlOptions = {
   /** Canonicalize legacy query params once on mount. */
   canonicalizeLegacy?: boolean;
+  /** Extra query params stripped when the drawer closes. */
+  clearParamsOnClose?: string[];
+};
+
+export type OpenModuleDrawerCreateOptions = {
+  variantId?: string | null;
+  /** Additional query params merged into the create href (e.g. stock location prefill). */
+  extraParams?: Record<string, string>;
 };
 
 type PendingNavigation = {
@@ -37,7 +46,7 @@ export type UseModuleDrawerUrlResult = ModuleDrawerState & {
   replaceDrawerHref: (href: string) => void;
   openPeek: (recordId: string, variantId?: string | null) => void;
   openEdit: (recordId: string, variantId?: string | null) => void;
-  openCreate: () => void;
+  openCreate: (options?: OpenModuleDrawerCreateOptions) => void;
   close: () => void;
   afterSave: (recordId: string, variantId?: string | null) => void;
 };
@@ -160,22 +169,43 @@ export function useModuleDrawerUrl(
     [basePath, searchParams, syncHistory]
   );
 
-  const openCreate = useCallback(() => {
-    syncHistory(moduleDrawerCreateHref(basePath, livePreserveParams(searchParams)), {
-      recordId: null,
-      variantId: null,
-      action: "new",
-      surface: "create",
-    });
-  }, [basePath, searchParams, syncHistory]);
+  const openCreate = useCallback(
+    (options?: OpenModuleDrawerCreateOptions) => {
+      const variant = options?.variantId?.trim() || null;
+      const params = livePreserveParams(searchParams);
+      if (options?.extraParams) {
+        for (const [key, value] of Object.entries(options.extraParams)) {
+          if (value.trim()) params.set(key, value.trim());
+        }
+      }
+      syncHistory(
+        buildModuleHref(basePath, {
+          action: MODULE_DRAWER_ACTION_NEW,
+          variantId: variant,
+          preserveParams: params,
+        }),
+        {
+          recordId: null,
+          variantId: variant,
+          action: MODULE_DRAWER_ACTION_NEW,
+          surface: "create",
+        }
+      );
+    },
+    [basePath, searchParams, syncHistory]
+  );
 
   const close = useCallback(() => {
+    const params = livePreserveParams(searchParams);
+    for (const key of options.clearParamsOnClose ?? []) {
+      params.delete(key);
+    }
     syncHistory(
-      buildModuleHref(basePath, { preserveParams: livePreserveParams(searchParams) }),
+      buildModuleHref(basePath, { preserveParams: params }),
       { recordId: null, variantId: null, action: null, surface: "closed" },
       "replace"
     );
-  }, [basePath, searchParams, syncHistory]);
+  }, [basePath, options.clearParamsOnClose, searchParams, syncHistory]);
 
   const afterSave = useCallback(
     (recordId: string, variantId?: string | null) => {

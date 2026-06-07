@@ -11,7 +11,14 @@ import type {
   StockAdjustmentRow,
   StockBalanceRow,
   StockLocationOption,
+  StockVariantOption,
 } from "@/lib/inventory/stock/types";
+
+/** Disambiguate composite tenant FK embeds on item_valuations. */
+const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
+const VALUATION_ITEM_EMBED = "items!item_valuations_item_tenant_fk";
+const VALUATION_VARIANT_EMBED = "item_variants!item_valuations_variant_tenant_fk";
+const VARIANT_ITEM_EMBED = "items!item_variants_item_tenant_fk";
 
 type BalanceDbRow = {
   id: string;
@@ -69,6 +76,28 @@ function extractReorderPoint(customFields: Record<string, unknown> | null | unde
   return text || null;
 }
 
+export async function fetchStockLocationLabel(
+  supabase: SupabaseClient,
+  tenantId: string,
+  locationId: string
+): Promise<{ locationId: string; locationName: string; locationCode: string } | null> {
+  const { data, error } = await supabase
+    .from("tenant_locations")
+    .select("id, name, code")
+    .eq("tenant_id", tenantId)
+    .eq("id", locationId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  return {
+    locationId: data.id as string,
+    locationName: data.name as string,
+    locationCode: (data.code as string) ?? "",
+  };
+}
+
 export async function fetchStockLocations(
   supabase: SupabaseClient,
   tenantId: string
@@ -106,9 +135,9 @@ export async function fetchStockBalances(
       variant_id,
       total_quantity_on_hand,
       current_average_cost,
-      tenant_locations!inner (name, code),
-      items!inner (name, base_unit_of_measure, custom_fields, track_inventory),
-      item_variants!inner (sku, is_active)
+      ${VALUATION_LOCATION_EMBED} (name, code),
+      ${VALUATION_ITEM_EMBED}!inner (name, base_unit_of_measure, custom_fields, track_inventory),
+      ${VALUATION_VARIANT_EMBED}!inner (sku, is_active)
     `
     )
     .eq("tenant_id", tenantId)
@@ -263,8 +292,8 @@ export async function fetchStockAdjustmentById(
         quantity_delta,
         unit_cost,
         line_notes,
-        items (name),
-        item_variants (sku)
+        items!stock_adjustment_lines_item_id_fkey (name),
+        item_variants!stock_adjustment_lines_variant_id_fkey (sku)
       )
     `
     )
@@ -309,6 +338,180 @@ export async function fetchStockAdjustmentById(
   };
 }
 
+type VariantItemJoin = {
+  name: string;
+  track_inventory: boolean;
+  tracking_mode: string;
+  custom_fields: Record<string, unknown> | null;
+};
+
+type VariantSearchDbRow = {
+  id: string;
+  sku: string;
+  item_id: string;
+  items: VariantItemJoin | VariantItemJoin[] | null;
+};
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
+
+function extractStandardCost(customFields: Record<string, unknown> | null | undefined): string | null {
+  const raw = customFields?.standard_cost;
+  if (raw == null || String(raw).trim() === "") return null;
+  return String(raw).trim();
+}
+
+function stockVariantBlockedReason(item: VariantItemJoin | null): string | null {
+  if (!item?.track_inventory) return "Item does not track inventory.";
+  if (item.tracking_mode === "SERIAL") {
+    return "Serial tracking is not supported in stock adjustments yet.";
+  }
+  if (item.tracking_mode === "LOT") {
+    return "Lot tracking is not supported in stock adjustments yet.";
+  }
+  if (item.tracking_mode !== "NONE") {
+    return "This tracking mode is not supported in stock adjustments yet.";
+  }
+  return null;
+}
+
+function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
+  const item = resolveJoin(row.items);
+  const blockedReason = stockVariantBlockedReason(item);
+  return {
+    variant_id: row.id,
+    item_id: row.item_id,
+    item_name: item?.name ?? "",
+    variant_sku: row.sku,
+    standard_cost: extractStandardCost(item?.custom_fields ?? null),
+    adjustable: blockedReason == null,
+    blocked_reason: blockedReason,
+  };
+}
+
+function tokenizeStockSearchQuery(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+const VARIANT_SEARCH_SELECT = `
+  id,
+  sku,
+  item_id,
+  ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
+`;
+
+async function queryVariantSearchResults(
+  supabase: SupabaseClient,
+  tenantId: string,
+  filter: { skuPattern?: string; itemIds?: string[] },
+  limit: number
+): Promise<StockVariantOption[]> {
+  let query = supabase
+    .from("item_variants")
+    .select(VARIANT_SEARCH_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  if (filter.skuPattern) {
+    query = query.ilike("sku", filter.skuPattern);
+  }
+  if (filter.itemIds?.length) {
+    query = query.in("item_id", filter.itemIds);
+  }
+
+  const { data, error } = await query.order("sku", { ascending: true }).limit(limit);
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as VariantSearchDbRow[]).map((row) => mapVariantSearchResult(row));
+}
+
+async function collectVariantsForToken(
+  supabase: SupabaseClient,
+  tenantId: string,
+  token: string,
+  perQueryLimit: number
+): Promise<StockVariantOption[]> {
+  const pattern = `%${escapeIlikePattern(token)}%`;
+
+  const [bySku, matchingItems] = await Promise.all([
+    queryVariantSearchResults(supabase, tenantId, { skuPattern: pattern }, perQueryLimit),
+    supabase
+      .from("items")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .ilike("name", pattern)
+      .limit(8),
+  ]);
+
+  let byName: StockVariantOption[] = [];
+  const itemIds = (matchingItems.data ?? []).map((row) => row.id as string);
+  if (!matchingItems.error && itemIds.length > 0) {
+    byName = await queryVariantSearchResults(supabase, tenantId, { itemIds }, perQueryLimit);
+  }
+
+  const merged = new Map<string, StockVariantOption>();
+  for (const option of [...bySku, ...byName]) {
+    merged.set(option.variant_id, option);
+  }
+  return [...merged.values()];
+}
+
+function rankStockVariantResults(options: StockVariantOption[], query: string): StockVariantOption[] {
+  const normalized = query.trim().toLowerCase();
+  const tokens = tokenizeStockSearchQuery(query).map((token) => token.toLowerCase());
+
+  return [...options].sort((left, right) => {
+    if (left.adjustable !== right.adjustable) return left.adjustable ? -1 : 1;
+
+    const leftSku = left.variant_sku.toLowerCase();
+    const rightSku = right.variant_sku.toLowerCase();
+    const leftExact = leftSku === normalized;
+    const rightExact = rightSku === normalized;
+    if (leftExact !== rightExact) return leftExact ? -1 : 1;
+
+    const leftPrefix = tokens.some((token) => leftSku.startsWith(token));
+    const rightPrefix = tokens.some((token) => rightSku.startsWith(token));
+    if (leftPrefix !== rightPrefix) return leftPrefix ? -1 : 1;
+
+    const leftName = left.item_name.toLowerCase();
+    const rightName = right.item_name.toLowerCase();
+    const leftNameHit = tokens.some((token) => leftName.includes(token));
+    const rightNameHit = tokens.some((token) => rightName.includes(token));
+    if (leftNameHit !== rightNameHit) return leftNameHit ? -1 : 1;
+
+    return left.variant_sku.localeCompare(right.variant_sku);
+  });
+}
+
+export async function searchStockVariants(
+  supabase: SupabaseClient,
+  tenantId: string,
+  query: string,
+  options?: { limit?: number }
+): Promise<StockVariantOption[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 1) return [];
+
+  const limit = options?.limit ?? 15;
+  const perQueryLimit = Math.max(limit, 10);
+  const tokens = tokenizeStockSearchQuery(trimmed);
+  const merged = new Map<string, StockVariantOption>();
+
+  for (const token of tokens) {
+    const matches = await collectVariantsForToken(supabase, tenantId, token, perQueryLimit);
+    for (const option of matches) {
+      merged.set(option.variant_id, option);
+    }
+  }
+
+  return rankStockVariantResults([...merged.values()], trimmed).slice(0, limit);
+}
+
 export async function resolveVariantBySku(
   supabase: SupabaseClient,
   tenantId: string,
@@ -335,7 +538,7 @@ export async function resolveVariantBySku(
       id,
       sku,
       item_id,
-      items!inner (name, track_inventory, tracking_mode, custom_fields)
+      ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
     `
     )
     .eq("tenant_id", tenantId)
@@ -346,36 +549,15 @@ export async function resolveVariantBySku(
   if (error) throw new Error(error.message);
   if (!data) return null;
 
-  const item = resolveJoin(
-    data.items as
-      | {
-          name: string;
-          track_inventory: boolean;
-          tracking_mode: string;
-          custom_fields: Record<string, unknown> | null;
-        }
-      | {
-          name: string;
-          track_inventory: boolean;
-          tracking_mode: string;
-          custom_fields: Record<string, unknown> | null;
-        }[]
-      | null
-  );
-
-  const standardCostRaw = item?.custom_fields?.standard_cost;
-  const standardCost =
-    standardCostRaw != null && String(standardCostRaw).trim() !== ""
-      ? String(standardCostRaw).trim()
-      : null;
-
+  const mapped = mapVariantSearchResult(data as VariantSearchDbRow);
+  const item = resolveJoin((data as VariantSearchDbRow).items);
   return {
-    variant_id: data.id as string,
-    item_id: data.item_id as string,
-    item_name: item?.name ?? "",
-    variant_sku: data.sku as string,
+    variant_id: mapped.variant_id,
+    item_id: mapped.item_id,
+    item_name: mapped.item_name,
+    variant_sku: mapped.variant_sku,
     track_inventory: Boolean(item?.track_inventory),
     tracking_mode: item?.tracking_mode ?? "NONE",
-    standard_cost: standardCost,
+    standard_cost: mapped.standard_cost,
   };
 }

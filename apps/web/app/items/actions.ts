@@ -50,6 +50,20 @@ import {
 } from "@/lib/products/composition";
 import { itemLifecycleStatusFromActive, type ItemType } from "@/lib/products/item-model";
 import { resolveItemTaxCodePickerOptions } from "@/lib/tax/item-tax-code-picker";
+import { postStockAdjustment } from "@/app/inventory/stock/actions";
+import {
+  buildFifoUnsupportedStockError,
+  resolveFifoBlockReason,
+  resolveStockPostingValuationEngine,
+} from "@/lib/inventory/stock/valuation-engine";
+import {
+  buildOpeningAdjustmentsByLocation,
+  hasPendingOpeningStockEntries,
+  openingStockCellKey,
+  type OpeningStockDraftCell,
+  type OpeningStockOnHandCell,
+} from "@/lib/products/opening-stock";
+import { fetchItemVariantValuations } from "@/lib/products/opening-stock-queries";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -1105,6 +1119,175 @@ export async function getItemBufferThresholds(
       })),
     },
   };
+}
+
+export async function getItemOpeningStockOnHand(
+  itemId: string
+): Promise<{ cells: OpeningStockOnHandCell[] } | { error: string }> {
+  if (!itemId.trim()) return { error: "Product id is required." };
+  const { supabase, tenantId } = await requireTenantId();
+  try {
+    const cells = await fetchItemVariantValuations(supabase, tenantId, itemId);
+    return { cells };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to load on-hand balances." };
+  }
+}
+
+export async function postItemOpeningStock(itemId: string, entries: OpeningStockDraftCell[]) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+  if (!hasPendingOpeningStockEntries(entries)) {
+    return { success: true as const, postedLocationCount: 0 };
+  }
+
+  const assortmentResult = await getVariantAssortment(itemId);
+  if ("error" in assortmentResult) {
+    return { error: assortmentResult.error };
+  }
+
+  const stockedKeys = new Set(
+    assortmentResult.data.cells
+      .filter((cell) => cell.is_stocked)
+      .map((cell) => openingStockCellKey(cell.variant_id, cell.location_id))
+  );
+
+  const eligibleEntries = entries.filter((entry) =>
+    stockedKeys.has(openingStockCellKey(entry.variant_id, entry.location_id))
+  );
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data: variantRows, error: variantError } = await supabase
+    .from("item_variants")
+    .select("id, is_sellable")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+
+  if (variantError) return { error: variantError.message };
+
+  const sellableVariantIds = new Set(
+    (variantRows ?? [])
+      .filter((row) => row.is_sellable === true)
+      .map((row) => row.id as string)
+  );
+
+  const sellableEntries = eligibleEntries.filter((entry) =>
+    sellableVariantIds.has(entry.variant_id)
+  );
+
+  const grouped = buildOpeningAdjustmentsByLocation(sellableEntries);
+  if (grouped.size === 0) {
+    return { success: true as const, postedLocationCount: 0 };
+  }
+
+  const locationIds = [...grouped.keys()];
+  const [{ data: itemRow }, { data: tenantRow }, { data: locationRows }] = await Promise.all([
+    supabase
+      .from("items")
+      .select("costing_method")
+      .eq("tenant_id", tenantId)
+      .eq("id", itemId)
+      .maybeSingle(),
+    supabase.from("tenants").select("accounting_config").eq("id", tenantId).maybeSingle(),
+    supabase
+      .from("tenant_locations")
+      .select("id, name, code, valuation_calculation_rule")
+      .eq("tenant_id", tenantId)
+      .in("id", locationIds),
+  ]);
+
+  const itemCostingMethod = (itemRow?.costing_method as string | null) ?? null;
+  const tenantValuationMethod =
+    typeof tenantRow?.accounting_config === "object" &&
+    tenantRow.accounting_config !== null &&
+    "inventory_valuation_method" in tenantRow.accounting_config
+      ? String(
+          (tenantRow.accounting_config as Record<string, unknown>).inventory_valuation_method ?? ""
+        )
+      : null;
+
+  const locationById = new Map(
+    (locationRows ?? []).map((row) => [
+      row.id as string,
+      {
+        name: row.name as string,
+        code: (row.code as string) ?? "",
+        valuation_calculation_rule: row.valuation_calculation_rule as string | null,
+      },
+    ])
+  );
+
+  const failures: Array<{ message: string; errorAction?: { href: string; label: string } }> =
+    [];
+  let postedLocationCount = 0;
+
+  for (const [locationId, lines] of grouped) {
+    const location = locationById.get(locationId);
+
+    const valuationEngine = resolveStockPostingValuationEngine({
+      itemCostingMethod,
+      locationValuationRule: location?.valuation_calculation_rule ?? null,
+      tenantValuationMethod,
+    });
+
+    if (valuationEngine === "FIFO") {
+      const fifoError = buildFifoUnsupportedStockError(
+        location?.name,
+        location?.code,
+        resolveFifoBlockReason({
+          itemCostingMethod,
+          locationValuationRule: location?.valuation_calculation_rule ?? null,
+        })
+      );
+      failures.push({
+        message: fifoError.message,
+        errorAction: fifoError.action,
+      });
+      continue;
+    }
+
+    const result = await postStockAdjustment({
+      location_id: locationId,
+      kind: "OPENING",
+      reason: "Product setup",
+      notes: `Opening stock for item ${itemId}`,
+      lines: lines.map((line) => ({
+        variant_id: line.variant_id,
+        quantity_delta: String(line.quantity_delta),
+        unit_cost: String(line.unit_cost),
+      })),
+    });
+
+    if ("error" in result) {
+      failures.push({
+        message: result.error ?? "Unable to post opening stock.",
+        errorAction: result.errorAction,
+      });
+      continue;
+    }
+
+    postedLocationCount += 1;
+  }
+
+  if (failures.length > 0) {
+    const primary = failures[0]!;
+    const partialPrefix =
+      postedLocationCount > 0
+        ? `Opening stock saved for ${postedLocationCount} location(s), but not all locations could be updated. `
+        : "";
+    const body =
+      failures.length === 1
+        ? primary.message
+        : failures.map((entry) => entry.message).join(" ");
+    return {
+      error: `${partialPrefix}${body}`,
+      errorAction: failures.find((entry) => entry.errorAction)?.errorAction ?? primary.errorAction,
+    };
+  }
+
+  revalidatePath("/items");
+  revalidatePath("/inventory/stock");
+  revalidatePath("/inventory");
+  return { success: true as const, postedLocationCount };
 }
 
 export async function saveItemBufferThresholds(itemId: string, rows: BufferThresholdCell[]) {

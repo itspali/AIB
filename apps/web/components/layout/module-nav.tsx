@@ -87,12 +87,7 @@ export const moduleNavItems: ModuleNavItem[] = [
     children: [
       { href: "/inventory", label: "Overview", icon: LayoutDashboard },
       { href: "/inventory/stock", label: "Stock", icon: Package },
-      {
-        href: "/inventory/transfers",
-        label: "Transfers",
-        icon: ArrowLeftRight,
-        comingSoon: true,
-      },
+      { href: "/inventory/transfers", label: "Transfers", icon: ArrowLeftRight },
     ],
   },
   {

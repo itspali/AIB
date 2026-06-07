@@ -48,3 +48,13 @@ export type StockLocationOption = {
 };
 
 export type StockListViewMode = "balances" | "adjustments";
+
+export type StockVariantOption = {
+  variant_id: string;
+  item_id: string;
+  item_name: string;
+  variant_sku: string;
+  standard_cost: string | null;
+  adjustable: boolean;
+  blocked_reason: string | null;
+};
