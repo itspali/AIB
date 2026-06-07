@@ -25,11 +25,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
+import { validateReceiptLines } from "@/lib/inventory/transfers/receipt-validation";
 import { formatDate } from "@/lib/dashboard/format";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
 import type {
   StockTransferRow,
+  TransferDrawerCreatePrefill,
   TransferLineRow,
   TransferLocationOption,
 } from "@/lib/inventory/transfers/types";
@@ -57,6 +59,9 @@ type ReceiptLine = {
 type DraftFormState = {
   source_location_id: string;
   destination_location_id: string;
+  inter_company_freight_cost: string;
+  loading_overhead_cost: string;
+  unloading_overhead_cost: string;
   lines: DraftLine[];
 };
 
@@ -66,6 +71,7 @@ type Props = {
   locations: TransferLocationOption[];
   peekTransfer: StockTransferRow | null;
   editTransferId: string | null;
+  createPrefill?: TransferDrawerCreatePrefill | null;
   onClose: () => void;
   onAfterSave: (transferId: string) => void;
   onOpenEdit: (transferId: string) => void;
@@ -83,13 +89,46 @@ function createEmptyLine(): DraftLine {
   };
 }
 
-function defaultDraftForm(locations: TransferLocationOption[]): DraftFormState {
-  const sourceId = locations[0]?.id ?? "";
-  const destinationId = locations.find((location) => location.id !== sourceId)?.id ?? "";
+function defaultDraftForm(
+  locations: TransferLocationOption[],
+  prefill?: TransferDrawerCreatePrefill | null
+): DraftFormState {
+  const fallbackSourceId = locations[0]?.id ?? "";
+  const fallbackDestinationId =
+    locations.find((location) => location.id !== fallbackSourceId)?.id ?? "";
+
+  const sourceId =
+    prefill?.source_location_id &&
+    locations.some((location) => location.id === prefill.source_location_id)
+      ? prefill.source_location_id
+      : fallbackSourceId;
+
+  let destinationId =
+    prefill?.destination_location_id &&
+    locations.some((location) => location.id === prefill.destination_location_id)
+      ? prefill.destination_location_id
+      : fallbackDestinationId;
+
+  if (destinationId === sourceId) {
+    destinationId =
+      locations.find((location) => location.id !== sourceId)?.id ?? destinationId;
+  }
+
+  const line = createEmptyLine();
+  if (prefill?.variant_id) {
+    line.variant_id = prefill.variant_id;
+    line.variant_sku = prefill.variant_sku;
+    line.sku = prefill.variant_sku;
+    line.item_name = prefill.item_name;
+  }
+
   return {
     source_location_id: sourceId,
     destination_location_id: destinationId,
-    lines: [createEmptyLine()],
+    inter_company_freight_cost: "0",
+    loading_overhead_cost: "0",
+    unloading_overhead_cost: "0",
+    lines: [line],
   };
 }
 
@@ -97,10 +136,12 @@ function draftFormFromTransfer(
   transfer: StockTransferRow,
   locations: TransferLocationOption[]
 ): DraftFormState {
-  const base = defaultDraftForm(locations);
   return {
     source_location_id: transfer.source_location_id,
     destination_location_id: transfer.destination_location_id,
+    inter_company_freight_cost: transfer.inter_company_freight_cost || "0",
+    loading_overhead_cost: transfer.loading_overhead_cost || "0",
+    unloading_overhead_cost: transfer.unloading_overhead_cost || "0",
     lines:
       transfer.lines?.map((line) => ({
         key: line.id,
@@ -141,6 +182,7 @@ export function TransferDrawerForm({
   locations,
   peekTransfer,
   editTransferId,
+  createPrefill = null,
   onClose,
   onAfterSave,
   onOpenEdit,
@@ -163,6 +205,10 @@ export function TransferDrawerForm({
 
   const activeTransferId = surface === "edit" ? editTransferId : peekTransfer?.id ?? null;
 
+  const createPrefillSignature = createPrefill
+    ? `${createPrefill.source_location_id}:${createPrefill.destination_location_id}:${createPrefill.variant_id}`
+    : "";
+
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -170,13 +216,13 @@ export function TransferDrawerForm({
     setIsDirty(false);
 
     if (surface === "create") {
-      setForm(defaultDraftForm(locations));
+      setForm(defaultDraftForm(locations, createPrefill));
       setDetail(null);
       return;
     }
 
     setDetail(peekTransfer);
-  }, [open, surface, peekTransfer?.id, locations]);
+  }, [open, surface, peekTransfer?.id, locations, createPrefillSignature, createPrefill]);
 
   useEffect(() => {
     if (!open || surface !== "edit" || !editTransferId) return;
@@ -274,6 +320,9 @@ export function TransferDrawerForm({
         transfer_id: surface === "edit" ? editTransferId : undefined,
         source_location_id: form.source_location_id,
         destination_location_id: form.destination_location_id,
+        inter_company_freight_cost: form.inter_company_freight_cost,
+        loading_overhead_cost: form.loading_overhead_cost,
+        unloading_overhead_cost: form.unloading_overhead_cost,
         lines: form.lines.map((line) => ({
           variant_id: line.variant_id,
           quantity_dispatched: line.quantity_dispatched,
@@ -314,9 +363,30 @@ export function TransferDrawerForm({
     if (!activeTransferId) return;
     setError(null);
     setErrorAction(null);
+
+    const receiptError = validateReceiptLines(
+      receiptLines.map((line) => ({
+        line_id: line.line_id,
+        variant_sku: line.variant_sku,
+        quantity_dispatched: line.quantity_dispatched,
+        quantity_accepted: line.quantity_accepted,
+        quantity_damaged: line.quantity_damaged,
+        quantity_lost: line.quantity_lost,
+      }))
+    );
+    if (receiptError) {
+      setError(receiptError);
+      return;
+    }
+
+    const dispatchedByLineId = Object.fromEntries(
+      receiptLines.map((line) => [line.line_id, line.quantity_dispatched])
+    );
+
     startTransition(async () => {
       const result = await receiveStockTransfer({
         transfer_id: activeTransferId,
+        dispatched_by_line_id: dispatchedByLineId,
         lines: receiptLines.map((line) => ({
           line_id: line.line_id,
           quantity_accepted: line.quantity_accepted,
@@ -501,6 +571,51 @@ export function TransferDrawerForm({
               </div>
             </div>
 
+            <div className="space-y-3 rounded-lg border border-border/80 p-3">
+              <div>
+                <Label>Transfer overhead (optional)</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Freight and handling costs are allocated to received stock when the transfer is
+                  confirmed.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="transfer-freight">Freight</Label>
+                  <Input
+                    id="transfer-freight"
+                    inputMode="decimal"
+                    value={form.inter_company_freight_cost}
+                    onChange={(event) =>
+                      patchForm({ inter_company_freight_cost: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="transfer-loading">Loading</Label>
+                  <Input
+                    id="transfer-loading"
+                    inputMode="decimal"
+                    value={form.loading_overhead_cost}
+                    onChange={(event) =>
+                      patchForm({ loading_overhead_cost: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="transfer-unloading">Unloading</Label>
+                  <Input
+                    id="transfer-unloading"
+                    inputMode="decimal"
+                    value={form.unloading_overhead_cost}
+                    onChange={(event) =>
+                      patchForm({ unloading_overhead_cost: event.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <Label>Lines</Label>
@@ -597,9 +712,38 @@ export function TransferDrawerForm({
               ) : null}
             </div>
 
+            {Number(detail.inter_company_freight_cost) > 0 ||
+            Number(detail.loading_overhead_cost) > 0 ||
+            Number(detail.unloading_overhead_cost) > 0 ? (
+              <div className="rounded-lg border border-border/80 p-3 text-sm">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Transfer overhead
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  <div>
+                    <span className="text-muted-foreground">Freight: </span>
+                    <span className="tabular-nums">{detail.inter_company_freight_cost}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Loading: </span>
+                    <span className="tabular-nums">{detail.loading_overhead_cost}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Unloading: </span>
+                    <span className="tabular-nums">{detail.unloading_overhead_cost}</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {detail.current_status === "DISPATCHED_IN_TRANSIT" && receiptLines.length > 0 ? (
               <div className="space-y-3">
-                <Label>Receipt quantities</Label>
+                <div>
+                  <Label>Receipt quantities</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Accepted + damaged + lost must equal dispatched quantity on every line.
+                  </p>
+                </div>
                 {receiptLines.map((line) => (
                   <div
                     key={line.line_id}

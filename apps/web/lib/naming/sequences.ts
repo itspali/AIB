@@ -4,6 +4,7 @@ import { NAMING_SEQUENCE_KEYS } from "@/lib/organization/naming-options";
 export type NamingSequenceEntry = {
   prefix: string;
   digits: string;
+  next?: string;
 };
 
 export const namingSequenceEntrySchema = z.object({
@@ -17,6 +18,17 @@ export const namingSequenceEntrySchema = z.object({
       const parsed = Number(value);
       return parsed >= 3 && parsed <= 12;
     }, "Digits must be between 3 and 12"),
+  next: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => value === undefined || value === "" || /^\d+$/.test(value), {
+      message: "Next value must be numeric",
+    })
+    .refine((value) => {
+      if (!value) return true;
+      return Number(value) >= 1;
+    }, "Next value must be at least 1"),
 });
 
 export const locationNamingSequencesSchema = z.record(z.string(), namingSequenceEntrySchema);
@@ -43,6 +55,12 @@ export function parseNamingSequences(
     base[key] = {
       prefix: entry.prefix != null ? String(entry.prefix) : "",
       digits: entry.digits != null ? String(entry.digits) : "5",
+      next:
+        entry.next != null
+          ? String(entry.next)
+          : entry.current != null
+            ? String(entry.current)
+            : "",
     };
   }
 
@@ -51,13 +69,19 @@ export function parseNamingSequences(
 
 export function buildNamingSequencesPayload(
   raw: Record<string, NamingSequenceEntry>
-): Record<string, { prefix: string; digits: number }> {
-  const payload: Record<string, { prefix: string; digits: number }> = {};
+): Record<string, { prefix: string; digits: number; next?: number }> {
+  const payload: Record<string, { prefix: string; digits: number; next?: number }> = {};
   for (const [key, entry] of Object.entries(raw)) {
     const prefix = entry.prefix.trim();
     if (!prefix) continue;
     const digits = Number(entry.digits) || 5;
-    payload[key] = { prefix, digits: Math.min(12, Math.max(3, digits)) };
+    const nextRaw = entry.next?.trim() ?? "";
+    const next = nextRaw ? Number(nextRaw) : undefined;
+    payload[key] = {
+      prefix,
+      digits: Math.min(12, Math.max(3, digits)),
+      ...(next != null && Number.isFinite(next) && next >= 1 ? { next } : {}),
+    };
   }
   return payload;
 }

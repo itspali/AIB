@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { Info, Plus } from "lucide-react";
 import { loadStockTransfers } from "@/app/inventory/transfers/actions";
 import { TransferDrawerForm } from "@/components/inventory/transfers/transfer-drawer-form";
@@ -20,7 +21,11 @@ import {
   saveTransferListPrefs,
   type TransferListPrefs,
 } from "@/lib/inventory/transfers/list-prefs";
-import { TRANSFERS_HREF } from "@/lib/inventory/transfers/navigation";
+import {
+  TRANSFER_DRAWER_DEST_PARAM,
+  TRANSFER_DRAWER_SOURCE_PARAM,
+  TRANSFERS_HREF,
+} from "@/lib/inventory/transfers/navigation";
 import type { StockTransferRow, TransferLocationOption } from "@/lib/inventory/transfers/types";
 import { useFilteredTransfers } from "@/lib/inventory/transfers/use-filtered-transfers";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
@@ -64,7 +69,10 @@ function TransfersPageTitleHeader({ onNewTransfer }: { onNewTransfer: () => void
 }
 
 export function TransferManagementTerminal({ initialTransfers, locations }: Props) {
-  const drawer = useModuleDrawerUrl(TRANSFERS_HREF);
+  const searchParams = useSearchParams();
+  const drawer = useModuleDrawerUrl(TRANSFERS_HREF, {
+    clearParamsOnClose: [TRANSFER_DRAWER_SOURCE_PARAM, TRANSFER_DRAWER_DEST_PARAM],
+  });
   const [transfers, setTransfers] = useState(initialTransfers);
   const [prefs, setPrefs] = useState<TransferListPrefs>(getDefaultTransferListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
@@ -97,6 +105,24 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
 
   const editTransferId =
     drawer.surface === "edit" && drawer.recordId ? drawer.recordId : null;
+
+  const createPrefill = useMemo(() => {
+    if (drawer.surface !== "create") return null;
+
+    const variantId = drawer.variantId;
+    const sourceLocationId = searchParams.get(TRANSFER_DRAWER_SOURCE_PARAM)?.trim() ?? "";
+    const destinationLocationId = searchParams.get(TRANSFER_DRAWER_DEST_PARAM)?.trim() ?? "";
+
+    if (!variantId && !destinationLocationId && !sourceLocationId) return null;
+
+    return {
+      source_location_id: sourceLocationId,
+      destination_location_id: destinationLocationId,
+      variant_id: variantId ?? "",
+      variant_sku: "",
+      item_name: "",
+    };
+  }, [drawer.surface, drawer.variantId, searchParams]);
 
   const handleSelectTransfer = useCallback(
     (transferId: string) => {
@@ -173,6 +199,7 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
         locations={locations}
         peekTransfer={peekTransfer}
         editTransferId={editTransferId}
+        createPrefill={createPrefill}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
         onOpenEdit={handleOpenEdit}

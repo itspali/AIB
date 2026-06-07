@@ -1,10 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Boxes, ClipboardList, Package } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  ArrowRight,
+  Boxes,
+  ClipboardList,
+  Package,
+} from "lucide-react";
+import { InventoryBelowReorderSection } from "@/components/inventory/inventory-below-reorder-section";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { stockAdjustmentKindLabel } from "@/lib/inventory/stock/labels";
 import { STOCK_HREF } from "@/lib/inventory/stock/navigation";
+import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
 import { TRANSFERS_HREF } from "@/lib/inventory/transfers/navigation";
 import type { InventoryOverviewSnapshot } from "@/lib/inventory/overview/types";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
@@ -27,13 +36,18 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             Track on-hand balances, move stock between locations, and manage your product catalog.
           </p>
         </div>
-        <Button asChild>
-          <Link href={`${STOCK_HREF}?action=new`}>New adjustment</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href={`${TRANSFERS_HREF}?action=new`}>New transfer</Link>
+          </Button>
+          <Button asChild>
+            <Link href={`${STOCK_HREF}?action=new`}>New adjustment</Link>
+          </Button>
+        </div>
       </div>
 
       <section aria-label="Inventory summary" className="mb-8">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             title="Inventory valuation"
             value={formatCurrency(snapshot.inventoryValuation)}
@@ -47,6 +61,13 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             subtitle="Variant×location balances at or below their reorder threshold"
             icon={AlertTriangle}
             accent="amber"
+          />
+          <MetricCard
+            title="In transit"
+            value={String(snapshot.inTransitTransferCount)}
+            subtitle="Transfers dispatched and awaiting receipt"
+            icon={ArrowLeftRight}
+            accent="cyan"
           />
           <MetricCard
             title="Stocked balances"
@@ -106,6 +127,81 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
         </div>
       </section>
 
+      <InventoryBelowReorderSection
+        rows={snapshot.belowReorderBalances}
+        totalCount={snapshot.belowReorderCount}
+      />
+
+      <section aria-label="Recent stock transfers" className="mb-8">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ArrowLeftRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Recent transfers
+            </h2>
+          </div>
+          <Link
+            href={TRANSFERS_HREF}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            View all
+          </Link>
+        </div>
+
+        {snapshot.recentTransfers.length === 0 ? (
+          <div className="surface-inset rounded-lg px-4 py-8 text-center text-sm text-muted-foreground">
+            No stock transfers yet.{" "}
+            <Link
+              href={`${TRANSFERS_HREF}?action=new`}
+              className="font-medium text-primary hover:underline"
+            >
+              Create your first transfer
+            </Link>
+            .
+          </div>
+        ) : (
+          <div className="surface-inset overflow-auto rounded-lg">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="p-2.5 font-medium">Document</th>
+                  <th className="p-2.5 font-medium">From</th>
+                  <th className="p-2.5 font-medium">To</th>
+                  <th className="p-2.5 font-medium">Status</th>
+                  <th className="p-2.5 text-right font-medium">Lines</th>
+                  <th className="p-2.5 font-medium">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.recentTransfers.map((row) => (
+                  <tr key={row.id} className="border-b border-border last:border-b-0">
+                    <td className="p-2.5">
+                      <Link
+                        href={`${TRANSFERS_HREF}?id=${encodeURIComponent(row.id)}`}
+                        className="font-mono text-xs font-medium text-primary hover:underline"
+                      >
+                        {row.transfer_number}
+                      </Link>
+                    </td>
+                    <td className="p-2.5">
+                      <div className="font-medium">{row.source_location_name}</div>
+                    </td>
+                    <td className="p-2.5">
+                      <div className="font-medium">{row.destination_location_name}</div>
+                    </td>
+                    <td className="p-2.5">{stockTransferStatusLabel(row.current_status)}</td>
+                    <td className="p-2.5 text-right tabular-nums">{row.line_count}</td>
+                    <td className="p-2.5 text-muted-foreground">
+                      {formatDate(row.dispatched_at ?? row.created_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section aria-label="Recent stock adjustments">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -114,10 +210,7 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
               Recent adjustments
             </h2>
           </div>
-          <Link
-            href={STOCK_HREF}
-            className="text-sm font-medium text-primary hover:underline"
-          >
+          <Link href={STOCK_HREF} className="text-sm font-medium text-primary hover:underline">
             View all
           </Link>
         </div>
@@ -125,7 +218,10 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
         {snapshot.recentAdjustments.length === 0 ? (
           <div className="surface-inset rounded-lg px-4 py-8 text-center text-sm text-muted-foreground">
             No stock adjustments posted yet.{" "}
-            <Link href={`${STOCK_HREF}?action=new`} className="font-medium text-primary hover:underline">
+            <Link
+              href={`${STOCK_HREF}?action=new`}
+              className="font-medium text-primary hover:underline"
+            >
               Post your first adjustment
             </Link>
             .

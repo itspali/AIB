@@ -3,6 +3,7 @@ import {
   filterNamingSequencesToKeys,
   getLocationDocumentNumberingKeys,
   locationHasDocumentNumbering,
+  mergeDocumentSequenceCounters,
 } from "@/lib/locations/document-numbering";
 
 describe("document-numbering", () => {
@@ -76,6 +77,34 @@ describe("document-numbering", () => {
         is_administrative_office: false,
       })
     ).toBe(false);
+  });
+
+  it("merges live document sequence counters into form values", () => {
+    const merged = mergeDocumentSequenceCounters(
+      {
+        PURCHASE_ORDER: { prefix: "PO-", digits: "5" },
+        SALES_INVOICE: { prefix: "SI-", digits: "6" },
+      },
+      [
+        {
+          id: "seq-1",
+          voucher_type: "PURCHASE_ORDER",
+          prefix: "PO-",
+          next_value: 42,
+          padding_length: 5,
+        },
+      ]
+    );
+
+    expect(merged.PURCHASE_ORDER).toEqual({
+      prefix: "PO-",
+      digits: "5",
+      next: "42",
+    });
+    expect(merged.SALES_INVOICE).toEqual({
+      prefix: "SI-",
+      digits: "6",
+    });
   });
 
   it("filters naming sequences to allowed keys", () => {

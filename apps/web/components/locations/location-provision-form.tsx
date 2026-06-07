@@ -25,6 +25,7 @@ import {
   filterNamingSequencesToKeys,
   getLocationDocumentNumberingKeys,
   locationHasDocumentNumbering,
+  mergeDocumentSequenceCounters,
 } from "@/lib/locations/document-numbering";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
 import { buildLocationCodeSuggestInput } from "@/lib/locations/code-generation";
@@ -150,18 +151,15 @@ export function LocationProvisionForm({
     [rows, editingLocation?.id]
   );
   const numberingKeys = useMemo(() => getLocationDocumentNumberingKeys(form), [form]);
-  const documentSequences = editingLocation
-    ? (documentSequencesByLocationId[editingLocation.id] ?? [])
-    : [];
 
   useEffect(() => {
     if (editingLocation) {
       codeManuallyEditedRef.current = true;
       lastSuggestionRef.current = null;
       const numberingKeysForLocation = getLocationDocumentNumberingKeys(editingLocation);
-      const namingSequences = parseLocationNamingSequences(
-        editingLocation.location_meta,
-        numberingKeysForLocation
+      const namingSequences = mergeDocumentSequenceCounters(
+        parseLocationNamingSequences(editingLocation.location_meta, numberingKeysForLocation),
+        documentSequencesByLocationId[editingLocation.id] ?? []
       );
       setForm(
         syncNumberingSequences({
@@ -218,7 +216,7 @@ export function LocationProvisionForm({
       setForm(defaultForm);
     }
     setError(null);
-  }, [editingLocation]);
+  }, [editingLocation, documentSequencesByLocationId]);
 
   const applySuggestedCode = async (force = false) => {
     if (isEditing) return;
@@ -695,7 +693,6 @@ export function LocationProvisionForm({
           <LocationNumberingSection
             keys={numberingKeys}
             value={form.naming_sequences}
-            documentSequences={documentSequences}
             onChange={(naming_sequences) => updateField("naming_sequences", naming_sequences)}
           />
         )}

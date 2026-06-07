@@ -41,7 +41,7 @@ export type BuildLocationMetaInput = {
   code_generation?: LocationFormValuesCodeGeneration | null;
   code_manually_edited?: boolean;
   virtual_configuration?: VirtualLocationConfiguration;
-  naming_sequences?: Record<string, { prefix: string; digits: string | number }>;
+  naming_sequences?: Record<string, { prefix: string; digits: string | number; next?: number }>;
   location_theme_enabled?: boolean;
   location_theme?: Theme;
   location_primary_hue?: number | null;

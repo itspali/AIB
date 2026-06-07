@@ -36,8 +36,19 @@ export type StockTransferRow = {
   destination_location_code: string;
   current_status: StockTransferStatus;
   line_count: number;
+  inter_company_freight_cost: string;
+  loading_overhead_cost: string;
+  unloading_overhead_cost: string;
   dispatched_at: string | null;
   received_at: string | null;
   created_at: string;
   lines?: TransferLineRow[];
+};
+
+export type TransferDrawerCreatePrefill = {
+  source_location_id: string;
+  destination_location_id: string;
+  variant_id: string;
+  variant_sku: string;
+  item_name: string;
 };

@@ -37,6 +37,15 @@ function isTrackingModeError(message: string): boolean {
   return message.toLowerCase().includes("lot and serial tracking are not supported");
 }
 
+function isReceiptQuantityError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("receipt quantities cannot exceed") ||
+    normalized.includes("all receipt quantities must be entered") ||
+    normalized.includes("receipt quantities cannot be negative")
+  );
+}
+
 function replaceLocationTokens(message: string, context: TransferErrorContext): string {
   let result = message;
 
@@ -96,6 +105,13 @@ export function formatStockTransferRpcError(
   if (isTrackingModeError(message)) {
     return {
       message: "Lot and serial tracked items cannot be transferred in this version yet.",
+    };
+  }
+
+  if (isReceiptQuantityError(message)) {
+    return {
+      message:
+        "Receipt quantities must account for every dispatched unit on each line (accepted + damaged + lost).",
     };
   }
 

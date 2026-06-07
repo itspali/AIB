@@ -34,6 +34,9 @@ type TransferListDbRow = {
   source_location_id: string;
   destination_location_id: string;
   current_status: string;
+  inter_company_freight_cost: number | string;
+  loading_overhead_cost: number | string;
+  unloading_overhead_cost: number | string;
   dispatched_at: string | null;
   received_at: string | null;
   created_at: string;
@@ -114,6 +117,9 @@ function mapTransferListRow(row: TransferListDbRow): StockTransferRow {
     destination_location_code: destination?.code ?? "",
     current_status: row.current_status as StockTransferStatus,
     line_count: row.transfer_lines?.length ?? 0,
+    inter_company_freight_cost: formatDecimal(row.inter_company_freight_cost),
+    loading_overhead_cost: formatDecimal(row.loading_overhead_cost),
+    unloading_overhead_cost: formatDecimal(row.unloading_overhead_cost),
     dispatched_at: row.dispatched_at,
     received_at: row.received_at,
     created_at: row.created_at,
@@ -134,6 +140,9 @@ export async function fetchStockTransfers(
       source_location_id,
       destination_location_id,
       current_status,
+      inter_company_freight_cost,
+      loading_overhead_cost,
+      unloading_overhead_cost,
       dispatched_at,
       received_at,
       created_at,
@@ -173,6 +182,9 @@ export async function fetchStockTransferById(
       source_location_id,
       destination_location_id,
       current_status,
+      inter_company_freight_cost,
+      loading_overhead_cost,
+      unloading_overhead_cost,
       dispatched_at,
       received_at,
       created_at,

@@ -1,4 +1,5 @@
 import { NAMING_SEQUENCE_KEYS } from "@/lib/organization/naming-options";
+import type { DocumentSequenceRow } from "@/lib/organization/types";
 import type { NamingSequenceEntry } from "@/lib/naming/sequences";
 import type { LocationFormValues, LocationRow } from "@/lib/locations/types";
 
@@ -57,6 +58,23 @@ export function filterNamingSequencesToKeys(
   return Object.fromEntries(
     Object.entries(sequences).filter(([key]) => allowed.has(key))
   ) as Record<string, NamingSequenceEntry>;
+}
+
+export function mergeDocumentSequenceCounters(
+  sequences: Record<string, NamingSequenceEntry>,
+  documentSequences: readonly DocumentSequenceRow[]
+): Record<string, NamingSequenceEntry> {
+  const next = { ...sequences };
+
+  for (const row of documentSequences) {
+    if (!next[row.voucher_type]) continue;
+    next[row.voucher_type] = {
+      ...next[row.voucher_type],
+      next: String(row.next_value),
+    };
+  }
+
+  return next;
 }
 
 export function filterLocationFormNamingSequences(

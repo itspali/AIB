@@ -21,6 +21,7 @@ import {
   filterNamingSequencesToKeys,
   getLocationDocumentNumberingKeys,
   locationHasDocumentNumbering,
+  mergeDocumentSequenceCounters,
 } from "@/lib/locations/document-numbering";
 import { eligibleParentLocations, hierarchyEnabled } from "@/lib/locations/governance";
 import { LocationNumberingSection } from "@/components/locations/location-numbering-section";
@@ -120,9 +121,6 @@ export function LocationDrawerForm({
     [rows, editingLocation?.id]
   );
   const numberingKeys = useMemo(() => getLocationDocumentNumberingKeys(form), [form]);
-  const documentSequences = editingLocation
-    ? (documentSequencesByLocationId[editingLocation.id] ?? [])
-    : [];
 
   useEffect(() => {
     if (!open) return;
@@ -162,7 +160,10 @@ export function LocationDrawerForm({
               editingLocation.pos_terminal_count > 0
           ),
           virtual_configuration: parseVirtualLocationConfiguration(editingLocation.location_meta),
-          naming_sequences: parseLocationNamingSequences(editingLocation.location_meta, keys),
+          naming_sequences: mergeDocumentSequenceCounters(
+            parseLocationNamingSequences(editingLocation.location_meta, keys),
+            documentSequencesByLocationId[editingLocation.id] ?? []
+          ),
           existing_location_meta: editingLocation.location_meta,
           ...locationThemeToFormValues(editingLocation.location_meta),
         })
@@ -171,7 +172,7 @@ export function LocationDrawerForm({
       setForm(defaultForm);
     }
     setError(null);
-  }, [open, editingLocation]);
+  }, [open, editingLocation, documentSequencesByLocationId]);
 
   const closeForm = () => {
     onOpenChange(false);
@@ -340,7 +341,6 @@ export function LocationDrawerForm({
           <LocationNumberingSection
             keys={numberingKeys}
             value={form.naming_sequences}
-            documentSequences={documentSequences}
             onChange={(naming_sequences) => updateField("naming_sequences", naming_sequences)}
           />
         )}
