@@ -17,6 +17,7 @@ Use this document **before** opening a PR or pushing migration files to `develop
 | **Match `GRANT` signatures** to `CREATE FUNCTION` exactly | Whole migration rolls back on GRANT failure |
 | **Prefer idempotent DDL** (`IF NOT EXISTS`, `DROP … IF EXISTS`) | Safer re-runs and partial-failure recovery |
 | **Ship schema only via Git** → push `develop` | CI runs `supabase db push --yes --include-all` |
+| **Never apply DDL via MCP, Dashboard SQL, or local `supabase db push`** | Causes `schema_migrations` drift; breaks CI until history is reconciled |
 | **Do not commit** `supabase/.temp/` or `.env` secrets | Local link cache / credentials |
 
 ### Pre-push checklist (migrations)
@@ -432,7 +433,8 @@ END $$;
 | `f3ca196` | Duplicate migration version `20260603120000` |
 | `6667747` | CI `--include-all` for out-of-order backfill migrations |
 | `56a9b79` | View column order (`42P16`) — `reorder_point` on `product_list_workspace_rows` |
-| `20260609100000` (fix) | `DROP COLUMN users.tenant_id` blocked by `users_select` / `users_update` RLS from `20260548000000` — drop consolidated policies before column drop, recreate membership-scoped policies |
+| `20260609100000` (fix) | `DROP COLUMN users.tenant_id` blocked by `users_select` / `users_update` / `users_sync_app_metadata` trigger — drop policies + trigger before column drop, recreate membership-scoped policies |
+| `20260608075234` (reconcile) | Erroneous out-of-band MCP no-op left `tenant_groups_foundation` in remote history before `20260608120000` — add matching no-op file in Git so CI can apply `20260609100000` |
 
 ---
 
