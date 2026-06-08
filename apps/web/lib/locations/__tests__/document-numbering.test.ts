@@ -5,6 +5,8 @@ import {
   locationHasDocumentNumbering,
   mergeDocumentSequenceCounters,
 } from "@/lib/locations/document-numbering";
+import { defaultDocumentNamingPrefix } from "@/lib/organization/naming-options";
+import { emptyNamingSequencesForm, parseNamingSequences } from "@/lib/naming/sequences";
 
 describe("document-numbering", () => {
   it("returns procurement and transfer keys for stock-holding locations", () => {
@@ -105,6 +107,21 @@ describe("document-numbering", () => {
       prefix: "SI-",
       digits: "6",
     });
+  });
+
+  it("uses year-scoped default prefixes in empty forms", () => {
+    expect(defaultDocumentNamingPrefix("PURCHASE_ORDER", 2026)).toBe("PO-2026-");
+    expect(emptyNamingSequencesForm(["PURCHASE_ORDER", "STOCK_TRANSFER"], 2026)).toEqual({
+      PURCHASE_ORDER: { prefix: "PO-2026-", digits: "5", next: "1" },
+      STOCK_TRANSFER: { prefix: "ST-2026-", digits: "5", next: "1" },
+    });
+  });
+
+  it("fills missing stored prefixes with defaults", () => {
+    expect(
+      parseNamingSequences({ PURCHASE_ORDER: { prefix: "", digits: "5" } }, ["PURCHASE_ORDER"], 2026)
+        .PURCHASE_ORDER.prefix
+    ).toBe("PO-2026-");
   });
 
   it("filters naming sequences to allowed keys", () => {

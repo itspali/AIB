@@ -5,6 +5,7 @@ You are an Elite Enterprise Full-Stack Engineer and Core Database Architect. You
 - **Absolute Mandate**: Before generating any database query, schema modification, frontend screen, form component, or API routing path, you MUST read and follow the constraints defined in:
   1. `@docs/DATA_STANDARDS.md` (Relational UUIDv4 constraints, NUMERIC(15,4) and NUMERIC(15,6) financial scales, UTC timezones)
   2. `@docs/DESIGN_SYSTEM.md` (Three-Zone Dashboard layouts, Mobile responsive grid stacks, Progressive disclosure toggles)
+- **Inventory / stock / transfers / procurement inbound:** read [`docs/INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for what is shipped, V1 constraints, and the current execution roadmap.
 
 ## 2. Current Project State Architecture
 The fundamental multi-tenant network topology is constructed, initialized, and synchronized live with the cloud Supabase Sandbox via an automated GitHub Actions CI/CD engine (`.github/workflows/deploy.yml`).
@@ -37,15 +38,29 @@ The folder tree structure is:
 - `apps/web/app/items/categories/` -> Category Management Core (Sprint 1): tree + metadata viewport + RightDrawer create form.
 - `supabase/migrations/20260527210000_save_system_category_rpc.sql` -> `save_system_category` RPC for atomic `item_categories` insert.
 - `supabase/migrations/20260527213000_save_system_category_update_rpc.sql` -> extends `save_system_category` with `p_category_id` for tenant-scoped category updates.
+- `supabase/migrations/20260607190000_stock_adjustments.sql` -> `stock_adjustments` / `stock_adjustment_lines`, `post_stock_adjustment`, `STOCK_ADJUSTMENT` numbering, `reconcile_document_sequence`.
+- `supabase/migrations/20260608120000_stock_transfer_rpcs.sql` -> `save_stock_transfer`, `dispatch_stock_transfer`, `receive_stock_transfer`, `cancel_stock_transfer`.
+- `supabase/migrations/20260608130000_location_document_sequence_counters.sql` -> admin-set `next_value` on location document numbering save.
+- `supabase/migrations/20260608150000_default_location_document_naming_prefixes.sql` -> year-scoped default prefixes (e.g. `ST-2026-`, `SA-2026-`) for locations missing naming.
+- `apps/web/app/inventory/` -> Overview, Stock, Transfers modules (see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)).
 
 ## 3. Active System Tables Definition (Do Not Re-create)
-The database contains forty-five active models, protected by Row-Level Security:
-- `tenants`, `tenant_locations`, `users`, `entities`, `entity_contacts`, `item_categories`, `items`, `item_variants`, `item_uoms`, `supplier_items`, `price_books`, `price_book_entries`, `storefront_channels`, `storefront_items`, `item_media`, `tags`, `workspace_control_registry`, `document_layout_templates`, `document_sequences`, `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`, `stock_transfers`, `stock_transfer_items`, `stock_transfer_incidents`, `transfer_discrepancy_claims`, `item_valuations`, `inventory_buffer_thresholds`, `sales_quotations`, `sales_orders`, `sales_invoices`, `sales_shipments`, `payment_gateway_vouchers`, `customer_payments`, `payment_applications`, `sales_credit_notes`, `sales_returns`, `document_approvals`, `accounts`, `tax_rate_registry`, `return_policies`, `currency_exchange_rates`, `general_ledger_headers`, `general_ledger_entries`, `inventory_ledger`.
+The database contains forty-five+ active models, protected by Row-Level Security. Notable **inventory operations** tables (in addition to catalog tables):
+- `stock_adjustments`, `stock_adjustment_lines` — location-scoped posted adjustments (V1).
+- `stock_transfers`, `stock_transfer_items` — inter-location moves with status machine.
+- `item_valuations`, `inventory_ledger` — MWAC on-hand and append-only ledger.
+- Procurement (schema present, **UI not built**): `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`.
+
+Full catalog (do not re-create):
+- `tenants`, `tenant_locations`, `users`, `entities`, `entity_contacts`, `item_categories`, `items`, `item_variants`, `item_uoms`, `supplier_items`, `price_books`, `price_book_entries`, `storefront_channels`, `storefront_items`, `item_media`, `tags`, `workspace_control_registry`, `document_layout_templates`, `document_sequences`, `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`, `stock_transfers`, `stock_transfer_items`, `stock_transfer_incidents`, `transfer_discrepancy_claims`, `item_valuations`, `inventory_buffer_thresholds`, `sales_quotations`, `sales_orders`, `sales_invoices`, `sales_shipments`, `payment_gateway_vouchers`, `customer_payments`, `payment_applications`, `sales_credit_notes`, `sales_returns`, `document_approvals`, `accounts`, `tax_rate_registry`, `return_policies`, `currency_exchange_rates`, `general_ledger_headers`, `general_ledger_entries`, `inventory_ledger`, `stock_adjustments`, `stock_adjustment_lines`.
 
 **Schema sync:** Commit migration files and push to `develop`; GitHub Actions applies them to sandbox. Do not run Supabase CLI locally. Do not apply manual SQL hotfixes for `accounts` / `tax_rate_registry` / `return_policies` — they bypass RLS policies and drift from migrations.
 
-## 4. Pending Backlog Roadmap (For Discussion & Planning Sprints Only)
-CRITICAL: Do not write code or migrations for these tasks automatically. The user will initiate a planning chat to refine these points. Only execute migrations when the user explicitly states: "The plan is frozen. Please execute."
+## 4. Execution Roadmap vs Planning Backlog
+
+- **Inventory operations (Sequences 17–20):** **IMPLEMENTED** — see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for file index, V1 rules, and **what to build next** (default: Procurement GRN).
+- **Sequences 9–16 and below (unless marked IMPLEMENTED):** historical record. For net-new domains (Sales UI, Financials, etc.), confirm scope with the user before large migrations.
+- **Schema changes:** add SQL under `supabase/migrations/`, user commits/pushes to `develop`; CI applies to sandbox. Do not run Supabase CLI locally.
 
 ### Task Sequence 9: Public Organization Registration Funnel (Sign-Up) & Post-Login Setup Routing [IMPLEMENTED]
 - **Public B2B Signup Gate Canvas:** `/signup` — organization registration with design-system card layout.
@@ -117,3 +132,31 @@ CRITICAL: Do not write code or migrations for these tasks automatically. The use
 - **Migration (CI deploy only):** [20260531120000_organization_settings_security_rpc.sql](supabase/migrations/20260531120000_organization_settings_security_rpc.sql) — tenants SELECT-only RLS; `update_organization_governance_profile`, `upsert_tenant_workspace_control`, delegate grant/revoke RPCs; `tenant-logos` storage bucket.
 - **Nav:** User profile dropdown links to `/settings/organization` alongside `/settings/profile`.
 - **Dashboard:** Control panel replaced with link card to organization settings.
+
+### Task Sequence 17: Stock Management V1 [IMPLEMENTED]
+- **Route:** `/inventory/stock` — balances + adjustments list module.
+- **RPC:** `post_stock_adjustment` — kinds `OPENING` | `CORRECTION` | `WRITE_OFF`; `NONE` tracking only; MWAC guard.
+- **Drawer URL:** `?action=new`, `?id=`, `?variant=`, `?loc=` (Adjust from balance row).
+- **Lib/UI:** `apps/web/lib/inventory/stock/`, `apps/web/components/inventory/stock/`, `apps/web/app/inventory/stock/actions.ts`.
+- **Migration:** `20260607190000_stock_adjustments.sql`.
+
+### Task Sequence 18: Opening Stock in Product Editor (Reach) [IMPLEMENTED]
+- Variant×location matrix; posts per-location opening adjustments on product save via `postItemOpeningStock`.
+- Excludes non-sellable style anchors; locks cells after on-hand > 0.
+- **Key paths:** `apps/web/lib/products/opening-stock.ts`, `variant-opening-stock-matrix.tsx`, `apps/web/app/items/actions.ts`.
+
+### Task Sequence 19: Stock Transfers V1 [IMPLEMENTED]
+- **Route:** `/inventory/transfers` — draft → dispatch → receive (+ cancel draft).
+- **RPCs:** `save_stock_transfer`, `dispatch_stock_transfer`, `receive_stock_transfer`, `cancel_stock_transfer` (`20260608120000_stock_transfer_rpcs.sql`).
+- **Trigger:** `stock_transfers_status_transition` — source / in-transit / destination ledger postings.
+- **Lib/UI:** `apps/web/lib/inventory/transfers/`, `apps/web/components/inventory/transfers/`.
+
+### Task Sequence 20: Inventory Overview & Tier 1 Polish [IMPLEMENTED]
+- **Route:** `/inventory` — valuation, below reorder, in-transit metrics; below-reorder Adjust/Transfer links; recent activity tables.
+- **Location numbering:** sequence counter updates + default prefixes (`20260608130000_*`, `20260608150000_*`).
+- **Details:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
+
+### Task Sequence 21: Procurement Inbound (GRN) [NEXT — NOT STARTED]
+- **Goal:** PO → GRN → stock in; mirror Stock list-module pattern under `/procurement`.
+- **Prerequisite reading:** `20260527134500_create_procurement_and_control_registry.sql`, existing `goods_receipts` schema, [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §5–6.
+- **Defer:** full PO approval workflow, supplier portal, purchase invoices — unless user expands scope.

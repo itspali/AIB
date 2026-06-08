@@ -8,26 +8,24 @@ Organization Settings internal layouts stay frozen.
 
 ---
 
-## 1. Current State (baseline)
+## 1. Current State (as of 2026-06-08)
 
 | Area | Today | Source |
 |------|-------|--------|
-| Primary rail | 6 modules: Dashboard, Procurement, Inventory (Items/Categories/Locations), Sales, Logistics, Financials | [module-nav.tsx](../apps/web/components/layout/module-nav.tsx) |
-| Built module pages | Only **Dashboard** and **Inventory** children have `page.tsx` | `apps/web/app/**` |
-| Dead links | **Procurement, Sales, Logistics, Financials** have no page (404) | `apps/web/app` |
-| Settings | Profile, Organization, Tax exist but are reachable only via avatar dropdown + omnibar; **Tax has no menu link at all** | [user-profile-actions.tsx](../apps/web/components/layout/user-profile-actions.tsx), [navigation-index.ts](../apps/web/lib/search/navigation-index.ts) |
-| Secondary nav | Only Inventory has children; no consistent in-module nav | `module-nav.tsx` |
-| Breadcrumbs / global create | None | — |
-| Mobile | 6-item bottom bar + left module drawer | [mobile-bottom-nav.tsx](../apps/web/components/layout/mobile-bottom-nav.tsx), [mobile-nav-drawer.tsx](../apps/web/components/layout/mobile-nav-drawer.tsx) |
+| Primary rail | Dashboard, Procurement, **Items** (Catalog/Categories), **Inventory** (Overview/Stock/Transfers), Sales, Fulfillment & Shipping, Financials, **Administration** | [module-nav.tsx](../apps/web/components/layout/module-nav.tsx) |
+| Built operational modules | **Dashboard**, **Items** catalog, **Inventory** (overview + stock + transfers), **Administration** (org, locations, tax, profile) | `apps/web/app/**` |
+| Coming soon shells | Procurement children, Sales, Fulfillment, Financials, Users & Roles | `comingSoon: true` in `module-nav.tsx` |
+| Locations | Under **Administration → Locations** (`/settings/locations`), not Inventory children | `module-nav.tsx` |
+| Inventory ops detail | Stock, transfers, opening stock, overview — see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) | — |
+| Secondary nav | Left sidebar expands active module's children (Overview / Stock / …) | [sidebar-nav.tsx](../apps/web/components/layout/sidebar-nav.tsx) |
+| Global create | Top-strip menu | [global-create-menu.tsx](../apps/web/components/layout/global-create-menu.tsx) |
+| Mobile | Bottom bar + module drawer | [mobile-bottom-nav.tsx](../apps/web/components/layout/mobile-bottom-nav.tsx) |
 
-### Gaps vs global ERP conventions (Odoo, NetSuite, SAP Fiori, Dynamics 365, Zoho)
+### Remaining IA gaps
 
-1. Nav advertises modules that do not exist (dead links).
-2. No dedicated Administration/Settings hub; configuration is buried.
-3. No consistent in-module secondary navigation.
-4. No module landing/overview pages (Inventory deep-links straight to Items).
-5. No breadcrumbs / location awareness.
-6. No global "+ Create" quick action.
+1. **Procurement / Sales / Financials** — overview shells exist; transactional UIs mostly unbuilt (next: **Procurement GRN** per [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)).
+2. **Breadcrumbs** — not implemented (by design; sidebar carries location context — see §8).
+3. **Units of Measure** — settings route exists; management UI partial/coming soon.
 
 ---
 
@@ -46,10 +44,16 @@ flowchart TB
   end
 
   I --> Ihome[Overview]
-  I --> Iitems[Items]
-  I --> Icat[Categories]
-  I --> Iloc[Locations]
-  I --> Iuom["Units of Measure (pending)"]
+  I --> Istock[Stock]
+  I --> Ixfer[Transfers]
+
+  subgraph itemsMod [Items module]
+    It[Catalog]
+    Icat[Categories]
+  end
+
+  A --> Aloc[Locations]
+  A --> Auom["Units of Measure (pending)"]
 
   A --> Aorg[Organization]
   A --> Atax[Tax]
@@ -63,12 +67,13 @@ flowchart TB
 | Module | Root route | Sections | Status |
 |--------|-----------|----------|--------|
 | **Dashboard** | `/dashboard` | (single page) | Built |
-| **Procurement** | `/procurement` | Overview, Purchase Orders, Suppliers, Bills | Coming soon |
-| **Inventory** | `/inventory` | Overview, Items, Categories, Locations, Units of Measure | Built (UoM pending) |
-| **Sales** | `/sales` | Overview, Orders, Customers, Channels | Coming soon |
-| **Logistics** | `/logistics` | Overview, Shipments, Transfers | Coming soon |
-| **Financials** | `/financials` | Overview, Chart of Accounts, Ledger, Tax Filings | Coming soon |
-| **Administration** | `/settings` | Organization, Tax, Users & Roles, Numbering, My Account | Built (needs hub) |
+| **Items** | `/items` | Catalog, Categories | Built |
+| **Inventory** | `/inventory` | Overview, Stock, Transfers | **Built** (ops); catalog also at `/inventory/items` aliases |
+| **Procurement** | `/procurement` | Overview, Purchase Orders, Suppliers, Bills | Coming soon — **GRN next** ([`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)) |
+| **Sales** | `/sales` | Customers, Quotes, Orders, Invoices | Coming soon |
+| **Fulfillment & Shipping** | `/fulfillment/shipping` | (single) | Coming soon |
+| **Financials** | `/financials` | Overview, COA, Ledger, Tax Filings | Coming soon |
+| **Administration** | `/settings` | Organization, **Locations**, UoM, Tax, Users & Roles, My Account | Built (Users coming soon; numbering inside Locations + Org) |
 
 Modules marked "Coming soon" render a **Coming-soon module shell** (overview page with greyed,
 labeled sections) instead of 404ing. Built modules resolve their root to an **Overview** landing.
@@ -171,6 +176,7 @@ New `/settings` (Administration) becomes a first-class module with its own secon
 | 5. Create | Global create menu in the top strip; each page renders its own title/subtitle + create action | Done | [global-create-menu.tsx](../apps/web/components/layout/global-create-menu.tsx), [top-utility-strip.tsx](../apps/web/components/layout/top-utility-strip.tsx) |
 | 6. Mobile | Bottom-nav "More" tab + drawer Soon badges | Done | [mobile-bottom-nav.tsx](../apps/web/components/layout/mobile-bottom-nav.tsx), [mobile-nav-drawer.tsx](../apps/web/components/layout/mobile-nav-drawer.tsx) |
 | 7. Docs sync | DESIGN_SYSTEM references this IA | Done | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
+| 8. Inventory ops | Stock, Transfers, Overview, opening stock | Done | [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), `app/inventory/{stock,transfers}/` |
 
 ### Implementation notes / deviations
 

@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { NAMING_SEQUENCE_KEYS } from "@/lib/organization/naming-options";
+import {
+  defaultDocumentNamingPrefix,
+  NAMING_SEQUENCE_KEYS,
+  type NamingSequenceKey,
+} from "@/lib/organization/naming-options";
 
 export type NamingSequenceEntry = {
   prefix: string;
@@ -34,33 +38,49 @@ export const namingSequenceEntrySchema = z.object({
 export const locationNamingSequencesSchema = z.record(z.string(), namingSequenceEntrySchema);
 
 export function emptyNamingSequencesForm(
-  keys: readonly string[] = NAMING_SEQUENCE_KEYS
+  keys: readonly string[] = NAMING_SEQUENCE_KEYS,
+  year: number = new Date().getFullYear()
 ): Record<string, NamingSequenceEntry> {
   return Object.fromEntries(
-    keys.map((key) => [key, { prefix: "", digits: "5" }])
+    keys.map((key) => {
+      const isDocumentKey = (NAMING_SEQUENCE_KEYS as readonly string[]).includes(key);
+      const prefix = isDocumentKey
+        ? defaultDocumentNamingPrefix(key as NamingSequenceKey, year)
+        : "";
+      return [key, { prefix, digits: "5", next: prefix ? "1" : "" }];
+    })
   ) as Record<string, NamingSequenceEntry>;
 }
 
 export function parseNamingSequences(
   raw: unknown,
-  keys: readonly string[] = NAMING_SEQUENCE_KEYS
+  keys: readonly string[] = NAMING_SEQUENCE_KEYS,
+  year: number = new Date().getFullYear()
 ): Record<string, NamingSequenceEntry> {
-  const base = emptyNamingSequencesForm(keys);
+  const base = emptyNamingSequencesForm(keys, year);
   if (!raw || typeof raw !== "object") return base;
 
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!keys.includes(key)) continue;
     if (!value || typeof value !== "object") continue;
     const entry = value as Record<string, unknown>;
+    const storedPrefix = entry.prefix != null ? String(entry.prefix).trim() : "";
+    const isDocumentKey = (NAMING_SEQUENCE_KEYS as readonly string[]).includes(key);
+    const fallbackPrefix = isDocumentKey
+      ? defaultDocumentNamingPrefix(key as NamingSequenceKey, year)
+      : "";
+    const prefix = storedPrefix || fallbackPrefix;
     base[key] = {
-      prefix: entry.prefix != null ? String(entry.prefix) : "",
+      prefix,
       digits: entry.digits != null ? String(entry.digits) : "5",
       next:
         entry.next != null
           ? String(entry.next)
           : entry.current != null
             ? String(entry.current)
-            : "",
+            : prefix
+              ? "1"
+              : "",
     };
   }
 
