@@ -8,6 +8,7 @@ import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 
 type Props = {
   workspace: EntityWorkspace;
+  tenantId: string;
   open: boolean;
   surface: DrawerSurface;
   recordId: string | null;
@@ -20,6 +21,7 @@ type Props = {
 
 export function EntityItemDrawer({
   workspace,
+  tenantId,
   open,
   surface,
   recordId,
@@ -88,18 +90,21 @@ export function EntityItemDrawer({
               company_phone: peekListRow.company_phone,
               website_url: null,
               internal_notes: null,
+              logo_url: peekListRow.logo_url ?? null,
               custom_fields: {},
               is_active: peekListRow.is_active,
               created_at: peekListRow.created_at,
               updated_at: peekListRow.updated_at,
               contacts: [],
               primary_contact: null,
+              bank_accounts: [],
             } satisfies EntityDetailSnapshot)
           : null);
 
   return (
     <EntityDrawerForm
       workspace={workspace}
+      tenantId={tenantId}
       open={open}
       surface={surface}
       editingEntity={editingEntity}

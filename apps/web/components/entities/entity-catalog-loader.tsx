@@ -27,6 +27,7 @@ export async function EntityCatalogLoader({ workspace }: Props) {
   return (
     <EntityManagementTerminal
       workspace={workspace}
+      tenantId={tenantId}
       initialRows={page.rows}
       initialTotalCount={page.totalCount}
       initialSavedView={initialSavedView}

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { defaultEntityBankAccountValues } from "@/components/entities/entity-bank-accounts-section";
+import { extractBankCodeFromIfsc, normalizeUpiId } from "@/lib/entities/bank-ifsc";
 import { entityMasterSchema } from "@/lib/entities/schemas";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type {
@@ -11,6 +13,13 @@ import type {
   EntityWorkspace,
 } from "@/lib/entities/types";
 import { taxRegistrationRequired } from "@/lib/entities/types";
+
+function createDraftStorageKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `draft-${Date.now()}`;
+}
 
 export const defaultEntityFormContactValues: EntityFormContactValues = {
   contact_id: null,
@@ -31,6 +40,8 @@ export function createDefaultEntityFormValues(workspace: EntityWorkspace): Entit
   const config = getEntityWorkspaceConfig(workspace);
   return {
     entity_id: null,
+    logo_url: "",
+    draft_storage_key: createDraftStorageKey(),
     name: "",
     type: config.defaultType,
     tax_treatment: "REGULAR_B2B",
@@ -66,6 +77,7 @@ export function createDefaultEntityFormValues(workspace: EntityWorkspace): Entit
       is_primary: true,
     },
     extended_contacts: [],
+    bank_accounts: [],
   };
 }
 
@@ -123,6 +135,8 @@ export function formFromEntityDetail(
   return {
     ...defaults,
     entity_id: entity.id,
+    logo_url: entity.logo_url ?? "",
+    draft_storage_key: createDraftStorageKey(),
     name: entity.name,
     type: entity.type,
     tax_treatment: entity.tax_treatment,
@@ -159,6 +173,18 @@ export function formFromEntityDetail(
     extended_contacts: entity.contacts
       .filter((contact) => !contact.is_primary)
       .map((contact) => contactFromRow(contact, false)),
+    bank_accounts: entity.bank_accounts.map((account) => ({
+      account_id: account.id,
+      account_holder_name: account.account_holder_name,
+      account_number: account.account_number,
+      ifsc_code: account.ifsc_code ?? "",
+      bank_code: account.bank_code ?? "",
+      bank_name: account.bank_name ?? "",
+      branch_name: account.branch_name ?? "",
+      upi_id: account.upi_id ?? "",
+      is_primary: account.is_primary,
+      is_active: account.is_active,
+    })),
   };
 }
 
@@ -202,6 +228,7 @@ export function buildEntitySavePayload(form: EntityFormValues): {
   entity: Record<string, unknown>;
   primary_contact: Record<string, unknown> | null;
   extended_contacts: Record<string, unknown>[];
+  bank_accounts: Record<string, unknown>[];
 } {
   const shipping = form.same_as_billing ? mirrorBillingToShipping(form) : form;
   const primaryContact = normalizeContactForSave(form.primary_contact);
@@ -238,6 +265,8 @@ export function buildEntitySavePayload(form: EntityFormValues): {
     website_url: form.website_url.trim() || null,
     internal_notes: form.internal_notes.trim() || null,
     custom_fields: form.custom_fields,
+    logo_url: form.logo_url.trim() || null,
+    draft_storage_key: form.draft_storage_key,
     is_active: form.is_active,
   };
 
@@ -273,7 +302,31 @@ export function buildEntitySavePayload(form: EntityFormValues): {
       is_primary: false,
     }));
 
-  return { entity, primary_contact, extended_contacts };
+  const bank_accounts = form.bank_accounts
+    .filter(
+      (account) =>
+        account.account_holder_name.trim().length > 0 && account.account_number.trim().length > 0
+    )
+    .map((account, index) => {
+      const ifsc = account.ifsc_code.trim().toUpperCase();
+      const bankCode =
+        account.bank_code.trim().toUpperCase() || extractBankCodeFromIfsc(ifsc) || null;
+      return {
+        account_id: account.account_id,
+        account_holder_name: account.account_holder_name.trim(),
+        account_number: account.account_number.trim(),
+        ifsc_code: ifsc || null,
+        bank_code: bankCode,
+        bank_name: account.bank_name.trim() || null,
+        branch_name: account.branch_name.trim() || null,
+        upi_id: account.upi_id.trim() ? normalizeUpiId(account.upi_id) : null,
+        is_primary: account.is_primary,
+        is_active: account.is_active,
+        sort_order: index,
+      };
+    });
+
+  return { entity, primary_contact, extended_contacts, bank_accounts };
 }
 
 export function validateEntityFormState(form: EntityFormValues): string | null {
@@ -288,25 +341,37 @@ export type EntityPersistResult =
   | { entity: EntityDetailSnapshot }
   | { error: string };
 
+export type EntityPersistPayload = ReturnType<typeof buildEntitySavePayload>;
+
 export type UseEntityFormOptions = {
   workspace: EntityWorkspace;
   editingEntity?: EntityDetailSnapshot | null;
+  logoPreviewUrl?: string | null;
   onSaved: (entity: EntityDetailSnapshot) => void;
-  onPersist: (payload: ReturnType<typeof buildEntitySavePayload>) => Promise<EntityPersistResult>;
+  onPersist: (payload: EntityPersistPayload) => Promise<EntityPersistResult>;
   notifyOnSave?: boolean;
 };
 
 export function useEntityForm({
   workspace,
   editingEntity = null,
+  logoPreviewUrl = null,
   onSaved,
   onPersist,
   notifyOnSave = true,
 }: UseEntityFormOptions) {
   const isEditing = Boolean(editingEntity);
-  const [form, setForm] = useState<EntityFormValues>(() => createDefaultEntityFormValues(workspace));
-  const [baseline, setBaseline] = useState<EntityFormValues>(() =>
-    createDefaultEntityFormValues(workspace)
+  const draftStorageKeyRef = useRef(createDraftStorageKey());
+  const [form, setForm] = useState<EntityFormValues>(() => {
+    const defaults = createDefaultEntityFormValues(workspace);
+    return { ...defaults, draft_storage_key: draftStorageKeyRef.current };
+  });
+  const [baseline, setBaseline] = useState<EntityFormValues>(() => {
+    const defaults = createDefaultEntityFormValues(workspace);
+    return { ...defaults, draft_storage_key: draftStorageKeyRef.current };
+  });
+  const [resolvedLogoPreviewUrl, setResolvedLogoPreviewUrl] = useState<string | null>(
+    logoPreviewUrl ?? null
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -317,22 +382,32 @@ export function useEntityForm({
       const next = formFromEntityDetail(editingEntity, workspace);
       setForm(next);
       setBaseline(next);
+      setResolvedLogoPreviewUrl(editingEntity.logo_preview_url ?? null);
       setShowAdvanced(
         Boolean(
           next.legal_name.trim() ||
             next.code.trim() ||
             next.company_email.trim() ||
-            next.extended_contacts.length
+            next.extended_contacts.length ||
+            next.bank_accounts.length
         )
       );
     } else {
-      const next = createDefaultEntityFormValues(workspace);
+      const next = {
+        ...createDefaultEntityFormValues(workspace),
+        draft_storage_key: draftStorageKeyRef.current,
+      };
       setForm(next);
       setBaseline(next);
+      setResolvedLogoPreviewUrl(null);
       setShowAdvanced(false);
     }
     setError(null);
   }, [editingEntity, workspace]);
+
+  useEffect(() => {
+    setResolvedLogoPreviewUrl(logoPreviewUrl ?? editingEntity?.logo_preview_url ?? null);
+  }, [editingEntity?.logo_preview_url, logoPreviewUrl]);
 
   useEffect(() => {
     resetFromEditing();
@@ -452,6 +527,15 @@ export function useEntityForm({
     setPrimaryContact,
     setPrimaryContactWhatsappSameAsMobile,
     setExtendedContactWhatsappSameAsMobile,
+    setBankAccounts: (accounts: EntityFormValues["bank_accounts"]) =>
+      setForm((current) => ({ ...current, bank_accounts: accounts })),
+    setLogoUrl: (logoUrl: string, previewUrl?: string | null) => {
+      setForm((current) => ({ ...current, logo_url: logoUrl }));
+      if (previewUrl !== undefined) {
+        setResolvedLogoPreviewUrl(previewUrl);
+      }
+    },
+    logoPreviewUrl: resolvedLogoPreviewUrl,
     resetFromEditing,
     submit,
     validateForm: () => validateEntityFormState(form),

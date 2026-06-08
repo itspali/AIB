@@ -49,6 +49,7 @@ export type EntityRow = {
   company_phone: string | null;
   website_url: string | null;
   internal_notes: string | null;
+  logo_url: string | null;
   custom_fields: Record<string, unknown>;
   is_active: boolean;
   created_at: string;
@@ -72,6 +73,23 @@ export type EntityContactRow = {
   updated_at: string;
 };
 
+export type EntityBankAccountRow = {
+  id: string;
+  entity_id: string;
+  account_holder_name: string;
+  account_number: string;
+  ifsc_code: string | null;
+  bank_code: string | null;
+  bank_name: string | null;
+  branch_name: string | null;
+  upi_id: string | null;
+  is_primary: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type EntityListRow = {
   id: string;
   name: string;
@@ -90,11 +108,14 @@ export type EntityListRow = {
   updated_at: string;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
+  logo_url?: string | null;
 };
 
 export type EntityDetailSnapshot = EntityRow & {
   contacts: EntityContactRow[];
   primary_contact: EntityContactRow | null;
+  bank_accounts: EntityBankAccountRow[];
+  logo_preview_url?: string | null;
 };
 
 export type EntityFormContactValues = {
@@ -112,8 +133,23 @@ export type EntityFormContactValues = {
   is_active: boolean;
 };
 
+export type EntityFormBankAccountValues = {
+  account_id: string | null;
+  account_holder_name: string;
+  account_number: string;
+  ifsc_code: string;
+  bank_code: string;
+  bank_name: string;
+  branch_name: string;
+  upi_id: string;
+  is_primary: boolean;
+  is_active: boolean;
+};
+
 export type EntityFormValues = {
   entity_id: string | null;
+  logo_url: string;
+  draft_storage_key: string;
   name: string;
   type: EntityCommercialType;
   tax_treatment: TaxTreatmentType;
@@ -146,6 +182,7 @@ export type EntityFormValues = {
   is_active: boolean;
   primary_contact: EntityFormContactValues;
   extended_contacts: EntityFormContactValues[];
+  bank_accounts: EntityFormBankAccountValues[];
 };
 
 export type EntityOverviewStats = {

@@ -4,11 +4,14 @@ import { useMemo, type ChangeEvent, type RefObject } from "react";
 import {
   Building2,
   CreditCard,
+  Landmark,
   MapPin,
   NotebookPen,
   Phone,
   UserRound,
 } from "lucide-react";
+import { EntityBankAccountsSection } from "@/components/entities/entity-bank-accounts-section";
+import { EntityLogoUploader } from "@/components/entities/entity-logo-uploader";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
 import { Input } from "@/components/ui/input";
@@ -32,6 +35,7 @@ type FormApi = ReturnType<typeof useEntityForm>;
 
 export const ENTITY_SECTION_ESSENTIALS_ID = "entity-essentials";
 export const ENTITY_SECTION_COMMERCIAL_ID = "entity-commercial";
+export const ENTITY_SECTION_BANKING_ID = "entity-banking";
 export const ENTITY_SECTION_ADDRESSES_ID = "entity-addresses";
 export const ENTITY_SECTION_COMPANY_ID = "entity-company";
 export const ENTITY_SECTION_CONTACTS_ID = "entity-contacts";
@@ -49,6 +53,13 @@ export const ENTITY_DRAWER_SECTIONS = [
     label: "Commercial",
     shortLabel: "Terms",
     icon: CreditCard,
+  },
+  {
+    id: ENTITY_SECTION_BANKING_ID,
+    label: "Banking",
+    shortLabel: "Bank",
+    icon: Landmark,
+    supplierOnly: true,
   },
   {
     id: ENTITY_SECTION_ADDRESSES_ID,
@@ -76,8 +87,19 @@ export const ENTITY_DRAWER_SECTIONS = [
   },
 ] as const;
 
+export function getEntityDrawerSections(workspace: EntityWorkspace) {
+  return ENTITY_DRAWER_SECTIONS.filter(
+    (section) => !("supplierOnly" in section && section.supplierOnly) || workspace === "supplier"
+  );
+}
+
+function entityTypeSupportsBankAccounts(type: string): boolean {
+  return type === "SUPPLIER" || type === "MUTUAL_PARTNER";
+}
+
 type Props = {
   workspace: EntityWorkspace;
+  tenantId: string;
   formApi: FormApi;
   readOnly?: boolean;
   activeSection?: string;
@@ -116,6 +138,7 @@ function Section({
 
 export function EntityEditorShell({
   workspace,
+  tenantId,
   formApi,
   readOnly = false,
   activeSection = ENTITY_SECTION_ESSENTIALS_ID,
@@ -135,10 +158,16 @@ export function EntityEditorShell({
     setSameAsBilling,
     setPrimaryContact,
     setPrimaryContactWhatsappSameAsMobile,
+    setBankAccounts,
+    setLogoUrl,
+    logoPreviewUrl,
   } = formApi;
 
   const fieldsDisabled = isPending || readOnly;
   const showTaxId = taxRegistrationRequired(form.tax_treatment);
+  const showBankAccounts =
+    workspace === "supplier" && entityTypeSupportsBankAccounts(form.type);
+  const drawerSections = getEntityDrawerSections(workspace);
   const typeOptions = useMemo(
     () =>
       ENTITY_COMMERCIAL_TYPES.filter((type) => config.typeFilter.includes(type)).map((type) => ({
@@ -153,7 +182,7 @@ export function EntityEditorShell({
       {onActiveSectionChange ? (
         <SectionScrollChipBar
           barRef={chipBarRef}
-          chips={ENTITY_DRAWER_SECTIONS.map((section) => ({
+          chips={drawerSections.map((section) => ({
             id: section.id,
             label: section.shortLabel,
             leading: <section.icon className="h-3.5 w-3.5" aria-hidden />,
@@ -176,8 +205,18 @@ export function EntityEditorShell({
         <Section
           id={ENTITY_SECTION_ESSENTIALS_ID}
           title="Essentials"
-          help="Core identity, tax treatment, and primary contact details."
+          help="Core identity, tax treatment, profile photo, and primary contact details."
         >
+          <EntityLogoUploader
+            tenantId={tenantId}
+            entityId={form.entity_id}
+            draftStorageKey={form.draft_storage_key}
+            value={form.logo_url}
+            previewUrl={logoPreviewUrl}
+            disabled={fieldsDisabled}
+            onUploaded={(storagePath) => setLogoUrl(storagePath)}
+          />
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="entity-name">Name</Label>
@@ -376,6 +415,20 @@ export function EntityEditorShell({
             </div>
           </div>
         </Section>
+
+        {showBankAccounts ? (
+          <Section
+            id={ENTITY_SECTION_BANKING_ID}
+            title="Bank accounts"
+            help="Vendor payout accounts with IFSC lookup and UPI IDs. Bank logos update automatically from IFSC."
+          >
+            <EntityBankAccountsSection
+              accounts={form.bank_accounts}
+              disabled={fieldsDisabled}
+              onChange={setBankAccounts}
+            />
+          </Section>
+        ) : null}
 
         {showAdvanced ? (
           <>

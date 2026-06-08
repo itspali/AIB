@@ -35,9 +35,40 @@ export const entityContactSchema = z.object({
 
 export const entityContactsSchema = z.array(entityContactSchema);
 
+export const entityBankAccountSchema = z.object({
+  account_id: z.string().uuid().nullable(),
+  account_holder_name: z.string().trim().min(1, "Account holder name is required").max(200),
+  account_number: z.string().trim().min(1, "Account number is required").max(40),
+  ifsc_code: z
+    .string()
+    .trim()
+    .max(11)
+    .refine(
+      (value) => value === "" || /^[A-Z]{4}0[A-Z0-9]{6}$/.test(value.toUpperCase()),
+      "Enter a valid 11-character IFSC"
+    ),
+  bank_code: z.string().trim().max(4),
+  bank_name: z.string().trim().max(200),
+  branch_name: z.string().trim().max(200),
+  upi_id: z
+    .string()
+    .trim()
+    .max(256)
+    .refine(
+      (value) => value === "" || /^[\w.\-]{2,256}@[\w.\-]{2,64}$/i.test(value),
+      "Enter a valid UPI ID (name@bank)"
+    ),
+  is_primary: z.boolean(),
+  is_active: z.boolean(),
+});
+
+export const entityBankAccountsSchema = z.array(entityBankAccountSchema);
+
 export const entityMasterSchema = z
   .object({
     entity_id: z.string().uuid().nullable(),
+    logo_url: z.string().trim().max(500),
+    draft_storage_key: z.string().trim().min(1).max(80),
     name: z.string().trim().min(1, "Name is required").max(200),
     type: z.enum(ENTITY_COMMERCIAL_TYPES),
     tax_treatment: z.enum(TAX_TREATMENT_TYPES),
@@ -105,6 +136,7 @@ export const entityMasterSchema = z
     is_active: z.boolean(),
     primary_contact: entityContactSchema,
     extended_contacts: entityContactsSchema,
+    bank_accounts: entityBankAccountsSchema,
   })
   .superRefine((values, ctx) => {
     if (

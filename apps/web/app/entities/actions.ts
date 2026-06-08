@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { fetchEntityDetailById } from "@/lib/entities/queries";
 import { entityListHref } from "@/lib/entities/entity-navigation";
+import { buildEntityLogoStoragePath, ENTITY_LOGO_BUCKET } from "@/lib/entities/logo";
 import type { EntityDetailSnapshot, EntityWorkspace } from "@/lib/entities/types";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -37,6 +38,40 @@ function mapEntityRpcError(message: string): string {
   return message;
 }
 
+async function relocateDraftEntityLogo(
+  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  tenantId: string,
+  entityId: string,
+  entityPayload: Record<string, unknown>
+): Promise<void> {
+  const draftKey = String(entityPayload.draft_storage_key ?? "");
+  const logoUrl = String(entityPayload.logo_url ?? "");
+  if (!draftKey || !logoUrl || !logoUrl.includes(draftKey)) return;
+
+  const extension = logoUrl.split(".").pop()?.toLowerCase() ?? "jpg";
+  const nextPath = buildEntityLogoStoragePath(tenantId, entityId, extension);
+
+  const { error: copyError } = await supabase.storage
+    .from(ENTITY_LOGO_BUCKET)
+    .copy(logoUrl, nextPath);
+
+  if (copyError) return;
+
+  await supabase.storage.from(ENTITY_LOGO_BUCKET).remove([logoUrl]);
+
+  const { name, type, tax_treatment, is_active } = entityPayload;
+  await supabase.rpc("save_entity_profile", {
+    p_entity: {
+      entity_id: entityId,
+      name,
+      type,
+      tax_treatment,
+      logo_url: nextPath,
+      is_active,
+    },
+  });
+}
+
 export async function loadEntityDetail(
   entityId: string
 ): Promise<EntityDetailSnapshot | null> {
@@ -48,13 +83,18 @@ type EntitySavePayload = {
   entity: Record<string, unknown>;
   primary_contact: Record<string, unknown> | null;
   extended_contacts: Record<string, unknown>[];
+  bank_accounts: Record<string, unknown>[];
 };
+
+function entityTypeSupportsBankAccounts(type: string): boolean {
+  return type === "SUPPLIER" || type === "MUTUAL_PARTNER";
+}
 
 export async function saveEntity(
   workspace: EntityWorkspace,
   payload: EntitySavePayload
 ): Promise<{ entity: EntityDetailSnapshot } | { error: string }> {
-  const { supabase } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantId();
 
   const { data: entityId, error } = await supabase.rpc("save_entity_profile", {
     p_entity: payload.entity,
@@ -70,6 +110,10 @@ export async function saveEntity(
     return { error: "Entity saved but no id was returned." };
   }
 
+  if (!payload.entity.entity_id) {
+    await relocateDraftEntityLogo(supabase, tenantId, id, payload.entity);
+  }
+
   const isEdit = Boolean(payload.entity.entity_id);
   if (isEdit || payload.extended_contacts.length > 0) {
     const { error: contactsError } = await supabase.rpc("save_entity_contacts", {
@@ -78,6 +122,17 @@ export async function saveEntity(
     });
     if (contactsError) {
       return { error: mapEntityRpcError(contactsError.message) };
+    }
+  }
+
+  const entityType = String(payload.entity.type ?? "");
+  if (entityTypeSupportsBankAccounts(entityType)) {
+    const { error: bankError } = await supabase.rpc("save_entity_bank_accounts", {
+      p_entity_id: id,
+      p_accounts: payload.bank_accounts,
+    });
+    if (bankError) {
+      return { error: mapEntityRpcError(bankError.message) };
     }
   }
 

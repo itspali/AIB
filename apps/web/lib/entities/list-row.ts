@@ -24,5 +24,6 @@ export function listRowFromDetail(detail: EntityDetailSnapshot): EntityListRow {
     updated_at: detail.updated_at,
     primary_contact_name: primaryName || null,
     primary_contact_email: primary?.email ?? null,
+    logo_url: detail.logo_url,
   };
 }

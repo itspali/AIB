@@ -17,6 +17,7 @@ import { saveEntity } from "@/app/entities/actions";
 
 type Props = {
   workspace: EntityWorkspace;
+  tenantId: string;
   open: boolean;
   surface: DrawerSurface;
   editingEntity: EntityDetailSnapshot | null;
@@ -42,6 +43,7 @@ function resolveDrawerTitle(
 
 export function EntityDrawerForm({
   workspace,
+  tenantId,
   open,
   surface,
   editingEntity,
@@ -62,6 +64,7 @@ export function EntityDrawerForm({
   const formApi = useEntityForm({
     workspace,
     editingEntity: isMutating || readOnly ? editingEntity : editingEntity,
+    logoPreviewUrl: editingEntity?.logo_preview_url ?? null,
     onSaved: (entity) => {
       onAfterSave(entity.id, entity);
     },
@@ -195,6 +198,7 @@ export function EntityDrawerForm({
             ) : (
               <EntityEditorShell
                 workspace={workspace}
+                tenantId={tenantId}
                 formApi={formApi}
                 readOnly={readOnly}
                 activeSection={activeSection}

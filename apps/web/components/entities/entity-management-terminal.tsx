@@ -50,6 +50,7 @@ import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 
 type Props = {
   workspace: EntityWorkspace;
+  tenantId: string;
   initialRows: EntityListRow[];
   initialTotalCount?: number;
   initialSavedView?: SavedViewSnapshot | null;
@@ -100,6 +101,7 @@ function useFilteredEntityRows(
 
 export function EntityManagementTerminal({
   workspace,
+  tenantId,
   initialRows,
   initialTotalCount,
   initialSavedView = null,
@@ -424,6 +426,7 @@ export function EntityManagementTerminal({
 
       <EntityItemDrawer
         workspace={workspace}
+        tenantId={tenantId}
         open={drawer.isOpen}
         surface={drawer.surface}
         recordId={drawer.recordId}

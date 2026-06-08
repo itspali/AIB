@@ -157,6 +157,8 @@ ALTER TABLE tenants
 --   supabase/migrations/20260527100000_create_entities_and_contacts.sql
 -- Entity profile RPCs (save/list/delete):
 --   supabase/migrations/20260609120000_entity_profile_rpcs.sql
+-- Entity logo + bank accounts:
+--   supabase/migrations/20260610120000_entity_logo_and_bank_accounts.sql
 -- ====================================================================
 
 CREATE TYPE entity_commercial_type AS ENUM ('CUSTOMER', 'SUPPLIER', 'MUTUAL_PARTNER');
@@ -208,6 +210,7 @@ CREATE TABLE entities (
     company_phone               TEXT,
     website_url                 TEXT,
     internal_notes              TEXT,
+    logo_url                    TEXT,
     custom_fields               JSONB NOT NULL DEFAULT '{}'::jsonb,
 
     is_active                   BOOLEAN NOT NULL DEFAULT TRUE,
@@ -260,6 +263,30 @@ CREATE TABLE entity_contacts (
 
 ALTER TABLE entity_contacts
     ADD CONSTRAINT entity_contacts_entity_tenant_fk
+    FOREIGN KEY (tenant_id, entity_id)
+    REFERENCES entities (tenant_id, id)
+    ON DELETE CASCADE;
+
+CREATE TABLE entity_bank_accounts (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    entity_id           UUID NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
+    account_holder_name TEXT NOT NULL,
+    account_number      TEXT NOT NULL,
+    ifsc_code           VARCHAR(11),
+    bank_code           VARCHAR(4),
+    bank_name           TEXT,
+    branch_name         TEXT,
+    upi_id              TEXT,
+    is_primary          BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order          INTEGER NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE entity_bank_accounts
+    ADD CONSTRAINT entity_bank_accounts_entity_tenant_fk
     FOREIGN KEY (tenant_id, entity_id)
     REFERENCES entities (tenant_id, id)
     ON DELETE CASCADE;
