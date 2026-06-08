@@ -1,5 +1,9 @@
 import { columnWidths } from "@/lib/list-columns/sizing";
-import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
+import {
+  CHIP_DEFAULT_FALLBACK_KEY,
+  type ListColumnDef,
+  type ListColumnRegistry,
+} from "@/lib/list-columns/types";
 import { STOCK_ADJUSTMENT_KINDS, stockAdjustmentKindLabel } from "@/lib/inventory/stock/labels";
 
 export const STOCK_BALANCE_COLUMN_IDS = [

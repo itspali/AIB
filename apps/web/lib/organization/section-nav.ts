@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   Calculator,
+  Contact2,
   Globe2,
   Network,
   Palette,
@@ -16,6 +17,7 @@ export const ORG_SETTINGS_TAB_IDS = {
   branding: "branding",
   locations: "locations",
   accounting: "accounting",
+  entities: "entities",
   access: "access",
 } as const;
 
@@ -28,6 +30,7 @@ export const ORG_SETTINGS_SECTION_ELEMENT_IDS: Record<OrgSettingsTabId, string> 
   [ORG_SETTINGS_TAB_IDS.branding]: "org-section-branding",
   [ORG_SETTINGS_TAB_IDS.locations]: "org-section-locations",
   [ORG_SETTINGS_TAB_IDS.accounting]: "org-section-accounting",
+  [ORG_SETTINGS_TAB_IDS.entities]: "org-section-entities",
   [ORG_SETTINGS_TAB_IDS.access]: "org-section-access",
 };
 
@@ -74,6 +77,12 @@ export const ORG_SETTINGS_TABS: OrgSettingsTabItem[] = [
     label: "Accounting",
     shortLabel: "Accounting",
     icon: Calculator,
+  },
+  {
+    id: ORG_SETTINGS_TAB_IDS.entities,
+    label: "Entities",
+    shortLabel: "Entities",
+    icon: Contact2,
   },
   {
     id: ORG_SETTINGS_TAB_IDS.access,

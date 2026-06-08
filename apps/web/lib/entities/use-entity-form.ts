@@ -5,6 +5,11 @@ import { toast } from "sonner";
 import { defaultEntityBankAccountValues } from "@/components/entities/entity-bank-accounts-section";
 import { extractBankCodeFromIfsc, normalizeUpiId } from "@/lib/entities/bank-ifsc";
 import { entityMasterSchema } from "@/lib/entities/schemas";
+import {
+  syncEntityCustomFieldValues,
+  validateEntityCustomFieldValues,
+  type EntityCustomFieldDefinition,
+} from "@/lib/entities/custom-field-definitions";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type {
   EntityDetailSnapshot,
@@ -329,12 +334,15 @@ export function buildEntitySavePayload(form: EntityFormValues): {
   return { entity, primary_contact, extended_contacts, bank_accounts };
 }
 
-export function validateEntityFormState(form: EntityFormValues): string | null {
+export function validateEntityFormState(
+  form: EntityFormValues,
+  customFieldDefinitions: EntityCustomFieldDefinition[] = []
+): string | null {
   const parsed = entityMasterSchema.safeParse(form);
   if (!parsed.success) {
     return parsed.error.issues[0]?.message ?? "Unable to validate entity form.";
   }
-  return null;
+  return validateEntityCustomFieldValues(customFieldDefinitions, form.custom_fields);
 }
 
 export type EntityPersistResult =
@@ -347,6 +355,7 @@ export type UseEntityFormOptions = {
   workspace: EntityWorkspace;
   editingEntity?: EntityDetailSnapshot | null;
   logoPreviewUrl?: string | null;
+  customFieldDefinitions?: EntityCustomFieldDefinition[];
   onSaved: (entity: EntityDetailSnapshot) => void;
   onPersist: (payload: EntityPersistPayload) => Promise<EntityPersistResult>;
   notifyOnSave?: boolean;
@@ -356,6 +365,7 @@ export function useEntityForm({
   workspace,
   editingEntity = null,
   logoPreviewUrl = null,
+  customFieldDefinitions = [],
   onSaved,
   onPersist,
   notifyOnSave = true,
@@ -380,6 +390,10 @@ export function useEntityForm({
   const resetFromEditing = useCallback(() => {
     if (editingEntity) {
       const next = formFromEntityDetail(editingEntity, workspace);
+      next.custom_fields = syncEntityCustomFieldValues(
+        customFieldDefinitions,
+        next.custom_fields
+      );
       setForm(next);
       setBaseline(next);
       setResolvedLogoPreviewUrl(editingEntity.logo_preview_url ?? null);
@@ -389,13 +403,15 @@ export function useEntityForm({
             next.code.trim() ||
             next.company_email.trim() ||
             next.extended_contacts.length ||
-            next.bank_accounts.length
+            next.bank_accounts.length ||
+            customFieldDefinitions.length
         )
       );
     } else {
       const next = {
         ...createDefaultEntityFormValues(workspace),
         draft_storage_key: draftStorageKeyRef.current,
+        custom_fields: syncEntityCustomFieldValues(customFieldDefinitions, {}),
       };
       setForm(next);
       setBaseline(next);
@@ -403,7 +419,7 @@ export function useEntityForm({
       setShowAdvanced(false);
     }
     setError(null);
-  }, [editingEntity, workspace]);
+  }, [customFieldDefinitions, editingEntity, workspace]);
 
   useEffect(() => {
     setResolvedLogoPreviewUrl(logoPreviewUrl ?? editingEntity?.logo_preview_url ?? null);
@@ -481,7 +497,7 @@ export function useEntityForm({
 
   const submit = useCallback(() => {
     setError(null);
-    const validationError = validateEntityFormState(form);
+    const validationError = validateEntityFormState(form, customFieldDefinitions);
     if (validationError) {
       setError(validationError);
       if (notifyOnSave) toast.error(validationError);
@@ -509,7 +525,7 @@ export function useEntityForm({
       setForm(nextBaseline);
       onSaved(result.entity);
     });
-  }, [form, isEditing, notifyOnSave, onPersist, onSaved, workspace]);
+  }, [customFieldDefinitions, form, isEditing, notifyOnSave, onPersist, onSaved, workspace]);
 
   return {
     form,
@@ -538,7 +554,7 @@ export function useEntityForm({
     logoPreviewUrl: resolvedLogoPreviewUrl,
     resetFromEditing,
     submit,
-    validateForm: () => validateEntityFormState(form),
+    validateForm: () => validateEntityFormState(form, customFieldDefinitions),
     buildSavePayload: () => buildEntitySavePayload(form),
   };
 }

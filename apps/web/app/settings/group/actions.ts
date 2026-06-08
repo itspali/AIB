@@ -2,6 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  entitySettingsWorkspaceKey,
+  sanitizeEntityCustomFieldDefinitions,
+  validateEntityCustomFieldDefinitions,
+  type EntityCustomFieldDefinition,
+} from "@/lib/entities/custom-field-definitions";
+import { fetchGroupEntitySettingsMetadata } from "@/lib/entities/custom-field-queries";
+import type { EntityWorkspace } from "@/lib/entities/types";
+import { resolveGroupSettingsAccess } from "@/lib/group/access";
+import {
   createGroupOrganizationSchema,
   createTenantGroupSchema,
   groupSettingsSchema,
@@ -225,5 +234,47 @@ export async function reinstateGroupOrganization(tenantId: string) {
   if (error) return { error: error.message };
 
   for (const path of GROUP_PATHS) revalidatePath(path);
+  return { success: true as const };
+}
+
+export async function saveGroupEntityCustomFields(
+  groupId: string,
+  workspace: EntityWorkspace,
+  definitions: EntityCustomFieldDefinition[]
+) {
+  const validationError = validateEntityCustomFieldDefinitions(definitions);
+  if (validationError) {
+    return { error: validationError };
+  }
+
+  const { supabase, userId } = await requireTenantId();
+  const access = await resolveGroupSettingsAccess(supabase, userId, groupId);
+  if (!access.granted) {
+    return { error: "Group admin privileges required." };
+  }
+
+  const entitySettings = await fetchGroupEntitySettingsMetadata(supabase, groupId);
+  const workspaceKey = entitySettingsWorkspaceKey(workspace);
+  const nextEntitySettings = {
+    ...entitySettings,
+    [workspaceKey]: {
+      custom_field_definitions: sanitizeEntityCustomFieldDefinitions(definitions),
+    },
+  };
+
+  const { error } = await supabase.rpc("patch_group_metadata_json", {
+    p_group_id: groupId,
+    p_patch: { entity_settings: nextEntitySettings },
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) {
+    revalidatePath(path);
+  }
+  revalidatePath("/entities");
+  revalidatePath("/entities/customers");
+  revalidatePath("/entities/suppliers");
+
   return { success: true as const };
 }

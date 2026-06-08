@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseEntitySettingsMetadata } from "@/lib/entities/custom-field-definitions";
 import type {
   GroupOrganizationRow,
   GroupOutboundInvitationRow,
@@ -108,6 +109,7 @@ export async function fetchGroupSettingsSnapshot(
     primary_phone: group.primary_phone,
     status: group.status,
     is_active: group.is_active !== false,
+    entity_settings: parseEntitySettingsMetadata(group.metadata_json),
     organizations,
   };
 }

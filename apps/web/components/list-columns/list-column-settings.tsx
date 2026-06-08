@@ -97,6 +97,10 @@ type Props<TId extends string> = {
   isSaving?: boolean;
   triggerClassName?: string;
   triggerVariant?: "outline" | "ghost";
+  /** Hide table/compact/card layout toggles (operational list modules). */
+  showLayoutSwitcher?: boolean;
+  /** Hide mobile/tablet/desktop device toggles when prefs are not device-scoped. */
+  showDeviceSwitcher?: boolean;
 };
 
 const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
@@ -135,6 +139,8 @@ export function ListColumnSettings<TId extends string>({
   isSaving = false,
   triggerClassName,
   triggerVariant = "outline",
+  showLayoutSwitcher = true,
+  showDeviceSwitcher = true,
 }: Props<TId>) {
   const dragIdRef = useRef<TId | null>(null);
   const [dragOverId, setDragOverId] = useState<TId | null>(null);
@@ -430,9 +436,11 @@ export function ListColumnSettings<TId extends string>({
         </div>
         <p className="px-2 pb-1.5 text-[11px] leading-snug text-muted-foreground">
           {editingLabel}
-          {editingDevice === detectedDevice ? " · auto" : null}
+          {showDeviceSwitcher && editingDevice === detectedDevice ? " · auto" : null}
         </p>
+        {showLayoutSwitcher || showDeviceSwitcher ? (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 px-2 pb-1.5">
+          {showLayoutSwitcher ? (
           <div
             className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
             role="group"
@@ -475,6 +483,8 @@ export function ListColumnSettings<TId extends string>({
               <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </div>
+          ) : null}
+          {showDeviceSwitcher ? (
           <div
             className="inline-flex min-w-0 flex-1 gap-px rounded-md border border-border bg-muted p-px"
             role="group"
@@ -517,7 +527,8 @@ export function ListColumnSettings<TId extends string>({
               <Monitor className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </div>
-          {editingLayout === "card" && cardLayout === "v2" ? (
+          ) : null}
+          {showLayoutSwitcher && editingLayout === "card" && cardLayout === "v2" ? (
             <>
               <div
                 className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
@@ -586,6 +597,7 @@ export function ListColumnSettings<TId extends string>({
             </>
           ) : null}
         </div>
+        ) : null}
         <div className="flex items-center justify-between gap-2 px-2 py-1">
           {editingLayout === "card" ? (
             <div className="flex w-full min-w-0 items-center justify-between gap-3">
@@ -658,7 +670,7 @@ export function ListColumnSettings<TId extends string>({
                 </Select>
               </div>
             </div>
-          ) : (
+          ) : onFrozenColumnCountChange ? (
             <>
               <label
                 htmlFor="freeze-columns-select"
@@ -704,7 +716,7 @@ export function ListColumnSettings<TId extends string>({
                 </Select>
               )}
             </>
-          )}
+          ) : null}
         </div>
         <DropdownMenuSeparator />
         <div className="max-h-80 space-y-px overflow-y-auto px-1 pb-1">

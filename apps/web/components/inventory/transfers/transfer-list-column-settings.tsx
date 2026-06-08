@@ -43,6 +43,8 @@ export function TransferListColumnSettings({
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
+      showLayoutSwitcher={false}
+      showDeviceSwitcher={false}
       disabled={disabled}
     />
   );

@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, type ChangeEvent, type RefObject } from "react";
+import { useCallback, useMemo, useState, type ChangeEvent, type RefObject } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Building2,
   CreditCard,
@@ -8,9 +10,11 @@ import {
   MapPin,
   NotebookPen,
   Phone,
+  SlidersHorizontal,
   UserRound,
 } from "lucide-react";
 import { EntityBankAccountsSection } from "@/components/entities/entity-bank-accounts-section";
+import { EntityCustomFieldsSection } from "@/components/entities/entity-custom-fields-section";
 import { EntityLogoUploader } from "@/components/entities/entity-logo-uploader";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
@@ -25,6 +29,13 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  applyGstinLookupToEntityForm,
+  lookupGstinDetails,
+  normalizeGstin,
+  validateGstin,
+} from "@/lib/entities/gstin";
+import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
 import { ENTITY_COMMERCIAL_TYPES, taxRegistrationRequired } from "@/lib/entities/types";
 import type { EntityWorkspace } from "@/lib/entities/types";
@@ -39,6 +50,7 @@ export const ENTITY_SECTION_BANKING_ID = "entity-banking";
 export const ENTITY_SECTION_ADDRESSES_ID = "entity-addresses";
 export const ENTITY_SECTION_COMPANY_ID = "entity-company";
 export const ENTITY_SECTION_CONTACTS_ID = "entity-contacts";
+export const ENTITY_SECTION_CUSTOM_FIELDS_ID = "entity-custom-fields";
 export const ENTITY_SECTION_NOTES_ID = "entity-notes";
 
 export const ENTITY_DRAWER_SECTIONS = [
@@ -80,6 +92,13 @@ export const ENTITY_DRAWER_SECTIONS = [
     icon: Phone,
   },
   {
+    id: ENTITY_SECTION_CUSTOM_FIELDS_ID,
+    label: "Custom fields",
+    shortLabel: "Custom",
+    icon: SlidersHorizontal,
+    requiresDefinitions: true,
+  },
+  {
     id: ENTITY_SECTION_NOTES_ID,
     label: "Notes",
     shortLabel: "Notes",
@@ -87,10 +106,19 @@ export const ENTITY_DRAWER_SECTIONS = [
   },
 ] as const;
 
-export function getEntityDrawerSections(workspace: EntityWorkspace) {
-  return ENTITY_DRAWER_SECTIONS.filter(
-    (section) => !("supplierOnly" in section && section.supplierOnly) || workspace === "supplier"
-  );
+export function getEntityDrawerSections(
+  workspace: EntityWorkspace,
+  customFieldDefinitions: EntityCustomFieldDefinition[] = []
+) {
+  return ENTITY_DRAWER_SECTIONS.filter((section) => {
+    if ("supplierOnly" in section && section.supplierOnly && workspace !== "supplier") {
+      return false;
+    }
+    if ("requiresDefinitions" in section && section.requiresDefinitions) {
+      return customFieldDefinitions.length > 0;
+    }
+    return true;
+  });
 }
 
 function entityTypeSupportsBankAccounts(type: string): boolean {
@@ -101,6 +129,7 @@ type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
   formApi: FormApi;
+  customFieldDefinitions?: EntityCustomFieldDefinition[];
   readOnly?: boolean;
   activeSection?: string;
   onActiveSectionChange?: (id: string) => void;
@@ -140,6 +169,7 @@ export function EntityEditorShell({
   workspace,
   tenantId,
   formApi,
+  customFieldDefinitions = [],
   readOnly = false,
   activeSection = ENTITY_SECTION_ESSENTIALS_ID,
   onActiveSectionChange,
@@ -163,11 +193,64 @@ export function EntityEditorShell({
     logoPreviewUrl,
   } = formApi;
 
-  const fieldsDisabled = isPending || readOnly;
+  const [gstinLookupPending, setGstinLookupPending] = useState(false);
+  const fieldsDisabled = isPending || readOnly || gstinLookupPending;
   const showTaxId = taxRegistrationRequired(form.tax_treatment);
+
+  const handleGstinBlur = useCallback(
+    async (rawGstin: string) => {
+      const normalized = normalizeGstin(rawGstin);
+      if (!normalized) return;
+
+      if (normalized !== form.tax_registration_number) {
+        setForm((current) => ({ ...current, tax_registration_number: normalized }));
+      }
+
+      const validationError = validateGstin(normalized);
+      if (validationError) {
+        if (normalized.length === 15) {
+          toast.error(validationError);
+        }
+        return;
+      }
+
+      setGstinLookupPending(true);
+      try {
+        const lookup = await lookupGstinDetails(normalized);
+        if (!lookup) {
+          toast.error("Could not fetch GSTIN details. Try again.");
+          return;
+        }
+
+        setForm((current) => applyGstinLookupToEntityForm(current, lookup));
+
+        if (
+          lookup.legalName ||
+          lookup.billingAddressLine1 ||
+          lookup.tradeName ||
+          lookup.billingCity
+        ) {
+          setShowAdvanced(true);
+        }
+
+        if (lookup.status && !lookup.status.toLowerCase().includes("active")) {
+          toast.warning(`GSTIN status: ${lookup.status}`);
+        } else if (lookup.source === "remote") {
+          toast.success("Business details updated from GSTIN");
+        } else {
+          toast.message("State updated from GSTIN", {
+            description: "Legal name and address need a connected GST lookup service.",
+          });
+        }
+      } finally {
+        setGstinLookupPending(false);
+      }
+    },
+    [form.tax_registration_number, setForm, setShowAdvanced]
+  );
   const showBankAccounts =
     workspace === "supplier" && entityTypeSupportsBankAccounts(form.type);
-  const drawerSections = getEntityDrawerSections(workspace);
+  const drawerSections = getEntityDrawerSections(workspace, customFieldDefinitions);
   const typeOptions = useMemo(
     () =>
       ENTITY_COMMERCIAL_TYPES.filter((type) => config.typeFilter.includes(type)).map((type) => ({
@@ -282,18 +365,34 @@ export function EntityEditorShell({
 
             {showTaxId ? (
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="entity-tax-id">Tax registration number</Label>
-                <Input
-                  id="entity-tax-id"
-                  value={form.tax_registration_number}
-                  disabled={fieldsDisabled}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      tax_registration_number: event.target.value,
-                    }))
-                  }
-                />
+                <Label htmlFor="entity-tax-id">Tax registration number (GSTIN)</Label>
+                <div className="relative">
+                  <Input
+                    id="entity-tax-id"
+                    value={form.tax_registration_number}
+                    disabled={fieldsDisabled}
+                    placeholder="15-character GSTIN"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={gstinLookupPending ? "pr-10" : undefined}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        tax_registration_number: event.target.value.toUpperCase(),
+                      }))
+                    }
+                    onBlur={(event) => void handleGstinBlur(event.target.value)}
+                  />
+                  {gstinLookupPending ? (
+                    <Loader2
+                      className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+                      aria-hidden
+                    />
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tab out after entering a valid GSTIN to auto-fill legal name and billing address.
+                </p>
               </div>
             ) : null}
           </div>
@@ -598,6 +697,21 @@ export function EntityEditorShell({
               </p>
             </Section>
           </>
+        ) : null}
+
+        {customFieldDefinitions.length > 0 ? (
+          <Section
+            id={ENTITY_SECTION_CUSTOM_FIELDS_ID}
+            title="Custom fields"
+            help="Organization-defined profile fields for this workspace."
+          >
+            <EntityCustomFieldsSection
+              definitions={customFieldDefinitions}
+              values={form.custom_fields}
+              disabled={fieldsDisabled}
+              onChange={(values) => setForm((current) => ({ ...current, custom_fields: values }))}
+            />
+          </Section>
         ) : null}
 
         <Section

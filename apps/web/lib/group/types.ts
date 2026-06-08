@@ -1,3 +1,5 @@
+import type { EntitySettingsMetadata } from "@/lib/entities/custom-field-definitions";
+
 export type GroupMembershipRole = "GROUP_OWNER" | "GROUP_ADMIN" | "GROUP_VIEWER";
 
 export type TenantGroupMembershipStatus =
@@ -29,6 +31,7 @@ export type GroupSettingsSnapshot = {
   primary_phone: string;
   status: string;
   is_active: boolean;
+  entity_settings: EntitySettingsMetadata;
   organizations: GroupOrganizationRow[];
 };
 

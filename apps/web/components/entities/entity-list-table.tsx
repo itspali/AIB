@@ -16,6 +16,7 @@ import {
   LIST_TABLE_HEADER_CELL,
   LIST_TABLE_HEADER_ROW,
   LIST_TABLE_HEADER_SORTABLE,
+  LIST_TABLE_SURFACE,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
@@ -73,11 +74,11 @@ export function EntityListTable({
   const cellPadding = compactRows ? "p-1.5" : "p-2.5";
 
   return (
-    <div className="surface-inset h-full min-h-0 overflow-hidden">
+    <div className={LIST_TABLE_SURFACE}>
       <div className="h-full min-h-0 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
         <table className="w-full min-w-[860px] border-separate border-spacing-0 text-left text-sm">
           <thead className={LIST_TABLE_HEADER_ROW}>
-            <tr>
+            <tr className="bg-muted text-left">
               <th
                 scope="col"
                 className={cn(LIST_TABLE_HEADER_CELL, "w-10 text-center")}

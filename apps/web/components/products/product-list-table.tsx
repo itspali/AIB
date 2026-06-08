@@ -306,7 +306,7 @@ export function ProductListTable({
 
   return (
     <div className="relative min-h-0 w-full flex-1 basis-0 self-stretch">
-      <div className="absolute inset-0 flex flex-col overflow-hidden border border-border bg-muted/20 shadow-sm [border-radius:0]">
+      <div className="surface-inset absolute inset-0 flex flex-col overflow-hidden">
         <div
           ref={scrollContainerRef}
           className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"

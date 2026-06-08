@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpDown, Rows3, Settings2, Table2 } from "lucide-react";
+import { ArrowUpDown, Rows3, Table2 } from "lucide-react";
+import { EntityListColumnSettings } from "@/components/entities/entity-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
@@ -53,10 +54,12 @@ type Props = {
 
 export function EntityListToolbar({
   workspace,
+  registryKey,
   prefs,
   onPrefsChange,
   activeStatusFilter,
   onActiveStatusFilterChange,
+  detectedDeviceClass,
   resultCount,
   totalCount,
   compactCountLabel = false,
@@ -240,17 +243,15 @@ export function EntityListToolbar({
             </Button>
           </div>
 
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="hidden h-8 w-8 shrink-0 p-0 sm:inline-flex"
-            disabled={controlsDisabled}
-            title="Column settings (coming soon)"
-            aria-label="Column settings"
-          >
-            <Settings2 className="h-4 w-4" aria-hidden />
-          </Button>
+          {isTableLike ? (
+            <EntityListColumnSettings
+              registryKey={registryKey}
+              prefs={prefs}
+              onChange={onPrefsChange}
+              detectedDeviceClass={detectedDeviceClass}
+              disabled={controlsDisabled}
+            />
+          ) : null}
         </>
       }
     />

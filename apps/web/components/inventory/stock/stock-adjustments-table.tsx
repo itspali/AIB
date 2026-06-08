@@ -24,7 +24,9 @@ import type { StockAdjustmentRow } from "@/lib/inventory/stock/types";
 import {
   LIST_TABLE_BODY_CELL,
   LIST_TABLE_HEADER_CELL,
+  LIST_TABLE_HEADER_ROW,
   LIST_TABLE_HEADER_SORTABLE,
+  LIST_TABLE_SURFACE,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
@@ -66,14 +68,14 @@ export function StockAdjustmentsTable({
   };
 
   return (
-    <div className="surface-inset h-full min-h-0 overflow-hidden">
+    <div className={LIST_TABLE_SURFACE}>
       <div
         ref={frozen.scrollContainerRef}
         className="h-full min-h-0 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
       >
         <table className="w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm">
-          <thead>
-            <tr>
+          <thead className={LIST_TABLE_HEADER_ROW}>
+            <tr className="bg-muted text-left">
               {columns.map((columnId, index) => {
                 const column = getStockAdjustmentColumnDef(columnId);
                 const active = sortField === columnId;

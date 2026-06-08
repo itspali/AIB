@@ -9,6 +9,8 @@ import {
   type SearchFinancialFieldsMode,
   type TenantLocationOption,
 } from "@/lib/organization/types";
+import { parseEntitySettingsMetadata } from "@/lib/entities/custom-field-definitions";
+import { fetchGroupEntitySettingsMetadata } from "@/lib/entities/custom-field-queries";
 import { parseTenantProductFieldsAccess } from "@/lib/products/field-permissions";
 import {
   DEFAULT_TENANT_THEME_SETTINGS,
@@ -78,6 +80,7 @@ export async function fetchOrganizationSettingsSnapshot(
       ? (tenant.metadata_json as Record<string, unknown>)
       : {};
   const productFieldsAccess = parseTenantProductFieldsAccess(tenantMetadata.product_fields_access);
+  const entitySettings = parseEntitySettingsMetadata(tenantMetadata);
 
   let allowLineItemDiscounts = true;
   let accountingPeriodClosingDate: string | null = null;
@@ -192,14 +195,19 @@ export async function fetchOrganizationSettingsSnapshot(
     );
 
   let parentGroupName: string | null = null;
-  if (tenant.group_id) {
+  const groupId = (tenant.group_id as string | null) ?? null;
+  if (groupId) {
     const { data: parentGroup } = await supabase
       .from("tenant_groups")
       .select("name, trade_name")
-      .eq("id", tenant.group_id)
+      .eq("id", groupId)
       .maybeSingle();
     parentGroupName = parentGroup?.trade_name || parentGroup?.name || null;
   }
+
+  const groupEntitySettings = groupId
+    ? await fetchGroupEntitySettingsMetadata(supabase, groupId)
+    : null;
 
   return {
     tenant_id: tenant.id,
@@ -242,9 +250,11 @@ export async function fetchOrganizationSettingsSnapshot(
     search_financial_fields_mode: searchFinancialFieldsMode,
     theme_settings: themeSettings,
     product_fields_access: productFieldsAccess,
+    entity_settings: entitySettings,
+    group_entity_settings: groupEntitySettings,
     delegates,
     locations: (locations ?? []) as TenantLocationOption[],
-    group_id: (tenant.group_id as string | null) ?? null,
+    group_id: groupId,
     parent_group_name: parentGroupName,
     eligible_delegate_users: eligibleDelegateUsers.filter((user) => !delegateIdSet.has(user.id)),
   };

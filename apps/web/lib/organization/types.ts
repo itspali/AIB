@@ -3,6 +3,7 @@ import { parseDomRoutingConfig } from "@/lib/locations/dom-routing";
 import type { CreditControlEnforcement } from "@/lib/organization/credit-control-options";
 import type { OrganizationCurrency } from "@/lib/organization/currency-options";
 import type { CountryCode } from "@/lib/organization/country-options";
+import type { EntitySettingsMetadata } from "@/lib/entities/custom-field-definitions";
 import type { TenantProductFieldsAccess } from "@/lib/products/field-permissions";
 import {
   DEFAULT_TENANT_THEME_SETTINGS,
@@ -98,6 +99,8 @@ export type OrganizationSettingsSnapshot = {
   search_financial_fields_mode: SearchFinancialFieldsMode;
   theme_settings: TenantThemeSettings;
   product_fields_access: TenantProductFieldsAccess | null;
+  entity_settings: EntitySettingsMetadata;
+  group_entity_settings: EntitySettingsMetadata | null;
   delegates: OrganizationDelegateRow[];
   locations: TenantLocationOption[];
   eligible_delegate_users: Array<{ id: string; first_name: string; last_name: string; email: string }>;

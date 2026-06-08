@@ -159,6 +159,8 @@ ALTER TABLE tenants
 --   supabase/migrations/20260609120000_entity_profile_rpcs.sql
 -- Entity logo + bank accounts:
 --   supabase/migrations/20260610120000_entity_logo_and_bank_accounts.sql
+-- Entity custom field settings metadata + group patch RPC:
+--   supabase/migrations/20260611120000_entity_custom_field_settings.sql
 -- ====================================================================
 
 CREATE TYPE entity_commercial_type AS ENUM ('CUSTOMER', 'SUPPLIER', 'MUTUAL_PARTNER');

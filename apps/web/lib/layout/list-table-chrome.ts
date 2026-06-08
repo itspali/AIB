@@ -21,7 +21,12 @@ export function listTableRowClass(selected: boolean, clickable = true): string {
   );
 }
 
-export const LIST_TABLE_HEADER_ROW = "sticky top-0 z-10 bg-muted/40";
+/** Outer list table frame — matches `.surface-inset` (rounded border on module lists). */
+export const LIST_TABLE_SURFACE = "surface-inset h-full min-h-0 overflow-hidden";
+
+export const LIST_TABLE_HEADER_ROW = "sticky top-0 z-10 bg-muted";
+
+export const LIST_TABLE_HEADER_CELL_BG = "bg-muted";
 
 export const LIST_TABLE_HEADER_CELL =
   "p-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground";

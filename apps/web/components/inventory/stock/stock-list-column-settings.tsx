@@ -49,6 +49,8 @@ export function StockListColumnSettings({
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
+      showLayoutSwitcher={false}
+      showDeviceSwitcher={false}
       disabled={disabled}
     />
   );

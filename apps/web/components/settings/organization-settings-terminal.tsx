@@ -15,6 +15,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { saveOrganizationSettings } from "@/app/settings/organization/actions";
 import { OrganizationAccessSection } from "@/components/settings/organization-access-section";
+import { OrganizationEntityFieldsSection } from "@/components/settings/organization-entity-fields-section";
 import { OrganizationAccountingSection } from "@/components/settings/organization-accounting-section";
 import { OrganizationBillingFiscalSection } from "@/components/settings/organization-billing-fiscal-section";
 import { OrganizationBrandSection } from "@/components/settings/organization-brand-section";
@@ -424,6 +425,14 @@ export function OrganizationSettingsTerminal({
 
           <SectionAnchor id={ORG_SETTINGS_TAB_IDS.accounting} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.accounting)}>
             <OrganizationAccountingSection form={form} disabled={fieldsDisabled} />
+          </SectionAnchor>
+
+          <SectionAnchor id={ORG_SETTINGS_TAB_IDS.entities} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.entities)}>
+            <OrganizationEntityFieldsSection
+              snapshot={snapshot}
+              access={access}
+              inheritedGroupSettings={snapshot.group_entity_settings}
+            />
           </SectionAnchor>
 
           <SectionAnchor id={ORG_SETTINGS_TAB_IDS.access} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.access)}>

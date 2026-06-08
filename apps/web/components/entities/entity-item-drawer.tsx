@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { loadEntityDetail } from "@/app/entities/actions";
 import { EntityDrawerForm } from "@/components/entities/entity-drawer-form";
 import type { EntityDetailSnapshot, EntityListRow, EntityWorkspace } from "@/lib/entities/types";
+import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 
 type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
+  customFieldDefinitions: EntityCustomFieldDefinition[];
   open: boolean;
   surface: DrawerSurface;
   recordId: string | null;
@@ -22,6 +24,7 @@ type Props = {
 export function EntityItemDrawer({
   workspace,
   tenantId,
+  customFieldDefinitions,
   open,
   surface,
   recordId,
@@ -105,6 +108,7 @@ export function EntityItemDrawer({
     <EntityDrawerForm
       workspace={workspace}
       tenantId={tenantId}
+      customFieldDefinitions={customFieldDefinitions}
       open={open}
       surface={surface}
       editingEntity={editingEntity}

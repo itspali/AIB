@@ -1,4 +1,5 @@
 import { EntityManagementTerminal } from "@/components/entities/entity-management-terminal";
+import { fetchResolvedEntityCustomFieldDefinitions } from "@/lib/entities/custom-field-queries";
 import { fetchEntityListPage } from "@/lib/entities/list-queries";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityWorkspace } from "@/lib/entities/types";
@@ -15,9 +16,10 @@ export async function EntityCatalogLoader({ workspace }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [page, defaultView] = await Promise.all([
+  const [page, defaultView, customFieldDefinitions] = await Promise.all([
     fetchEntityListPage(supabase, workspace),
     fetchDefaultCustomModuleView(supabase, tenantId, userId, config.savedViewModuleKey),
+    fetchResolvedEntityCustomFieldDefinitions(supabase, tenantId, workspace),
   ]);
 
   const initialSavedView: SavedViewSnapshot | null = defaultView
@@ -28,6 +30,7 @@ export async function EntityCatalogLoader({ workspace }: Props) {
     <EntityManagementTerminal
       workspace={workspace}
       tenantId={tenantId}
+      customFieldDefinitions={customFieldDefinitions}
       initialRows={page.rows}
       initialTotalCount={page.totalCount}
       initialSavedView={initialSavedView}

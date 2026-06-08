@@ -44,6 +44,7 @@ import {
   upsertEntityRow,
 } from "@/lib/entities/row-state";
 import type { EntityDetailSnapshot, EntityListRow, EntityWorkspace } from "@/lib/entities/types";
+import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
@@ -51,6 +52,7 @@ import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
+  customFieldDefinitions: EntityCustomFieldDefinition[];
   initialRows: EntityListRow[];
   initialTotalCount?: number;
   initialSavedView?: SavedViewSnapshot | null;
@@ -102,6 +104,7 @@ function useFilteredEntityRows(
 export function EntityManagementTerminal({
   workspace,
   tenantId,
+  customFieldDefinitions,
   initialRows,
   initialTotalCount,
   initialSavedView = null,
@@ -427,6 +430,7 @@ export function EntityManagementTerminal({
       <EntityItemDrawer
         workspace={workspace}
         tenantId={tenantId}
+        customFieldDefinitions={customFieldDefinitions}
         open={drawer.isOpen}
         surface={drawer.surface}
         recordId={drawer.recordId}

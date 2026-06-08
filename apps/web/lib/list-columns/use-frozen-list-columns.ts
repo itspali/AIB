@@ -5,6 +5,7 @@ import {
   getAutoFrozenColumnCount,
   type FrozenColumnPref,
 } from "@/lib/products/list-prefs";
+import { LIST_TABLE_HEADER_CELL_BG } from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
 export type ListFrozenColumnCount = 0 | 1 | 2 | 3;
@@ -123,7 +124,7 @@ export function useFrozenListColumns({
     const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
     const isLastFrozenColumn = effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
     return cn(
-      "bg-muted/40",
+      LIST_TABLE_HEADER_CELL_BG,
       isFrozen && FROZEN_CELL_BG,
       isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW
     );

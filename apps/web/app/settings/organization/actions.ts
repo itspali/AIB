@@ -2,6 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  entitySettingsWorkspaceKey,
+  sanitizeEntityCustomFieldDefinitions,
+  validateEntityCustomFieldDefinitions,
+  type EntityCustomFieldDefinition,
+} from "@/lib/entities/custom-field-definitions";
+import { fetchTenantEntitySettingsMetadata } from "@/lib/entities/custom-field-queries";
+import type { EntityWorkspace } from "@/lib/entities/types";
+import {
   grantDelegateSchema,
   organizationSettingsSchema,
 } from "@/lib/organization/schemas";
@@ -256,6 +264,53 @@ export async function saveProductFieldsAccess(raw: unknown) {
   }
 
   for (const path of ORGANIZATION_PATHS) {
+    revalidatePath(path);
+  }
+
+  return { success: true as const };
+}
+
+export async function saveOrganizationEntityCustomFields(
+  workspace: EntityWorkspace,
+  definitions: EntityCustomFieldDefinition[]
+) {
+  const validationError = validateEntityCustomFieldDefinitions(definitions);
+  if (validationError) {
+    return { error: validationError };
+  }
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+  if (!access.isOwner) {
+    return { error: "Only workspace owners can edit entity custom fields." };
+  }
+
+  const { entitySettings } = await fetchTenantEntitySettingsMetadata(supabase, tenantId);
+  const workspaceKey = entitySettingsWorkspaceKey(workspace);
+  const nextEntitySettings = {
+    ...entitySettings,
+    [workspaceKey]: {
+      custom_field_definitions: sanitizeEntityCustomFieldDefinitions(definitions),
+    },
+  };
+
+  const { error } = await supabase.rpc("patch_tenant_metadata_json", {
+    p_patch: { entity_settings: nextEntitySettings },
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("patch_tenant_metadata_json") };
+    }
+    return { error: error.message };
+  }
+
+  for (const path of [
+    ...ORGANIZATION_PATHS,
+    "/entities",
+    "/entities/customers",
+    "/entities/suppliers",
+  ]) {
     revalidatePath(path);
   }
 

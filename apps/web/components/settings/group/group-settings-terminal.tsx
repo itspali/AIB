@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { createTenantGroup, saveGroupSettings } from "@/app/settings/group/actions";
 import { CopyableReadonlyField } from "@/components/settings/copyable-readonly-field";
+import { GroupEntityFieldsSection } from "@/components/settings/group/group-entity-fields-section";
 import { GroupOrganizationsSection } from "@/components/settings/group/group-organizations-section";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +208,8 @@ export function GroupSettingsTerminal({
             </div>
           </div>
         </OrgSettingsSection>
+
+        <GroupEntityFieldsSection snapshot={snapshot} access={access} />
 
         <GroupOrganizationsSection
           groupId={snapshot.group_id}

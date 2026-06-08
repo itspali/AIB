@@ -9,6 +9,7 @@ import {
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import type { EntityDetailSnapshot, EntityWorkspace } from "@/lib/entities/types";
+import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import { useEntityForm } from "@/lib/entities/use-entity-form";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
@@ -18,6 +19,7 @@ import { saveEntity } from "@/app/entities/actions";
 type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
+  customFieldDefinitions: EntityCustomFieldDefinition[];
   open: boolean;
   surface: DrawerSurface;
   editingEntity: EntityDetailSnapshot | null;
@@ -44,6 +46,7 @@ function resolveDrawerTitle(
 export function EntityDrawerForm({
   workspace,
   tenantId,
+  customFieldDefinitions,
   open,
   surface,
   editingEntity,
@@ -65,6 +68,7 @@ export function EntityDrawerForm({
     workspace,
     editingEntity: isMutating || readOnly ? editingEntity : editingEntity,
     logoPreviewUrl: editingEntity?.logo_preview_url ?? null,
+    customFieldDefinitions,
     onSaved: (entity) => {
       onAfterSave(entity.id, entity);
     },
@@ -200,6 +204,7 @@ export function EntityDrawerForm({
                 workspace={workspace}
                 tenantId={tenantId}
                 formApi={formApi}
+                customFieldDefinitions={customFieldDefinitions}
                 readOnly={readOnly}
                 activeSection={activeSection}
                 onActiveSectionChange={setActiveSection}
