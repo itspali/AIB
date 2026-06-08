@@ -1,4 +1,11 @@
-export type FilterScope = "all" | "items" | "locations" | "categories" | "settings";
+export type FilterScope =
+  | "all"
+  | "items"
+  | "locations"
+  | "categories"
+  | "customers"
+  | "suppliers"
+  | "settings";
 
 export type FilterOperator =
   | "EQ"

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchActiveSupplierOptions } from "@/lib/entities/queries";
 import { parseCatalogItemSettings } from "@/lib/products/catalog-item-settings";
 import type { ProductCatalogContext } from "@/lib/products/types";
 
@@ -10,7 +11,7 @@ export async function fetchProductCatalogContext(
 ): Promise<ProductCatalogContext> {
   const [
     { data: tenant },
-    { data: suppliers },
+    suppliers,
     { data: tags },
     { data: storefronts },
     { data: priceBooks },
@@ -22,13 +23,7 @@ export async function fetchProductCatalogContext(
       .select("base_currency, accounting_config")
       .eq("id", tenantId)
       .maybeSingle(),
-    supabase
-      .from("entities")
-      .select("id, name")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .in("type", ["SUPPLIER", "MUTUAL_PARTNER"])
-      .order("name"),
+    fetchActiveSupplierOptions(supabase, tenantId),
     supabase
       .from("tags")
       .select("id, name, slug")
@@ -80,7 +75,7 @@ export async function fetchProductCatalogContext(
     runtime_valuation_note:
       "Resolved per location (with organization default fallback). MWAC executes when the effective rule is MWAC; FIFO is blocked until cost layers ship.",
     catalog_items: catalogItems,
-    suppliers: (suppliers ?? []).map((row) => ({ id: row.id, name: row.name })),
+    suppliers: suppliers.map((row) => ({ id: row.id, name: row.name })),
     tags: (tags ?? []).map((row) => ({ id: row.id, name: row.name, slug: row.slug })),
     storefronts: (storefronts ?? []).map((row) => ({
       id: row.id,

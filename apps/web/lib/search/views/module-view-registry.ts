@@ -27,6 +27,18 @@ export const MODULE_VIEW_REGISTRY: ModuleViewDefinition[] = [
     label: "My Saved Views",
     supportsSavedViews: true,
   },
+  {
+    scope: "customers",
+    moduleName: "entity-customers",
+    label: "My Saved Views",
+    supportsSavedViews: true,
+  },
+  {
+    scope: "suppliers",
+    moduleName: "entity-suppliers",
+    label: "My Saved Views",
+    supportsSavedViews: true,
+  },
 ];
 
 /** Reserved module names for future list surfaces (register when pages ship). */
@@ -57,6 +69,8 @@ const ALL_VIEW_LABELS: Partial<Record<FilterScope, string>> = {
   items: "All items",
   categories: "All categories",
   locations: "All locations",
+  customers: "All customers",
+  suppliers: "All suppliers",
 };
 
 export function getAllViewLabel(scope: FilterScope): string {

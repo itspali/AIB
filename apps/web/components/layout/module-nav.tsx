@@ -71,7 +71,7 @@ export const moduleNavItems: ModuleNavItem[] = [
         label: "Goods Receipts",
         icon: PackageCheck,
       },
-      { href: "/procurement/suppliers", label: "Suppliers", icon: Building2, comingSoon: true },
+      { href: "/entities/suppliers", label: "Suppliers", icon: Building2 },
       { href: "/procurement/bills", label: "Bills", icon: ScrollText, comingSoon: true },
     ],
   },
@@ -84,6 +84,17 @@ export const moduleNavItems: ModuleNavItem[] = [
     children: [
       { href: "/items", label: "Catalog", icon: Package },
       { href: "/items/categories", label: "Categories", icon: FolderTree },
+    ],
+  },
+  {
+    href: "/entities",
+    label: "Entities",
+    shortLabel: "Entities",
+    icon: Users,
+    children: [
+      { href: "/entities", label: "Overview", icon: LayoutDashboard },
+      { href: "/entities/customers", label: "Customers", icon: Users },
+      { href: "/entities/suppliers", label: "Suppliers", icon: Building2 },
     ],
   },
   {
@@ -104,7 +115,7 @@ export const moduleNavItems: ModuleNavItem[] = [
     icon: CreditCard,
     mobilePrimary: true,
     children: [
-      { href: "/sales/customers", label: "Customers", icon: Users, comingSoon: true },
+      { href: "/entities/customers", label: "Customers", icon: Users },
       { href: "/sales/quotes", label: "Quotes", icon: FileText, comingSoon: true },
       { href: "/sales/orders", label: "Orders", icon: ClipboardList, comingSoon: true },
       { href: "/sales/invoices", label: "Invoices", icon: Receipt, comingSoon: true },

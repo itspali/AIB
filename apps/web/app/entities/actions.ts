@@ -2,11 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { fetchEntityDetailById } from "@/lib/entities/queries";
-import type { EntityDetailSnapshot, EntityListRow, EntityWorkspace } from "@/lib/entities/types";
 import { entityListHref } from "@/lib/entities/entity-navigation";
+import type { EntityDetailSnapshot, EntityWorkspace } from "@/lib/entities/types";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
-const ENTITY_PATHS = ["/entities", "/entities/customers", "/entities/suppliers"] as const;
+const ENTITY_PATHS = [
+  "/entities",
+  "/entities/customers",
+  "/entities/suppliers",
+  "/sales/customers",
+  "/procurement/suppliers",
+] as const;
 
 function revalidateEntityPaths(workspace?: EntityWorkspace) {
   for (const path of ENTITY_PATHS) {
@@ -21,31 +27,14 @@ function uniqueEntityIds(entityIds: string[]): string[] {
   return [...new Set(entityIds.filter(Boolean))];
 }
 
-export function listRowFromDetail(detail: EntityDetailSnapshot): EntityListRow {
-  const primary = detail.primary_contact;
-  const primaryName = primary
-    ? [primary.first_name, primary.last_name].filter(Boolean).join(" ").trim()
-    : null;
-
-  return {
-    id: detail.id,
-    name: detail.name,
-    legal_name: detail.legal_name,
-    code: detail.code,
-    type: detail.type,
-    tax_treatment: detail.tax_treatment,
-    tax_registration_number: detail.tax_registration_number,
-    credit_limit: detail.credit_limit,
-    current_balance: detail.current_balance,
-    payment_terms_days: detail.payment_terms_days,
-    company_email: detail.company_email,
-    company_phone: detail.company_phone,
-    is_active: detail.is_active,
-    created_at: detail.created_at,
-    updated_at: detail.updated_at,
-    primary_contact_name: primaryName || null,
-    primary_contact_email: primary?.email ?? null,
-  };
+function mapEntityRpcError(message: string): string {
+  if (message.includes("ENTITY_IN_USE")) {
+    return "This record is linked to purchase orders, sales documents, or catalog entries and cannot be deleted.";
+  }
+  if (message.includes("permission denied")) {
+    return "You do not have permission to perform this action.";
+  }
+  return message;
 }
 
 export async function loadEntityDetail(
@@ -67,27 +56,32 @@ export async function saveEntity(
 ): Promise<{ entity: EntityDetailSnapshot } | { error: string }> {
   const { supabase } = await requireTenantId();
 
-  const { data, error } = await supabase.rpc("save_entity_master", {
-    p_workspace: workspace,
+  const { data: entityId, error } = await supabase.rpc("save_entity_profile", {
     p_entity: payload.entity,
     p_primary_contact: payload.primary_contact,
-    p_extended_contacts: payload.extended_contacts,
   });
 
   if (error) {
-    return { error: error.message };
+    return { error: mapEntityRpcError(error.message) };
   }
 
-  const entityId =
-    typeof data === "object" && data && "entity_id" in data
-      ? String((data as { entity_id: string }).entity_id)
-      : String(payload.entity.entity_id ?? "");
-
-  if (!entityId) {
+  const id = String(entityId ?? "");
+  if (!id) {
     return { error: "Entity saved but no id was returned." };
   }
 
-  const detail = await loadEntityDetail(entityId);
+  const isEdit = Boolean(payload.entity.entity_id);
+  if (isEdit || payload.extended_contacts.length > 0) {
+    const { error: contactsError } = await supabase.rpc("save_entity_contacts", {
+      p_entity_id: id,
+      p_contacts: payload.extended_contacts,
+    });
+    if (contactsError) {
+      return { error: mapEntityRpcError(contactsError.message) };
+    }
+  }
+
+  const detail = await loadEntityDetail(id);
   if (!detail) {
     return { error: "Entity saved but detail could not be loaded." };
   }
@@ -100,59 +94,45 @@ export async function bulkActivateEntities(entityIds: string[]) {
   const ids = uniqueEntityIds(entityIds);
   if (ids.length === 0) return { error: "Select at least one entity." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase } = await requireTenantId();
 
-  const { data, error } = await supabase
-    .from("entities")
-    .update({ is_active: true })
-    .in("id", ids)
-    .eq("tenant_id", tenantId)
-    .select("id");
+  const { error } = await supabase.rpc("bulk_set_entities_active", {
+    p_entity_ids: ids,
+    p_is_active: true,
+  });
 
-  if (error) return { error: error.message };
+  if (error) return { error: mapEntityRpcError(error.message) };
 
   revalidateEntityPaths();
-  return {
-    success: true as const,
-    affectedIds: (data ?? []).map((row) => row.id as string),
-  };
+  return { success: true as const, affectedIds: ids };
 }
 
 export async function bulkDeactivateEntities(entityIds: string[]) {
   const ids = uniqueEntityIds(entityIds);
   if (ids.length === 0) return { error: "Select at least one entity." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase } = await requireTenantId();
 
-  const { data, error } = await supabase
-    .from("entities")
-    .update({ is_active: false })
-    .in("id", ids)
-    .eq("tenant_id", tenantId)
-    .select("id");
+  const { error } = await supabase.rpc("bulk_set_entities_active", {
+    p_entity_ids: ids,
+    p_is_active: false,
+  });
 
-  if (error) return { error: error.message };
+  if (error) return { error: mapEntityRpcError(error.message) };
 
   revalidateEntityPaths();
-  return {
-    success: true as const,
-    affectedIds: (data ?? []).map((row) => row.id as string),
-  };
+  return { success: true as const, affectedIds: ids };
 }
 
 export async function deactivateEntity(entityId: string) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase } = await requireTenantId();
 
-  const { data, error } = await supabase
-    .from("entities")
-    .update({ is_active: false })
-    .eq("id", entityId)
-    .eq("tenant_id", tenantId)
-    .select("id")
-    .maybeSingle();
+  const { error } = await supabase.rpc("bulk_set_entities_active", {
+    p_entity_ids: [entityId],
+    p_is_active: false,
+  });
 
-  if (error) return { error: error.message };
-  if (!data) return { error: "Entity not found." };
+  if (error) return { error: mapEntityRpcError(error.message) };
 
   const detail = await loadEntityDetail(entityId);
   if (!detail) return { error: "Entity deactivated but detail could not be loaded." };
@@ -162,18 +142,25 @@ export async function deactivateEntity(entityId: string) {
 }
 
 export async function deleteEntity(entityId: string) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase } = await requireTenantId();
 
-  const { error } = await supabase
-    .from("entities")
-    .delete()
-    .eq("id", entityId)
-    .eq("tenant_id", tenantId);
+  const { error } = await supabase.rpc("delete_entity", {
+    p_entity_id: entityId,
+  });
 
   if (error) {
-    return { error: error.message };
+    return { error: mapEntityRpcError(error.message) };
   }
 
   revalidateEntityPaths();
   return { success: true as const, entityId };
+}
+
+export async function loadEntityReferenceCount(entityId: string): Promise<number> {
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("count_entity_references", {
+    p_entity_id: entityId,
+  });
+  if (error) return 0;
+  return Number(data) || 0;
 }

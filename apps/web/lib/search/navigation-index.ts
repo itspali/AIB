@@ -17,6 +17,21 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["categories", "taxonomy", "classification", "items", "new category"],
   },
   {
+    label: "Entities",
+    href: "/entities",
+    keywords: ["entities", "partners", "customers", "suppliers", "commercial partners"],
+  },
+  {
+    label: "Customers",
+    href: "/entities/customers",
+    keywords: ["customers", "accounts", "crm", "sales", "entities"],
+  },
+  {
+    label: "Suppliers",
+    href: "/entities/suppliers",
+    keywords: ["suppliers", "vendors", "procurement", "entities"],
+  },
+  {
     label: "Inventory",
     href: "/inventory",
     keywords: ["inventory", "stock", "warehouse", "on hand", "transfers"],
@@ -63,7 +78,7 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Suppliers",
-    href: "/procurement/suppliers",
+    href: "/entities/suppliers",
     keywords: ["suppliers", "vendors", "procurement"],
   },
   {
@@ -78,7 +93,7 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Customers",
-    href: "/sales/customers",
+    href: "/entities/customers",
     keywords: ["customers", "accounts", "crm", "sales"],
   },
   {

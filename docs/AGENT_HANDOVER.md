@@ -156,18 +156,19 @@ Full catalog (do not re-create):
 - **Location numbering:** sequence counter updates + default prefixes (`20260608130000_*`, `20260608150000_*`).
 - **Details:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 
-### Task Sequence 21: Procurement Inbound (GRN) [NEXT — NOT STARTED]
-- **Goal:** PO → GRN → stock in; mirror Stock list-module pattern under `/procurement`.
-- **Prerequisite reading:** `20260527134500_create_procurement_and_control_registry.sql`, existing `goods_receipts` schema, [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §5–6.
+### Task Sequence 21: Procurement Inbound (GRN) [IMPLEMENTED]
+- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — list-module pattern under Procurement.
+- **Migration:** `20260608160000_procurement_grn_v1_rpcs.sql`.
 - **Defer:** full PO approval workflow, supplier portal, purchase invoices — unless user expands scope.
 
-### Task Sequence 22: Enterprise Group Structure [IMPLEMENTED]
+### Task Sequence 22: Enterprise Group Structure [IMPLEMENTED — Phase 2 partial]
 - **Route:** `/settings/group` — Administration → Group (DESIGN_SYSTEM §6 org-settings pattern).
 - **Schema:** `tenant_groups`, `tenant_group_memberships`, `group_memberships`, `user_tenant_memberships`, `group_membership_events`; nullable `tenants.group_id`.
 - **Identity:** `public.users` profile-only; org roles in `user_tenant_memberships`; `switch_active_tenant_membership` RPC patches JWT.
 - **Phase 1 RPCs:** `create_tenant_group`, `update_tenant_group_profile`, `create_group_organization`, `list_group_organizations`, `request_group_exit`, `complete_group_exit`.
 - **Workspace switch:** profile dropdown submenu; `refreshSession()` after switch.
-- **Non-goals v1:** cross-org inventory, shared catalog, intercompany, invite flow.
-- **Migration:** `20260609100000_tenant_groups_foundation.sql`.
+- **Phase 2 (partial):** `20260609200000_tenant_groups_invitations.sql` — invite/accept/reject/revoke, suspend/reinstate; `lib/group/invitations.ts`; `GroupExitConfirmDialog` component (wire into orgs section as follow-up).
+- **Non-goals v1:** cross-org inventory, shared catalog, intercompany.
+- **Migrations:** `20260609100000_tenant_groups_foundation.sql`, `20260609200000_tenant_groups_invitations.sql`.
 - **Lib/UI:** `apps/web/lib/group/`, `apps/web/app/settings/group/`, `apps/web/components/settings/group/`.
 - **Org settings:** read-only parent group on Organization Identity when `tenants.group_id` set.

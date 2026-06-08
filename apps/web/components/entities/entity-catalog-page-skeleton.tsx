@@ -5,16 +5,23 @@ import {
 } from "@/lib/layout/list-module-chrome";
 import { cn } from "@/lib/utils";
 
+import type { EntityWorkspace } from "@/lib/entities/types";
+import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
+
 type Props = {
+  workspace?: EntityWorkspace;
   title?: string;
 };
 
-export function EntityCatalogPageSkeleton({ title = "Loading entities" }: Props) {
+export function EntityCatalogPageSkeleton({ workspace, title }: Props) {
+  const resolvedTitle =
+    title ??
+    (workspace ? `${getEntityWorkspaceConfig(workspace).title} loading` : "Loading entities");
   return (
     <div
       className={cn("flex min-h-0 flex-col overflow-hidden", LIST_MODULE_VIEWPORT_OFFSET)}
       aria-busy="true"
-      aria-label={title}
+      aria-label={resolvedTitle}
     >
       <div className={LIST_MODULE_PAGE_CHROME}>
         <div className="space-y-2.5">

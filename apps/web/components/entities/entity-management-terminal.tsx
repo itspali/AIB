@@ -10,11 +10,8 @@ import {
   useTransition,
 } from "react";
 import { toast } from "sonner";
-import {
-  bulkActivateEntities,
-  bulkDeactivateEntities,
-  listRowFromDetail,
-} from "@/app/entities/actions";
+import { bulkActivateEntities, bulkDeactivateEntities } from "@/app/entities/actions";
+import { listRowFromDetail } from "@/lib/entities/list-row";
 import { EntityBulkActionToolbar } from "@/components/entities/entity-bulk-action-toolbar";
 import type { EntityBulkToolbarAction } from "@/components/entities/entity-bulk-action-toolbar";
 import { EntityDeleteDialog } from "@/components/entities/entity-delete-dialog";

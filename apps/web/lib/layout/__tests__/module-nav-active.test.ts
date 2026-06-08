@@ -53,7 +53,7 @@ describe("module-nav-active", () => {
   it("resolves the default entry href for modules with sections", () => {
     expect(getModuleNavEntryHref(itemsModule)).toBe("/items");
     expect(getModuleNavEntryHref(inventoryItem)).toBe("/inventory");
-    expect(getModuleNavEntryHref(salesItem)).toBe("/sales/customers");
+    expect(getModuleNavEntryHref(salesItem)).toBe("/entities/customers");
     expect(getModuleNavEntryHref(procurementItem)).toBe("/procurement");
   });
 

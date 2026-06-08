@@ -27,6 +27,16 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
     label: "Categories",
     placeholder: "Filter categories natively (e.g., name electronics)…",
   },
+  customers: {
+    id: "customers",
+    label: "Customers",
+    placeholder: "Filter customers natively (e.g., name Acme, active true)…",
+  },
+  suppliers: {
+    id: "suppliers",
+    label: "Suppliers",
+    placeholder: "Filter suppliers natively (e.g., name vendor, active true)…",
+  },
   settings: {
     id: "settings",
     label: "Settings",
@@ -35,6 +45,11 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
 };
 
 const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
+  { prefix: "/entities/customers", scope: "customers" },
+  { prefix: "/entities/suppliers", scope: "suppliers" },
+  { prefix: "/entities", scope: "all" },
+  { prefix: "/sales/customers", scope: "customers" },
+  { prefix: "/procurement/suppliers", scope: "suppliers" },
   { prefix: "/items/categories", scope: "categories" },
   { prefix: "/items", scope: "items" },
   { prefix: "/inventory/categories", scope: "categories" },

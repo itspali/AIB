@@ -45,6 +45,16 @@ export type GroupSettingsFormValues = {
   primary_phone: string;
 };
 
+export type GroupInvitationRow = {
+  invitation_id: string;
+  group_id: string;
+  group_name: string;
+  message: string | null;
+  invited_by_name: string | null;
+  expires_at: string;
+  created_at: string;
+};
+
 export function snapshotToGroupFormValues(
   snapshot: GroupSettingsSnapshot
 ): GroupSettingsFormValues {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderTree, MapPin, Package, Plus } from "lucide-react";
+import { FolderTree, MapPin, Package, Plus, Users, Building2 } from "lucide-react";
 import { NavTextLinkContent } from "@/components/layout/nav-link-content";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,11 +15,14 @@ import {
 import { useClientMounted } from "@/lib/dom/use-client-mounted";
 
 import { categoryNewHref } from "@/lib/categories/category-navigation";
+import { entityCreateHref } from "@/lib/entities/entity-navigation";
 import { itemCreateHref } from "@/lib/products/item-navigation";
 
 const CREATE_ACTIONS = [
   { href: itemCreateHref(), label: "New Item", icon: Package },
   { href: categoryNewHref(), label: "New Category", icon: FolderTree },
+  { href: entityCreateHref("customer"), label: "New Customer", icon: Users },
+  { href: entityCreateHref("supplier"), label: "New Supplier", icon: Building2 },
   { href: "/settings/locations", label: "New Location", icon: MapPin },
 ];
 

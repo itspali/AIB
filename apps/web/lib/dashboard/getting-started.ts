@@ -5,6 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type GettingStartedTaskId =
   | "first_product"
   | "categories"
+  | "first_customer"
+  | "first_supplier"
   | "org_settings"
   | "locations";
 
@@ -38,16 +40,34 @@ async function countForTenant(
   return count ?? 0;
 }
 
+async function countEntitiesForTenant(
+  supabase: SupabaseClient,
+  tenantId: string,
+  types: ("CUSTOMER" | "SUPPLIER" | "MUTUAL_PARTNER")[]
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("entities")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .in("type", types);
+
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export async function fetchGettingStartedSnapshot(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<GettingStartedSnapshot> {
-  const [{ data: tenant }, itemCount, categoryCount, locationCount] = await Promise.all([
-    supabase.from("tenants").select("metadata_json, onboarding_status").eq("id", tenantId).single(),
-    countForTenant(supabase, "items", tenantId),
-    countForTenant(supabase, "item_categories", tenantId),
-    countForTenant(supabase, "tenant_locations", tenantId),
-  ]);
+  const [{ data: tenant }, itemCount, categoryCount, locationCount, customerCount, supplierCount] =
+    await Promise.all([
+      supabase.from("tenants").select("metadata_json, onboarding_status").eq("id", tenantId).single(),
+      countForTenant(supabase, "items", tenantId),
+      countForTenant(supabase, "item_categories", tenantId),
+      countForTenant(supabase, "tenant_locations", tenantId),
+      countEntitiesForTenant(supabase, tenantId, ["CUSTOMER", "MUTUAL_PARTNER"]),
+      countEntitiesForTenant(supabase, tenantId, ["SUPPLIER", "MUTUAL_PARTNER"]),
+    ]);
 
   const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
   const dismissed = metadata.getting_started_dismissed === true;
@@ -67,6 +87,20 @@ export async function fetchGettingStartedSnapshot(
       description: "Group items for reporting, pricing, and storefront merchandising.",
       href: "/items/categories",
       completed: categoryCount >= 1,
+    },
+    {
+      id: "first_supplier",
+      title: "Add your first supplier",
+      description: "Create a supplier profile for purchase orders and goods receipts.",
+      href: "/entities/suppliers?action=new",
+      completed: supplierCount >= 1,
+    },
+    {
+      id: "first_customer",
+      title: "Add your first customer",
+      description: "Create a customer account for sales orders and invoicing.",
+      href: "/entities/customers?action=new",
+      completed: customerCount >= 1,
     },
     {
       id: "org_settings",
