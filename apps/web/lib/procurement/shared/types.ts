@@ -1,0 +1,10 @@
+export type ProcurementLocationOption = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type ProcurementSupplierOption = {
+  id: string;
+  name: string;
+};

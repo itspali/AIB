@@ -1,0 +1,65 @@
+"use client";
+
+import { formatDate } from "@/lib/dashboard/format";
+import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
+import { cn } from "@/lib/utils";
+
+type Props = {
+  rows: GoodsReceiptRow[];
+  selectedId: string | null;
+  onSelect: (goodsReceiptId: string) => void;
+};
+
+export function GrnListTable({ rows, selectedId, onSelect }: Props) {
+  return (
+    <div className="surface-inset h-full min-h-0 overflow-auto">
+      <table className="w-full min-w-[760px] text-left text-sm">
+        <thead className="sticky top-0 z-10 bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="p-2.5 font-medium">GRN number</th>
+            <th className="p-2.5 font-medium">Location</th>
+            <th className="p-2.5 font-medium">Purchase order</th>
+            <th className="p-2.5 text-right font-medium">Lines</th>
+            <th className="p-2.5 font-medium">Received</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const selected = selectedId === row.id;
+            return (
+              <tr
+                key={row.id}
+                className={cn(
+                  "group box-border cursor-pointer border-b border-border transition-colors",
+                  selected
+                    ? "bg-primary/5 ring-1 ring-inset ring-primary/20"
+                    : "hover:bg-muted/30"
+                )}
+                onClick={() => onSelect(row.id)}
+              >
+                <td className="p-2.5">
+                  <div className="font-mono text-xs font-medium">{row.voucher_number}</div>
+                </td>
+                <td className="p-2.5">
+                  <div className="font-medium">{row.destination_location_name}</div>
+                  {row.destination_location_code ? (
+                    <div className="text-xs text-muted-foreground">
+                      {row.destination_location_code}
+                    </div>
+                  ) : null}
+                </td>
+                <td className="p-2.5 font-mono text-xs">
+                  {row.purchase_order_number ?? "—"}
+                </td>
+                <td className="p-2.5 text-right tabular-nums">{row.line_count}</td>
+                <td className="p-2.5 text-sm text-muted-foreground">
+                  {formatDate(row.received_at)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}

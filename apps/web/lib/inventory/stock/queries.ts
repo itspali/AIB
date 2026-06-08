@@ -13,6 +13,7 @@ import type {
   StockLocationOption,
   StockVariantOption,
 } from "@/lib/inventory/stock/types";
+import { resolveStockVariantBlockedReason } from "@/lib/inventory/stock/variant-eligibility";
 
 /** Disambiguate composite tenant FK embeds on item_valuations. */
 const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
@@ -349,6 +350,7 @@ type VariantSearchDbRow = {
   id: string;
   sku: string;
   item_id: string;
+  is_sellable: boolean;
   items: VariantItemJoin | VariantItemJoin[] | null;
 };
 
@@ -362,23 +364,13 @@ function extractStandardCost(customFields: Record<string, unknown> | null | unde
   return String(raw).trim();
 }
 
-function stockVariantBlockedReason(item: VariantItemJoin | null): string | null {
-  if (!item?.track_inventory) return "Item does not track inventory.";
-  if (item.tracking_mode === "SERIAL") {
-    return "Serial tracking is not supported in stock adjustments yet.";
-  }
-  if (item.tracking_mode === "LOT") {
-    return "Lot tracking is not supported in stock adjustments yet.";
-  }
-  if (item.tracking_mode !== "NONE") {
-    return "This tracking mode is not supported in stock adjustments yet.";
-  }
-  return null;
-}
-
 function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
   const item = resolveJoin(row.items);
-  const blockedReason = stockVariantBlockedReason(item);
+  const blockedReason = resolveStockVariantBlockedReason({
+    is_sellable: row.is_sellable,
+    track_inventory: item?.track_inventory,
+    tracking_mode: item?.tracking_mode,
+  });
   return {
     variant_id: row.id,
     item_id: row.item_id,
@@ -402,6 +394,7 @@ const VARIANT_SEARCH_SELECT = `
   id,
   sku,
   item_id,
+  is_sellable,
   ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
 `;
 
@@ -525,6 +518,7 @@ export async function resolveVariantBySku(
       track_inventory: boolean;
       tracking_mode: string;
       standard_cost: string | null;
+      blocked_reason: string | null;
     }
   | null
 > {
@@ -538,6 +532,7 @@ export async function resolveVariantBySku(
       id,
       sku,
       item_id,
+      is_sellable,
       ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
     `
     )
@@ -559,5 +554,6 @@ export async function resolveVariantBySku(
     track_inventory: Boolean(item?.track_inventory),
     tracking_mode: item?.tracking_mode ?? "NONE",
     standard_cost: mapped.standard_cost,
+    blocked_reason: mapped.blocked_reason,
   };
 }

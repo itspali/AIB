@@ -75,18 +75,20 @@ export function ListModuleToolbarRow({
     <div className={cn("space-y-2", className)}>
       <div
         className={cn(
-          "flex min-w-0 flex-nowrap items-center text-muted-foreground",
+          "flex min-w-0 flex-nowrap items-center overflow-hidden text-muted-foreground",
           LIST_TOOLBAR_ROW_GAP,
           LIST_TOOLBAR_ROW_MIN_HEIGHT,
           LIST_TOOLBAR_TEXT
         )}
       >
-        <CountLabel
+        <div className="min-w-0 shrink-0">
+          <CountLabel
           compactCountLabel={compactCountLabel}
           fullCountText={fullCountText}
           shortCountText={shortCountText}
           ratioCountText={ratioCountText}
         />
+        </div>
         <div
           className={cn(
             "relative z-10 flex min-w-0 flex-1 items-center justify-end overflow-x-auto overflow-y-visible",

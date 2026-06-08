@@ -1,97 +1,159 @@
 "use client";
 
-import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
-import { formatDate } from "@/lib/dashboard/format";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { useMemo } from "react";
+import { renderTransferListCell } from "@/components/inventory/transfers/transfer-list-cells";
+import { useDeviceClass } from "@/hooks/use-device-class";
+import { getOrderedVisibleColumns } from "@/lib/list-columns/prefs";
+import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  resolveListFrozenColumnCount,
+  useFrozenListColumns,
+} from "@/lib/list-columns/use-frozen-list-columns";
+import {
+  getTransferColumnDef,
+  type TransferListColumnId,
+} from "@/lib/inventory/transfers/list-columns";
+import {
+  isSortableTransferColumn,
+  toggleTransferColumnSort,
+  type TransferListSortDirection,
+  type TransferListSortField,
+} from "@/lib/inventory/transfers/list-sort";
 import type { StockTransferRow } from "@/lib/inventory/transfers/types";
+import {
+  LIST_TABLE_BODY_CELL,
+  LIST_TABLE_HEADER_CELL,
+  LIST_TABLE_HEADER_SORTABLE,
+  listTableRowClass,
+} from "@/lib/layout/list-table-chrome";
+import type { FrozenColumnPref } from "@/lib/products/list-prefs";
 import { cn } from "@/lib/utils";
 
 type Props = {
   rows: StockTransferRow[];
+  columnPrefs: ListColumnPrefs<TransferListColumnId>;
+  sortField: TransferListSortField;
+  sortDirection: TransferListSortDirection;
+  frozenColumnCount: FrozenColumnPref;
+  onSortChange: (field: TransferListSortField, direction: TransferListSortDirection) => void;
   selectedId: string | null;
   onSelect: (transferId: string) => void;
 };
 
-function statusTone(status: StockTransferRow["current_status"]): string {
-  switch (status) {
-    case "DRAFT":
-      return "bg-muted text-muted-foreground";
-    case "DISPATCHED_IN_TRANSIT":
-      return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
-    case "FULLY_COMPLETED":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
-    case "RECEIPT_DISCREPANCY":
-      return "bg-rose-500/15 text-rose-700 dark:text-rose-300";
-    case "CANCELLED":
-      return "bg-muted text-muted-foreground line-through";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-}
+export function TransferListTable({
+  rows,
+  columnPrefs,
+  sortField,
+  sortDirection,
+  frozenColumnCount,
+  onSortChange,
+  selectedId,
+  onSelect,
+}: Props) {
+  const { deviceClass } = useDeviceClass();
+  const columns = useMemo(() => getOrderedVisibleColumns(columnPrefs), [columnPrefs]);
+  const resolvedFrozenCount = resolveListFrozenColumnCount(frozenColumnCount, deviceClass);
+  const frozen = useFrozenListColumns({
+    columnCount: columns.length,
+    frozenColumnCount: resolvedFrozenCount,
+  });
 
-export function TransferListTable({ rows, selectedId, onSelect }: Props) {
+  const handleHeaderSort = (field: string) => {
+    if (!isSortableTransferColumn(field)) return;
+    const next = toggleTransferColumnSort(field, sortField, sortDirection);
+    onSortChange(next.field, next.direction);
+  };
+
   return (
-    <div className="surface-inset h-full min-h-0 overflow-auto">
-      <table className="w-full min-w-[860px] text-left text-sm">
-        <thead className="sticky top-0 z-10 bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="p-2.5 font-medium">Document</th>
-            <th className="p-2.5 font-medium">From</th>
-            <th className="p-2.5 font-medium">To</th>
-            <th className="p-2.5 font-medium">Status</th>
-            <th className="p-2.5 text-right font-medium">Lines</th>
-            <th className="p-2.5 font-medium">Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const selected = selectedId === row.id;
-            return (
-              <tr
-                key={row.id}
-                className={cn(
-                  "group box-border cursor-pointer border-b border-border transition-colors",
-                  selected
-                    ? "bg-primary/5 ring-1 ring-inset ring-primary/20"
-                    : "hover:bg-muted/30"
-                )}
-                onClick={() => onSelect(row.id)}
-              >
-                <td className="p-2.5">
-                  <div className="font-mono text-xs font-medium">{row.transfer_number}</div>
-                </td>
-                <td className="p-2.5">
-                  <div className="font-medium">{row.source_location_name}</div>
-                  {row.source_location_code ? (
-                    <div className="text-xs text-muted-foreground">{row.source_location_code}</div>
-                  ) : null}
-                </td>
-                <td className="p-2.5">
-                  <div className="font-medium">{row.destination_location_name}</div>
-                  {row.destination_location_code ? (
-                    <div className="text-xs text-muted-foreground">
-                      {row.destination_location_code}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="p-2.5">
-                  <span
+    <div className="surface-inset h-full min-h-0 overflow-hidden">
+      <div
+        ref={frozen.scrollContainerRef}
+        className="h-full min-h-0 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+      >
+        <table className="w-full min-w-[860px] border-separate border-spacing-0 text-left text-sm">
+          <thead>
+            <tr>
+              {columns.map((columnId, index) => {
+                const column = getTransferColumnDef(columnId);
+                const active = sortField === columnId;
+                const sticky = frozen.getStickyCellProps(index, "header");
+                return (
+                  <th
+                    key={columnId}
+                    ref={(element) => {
+                      frozen.headerRefs.current[index] = element;
+                    }}
+                    scope="col"
                     className={cn(
-                      "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-                      statusTone(row.current_status)
+                      LIST_TABLE_HEADER_CELL,
+                      LIST_TABLE_HEADER_SORTABLE,
+                      sticky.className,
+                      frozen.headerCellClass(index),
+                      column.align === "right" && "text-right",
+                      active && "text-foreground"
                     )}
+                    style={sticky.style}
+                    aria-sort={active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+                    onClick={() => handleHeaderSort(columnId)}
                   >
-                    {stockTransferStatusLabel(row.current_status)}
-                  </span>
-                </td>
-                <td className="p-2.5 text-right tabular-nums">{row.line_count}</td>
-                <td className="p-2.5 text-sm text-muted-foreground">
-                  {formatDate(row.dispatched_at ?? row.created_at)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1",
+                        column.align === "right" && "justify-end"
+                      )}
+                    >
+                      {column.label}
+                      {active ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                        ) : (
+                          <ArrowDown className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                      )}
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const selected = selectedId === row.id;
+              return (
+                <tr
+                  key={row.id}
+                  className={listTableRowClass(selected)}
+                  onClick={() => onSelect(row.id)}
+                >
+                  {columns.map((columnId, index) => {
+                    const column = getTransferColumnDef(columnId);
+                    const sticky = frozen.getStickyCellProps(index, "body");
+                    return (
+                      <td
+                        key={columnId}
+                        className={cn(
+                          LIST_TABLE_BODY_CELL,
+                          sticky.className,
+                          frozen.bodyCellClass(index, selected),
+                          column.align === "right" && "text-right tabular-nums"
+                        )}
+                        style={sticky.style}
+                      >
+                        {renderTransferListCell(columnId, row, {
+                          chipDisplay: columnPrefs.columnChipDisplay,
+                        })}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

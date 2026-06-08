@@ -1,4 +1,5 @@
 import type { UserFacingError } from "@/lib/errors/user-facing-error";
+import { STOCK_STYLE_ANCHOR_BLOCKED_REASON } from "@/lib/inventory/stock/variant-eligibility";
 import {
   buildFifoUnsupportedStockError,
   formatStockLocationLabel,
@@ -120,8 +121,7 @@ export function formatStockAdjustmentRpcError(
 
   if (isStyleAnchorError(message)) {
     return {
-      message:
-        "Style anchor SKUs cannot receive inventory. Enter opening stock on sellable variant SKUs only.",
+      message: STOCK_STYLE_ANCHOR_BLOCKED_REASON,
     };
   }
 

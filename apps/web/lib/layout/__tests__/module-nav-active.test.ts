@@ -54,7 +54,7 @@ describe("module-nav-active", () => {
     expect(getModuleNavEntryHref(itemsModule)).toBe("/items");
     expect(getModuleNavEntryHref(inventoryItem)).toBe("/inventory");
     expect(getModuleNavEntryHref(salesItem)).toBe("/sales/customers");
-    expect(getModuleNavEntryHref(procurementItem)).toBe("/procurement/suppliers");
+    expect(getModuleNavEntryHref(procurementItem)).toBe("/procurement");
   });
 
   it("highlights Sales and Procurement on their section routes", () => {
@@ -63,6 +63,9 @@ describe("module-nav-active", () => {
     expect(isModuleNavItemActive(procurementItem, "/procurement/bills")).toBe(true);
     expect(getActiveModuleNavChild(procurementItem, "/procurement/purchase-orders")?.label).toBe(
       "Purchase Orders"
+    );
+    expect(getActiveModuleNavChild(procurementItem, "/procurement/goods-receipts")?.label).toBe(
+      "Goods Receipts"
     );
   });
 });

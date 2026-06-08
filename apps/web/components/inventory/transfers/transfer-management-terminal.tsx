@@ -2,19 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { Info, Plus } from "lucide-react";
 import { loadStockTransfers } from "@/app/inventory/transfers/actions";
 import { TransferDrawerForm } from "@/components/inventory/transfers/transfer-drawer-form";
 import { TransferEmptyState } from "@/components/inventory/transfers/transfer-empty-state";
 import { TransferListTable } from "@/components/inventory/transfers/transfer-list-table";
 import { TransferListToolbar } from "@/components/inventory/transfers/transfer-list-toolbar";
+import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   getDefaultTransferListPrefs,
   loadTransferListPrefs,
@@ -26,6 +20,11 @@ import {
   TRANSFER_DRAWER_SOURCE_PARAM,
   TRANSFERS_HREF,
 } from "@/lib/inventory/transfers/navigation";
+import {
+  sortTransferListRows,
+  type TransferListSortDirection,
+  type TransferListSortField,
+} from "@/lib/inventory/transfers/list-sort";
 import type { StockTransferRow, TransferLocationOption } from "@/lib/inventory/transfers/types";
 import { useFilteredTransfers } from "@/lib/inventory/transfers/use-filtered-transfers";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
@@ -37,36 +36,6 @@ type Props = {
   initialTransfers: StockTransferRow[];
   locations: TransferLocationOption[];
 };
-
-function TransfersPageTitleHeader({ onNewTransfer }: { onNewTransfer: () => void }) {
-  return (
-    <div className="mb-4 flex items-center justify-between gap-2.5 sm:mb-5">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">Transfers</h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-              aria-label="About Transfers"
-            >
-              <Info className="h-4 w-4" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72 p-3">
-            <p className="text-sm leading-snug text-muted-foreground">
-              {TRANSFERS_PAGE_DESCRIPTION}
-            </p>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <Button type="button" className="shrink-0 gap-1.5" onClick={onNewTransfer}>
-        <Plus className="h-4 w-4" aria-hidden />
-        New transfer
-      </Button>
-    </div>
-  );
-}
 
 export function TransferManagementTerminal({ initialTransfers, locations }: Props) {
   const searchParams = useSearchParams();
@@ -147,7 +116,23 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
   );
 
   const hasAnyData = transfers.length > 0;
-  const filteredRows = transfersView.filteredRows;
+
+  const sortedRows = useMemo(
+    () =>
+      sortTransferListRows(
+        transfersView.filteredRows,
+        prefs.sortField,
+        prefs.sortDirection
+      ),
+    [transfersView.filteredRows, prefs.sortDirection, prefs.sortField]
+  );
+
+  const handleSortChange = useCallback(
+    (field: TransferListSortField, direction: TransferListSortDirection) => {
+      setPrefs((current) => ({ ...current, sortField: field, sortDirection: direction }));
+    },
+    []
+  );
 
   const listPrimary = !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
@@ -156,7 +141,7 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
         hasLocations={locations.length >= 2}
       />
     </div>
-  ) : filteredRows.length === 0 ? (
+  ) : sortedRows.length === 0 ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
         No transfers match the current filters.
@@ -164,7 +149,12 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
     </div>
   ) : (
     <TransferListTable
-      rows={filteredRows}
+      rows={sortedRows}
+      columnPrefs={prefs.columnPrefs}
+      sortField={prefs.sortField}
+      sortDirection={prefs.sortDirection}
+      frozenColumnCount={prefs.frozenColumnCount}
+      onSortChange={handleSortChange}
       selectedId={selectedTransferId}
       onSelect={handleSelectTransfer}
     />
@@ -173,7 +163,15 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
   return (
     <>
       <ListModuleShell
-        title={<TransfersPageTitleHeader onNewTransfer={drawer.openCreate} />}
+        title={
+          <ListModulePageTitleHeader
+            title="Transfers"
+            description={TRANSFERS_PAGE_DESCRIPTION}
+            createLabel="New transfer"
+            onCreate={drawer.openCreate}
+            aboutAriaLabel="About Transfers"
+          />
+        }
         toolbar={
           hasAnyData ? (
             <TransferListToolbar
@@ -188,7 +186,7 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
           ) : null
         }
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden px-1">
+        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
           {listPrimary}
         </div>
       </ListModuleShell>

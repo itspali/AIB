@@ -10,6 +10,9 @@ standards. Every rule below reflects the conventions already shipped in
 For **CI deploy safety** (timestamps, view column order, GRANT signatures, pre-push checklist), see
 [`SUPABASE_CI_MIGRATION_ERRORS.md`](./SUPABASE_CI_MIGRATION_ERRORS.md).
 
+For **inventory postings** (adjustments, transfers, opening stock, GRN — when built), see
+[`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for shipped behavior and V1 constraints.
+
 ---
 
 ## 1. Naming Standards, Cases & Conventions
@@ -132,3 +135,44 @@ canonical enums currently defined are:
 
 - Keys inside JSONB documents use `snake_case`, and enumerated string values inside them follow the
   same `SCREAMING_SNAKE_CASE` convention as native enums.
+
+---
+
+## 8. Inventory Operations & Document Numbering
+
+Applies to stock adjustments, transfers, goods receipts, and other voucher-backed inventory documents.
+
+### 8.1 Human document numbers vs UUIDs
+
+- **System identity:** `id UUID` on every document row.
+- **Operator-facing number:** `adjustment_number`, `transfer_number`, `grn_number`, etc. — unique per `(tenant_id, number)` (or tenant-scoped equivalent).
+- **Allocation:** `generate_next_voucher_string(tenant_id, voucher_type, prefix, location_id)` with row lock on `document_sequences`. Location-scoped vouchers use the **issuing** location's prefix (e.g. `STOCK_ADJUSTMENT` at adjustment location; `STOCK_TRANSFER` at **source** location).
+
+### 8.2 Location-scoped voucher types (stock-holding sites)
+
+Configured per location under `location_meta.configuration_metadata.naming_sequences`. Stock-holding locations support at minimum:
+
+`PURCHASE_ORDER`, `GOODS_RECEIPT_NOTE`, `PURCHASE_INVOICE`, `STOCK_TRANSFER`, `STOCK_ADJUSTMENT`
+
+See `lib/locations/document-numbering.ts`. Administrators may set **next sequence value** on location save (`20260608130000_location_document_sequence_counters.sql`).
+
+### 8.3 Inventory ledger & valuation
+
+- **Append-only:** `inventory_ledger` — no updates/deletes in application code.
+- **On-hand / MWAC:** `item_valuations` updated by trigger `inventory_ledger_apply_mwac` after ledger insert.
+- **V1 posting guard:** quantity-tracked items only (`item_tracking_mode = 'NONE'`). LOT/SERIAL not supported in adjustment/transfer RPCs until a dedicated plan exists.
+- **Valuation engine:** location `valuation_calculation_rule` or org `accounting_config.inventory_valuation_method` — stock **postings** require **MWAC** at effective resolution; FIFO blocks with operator-facing guidance (see `lib/inventory/stock/valuation-engine.ts`).
+
+### 8.4 Shipped enums (inventory ops)
+
+| Type | Values (V1 subset) |
+|------|-------------------|
+| `stock_adjustment_kind` | `OPENING`, `CORRECTION`, `WRITE_OFF` |
+| `stock_adjustment_status` | `POSTED` |
+| `stock_transfer_status` | `DRAFT`, `PENDING_APPROVAL`, `DISPATCHED_IN_TRANSIT`, `RECEIPT_DISCREPANCY`, `FULLY_COMPLETED`, `CANCELLED` |
+| `inventory_transaction_type` | includes `INVENTORY_ADJUSTMENT`, `STOCK_TRANSFER` (ledger) |
+| `document_voucher_type` | includes `STOCK_ADJUSTMENT`, `STOCK_TRANSFER`, `GOODS_RECEIPT_NOTE`, … |
+
+### 8.5 PostgREST / API embeds
+
+When a table has **multiple FKs** to the same target (e.g. `stock_transfers` → `tenant_locations` ×2, `stock_transfer_items` composite + simple FK), Supabase selects must use **explicit FK hints and aliases**. Reference: `lib/inventory/transfers/queries.ts`.

@@ -155,6 +155,8 @@ ALTER TABLE tenants
 --   supabase/migrations/20260526200000_init_entities_contacts.sql
 -- Delta alignments (phone split, frozen blueprint):
 --   supabase/migrations/20260527100000_create_entities_and_contacts.sql
+-- Entity profile RPCs (save/list/delete):
+--   supabase/migrations/20260609120000_entity_profile_rpcs.sql
 -- ====================================================================
 
 CREATE TYPE entity_commercial_type AS ENUM ('CUSTOMER', 'SUPPLIER', 'MUTUAL_PARTNER');

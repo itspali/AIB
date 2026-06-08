@@ -3,9 +3,11 @@
 This document is the **finalized, code-grounded** layout and component standard for the AIB
 responsive web framework (Next.js App Router + Tailwind CSS + Shadcn/UI + Lucide React).
 
-The standard is derived from two reference implementations that are considered **frozen**:
-- **Items Master** (`/inventory/items`) — the canonical pattern for every module that lists records.
-- **Organization Settings** (`/settings/organization`) — the canonical pattern for single-page configuration forms.
+The standard is derived from reference implementations that are considered **frozen**:
+- **Items Master** (`/items`, alias `/inventory/items`) — full catalog list module (dual views, bulk select, saved views).
+- **Operational list modules** (`/inventory/stock`, `/inventory/transfers`) — lean document lists via `ListModuleShell`; see §3.7 and [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
+- **Organization Settings** (`/settings/organization`) — single-page configuration forms.
+- **Module overview landings** (`/inventory`, `/procurement`, …) — KPI tiles + shortcut cards; see [`NAVIGATION.md`](./NAVIGATION.md) §4.
 
 > Source-of-truth rule: where any older spec or sketch disagrees with the shipped Items Master or
 > Organization Settings, **the shipped code wins**. Do not change the Items Master or Organization
@@ -35,7 +37,7 @@ The app chrome is the `DashboardShell` (`apps/web/components/layout/dashboard-sh
 - Nav link row: `group flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-normal ... hover:bg-white/5`. Active items use `nav-glow-active`.
 - Collapsed groups render as icon-only buttons with a `DropdownMenu side="right"`.
 - Collapse state is owned by `OnboardingContext` (`sidebarCollapsed`); on tablet (`min-width: 768px and max-width: 1023px`) the rail **auto-collapses** on mount.
-- Module entries come from `module-nav.tsx` (Dashboard, Procurement, Inventory + children, Sales, Logistics, Financials), all icons Lucide.
+- Module entries come from `module-nav.tsx` (Dashboard, Procurement, **Items**, **Inventory** (Overview/Stock/Transfers), Sales, Fulfillment & Shipping, Financials, **Administration**), all icons Lucide. Locations live under Administration (`/settings/locations`), not Inventory children.
 
 ### 1.3 Active Workspace Canvas (Zone C)
 - The scroll container is the single `<main data-dashboard-scroll-root>` element: `relative min-h-0 min-w-0 flex-1 overflow-y-auto` + `hub-canvas` background.
@@ -79,7 +81,9 @@ Form field grids collapse from multi-column to a single stack:
 
 ## 3. Master Data List Standard (The Items Master Pattern)
 
-**Every module that lists records MUST replicate this pattern.** The canonical implementation is the Items catalog at `/inventory/items`.
+**Full catalog modules** (Items, future Customers/Suppliers with rich metadata) MUST replicate this pattern. The canonical implementation is the Items catalog at `/items`.
+
+**Operational document modules** (stock adjustments, transfers, GRNs) use the leaner pattern in §3.7 — same drawer URL rules, without dual views or bulk selection unless explicitly required.
 
 ### 3.1 Full-Width Layout
 - The list claims **100% of the canvas width**. There is **no left-stream / right-canvas split** and no fixed split-pane restriction. Root container style uses `space-y-3`.
@@ -118,17 +122,41 @@ Control shell component: `w-full min-w-0 rounded-lg border border-primary/25 bg-
 ### 3.6 Bulk Action Toolbar
 Appears when selection count > 0: `sticky top-0 z-30 animate-in fade-in slide-in-from-top-2 duration-200 backdrop-blur-sm`. Desktop shows primary outline actions + destructive Archive + a "More" dropdown; mobile collapses to a single "Actions" dropdown. Selection label `truncate text-sm font-semibold tracking-tight`.
 
+### 3.7 Operational Document List Modules (Stock / Transfers / GRN)
+
+Use this **lean** variant when the module posts location-scoped inventory documents rather than editing rich master records.
+
+**Canonical files:** `apps/web/components/inventory/stock/`, `apps/web/components/inventory/transfers/`, `apps/web/components/layout/list-module-shell.tsx`, `apps/web/lib/layout/use-module-drawer-url.ts`.
+
+| Aspect | Full catalog (§3) | Operational (§3.7) |
+|--------|-------------------|---------------------|
+| Shell | Custom page layout | `ListModuleShell` + `*-catalog-loader.tsx` (RSC) |
+| Views | Table + compact cards | **Table only** (or single view toggle when meaningful, e.g. Stock balances vs adjustments) |
+| Bulk select | Sticky checkbox column | **None** |
+| Toolbar | Saved views, column settings | `ListModuleToolbarRow` + filter extras (location, status) |
+| Create CTA | Header + `?action=new` | Same; optional **prefill params** (see §4) |
+| Drawer | Peek / edit / create | Same; operational forms may post via RPC in one step (adjustments) or multi-step status (transfers) |
+| Empty state | `ProductEmptyState` or dashed prompt | Module-specific empty state with single **New …** CTA |
+| Errors | Toast + inline | `UserFacingErrorMessage` with optional settings link (numbering, MWAC) |
+
+**Module overview pages** (`/inventory`) are not list modules: they use metric cards + activity tables + deep links into Stock/Transfers drawers. See `inventory-overview-terminal.tsx`.
+
+Domain rules for inventory ops: [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
+
 ---
 
 ## 4. Right-Side Slide-Over Drawer (URL-Driven Interface)
 
 Clicking a list row or clicking the primary create button opens a contextual right-side drawer wrapper. The visibility, data context, and operational state of this drawer MUST be driven exclusively by browser URL query parameters as the single source of truth.
 
-- **Shallow URL Matrix & States**:
-  - Base State (Closed): `/inventory/items`
-  - Read-Only Peek Mode: `/inventory/items?id=[uuid]`
-  - Active Editing Mode: `/inventory/items?id=[uuid]&action=edit`
-  - Instantiating Creation Mode: `/inventory/items?action=new`
+- **Shallow URL Matrix & States** (shared helpers in `lib/layout/module-drawer-url.ts`):
+  - Base State (Closed): `/items` (or module route)
+  - Read-Only Peek Mode: `?id=[uuid]`
+  - Active Editing Mode: `?id=[uuid]&action=edit`
+  - Instantiating Creation Mode: `?action=new`
+- **Optional prefill params** (operational modules): preserve module-specific keys on create, clear on drawer close via `useModuleDrawerUrl(..., { clearParamsOnClose: [...] })`. Examples:
+  - Stock adjust from balance: `?action=new&variant=[uuid]&loc=[location_uuid]`
+  - Transfer from reorder: `?action=new&variant=[uuid]&dest=[location_uuid]&src=[location_uuid]` (source optional)
 - **Router Implementation**: Use Next.js shallow routing (`router.push(..., { shallow: true })`) to manipulate query parameters. This changes the address bar and opens/closes the drawer instantly without executing expensive full-page server re-renders or losing background layout scroll state.
 - **Desktop Width Matrix**: Defaults to **40vw** width for lightweight peeks. Features an interactive header toggle icon (`Maximize2` / `Minimize2`) that cycles the layout across **40vw → 60vw → 80vw** to easily fit complex tables or rich multi-column fields. The user's width preference persists in `sessionStorage` (key: `aib-right-drawer-width`).
 - **Mobile Adaptation (< lg)**: The drawer auto-transforms into a **100vw full-screen takeover view**. The horizontal width step toggles are programmatically hidden.
@@ -225,7 +253,11 @@ Use the `badge.tsx` variants (`completed`, `active`, `action_required`, `locked`
 
 ## 9. List Module Replication Checklist
 
-Any new module that lists records (Customers, Suppliers, Sales Orders, Invoices, Locations, Categories, etc.) **must** mirror the Items Master. Copy from the canonical files and satisfy every item below.
+Pick the tier that matches the module. When in doubt: **master/catalog data → Tier A**; **posted documents / ledger events → Tier B**.
+
+### Tier A — Full catalog (Items Master)
+
+Customers, Suppliers (rich profiles), Items, Categories, etc. **must** mirror the Items Master. Copy from the canonical files and satisfy every item below.
 
 **Layout & list**
 - [ ] Full-width canvas list (no split pane); page header with `text-2xl font-bold tracking-tight` title.
@@ -256,3 +288,18 @@ Any new module that lists records (Customers, Suppliers, Sales Orders, Invoices,
 - [ ] Localized `shimmer` skeletons for list, detail, and editor loading.
 - [ ] Lucide React icons only, consistent sizing.
 - [ ] All data scrolls inside `<main data-dashboard-scroll-root>` — no nested scroll roots.
+
+### Tier B — Operational documents (Stock pattern)
+
+Purchase GRNs, stock transfers, stock adjustments, shipment postings, etc. Satisfy §3.7 and:
+
+- [ ] `ListModuleShell` + `Suspense` loader page; drawer `id` omitted from RSC `searchParams` (client-only `history.pushState`).
+- [ ] `useModuleDrawerUrl(baseHref)` for peek / edit / create; `UserFacingErrorMessage` for RPC failures.
+- [ ] Server actions call SECURITY DEFINER RPCs; `revalidatePath` on affected module routes.
+- [ ] Zod schemas in `lib/<module>/schemas.ts`; friendly RPC error formatters where operators need settings links.
+- [ ] Table in `surface-inset`; row selected state `ring-1 ring-inset ring-primary/20`.
+- [ ] No bulk checkbox column unless the product owner explicitly requires batch posting.
+
+**Inventory-specific Tier B rules:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §2.
+
+**Related IA:** [`NAVIGATION.md`](./NAVIGATION.md) · **Agent handover:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) · **Next build:** Procurement GRN (Sequence 21).

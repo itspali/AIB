@@ -79,11 +79,8 @@ export async function lookupStockVariantBySku(sku: string) {
   const { supabase, tenantId } = await requireTenantId();
   const resolved = await resolveVariantBySku(supabase, tenantId, sku);
   if (!resolved) return { error: "No active variant found for that SKU." };
-  if (!resolved.track_inventory) {
-    return { error: "That item does not track inventory." };
-  }
-  if (resolved.tracking_mode !== "NONE") {
-    return { error: "Lot and serial tracking are not supported in stock adjustments yet." };
+  if (resolved.blocked_reason) {
+    return { error: resolved.blocked_reason };
   }
   return { variant: resolved };
 }

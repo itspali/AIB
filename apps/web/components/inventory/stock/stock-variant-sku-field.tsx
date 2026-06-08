@@ -21,6 +21,9 @@ import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
 import type { StockVariantOption } from "@/lib/inventory/stock/types";
 import { cn } from "@/lib/utils";
 
+const STOCK_VARIANT_NOT_ADJUSTABLE =
+  "This variant is not available for stock adjustments or transfers.";
+
 export type StockLineSkuSelection = {
   sku: string;
   variant_id: string;
@@ -173,7 +176,7 @@ export function StockVariantSkuField({
 
   const selectVariant = useCallback((variant: StockVariantOption) => {
     if (!variant.adjustable) {
-      setFieldError(variant.blocked_reason ?? "This variant is not available for stock adjustments.");
+      setFieldError(variant.blocked_reason ?? STOCK_VARIANT_NOT_ADJUSTABLE);
       return;
     }
     skipSearchRef.current = true;
@@ -286,7 +289,7 @@ export function StockVariantSkuField({
         if (openRef.current && highlighted) {
           if (!highlighted.adjustable) {
             setFieldError(
-              highlighted.blocked_reason ?? "This variant is not available for stock adjustments."
+              highlighted.blocked_reason ?? STOCK_VARIANT_NOT_ADJUSTABLE
             );
             return;
           }

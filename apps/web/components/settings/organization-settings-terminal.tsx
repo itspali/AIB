@@ -379,7 +379,11 @@ export function OrganizationSettingsTerminal({
 
         <div className="min-w-0 space-y-4">
           <SectionAnchor id={ORG_SETTINGS_TAB_IDS.identity} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.identity)}>
-            <OrganizationIdentitySection form={form} disabled={fieldsDisabled} />
+            <OrganizationIdentitySection
+              form={form}
+              disabled={fieldsDisabled}
+              parentGroupName={snapshot.parent_group_name}
+            />
           </SectionAnchor>
 
           <SectionAnchor id={ORG_SETTINGS_TAB_IDS.regional} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.regional)}>

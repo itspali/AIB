@@ -1,4 +1,5 @@
 import type { UserFacingError } from "@/lib/errors/user-facing-error";
+import { STOCK_STYLE_ANCHOR_BLOCKED_REASON } from "@/lib/inventory/stock/variant-eligibility";
 import {
   formatStockLocationLabel,
   isFifoValuationError,
@@ -44,6 +45,10 @@ function isReceiptQuantityError(message: string): boolean {
     normalized.includes("all receipt quantities must be entered") ||
     normalized.includes("receipt quantities cannot be negative")
   );
+}
+
+function isStyleAnchorError(message: string): boolean {
+  return message.toLowerCase().includes("non-sellable style anchor");
 }
 
 function replaceLocationTokens(message: string, context: TransferErrorContext): string {
@@ -105,6 +110,12 @@ export function formatStockTransferRpcError(
   if (isTrackingModeError(message)) {
     return {
       message: "Lot and serial tracked items cannot be transferred in this version yet.",
+    };
+  }
+
+  if (isStyleAnchorError(message)) {
+    return {
+      message: STOCK_STYLE_ANCHOR_BLOCKED_REASON,
     };
   }
 

@@ -510,6 +510,8 @@ export function TransferDrawerForm({
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
+        allowBackgroundInteraction={surface === "peek"}
+        showCloseButton
       >
         {error ? (
           <UserFacingErrorMessage

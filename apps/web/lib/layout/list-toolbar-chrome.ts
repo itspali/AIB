@@ -19,9 +19,11 @@ export function listToolbarControlActiveClass(active: boolean): string {
 export function listToolbarSelectClass(active = false): string {
   return cn(
     LIST_TOOLBAR_CONTROL_HEIGHT,
-    "shrink-0 shadow-none [&>span]:truncate [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-70",
+    "w-auto max-w-[11rem] shrink-0 shadow-none [&>span]:truncate [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-70",
     LIST_TOOLBAR_TEXT,
     TOOLBAR_BORDERLESS_BASE,
+    "focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent",
+    "data-[state=open]:ring-0 data-[state=open]:border-transparent data-[state=open]:shadow-none",
     active && "[&>svg]:text-primary [&>svg]:opacity-100",
     listToolbarControlActiveClass(active)
   );
@@ -80,6 +82,8 @@ export function listToolbarModuleViewTriggerClass(active = false): string {
     "gap-1.5 px-2 shadow-none [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-70",
     LIST_TOOLBAR_TEXT,
     TOOLBAR_BORDERLESS_BASE,
+    "focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent",
+    "data-[state=open]:ring-0 data-[state=open]:border-transparent data-[state=open]:shadow-none",
     active && "[&>svg]:text-primary [&>svg]:opacity-100",
     listToolbarControlActiveClass(active)
   );

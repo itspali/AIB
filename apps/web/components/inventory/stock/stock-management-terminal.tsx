@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { Info, Plus } from "lucide-react";
 import {
   loadStockAdjustments,
   loadStockBalances,
@@ -12,19 +11,22 @@ import { StockBalancesTable } from "@/components/inventory/stock/stock-balances-
 import { StockDrawerForm } from "@/components/inventory/stock/stock-drawer-form";
 import { StockEmptyState } from "@/components/inventory/stock/stock-empty-state";
 import { StockListToolbar } from "@/components/inventory/stock/stock-list-toolbar";
+import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   getDefaultStockListPrefs,
   loadStockListPrefs,
   saveStockListPrefs,
+  setStockSortPrefs,
   type StockListPrefs,
 } from "@/lib/inventory/stock/list-prefs";
+import {
+  sortStockAdjustmentRows,
+  sortStockBalanceRows,
+  type StockAdjustmentSortField,
+  type StockBalanceSortField,
+  type StockListSortDirection,
+} from "@/lib/inventory/stock/list-sort";
 import { STOCK_DRAWER_LOCATION_PARAM, STOCK_HREF } from "@/lib/inventory/stock/navigation";
 import type {
   StockAdjustmentRow,
@@ -45,34 +47,6 @@ type Props = {
   initialAdjustments: StockAdjustmentRow[];
   locations: StockLocationOption[];
 };
-
-function StockPageTitleHeader({ onNewAdjustment }: { onNewAdjustment: () => void }) {
-  return (
-    <div className="mb-4 flex items-center justify-between gap-2.5 sm:mb-5">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">Stock</h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-              aria-label="About Stock"
-            >
-              <Info className="h-4 w-4" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72 p-3">
-            <p className="text-sm leading-snug text-muted-foreground">{STOCK_PAGE_DESCRIPTION}</p>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <Button type="button" className="shrink-0 gap-1.5" onClick={onNewAdjustment}>
-        <Plus className="h-4 w-4" aria-hidden />
-        New adjustment
-      </Button>
-    </div>
-  );
-}
 
 export function StockManagementTerminal({
   initialBalances,
@@ -180,9 +154,40 @@ export function StockManagementTerminal({
   );
 
   const hasAnyData = balances.length > 0 || adjustments.length > 0;
-  const filteredRows = isBalancesView
-    ? balancesView.filteredRows
-    : adjustmentsView.filteredRows;
+
+  const sortedBalanceRows = useMemo(
+    () =>
+      sortStockBalanceRows(
+        balancesView.filteredRows,
+        prefs.balanceSortField,
+        prefs.balanceSortDirection
+      ),
+    [balancesView.filteredRows, prefs.balanceSortField, prefs.balanceSortDirection]
+  );
+
+  const sortedAdjustmentRows = useMemo(
+    () =>
+      sortStockAdjustmentRows(
+        adjustmentsView.filteredRows,
+        prefs.adjustmentSortField,
+        prefs.adjustmentSortDirection
+      ),
+    [adjustmentsView.filteredRows, prefs.adjustmentSortField, prefs.adjustmentSortDirection]
+  );
+
+  const handleBalanceSortChange = useCallback(
+    (field: StockBalanceSortField, direction: StockListSortDirection) => {
+      setPrefs((current) => setStockSortPrefs(current, field, direction));
+    },
+    []
+  );
+
+  const handleAdjustmentSortChange = useCallback(
+    (field: StockAdjustmentSortField, direction: StockListSortDirection) => {
+      setPrefs((current) => setStockSortPrefs(current, field, direction));
+    },
+    []
+  );
 
   const listPrimary =
     !hasAnyData ? (
@@ -193,21 +198,39 @@ export function StockManagementTerminal({
           hasLocations={locations.length > 0}
         />
       </div>
-    ) : filteredRows.length === 0 ? (
+    ) : isBalancesView ? (
+      sortedBalanceRows.length === 0 ? (
+        <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+          <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+            No balances match the current filters.
+          </div>
+        </div>
+      ) : (
+        <StockBalancesTable
+          rows={sortedBalanceRows}
+          columnPrefs={prefs.balanceColumnPrefs}
+          sortField={prefs.balanceSortField}
+          sortDirection={prefs.balanceSortDirection}
+          frozenColumnCount={prefs.frozenColumnCount}
+          onSortChange={handleBalanceSortChange}
+          selectedId={null}
+          onAdjust={handleAdjustBalance}
+        />
+      )
+    ) : sortedAdjustmentRows.length === 0 ? (
       <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
         <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          No {isBalancesView ? "balances" : "adjustments"} match the current filters.
+          No adjustments match the current filters.
         </div>
       </div>
-    ) : isBalancesView ? (
-      <StockBalancesTable
-        rows={filteredRows as StockBalanceRow[]}
-        selectedId={null}
-        onAdjust={handleAdjustBalance}
-      />
     ) : (
       <StockAdjustmentsTable
-        rows={filteredRows as StockAdjustmentRow[]}
+        rows={sortedAdjustmentRows}
+        columnPrefs={prefs.adjustmentColumnPrefs}
+        sortField={prefs.adjustmentSortField}
+        sortDirection={prefs.adjustmentSortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleAdjustmentSortChange}
         selectedId={selectedAdjustmentId}
         onSelect={handleSelectAdjustment}
       />
@@ -216,7 +239,15 @@ export function StockManagementTerminal({
   return (
     <>
       <ListModuleShell
-        title={<StockPageTitleHeader onNewAdjustment={drawer.openCreate} />}
+        title={
+          <ListModulePageTitleHeader
+            title="Stock"
+            description={STOCK_PAGE_DESCRIPTION}
+            createLabel="New adjustment"
+            onCreate={drawer.openCreate}
+            aboutAriaLabel="About Stock"
+          />
+        }
         toolbar={
           hasAnyData ? (
             <StockListToolbar
@@ -231,7 +262,7 @@ export function StockManagementTerminal({
           ) : null
         }
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden px-1">
+        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
           {listPrimary}
         </div>
       </ListModuleShell>
