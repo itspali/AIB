@@ -378,7 +378,9 @@ CREATE POLICY users_delete_owner ON public.users
     );
 
 -- 10. MEMBERSHIP RLS
-ALTER TABLE public.user_tenant_memberships ENABLE ROW LEVEL SECURITY;
+-- RLS is already enabled by Supabase rls_auto_enable at CREATE TABLE.
+-- Flush deferred FK checks from the backfill INSERT before policies/DDL on this table.
+SET CONSTRAINTS user_tenant_memberships_assigned_location_tenant_fk IMMEDIATE;
 
 CREATE POLICY user_tenant_memberships_select_tenant
     ON public.user_tenant_memberships

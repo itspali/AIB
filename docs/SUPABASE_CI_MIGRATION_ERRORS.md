@@ -435,6 +435,7 @@ END $$;
 | `56a9b79` | View column order (`42P16`) — `reorder_point` on `product_list_workspace_rows` |
 | `20260609100000` (fix) | `DROP COLUMN users.tenant_id` blocked by `users_select` / `users_update` / `users_sync_app_metadata` trigger — drop policies + trigger before column drop, recreate membership-scoped policies |
 | `20260608075234` (reconcile) | Erroneous out-of-band MCP no-op left `tenant_groups_foundation` in remote history before `20260608120000` — add matching no-op file in Git so CI can apply `20260609100000` |
+| `20260609100000` (fix 2) | `cannot ALTER TABLE "user_tenant_memberships" because it has pending trigger events` — deferred FK from backfill INSERT; drop redundant `ENABLE ROW LEVEL SECURITY` (rls_auto_enable already on) and `SET CONSTRAINTS ... IMMEDIATE` before policies |
 
 ---
 
