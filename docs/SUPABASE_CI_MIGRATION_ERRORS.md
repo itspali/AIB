@@ -432,6 +432,7 @@ END $$;
 | `f3ca196` | Duplicate migration version `20260603120000` |
 | `6667747` | CI `--include-all` for out-of-order backfill migrations |
 | `56a9b79` | View column order (`42P16`) — `reorder_point` on `product_list_workspace_rows` |
+| `20260609100000` (fix) | `DROP COLUMN users.tenant_id` blocked by `users_select` / `users_update` RLS from `20260548000000` — drop consolidated policies before column drop, recreate membership-scoped policies |
 
 ---
 

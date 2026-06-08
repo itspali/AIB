@@ -92,13 +92,36 @@ SELECT
     u.id,
     u.tenant_id,
     u.role,
-    u.assigned_location_id,
+    CASE
+        WHEN u.role IN ('OWNER', 'ADMIN') THEN NULL
+        ELSE COALESCE(
+            u.assigned_location_id,
+            (
+                SELECT tl.id
+                FROM public.tenant_locations tl
+                WHERE tl.tenant_id = u.tenant_id
+                  AND tl.is_active = TRUE
+                ORDER BY tl.created_at
+                LIMIT 1
+            )
+        )
+    END,
     u.email,
     u.is_active,
     u.created_at,
     u.updated_at
 FROM public.users u
 WHERE u.tenant_id IS NOT NULL
+  AND (
+    u.role IN ('OWNER', 'ADMIN')
+    OR u.assigned_location_id IS NOT NULL
+    OR EXISTS (
+        SELECT 1
+        FROM public.tenant_locations tl
+        WHERE tl.tenant_id = u.tenant_id
+          AND tl.is_active = TRUE
+    )
+  )
 ON CONFLICT (user_id, tenant_id) DO NOTHING;
 
 -- 6. GROUP MEMBERSHIP TABLES
@@ -156,11 +179,18 @@ CREATE TABLE public.group_membership_events (
 DROP TRIGGER IF EXISTS users_sync_app_metadata ON public.users;
 DROP TRIGGER IF EXISTS users_enforce_self_update_guard ON public.users;
 
+-- Consolidated policies from 20260548000000_rls_initplan_optimization.sql reference users.tenant_id.
+DROP POLICY IF EXISTS users_select ON public.users;
+DROP POLICY IF EXISTS users_update ON public.users;
+DROP POLICY IF EXISTS users_delete_owner ON public.users;
+
+-- Legacy policy names (pre-consolidation).
 DROP POLICY IF EXISTS users_select_tenant ON public.users;
 DROP POLICY IF EXISTS users_select_admin ON public.users;
+DROP POLICY IF EXISTS users_select_self ON public.users;
 DROP POLICY IF EXISTS users_insert_admin ON public.users;
 DROP POLICY IF EXISTS users_update_admin ON public.users;
-DROP POLICY IF EXISTS users_delete_owner ON public.users;
+DROP POLICY IF EXISTS users_update_self ON public.users;
 
 ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_assigned_location_tenant_fk;
 ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_location_scope_chk;
@@ -281,13 +311,64 @@ BEGIN
 END;
 $$;
 
--- 9. USERS RLS (profile-only)
-CREATE POLICY users_select_colleagues
-    ON public.users
-    FOR SELECT
-    TO authenticated
+-- 9. USERS RLS (profile-only; membership-scoped, preserves 20260548000000 semantics)
+CREATE POLICY users_select ON public.users
+    FOR SELECT TO authenticated
     USING (
-        EXISTS (
+        (id = (SELECT auth.uid()))
+        OR (
+            EXISTS (
+                SELECT 1
+                FROM public.user_tenant_memberships actor
+                WHERE actor.user_id = (SELECT auth.uid())
+                  AND actor.tenant_id = private.current_tenant_id()
+                  AND actor.is_active = TRUE
+            )
+            AND EXISTS (
+                SELECT 1
+                FROM public.user_tenant_memberships colleague
+                WHERE colleague.user_id = users.id
+                  AND colleague.tenant_id = private.current_tenant_id()
+                  AND colleague.is_active = TRUE
+            )
+        )
+    );
+
+CREATE POLICY users_update ON public.users
+    FOR UPDATE TO authenticated
+    USING (
+        (id = (SELECT auth.uid()))
+        OR (
+            private.current_user_role() = ANY (ARRAY['OWNER'::public.user_role, 'ADMIN'::public.user_role])
+            AND EXISTS (
+                SELECT 1
+                FROM public.user_tenant_memberships m
+                WHERE m.user_id = users.id
+                  AND m.tenant_id = private.current_tenant_id()
+                  AND m.is_active = TRUE
+            )
+        )
+    )
+    WITH CHECK (
+        (id = (SELECT auth.uid()))
+        OR (
+            private.current_user_role() = ANY (ARRAY['OWNER'::public.user_role, 'ADMIN'::public.user_role])
+            AND EXISTS (
+                SELECT 1
+                FROM public.user_tenant_memberships m
+                WHERE m.user_id = users.id
+                  AND m.tenant_id = private.current_tenant_id()
+                  AND m.is_active = TRUE
+            )
+        )
+    );
+
+CREATE POLICY users_delete_owner ON public.users
+    FOR DELETE TO authenticated
+    USING (
+        private.current_user_role() = 'OWNER'::public.user_role
+        AND id <> (SELECT auth.uid())
+        AND EXISTS (
             SELECT 1
             FROM public.user_tenant_memberships m
             WHERE m.user_id = users.id
@@ -295,8 +376,6 @@ CREATE POLICY users_select_colleagues
               AND m.is_active = TRUE
         )
     );
-
--- users_select_self and users_update_self unchanged
 
 -- 10. MEMBERSHIP RLS
 ALTER TABLE public.user_tenant_memberships ENABLE ROW LEVEL SECURITY;
