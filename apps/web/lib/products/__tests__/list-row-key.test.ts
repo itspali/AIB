@@ -171,6 +171,48 @@ describe("collapseVariantListRows", () => {
       new Set(["item-1", "item-2"])
     );
   });
+
+  it("aggregates stock_on_hand when collapsing variant rows", () => {
+    const variantA = sampleRow({
+      id: "item-1",
+      variant_id: "variant-a",
+      default_sku: "OC23232-1",
+      style_code: "OC23232",
+      variant_strategy: "MULTI_SKU",
+      stock_on_hand: "13",
+    });
+    const variantB = sampleRow({
+      id: "item-1",
+      variant_id: "variant-b",
+      default_sku: "OC23232-2",
+      style_code: "OC23232",
+      variant_strategy: "MULTI_SKU",
+      stock_on_hand: "4",
+    });
+
+    const [parent] = collapseVariantListRows([variantA, variantB]);
+
+    expect(parent?.stock_on_hand).toBe("17");
+  });
+
+  it("sets sellable_variant_count on collapsed parent rows", () => {
+    const variantA = sampleRow({
+      id: "item-1",
+      variant_id: "variant-a",
+      variant_strategy: "MULTI_SKU",
+      stock_on_hand: "13",
+    });
+    const variantB = sampleRow({
+      id: "item-1",
+      variant_id: "variant-b",
+      variant_strategy: "MULTI_SKU",
+      stock_on_hand: "4",
+    });
+
+    const [parent] = collapseVariantListRows([variantA, variantB]);
+
+    expect(parent?.sellable_variant_count).toBe(2);
+  });
 });
 
 describe("injectVariantParentRows", () => {
@@ -206,6 +248,31 @@ describe("injectVariantParentRows", () => {
     expect(rows[1]).toBe(variantA);
     expect(rows[2]).toBe(variantB);
     expect(rows[3]).toBe(single);
+  });
+
+  it("aggregates stock_on_hand on injected parent rows from all variants", () => {
+    const variantA = sampleRow({
+      id: "item-1",
+      variant_id: "variant-a",
+      default_sku: "OC23232-1",
+      style_code: "OC23232",
+      variant_strategy: "MULTI_SKU",
+      stock_on_hand: "13",
+    });
+    const variantB = sampleRow({
+      id: "item-1",
+      variant_id: "variant-b",
+      default_sku: "OC23232-2",
+      style_code: "OC23232",
+      variant_strategy: "MULTI_SKU",
+      stock_on_hand: "4",
+    });
+
+    const [parent] = injectVariantParentRows([variantA, variantB]);
+
+    expect(parent?.default_sku).toBe("OC23232");
+    expect(parent?.stock_on_hand).toBe("17");
+    expect(parent?.sellable_variant_count).toBe(2);
   });
 });
 

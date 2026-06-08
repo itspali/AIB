@@ -11,7 +11,10 @@ type Props = {
 
 export function AdvancedParametersPanel({ enabled, onEnabledChange, children }: Props) {
   return (
-    <div className="space-y-4 rounded-lg border border-dashed p-4">
+    <div
+      className="space-y-4 rounded-lg border border-dashed p-4"
+      data-advanced-open={enabled ? "true" : "false"}
+    >
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="advanced-toggle" className="text-sm font-medium leading-snug">
           Show Advanced Parameters

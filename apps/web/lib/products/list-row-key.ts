@@ -30,6 +30,42 @@ export function toVariantParentListRow(row: ProductListRow): ProductListRow {
   };
 }
 
+function sumVariantStockOnHand(rows: ProductListRow[]): string {
+  const total = rows.reduce((sum, row) => {
+    const parsed = Number(row.stock_on_hand ?? 0);
+    return sum + (Number.isFinite(parsed) ? parsed : 0);
+  }, 0);
+  return String(total);
+}
+
+/** Parent/style row with item-level stock and reorder flags rolled up from variant children. */
+export function buildVariantParentListRow(variantRows: ProductListRow[]): ProductListRow {
+  const first = variantRows[0];
+  if (!first) {
+    throw new Error("buildVariantParentListRow requires at least one variant row.");
+  }
+
+  const sellableCount =
+    typeof first.sellable_variant_count === "number" &&
+    Number.isFinite(first.sellable_variant_count) &&
+    first.sellable_variant_count > 0
+      ? first.sellable_variant_count
+      : variantRows.length;
+
+  const parent: ProductListRow = {
+    ...toVariantParentListRow(first),
+    sellable_variant_count: sellableCount,
+  };
+
+  if (variantRows.length === 1) return parent;
+
+  return {
+    ...parent,
+    stock_on_hand: sumVariantStockOnHand(variantRows),
+    below_reorder: variantRows.some((row) => row.below_reorder === true),
+  };
+}
+
 /**
  * Inserts a parent row immediately before the first variant row of each multi-variant item.
  * Used when variants are expanded so parent cards/rows can show the "Has variants" badge
@@ -53,8 +89,8 @@ export function collapseVariantListRows(rows: ProductListRow[]): ProductListRow[
     const master = group.find((row) => !row.variant_id);
     if (master) return master;
 
-    const firstVariantChild = group.find((row) => isVariantChildListRow(row));
-    if (firstVariantChild) return toVariantParentListRow(firstVariantChild);
+    const variantChildren = group.filter((row) => isVariantChildListRow(row));
+    if (variantChildren.length > 0) return buildVariantParentListRow(variantChildren);
 
     return group[0]!;
   });
@@ -88,13 +124,22 @@ export function mergeProductListRowImages(
 }
 
 export function injectVariantParentRows(rows: ProductListRow[]): ProductListRow[] {
+  const variantChildrenByItemId = new Map<string, ProductListRow[]>();
+  for (const row of rows) {
+    if (!isVariantChildListRow(row)) continue;
+    const group = variantChildrenByItemId.get(row.id) ?? [];
+    group.push(row);
+    variantChildrenByItemId.set(row.id, group);
+  }
+
   const result: ProductListRow[] = [];
   const seenParentIds = new Set<string>();
 
   for (const row of rows) {
     if (isVariantChildListRow(row) && !seenParentIds.has(row.id)) {
       seenParentIds.add(row.id);
-      result.push(toVariantParentListRow(row));
+      const children = variantChildrenByItemId.get(row.id) ?? [row];
+      result.push(buildVariantParentListRow(children));
     }
     result.push(row);
   }

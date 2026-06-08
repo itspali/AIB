@@ -31,7 +31,6 @@ import {
 import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import {
   productListHasVariantsBadgeLabel,
-  productListRowKindBadgeVariant,
   productListRowKindLabel,
 } from "@/lib/products/variant-strategy";
 import {
@@ -119,6 +118,48 @@ function StockBadge({
   );
 }
 
+function CardStockRow({
+  showStock,
+  stockLabel,
+  stockStatus,
+  trailingLabel,
+}: {
+  showStock: boolean;
+  stockLabel: string | null;
+  stockStatus: "in_stock" | "low_stock" | "out_of_stock" | null;
+  trailingLabel?: string | null;
+}) {
+  const hasStock = showStock && stockLabel && stockStatus;
+  if (!hasStock && !trailingLabel) return null;
+
+  return (
+    <div className="flex w-full items-center justify-between gap-2">
+      {hasStock ? <StockBadge label={stockLabel} status={stockStatus} /> : <span />}
+      {trailingLabel ? (
+        <Badge variant="completed" className="shrink-0 text-[10px] shadow-sm">
+          {trailingLabel}
+        </Badge>
+      ) : null}
+    </div>
+  );
+}
+
+function VariantsIndicatorBadge({
+  show,
+  variantCount,
+}: {
+  show: boolean;
+  variantCount?: number | null;
+}) {
+  if (!show) return null;
+
+  return (
+    <p className="text-xs font-medium text-muted-foreground">
+      {productListHasVariantsBadgeLabel(variantCount)}
+    </p>
+  );
+}
+
 export function ProductListCompactCardShop({
   product,
   columns,
@@ -143,6 +184,9 @@ export function ProductListCompactCardShop({
   const hasMrp = shop.showMrp && shop.mrpPrice;
   const showImageWell = plan.hero.showImage;
   const secondaryFields = [...plan.details, ...plan.detailOverflow];
+  const stockRowTrailingLabel = presentation.isExpandedVariantRow
+    ? productListRowKindLabel("variant")
+    : null;
 
   const cardSurfaceClass = productListCardSurfaceClass(presentation, selected);
 
@@ -182,29 +226,19 @@ export function ProductListCompactCardShop({
           />
 
           <div className="absolute right-2 top-2 z-10 flex max-w-[55%] flex-col items-end gap-1">
-            {presentation.isExpandedVariantRow ? (
-              <Badge
-                variant={productListRowKindBadgeVariant("variant")}
-                className="shrink-0 text-[10px] shadow-sm"
-              >
-                {productListRowKindLabel("variant")}
-              </Badge>
-            ) : presentation.showHasVariantsIndicator ? (
-              <Badge
-                variant={productListRowKindBadgeVariant("style")}
-                className="shrink-0 text-[10px] shadow-sm"
-              >
-                {productListHasVariantsBadgeLabel(product.sellable_variant_count)}
-              </Badge>
-            ) : null}
             {plan.chrome.showStatus ? (
               renderProductListActiveStatus(rowActive, columnChipDisplay?.is_active)
             ) : null}
           </div>
 
-          {shop.showStock && shop.stockLabel && shop.stockStatus ? (
-            <div className="absolute bottom-2 left-2 z-10">
-              <StockBadge label={shop.stockLabel} status={shop.stockStatus} />
+          {(shop.showStock && shop.stockLabel && shop.stockStatus) || stockRowTrailingLabel ? (
+            <div className="absolute bottom-2 left-2 right-2 z-10">
+              <CardStockRow
+                showStock={shop.showStock}
+                stockLabel={shop.stockLabel}
+                stockStatus={shop.stockStatus}
+                trailingLabel={stockRowTrailingLabel}
+              />
             </div>
           ) : null}
         </div>
@@ -234,6 +268,11 @@ export function ProductListCompactCardShop({
             {product.name?.trim() || "—"}
           </h3>
         ) : null}
+
+        <VariantsIndicatorBadge
+          show={presentation.showHasVariantsIndicator}
+          variantCount={product.sellable_variant_count}
+        />
 
         {plan.hero.attributeSubline ? (
           <p className="line-clamp-1 text-xs text-muted-foreground">{plan.hero.attributeSubline}</p>
@@ -271,8 +310,13 @@ export function ProductListCompactCardShop({
             </div>
           ) : null}
 
-          {!showImageWell && shop.showStock && shop.stockLabel && shop.stockStatus ? (
-            <StockBadge label={shop.stockLabel} status={shop.stockStatus} />
+          {!showImageWell ? (
+            <CardStockRow
+              showStock={shop.showStock}
+              stockLabel={shop.stockLabel}
+              stockStatus={shop.stockStatus}
+              trailingLabel={stockRowTrailingLabel}
+            />
           ) : null}
 
           {plan.regions.flags ? (

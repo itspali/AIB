@@ -29,8 +29,11 @@ export type PurchaseOrderRow = {
   supplier_id: string;
   supplier_name: string;
   document_status: PurchaseOrderStatus;
+  payment_terms_days: number;
+  total_gross_amount: string;
   line_count: number;
   total_net_amount: string;
+  custom_fields: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   lines?: PurchaseOrderLineRow[];

@@ -2,58 +2,41 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   issuePurchaseOrder,
   loadPurchaseOrderDetail,
   savePurchaseOrder,
 } from "@/app/procurement/purchase-orders/actions";
-import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
-import { RightDrawer } from "@/components/ui/right-drawer";
+import { PoDetailsPanel } from "@/components/procurement/purchase-orders/po-details-panel";
+import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
+import { PoLineEntryTable } from "@/components/procurement/purchase-orders/po-line-entry-table";
+import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
+import { PoTotalsPanel } from "@/components/procurement/purchase-orders/po-totals-panel";
+import {
+  isNarrowRightDrawer,
+  RightDrawer,
+  useRightDrawerLayout,
+} from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { formatDate } from "@/lib/dashboard/format";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
-import {
-  purchaseOrderStatusBadgeVariant,
-  purchaseOrderStatusLabel,
-} from "@/lib/procurement/purchase-orders/labels";
 import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
+import {
+  defaultPoDraftForm,
+  filterSavablePoLines,
+  mapPurchaseOrderToDraft,
+  type PoDraftFormState,
+} from "@/lib/procurement/purchase-orders/draft-form";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
-
-type DraftLine = {
-  key: string;
-  sku: string;
-  variant_id: string;
-  item_name: string;
-  variant_sku: string;
-  quantity_ordered: string;
-  unit_price_contractual: string;
-  skuError: string | null;
-};
-
-type DraftFormState = {
-  destination_location_id: string;
-  supplier_id: string;
-  lines: DraftLine[];
-};
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -67,53 +50,126 @@ type Props = {
   onOpenEdit: (purchaseOrderId: string) => void;
 };
 
-function createEmptyLine(): DraftLine {
-  return {
-    key: crypto.randomUUID(),
-    sku: "",
-    variant_id: "",
-    item_name: "",
-    variant_sku: "",
-    quantity_ordered: "",
-    unit_price_contractual: "0",
-    skuError: null,
-  };
-}
-
-function defaultDraftForm(
-  locations: ProcurementLocationOption[],
-  suppliers: ProcurementSupplierOption[]
-): DraftFormState {
-  return {
-    destination_location_id: locations[0]?.id ?? "",
-    supplier_id: suppliers[0]?.id ?? "",
-    lines: [createEmptyLine()],
-  };
-}
-
-function mapOrderToDraft(order: PurchaseOrderRow): DraftFormState {
-  return {
-    destination_location_id: order.destination_location_id,
-    supplier_id: order.supplier_id,
-    lines:
-      order.lines?.length
-        ? order.lines.map((line) => ({
-            key: line.id,
-            sku: line.variant_sku,
-            variant_id: line.variant_id,
-            item_name: line.item_name,
-            variant_sku: line.variant_sku,
-            quantity_ordered: line.quantity_ordered,
-            unit_price_contractual: line.unit_price_contractual,
-            skuError: null,
-          }))
-        : [createEmptyLine()],
-  };
-}
-
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
   if (surface === "create") return "New purchase order";
   return order?.voucher_number ?? "Purchase order";
+}
+
+type PoMutatingFormContentProps = {
+  form: PoDraftFormState;
+  locations: ProcurementLocationOption[];
+  suppliers: ProcurementSupplierOption[];
+  assignedVoucherNumber: string | null;
+  isPending: boolean;
+  onPatch: (patch: Partial<PoDraftFormState>) => void;
+  onLinesChange: (
+    linesOrUpdater: PoDraftFormState["lines"] | ((current: PoDraftFormState["lines"]) => PoDraftFormState["lines"])
+  ) => void;
+};
+
+function PoMutatingFormContent({
+  form,
+  locations,
+  suppliers,
+  assignedVoucherNumber,
+  isPending,
+  onPatch,
+  onLinesChange,
+}: PoMutatingFormContentProps) {
+  const drawerLayout = useRightDrawerLayout();
+  const stackVertically = isNarrowRightDrawer(drawerLayout);
+  const usePageScroll = stackVertically || drawerLayout?.isPartialDrawer !== true;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3",
+        usePageScroll ? "min-h-0" : "h-full min-h-0 flex-1 overflow-hidden"
+      )}
+    >
+      <div className="shrink-0">
+        <PoFormHeader
+          form={form}
+          locations={locations}
+          suppliers={suppliers}
+          assignedVoucherNumber={assignedVoucherNumber}
+          disabled={isPending}
+          stackVertically={stackVertically}
+          onPatch={onPatch}
+        />
+      </div>
+
+      <div className={cn("shrink-0", !stackVertically && "lg:hidden")}>
+        <PoDetailsPanel
+          form={form}
+          disabled={isPending}
+          layout="stack"
+          stackVertically={stackVertically}
+          onPatch={onPatch}
+        />
+      </div>
+
+      <section
+        className={cn(
+          "flex flex-col gap-3",
+          usePageScroll ? "min-h-0" : "min-h-0 flex-1 overflow-hidden",
+          !stackVertically && "lg:flex-row lg:gap-4"
+        )}
+      >
+        <div
+          className={cn(
+            "flex min-w-0 flex-col gap-3",
+            usePageScroll ? "min-h-0" : "min-h-0 min-w-0 flex-1 overflow-hidden"
+          )}
+        >
+          <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Lines
+          </p>
+          <PoLineEntryTable
+            fillHeight={!usePageScroll}
+            showSectionTitle={false}
+            lines={form.lines}
+            supplierId={form.supplier_id}
+            disabled={isPending}
+            onChange={onLinesChange}
+          />
+        </div>
+
+        <div
+          className={cn(
+            "hidden min-h-0 shrink-0 flex-col gap-4 overflow-hidden",
+            !stackVertically && "lg:flex lg:w-[15rem]"
+          )}
+        >
+          <div className="shrink-0 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Summary
+            </p>
+            <PoTotalsPanel lines={form.lines} layout="embedded" />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+            <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Details
+            </p>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <PoDetailsPanel
+                form={form}
+                disabled={isPending}
+                layout="rail"
+                onPatch={onPatch}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <PoTotalsPanel
+        lines={form.lines}
+        layout="footer"
+        showFooterOnLarge={stackVertically}
+      />
+    </div>
+  );
 }
 
 export function PoDrawerForm({
@@ -133,9 +189,7 @@ export function PoDrawerForm({
     active: open && isMutating,
   });
 
-  const [form, setForm] = useState<DraftFormState>(() =>
-    defaultDraftForm(locations, suppliers)
-  );
+  const [form, setForm] = useState<PoDraftFormState>(() => defaultPoDraftForm(locations, suppliers));
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -146,7 +200,7 @@ export function PoDrawerForm({
 
   useEffect(() => {
     if (!open) return;
-    setForm(defaultDraftForm(locations, suppliers));
+    setForm(defaultPoDraftForm(locations, suppliers));
     setError(null);
     setErrorAction(null);
     setIsDirty(false);
@@ -166,7 +220,7 @@ export function PoDrawerForm({
         return;
       }
       setDetail(result.purchaseOrder);
-      setForm(mapOrderToDraft(result.purchaseOrder));
+      setForm(mapPurchaseOrderToDraft(result.purchaseOrder));
       setIsDirty(false);
     });
 
@@ -199,16 +253,8 @@ export function PoDrawerForm({
     };
   }, [open, surface, peekOrder]);
 
-  const patchForm = useCallback((next: Partial<DraftFormState>) => {
+  const patchForm = useCallback((next: Partial<PoDraftFormState>) => {
     setForm((current) => ({ ...current, ...next }));
-    setIsDirty(true);
-  }, []);
-
-  const patchLine = useCallback((key: string, next: Partial<DraftLine>) => {
-    setForm((current) => ({
-      ...current,
-      lines: current.lines.map((line) => (line.key === key ? { ...line, ...next } : line)),
-    }));
     setIsDirty(true);
   }, []);
 
@@ -227,15 +273,6 @@ export function PoDrawerForm({
     closeForm();
   }, [closeForm, isDirty, isMutating, requestClose]);
 
-  const addLine = () => {
-    patchForm({ lines: [...form.lines, createEmptyLine()] });
-  };
-
-  const removeLine = (key: string) => {
-    if (form.lines.length <= 1) return;
-    patchForm({ lines: form.lines.filter((line) => line.key !== key) });
-  };
-
   const handleSaveDraft = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -244,7 +281,9 @@ export function PoDrawerForm({
         purchase_order_id: editOrderId ?? detail?.id ?? null,
         destination_location_id: form.destination_location_id,
         supplier_id: form.supplier_id,
-        lines: form.lines.map((line) => ({
+        payment_terms_days: form.payment_terms_days,
+        custom_fields: form.custom_fields,
+        lines: filterSavablePoLines(form.lines).map((line) => ({
           variant_id: line.variant_id,
           quantity_ordered: line.quantity_ordered,
           unit_price_contractual: line.unit_price_contractual || "0",
@@ -365,6 +404,7 @@ export function PoDrawerForm({
 
   const showLoadingPeek = surface === "peek" && detailLoading && !detail?.lines?.length;
   const showLoadingEdit = surface === "edit" && detailLoading;
+  const assignedVoucherNumber = detail?.voucher_number ?? null;
 
   return (
     <>
@@ -378,6 +418,7 @@ export function PoDrawerForm({
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
+        scrollable
         showCloseButton
       >
         {error ? (
@@ -391,173 +432,26 @@ export function PoDrawerForm({
         {showLoadingPeek || showLoadingEdit ? (
           <p className="text-sm text-muted-foreground">Loading purchase order…</p>
         ) : readOnly && detail ? (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Supplier</p>
-                <p className="text-sm font-medium">{detail.supplier_name}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Destination</p>
-                <p className="text-sm font-medium">{detail.destination_location_name}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Status</p>
-                <Badge variant={purchaseOrderStatusBadgeVariant(detail.document_status)}>
-                  {purchaseOrderStatusLabel(detail.document_status)}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Updated</p>
-                <p className="text-sm">{formatDate(detail.updated_at)}</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Lines
-              </p>
-              <div className="surface-inset overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="p-2 text-left">SKU</th>
-                      <th className="p-2 text-right">Ordered</th>
-                      <th className="p-2 text-right">Received</th>
-                      <th className="p-2 text-right">Unit price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.lines ?? []).map((line) => (
-                      <tr key={line.id} className="border-b border-border">
-                        <td className="p-2">
-                          <div className="font-mono text-xs">{line.variant_sku}</div>
-                          <div className="text-xs text-muted-foreground">{line.item_name}</div>
-                        </td>
-                        <td className="p-2 text-right tabular-nums">{line.quantity_ordered}</td>
-                        <td className="p-2 text-right tabular-nums">{line.quantity_received}</td>
-                        <td className="p-2 text-right tabular-nums">
-                          {line.unit_price_contractual}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <PoPeekView order={detail} />
         ) : isMutating ? (
-          <div className="space-y-6 pb-20">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Destination location</Label>
-                <Select
-                  value={form.destination_location_id}
-                  onValueChange={(value) => patchForm({ destination_location_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Supplier</Label>
-                <Select
-                  value={form.supplier_id}
-                  onValueChange={(value) => patchForm({ supplier_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Lines
-                </p>
-                <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addLine}>
-                  <Plus className="h-3.5 w-3.5" />
-                  Add line
-                </Button>
-              </div>
-
-              {form.lines.map((line) => (
-                <div
-                  key={line.key}
-                  className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_120px_120px_auto]"
-                >
-                  <StockVariantSkuField
-                    disabled={isPending}
-                    value={{
-                      sku: line.sku,
-                      variant_id: line.variant_id,
-                      item_name: line.item_name,
-                      variant_sku: line.variant_sku,
-                      unit_cost: line.unit_price_contractual || "0",
-                      skuError: line.skuError,
-                    }}
-                    onChange={(patch) =>
-                      patchLine(line.key, {
-                        ...patch,
-                        unit_price_contractual:
-                          patch.unit_cost ?? line.unit_price_contractual,
-                      })
-                    }
-                  />
-                  <div className="space-y-1">
-                    <Label className="text-xs">Qty</Label>
-                    <Input
-                      value={line.quantity_ordered}
-                      onChange={(event) =>
-                        patchLine(line.key, { quantity_ordered: event.target.value })
-                      }
-                      inputMode="decimal"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Unit price</Label>
-                    <Input
-                      value={line.unit_price_contractual}
-                      onChange={(event) =>
-                        patchLine(line.key, { unit_price_contractual: event.target.value })
-                      }
-                      inputMode="decimal"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 shrink-0 p-0 text-muted-foreground"
-                      disabled={form.lines.length <= 1}
-                      onClick={() => removeLine(line.key)}
-                      aria-label="Remove line"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <PoMutatingFormContent
+            form={form}
+            locations={locations}
+            suppliers={suppliers}
+            assignedVoucherNumber={assignedVoucherNumber}
+            isPending={isPending}
+            onPatch={patchForm}
+            onLinesChange={(linesOrUpdater) => {
+              setForm((current) => ({
+                ...current,
+                lines:
+                  typeof linesOrUpdater === "function"
+                    ? linesOrUpdater(current.lines)
+                    : linesOrUpdater,
+              }));
+              setIsDirty(true);
+            }}
+          />
         ) : null}
       </RightDrawer>
       {discardDialog}

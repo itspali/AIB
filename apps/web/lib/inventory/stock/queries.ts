@@ -481,6 +481,39 @@ function rankStockVariantResults(options: StockVariantOption[], query: string): 
   });
 }
 
+function sortStockVariantsAlphabetically(options: StockVariantOption[]): StockVariantOption[] {
+  return [...options].sort((left, right) => {
+    const nameCompare = left.item_name.localeCompare(right.item_name, undefined, {
+      sensitivity: "base",
+    });
+    if (nameCompare !== 0) return nameCompare;
+    return left.variant_sku.localeCompare(right.variant_sku, undefined, { sensitivity: "base" });
+  });
+}
+
+export async function listStockVariantsForBrowse(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { limit?: number }
+): Promise<StockVariantOption[]> {
+  const limit = options?.limit ?? 50;
+  const { data, error } = await supabase
+    .from("item_variants")
+    .select(VARIANT_SEARCH_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("sku", { ascending: true })
+    .limit(Math.max(limit * 3, 150));
+
+  if (error) throw new Error(error.message);
+
+  return sortStockVariantsAlphabetically(
+    ((data ?? []) as VariantSearchDbRow[])
+      .map((row) => mapVariantSearchResult(row))
+      .filter((option) => option.adjustable)
+  ).slice(0, limit);
+}
+
 export async function searchStockVariants(
   supabase: SupabaseClient,
   tenantId: string,
@@ -502,7 +535,9 @@ export async function searchStockVariants(
     }
   }
 
-  return rankStockVariantResults([...merged.values()], trimmed).slice(0, limit);
+  return rankStockVariantResults([...merged.values()], trimmed)
+    .filter((option) => option.adjustable)
+    .slice(0, limit);
 }
 
 export async function resolveVariantBySku(
@@ -556,4 +591,93 @@ export async function resolveVariantBySku(
     standard_cost: mapped.standard_cost,
     blocked_reason: mapped.blocked_reason,
   };
+}
+
+async function resolveVariantByBarcode(
+  supabase: SupabaseClient,
+  tenantId: string,
+  barcode: string
+): Promise<
+  | {
+      variant_id: string;
+      item_id: string;
+      item_name: string;
+      variant_sku: string;
+      track_inventory: boolean;
+      tracking_mode: string;
+      standard_cost: string | null;
+      blocked_reason: string | null;
+    }
+  | null
+> {
+  const trimmed = barcode.trim();
+  if (!trimmed) return null;
+
+  const { data, error } = await supabase
+    .from("item_variants")
+    .select(
+      `
+      id,
+      sku,
+      item_id,
+      is_sellable,
+      ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("barcode", trimmed)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const mapped = mapVariantSearchResult(data as VariantSearchDbRow);
+  const item = resolveJoin((data as VariantSearchDbRow).items);
+  return {
+    variant_id: mapped.variant_id,
+    item_id: mapped.item_id,
+    item_name: mapped.item_name,
+    variant_sku: mapped.variant_sku,
+    track_inventory: Boolean(item?.track_inventory),
+    tracking_mode: item?.tracking_mode ?? "NONE",
+    standard_cost: mapped.standard_cost,
+    blocked_reason: mapped.blocked_reason,
+  };
+}
+
+export async function resolveVariantByScanCode(
+  supabase: SupabaseClient,
+  tenantId: string,
+  code: string,
+  policy: "GTIN" | "SKU" | "GTIN_THEN_SKU" = "GTIN_THEN_SKU"
+): Promise<
+  | {
+      variant_id: string;
+      item_id: string;
+      item_name: string;
+      variant_sku: string;
+      track_inventory: boolean;
+      tracking_mode: string;
+      standard_cost: string | null;
+      blocked_reason: string | null;
+    }
+  | null
+> {
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+
+  switch (policy) {
+    case "GTIN":
+      return resolveVariantByBarcode(supabase, tenantId, trimmed);
+    case "SKU":
+      return resolveVariantBySku(supabase, tenantId, trimmed);
+    case "GTIN_THEN_SKU":
+    default: {
+      const byGtin = await resolveVariantByBarcode(supabase, tenantId, trimmed);
+      if (byGtin) return byGtin;
+      return resolveVariantBySku(supabase, tenantId, trimmed);
+    }
+  }
 }

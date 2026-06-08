@@ -6,10 +6,13 @@ import {
   fetchPurchaseOrders,
 } from "@/lib/procurement/purchase-orders/queries";
 import { formatPurchaseOrderRpcError } from "@/lib/procurement/purchase-orders/rpc-errors";
+import { serializePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import {
   issuePurchaseOrderSchema,
+  peekPurchaseOrderNumberSchema,
   savePurchaseOrderSchema,
 } from "@/lib/procurement/purchase-orders/schemas";
+import { fetchSupplierVariantPrice } from "@/lib/procurement/purchase-orders/supplier-price";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import {
   fetchProcurementLocationLabel,
@@ -64,6 +67,66 @@ export async function loadPurchaseOrderDetail(
   return { purchaseOrder };
 }
 
+export async function peekPurchaseOrderNumber(raw: unknown) {
+  const parsed = peekPurchaseOrderNumberSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid location." };
+  }
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { data, error } = await supabase.rpc("peek_document_voucher_string", {
+    p_voucher_type: "PURCHASE_ORDER",
+    p_location_id: parsed.data.destination_location_id,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("peek_document_voucher_string") };
+    }
+
+    const locationMeta = await fetchProcurementLocationLabel(
+      supabase,
+      tenantId,
+      parsed.data.destination_location_id
+    );
+
+    const formatted = formatPurchaseOrderRpcError(error.message, {
+      locationId: parsed.data.destination_location_id,
+      locationName: locationMeta?.locationName,
+      locationCode: locationMeta?.locationCode,
+    });
+
+    return {
+      error: formatted.message,
+      errorAction: formatted.action,
+    };
+  }
+
+  return { voucherPreview: data as string };
+}
+
+export async function lookupSupplierVariantPrice(input: {
+  supplier_id: string;
+  variant_id: string;
+}): Promise<{ unit_price: string | null } | { error: string }> {
+  if (!input.supplier_id.trim() || !input.variant_id.trim()) {
+    return { unit_price: null };
+  }
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const unit_price = await fetchSupplierVariantPrice(
+      supabase,
+      tenantId,
+      input.supplier_id,
+      input.variant_id
+    );
+    return { unit_price };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to load supplier price." };
+  }
+}
+
 export { searchStockVariantsForAdjustment, lookupStockVariantBySku };
 
 export async function savePurchaseOrder(raw: unknown) {
@@ -85,6 +148,8 @@ export async function savePurchaseOrder(raw: unknown) {
       unit_price_contractual: Number(line.unit_price_contractual || 0),
     })),
     p_created_by: userId,
+    p_payment_terms_days: Number(values.payment_terms_days || 0),
+    p_custom_fields: serializePurchaseOrderCustomFields(values.custom_fields),
   });
 
   if (error) {

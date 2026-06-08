@@ -42,6 +42,14 @@ export function useRightDrawerLayout() {
   return useContext(RightDrawerLayoutContext);
 }
 
+/** True when the partial drawer is at the 40vw peek preset (or narrower). */
+export function isNarrowRightDrawer(layout: RightDrawerLayoutValue | null): boolean {
+  return (
+    layout?.isPartialDrawer === true &&
+    layout.widthVw <= RIGHT_DRAWER_PRESET_WIDTHS[0] + 0.5
+  );
+}
+
 function RightDrawerLayoutProvider({
   widthVw,
   isPartialDrawer,
@@ -77,6 +85,8 @@ type RightDrawerProps = {
   onRequestClose?: () => void;
   /** When false, Escape does not dismiss the drawer (e.g. create forms). Default true. */
   closeOnEscape?: boolean;
+  /** On open, bump stored width up to this minimum when still at the default 40vw peek size. */
+  preferredWidthVw?: number;
 };
 
 function readStoredWidthVw(): number {
@@ -284,6 +294,7 @@ export function RightDrawer({
   showCloseButton = true,
   onRequestClose,
   closeOnEscape = true,
+  preferredWidthVw,
 }: RightDrawerProps) {
   const [widthVw, setWidthVw] = useState(DEFAULT_WIDTH_VW);
   const [portalReady, setPortalReady] = useState(false);
@@ -294,8 +305,18 @@ export function RightDrawer({
   }, []);
 
   useEffect(() => {
-    setWidthVw(readStoredWidthVw());
-  }, []);
+    const stored = readStoredWidthVw();
+    if (
+      preferredWidthVw != null &&
+      stored <= DEFAULT_WIDTH_VW + 0.5 &&
+      preferredWidthVw > stored
+    ) {
+      setWidthVw(preferredWidthVw);
+      persistWidthVw(preferredWidthVw);
+      return;
+    }
+    setWidthVw(stored);
+  }, [open, preferredWidthVw]);
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const cycleWidth = useCallback(() => {

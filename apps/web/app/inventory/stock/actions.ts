@@ -7,7 +7,8 @@ import {
   fetchStockBalances,
   fetchStockLocationLabel,
   fetchStockLocations,
-  resolveVariantBySku,
+  listStockVariantsForBrowse,
+  resolveVariantByScanCode,
   searchStockVariants,
 } from "@/lib/inventory/stock/queries";
 import { formatStockAdjustmentRpcError } from "@/lib/inventory/stock/rpc-errors";
@@ -18,6 +19,10 @@ import type {
   StockLocationOption,
   StockVariantOption,
 } from "@/lib/inventory/stock/types";
+import {
+  DEFAULT_CATALOG_ITEM_SETTINGS,
+  isScanIdentifierPolicy,
+} from "@/lib/products/catalog-item-settings";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -75,10 +80,37 @@ export async function searchStockVariantsForAdjustment(
   }
 }
 
+export async function listStockVariantsForAdjustmentBrowse(): Promise<
+  { variants: StockVariantOption[] } | { error: string }
+> {
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const variants = await listStockVariantsForBrowse(supabase, tenantId);
+    return { variants };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load variants.",
+    };
+  }
+}
+
 export async function lookupStockVariantBySku(sku: string) {
   const { supabase, tenantId } = await requireTenantId();
-  const resolved = await resolveVariantBySku(supabase, tenantId, sku);
-  if (!resolved) return { error: "No active variant found for that SKU." };
+
+  const { data: tenantRow } = await supabase
+    .from("tenants")
+    .select("accounting_config")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  const config = tenantRow?.accounting_config as Record<string, unknown> | null;
+  const policyRaw = config?.scan_identifier_policy;
+  const policy = isScanIdentifierPolicy(String(policyRaw ?? ""))
+    ? (policyRaw as typeof DEFAULT_CATALOG_ITEM_SETTINGS.scan_identifier_policy)
+    : DEFAULT_CATALOG_ITEM_SETTINGS.scan_identifier_policy;
+
+  const resolved = await resolveVariantByScanCode(supabase, tenantId, sku, policy);
+  if (!resolved) return { error: "No active variant found for that code." };
   if (resolved.blocked_reason) {
     return { error: resolved.blocked_reason };
   }

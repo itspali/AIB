@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchActiveSupplierOptions } from "@/lib/entities/queries";
 import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
@@ -53,9 +52,19 @@ export async function fetchProcurementSuppliers(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<ProcurementSupplierOption[]> {
-  const options = await fetchActiveSupplierOptions(supabase, tenantId);
-  return options.map((row) => ({
-    id: row.id,
-    name: row.name,
+  const { data, error } = await supabase
+    .from("entities")
+    .select("id, name, payment_terms_days")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .in("type", ["SUPPLIER", "MUTUAL_PARTNER"])
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    payment_terms_days: Number(row.payment_terms_days) || 0,
   }));
 }

@@ -33,7 +33,10 @@ type PoListDbRow = {
   destination_location_id: string;
   supplier_id: string;
   document_status: string;
+  payment_terms_days: number | string | null;
+  total_gross_amount: number | string | null;
   total_net_amount: number | string;
+  custom_fields: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   destination_location: LocationEmbed;
@@ -87,8 +90,11 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     supplier_id: row.supplier_id,
     supplier_name: supplier?.name ?? "",
     document_status: row.document_status as PurchaseOrderStatus,
+    payment_terms_days: Number(row.payment_terms_days) || 0,
+    total_gross_amount: formatDecimal(row.total_gross_amount),
     line_count: row.po_lines?.length ?? 0,
     total_net_amount: formatDecimal(row.total_net_amount),
+    custom_fields: row.custom_fields ?? {},
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -108,7 +114,10 @@ export async function fetchPurchaseOrders(
       destination_location_id,
       supplier_id,
       document_status,
+      payment_terms_days,
+      total_gross_amount,
       total_net_amount,
+      custom_fields,
       created_at,
       updated_at,
       ${DESTINATION_LOCATION_EMBED} (name, code),
@@ -147,7 +156,10 @@ export async function fetchPurchaseOrderById(
       destination_location_id,
       supplier_id,
       document_status,
+      payment_terms_days,
+      total_gross_amount,
       total_net_amount,
+      custom_fields,
       created_at,
       updated_at,
       ${DESTINATION_LOCATION_EMBED} (name, code),

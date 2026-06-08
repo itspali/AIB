@@ -7,4 +7,5 @@ export type ProcurementLocationOption = {
 export type ProcurementSupplierOption = {
   id: string;
   name: string;
+  payment_terms_days: number;
 };
