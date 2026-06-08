@@ -22,7 +22,15 @@ export const createTenantGroupSchema = z.object({
 
 export const inviteOrganizationToGroupSchema = z.object({
   group_id: z.string().uuid("Invalid group"),
-  tenant_id: z.string().uuid("Valid organization ID required"),
+  identifier: z
+    .string()
+    .trim()
+    .min(1, "Primary email or workspace code is required")
+    .refine(
+      (value) =>
+        value.includes("@") || /^ORG-[A-Z0-9]{6}$/i.test(value),
+      "Use the organization's primary email or workspace code (e.g. ORG-AB12CD)"
+    ),
   message: z.string().trim().optional().default(""),
 });
 

@@ -60,7 +60,7 @@ export function GroupOrganizationsSection({
   const [companyName, setCompanyName] = useState("");
   const [primaryEmail, setPrimaryEmail] = useState("");
   const [primaryPhone, setPrimaryPhone] = useState("");
-  const [inviteTenantId, setInviteTenantId] = useState("");
+  const [inviteIdentifier, setInviteIdentifier] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -89,7 +89,7 @@ export function GroupOrganizationsSection({
     startTransition(async () => {
       const result = await inviteOrganizationToGroup({
         group_id: groupId,
-        tenant_id: inviteTenantId.trim(),
+        identifier: inviteIdentifier.trim(),
         message: inviteMessage,
       });
       if ("error" in result && result.error) {
@@ -98,7 +98,7 @@ export function GroupOrganizationsSection({
       }
       toast.success("Invitation sent");
       setInviteSheetOpen(false);
-      setInviteTenantId("");
+      setInviteIdentifier("");
       setInviteMessage("");
       router.refresh();
     });
@@ -220,6 +220,7 @@ export function GroupOrganizationsSection({
           <thead>
             <tr className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="p-2.5 font-medium">Name</th>
+              <th className="p-2.5 font-medium">Code</th>
               <th className="p-2.5 font-medium">Status</th>
               <th className="p-2.5 font-medium">Members</th>
               <th className="p-2.5 text-right font-medium">Actions</th>
@@ -228,7 +229,7 @@ export function GroupOrganizationsSection({
           <tbody>
             {organizations.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-6 text-center text-sm text-muted-foreground">
+                <td colSpan={5} className="p-6 text-center text-sm text-muted-foreground">
                   No organizations in this group yet.
                 </td>
               </tr>
@@ -239,6 +240,7 @@ export function GroupOrganizationsSection({
                     <div className="font-medium">{org.trade_name || org.name}</div>
                     <div className="text-xs text-muted-foreground">{org.onboarding_status}</div>
                   </td>
+                  <td className="p-2.5 font-mono text-xs">{org.organization_code}</td>
                   <td className="p-2.5">
                     <Badge variant={membershipBadgeVariant(org.membership_status)}>
                       {org.membership_status}
@@ -348,18 +350,18 @@ export function GroupOrganizationsSection({
           <SheetHeader>
             <SheetTitle>Invite organization</SheetTitle>
             <SheetDescription>
-              Invite a standalone organization to join this group. The target owner must accept from
-              Organization settings.
+              Invite a standalone organization using its primary email or workspace code (e.g.
+              ORG-AB12CD). The target owner accepts from Organization settings.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="invite_tenant_id">Organization ID</Label>
+              <Label htmlFor="invite_identifier">Primary email or workspace code</Label>
               <Input
-                id="invite_tenant_id"
-                value={inviteTenantId}
-                onChange={(e) => setInviteTenantId(e.target.value)}
-                placeholder="UUID of the standalone organization"
+                id="invite_identifier"
+                value={inviteIdentifier}
+                onChange={(e) => setInviteIdentifier(e.target.value)}
+                placeholder="billing@acme.com or ORG-AB12CD"
               />
             </div>
             <div className="space-y-2">
@@ -375,7 +377,7 @@ export function GroupOrganizationsSection({
             <Button
               type="button"
               className="w-full"
-              disabled={isPending || !inviteTenantId.trim()}
+              disabled={isPending || !inviteIdentifier.trim()}
               onClick={handleInvite}
             >
               {isPending ? "Sending…" : "Send invitation"}

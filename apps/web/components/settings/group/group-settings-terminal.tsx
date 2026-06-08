@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { createTenantGroup, saveGroupSettings } from "@/app/settings/group/actions";
+import { CopyableReadonlyField } from "@/components/settings/copyable-readonly-field";
 import { GroupOrganizationsSection } from "@/components/settings/group/group-organizations-section";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Badge } from "@/components/ui/badge";
@@ -169,6 +170,16 @@ export function GroupSettingsTerminal({
 
         <OrgSettingsSection title="Group identity" description="Enterprise display and contact details.">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {snapshot.group_code ? (
+              <div className="md:col-span-2">
+                <CopyableReadonlyField
+                  id="group_code"
+                  label="Group code"
+                  value={snapshot.group_code}
+                  description="Internal reference for this enterprise group. Organization workspace codes are used for invitations."
+                />
+              </div>
+            ) : null}
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="group_name">Group name</Label>
               <Input id="group_name" disabled={fieldsDisabled} {...form.register("name")} />

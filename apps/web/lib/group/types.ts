@@ -9,6 +9,7 @@ export type TenantGroupMembershipStatus =
 
 export type GroupOrganizationRow = {
   tenant_id: string;
+  organization_code: string;
   name: string;
   trade_name: string | null;
   membership_status: TenantGroupMembershipStatus;
@@ -20,6 +21,7 @@ export type GroupOrganizationRow = {
 
 export type GroupSettingsSnapshot = {
   group_id: string;
+  group_code: string;
   name: string;
   legal_name: string | null;
   trade_name: string | null;

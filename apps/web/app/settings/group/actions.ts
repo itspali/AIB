@@ -129,7 +129,7 @@ export async function switchActiveTenantMembership(tenantId: string) {
 
 export async function inviteOrganizationToGroup(input: {
   group_id: string;
-  tenant_id: string;
+  identifier: string;
   message?: string;
 }) {
   const parsed = inviteOrganizationToGroupSchema.safeParse(input);
@@ -138,9 +138,9 @@ export async function inviteOrganizationToGroup(input: {
   }
 
   const { supabase } = await requireTenantId();
-  const { data, error } = await supabase.rpc("invite_organization_to_group", {
+  const { data, error } = await supabase.rpc("invite_standalone_organization_to_group", {
     p_group_id: parsed.data.group_id,
-    p_tenant_id: parsed.data.tenant_id,
+    p_identifier: parsed.data.identifier,
     p_message: parsed.data.message || null,
   });
 

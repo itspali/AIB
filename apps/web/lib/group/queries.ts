@@ -40,6 +40,7 @@ export async function fetchGroupOrganizations(
 
   return (data as GroupOrganizationRow[]).map((row) => ({
     tenant_id: row.tenant_id,
+    organization_code: row.organization_code ?? "",
     name: row.name,
     trade_name: row.trade_name,
     membership_status: row.membership_status,
@@ -57,7 +58,7 @@ export async function fetchPendingGroupInvitationsForGroup(
   const { data, error } = await supabase
     .from("group_organization_invitations")
     .select(
-      "id, tenant_id, message, expires_at, created_at, tenants!inner(name, trade_name)"
+      "id, tenant_id, message, expires_at, created_at, tenants!inner(name, trade_name, organization_code)"
     )
     .eq("group_id", groupId)
     .eq("status", "PENDING")
@@ -67,11 +68,18 @@ export async function fetchPendingGroupInvitationsForGroup(
   if (error || !data) return [];
 
   return data.map((row) => {
-    const tenant = row.tenants as { name: string; trade_name: string | null } | null;
+    const tenant = row.tenants as {
+      name: string;
+      trade_name: string | null;
+      organization_code: string | null;
+    } | null;
+    const orgLabel = tenant?.trade_name || tenant?.name || "Organization";
     return {
       invitation_id: row.id as string,
       tenant_id: row.tenant_id as string,
-      organization_name: tenant?.trade_name || tenant?.name || "Organization",
+      organization_name: tenant?.organization_code
+        ? `${orgLabel} (${tenant.organization_code})`
+        : orgLabel,
       message: (row.message as string | null) ?? null,
       expires_at: row.expires_at as string,
       created_at: row.created_at as string,
@@ -92,6 +100,7 @@ export async function fetchGroupSettingsSnapshot(
 
   return {
     group_id: group.id,
+    group_code: (group.group_code as string | null) ?? "",
     name: group.name,
     legal_name: group.legal_name,
     trade_name: group.trade_name,

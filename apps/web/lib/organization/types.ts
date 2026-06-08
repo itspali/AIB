@@ -61,6 +61,7 @@ export type SearchFinancialFieldsMode = "role_default" | "enabled" | "disabled";
 
 export type OrganizationSettingsSnapshot = {
   tenant_id: string;
+  organization_code: string;
   name: string;
   legal_name: string | null;
   trade_name: string | null;

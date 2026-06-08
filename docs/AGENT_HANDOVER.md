@@ -167,7 +167,8 @@ Full catalog (do not re-create):
 - **Identity:** `public.users` profile-only; org roles in `user_tenant_memberships`; `switch_active_tenant_membership` RPC patches JWT.
 - **Phase 1 RPCs:** `create_tenant_group`, `update_tenant_group_profile`, `create_group_organization`, `list_group_organizations`, `request_group_exit`, `complete_group_exit`.
 - **Workspace switch:** profile dropdown submenu; `refreshSession()` after switch.
-- **Phase 2 UI:** invitation banner on Organization settings (owner, standalone org); group orgs section — invite/revoke, suspend/reinstate, `GroupExitConfirmDialog`; server actions in `app/settings/group/actions.ts`.
+- **Phase 2 UI:** invitation banner on Organization settings (owner, standalone org); group orgs section — invite by primary email or `ORG-XXXXXX` workspace code, revoke, suspend/reinstate, `GroupExitConfirmDialog`; copyable workspace/group codes on settings pages.
+- **Public codes:** `20260610100000_workspace_public_codes.sql` — `tenants.organization_code`, `tenant_groups.group_code`, RPC `invite_standalone_organization_to_group`.
 - **Non-goals v1:** cross-org inventory, shared catalog, intercompany.
 - **Migrations:** `20260609100000_tenant_groups_foundation.sql`, `20260609200000_tenant_groups_invitations.sql`.
 - **Lib/UI:** `apps/web/lib/group/`, `apps/web/app/settings/group/`, `apps/web/components/settings/group/`.

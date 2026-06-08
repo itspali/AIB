@@ -389,6 +389,7 @@ export function OrganizationSettingsTerminal({
               form={form}
               disabled={fieldsDisabled}
               parentGroupName={snapshot.parent_group_name}
+              organizationCode={snapshot.organization_code}
             />
           </SectionAnchor>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import type { UseFormReturn } from "react-hook-form";
+import { CopyableReadonlyField } from "@/components/settings/copyable-readonly-field";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +11,15 @@ type Props = {
   form: UseFormReturn<OrganizationSettingsFormValues>;
   disabled?: boolean;
   parentGroupName?: string | null;
+  organizationCode?: string | null;
 };
 
-export function OrganizationIdentitySection({ form, disabled, parentGroupName }: Props) {
+export function OrganizationIdentitySection({
+  form,
+  disabled,
+  parentGroupName,
+  organizationCode,
+}: Props) {
   const {
     register,
     formState: { errors },
@@ -24,6 +31,17 @@ export function OrganizationIdentitySection({ form, disabled, parentGroupName }:
       description="Registered entity names, statutory identifiers, and primary contact channels."
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {organizationCode ? (
+          <div className="md:col-span-2 lg:col-span-3">
+            <CopyableReadonlyField
+              id="organization_code"
+              label="Workspace code"
+              value={organizationCode}
+              description="Share this code with a group admin to receive an enterprise group invitation."
+            />
+          </div>
+        ) : null}
+
         {parentGroupName ? (
           <div className="space-y-2 md:col-span-2 lg:col-span-3">
             <Label className="text-sm font-medium text-muted-foreground">Parent group</Label>

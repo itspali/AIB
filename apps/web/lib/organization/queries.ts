@@ -203,6 +203,7 @@ export async function fetchOrganizationSettingsSnapshot(
 
   return {
     tenant_id: tenant.id,
+    organization_code: (tenant.organization_code as string | null) ?? "",
     name: tenant.name,
     legal_name: tenant.legal_name,
     trade_name: tenant.trade_name,
