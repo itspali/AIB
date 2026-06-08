@@ -441,6 +441,10 @@ BEGIN
 END;
 $$;
 
+-- RETURNS TABLE shape changed (added organization_code); REPLACE is not allowed.
+DROP FUNCTION IF EXISTS public.list_group_organizations(UUID);
+DROP FUNCTION IF EXISTS private.list_group_organizations(UUID);
+
 CREATE OR REPLACE FUNCTION private.list_group_organizations(p_group_id UUID)
 RETURNS TABLE (
     tenant_id UUID,
