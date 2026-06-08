@@ -20,6 +20,7 @@ import { OrganizationBillingFiscalSection } from "@/components/settings/organiza
 import { OrganizationBrandSection } from "@/components/settings/organization-brand-section";
 import { OrganizationPolicySummary } from "@/components/settings/organization-policy-summary";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
+import { GroupInvitationBanner } from "@/components/settings/group/group-invitation-banner";
 import { OrganizationIdentitySection } from "@/components/settings/organization-identity-section";
 import { OrganizationLocalizationSection } from "@/components/settings/organization-localization-section";
 import { OrganizationLocationSection } from "@/components/settings/organization-location-section";
@@ -41,6 +42,7 @@ import {
   ORG_SETTINGS_TABS,
   type OrgSettingsTabId,
 } from "@/lib/organization/section-nav";
+import type { GroupInvitationRow } from "@/lib/group/types";
 import {
   snapshotToFormValues,
   type OrganizationSettingsFormValues,
@@ -54,6 +56,7 @@ type Props = {
   access: OrganizationSettingsAccess;
   tenantId: string;
   logoPreviewUrl?: string | null;
+  groupInvitations?: GroupInvitationRow[];
 };
 
 function SectionAnchor({
@@ -82,6 +85,7 @@ export function OrganizationSettingsTerminal({
   access,
   tenantId,
   logoPreviewUrl,
+  groupInvitations = [],
 }: Props) {
   const router = useRouter();
   const omnibar = useOptionalOmnibarContext();
@@ -335,6 +339,8 @@ export function OrganizationSettingsTerminal({
       </div>
 
       <OrganizationPolicySummary snapshot={snapshot} form={form} variant="panel" className="lg:hidden" />
+
+      <GroupInvitationBanner invitations={groupInvitations} />
 
       <div
         ref={chipBarRef}

@@ -5,6 +5,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { resolveGroupSettingsAccess } from "@/lib/group/access";
 import {
   fetchGroupSettingsSnapshot,
+  fetchPendingGroupInvitationsForGroup,
   fetchUserPrimaryGroupId,
 } from "@/lib/group/queries";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
@@ -49,7 +50,12 @@ export default async function GroupSettingsPage() {
     ? await resolveGroupSettingsAccess(supabase, claims.userId, groupId)
     : null;
 
-  const snapshot = groupId ? await fetchGroupSettingsSnapshot(supabase, groupId) : null;
+  const [snapshot, pendingInvitations] = groupId
+    ? await Promise.all([
+        fetchGroupSettingsSnapshot(supabase, groupId),
+        fetchPendingGroupInvitationsForGroup(supabase, groupId),
+      ])
+    : [null, []];
 
   if (groupId && access && !access.granted && snapshot) {
     return (
@@ -76,6 +82,7 @@ export default async function GroupSettingsPage() {
         access={access}
         canCreateGroup={orgAccess.isOwner}
         defaultEmail={claims.email ?? tenantRow?.primary_email ?? ""}
+        pendingInvitations={pendingInvitations}
       />
     </DashboardShell>
   );

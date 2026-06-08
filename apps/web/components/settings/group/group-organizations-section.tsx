@@ -4,11 +4,15 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  completeGroupExit,
   createGroupOrganization,
+  inviteOrganizationToGroup,
+  reinstateGroupOrganization,
+  revokeGroupInvitation,
+  suspendGroupOrganization,
   switchActiveTenantMembership,
 } from "@/app/settings/group/actions";
 import { createClient } from "@/lib/supabase/client";
+import { GroupExitConfirmDialog } from "@/components/settings/group/group-exit-confirm-dialog";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,20 +25,43 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import type { GroupOrganizationRow } from "@/lib/group/types";
+import { formatDate } from "@/lib/dashboard/format";
+import type { GroupOrganizationRow, GroupOutboundInvitationRow } from "@/lib/group/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   groupId: string;
   organizations: GroupOrganizationRow[];
+  pendingInvitations: GroupOutboundInvitationRow[];
   canManage: boolean;
 };
 
-export function GroupOrganizationsSection({ groupId, organizations, canManage }: Props) {
+type ExitTarget = {
+  tenantId: string;
+  orgName: string;
+};
+
+function membershipBadgeVariant(status: GroupOrganizationRow["membership_status"]) {
+  if (status === "SUSPENDED") return "locked" as const;
+  if (status === "EXIT_PENDING") return "active" as const;
+  return "default" as const;
+}
+
+export function GroupOrganizationsSection({
+  groupId,
+  organizations,
+  pendingInvitations,
+  canManage,
+}: Props) {
   const router = useRouter();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
+  const [exitTarget, setExitTarget] = useState<ExitTarget | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [primaryEmail, setPrimaryEmail] = useState("");
   const [primaryPhone, setPrimaryPhone] = useState("");
+  const [inviteTenantId, setInviteTenantId] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const handleCreate = () => {
@@ -50,10 +77,29 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
         return;
       }
       toast.success("Organization created under group");
-      setSheetOpen(false);
+      setCreateSheetOpen(false);
       setCompanyName("");
       setPrimaryEmail("");
       setPrimaryPhone("");
+      router.refresh();
+    });
+  };
+
+  const handleInvite = () => {
+    startTransition(async () => {
+      const result = await inviteOrganizationToGroup({
+        group_id: groupId,
+        tenant_id: inviteTenantId.trim(),
+        message: inviteMessage,
+      });
+      if ("error" in result && result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Invitation sent");
+      setInviteSheetOpen(false);
+      setInviteTenantId("");
+      setInviteMessage("");
       router.refresh();
     });
   };
@@ -72,17 +118,45 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
     });
   };
 
-  const handleExit = (tenantId: string, orgName: string) => {
-    if (!confirm(`Remove "${orgName}" from this group? This cannot be undone without re-inviting.`)) {
+  const handleSuspend = (tenantId: string, orgName: string) => {
+    if (!confirm(`Suspend "${orgName}" in this group? Members lose access until reinstated.`)) {
       return;
     }
     startTransition(async () => {
-      const result = await completeGroupExit(tenantId, "Spin-off from group");
+      const result = await suspendGroupOrganization({
+        tenant_id: tenantId,
+        reason: "Suspended by group admin",
+      });
       if ("error" in result && result.error) {
         toast.error(result.error);
         return;
       }
-      toast.success("Organization removed from group");
+      toast.success("Organization suspended");
+      router.refresh();
+    });
+  };
+
+  const handleReinstate = (tenantId: string) => {
+    startTransition(async () => {
+      const result = await reinstateGroupOrganization(tenantId);
+      if ("error" in result && result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Organization reinstated");
+      router.refresh();
+    });
+  };
+
+  const handleRevokeInvitation = (invitationId: string, orgName: string) => {
+    if (!confirm(`Revoke invitation for "${orgName}"?`)) return;
+    startTransition(async () => {
+      const result = await revokeGroupInvitation(invitationId);
+      if ("error" in result && result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Invitation revoked");
       router.refresh();
     });
   };
@@ -93,15 +167,56 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
       description="Legal entities operating under this enterprise group."
     >
       {canManage ? (
-        <div className="mb-4 flex justify-end">
-          <Button type="button" size="sm" onClick={() => setSheetOpen(true)}>
+        <div className="mb-4 flex flex-wrap justify-end gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => setInviteSheetOpen(true)}>
+            Invite organization
+          </Button>
+          <Button type="button" size="sm" onClick={() => setCreateSheetOpen(true)}>
             Add organization
           </Button>
         </div>
       ) : null}
 
+      {canManage && pendingInvitations.length > 0 ? (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Pending invitations
+          </p>
+          <div className="surface-inset divide-y divide-border rounded-lg">
+            {pendingInvitations.map((invitation) => (
+              <div
+                key={invitation.invitation_id}
+                className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">{invitation.organization_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Expires {formatDate(invitation.expires_at)}
+                    {invitation.message ? ` · ${invitation.message}` : ""}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() =>
+                    handleRevokeInvitation(
+                      invitation.invitation_id,
+                      invitation.organization_name
+                    )
+                  }
+                >
+                  Revoke
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="surface-inset overflow-x-auto rounded-lg">
-        <table className="w-full min-w-[640px] border-separate border-spacing-0 bg-background text-sm">
+        <table className="w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm">
           <thead>
             <tr className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="p-2.5 font-medium">Name</th>
@@ -125,7 +240,9 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
                     <div className="text-xs text-muted-foreground">{org.onboarding_status}</div>
                   </td>
                   <td className="p-2.5">
-                    <Badge variant="default">{org.membership_status}</Badge>
+                    <Badge variant={membershipBadgeVariant(org.membership_status)}>
+                      {org.membership_status}
+                    </Badge>
                   </td>
                   <td className="p-2.5 tabular-nums">{org.member_count}</td>
                   <td className="space-x-2 p-2.5 text-right">
@@ -133,18 +250,46 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={isPending}
+                      disabled={isPending || org.membership_status === "SUSPENDED"}
                       onClick={() => handleSwitch(org.tenant_id)}
                     >
                       Open
                     </Button>
-                    {canManage ? (
+                    {canManage && org.membership_status === "ACTIVE" ? (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         disabled={isPending}
-                        onClick={() => handleExit(org.tenant_id, org.trade_name || org.name)}
+                        onClick={() => handleSuspend(org.tenant_id, org.trade_name || org.name)}
+                      >
+                        Suspend
+                      </Button>
+                    ) : null}
+                    {canManage && org.membership_status === "SUSPENDED" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => handleReinstate(org.tenant_id)}
+                      >
+                        Reinstate
+                      </Button>
+                    ) : null}
+                    {canManage ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(org.membership_status === "SUSPENDED" && "text-destructive")}
+                        disabled={isPending}
+                        onClick={() =>
+                          setExitTarget({
+                            tenantId: org.tenant_id,
+                            orgName: org.trade_name || org.name,
+                          })
+                        }
                       >
                         Exit group
                       </Button>
@@ -157,7 +302,7 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
         </table>
       </div>
 
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Add organization</SheetTitle>
@@ -197,6 +342,60 @@ export function GroupOrganizationsSection({ groupId, organizations, canManage }:
           </div>
         </SheetContent>
       </Sheet>
+
+      <Sheet open={inviteSheetOpen} onOpenChange={setInviteSheetOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Invite organization</SheetTitle>
+            <SheetDescription>
+              Invite a standalone organization to join this group. The target owner must accept from
+              Organization settings.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="invite_tenant_id">Organization ID</Label>
+              <Input
+                id="invite_tenant_id"
+                value={inviteTenantId}
+                onChange={(e) => setInviteTenantId(e.target.value)}
+                placeholder="UUID of the standalone organization"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite_message">Message (optional)</Label>
+              <textarea
+                id="invite_message"
+                value={inviteMessage}
+                onChange={(e) => setInviteMessage(e.target.value)}
+                rows={3}
+                className="flex min-h-[5rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={isPending || !inviteTenantId.trim()}
+              onClick={handleInvite}
+            >
+              {isPending ? "Sending…" : "Send invitation"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <GroupExitConfirmDialog
+        tenantId={exitTarget?.tenantId ?? null}
+        orgName={exitTarget?.orgName ?? null}
+        open={exitTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setExitTarget(null);
+        }}
+        onCompleted={() => {
+          setExitTarget(null);
+          router.refresh();
+        }}
+      />
     </OrgSettingsSection>
   );
 }

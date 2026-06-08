@@ -5,6 +5,8 @@ import {
   createGroupOrganizationSchema,
   createTenantGroupSchema,
   groupSettingsSchema,
+  inviteOrganizationToGroupSchema,
+  suspendGroupOrganizationSchema,
 } from "@/lib/group/schemas";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -122,5 +124,106 @@ export async function switchActiveTenantMembership(tenantId: string) {
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
+  return { success: true as const };
+}
+
+export async function inviteOrganizationToGroup(input: {
+  group_id: string;
+  tenant_id: string;
+  message?: string;
+}) {
+  const parsed = inviteOrganizationToGroupSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("invite_organization_to_group", {
+    p_group_id: parsed.data.group_id,
+    p_tenant_id: parsed.data.tenant_id,
+    p_message: parsed.data.message || null,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
+  return { success: true as const, invitationId: data as string };
+}
+
+export async function acceptGroupInvitation(invitationId: string) {
+  if (!invitationId.trim()) return { error: "Invitation is required" };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("accept_group_organization_invitation", {
+    p_invitation_id: invitationId,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
+  revalidatePath("/", "layout");
+  return { success: true as const };
+}
+
+export async function rejectGroupInvitation(invitationId: string) {
+  if (!invitationId.trim()) return { error: "Invitation is required" };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("reject_group_organization_invitation", {
+    p_invitation_id: invitationId,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
+  return { success: true as const };
+}
+
+export async function revokeGroupInvitation(invitationId: string) {
+  if (!invitationId.trim()) return { error: "Invitation is required" };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("revoke_group_organization_invitation", {
+    p_invitation_id: invitationId,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
+  return { success: true as const };
+}
+
+export async function suspendGroupOrganization(input: {
+  tenant_id: string;
+  reason?: string;
+}) {
+  const parsed = suspendGroupOrganizationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("suspend_group_organization", {
+    p_tenant_id: parsed.data.tenant_id,
+    p_reason: parsed.data.reason || null,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
+  return { success: true as const };
+}
+
+export async function reinstateGroupOrganization(tenantId: string) {
+  if (!tenantId.trim()) return { error: "Organization is required" };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("reinstate_group_organization", {
+    p_tenant_id: tenantId,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
   return { success: true as const };
 }

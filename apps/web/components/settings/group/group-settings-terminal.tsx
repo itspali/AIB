@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { groupSettingsSchema } from "@/lib/group/schemas";
 import {
   snapshotToGroupFormValues,
+  type GroupOutboundInvitationRow,
   type GroupSettingsAccess,
   type GroupSettingsFormValues,
   type GroupSettingsSnapshot,
@@ -25,6 +26,7 @@ type Props = {
   access: GroupSettingsAccess | null;
   canCreateGroup: boolean;
   defaultEmail: string;
+  pendingInvitations?: GroupOutboundInvitationRow[];
 };
 
 export function GroupSettingsTerminal({
@@ -32,6 +34,7 @@ export function GroupSettingsTerminal({
   access,
   canCreateGroup,
   defaultEmail,
+  pendingInvitations = [],
 }: Props) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -197,6 +200,7 @@ export function GroupSettingsTerminal({
         <GroupOrganizationsSection
           groupId={snapshot.group_id}
           organizations={snapshot.organizations}
+          pendingInvitations={pendingInvitations}
           canManage={Boolean(access?.granted)}
         />
       </div>

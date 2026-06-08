@@ -1,7 +1,11 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GroupOrganizationRow, GroupSettingsSnapshot } from "@/lib/group/types";
+import type {
+  GroupOrganizationRow,
+  GroupOutboundInvitationRow,
+  GroupSettingsSnapshot,
+} from "@/lib/group/types";
 
 export async function fetchUserPrimaryGroupId(
   supabase: SupabaseClient,
@@ -44,6 +48,35 @@ export async function fetchGroupOrganizations(
     member_count: Number(row.member_count ?? 0),
     joined_at: row.joined_at,
   }));
+}
+
+export async function fetchPendingGroupInvitationsForGroup(
+  supabase: SupabaseClient,
+  groupId: string
+): Promise<GroupOutboundInvitationRow[]> {
+  const { data, error } = await supabase
+    .from("group_organization_invitations")
+    .select(
+      "id, tenant_id, message, expires_at, created_at, tenants!inner(name, trade_name)"
+    )
+    .eq("group_id", groupId)
+    .eq("status", "PENDING")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const tenant = row.tenants as { name: string; trade_name: string | null } | null;
+    return {
+      invitation_id: row.id as string,
+      tenant_id: row.tenant_id as string,
+      organization_name: tenant?.trade_name || tenant?.name || "Organization",
+      message: (row.message as string | null) ?? null,
+      expires_at: row.expires_at as string,
+      created_at: row.created_at as string,
+    };
+  });
 }
 
 export async function fetchGroupSettingsSnapshot(

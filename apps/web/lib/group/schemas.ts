@@ -19,3 +19,14 @@ export const createTenantGroupSchema = z.object({
   primary_email: z.string().trim().email("Valid email required"),
   primary_phone: z.string().trim().optional().default(""),
 });
+
+export const inviteOrganizationToGroupSchema = z.object({
+  group_id: z.string().uuid("Invalid group"),
+  tenant_id: z.string().uuid("Valid organization ID required"),
+  message: z.string().trim().optional().default(""),
+});
+
+export const suspendGroupOrganizationSchema = z.object({
+  tenant_id: z.string().uuid("Invalid organization"),
+  reason: z.string().trim().optional().default(""),
+});

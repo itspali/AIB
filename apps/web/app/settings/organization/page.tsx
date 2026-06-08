@@ -5,6 +5,7 @@ import { OrganizationSettingsTerminal } from "@/components/settings/organization
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { getTenantLogoSignedUrl } from "@/lib/organization/logo";
+import { fetchPendingGroupInvitationsForTenant } from "@/lib/group/invitations";
 import { fetchOrganizationSettingsSnapshot } from "@/lib/organization/queries";
 import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
@@ -45,6 +46,7 @@ export default async function OrganizationSettingsPage() {
   }
 
   const snapshot = await fetchOrganizationSettingsSnapshot(supabase, tenantId);
+
   if (!snapshot) {
     return (
       <DashboardShell
@@ -58,7 +60,12 @@ export default async function OrganizationSettingsPage() {
     );
   }
 
-  const logoPreviewUrl = await getTenantLogoSignedUrl(supabase, snapshot.logo_url);
+  const [logoPreviewUrl, groupInvitations] = await Promise.all([
+    getTenantLogoSignedUrl(supabase, snapshot.logo_url),
+    access.isOwner && !snapshot.parent_group_name
+      ? fetchPendingGroupInvitationsForTenant(supabase)
+      : Promise.resolve([]),
+  ]);
 
   return (
     <DashboardShell
@@ -73,6 +80,7 @@ export default async function OrganizationSettingsPage() {
         access={access}
         tenantId={tenantId}
         logoPreviewUrl={logoPreviewUrl}
+        groupInvitations={groupInvitations}
       />
     </DashboardShell>
   );

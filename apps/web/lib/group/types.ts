@@ -55,6 +55,15 @@ export type GroupInvitationRow = {
   created_at: string;
 };
 
+export type GroupOutboundInvitationRow = {
+  invitation_id: string;
+  tenant_id: string;
+  organization_name: string;
+  message: string | null;
+  expires_at: string;
+  created_at: string;
+};
+
 export function snapshotToGroupFormValues(
   snapshot: GroupSettingsSnapshot
 ): GroupSettingsFormValues {
