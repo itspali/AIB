@@ -1,6 +1,8 @@
 "use client";
 
+import { ArrowUpDown } from "lucide-react";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
+import { PoListColumnSettings } from "@/components/procurement/purchase-orders/po-list-column-settings";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import {
   Select,
@@ -9,11 +11,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDeviceClass } from "@/hooks/use-device-class";
 import type { PurchaseOrderListPrefs } from "@/lib/procurement/purchase-orders/list-prefs";
+import {
+  PO_LIST_SORT_OPTIONS,
+  purchaseOrderSortOptionKey,
+  type PurchaseOrderListSortDirection,
+} from "@/lib/procurement/purchase-orders/list-sort";
 import type { PurchaseOrderStatus } from "@/lib/procurement/purchase-orders/types";
 import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
-import { listToolbarSelectClass } from "@/lib/layout/list-toolbar-chrome";
+import {
+  listToolbarSelectClass,
+  listToolbarSortTriggerClass,
+  listToolbarViewToggleShellClass,
+} from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS: Array<PurchaseOrderStatus | "all"> = [
@@ -113,10 +125,16 @@ export function PoListToolbar({
   compactCountLabel = false,
   prefsHydrated = true,
 }: Props) {
+  const { deviceClass } = useDeviceClass();
   const controlsDisabled = !prefsHydrated;
   const statusActive = prefs.status !== "all";
   const locationActive = Boolean(prefs.locationId);
   const extraFilterCount = (statusActive ? 1 : 0) + (locationActive ? 1 : 0);
+  const sortValue = purchaseOrderSortOptionKey(prefs.sortField, prefs.sortDirection);
+  const activeSortLabel =
+    PO_LIST_SORT_OPTIONS.find(
+      (option) => purchaseOrderSortOptionKey(option.field, option.direction) === sortValue
+    )?.label ?? "Sort";
 
   return (
     <ListModuleToolbarRow
@@ -131,7 +149,7 @@ export function PoListToolbar({
             extras={{
               extraFilterCount,
               onClearExtras: () =>
-                onPrefsChange({ status: "all", locationId: null }),
+                onPrefsChange({ ...prefs, status: "all", locationId: null }),
               extraDropdownContent: (
                 <div className="space-y-3 p-1">
                   <div className="space-y-2">
@@ -173,6 +191,50 @@ export function PoListToolbar({
             locations={locations}
             onValueChange={(locationId) => onPrefsChange({ ...prefs, locationId })}
             triggerClassName="hidden min-w-[8rem] md:inline-flex"
+          />
+
+          <div className={cn(listToolbarViewToggleShellClass(), "inline-flex")}>
+            <Select
+              value={sortValue}
+              disabled={controlsDisabled}
+              onValueChange={(value) => {
+                const option = PO_LIST_SORT_OPTIONS.find(
+                  (entry) => purchaseOrderSortOptionKey(entry.field, entry.direction) === value
+                );
+                if (!option) return;
+                onPrefsChange({
+                  ...prefs,
+                  sortField: option.field,
+                  sortDirection: option.direction as PurchaseOrderListSortDirection,
+                });
+              }}
+            >
+              <SelectTrigger
+                className={listToolbarSortTriggerClass(true)}
+                title={`Sort: ${activeSortLabel}`}
+                aria-label={`Sort: ${activeSortLabel}`}
+              >
+                <SelectValue />
+                <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {PO_LIST_SORT_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={purchaseOrderSortOptionKey(option.field, option.direction)}
+                    value={purchaseOrderSortOptionKey(option.field, option.direction)}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <PoListColumnSettings
+            prefs={prefs}
+            onChange={onPrefsChange}
+            detectedDeviceClass={deviceClass}
+            disabled={controlsDisabled}
           />
         </>
       }

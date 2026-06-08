@@ -14,7 +14,10 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { stockAdjustmentKindLabel } from "@/lib/inventory/stock/labels";
 import { STOCK_HREF } from "@/lib/inventory/stock/navigation";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
-import { TRANSFERS_HREF } from "@/lib/inventory/transfers/navigation";
+import {
+  TRANSFERS_HREF,
+  transfersHrefWithStatusFilter,
+} from "@/lib/inventory/transfers/navigation";
 import type { InventoryOverviewSnapshot } from "@/lib/inventory/overview/types";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { Button } from "@/components/ui/button";
@@ -68,6 +71,7 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             subtitle="Transfers dispatched and awaiting receipt"
             icon={ArrowLeftRight}
             accent="cyan"
+            href={transfersHrefWithStatusFilter("DISPATCHED_IN_TRANSIT")}
           />
           <MetricCard
             title="Stocked balances"

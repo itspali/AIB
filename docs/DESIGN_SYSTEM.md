@@ -133,13 +133,15 @@ Use this **lean** variant when the module posts location-scoped inventory docume
 | Shell | Custom page layout | `ListModuleShell` + `*-catalog-loader.tsx` (RSC) |
 | Views | Table + compact cards | **Table only** (or single view toggle when meaningful, e.g. Stock balances vs adjustments) |
 | Bulk select | Sticky checkbox column | **None** |
-| Toolbar | Saved views, column settings | `ListModuleToolbarRow` + filter extras (location, status) |
+| Toolbar | Saved views, column settings | `ListModuleToolbarRow` + filter extras (location, status) + omnibar scope `stock` / `transfers` |
 | Create CTA | Header + `?action=new` | Same; optional **prefill params** (see §4) |
 | Drawer | Peek / edit / create | Same; operational forms may post via RPC in one step (adjustments) or multi-step status (transfers) |
 | Empty state | `ProductEmptyState` or dashed prompt | Module-specific empty state with single **New …** CTA |
 | Errors | Toast + inline | `UserFacingErrorMessage` with optional settings link (numbering, MWAC) |
 
-**Module overview pages** (`/inventory`) are not list modules: they use metric cards + activity tables + deep links into Stock/Transfers drawers. See `inventory-overview-terminal.tsx`.
+**Module overview pages** (`/inventory`) are not list modules: they use metric cards + activity tables + deep links into Stock/Transfers drawers. The **In transit** metric links to the filtered transfers list (`?status=DISPATCHED_IN_TRANSIT`). See `inventory-overview-terminal.tsx`.
+
+**Omnibar scopes** for operational inventory: `stock` (`/inventory/stock`) and `transfers` (`/inventory/transfers`) — route-resolved in `lib/search/scopes.ts`; client filters in `use-filtered-stock.ts` / `use-filtered-transfers.ts`.
 
 Domain rules for inventory ops: [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 
@@ -255,15 +257,52 @@ Use the `badge.tsx` variants (`completed`, `active`, `action_required`, `locked`
 
 Pick the tier that matches the module. When in doubt: **master/catalog data → Tier A**; **posted documents / ledger events → Tier B**.
 
+**Canonical reference implementations**
+
+| Tier | Table component | Terminal |
+|------|-----------------|----------|
+| A (catalog) | `entity-list-table.tsx` or `product-list-table.tsx` | `entity-management-terminal.tsx` |
+| B (operational) | `transfer-list-table.tsx` or `stock-balances-table.tsx` | `transfer-management-terminal.tsx` |
+
+**Shared table stack (required for all tiers with configurable columns)**
+
+| Concern | Module |
+|---------|--------|
+| Page shell | `ListModuleShell`, `list-module-chrome.ts` |
+| Table chrome | `list-table-chrome.ts` (`LIST_TABLE_*`, `listTableRowClass`, interaction helpers) |
+| Column registry | `lib/<module>/list-columns.ts` → `ListColumnRegistry` |
+| Column prefs | `lib/list-columns/prefs.ts` + `lib/<module>/list-prefs.ts` |
+| Resize + auto-fit | `useResizableListColumns`, `resolveListColumnAutoWidth`, `lib/<module>/list-column-display-text.ts` |
+| Freeze columns | `useFrozenListColumns`, `resolveListFrozenColumnCount` |
+| Column selector UI | `ListColumnSettings` via `*-list-column-settings.tsx` |
+
+Do **not** implement resize, freeze, or row-hover inline in module tables — extend the shared hooks.
+
+### 9.1 Feature matrix (by tier)
+
+| Feature | Tier A | Tier B | Notes |
+|---------|--------|--------|-------|
+| `ListModuleShell` | Optional (Items uses stream panel) | Required | |
+| Table + compact/card views | Table + compact | Table only | |
+| Bulk checkbox column | Yes | No | Unless batch posting required |
+| Column show/hide / reorder | Yes | Yes | `ListColumnSettings` |
+| Drag resize + double-click auto-fit | Yes | Yes | `ListColumnResizeHandle` |
+| Freeze columns (auto + manual) | Yes | Yes | `useFrozenListColumns` |
+| Saved views | Yes | No | Tier B uses filter selects |
+| Omnibar native scope | items, categories, locations, customers, suppliers | stock, transfers | Text + predicate filters client-side |
+| Sort (toolbar or header) | Yes | Yes | |
+| Row hover + frozen cell parity | Yes | Yes | `listTableBodyCellInteractionClass` |
+| Selected row ring | Yes | Yes | `listTableRowClass` |
+
 ### Tier A — Full catalog (Items Master)
 
-Customers, Suppliers (rich profiles), Items, Categories, etc. **must** mirror the Items Master. Copy from the canonical files and satisfy every item below.
+Customers, Suppliers (rich profiles), Items, Categories, Entities, etc. **must** mirror the Items Master. Copy from the canonical files and satisfy every item below.
 
 **Layout & list**
 - [ ] Full-width canvas list (no split pane); page header with `text-2xl font-bold tracking-tight` title.
 - [ ] Primary creation CTA aligned right in header, using router parameter mutations (`?action=new`) to trigger workflows in-canvas.
 - [ ] Dual view modes (Table + Compact card) with a `bg-muted` segmented view toggle.
-- [ ] Table: `surface-inset` scroll container, `bg-muted/40` header, `p-2.5` cell density, `border-b border-border` rows.
+- [ ] Table: `LIST_TABLE_SURFACE` + `LIST_TABLE_SCROLL`, `bg-muted` header (`LIST_TABLE_HEADER_CELL_BG`), `p-2.5` cell density, `LIST_TABLE_BODY_CELL` row dividers.
 - [ ] Row typography: line-1 `font-medium` identifier, line-2 `text-xs text-muted-foreground` subtext; numerics `text-right tabular-nums`; identifiers `font-mono`.
 - [ ] Hover tint + persistent selected `ring-1 ring-inset ring-primary/20`.
 - [ ] Sticky `w-10` bulk checkbox column that stops propagation.
@@ -285,19 +324,21 @@ Customers, Suppliers (rich profiles), Items, Categories, etc. **must** mirror th
 
 **States & polish**
 - [ ] Empty state with a single primary create CTA (dashed inline prompt or structured placeholder).
-- [ ] Localized `shimmer` skeletons for list, detail, and editor loading.
+- [ ] Localized `shimmer` skeletons for list, detail, and editor loading (Categories: `category-catalog-page-skeleton.tsx` — single full-width body, no split-pane).
 - [ ] Lucide React icons only, consistent sizing.
 - [ ] All data scrolls inside `<main data-dashboard-scroll-root>` — no nested scroll roots.
 
 ### Tier B — Operational documents (Stock pattern)
 
-Purchase GRNs, stock transfers, stock adjustments, shipment postings, etc. Satisfy §3.7 and:
+Purchase orders, GRNs, stock transfers, stock adjustments, shipment postings, etc. Satisfy §3.7 and:
 
 - [ ] `ListModuleShell` + `Suspense` loader page; drawer `id` omitted from RSC `searchParams` (client-only `history.pushState`).
 - [ ] `useModuleDrawerUrl(baseHref)` for peek / edit / create; `UserFacingErrorMessage` for RPC failures.
 - [ ] Server actions call SECURITY DEFINER RPCs; `revalidatePath` on affected module routes.
 - [ ] Zod schemas in `lib/<module>/schemas.ts`; friendly RPC error formatters where operators need settings links.
-- [ ] Table in `surface-inset`; row selected state `ring-1 ring-inset ring-primary/20`.
+- [ ] Table uses `LIST_TABLE_*` chrome + shared column hooks (see matrix §9.1); row selected state via `listTableRowClass`.
+- [ ] `ListColumnSettings` in toolbar; column widths persisted in module `list-prefs`.
+- [ ] List body wrapper: `overflow-hidden min-w-0` (horizontal scroll inside table, not page).
 - [ ] No bulk checkbox column unless the product owner explicitly requires batch posting.
 
 **Inventory-specific Tier B rules:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §2.

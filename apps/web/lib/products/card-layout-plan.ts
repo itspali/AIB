@@ -50,10 +50,17 @@ export type CardLayoutDetailField = {
   value: string;
 };
 
+export type CardSellingPriceParts = {
+  amount: string;
+  uom: string | null;
+};
+
 export type CardLayoutMetricField = {
   columnId: ProductListColumnId;
   label: string;
   value: string;
+  /** Base UOM suffix when selling price is split from the amount. */
+  unitSuffix?: string | null;
 };
 
 export type CardLayoutFlagField = {
@@ -98,10 +105,11 @@ export type CardLayoutPlan = {
   shop: {
     category: string | null;
     showCategory: boolean;
-    sellingPrice: string | null;
+    sellingPriceAmount: string | null;
+    sellingPriceUom: string | null;
     showSellingPrice: boolean;
-    comparePrice: string | null;
-    showComparePrice: boolean;
+    mrpPrice: string | null;
+    showMrp: boolean;
     stockLabel: string | null;
     stockStatus: "in_stock" | "low_stock" | "out_of_stock" | null;
     showStock: boolean;
@@ -122,6 +130,52 @@ export type CardLayoutPlan = {
 
 function columnVisible(columns: ProductListColumnId[], id: ProductListColumnId): boolean {
   return columns.includes(id);
+}
+
+function shouldInlineBaseUomWithSellingPrice(
+  columns: ProductListColumnId[],
+  product: ProductListRow,
+  showVariants: boolean
+): boolean {
+  return (
+    columnVisible(columns, "selling_price") &&
+    columnVisible(columns, "base_unit_of_measure") &&
+    cardFieldHasDisplayValue("selling_price", product, showVariants)
+  );
+}
+
+export function buildSellingPriceParts(
+  columns: ProductListColumnId[],
+  product: ProductListRow,
+  showVariants: boolean
+): CardSellingPriceParts | null {
+  if (!columnVisible(columns, "selling_price")) return null;
+  if (!cardFieldHasDisplayValue("selling_price", product, showVariants)) return null;
+
+  const amount = formatCardFieldValue("selling_price", product, showVariants);
+  if (!amount) return null;
+
+  const uom = shouldInlineBaseUomWithSellingPrice(columns, product, showVariants)
+    ? product.base_unit_of_measure?.trim() || null
+    : null;
+
+  return { amount, uom };
+}
+
+function shouldShowStrikethroughMrp(
+  columns: ProductListColumnId[],
+  product: ProductListRow,
+  showVariants: boolean
+): boolean {
+  if (!columnVisible(columns, "mrp")) return false;
+  if (!cardFieldHasDisplayValue("mrp", product, showVariants)) return false;
+  if (!columnVisible(columns, "selling_price")) return true;
+  if (!cardFieldHasDisplayValue("selling_price", product, showVariants)) return true;
+
+  const selling = Number(product.selling_price);
+  const mrp = Number(product.mrp);
+  if (!Number.isFinite(selling) || !Number.isFinite(mrp)) return true;
+  return mrp > selling;
 }
 
 export function cardFieldHasDisplayValue(
@@ -155,6 +209,8 @@ export function cardFieldHasDisplayValue(
       return Boolean(product.supplier_name?.trim());
     case "selling_price":
       return Boolean(product.selling_price?.trim()) && Number.isFinite(Number(product.selling_price));
+    case "mrp":
+      return Boolean(product.mrp?.trim()) && Number.isFinite(Number(product.mrp)) && Number(product.mrp) > 0;
     case "purchase_price":
       return Boolean(product.purchase_price?.trim()) && Number.isFinite(Number(product.purchase_price));
     case "stock_on_hand":
@@ -201,6 +257,8 @@ function formatCardFieldValue(
       return Number.isFinite(Number(product.selling_price))
         ? formatCurrency(Number(product.selling_price))
         : null;
+    case "mrp":
+      return Number.isFinite(Number(product.mrp)) ? formatCurrency(Number(product.mrp)) : null;
     case "purchase_price":
       return Number.isFinite(Number(product.purchase_price))
         ? formatCurrency(Number(product.purchase_price))
@@ -257,6 +315,12 @@ function buildDetailFields(
 
   for (const columnId of DETAIL_ORDER) {
     if (!columnVisible(columns, columnId)) continue;
+    if (
+      columnId === "base_unit_of_measure" &&
+      shouldInlineBaseUomWithSellingPrice(columns, product, showVariants)
+    ) {
+      continue;
+    }
     if (!cardFieldHasDisplayValue(columnId, product, showVariants)) continue;
     const value = formatCardFieldValue(columnId, product, showVariants);
     if (!value) continue;
@@ -374,7 +438,10 @@ function buildShopBlock(
 ) {
   const showCategory = columnVisible(columns, "category_name");
   const showSelling = columnVisible(columns, "selling_price");
-  const showCompare = columnVisible(columns, "purchase_price");
+  const sellingParts = showSelling
+    ? buildSellingPriceParts(columns, product, showVariants)
+    : null;
+  const showMrp = shouldShowStrikethroughMrp(columns, product, showVariants);
   const showStock = columnVisible(columns, "stock_on_hand");
   const showSku = columnVisible(columns, "default_sku");
 
@@ -395,14 +462,11 @@ function buildShopBlock(
   return {
     category: showCategory ? formatCardFieldValue("category_name", product, showVariants) : null,
     showCategory,
-    sellingPrice: showSelling
-      ? formatCardFieldValue("selling_price", product, showVariants)
-      : null,
-    showSellingPrice: showSelling,
-    comparePrice: showCompare
-      ? formatCardFieldValue("purchase_price", product, showVariants)
-      : null,
-    showComparePrice: showCompare,
+    sellingPriceAmount: sellingParts?.amount ?? null,
+    sellingPriceUom: sellingParts?.uom ?? null,
+    showSellingPrice: Boolean(sellingParts),
+    mrpPrice: showMrp ? formatCardFieldValue("mrp", product, showVariants) : null,
+    showMrp,
     stockLabel: stock?.label ?? null,
     stockStatus: stock?.status ?? null,
     showStock,
@@ -444,6 +508,18 @@ export function buildCardLayoutPlan(
   for (const columnId of METRIC_ORDER) {
     if (!columnVisible(columns, columnId)) continue;
     if (!cardFieldHasDisplayValue(columnId, product, showVariants)) continue;
+    if (columnId === "selling_price") {
+      const parts = buildSellingPriceParts(columns, product, showVariants);
+      if (!parts) continue;
+      metrics.push({
+        columnId,
+        label: getColumnDef(columnId).label,
+        value: parts.amount,
+        unitSuffix: parts.uom,
+      });
+      continue;
+    }
+
     const value = formatCardFieldValue(columnId, product, showVariants);
     if (!value) continue;
     metrics.push({

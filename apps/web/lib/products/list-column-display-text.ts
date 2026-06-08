@@ -73,6 +73,8 @@ export function getProductListCellDisplayTexts(
       return [formatBooleanText(product.is_returnable)];
     case "selling_price":
       return [formatOptionalCurrency(product.selling_price)];
+    case "mrp":
+      return [formatOptionalCurrency(product.mrp)];
     case "purchase_price":
       return [formatOptionalCurrency(product.purchase_price)];
     case "supplier_name":

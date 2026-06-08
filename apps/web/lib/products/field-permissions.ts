@@ -23,6 +23,7 @@ const USER_ROLES: readonly UserRole[] = ["OWNER", "ADMIN", "MANAGER", "STAFF"];
 const STAFF_DENIED_FIELDS = new Set<ProductFieldKey>([
   "purchase_price",
   "selling_price",
+  "mrp",
   "supplier_name",
 ]);
 
@@ -113,6 +114,7 @@ const ROW_FIELD_MAP: Partial<Record<ProductFieldKey, keyof ProductListRow>> = {
   is_salable: "is_salable",
   is_returnable: "is_returnable",
   selling_price: "selling_price",
+  mrp: "mrp",
   purchase_price: "purchase_price",
   supplier_name: "supplier_name",
   stock_on_hand: "stock_on_hand",
@@ -178,6 +180,7 @@ const FORM_FIELD_PERMISSIONS: Partial<Record<string, ProductFieldKey>> = {
   default_tax_category: "default_tax_category",
   is_returnable: "is_returnable",
   selling_price: "selling_price",
+  mrp: "mrp",
   selling_uom: "selling_price",
   purchase_price: "purchase_price",
   purchase_uom: "purchase_price",

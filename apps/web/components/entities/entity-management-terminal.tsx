@@ -32,9 +32,12 @@ import {
   getColumnPrefsSlice,
   getDefaultEntityListPrefs,
   getOrderedVisibleColumns,
+  AUTO_LAYOUT_PREF,
   isEntityTableLikeViewMode,
   loadEntityListPrefs,
+  resolveFrozenColumnCount,
   saveEntityListPrefs,
+  setColumnWidthSlice,
   type EntityListPrefs,
 } from "@/lib/entities/list-prefs";
 import { sortEntityListRows } from "@/lib/entities/list-sort";
@@ -168,6 +171,8 @@ export function EntityManagementTerminal({
   );
 
   const columnPrefsSlice = getColumnPrefsSlice(prefs, tableViewMode, deviceClass);
+  const resolvedFrozenColumnCount = resolveFrozenColumnCount(prefs, deviceClass);
+  const freezeColumnsAuto = prefs.frozenColumnCount === AUTO_LAYOUT_PREF;
 
   const bulkSelectionCount = bulkSelectAllMatching
     ? matchingEntityIds.length
@@ -354,6 +359,7 @@ export function EntityManagementTerminal({
       <EntityListTable
         rows={listRows}
         columns={visibleColumns}
+        columnWidths={columnPrefsSlice.columnWidths}
         columnChipDisplay={columnPrefsSlice.columnChipDisplay}
         selectedId={selectedId}
         bulkSelectedIds={bulkSelectedIds}
@@ -361,8 +367,15 @@ export function EntityManagementTerminal({
         pageSomeSelected={pageSomeSelected}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
+        frozenColumnCount={resolvedFrozenColumnCount}
+        freezeColumnsAuto={freezeColumnsAuto}
         onSortChange={(sortField, sortDirection) =>
           setPrefs((current) => ({ ...current, sortField, sortDirection }))
+        }
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) =>
+            setColumnWidthSlice(current, tableViewMode, deviceClass, columnId, width)
+          )
         }
         onSelect={handleSelectEntity}
         onBulkRowToggle={handleBulkRowToggle}
@@ -422,7 +435,7 @@ export function EntityManagementTerminal({
         }
         bulkToolbar={bulkToolbar}
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}
         </div>
       </ListModuleShell>

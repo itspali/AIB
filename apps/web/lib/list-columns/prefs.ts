@@ -152,3 +152,34 @@ export function getOrderedVisibleColumns<TId extends string>(
   const visible = new Set(prefs.visibleColumns);
   return prefs.columnOrder.filter((id) => visible.has(id));
 }
+
+/** Column ids the user may configure in the selector (view access), preserving saved order. */
+export function resolveSelectorColumnOrder<TId extends string>(
+  viewableColumnIds: readonly TId[],
+  savedColumnOrder: readonly TId[]
+): TId[] {
+  const viewableSet = new Set(viewableColumnIds);
+  const ordered: TId[] = [];
+  const seen = new Set<TId>();
+
+  for (const columnId of savedColumnOrder) {
+    if (!viewableSet.has(columnId) || seen.has(columnId)) continue;
+    ordered.push(columnId);
+    seen.add(columnId);
+  }
+
+  for (const columnId of viewableColumnIds) {
+    if (seen.has(columnId)) continue;
+    ordered.push(columnId);
+    seen.add(columnId);
+  }
+
+  return ordered;
+}
+
+export function ensureColumnInOrder<TId extends string>(
+  columnOrder: readonly TId[],
+  columnId: TId
+): TId[] {
+  return columnOrder.includes(columnId) ? [...columnOrder] : [...columnOrder, columnId];
+}

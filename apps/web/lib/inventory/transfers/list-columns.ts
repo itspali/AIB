@@ -1,5 +1,5 @@
 import { columnWidths } from "@/lib/list-columns/sizing";
-import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
+import { CHIP_DEFAULT_FALLBACK_KEY, type ListColumnDef, type ListColumnRegistry } from "@/lib/list-columns/types";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
 import type { StockTransferStatus } from "@/lib/inventory/transfers/types";
 

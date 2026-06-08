@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { loadPurchaseOrders } from "@/app/procurement/purchase-orders/actions";
 import { PoDrawerForm } from "@/components/procurement/purchase-orders/po-drawer-form";
 import { PoEmptyState } from "@/components/procurement/purchase-orders/po-empty-state";
@@ -12,8 +12,14 @@ import {
   getDefaultPurchaseOrderListPrefs,
   loadPurchaseOrderListPrefs,
   savePurchaseOrderListPrefs,
+  setPurchaseOrderColumnWidth,
   type PurchaseOrderListPrefs,
 } from "@/lib/procurement/purchase-orders/list-prefs";
+import {
+  sortPurchaseOrderListRows,
+  type PurchaseOrderListSortDirection,
+  type PurchaseOrderListSortField,
+} from "@/lib/procurement/purchase-orders/list-sort";
 import { PROCUREMENT_PO_HREF } from "@/lib/procurement/navigation";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { useFilteredPurchaseOrders } from "@/lib/procurement/purchase-orders/use-filtered-purchase-orders";
@@ -96,6 +102,18 @@ export function PoManagementTerminal({
   const hasAnyData = purchaseOrders.length > 0;
   const filteredRows = ordersView.filteredRows;
 
+  const sortedRows = useMemo(
+    () => sortPurchaseOrderListRows(filteredRows, prefs.sortField, prefs.sortDirection),
+    [filteredRows, prefs.sortDirection, prefs.sortField]
+  );
+
+  const handleSortChange = useCallback(
+    (field: PurchaseOrderListSortField, direction: PurchaseOrderListSortDirection) => {
+      setPrefs((current) => ({ ...current, sortField: field, sortDirection: direction }));
+    },
+    []
+  );
+
   const listPrimary = !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <PoEmptyState
@@ -104,14 +122,26 @@ export function PoManagementTerminal({
         hasSuppliers={suppliers.length > 0}
       />
     </div>
-  ) : filteredRows.length === 0 ? (
+  ) : sortedRows.length === 0 ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
         No purchase orders match the current filters.
       </div>
     </div>
   ) : (
-    <PoListTable rows={filteredRows} selectedId={selectedId} onSelect={handleSelect} />
+    <PoListTable
+      rows={sortedRows}
+      columnPrefs={prefs.columnPrefs}
+      sortField={prefs.sortField}
+      sortDirection={prefs.sortDirection}
+      frozenColumnCount={prefs.frozenColumnCount}
+      onSortChange={handleSortChange}
+      onColumnWidthChange={(columnId, width) =>
+        setPrefs((current) => setPurchaseOrderColumnWidth(current, columnId, width))
+      }
+      selectedId={selectedId}
+      onSelect={handleSelect}
+    />
   );
 
   return (
@@ -140,7 +170,7 @@ export function PoManagementTerminal({
           ) : null
         }
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}
         </div>
       </ListModuleShell>

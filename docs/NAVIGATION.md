@@ -23,7 +23,7 @@ Organization Settings internal layouts stay frozen.
 
 ### Remaining IA gaps
 
-1. **Procurement / Sales / Financials** — overview shells exist; transactional UIs mostly unbuilt (next: **Procurement GRN** per [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)).
+1. **Procurement / Sales / Financials** — Procurement PO + GRN built; Sales and Financials transactional UIs mostly unbuilt (see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §6).
 2. **Breadcrumbs** — not implemented (by design; sidebar carries location context — see §8).
 3. **Units of Measure** — settings route exists; management UI partial/coming soon.
 
@@ -176,7 +176,7 @@ New `/settings` (Administration) becomes a first-class module with its own secon
 | 5. Create | Global create menu in the top strip; each page renders its own title/subtitle + create action | Done | [global-create-menu.tsx](../apps/web/components/layout/global-create-menu.tsx), [top-utility-strip.tsx](../apps/web/components/layout/top-utility-strip.tsx) |
 | 6. Mobile | Bottom-nav "More" tab + drawer Soon badges | Done | [mobile-bottom-nav.tsx](../apps/web/components/layout/mobile-bottom-nav.tsx), [mobile-nav-drawer.tsx](../apps/web/components/layout/mobile-nav-drawer.tsx) |
 | 7. Docs sync | DESIGN_SYSTEM references this IA | Done | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
-| 8. Inventory ops | Stock, Transfers, Overview, opening stock | Done | [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), `app/inventory/{stock,transfers}/` |
+| 8. Inventory ops | Stock, Transfers, Overview, opening stock, omnibar scopes, in-transit drill-down | Done | [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), `app/inventory/{stock,transfers}/` |
 
 ### Implementation notes / deviations
 

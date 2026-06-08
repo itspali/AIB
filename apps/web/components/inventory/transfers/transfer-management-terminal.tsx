@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadStockTransfers } from "@/app/inventory/transfers/actions";
 import { TransferDrawerForm } from "@/components/inventory/transfers/transfer-drawer-form";
@@ -13,11 +13,13 @@ import {
   getDefaultTransferListPrefs,
   loadTransferListPrefs,
   saveTransferListPrefs,
+  setTransferColumnWidth,
   type TransferListPrefs,
 } from "@/lib/inventory/transfers/list-prefs";
 import {
   TRANSFER_DRAWER_DEST_PARAM,
   TRANSFER_DRAWER_SOURCE_PARAM,
+  TRANSFER_STATUS_FILTER_PARAM,
   TRANSFERS_HREF,
 } from "@/lib/inventory/transfers/navigation";
 import {
@@ -25,12 +27,33 @@ import {
   type TransferListSortDirection,
   type TransferListSortField,
 } from "@/lib/inventory/transfers/list-sort";
-import type { StockTransferRow, TransferLocationOption } from "@/lib/inventory/transfers/types";
+import type {
+  StockTransferRow,
+  StockTransferStatus,
+  TransferLocationOption,
+} from "@/lib/inventory/transfers/types";
 import { useFilteredTransfers } from "@/lib/inventory/transfers/use-filtered-transfers";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 
 const TRANSFERS_PAGE_DESCRIPTION =
   "Move quantity-tracked stock between locations — draft, dispatch, and confirm receipt.";
+
+const TRANSFER_STATUS_FILTER_VALUES = new Set<StockTransferStatus>([
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "DISPATCHED_IN_TRANSIT",
+  "RECEIPT_DISCREPANCY",
+  "FULLY_COMPLETED",
+  "CANCELLED",
+]);
+
+function parseTransferStatusFilterParam(value: string | null): StockTransferStatus | null {
+  if (!value) return null;
+  const normalized = value.trim().toUpperCase();
+  return TRANSFER_STATUS_FILTER_VALUES.has(normalized as StockTransferStatus)
+    ? (normalized as StockTransferStatus)
+    : null;
+}
 
 type Props = {
   initialTransfers: StockTransferRow[];
@@ -39,6 +62,9 @@ type Props = {
 
 export function TransferManagementTerminal({ initialTransfers, locations }: Props) {
   const searchParams = useSearchParams();
+  const initialStatusFilterRef = useRef(
+    parseTransferStatusFilterParam(searchParams.get(TRANSFER_STATUS_FILTER_PARAM))
+  );
   const drawer = useModuleDrawerUrl(TRANSFERS_HREF, {
     clearParamsOnClose: [TRANSFER_DRAWER_SOURCE_PARAM, TRANSFER_DRAWER_DEST_PARAM],
   });
@@ -48,7 +74,9 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
   const [, startRefreshTransition] = useTransition();
 
   useEffect(() => {
-    setPrefs(loadTransferListPrefs());
+    const loaded = loadTransferListPrefs();
+    const statusFromUrl = initialStatusFilterRef.current;
+    setPrefs(statusFromUrl ? { ...loaded, status: statusFromUrl } : loaded);
     setPrefsHydrated(true);
   }, []);
 
@@ -155,6 +183,9 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
       sortDirection={prefs.sortDirection}
       frozenColumnCount={prefs.frozenColumnCount}
       onSortChange={handleSortChange}
+      onColumnWidthChange={(columnId, width) =>
+        setPrefs((current) => setTransferColumnWidth(current, columnId, width))
+      }
       selectedId={selectedTransferId}
       onSelect={handleSelectTransfer}
     />
@@ -186,7 +217,7 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
           ) : null
         }
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}
         </div>
       </ListModuleShell>

@@ -89,6 +89,66 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     sensitivity: "standard",
     scopes: ["locations"],
   },
+  {
+    key: "adjustment_number",
+    synonyms: ["adjustment number", "adjustment_number", "document number", "document"],
+    sensitivity: "standard",
+    scopes: ["stock"],
+  },
+  {
+    key: "variant_sku",
+    synonyms: ["sku", "variant sku", "variant_sku"],
+    sensitivity: "standard",
+    scopes: ["stock", "transfers"],
+  },
+  {
+    key: "item_name",
+    synonyms: ["item", "item name", "product", "product name"],
+    sensitivity: "standard",
+    scopes: ["stock", "transfers"],
+  },
+  {
+    key: "location_name",
+    synonyms: ["location", "location name", "warehouse", "site"],
+    sensitivity: "standard",
+    scopes: ["stock"],
+  },
+  {
+    key: "kind",
+    synonyms: ["kind", "adjustment kind", "opening", "correction", "write off"],
+    sensitivity: "standard",
+    scopes: ["stock"],
+  },
+  {
+    key: "reason",
+    synonyms: ["reason", "notes"],
+    sensitivity: "standard",
+    scopes: ["stock"],
+  },
+  {
+    key: "transfer_number",
+    synonyms: ["transfer number", "transfer_number", "document number", "document"],
+    sensitivity: "standard",
+    scopes: ["transfers"],
+  },
+  {
+    key: "current_status",
+    synonyms: ["status", "transfer status", "in transit", "draft", "completed"],
+    sensitivity: "standard",
+    scopes: ["transfers"],
+  },
+  {
+    key: "source_location_name",
+    synonyms: ["source", "from location", "from", "source location"],
+    sensitivity: "standard",
+    scopes: ["transfers"],
+  },
+  {
+    key: "destination_location_name",
+    synonyms: ["destination", "to location", "to", "destination location"],
+    sensitivity: "standard",
+    scopes: ["transfers"],
+  },
 ];
 
 export function getFieldsForScope(scope: FilterScope): FieldRegistryEntry[] {

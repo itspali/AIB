@@ -172,6 +172,43 @@ export function ProductCardFooterRail({
   );
 }
 
+type CardPriceSize = "lg" | "sm";
+
+export function CardSellingPriceLabel({
+  amount,
+  uom,
+  size = "lg",
+}: {
+  amount: string;
+  uom?: string | null;
+  size?: CardPriceSize;
+}) {
+  return (
+    <span
+      className={cn(
+        "font-semibold tabular-nums tracking-tight text-foreground",
+        size === "lg" ? "text-lg" : "text-sm"
+      )}
+    >
+      {amount}
+      {uom ? (
+        <span className="text-[11px] font-normal text-muted-foreground"> / {uom}</span>
+      ) : null}
+    </span>
+  );
+}
+
+export function CardMrpLabel({ amount }: { amount: string }) {
+  return (
+    <span
+      className="text-xs tabular-nums text-muted-foreground line-through"
+      title="MRP"
+    >
+      {amount}
+    </span>
+  );
+}
+
 export function ProductCardChromeBadges({
   children,
   className,

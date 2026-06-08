@@ -24,6 +24,7 @@ function sampleRow(partial: Partial<ProductListRow> = {}): ProductListRow {
     default_sku: "WGT-001",
     barcode: "8900001",
     selling_price: "1200",
+    mrp: "1500",
     purchase_price: "800",
     supplier_name: "Acme",
     stock_on_hand: "42",
@@ -117,15 +118,59 @@ describe("buildCardLayoutPlan", () => {
 
   it("builds shop pricing block from visible columns", () => {
     const plan = buildCardLayoutPlan(
-      ["name", "category_name", "selling_price", "purchase_price", "stock_on_hand", "default_sku"],
+      ["name", "category_name", "selling_price", "mrp", "purchase_price", "stock_on_hand", "default_sku"],
       sampleRow(),
       false
     );
 
-    expect(plan.shop.sellingPrice).toBeTruthy();
-    expect(plan.shop.comparePrice).toBeTruthy();
+    expect(plan.shop.sellingPriceAmount).toBeTruthy();
+    expect(plan.shop.mrpPrice).toBeTruthy();
     expect(plan.shop.stockStatus).toBe("in_stock");
     expect(plan.shop.category).toBe("Apparel");
+  });
+
+  it("appends base UOM beside selling price on cards when both columns are enabled", () => {
+    const row = sampleRow({ selling_price: "4000", mrp: null });
+    const columns: ProductListColumnId[] = [
+      "name",
+      "selling_price",
+      "base_unit_of_measure",
+    ];
+
+    const shopPlan = buildCardLayoutPlan(columns, row, false);
+    expect(shopPlan.shop.sellingPriceAmount).toMatch(/4,000\.00$/);
+    expect(shopPlan.shop.sellingPriceUom).toBe("PCS");
+    expect(shopPlan.details.find((field) => field.columnId === "base_unit_of_measure")).toBeUndefined();
+
+    const metricsPlan = buildCardLayoutPlan(
+      ["name", "selling_price", "base_unit_of_measure", "stock_on_hand"],
+      row,
+      false
+    );
+    const sellingMetric = metricsPlan.metrics.find((metric) => metric.columnId === "selling_price");
+    expect(sellingMetric?.value).toMatch(/4,000\.00$/);
+    expect(sellingMetric?.unitSuffix).toBe("PCS");
+  });
+
+  it("shows MRP strikethrough when MRP exceeds selling price", () => {
+    const plan = buildCardLayoutPlan(
+      ["selling_price", "mrp"],
+      sampleRow({ selling_price: "1200", mrp: "1500" }),
+      false
+    );
+
+    expect(plan.shop.showMrp).toBe(true);
+    expect(plan.shop.mrpPrice).toBeTruthy();
+  });
+
+  it("hides MRP strikethrough when MRP is not higher than selling price", () => {
+    const plan = buildCardLayoutPlan(
+      ["selling_price", "mrp"],
+      sampleRow({ selling_price: "1500", mrp: "1200" }),
+      false
+    );
+
+    expect(plan.shop.showMrp).toBe(false);
   });
 
   it("marks shop stock low when below_reorder is set from list view", () => {

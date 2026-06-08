@@ -4,7 +4,7 @@
 
 **Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA).
 
-**Last updated:** 2026-06-08 (post Stock V1, Transfers V1, Overview Tier 1).
+**Last updated:** 2026-06-08 (post Stock V1, Transfers V1, Overview Tier 1 polish, omnibar scopes).
 
 ---
 
@@ -63,6 +63,7 @@
 ### Inventory overview (`/inventory`) — Tier 1
 
 - Metrics: valuation, below reorder, **in transit**, stocked balances.
+- **In transit** metric card links to `/inventory/transfers?status=DISPATCHED_IN_TRANSIT` (filtered transfers list).
 - **Below reorder** table (≤12 rows): **Adjust** → stock drawer; **Transfer** → transfers drawer (suggests surplus source location when another site holds the same SKU).
 - Recent transfers + recent adjustments with deep links.
 - **Key paths:**
@@ -70,6 +71,17 @@
   - `apps/web/components/inventory/inventory-below-reorder-section.tsx`
   - `apps/web/lib/inventory/overview/`
   - `apps/web/lib/inventory/overview/reorder-links.ts`
+
+### List-module UI parity (Stock / Transfers / PO / GRN)
+
+- **Tier B** list modules share `ListModuleShell`, `ListModulePageTitleHeader`, column selector, sort, resize, freeze, and unified row hover/selection chrome (see [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9).
+- **Stock** balances/adjustments and **Transfers** filter via omnibar when scope is `stock` or `transfers` (`lib/search/scopes.ts`).
+- **Transfers** list reads `?status=` once on mount for drill-down from overview (does not reset when drawer `?id=` opens).
+- **Key paths:**
+  - `apps/web/lib/inventory/stock/use-filtered-stock.ts`
+  - `apps/web/lib/inventory/transfers/use-filtered-transfers.ts`
+  - `apps/web/lib/inventory/transfers/navigation.ts` — `TRANSFER_STATUS_FILTER_PARAM`, `transfersHrefWithStatusFilter()`
+  - `apps/web/lib/search/executor/client-scopes.ts` — `filterStockBalancesByAst`, `filterStockAdjustmentsByAst`, `filterTransfersByAst`
 
 ### Document numbering (per location)
 
@@ -84,7 +96,9 @@
 ### Tests (`apps/web/lib/inventory/__tests__/`)
 
 - `overview-snapshot.test.ts`, `transfer-schemas.test.ts`, `receipt-validation.test.ts`
-- `valuation-engine.test.ts`, `stock-rpc-errors.test.ts`
+- `valuation-engine.test.ts`, `stock-rpc-errors.test.ts`, `stock-list-sort.test.ts`, `stock-variant-eligibility.test.ts`
+- `transfers-navigation.test.ts` — in-transit drill-down URL helper
+- Omnibar client filters: `lib/search/__tests__/client-scopes.test.ts`, `lib/search/__tests__/module-route-scope.test.ts`
 - Vitest include glob: `lib/inventory/__tests__/**/*.test.ts`
 
 ---
@@ -121,7 +135,6 @@ All inventory list modules follow **Items Master / Stock** pattern:
 | Transfer `PENDING_APPROVAL` workflow | Schema exists; no UI/RPC path |
 | `stock_transfer_incidents` UI | Toll, freight incidents |
 | `transfer_discrepancy_claims` UI | Receipt discrepancy follow-up |
-| Omnibar stock / transfer scope | Search not wired |
 | `can_manage_stock` permissions | All authenticated tenant users |
 | Opening post idempotency | `source_system` / `source_document_id` on adjustments — RPC supports, product save doesn't use yet |
 | FIFO cost layers | Backend stub; postings blocked client-side |
@@ -132,26 +145,20 @@ All inventory list modules follow **Items Master / Stock** pattern:
 
 ## 5. Updated plan (priority order)
 
-### Tier 2 — Recommended next: **Procurement inbound**
+### Tier 2 — Procurement inbound [IMPLEMENTED — Sequence 21]
 
-Biggest functional gap: **stock in via purchasing**.
+- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules.
+- **Migration:** `20260608160000_procurement_grn_v1_rpcs.sql`
+- **Defer:** full PO approval workflow, supplier portal, purchase invoices — unless scope expands.
 
-```
-Purchase Order → Goods Receipt (GRN) → on-hand increase
-```
+### Tier 2b — Remaining inventory polish
 
-- Schema exists: `purchase_orders`, `goods_receipts`, `goods_receipt_items`, numbering `PURCHASE_ORDER` / `GOODS_RECEIPT_NOTE`.
-- Mirror Stock list-module pattern under `/procurement`.
-- GRN posting should feed `inventory_ledger` + MWAC (verify existing triggers/RPCs before new migrations).
-
-### Tier 2b — Inventory polish (optional slices)
-
-| Slice | Effort | Value |
+| Slice | Status | Notes |
 |-------|--------|-------|
-| In-transit metric → filtered transfers list | Small | Overview drill-down |
-| Omnibar stock + transfer search | Medium | Navigation |
-| Transfer approval workflow | Medium | Governance |
-| Incidents / discrepancy claims UI | Medium | Logistics edge cases |
+| In-transit metric → filtered transfers list | **Done** | `transfersHrefWithStatusFilter("DISPATCHED_IN_TRANSIT")` |
+| Omnibar stock + transfer search | **Done** | Scopes `stock`, `transfers` in `lib/search/scopes.ts` |
+| Transfer approval workflow | Deferred | Schema exists; no UI/RPC path |
+| Incidents / discrepancy claims UI | Deferred | `stock_transfer_incidents`, `transfer_discrepancy_claims` |
 
 ### Tier 3 — Outbound & platform
 
@@ -163,21 +170,19 @@ Purchase Order → Goods Receipt (GRN) → on-hand increase
 
 ## 6. What to execute next (for a new chat)
 
-**Default recommendation:** start **Procurement GRN V1** unless the user asks for inventory polish.
+**Default recommendation:** confirm scope with the user — net-new domains (Sales UI, Financials, RBAC) or remaining inventory deferred items (transfer approval, incidents UI, permissions hardening).
 
-### Procurement GR1 scope sketch
+### Recently shipped (2026-06-08 polish)
 
-1. Replace `/procurement` coming-soon where needed; **Suppliers** and **PO list** can remain phased.
-2. **GRN module** (or PO+GRN combined V1):
-   - List receipts / post GRN against PO lines
-   - Location-scoped `GOODS_RECEIPT_NOTE` numbering
-   - MWAC / NONE tracking guards (same as stock)
-3. Reuse: drawer URL, `UserFacingErrorMessage`, document numbering errors, list-module shell.
+1. Category loading skeleton — single full-width panel (`category-catalog-page-skeleton.tsx`).
+2. Overview **In transit** → `/inventory/transfers?status=DISPATCHED_IN_TRANSIT`.
+3. Omnibar scopes **`stock`** and **`transfers`** with client-side AST/text filtering.
 
-### If user says "inventory polish" instead
+### Optional next inventory slices
 
-1. Link overview **In transit** card → `/inventory/transfers` with status filter `DISPATCHED_IN_TRANSIT`.
-2. Add omnibar scopes for stock adjustments + transfers.
+- Transfer `PENDING_APPROVAL` workflow UI
+- `stock_transfer_incidents` / `transfer_discrepancy_claims` follow-up screens
+- `can_manage_stock` permission hardening
 
 ### Before any schema change
 
@@ -217,4 +222,5 @@ supabase/migrations/
 2. Post a **correction** adjustment at one location — balance updates.
 3. Product save with **opening stock** on a second location — one doc per location.
 4. **Transfer:** draft → dispatch → receive — destination balance increases; in-transit clears.
-5. Overview shows in-transit count, below-reorder **Adjust** / **Transfer** links work.
+5. Overview shows in-transit count; **In transit** card opens filtered transfers list; below-reorder **Adjust** / **Transfer** links work.
+6. On `/inventory/stock` and `/inventory/transfers`, omnibar auto-selects module scope; text search filters the visible list.

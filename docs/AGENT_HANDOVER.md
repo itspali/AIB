@@ -58,7 +58,7 @@ Full catalog (do not re-create):
 
 ## 4. Execution Roadmap vs Planning Backlog
 
-- **Inventory operations (Sequences 17–20):** **IMPLEMENTED** — see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for file index, V1 rules, and **what to build next** (default: Procurement GRN).
+- **Inventory operations (Sequences 17–21):** **IMPLEMENTED** — see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for file index, V1 rules, omnibar `stock`/`transfers` scopes, and **what to build next** (Sales, RBAC, or remaining inventory deferred items).
 - **Sequences 9–16 and below (unless marked IMPLEMENTED):** historical record. For net-new domains (Sales UI, Financials, etc.), confirm scope with the user before large migrations.
 - **Schema changes:** add SQL under `supabase/migrations/`, user commits/pushes to `develop`; CI applies to sandbox. Do not run Supabase CLI locally.
 
@@ -153,6 +153,9 @@ Full catalog (do not re-create):
 
 ### Task Sequence 20: Inventory Overview & Tier 1 Polish [IMPLEMENTED]
 - **Route:** `/inventory` — valuation, below reorder, in-transit metrics; below-reorder Adjust/Transfer links; recent activity tables.
+- **In-transit drill-down:** metric card → `/inventory/transfers?status=DISPATCHED_IN_TRANSIT`.
+- **Omnibar:** scopes `stock` and `transfers` with client-side list filtering (`lib/search/scopes.ts`, `use-filtered-stock.ts`, `use-filtered-transfers.ts`).
+- **List-module parity:** Tier B chrome (columns, sort, resize, freeze) on Stock, Transfers, PO, GRN; Category skeleton aligned to single-panel layout.
 - **Location numbering:** sequence counter updates + default prefixes (`20260608130000_*`, `20260608150000_*`).
 - **Details:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 

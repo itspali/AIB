@@ -37,6 +37,16 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
     label: "Suppliers",
     placeholder: "Filter suppliers natively (e.g., name vendor, active true)…",
   },
+  stock: {
+    id: "stock",
+    label: "Stock",
+    placeholder: "Search stock balances and adjustments (e.g., sku ABC, location Mumbai)…",
+  },
+  transfers: {
+    id: "transfers",
+    label: "Transfers",
+    placeholder: "Search transfers (e.g., status in transit, document ST-2026)…",
+  },
   settings: {
     id: "settings",
     label: "Settings",
@@ -54,7 +64,8 @@ const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
   { prefix: "/items", scope: "items" },
   { prefix: "/inventory/categories", scope: "categories" },
   { prefix: "/inventory/items", scope: "items" },
-  { prefix: "/inventory/stock", scope: "all" },
+  { prefix: "/inventory/transfers", scope: "transfers" },
+  { prefix: "/inventory/stock", scope: "stock" },
   { prefix: "/settings/locations", scope: "locations" },
   { prefix: "/settings", scope: "settings" },
 ];

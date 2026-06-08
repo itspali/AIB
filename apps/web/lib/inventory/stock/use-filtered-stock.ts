@@ -2,26 +2,13 @@
 
 import { useMemo } from "react";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
+import {
+  filterStockAdjustmentsByAst,
+  filterStockAdjustmentsByResidual,
+  filterStockBalancesByAst,
+  filterStockBalancesByResidual,
+} from "@/lib/search/executor/client-scopes";
 import type { StockAdjustmentRow, StockBalanceRow } from "@/lib/inventory/stock/types";
-
-function matchesQuery(haystack: string, query: string): boolean {
-  if (!query) return true;
-  return haystack.toLowerCase().includes(query.toLowerCase());
-}
-
-function balanceHaystack(row: StockBalanceRow): string {
-  return [row.location_name, row.location_code, row.item_name, row.variant_sku].join(" ");
-}
-
-function adjustmentHaystack(row: StockAdjustmentRow): string {
-  return [
-    row.adjustment_number,
-    row.location_name,
-    row.location_code,
-    row.reason,
-    row.kind,
-  ].join(" ");
-}
 
 export function useFilteredStockBalances(
   rows: StockBalanceRow[],
@@ -31,11 +18,20 @@ export function useFilteredStockBalances(
   const query = omnibar?.appliedQuery?.trim() ?? "";
 
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (locationId && row.location_id !== locationId) return false;
-      return matchesQuery(balanceHaystack(row), query);
-    });
-  }, [locationId, query, rows]);
+    let filtered = rows;
+
+    if (locationId) {
+      filtered = filtered.filter((row) => row.location_id === locationId);
+    }
+
+    if (!query) return filtered;
+
+    if (omnibar?.scope === "stock" && omnibar.activeAst.length) {
+      return filterStockBalancesByAst(filtered, omnibar.activeAst);
+    }
+
+    return filterStockBalancesByResidual(filtered, query);
+  }, [locationId, omnibar?.activeAst, omnibar?.scope, query, rows]);
 
   return {
     filteredRows,
@@ -52,11 +48,20 @@ export function useFilteredStockAdjustments(
   const query = omnibar?.appliedQuery?.trim() ?? "";
 
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (locationId && row.location_id !== locationId) return false;
-      return matchesQuery(adjustmentHaystack(row), query);
-    });
-  }, [locationId, query, rows]);
+    let filtered = rows;
+
+    if (locationId) {
+      filtered = filtered.filter((row) => row.location_id === locationId);
+    }
+
+    if (!query) return filtered;
+
+    if (omnibar?.scope === "stock" && omnibar.activeAst.length) {
+      return filterStockAdjustmentsByAst(filtered, omnibar.activeAst);
+    }
+
+    return filterStockAdjustmentsByResidual(filtered, query);
+  }, [locationId, omnibar?.activeAst, omnibar?.scope, query, rows]);
 
   return {
     filteredRows,

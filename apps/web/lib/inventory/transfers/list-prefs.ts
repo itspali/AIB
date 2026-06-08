@@ -90,3 +90,23 @@ export function saveTransferListPrefs(prefs: TransferListPrefs): void {
   );
   saveListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
 }
+
+export function setTransferColumnWidth(
+  prefs: TransferListPrefs,
+  columnId: TransferListColumnId,
+  width: number | null
+): TransferListPrefs {
+  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
+  if (width == null) {
+    delete columnWidths[columnId];
+  } else {
+    columnWidths[columnId] = width;
+  }
+  return {
+    ...prefs,
+    columnPrefs: {
+      ...prefs.columnPrefs,
+      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
+    },
+  };
+}

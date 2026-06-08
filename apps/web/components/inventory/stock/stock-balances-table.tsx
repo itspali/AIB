@@ -1,16 +1,28 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import { mergeColumnCellStyles, getColumnResizeBounds } from "@/lib/list-columns/sizing";
+import {
+  measureHintsFromValueKind,
+  resolveListColumnAutoWidth,
+} from "@/lib/list-columns/resolve-column-auto-width";
+import { useResizableListColumns } from "@/lib/list-columns/use-resizable-list-columns";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { getOrderedVisibleColumns } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
 import {
+  isAutoFrozenColumnPref,
+  LIST_TABLE_HEADER_Z,
   resolveListFrozenColumnCount,
   useFrozenListColumns,
 } from "@/lib/list-columns/use-frozen-list-columns";
+import {
+  getStockBalanceCellDisplayTexts,
+} from "@/lib/inventory/stock/list-column-display-text";
 import {
   getStockBalanceColumnDef,
   type StockBalanceColumnId,
@@ -25,9 +37,13 @@ import type { StockBalanceRow } from "@/lib/inventory/stock/types";
 import {
   LIST_TABLE_BODY_CELL,
   LIST_TABLE_HEADER_CELL,
-  LIST_TABLE_HEADER_ROW,
   LIST_TABLE_HEADER_SORTABLE,
+  LIST_TABLE_ROOT,
+  LIST_TABLE_SCROLL,
   LIST_TABLE_SURFACE,
+  listTableBodyCellInteractionClass,
+  listTableElementClass,
+  listTableHeaderCornerClass,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
@@ -40,6 +56,7 @@ type Props = {
   sortDirection: StockListSortDirection;
   frozenColumnCount: FrozenColumnPref;
   onSortChange: (field: StockBalanceSortField, direction: StockListSortDirection) => void;
+  onColumnWidthChange?: (columnId: StockBalanceColumnId, width: number | null) => void;
   selectedId: string | null;
   onAdjust?: (row: StockBalanceRow) => void;
 };
@@ -59,8 +76,8 @@ function renderBalanceCell(columnId: StockBalanceColumnId, row: StockBalanceRow)
       return (
         <>
           <div className="font-medium">{row.item_name}</div>
-          {row.base_unit_of_measure ? (
-            <div className="text-xs text-muted-foreground">{row.base_unit_of_measure}</div>
+          {row.variant_sku ? (
+            <div className="font-mono text-xs text-muted-foreground">{row.variant_sku}</div>
           ) : null}
         </>
       );
@@ -95,15 +112,49 @@ export function StockBalancesTable({
   sortDirection,
   frozenColumnCount,
   onSortChange,
+  onColumnWidthChange,
   selectedId,
   onAdjust,
 }: Props) {
   const { deviceClass } = useDeviceClass();
   const columns = useMemo(() => getOrderedVisibleColumns(columnPrefs), [columnPrefs]);
+  const widthRemeasureKey = useMemo(
+    () => JSON.stringify(columnPrefs.columnWidths ?? {}),
+    [columnPrefs.columnWidths]
+  );
   const resolvedFrozenCount = resolveListFrozenColumnCount(frozenColumnCount, deviceClass);
   const frozen = useFrozenListColumns({
     columnCount: columns.length,
     frozenColumnCount: resolvedFrozenCount,
+    freezeColumnsAuto: isAutoFrozenColumnPref(frozenColumnCount),
+    remeasureKey: `${rows.length}:${widthRemeasureKey}`,
+  });
+  const resolveAutoWidth = useCallback(
+    (columnId: StockBalanceColumnId, index: number) => {
+      const column = getStockBalanceColumnDef(columnId);
+      return resolveListColumnAutoWidth({
+        column,
+        deviceClass,
+        headerElement: frozen.headerRefs.current[index],
+        bodyTexts: rows.flatMap((row) => getStockBalanceCellDisplayTexts(columnId, row)),
+        sortable: isSortableStockBalanceColumn(columnId),
+        measure: {
+          ...measureHintsFromValueKind(column),
+          mono: columnId === "sku",
+          tabular: columnId === "on_hand" || columnId === "avg_cost" || columnId === "reorder",
+          statusBadgeExtraPx: columnId === "on_hand" ? 20 : 0,
+        },
+      });
+    },
+    [deviceClass, frozen.headerRefs, rows]
+  );
+  const resize = useResizableListColumns({
+    columns,
+    columnWidths: columnPrefs.columnWidths,
+    deviceClass,
+    getColumnDef: getStockBalanceColumnDef,
+    headerRefs: frozen.headerRefs,
+    resolveAutoWidth,
   });
 
   const handleHeaderSort = (field: string) => {
@@ -113,18 +164,20 @@ export function StockBalancesTable({
   };
 
   return (
-    <div className={LIST_TABLE_SURFACE}>
-      <div
-        ref={frozen.scrollContainerRef}
-        className="h-full min-h-0 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
-      >
-        <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
-          <thead className={LIST_TABLE_HEADER_ROW}>
-            <tr className="bg-muted text-left">
+    <div className={LIST_TABLE_ROOT}>
+      <div className={LIST_TABLE_SURFACE}>
+        <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
+          <table className={listTableElementClass("narrow")}>
+            <thead>
+              <tr className="bg-muted text-left">
               {columns.map((columnId, index) => {
                 const column = getStockBalanceColumnDef(columnId);
                 const active = sortField === columnId;
                 const sticky = frozen.getStickyCellProps(index, "header");
+                const widthStyles = resize.resolveWidthStyles(columnId, index);
+                const isFrozen =
+                  frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
+
                 return (
                   <th
                     key={columnId}
@@ -133,14 +186,20 @@ export function StockBalancesTable({
                     }}
                     scope="col"
                     className={cn(
+                      "relative overflow-hidden",
                       LIST_TABLE_HEADER_CELL,
                       LIST_TABLE_HEADER_SORTABLE,
                       sticky.className,
                       frozen.headerCellClass(index),
                       column.align === "right" && "text-right",
-                      active && "text-foreground"
+                      active && "text-foreground",
+                      listTableHeaderCornerClass(index, columns.length - 1)
                     )}
-                    style={sticky.style}
+                    style={mergeColumnCellStyles(
+                      sticky.style,
+                      widthStyles,
+                      !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
+                    )}
                     aria-sort={active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
                     onClick={() => handleHeaderSort(columnId)}
                   >
@@ -161,6 +220,24 @@ export function StockBalancesTable({
                         <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
                       )}
                     </span>
+                    {onColumnWidthChange ? (
+                      <ListColumnResizeHandle
+                        ariaLabel={`Resize ${column.label} column`}
+                        getWidth={() => resize.getHeaderWidthPx(columnId, index)}
+                        minWidth={getColumnResizeBounds(column, deviceClass).min}
+                        maxWidth={getColumnResizeBounds(column, deviceClass).max}
+                        onPreview={(width) => resize.setPreviewWidth(columnId, width)}
+                        onCommit={(width) => {
+                          resize.clearPreviewWidth(columnId);
+                          onColumnWidthChange(columnId, width);
+                        }}
+                        onAutoFit={() =>
+                          resize.autoFitColumn(columnId, index, (width) =>
+                            onColumnWidthChange(columnId, width)
+                          )
+                        }
+                      />
+                    ) : null}
                   </th>
                 );
               })}
@@ -185,6 +262,7 @@ export function StockBalancesTable({
                   {columns.map((columnId, index) => {
                     const column = getStockBalanceColumnDef(columnId);
                     const sticky = frozen.getStickyCellProps(index, "body");
+                    const widthStyles = resize.resolveWidthStyles(columnId, index);
                     return (
                       <td
                         key={columnId}
@@ -194,14 +272,14 @@ export function StockBalancesTable({
                           frozen.bodyCellClass(index, selected),
                           column.align === "right" && "text-right tabular-nums"
                         )}
-                        style={sticky.style}
+                        style={mergeColumnCellStyles(sticky.style, widthStyles)}
                       >
                         {renderBalanceCell(columnId, row)}
                       </td>
                     );
                   })}
                   {onAdjust ? (
-                    <td className={cn(LIST_TABLE_BODY_CELL, "text-right")}>
+                    <td className={cn(LIST_TABLE_BODY_CELL, "text-right", listTableBodyCellInteractionClass(selected))}>
                       <Button
                         type="button"
                         variant="outline"
@@ -221,6 +299,7 @@ export function StockBalancesTable({
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

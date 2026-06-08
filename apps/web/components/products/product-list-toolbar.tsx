@@ -1,6 +1,10 @@
 "use client";
 
-import { ArrowUpDown, LayoutGrid, Rows3, Table2 } from "lucide-react";
+import { ArrowUpDown, List } from "lucide-react";
+import {
+  HorizontalCardsStackedIcon,
+  ShopCardsRowIcon,
+} from "@/components/products/product-list-view-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { ProductListToolbarFilters } from "@/components/products/product-list-toolbar-filters";
@@ -19,10 +23,14 @@ import {
 } from "@/components/ui/select";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import {
+  applyProductListDisplayPreset,
+  getProductListDisplayPreset,
   isCardViewMode,
+  isProductListDisplayPresetActive,
   resolveProductListExpandVariants,
   supportsProductListVariantExpansion,
   type DeviceClass,
+  type ProductListDisplayPreset,
   type ProductListPrefs,
   type ProductListViewMode,
 } from "@/lib/products/list-prefs";
@@ -46,6 +54,7 @@ import {
   LIST_TOOLBAR_TOOLS_GAP,
 } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
+import type { ComponentType, SVGProps } from "react";
 
 type CategoryOption = {
   id: string;
@@ -53,6 +62,22 @@ type CategoryOption = {
 };
 
 const MOBILE_SELECT_WIDTH = "w-[6rem] sm:w-[8.5rem]";
+
+const VIEW_PRESET_OPTIONS: {
+  id: ProductListDisplayPreset;
+  label: string;
+  title: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+}[] = [
+  { id: "list", label: "List", title: "List view", icon: List },
+  {
+    id: "horizontal",
+    label: "Horizontal",
+    title: "Horizontal card view",
+    icon: HorizontalCardsStackedIcon,
+  },
+  { id: "shop", label: "Shop", title: "Shop card view", icon: ShopCardsRowIcon },
+];
 
 type Props = {
   categoryFilter: string;
@@ -82,6 +107,12 @@ type Props = {
   compactCountLabel?: boolean;
 };
 
+function presetIcon(preset: ProductListDisplayPreset) {
+  const option = VIEW_PRESET_OPTIONS.find((entry) => entry.id === preset);
+  const Icon = option?.icon ?? List;
+  return <Icon className="h-4 w-4" aria-hidden />;
+}
+
 export function ProductListToolbar({
   categoryFilter,
   onCategoryFilterChange,
@@ -105,14 +136,16 @@ export function ProductListToolbar({
   const omnibar = useOptionalOmnibarContext();
   const controlsDisabled = !prefsHydrated || isSavingPrefs;
   const viewMode = activeViewMode ?? prefs.viewMode;
+  const activePreset = getProductListDisplayPreset({ ...prefs, viewMode });
   const isViewFilterActive = omnibar?.hasActiveFilters ?? false;
   const isCategoryFilterActive = categoryFilter !== "all";
 
-  const setViewMode = (nextViewMode: ProductListViewMode) => {
-    if (controlsDisabled || viewModeToggleLocked || prefs.viewMode === nextViewMode) return;
-    onPrefsChange({ ...prefs, viewMode: nextViewMode });
+  const setDisplayPreset = (preset: ProductListDisplayPreset) => {
+    if (controlsDisabled || viewModeToggleLocked || activePreset === preset) return;
+    const nextPrefs = applyProductListDisplayPreset(prefs, preset);
+    onPrefsChange(nextPrefs);
     onExpandVariantsChange?.(
-      resolveProductListExpandVariants(prefs.showVariants, nextViewMode)
+      resolveProductListExpandVariants(prefs.showVariants, nextPrefs.viewMode)
     );
   };
 
@@ -279,9 +312,9 @@ export function ProductListToolbar({
 
           <div className="shrink-0 sm:hidden">
             <Select
-              value={viewMode}
+              value={activePreset}
               disabled={controlsDisabled || viewModeToggleLocked}
-              onValueChange={(value) => setViewMode(value as ProductListViewMode)}
+              onValueChange={(value) => setDisplayPreset(value as ProductListDisplayPreset)}
             >
               <SelectTrigger
                 className={cn(listToolbarSelectClass(true), "w-auto px-1.5 [&>svg]:hidden")}
@@ -289,39 +322,21 @@ export function ProductListToolbar({
                 aria-busy={isSavingPrefs}
                 title={
                   viewModeToggleLocked
-                    ? "Card view switches to table while item detail is open"
+                    ? "Card view switches to list while item detail is open"
                     : "View mode"
                 }
               >
-                <span className="flex items-center">
-                  {viewMode === "table" ? (
-                    <Table2 className="h-4 w-4" aria-hidden />
-                  ) : viewMode === "compact" ? (
-                    <Rows3 className="h-4 w-4" aria-hidden />
-                  ) : (
-                    <LayoutGrid className="h-4 w-4" aria-hidden />
-                  )}
-                </span>
+                <span className="flex items-center">{presetIcon(activePreset)}</span>
               </SelectTrigger>
               <SelectContent align="end">
-                <SelectItem value="table">
-                  <span className="flex items-center gap-2">
-                    <Table2 className="h-4 w-4" aria-hidden />
-                    Table
-                  </span>
-                </SelectItem>
-                <SelectItem value="compact">
-                  <span className="flex items-center gap-2">
-                    <Rows3 className="h-4 w-4" aria-hidden />
-                    Compact
-                  </span>
-                </SelectItem>
-                <SelectItem value="card">
-                  <span className="flex items-center gap-2">
-                    <LayoutGrid className="h-4 w-4" aria-hidden />
-                    Card
-                  </span>
-                </SelectItem>
+                {VIEW_PRESET_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    <span className="flex items-center gap-2">
+                      <option.icon className="h-4 w-4" aria-hidden />
+                      {option.label}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -330,60 +345,36 @@ export function ProductListToolbar({
             className={cn(listToolbarViewToggleShellClass(), "hidden sm:inline-flex")}
             aria-busy={isSavingPrefs}
             title={
-              viewModeToggleLocked ? "Card view switches to table while item detail is open" : undefined
+              viewModeToggleLocked ? "Card view switches to list while item detail is open" : undefined
             }
           >
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className={listToolbarViewToggleSegmentClass(viewMode === "table")}
-              disabled={controlsDisabled || viewModeToggleLocked}
-              onClick={() => setViewMode("table")}
-              title="Table view"
-              aria-label="Table view"
-              aria-pressed={viewMode === "table"}
-            >
-              {isSavingPrefs && prefs.viewMode === "table" ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <Table2 className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className={listToolbarViewToggleSegmentClass(viewMode === "compact")}
-              disabled={controlsDisabled || viewModeToggleLocked}
-              onClick={() => setViewMode("compact")}
-              title="Compact table"
-              aria-label="Compact table"
-              aria-pressed={viewMode === "compact"}
-            >
-              {isSavingPrefs && prefs.viewMode === "compact" ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <Rows3 className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className={listToolbarViewToggleSegmentClass(viewMode === "card")}
-              disabled={controlsDisabled || viewModeToggleLocked}
-              onClick={() => setViewMode("card")}
-              title="Card view"
-              aria-label="Card view"
-              aria-pressed={viewMode === "card"}
-            >
-              {isSavingPrefs && prefs.viewMode === "card" ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <LayoutGrid className="h-4 w-4" />
-              )}
-            </Button>
+            {VIEW_PRESET_OPTIONS.map((option) => {
+              const selected = isProductListDisplayPresetActive(
+                { ...prefs, viewMode },
+                option.id
+              );
+              const savingThisPreset = isSavingPrefs && activePreset === option.id;
+              return (
+                <Button
+                  key={option.id}
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className={listToolbarViewToggleSegmentClass(selected)}
+                  disabled={controlsDisabled || viewModeToggleLocked}
+                  onClick={() => setDisplayPreset(option.id)}
+                  title={option.title}
+                  aria-label={option.title}
+                  aria-pressed={selected}
+                >
+                  {savingThisPreset ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : (
+                    <option.icon className="h-4 w-4" />
+                  )}
+                </Button>
+              );
+            })}
           </div>
 
           <ProductListColumnSettings

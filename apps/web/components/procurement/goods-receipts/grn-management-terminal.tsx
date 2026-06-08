@@ -13,8 +13,14 @@ import {
   getDefaultGoodsReceiptListPrefs,
   loadGoodsReceiptListPrefs,
   saveGoodsReceiptListPrefs,
+  setGoodsReceiptColumnWidth,
   type GoodsReceiptListPrefs,
 } from "@/lib/procurement/goods-receipts/list-prefs";
+import {
+  sortGoodsReceiptListRows,
+  type GoodsReceiptListSortDirection,
+  type GoodsReceiptListSortField,
+} from "@/lib/procurement/goods-receipts/list-sort";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import { useFilteredGoodsReceipts } from "@/lib/procurement/goods-receipts/use-filtered-goods-receipts";
 import { GRN_DRAWER_PO_PARAM, PROCUREMENT_GRN_HREF } from "@/lib/procurement/navigation";
@@ -94,18 +100,42 @@ export function GrnManagementTerminal({
   const hasAnyData = goodsReceipts.length > 0;
   const filteredRows = receiptsView.filteredRows;
 
+  const sortedRows = useMemo(
+    () => sortGoodsReceiptListRows(filteredRows, prefs.sortField, prefs.sortDirection),
+    [filteredRows, prefs.sortDirection, prefs.sortField]
+  );
+
+  const handleSortChange = useCallback(
+    (field: GoodsReceiptListSortField, direction: GoodsReceiptListSortDirection) => {
+      setPrefs((current) => ({ ...current, sortField: field, sortDirection: direction }));
+    },
+    []
+  );
+
   const listPrimary = !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <GrnEmptyState onCreate={drawer.openCreate} hasLocations={locations.length > 0} />
     </div>
-  ) : filteredRows.length === 0 ? (
+  ) : sortedRows.length === 0 ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
         No goods receipts match the current filters.
       </div>
     </div>
   ) : (
-    <GrnListTable rows={filteredRows} selectedId={selectedId} onSelect={handleSelect} />
+    <GrnListTable
+      rows={sortedRows}
+      columnPrefs={prefs.columnPrefs}
+      sortField={prefs.sortField}
+      sortDirection={prefs.sortDirection}
+      frozenColumnCount={prefs.frozenColumnCount}
+      onSortChange={handleSortChange}
+      onColumnWidthChange={(columnId, width) =>
+        setPrefs((current) => setGoodsReceiptColumnWidth(current, columnId, width))
+      }
+      selectedId={selectedId}
+      onSelect={handleSelect}
+    />
   );
 
   return (
@@ -134,7 +164,7 @@ export function GrnManagementTerminal({
           ) : null
         }
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}
         </div>
       </ListModuleShell>

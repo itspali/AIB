@@ -81,6 +81,68 @@ export function parseProductCardMetaDisplay(value: unknown): ProductCardMetaDisp
 export function isTableLikeViewMode(viewMode: ProductListViewMode): boolean {
   return viewMode === "table" || viewMode === "compact";
 }
+
+/** User-facing Items list layouts (toolbar + column settings). */
+export type ProductListDisplayPreset = "list" | "horizontal" | "shop";
+
+export const PRODUCT_LIST_DISPLAY_PRESETS: ProductListDisplayPreset[] = [
+  "list",
+  "horizontal",
+  "shop",
+];
+
+export function getProductListDisplayPreset(prefs: ProductListPrefs): ProductListDisplayPreset {
+  if (prefs.viewMode === "table" || prefs.viewMode === "compact") return "list";
+  if (prefs.cardLayout === "shop") return "shop";
+  return "horizontal";
+}
+
+export function isProductListDisplayPresetActive(
+  prefs: ProductListPrefs,
+  preset: ProductListDisplayPreset
+): boolean {
+  return getProductListDisplayPreset(prefs) === preset;
+}
+
+export function applyProductListDisplayPreset(
+  prefs: ProductListPrefs,
+  preset: ProductListDisplayPreset
+): ProductListPrefs {
+  switch (preset) {
+    case "list":
+      return { ...prefs, viewMode: "table" };
+    case "horizontal":
+      return {
+        ...prefs,
+        viewMode: "card",
+        cardLayout: "v2",
+        cardOrientation: "horizontal",
+      };
+    case "shop":
+      return { ...prefs, viewMode: "card", cardLayout: "shop" };
+  }
+}
+
+export function getColumnPrefsContextForDisplayPreset(
+  preset: ProductListDisplayPreset
+): ColumnPrefsCardContext | undefined {
+  if (preset === "list") return undefined;
+  if (preset === "shop") return { cardLayout: "shop", cardOrientation: "vertical" };
+  return { cardLayout: "v2", cardOrientation: "horizontal" };
+}
+
+export function normalizeProductListDisplayPrefs(prefs: ProductListPrefs): ProductListPrefs {
+  let normalized = prefs;
+  if (normalized.viewMode === "compact") {
+    normalized = { ...normalized, viewMode: "table" };
+  }
+  if (normalized.viewMode === "card" && normalized.cardLayout === "v2") {
+    if (normalized.cardOrientation === "vertical") {
+      normalized = { ...normalized, cardOrientation: "horizontal" };
+    }
+  }
+  return normalized;
+}
 export const CARD_GRID_COLUMN_VALUES = [1, 2, 3, 4, 5, 6] as const;
 
 export type CardGridColumnCount = (typeof CARD_GRID_COLUMN_VALUES)[number];
@@ -95,7 +157,7 @@ export const AUTO_LAYOUT_PREF = "auto" as const;
 export type CardGridColumnPref = CardGridColumnCount | typeof AUTO_LAYOUT_PREF;
 export type FrozenColumnPref = ProductListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const PRODUCT_LIST_PREFS_VERSION = 9;
+export const PRODUCT_LIST_PREFS_VERSION = 10;
 
 /** Variants list toggle defaults off on every load; not restored from storage. */
 export const DEFAULT_SHOW_VARIANTS = false;
@@ -379,7 +441,7 @@ export function getDefaultProductListPrefs(): ProductListPrefs {
     cardGridColumns: getDefaultCardGridColumns(),
     showVariants: DEFAULT_SHOW_VARIANTS,
     cardLayout: "v2",
-    cardOrientation: "vertical",
+    cardOrientation: "horizontal",
     cardMetaDisplay: "labels",
     cardVariantColumnPrefs: getDefaultCardVariantColumnPrefs(),
   });
@@ -569,6 +631,10 @@ function parseCardVariantColumnPrefs(
 }
 
 function parseViewMode(value: unknown, prefsVersion: number): ProductListViewMode {
+  if (prefsVersion >= 10) {
+    if (value === "table" || value === "card") return value;
+    return "table";
+  }
   if (prefsVersion >= 8) {
     if (value === "table" || value === "compact" || value === "card") return value;
     return "table";
@@ -631,21 +697,23 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     rawVersion
   );
 
-  return clampCardGridColumns({
-    prefsVersion: PRODUCT_LIST_PREFS_VERSION,
-    clientRevision: parseClientRevision(parsed.clientRevision),
-    viewMode,
-    sortField,
-    sortDirection,
-    frozenColumnCount,
-    columnPrefs,
-    cardGridColumns,
-    showVariants,
-    cardLayout,
-    cardOrientation,
-    cardMetaDisplay,
-    cardVariantColumnPrefs,
-  });
+  return normalizeProductListDisplayPrefs(
+    clampCardGridColumns({
+      prefsVersion: PRODUCT_LIST_PREFS_VERSION,
+      clientRevision: parseClientRevision(parsed.clientRevision),
+      viewMode,
+      sortField,
+      sortDirection,
+      frozenColumnCount,
+      columnPrefs,
+      cardGridColumns,
+      showVariants,
+      cardLayout,
+      cardOrientation,
+      cardMetaDisplay,
+      cardVariantColumnPrefs,
+    })
+  );
 }
 
 function readLegacyCardLayoutPreviewStorage(): ProductCardLayout | null {

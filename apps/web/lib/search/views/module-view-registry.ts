@@ -71,6 +71,8 @@ const ALL_VIEW_LABELS: Partial<Record<FilterScope, string>> = {
   locations: "All locations",
   customers: "All customers",
   suppliers: "All suppliers",
+  stock: "All stock",
+  transfers: "All transfers",
 };
 
 export function getAllViewLabel(scope: FilterScope): string {

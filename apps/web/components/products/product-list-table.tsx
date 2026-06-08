@@ -1,15 +1,13 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
 import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   getColumnResizeBounds,
   mergeColumnCellStyles,
-  resolveColumnWidthSpec,
-  resolveColumnWidthStyles,
 } from "@/lib/list-columns/sizing";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
@@ -27,13 +25,32 @@ import {
   isProductListRowSelected,
   productListRowKey,
 } from "@/lib/products/list-row-key";
+import {
+  LIST_TABLE_BODY_CELL,
+  LIST_TABLE_FROZEN_EDGE_SHADOW,
+  LIST_TABLE_CHECKBOX_CLASS,
+  LIST_TABLE_HEADER_CELL_BG,
+  LIST_TABLE_ROOT,
+  LIST_TABLE_SCROLL,
+  LIST_TABLE_SURFACE,
+  listTableElementClass,
+  listTableLeadingCellInteractionClass,
+  listTableRowClass,
+} from "@/lib/layout/list-table-chrome";
+import {
+  LIST_SELECTION_COLUMN_Z_BODY,
+  LIST_SELECTION_COLUMN_Z_HEADER,
+  LIST_TABLE_HEADER_Z,
+  useFrozenListColumns,
+} from "@/lib/list-columns/use-frozen-list-columns";
+import { useResizableListColumns } from "@/lib/list-columns/use-resizable-list-columns";
+import { resolveProductListColumnAutoWidth } from "@/lib/products/resolve-list-column-auto-width";
 import { cn } from "@/lib/utils";
 import {
   productListCellClassName,
   productListCellWrapClassName,
   renderProductListCell,
 } from "@/components/products/product-list-cells";
-import { resolveProductListColumnAutoWidth } from "@/lib/products/resolve-list-column-auto-width";
 
 type Props = {
   products: ProductListRow[];
@@ -52,7 +69,6 @@ type Props = {
   sortDirection: ProductListSortDirection;
   frozenColumnCount: ProductListFrozenColumnCount;
   freezeColumnsAuto?: boolean;
-  /** Dense table rows with reduced cell padding. */
   compactRows?: boolean;
   onSortChange: (field: ProductListSortField, direction: ProductListSortDirection) => void;
   onColumnWidthChange?: (columnId: ProductListColumnId, width: number | null) => void;
@@ -80,33 +96,8 @@ function SortIndicator({
   return <ArrowDown className="h-3.5 w-3.5 text-primary" aria-hidden />;
 }
 
-const ROW_DIVIDER = "box-border border-b border-border";
-const FROZEN_CELL_BG =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--background)))] dark:bg-muted";
-const FROZEN_CELL_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
-const FROZEN_CELL_SELECTED =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
-const FROZEN_CELL_SELECTED_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_22%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
-const FROZEN_EDGE_SHADOW =
-  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.16)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
 const HEADER_HOVER =
   "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
-/** Sticky header tiers — must stay above scrolling header cells and body, below page chrome. */
-const TABLE_HEADER_Z = 10;
-const SELECTION_COLUMN_Z_HEADER = 50;
-const FROZEN_HEADER_Z_BASE = 40;
-const SELECTION_COLUMN_Z_BODY = 15;
-const FROZEN_BODY_Z_BASE = 10;
-
-function rowEdgeClass(isLastFrozenColumn = false) {
-  return isLastFrozenColumn ? FROZEN_EDGE_SHADOW : undefined;
-}
-
-function selectionColumnEdgeClass(showEdge: boolean) {
-  return showEdge ? FROZEN_EDGE_SHADOW : undefined;
-}
 
 function cellPadding(compactRows: boolean, columnId: ProductListColumnId): string {
   if (columnId === "image") return compactRows ? "p-0.5" : "p-1";
@@ -140,373 +131,249 @@ export function ProductListTable({
   onBulkPageToggle,
   onImageClick,
 }: Props) {
-  const headerRefs = useRef<(HTMLTableCellElement | null)[]>([]);
   const selectionColumnRef = useRef<HTMLTableCellElement | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [stickyOffsets, setStickyOffsets] = useState<number[]>([]);
-  const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
-  const [previewWidths, setPreviewWidths] = useState<
-    Partial<Record<ProductListColumnId, number>>
-  >({});
-
-  const effectiveFrozenCount = useMemo(() => {
-    const requested = Math.min(
-      frozenColumnCount,
-      columns.length
-    ) as ProductListFrozenColumnCount;
-    if (freezeColumnsAuto && !hasHorizontalScroll) return 0 as ProductListFrozenColumnCount;
-    return requested;
-  }, [columns.length, freezeColumnsAuto, frozenColumnCount, hasHorizontalScroll]);
-
-  useLayoutEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const measureScroll = () => {
-      setHasHorizontalScroll(container.scrollWidth > container.clientWidth + 1);
-    };
-
-    measureScroll();
-
-    const observer = new ResizeObserver(measureScroll);
-    observer.observe(container);
-    const table = container.querySelector("table");
-    if (table) observer.observe(table);
-
-    return () => observer.disconnect();
-  }, [columns, products.length]);
-
-  useLayoutEffect(() => {
-    if (effectiveFrozenCount === 0) {
-      setStickyOffsets([]);
-      return;
-    }
-
-    let left = selectionColumnRef.current?.offsetWidth ?? 40;
-    const offsets: number[] = [];
-    for (let index = 0; index < effectiveFrozenCount; index += 1) {
-      offsets.push(left);
-      left += headerRefs.current[index]?.offsetWidth ?? 0;
-    }
-    setStickyOffsets(offsets);
-  }, [columnWidths, columnWrapModes, columns, deviceClass, effectiveFrozenCount, previewWidths, products.length]);
-
-  const getUserWidthPx = (columnId: ProductListColumnId) =>
-    previewWidths[columnId] ?? columnWidths?.[columnId];
-
-  const resolveWidthStyles = (columnId: ProductListColumnId) => {
-    const column = getColumnDef(columnId);
-    const wrapMode = columnWrapModes?.[columnId] ?? "truncate";
-    return resolveColumnWidthStyles(column, deviceClass, wrapMode, getUserWidthPx(columnId));
-  };
-
-  const getHeaderWidthPx = (columnId: ProductListColumnId, index: number) => {
-    const userWidth = getUserWidthPx(columnId);
-    if (userWidth != null) return userWidth;
-
-    const measured = headerRefs.current[index]?.offsetWidth;
-    if (measured && measured > 0) return measured;
-
-    const column = getColumnDef(columnId);
-    const wrapMode = columnWrapModes?.[columnId] ?? "truncate";
-    const spec = resolveColumnWidthSpec(column, deviceClass, wrapMode);
-    const preferred = spec.preferred ?? spec.min ?? spec.max;
-    return typeof preferred === "number" ? preferred : 120;
-  };
-
-  const getStickyCellProps = (index: number, variant: "header" | "body", columnId: ProductListColumnId) => {
-    const widthStyles = resolveWidthStyles(columnId);
-
-    if (effectiveFrozenCount === 0 || index >= effectiveFrozenCount) {
-      return { className: "", style: widthStyles };
-    }
-
-    // Leftmost frozen columns stack above columns to their right so resize never
-    // covers a previous header.
-    const stackOrder = effectiveFrozenCount - 1 - index;
-    const zIndex =
-      (variant === "header" ? FROZEN_HEADER_Z_BASE : FROZEN_BODY_Z_BASE) + stackOrder;
-
-    return {
-      className: cn(
-        "sticky isolate overflow-hidden",
-        variant === "header" && "top-0"
-      ),
-      style: mergeColumnCellStyles({ left: stickyOffsets[index] ?? 0, zIndex }, widthStyles),
-    };
-  };
-
-  const bodyCellClass = (
-    selected: boolean,
-    isFrozen: boolean,
-    isLastFrozenColumn: boolean,
-    isLastRow: boolean
-  ) =>
-    cn(
-      !isLastRow && ROW_DIVIDER,
-      "transition-colors duration-[25ms]",
-      rowEdgeClass(isFrozen && isLastFrozenColumn),
-      !isFrozen &&
-        (selected
-          ? "bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_12%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
-          : "group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_35%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
-      isFrozen &&
-        (selected
-          ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
-          : cn(FROZEN_CELL_BG, FROZEN_CELL_HOVER))
-    );
-
-  const headerCellClass = (isFrozen: boolean, isLastFrozenColumn: boolean) =>
-    cn(
-      "sticky top-0 bg-muted",
-      ROW_DIVIDER,
-      isFrozen && FROZEN_CELL_BG,
-      isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW
-    );
-
-  const selectionColumnShowsEdge =
-    hasHorizontalScroll && effectiveFrozenCount === 0;
-
-  const selectionHeaderClass = cn(
-    ROW_DIVIDER,
-    "sticky top-0 bg-muted",
-    selectionColumnEdgeClass(selectionColumnShowsEdge)
+  const widthRemeasureKey = useMemo(
+    () => JSON.stringify({ columnWidths, columnWrapModes }),
+    [columnWidths, columnWrapModes]
   );
-
-  const selectionBodyClass = (selected: boolean, isLastRow: boolean) =>
-    cn(
-      "w-10 p-0",
-      !isLastRow && ROW_DIVIDER,
-      "transition-colors duration-[25ms]",
-      selectionColumnEdgeClass(selectionColumnShowsEdge),
-      selected
-        ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
-        : cn(FROZEN_CELL_BG, FROZEN_CELL_HOVER)
-    );
-
-  const handleColumnAutoFit = useCallback(
-    (columnId: ProductListColumnId, index: number) => {
-      if (!onColumnWidthChange) return;
-      const width = resolveProductListColumnAutoWidth({
+  const frozen = useFrozenListColumns({
+    columnCount: columns.length,
+    frozenColumnCount: Math.min(frozenColumnCount, columns.length) as ProductListFrozenColumnCount,
+    freezeColumnsAuto,
+    leadingColumnRef: selectionColumnRef,
+    remeasureKey: `${products.length}:${widthRemeasureKey}`,
+  });
+  const resolveAutoWidth = useCallback(
+    (columnId: ProductListColumnId, index: number) =>
+      resolveProductListColumnAutoWidth({
         columnId,
         products,
         deviceClass,
         showVariants,
-        headerElement: headerRefs.current[index],
-      });
-      setPreviewWidths((current) => {
-        const next = { ...current };
-        delete next[columnId];
-        return next;
-      });
-      onColumnWidthChange(columnId, width);
-    },
-    [deviceClass, onColumnWidthChange, products, showVariants]
+        headerElement: frozen.headerRefs.current[index],
+      }),
+    [deviceClass, frozen.headerRefs, products, showVariants]
+  );
+  const resize = useResizableListColumns({
+    columns,
+    columnWidths,
+    deviceClass,
+    getColumnDef,
+    headerRefs: frozen.headerRefs,
+    wrapModeForColumn: (columnId) => columnWrapModes?.[columnId] ?? "truncate",
+    resolveAutoWidth,
+  });
+
+  const selectionColumnShowsEdge =
+    frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
+
+  const selectionHeaderClass = cn(
+    "w-10 p-0 font-medium text-muted-foreground",
+    LIST_TABLE_HEADER_CELL_BG,
+    selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
   );
 
-  return (
-    <div className="relative min-h-0 w-full flex-1 basis-0 self-stretch">
-      <div className="surface-inset absolute inset-0 flex flex-col overflow-hidden">
-        <div
-          ref={scrollContainerRef}
-          className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
-        >
-          <table
-            className={cn(
-              "w-full min-w-[720px] border-separate border-spacing-0 bg-background [&_td]:box-border [&_th]:box-border",
-              compactRows ? "text-xs" : "text-sm"
-            )}
-          >
-          <thead>
-            <tr className="bg-muted text-left">
-            <th
-              ref={selectionColumnRef}
-              className={cn(
-                "sticky left-0 top-0 isolate overflow-hidden w-10 p-0 font-medium text-muted-foreground",
-                selectionHeaderClass
-              )}
-              style={{ zIndex: SELECTION_COLUMN_Z_HEADER }}
-            >
-              <div className={cn("flex items-center justify-center", cellPadding(compactRows, "name"))}>
-                <Checkbox
-                  checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
-                  onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
-                  aria-label="Select all items on this page"
-                />
-              </div>
-            </th>
-            {columns.map((columnId, index) => {
-              const column = getColumnDef(columnId);
-              const sortable = isSortableColumn(columnId);
-              const isActiveSort = sortable && sortField === columnId;
-              const sticky = getStickyCellProps(index, "header", columnId);
-              const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
-              const isLastFrozenColumn =
-                effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
+  const selectionBodyClass = (selected: boolean) =>
+    cn(
+      "w-10 p-0 text-center",
+      selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW,
+      listTableLeadingCellInteractionClass(selected)
+    );
 
-              return (
+  return (
+    <div className={LIST_TABLE_ROOT}>
+      <div className={LIST_TABLE_SURFACE}>
+        <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
+          <table className={listTableElementClass("narrow", compactRows)}>
+            <thead>
+              <tr className="bg-muted text-left">
                 <th
-                  key={columnId}
-                  ref={(element) => {
-                    headerRefs.current[index] = element;
-                  }}
+                  ref={selectionColumnRef}
                   className={cn(
-                    "relative sticky top-0 overflow-hidden p-0 font-medium text-muted-foreground",
-                    sticky.className,
-                    headerCellClass(isFrozen, isLastFrozenColumn),
-                    column.align === "center" && "text-center",
-                    column.align === "right" && "text-right"
+                    "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
+                    selectionHeaderClass
                   )}
-                  style={mergeColumnCellStyles(
-                    sticky.style,
-                    !isFrozen ? { zIndex: TABLE_HEADER_Z + (columns.length - index) } : {}
-                  )}
+                  style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
                 >
-                  {sortable ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = toggleColumnSort(columnId, sortField, sortDirection);
-                        onSortChange(next.field, next.direction);
-                      }}
-                      className={cn(
-                        "inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden transition-colors duration-[25ms] hover:text-foreground",
-                        cellPadding(compactRows, columnId),
-                        HEADER_HOVER,
-                        column.align === "center" && "justify-center",
-                        column.align === "right" && "justify-end",
-                        isActiveSort && "text-foreground"
-                      )}
-                      aria-label={`Sort by ${column.label}${
-                        isActiveSort
-                          ? ` (${sortDirection === "asc" ? "ascending" : "descending"})`
-                          : ""
-                      }`}
-                    >
-                      <span className="truncate">{column.label}</span>
-                      <span className="shrink-0">
-                        <SortIndicator active={isActiveSort} direction={sortDirection} />
-                      </span>
-                    </button>
-                  ) : (
-                    <span className={cn("block truncate", cellPadding(compactRows, columnId))}>
-                      {column.label}
-                    </span>
-                  )}
-                  {onColumnWidthChange ? (
-                    <ListColumnResizeHandle
-                      ariaLabel={`Resize ${column.label} column`}
-                      getWidth={() => getHeaderWidthPx(columnId, index)}
-                      minWidth={getColumnResizeBounds(column, deviceClass).min}
-                      maxWidth={getColumnResizeBounds(column, deviceClass).max}
-                      onPreview={(width) =>
-                        setPreviewWidths((current) => ({ ...current, [columnId]: width }))
-                      }
-                      onCommit={(width) => {
-                        setPreviewWidths((current) => {
-                          const next = { ...current };
-                          delete next[columnId];
-                          return next;
-                        });
-                        onColumnWidthChange(columnId, width);
-                      }}
-                      onAutoFit={() => handleColumnAutoFit(columnId, index)}
-                    />
-                  ) : null}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((product, rowIndex) => {
-            const rowKey = productListRowKey(product, showVariants);
-            const selected = isProductListRowSelected(
-              product,
-              selectedId,
-              selectedVariantId ?? null,
-              showVariants
-            );
-            const bulkSelected = bulkSelectedIds.has(rowKey);
-            const isLastRow = rowIndex === products.length - 1;
-            const rowInactive = isProductListRowInactive(product, showVariants);
-            return (
-              <tr
-                key={rowKey}
-                tabIndex={0}
-                role="button"
-                onClick={() => onSelect(product.id, product.variant_id)}
-                onMouseEnter={() => onProductHover?.(product.id, product.variant_id)}
-                onPointerEnter={() => onProductPointerEnter?.(product.id, product.variant_id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelect(product.id, product.variant_id);
-                  }
-                }}
-                className={cn(
-                  "group cursor-pointer transition-colors duration-[25ms]",
-                  rowInactive && "opacity-50",
-                  selected && "ring-1 ring-inset ring-primary/20"
-                )}
-              >
-                <td
-                  className={cn("sticky left-0 isolate", selectionBodyClass(selected, isLastRow))}
-                  style={{ zIndex: SELECTION_COLUMN_Z_BODY }}
-                >
-                  <div
-                    className={cn(
-                      "flex items-center justify-center",
-                      cellPadding(compactRows, "name")
-                    )}
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
+                  <div className={cn("flex items-center justify-center", cellPadding(compactRows, "name"))}>
                     <Checkbox
-                      checked={bulkSelected}
-                      onCheckedChange={(checked) =>
-                        onBulkRowToggle(rowKey, checked === true)
-                      }
-                      aria-label={`Select ${product.name}${
-                        product.default_sku ? ` (${product.default_sku})` : ""
-                      }`}
+                      className={LIST_TABLE_CHECKBOX_CLASS}
+                      checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                      onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
+                      aria-label="Select all items on this page"
                     />
                   </div>
-                </td>
+                </th>
                 {columns.map((columnId, index) => {
-                  const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
-                  const sticky = getStickyCellProps(index, "body", columnId);
-                  const isLastFrozenColumn =
-                    effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
+                  const column = getColumnDef(columnId);
+                  const sortable = isSortableColumn(columnId);
+                  const isActiveSort = sortable && sortField === columnId;
+                  const sticky = frozen.getStickyCellProps(index, "header");
+                  const widthStyles = resize.resolveWidthStyles(columnId, index);
+                  const isFrozen =
+                    frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
+
                   return (
-                    <td
+                    <th
                       key={columnId}
+                      ref={(element) => {
+                        frozen.headerRefs.current[index] = element;
+                      }}
                       className={cn(
-                        "overflow-visible",
-                        cellPadding(compactRows, columnId),
-                        productListCellClassName(columnId),
-                        getColumnDef(columnId).align === "center" && "text-center",
-                        getColumnDef(columnId).align === "right" && "text-right",
+                        "relative sticky top-0 overflow-hidden p-0 font-medium text-muted-foreground",
                         sticky.className,
-                        bodyCellClass(selected, isFrozen, isLastFrozenColumn, isLastRow)
+                        frozen.headerCellClass(index),
+                        column.align === "center" && "text-center",
+                        column.align === "right" && "text-right",
+                        index === columns.length - 1 && "rounded-tr-lg"
                       )}
-                      style={sticky.style}
+                      style={mergeColumnCellStyles(
+                        sticky.style,
+                        widthStyles,
+                        !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
+                      )}
                     >
-                      <div className={productListCellWrapClassName(columnId)}>
-                        {renderProductListCell(columnId, product, {
-                          onImageClick,
-                          showVariants,
-                          wrapMode: columnWrapModes?.[columnId],
-                          chipDisplay: columnChipDisplay,
-                        })}
-                      </div>
-                    </td>
+                      {sortable ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = toggleColumnSort(columnId, sortField, sortDirection);
+                            onSortChange(next.field, next.direction);
+                          }}
+                          className={cn(
+                            "inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden transition-colors duration-[25ms] hover:text-foreground",
+                            cellPadding(compactRows, columnId),
+                            HEADER_HOVER,
+                            column.align === "center" && "justify-center",
+                            column.align === "right" && "justify-end",
+                            isActiveSort && "text-foreground"
+                          )}
+                          aria-label={`Sort by ${column.label}${
+                            isActiveSort
+                              ? ` (${sortDirection === "asc" ? "ascending" : "descending"})`
+                              : ""
+                          }`}
+                        >
+                          <span className="truncate">{column.label}</span>
+                          <span className="shrink-0">
+                            <SortIndicator active={isActiveSort} direction={sortDirection} />
+                          </span>
+                        </button>
+                      ) : (
+                        <span className={cn("block truncate", cellPadding(compactRows, columnId))}>
+                          {column.label}
+                        </span>
+                      )}
+                      {onColumnWidthChange ? (
+                        <ListColumnResizeHandle
+                          ariaLabel={`Resize ${column.label} column`}
+                          getWidth={() => resize.getHeaderWidthPx(columnId, index)}
+                          minWidth={getColumnResizeBounds(column, deviceClass).min}
+                          maxWidth={getColumnResizeBounds(column, deviceClass).max}
+                          onPreview={(width) => resize.setPreviewWidth(columnId, width)}
+                          onCommit={(width) => {
+                            resize.clearPreviewWidth(columnId);
+                            onColumnWidthChange(columnId, width);
+                          }}
+                          onAutoFit={() =>
+                            resize.autoFitColumn(columnId, index, (width) =>
+                              onColumnWidthChange(columnId, width)
+                            )
+                          }
+                        />
+                      ) : null}
+                    </th>
                   );
                 })}
               </tr>
-            );
-          })}
-        </tbody>
+            </thead>
+            <tbody>
+              {products.map((product) => {
+                const rowKey = productListRowKey(product, showVariants);
+                const selected = isProductListRowSelected(
+                  product,
+                  selectedId,
+                  selectedVariantId ?? null,
+                  showVariants
+                );
+                const bulkSelected = bulkSelectedIds.has(rowKey);
+                const rowInactive = isProductListRowInactive(product, showVariants);
+
+                return (
+                  <tr
+                    key={rowKey}
+                    tabIndex={0}
+                    role="button"
+                    onClick={() => onSelect(product.id, product.variant_id)}
+                    onMouseEnter={() => onProductHover?.(product.id, product.variant_id)}
+                    onPointerEnter={() => onProductPointerEnter?.(product.id, product.variant_id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelect(product.id, product.variant_id);
+                      }
+                    }}
+                    className={cn(listTableRowClass(selected), rowInactive && "opacity-50")}
+                  >
+                    <td
+                      className={cn("sticky left-0 isolate", LIST_TABLE_BODY_CELL, selectionBodyClass(selected))}
+                      style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
+                    >
+                      <div
+                        className={cn(
+                          "flex items-center justify-center",
+                          cellPadding(compactRows, "name")
+                        )}
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <Checkbox
+                          className={LIST_TABLE_CHECKBOX_CLASS}
+                          checked={bulkSelected}
+                          onCheckedChange={(checked) =>
+                            onBulkRowToggle(rowKey, checked === true)
+                          }
+                          aria-label={`Select ${product.name}${
+                            product.default_sku ? ` (${product.default_sku})` : ""
+                          }`}
+                        />
+                      </div>
+                    </td>
+                    {columns.map((columnId, index) => {
+                      const column = getColumnDef(columnId);
+                      const sticky = frozen.getStickyCellProps(index, "body");
+                      const widthStyles = resize.resolveWidthStyles(columnId, index);
+
+                      return (
+                        <td
+                          key={columnId}
+                          className={cn(
+                            LIST_TABLE_BODY_CELL,
+                            "overflow-visible",
+                            cellPadding(compactRows, columnId),
+                            productListCellClassName(columnId),
+                            column.align === "center" && "text-center",
+                            column.align === "right" && "text-right",
+                            sticky.className,
+                            frozen.bodyCellClass(index, selected)
+                          )}
+                          style={mergeColumnCellStyles(sticky.style, widthStyles)}
+                        >
+                          <div className={productListCellWrapClassName(columnId)}>
+                            {renderProductListCell(columnId, product, {
+                              onImageClick,
+                              showVariants,
+                              wrapMode: columnWrapModes?.[columnId],
+                              chipDisplay: columnChipDisplay,
+                            })}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </div>
       </div>

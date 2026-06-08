@@ -66,7 +66,7 @@ export const GST_STATE_CODE_TO_NAME: Record<string, string> = {
 };
 
 export function normalizeGstin(value: string): string {
-  return value.trim().toUpperCase();
+  return value.replace(/[\s.-]/g, "").trim().toUpperCase();
 }
 
 export function isGstinFormat(value: string): boolean {
@@ -95,12 +95,22 @@ export function isGstinCheckDigitValid(gstin: string): boolean {
   return normalized.at(-1) === expected;
 }
 
-export function validateGstin(value: string): string | null {
+/** Format-only validation for lookup and auto-fill (no check digit). */
+export function validateGstinFormat(value: string): string | null {
   const normalized = normalizeGstin(value);
   if (!normalized) return "GSTIN is required";
   if (normalized.length !== 15) return "GSTIN must be 15 characters";
   if (!GSTIN_PATTERN.test(normalized)) return "Enter a valid GSTIN format";
-  if (!isGstinCheckDigitValid(normalized)) return "GSTIN check digit is invalid";
+  return null;
+}
+
+/** Strict validation including mod-36 check digit (optional, e.g. on save). */
+export function validateGstin(value: string): string | null {
+  const formatError = validateGstinFormat(value);
+  if (formatError) return formatError;
+  if (!isGstinCheckDigitValid(normalizeGstin(value))) {
+    return "GSTIN check digit is invalid";
+  }
   return null;
 }
 
@@ -296,7 +306,7 @@ export function applyGstinLookupToEntityForm(
 }
 
 export async function lookupGstinDetails(gstin: string): Promise<GstinLookupResult | null> {
-  const validationError = validateGstin(gstin);
+  const validationError = validateGstinFormat(gstin);
   if (validationError) return null;
 
   try {

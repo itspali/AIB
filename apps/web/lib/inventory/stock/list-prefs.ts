@@ -198,6 +198,24 @@ export function setStockColumnPrefs(
   };
 }
 
+export function setStockColumnWidth(
+  prefs: StockListPrefs,
+  columnId: StockBalanceColumnId | StockAdjustmentColumnId,
+  width: number | null
+): StockListPrefs {
+  const slice = getStockColumnPrefs(prefs);
+  const columnWidths = { ...(slice.columnWidths ?? {}) };
+  if (width == null) {
+    delete columnWidths[columnId as keyof typeof columnWidths];
+  } else {
+    (columnWidths as Record<string, number>)[columnId] = width;
+  }
+  return setStockColumnPrefs(prefs, {
+    ...slice,
+    columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
+  });
+}
+
 export function getStockColumnRegistry(prefs: StockListPrefs) {
   return prefs.viewMode === "adjustments"
     ? STOCK_ADJUSTMENT_COLUMN_REGISTRY

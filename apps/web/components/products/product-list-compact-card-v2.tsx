@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  CardSellingPriceLabel,
   ProductCardBulkCheckbox,
   ProductCardChromeBadges,
   ProductCardFooterRail,
@@ -362,9 +363,17 @@ export function ProductListCompactCardV2({
           {plan.metrics.map((metric) => (
             <div key={metric.columnId} className="min-w-0">
               <p className="text-[11px] font-medium text-muted-foreground">{metric.label}</p>
-              <p className="truncate text-sm font-semibold tabular-nums text-foreground">
-                {metric.value}
-              </p>
+              {metric.columnId === "selling_price" ? (
+                <CardSellingPriceLabel
+                  amount={metric.value}
+                  uom={metric.unitSuffix}
+                  size="sm"
+                />
+              ) : (
+                <p className="truncate text-sm font-semibold tabular-nums text-foreground">
+                  {metric.value}
+                </p>
+              )}
             </div>
           ))}
         </div>

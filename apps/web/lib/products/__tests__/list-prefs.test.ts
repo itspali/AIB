@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyProductListDisplayPreset,
   coerceProductListPrefs,
   getDefaultProductListPrefs,
   getMaxCardGridColumns,
   getOrderedVisibleColumns,
+  getProductListDisplayPreset,
   PRODUCT_LIST_PREFS_VERSION,
   resolveCardGridColumns,
   resolveFrozenColumnCount,
@@ -433,6 +435,45 @@ describe("resolveCardGridColumns", () => {
     expect(parsed.prefsVersion).toBe(PRODUCT_LIST_PREFS_VERSION);
     expect(parsed.cardOrientation).toBe("horizontal");
     expect(parsed.cardMetaDisplay).toBe("icons");
+  });
+});
+
+describe("product list display presets", () => {
+  it("defaults to list layout", () => {
+    const defaults = getDefaultProductListPrefs();
+    expect(getProductListDisplayPreset(defaults)).toBe("list");
+    expect(defaults.cardOrientation).toBe("horizontal");
+  });
+
+  it("maps horizontal and shop card prefs to presets", () => {
+    const horizontal = applyProductListDisplayPreset(getDefaultProductListPrefs(), "horizontal");
+    expect(getProductListDisplayPreset(horizontal)).toBe("horizontal");
+    expect(horizontal.viewMode).toBe("card");
+    expect(horizontal.cardLayout).toBe("v2");
+    expect(horizontal.cardOrientation).toBe("horizontal");
+
+    const shop = applyProductListDisplayPreset(getDefaultProductListPrefs(), "shop");
+    expect(getProductListDisplayPreset(shop)).toBe("shop");
+    expect(shop.viewMode).toBe("card");
+    expect(shop.cardLayout).toBe("shop");
+  });
+
+  it("migrates compact table and vertical detail cards on v10", () => {
+    const compactTable = coerceProductListPrefs({
+      ...getDefaultProductListPrefs(),
+      prefsVersion: 9,
+      viewMode: "compact",
+    });
+    expect(compactTable.viewMode).toBe("table");
+
+    const verticalCard = coerceProductListPrefs({
+      ...getDefaultProductListPrefs(),
+      prefsVersion: 9,
+      viewMode: "card",
+      cardLayout: "v2",
+      cardOrientation: "vertical",
+    });
+    expect(verticalCard.cardOrientation).toBe("horizontal");
   });
 });
 

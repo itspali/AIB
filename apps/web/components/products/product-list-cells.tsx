@@ -296,6 +296,8 @@ export function renderProductListCell(
       return (
         <span className="tabular-nums">{formatOptionalCurrency(product.selling_price)}</span>
       );
+    case "mrp":
+      return <span className="tabular-nums">{formatOptionalCurrency(product.mrp)}</span>;
     case "purchase_price":
       return (
         <span className="tabular-nums">{formatOptionalCurrency(product.purchase_price)}</span>

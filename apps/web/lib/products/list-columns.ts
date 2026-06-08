@@ -25,6 +25,7 @@ export const PRODUCT_LIST_COLUMN_IDS = [
   "is_salable",
   "is_returnable",
   "selling_price",
+  "mrp",
   "purchase_price",
   "supplier_name",
   "stock_on_hand",
@@ -267,6 +268,15 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
   {
     id: "selling_price",
     label: "Selling price",
+    defaultVisible: false,
+    align: "right",
+    group: "Pricing",
+    valueKind: "number",
+    widths: W_NUMBER,
+  },
+  {
+    id: "mrp",
+    label: "MRP",
     defaultVisible: false,
     align: "right",
     group: "Pricing",

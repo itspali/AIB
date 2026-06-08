@@ -100,3 +100,14 @@ export function isColumnId<TId extends string>(
 ): value is TId {
   return (registry.ids as readonly string[]).includes(value);
 }
+
+/** Registry columns the user can view (defaults permission key to column id). */
+export function resolveViewableColumnIds<TId extends string>(
+  registry: ListColumnRegistry<TId>,
+  canViewField: (permissionKey: string) => boolean
+): TId[] {
+  return registry.ids.filter((id) => {
+    const column = getColumnDef(registry, id);
+    return canViewField(column.permissionKey ?? id);
+  });
+}

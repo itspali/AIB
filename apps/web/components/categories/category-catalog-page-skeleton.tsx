@@ -25,10 +25,7 @@ export function CategoryCatalogPageSkeleton() {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-1">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-2">
-          <Skeleton className="h-full min-h-[240px] shimmer" />
-          <Skeleton className="hidden h-full min-h-[240px] shimmer lg:block" />
-        </div>
+        <Skeleton className="h-full min-h-[240px] shimmer" />
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ type ListViewRow = {
   default_sku: string | null;
   barcode: string | null;
   selling_price: number | string | null;
+  mrp: number | string | null;
   purchase_price: number | string | null;
   supplier_name: string | null;
   stock_on_hand: number | string | null;
@@ -106,6 +107,7 @@ function mapListViewRow(row: ListViewRow, imageUrl: string | null): ProductListR
     default_sku: row.default_sku,
     barcode: row.barcode,
     selling_price: row.selling_price != null ? formatDecimal(row.selling_price) : null,
+    mrp: row.mrp != null ? formatDecimal(row.mrp) : null,
     purchase_price: row.purchase_price != null ? formatDecimal(row.purchase_price) : null,
     supplier_name: row.supplier_name,
     stock_on_hand: formatDecimal(row.stock_on_hand, "0"),

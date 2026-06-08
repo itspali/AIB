@@ -13,6 +13,12 @@ describe("module route scope", () => {
     expect(resolveScopeFromPath("/inventory/categories")).toBe("categories");
   });
 
+  it("resolves inventory operations paths", () => {
+    expect(resolveScopeFromPath("/inventory/stock")).toBe("stock");
+    expect(resolveScopeFromPath("/inventory/transfers")).toBe("transfers");
+    expect(resolveScopeFromPath("/inventory/transfers?id=abc")).toBe("transfers");
+  });
+
   it("matches pathname to active module scope", () => {
     expect(pathnameMatchesScope("/items", "items")).toBe(true);
     expect(pathnameMatchesScope("/items/categories", "items")).toBe(false);

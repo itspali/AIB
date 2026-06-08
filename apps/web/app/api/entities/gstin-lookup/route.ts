@@ -3,7 +3,7 @@ import {
   mapGstPortalPayload,
   mapGstVerifyPayload,
   parseGstinLocally,
-  validateGstin,
+  validateGstinFormat,
 } from "@/lib/entities/gstin";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
   }
 
   const gstin = new URL(request.url).searchParams.get("gstin") ?? "";
-  const validationError = validateGstin(gstin);
+  const validationError = validateGstinFormat(gstin);
   if (validationError) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }

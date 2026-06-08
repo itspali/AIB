@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   categoryListCellClassName,
   categoryListCellWrapClassName,
@@ -10,6 +10,7 @@ import {
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { DeviceClass } from "@/lib/layout/device-class";
+import { getCategoryListCellDisplayTexts } from "@/lib/categories/list-column-display-text";
 import {
   getCategoryColumnDef,
   type CategoryListColumnId,
@@ -22,14 +23,32 @@ import {
   type CategoryListSortDirection,
   type CategoryListSortField,
 } from "@/lib/categories/list-sort";
-import {
-  getColumnResizeBounds,
-  mergeColumnCellStyles,
-  resolveColumnWidthSpec,
-  resolveColumnWidthStyles,
-} from "@/lib/list-columns/sizing";
+import { getColumnResizeBounds, mergeColumnCellStyles } from "@/lib/list-columns/sizing";
 import type { TextWrapMode } from "@/lib/display/text-wrap";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import {
+  LIST_TABLE_BODY_CELL,
+  LIST_TABLE_FROZEN_EDGE_SHADOW,
+  LIST_TABLE_CHECKBOX_CLASS,
+  LIST_TABLE_HEADER_CELL_BG,
+  LIST_TABLE_ROOT,
+  LIST_TABLE_SCROLL,
+  LIST_TABLE_SURFACE,
+  listTableElementClass,
+  listTableLeadingCellInteractionClass,
+  listTableRowClass,
+} from "@/lib/layout/list-table-chrome";
+import {
+  LIST_SELECTION_COLUMN_Z_BODY,
+  LIST_SELECTION_COLUMN_Z_HEADER,
+  LIST_TABLE_HEADER_Z,
+  useFrozenListColumns,
+} from "@/lib/list-columns/use-frozen-list-columns";
+import {
+  measureHintsFromValueKind,
+  resolveListColumnAutoWidth,
+} from "@/lib/list-columns/resolve-column-auto-width";
+import { useResizableListColumns } from "@/lib/list-columns/use-resizable-list-columns";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -71,32 +90,8 @@ function SortIndicator({
   return <ArrowDown className="h-3.5 w-3.5 text-primary" aria-hidden />;
 }
 
-const ROW_DIVIDER = "box-border border-b border-border";
-const FROZEN_CELL_BG =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--background)))] dark:bg-muted";
-const FROZEN_CELL_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
-const FROZEN_CELL_SELECTED =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
-const FROZEN_CELL_SELECTED_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_22%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
-const FROZEN_EDGE_SHADOW =
-  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.16)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
 const HEADER_HOVER =
   "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
-const TABLE_HEADER_Z = 10;
-const SELECTION_COLUMN_Z_HEADER = 50;
-const FROZEN_HEADER_Z_BASE = 40;
-const SELECTION_COLUMN_Z_BODY = 15;
-const FROZEN_BODY_Z_BASE = 10;
-
-function selectionColumnEdgeClass(showEdge: boolean) {
-  return showEdge ? FROZEN_EDGE_SHADOW : undefined;
-}
-
-function rowEdgeClass(isLastFrozenColumn = false) {
-  return isLastFrozenColumn ? FROZEN_EDGE_SHADOW : undefined;
-}
 
 function cellPadding(compactRows: boolean): string {
   return compactRows ? "p-1.5" : "p-2.5";
@@ -124,190 +119,78 @@ export function CategoryListTable({
   onBulkRowToggle,
   onBulkPageToggle,
 }: Props) {
-  const headerRefs = useRef<(HTMLTableCellElement | null)[]>([]);
   const selectionColumnRef = useRef<HTMLTableCellElement | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [stickyOffsets, setStickyOffsets] = useState<number[]>([]);
-  const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
-  const [previewWidths, setPreviewWidths] = useState<
-    Partial<Record<CategoryListColumnId, number>>
-  >({});
-
-  const effectiveFrozenCount = useMemo(() => {
-    const requested = Math.min(
-      frozenColumnCount,
-      columns.length
-    ) as CategoryListFrozenColumnCount;
-    if (freezeColumnsAuto && !hasHorizontalScroll) return 0 as CategoryListFrozenColumnCount;
-    return requested;
-  }, [columns.length, freezeColumnsAuto, frozenColumnCount, hasHorizontalScroll]);
-
-  useLayoutEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const measureScroll = () => {
-      setHasHorizontalScroll(container.scrollWidth > container.clientWidth + 1);
-    };
-
-    measureScroll();
-
-    const observer = new ResizeObserver(measureScroll);
-    observer.observe(container);
-    const table = container.querySelector("table");
-    if (table) observer.observe(table);
-
-    return () => observer.disconnect();
-  }, [columns, rows.length]);
-
-  useLayoutEffect(() => {
-    if (effectiveFrozenCount === 0) {
-      setStickyOffsets([]);
-      return;
-    }
-
-    let left = selectionColumnRef.current?.offsetWidth ?? 40;
-    const offsets: number[] = [];
-    for (let index = 0; index < effectiveFrozenCount; index += 1) {
-      offsets.push(left);
-      left += headerRefs.current[index]?.offsetWidth ?? 0;
-    }
-    setStickyOffsets(offsets);
-  }, [columnWidths, columnWrapModes, columns, deviceClass, effectiveFrozenCount, previewWidths, rows.length]);
-
-  const getUserWidthPx = (columnId: CategoryListColumnId) =>
-    previewWidths[columnId] ?? columnWidths?.[columnId];
-
-  const resolveWidthStyles = (columnId: CategoryListColumnId) => {
-    const column = getCategoryColumnDef(columnId);
-    const wrapMode = columnWrapModes?.[columnId] ?? "truncate";
-    return resolveColumnWidthStyles(column, deviceClass, wrapMode, getUserWidthPx(columnId));
-  };
-
-  const getHeaderWidthPx = (columnId: CategoryListColumnId, index: number) => {
-    const userWidth = getUserWidthPx(columnId);
-    if (userWidth != null) return userWidth;
-
-    const measured = headerRefs.current[index]?.offsetWidth;
-    if (measured && measured > 0) return measured;
-
-    const column = getCategoryColumnDef(columnId);
-    const wrapMode = columnWrapModes?.[columnId] ?? "truncate";
-    const spec = resolveColumnWidthSpec(column, deviceClass, wrapMode);
-    const preferred = spec.preferred ?? spec.min ?? spec.max;
-    return typeof preferred === "number" ? preferred : 120;
-  };
-
-  const getStickyCellProps = (
-    index: number,
-    variant: "header" | "body",
-    columnId: CategoryListColumnId
-  ) => {
-    const widthStyles = resolveWidthStyles(columnId);
-
-    if (effectiveFrozenCount === 0 || index >= effectiveFrozenCount) {
-      return { className: "", style: widthStyles };
-    }
-
-    const stackOrder = effectiveFrozenCount - 1 - index;
-    const zIndex =
-      (variant === "header" ? FROZEN_HEADER_Z_BASE : FROZEN_BODY_Z_BASE) + stackOrder;
-
-    return {
-      className: cn("sticky isolate overflow-hidden", variant === "header" && "top-0"),
-      style: mergeColumnCellStyles({ left: stickyOffsets[index] ?? 0, zIndex }, widthStyles),
-    };
-  };
-
-  const bodyCellClass = (
-    selected: boolean,
-    isFrozen: boolean,
-    isLastFrozenColumn: boolean,
-    isLastRow: boolean
-  ) =>
-    cn(
-      !isLastRow && ROW_DIVIDER,
-      "transition-colors duration-[25ms]",
-      rowEdgeClass(isFrozen && isLastFrozenColumn),
-      !isFrozen &&
-        (selected
-          ? "bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))] group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_12%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_5%,hsl(var(--accent))_40%,hsl(var(--background)))]"
-          : "group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_35%,hsl(var(--muted)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_40%,hsl(var(--background)))]"),
-      isFrozen &&
-        (selected
-          ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
-          : cn(FROZEN_CELL_BG, FROZEN_CELL_HOVER))
-    );
-
-  const headerCellClass = (isFrozen: boolean, isLastFrozenColumn: boolean) =>
-    cn(
-      "sticky top-0 bg-muted",
-      ROW_DIVIDER,
-      isFrozen && FROZEN_CELL_BG,
-      isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW
-    );
-
-  const selectionColumnShowsEdge =
-    hasHorizontalScroll && effectiveFrozenCount === 0;
-
-  const selectionHeaderClass = cn(
-    ROW_DIVIDER,
-    "sticky top-0 bg-muted",
-    selectionColumnEdgeClass(selectionColumnShowsEdge)
+  const widthRemeasureKey = useMemo(
+    () => JSON.stringify({ columnWidths, columnWrapModes }),
+    [columnWidths, columnWrapModes]
   );
-
-  const selectionBodyClass = (selected: boolean, isLastRow: boolean) =>
-    cn(
-      "w-10 p-0",
-      !isLastRow && ROW_DIVIDER,
-      "transition-colors duration-[25ms]",
-      selectionColumnEdgeClass(selectionColumnShowsEdge),
-      selected
-        ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
-        : cn(FROZEN_CELL_BG, FROZEN_CELL_HOVER)
-    );
-
-  const handleColumnAutoFit = useCallback(
+  const frozen = useFrozenListColumns({
+    columnCount: columns.length,
+    frozenColumnCount: Math.min(frozenColumnCount, columns.length) as CategoryListFrozenColumnCount,
+    freezeColumnsAuto,
+    leadingColumnRef: selectionColumnRef,
+    remeasureKey: `${rows.length}:${widthRemeasureKey}`,
+  });
+  const resolveAutoWidth = useCallback(
     (columnId: CategoryListColumnId, index: number) => {
-      if (!onColumnWidthChange) return;
       const column = getCategoryColumnDef(columnId);
-      const bounds = getColumnResizeBounds(column, deviceClass);
-      const headerWidth = headerRefs.current[index]?.offsetWidth ?? bounds.min;
-      onColumnWidthChange(columnId, Math.min(bounds.max, Math.max(bounds.min, headerWidth)));
-      setPreviewWidths((current) => {
-        const next = { ...current };
-        delete next[columnId];
-        return next;
+      return resolveListColumnAutoWidth({
+        column,
+        deviceClass,
+        headerElement: frozen.headerRefs.current[index],
+        bodyTexts: rows.flatMap((row) => getCategoryListCellDisplayTexts(columnId, row)),
+        sortable: isSortableCategoryColumn(columnId),
+        measure: measureHintsFromValueKind(column, {
+          statusBadge: columnId === "is_active",
+        }),
       });
     },
-    [deviceClass, onColumnWidthChange]
+    [deviceClass, frozen.headerRefs, rows]
+  );
+  const resize = useResizableListColumns({
+    columns,
+    columnWidths,
+    deviceClass,
+    getColumnDef: getCategoryColumnDef,
+    headerRefs: frozen.headerRefs,
+    wrapModeForColumn: (columnId) => columnWrapModes?.[columnId] ?? "truncate",
+    resolveAutoWidth,
+  });
+
+  const selectionColumnShowsEdge =
+    frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
+
+  const selectionHeaderClass = cn(
+    "w-10 p-0 font-medium text-muted-foreground",
+    LIST_TABLE_HEADER_CELL_BG,
+    selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
   );
 
+  const selectionBodyClass = (selected: boolean) =>
+    cn(
+      "w-10 p-0 text-center",
+      selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW,
+      listTableLeadingCellInteractionClass(selected)
+    );
+
   return (
-    <div className="relative min-h-0 w-full flex-1 basis-0 self-stretch">
-      <div className="surface-inset absolute inset-0 flex flex-col overflow-hidden">
-        <div
-          ref={scrollContainerRef}
-          className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
-        >
-          <table
-            className={cn(
-              "w-full min-w-[720px] border-separate border-spacing-0 bg-background [&_td]:box-border [&_th]:box-border",
-              compactRows ? "text-xs" : "text-sm"
-            )}
-          >
+    <div className={LIST_TABLE_ROOT}>
+      <div className={LIST_TABLE_SURFACE}>
+        <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
+          <table className={listTableElementClass("narrow", compactRows)}>
             <thead>
               <tr className="bg-muted text-left">
                 <th
                   ref={selectionColumnRef}
                   className={cn(
-                    "sticky left-0 top-0 isolate overflow-hidden w-10 p-0 font-medium text-muted-foreground",
+                    "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
                     selectionHeaderClass
                   )}
-                  style={{ zIndex: SELECTION_COLUMN_Z_HEADER }}
+                  style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
                 >
                   <div className={cn("flex items-center justify-center", cellPadding(compactRows))}>
                     <Checkbox
+                      className={LIST_TABLE_CHECKBOX_CLASS}
                       checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
                       onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
                       aria-label="Select all categories on this page"
@@ -318,27 +201,29 @@ export function CategoryListTable({
                   const column = getCategoryColumnDef(columnId);
                   const sortable = isSortableCategoryColumn(columnId);
                   const isActiveSort = sortable && sortField === columnId;
-                  const sticky = getStickyCellProps(index, "header", columnId);
-                  const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
-                  const isLastFrozenColumn =
-                    effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
+                  const sticky = frozen.getStickyCellProps(index, "header");
+                  const widthStyles = resize.resolveWidthStyles(columnId, index);
+                  const isFrozen =
+                    frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
 
                   return (
                     <th
                       key={columnId}
                       ref={(element) => {
-                        headerRefs.current[index] = element;
+                        frozen.headerRefs.current[index] = element;
                       }}
                       className={cn(
                         "relative sticky top-0 overflow-hidden p-0 font-medium text-muted-foreground",
                         sticky.className,
-                        headerCellClass(isFrozen, isLastFrozenColumn),
+                        frozen.headerCellClass(index),
                         column.align === "center" && "text-center",
-                        column.align === "right" && "text-right"
+                        column.align === "right" && "text-right",
+                        index === columns.length - 1 && "rounded-tr-lg"
                       )}
                       style={mergeColumnCellStyles(
                         sticky.style,
-                        !isFrozen ? { zIndex: TABLE_HEADER_Z + (columns.length - index) } : {}
+                        widthStyles,
+                        !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
                       )}
                     >
                       {sortable ? (
@@ -379,21 +264,19 @@ export function CategoryListTable({
                       {onColumnWidthChange ? (
                         <ListColumnResizeHandle
                           ariaLabel={`Resize ${column.label} column`}
-                          getWidth={() => getHeaderWidthPx(columnId, index)}
+                          getWidth={() => resize.getHeaderWidthPx(columnId, index)}
                           minWidth={getColumnResizeBounds(column, deviceClass).min}
                           maxWidth={getColumnResizeBounds(column, deviceClass).max}
-                          onPreview={(width) =>
-                            setPreviewWidths((current) => ({ ...current, [columnId]: width }))
-                          }
+                          onPreview={(width) => resize.setPreviewWidth(columnId, width)}
                           onCommit={(width) => {
-                            setPreviewWidths((current) => {
-                              const next = { ...current };
-                              delete next[columnId];
-                              return next;
-                            });
+                            resize.clearPreviewWidth(columnId);
                             onColumnWidthChange(columnId, width);
                           }}
-                          onAutoFit={() => handleColumnAutoFit(columnId, index)}
+                          onAutoFit={() =>
+                            resize.autoFitColumn(columnId, index, (width) =>
+                              onColumnWidthChange(columnId, width)
+                            )
+                          }
                         />
                       ) : null}
                     </th>
@@ -412,10 +295,10 @@ export function CategoryListTable({
                   </td>
                 </tr>
               ) : (
-                rows.map((row, rowIndex) => {
+                rows.map((row) => {
                   const selected = selectedId === row.id;
                   const bulkSelected = bulkSelectedIds.has(row.id);
-                  const isLastRow = rowIndex === rows.length - 1;
+
                   return (
                     <tr
                       key={row.id}
@@ -428,15 +311,15 @@ export function CategoryListTable({
                           onSelect(row.id);
                         }
                       }}
-                      className={cn(
-                        "group cursor-pointer transition-colors duration-[25ms]",
-                        !row.is_active && "opacity-50",
-                        selected && "ring-1 ring-inset ring-primary/20"
-                      )}
+                      className={cn(listTableRowClass(selected), !row.is_active && "opacity-50")}
                     >
                       <td
-                        className={cn("sticky left-0 isolate", selectionBodyClass(selected, isLastRow))}
-                        style={{ zIndex: SELECTION_COLUMN_Z_BODY }}
+                        className={cn(
+                          "sticky left-0 isolate",
+                          LIST_TABLE_BODY_CELL,
+                          selectionBodyClass(selected)
+                        )}
+                        style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
                       >
                         <div
                           className={cn("flex items-center justify-center", cellPadding(compactRows))}
@@ -444,6 +327,7 @@ export function CategoryListTable({
                           onKeyDown={(event) => event.stopPropagation()}
                         >
                           <Checkbox
+                            className={LIST_TABLE_CHECKBOX_CLASS}
                             checked={bulkSelected}
                             onCheckedChange={(checked) =>
                               onBulkRowToggle(row.id, checked === true)
@@ -453,24 +337,24 @@ export function CategoryListTable({
                         </div>
                       </td>
                       {columns.map((columnId, index) => {
-                        const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
-                        const sticky = getStickyCellProps(index, "body", columnId);
-                        const isLastFrozenColumn =
-                          effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
                         const column = getCategoryColumnDef(columnId);
+                        const sticky = frozen.getStickyCellProps(index, "body");
+                        const widthStyles = resize.resolveWidthStyles(columnId, index);
+
                         return (
                           <td
                             key={columnId}
                             className={cn(
+                              LIST_TABLE_BODY_CELL,
                               "overflow-visible",
                               cellPadding(compactRows),
                               categoryListCellClassName(columnId),
                               column.align === "center" && "text-center",
                               column.align === "right" && "text-right",
                               sticky.className,
-                              bodyCellClass(selected, isFrozen, isLastFrozenColumn, isLastRow)
+                              frozen.bodyCellClass(index, selected)
                             )}
-                            style={sticky.style}
+                            style={mergeColumnCellStyles(sticky.style, widthStyles)}
                           >
                             <div className={categoryListCellWrapClassName(columnId)}>
                               {renderCategoryListCell(columnId, row, {

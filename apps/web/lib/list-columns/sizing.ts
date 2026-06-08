@@ -164,6 +164,16 @@ export function mergeColumnCellStyles(
   return { ...base, ...columnStyles };
 }
 
+/** Last data column absorbs remaining table width when not user-resized. */
+export function stretchListTableColumnWidth(
+  style: CSSProperties,
+  options: { isLastColumn: boolean; hasUserWidth: boolean }
+): CSSProperties {
+  if (!options.isLastColumn || options.hasUserWidth) return style;
+  const { maxWidth: _max, width: _width, ...rest } = style;
+  return rest;
+}
+
 /** Helper for module column registries. */
 export function columnWidths(spec: ResponsiveColumnWidths): ResponsiveColumnWidths {
   return spec;

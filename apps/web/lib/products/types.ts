@@ -46,6 +46,7 @@ export type ProductListRow = {
   default_sku: string | null;
   barcode: string | null;
   selling_price: string | null;
+  mrp: string | null;
   purchase_price: string | null;
   supplier_name: string | null;
   stock_on_hand: string | null;

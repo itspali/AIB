@@ -1,29 +1,34 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   AUTO_LAYOUT_PREF,
   getAutoFrozenColumnCount,
   type FrozenColumnPref,
 } from "@/lib/products/list-prefs";
-import { LIST_TABLE_HEADER_CELL_BG } from "@/lib/layout/list-table-chrome";
+import {
+  LIST_TABLE_FROZEN_CELL_BG,
+  LIST_TABLE_FROZEN_EDGE_SHADOW,
+  LIST_TABLE_HEADER_CELL_BG,
+  listTableBodyCellInteractionClass,
+} from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
 export type ListFrozenColumnCount = 0 | 1 | 2 | 3;
 
-export const FROZEN_CELL_BG =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--background)))] dark:bg-muted";
-export const FROZEN_CELL_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--muted)))]";
-export const FROZEN_CELL_SELECTED =
-  "bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--muted)))]";
-export const FROZEN_CELL_SELECTED_HOVER =
-  "group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_22%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--primary))_14%,hsl(var(--accent))_35%,hsl(var(--muted)))]";
-export const FROZEN_EDGE_SHADOW =
-  "shadow-[inset_-12px_0_18px_-8px_hsl(var(--primary)/0.16)] dark:shadow-[inset_-14px_0_18px_-10px_hsl(0_0%_0%/0.28)]";
+export const FROZEN_CELL_BG = LIST_TABLE_FROZEN_CELL_BG;
+export const FROZEN_EDGE_SHADOW = LIST_TABLE_FROZEN_EDGE_SHADOW;
 
 const TABLE_HEADER_Z = 10;
 const FROZEN_HEADER_Z_BASE = 40;
 const FROZEN_BODY_Z_BASE = 10;
+
+export const LIST_TABLE_HEADER_Z = TABLE_HEADER_Z;
+export const LIST_SELECTION_COLUMN_Z_HEADER = 50;
+export const LIST_SELECTION_COLUMN_Z_BODY = 15;
+
+export function isAutoFrozenColumnPref(pref: FrozenColumnPref): boolean {
+  return pref === AUTO_LAYOUT_PREF;
+}
 
 export function parseFrozenColumnPref(value: unknown): FrozenColumnPref {
   if (value === AUTO_LAYOUT_PREF) return AUTO_LAYOUT_PREF;
@@ -54,31 +59,53 @@ type StickyStyle = {
 type Options = {
   columnCount: number;
   frozenColumnCount: ListFrozenColumnCount;
+  /** When true (Auto pref), skip freeze until the table overflows horizontally. */
   freezeColumnsAuto?: boolean;
+  /** Leading column (e.g. bulk checkbox) width added to sticky offsets. */
+  leadingColumnRef?: RefObject<HTMLElement | null>;
+  /** Bumps sticky offset remeasure when row count or column widths change. */
+  remeasureKey?: unknown;
 };
 
 export function useFrozenListColumns({
   columnCount,
   frozenColumnCount,
-  freezeColumnsAuto = true,
+  freezeColumnsAuto = false,
+  leadingColumnRef,
+  remeasureKey,
 }: Options) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRefs = useRef<(HTMLTableCellElement | null)[]>([]);
   const [stickyOffsets, setStickyOffsets] = useState<number[]>([]);
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
+  /** Latched while Auto freeze is on — drawer resize must not drop columns that were frozen. */
+  const latchedOverflowRef = useRef(false);
+  const [freezeWhileAuto, setFreezeWhileAuto] = useState(false);
 
   const effectiveFrozenCount = useMemo(() => {
     const requested = Math.min(frozenColumnCount, columnCount) as ListFrozenColumnCount;
-    if (freezeColumnsAuto && !hasHorizontalScroll) return 0 as ListFrozenColumnCount;
+    if (freezeColumnsAuto && !freezeWhileAuto) return 0 as ListFrozenColumnCount;
     return requested;
-  }, [columnCount, freezeColumnsAuto, frozenColumnCount, hasHorizontalScroll]);
+  }, [columnCount, freezeColumnsAuto, freezeWhileAuto, frozenColumnCount]);
+
+  useLayoutEffect(() => {
+    latchedOverflowRef.current = false;
+    setFreezeWhileAuto(false);
+  }, [columnCount, remeasureKey]);
 
   useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const measureScroll = () => {
-      setHasHorizontalScroll(container.scrollWidth > container.clientWidth + 1);
+      const overflow = container.scrollWidth > container.clientWidth + 1;
+      setHasHorizontalScroll(overflow);
+      if (overflow) {
+        latchedOverflowRef.current = true;
+      }
+      if (freezeColumnsAuto) {
+        setFreezeWhileAuto(latchedOverflowRef.current || overflow);
+      }
     };
 
     measureScroll();
@@ -88,7 +115,7 @@ export function useFrozenListColumns({
     if (table) observer.observe(table);
 
     return () => observer.disconnect();
-  }, [columnCount]);
+  }, [columnCount, freezeColumnsAuto, remeasureKey]);
 
   useLayoutEffect(() => {
     if (effectiveFrozenCount === 0) {
@@ -96,14 +123,14 @@ export function useFrozenListColumns({
       return;
     }
 
-    let left = 0;
+    let left = leadingColumnRef?.current?.offsetWidth ?? 0;
     const offsets: number[] = [];
     for (let index = 0; index < effectiveFrozenCount; index += 1) {
       offsets.push(left);
       left += headerRefs.current[index]?.offsetWidth ?? 0;
     }
     setStickyOffsets(offsets);
-  }, [columnCount, effectiveFrozenCount]);
+  }, [columnCount, effectiveFrozenCount, remeasureKey, leadingColumnRef]);
 
   const getStickyCellProps = (index: number, variant: "header" | "body"): StickyStyle => {
     if (effectiveFrozenCount === 0 || index >= effectiveFrozenCount) {
@@ -125,7 +152,6 @@ export function useFrozenListColumns({
     const isLastFrozenColumn = effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
     return cn(
       LIST_TABLE_HEADER_CELL_BG,
-      isFrozen && FROZEN_CELL_BG,
       isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW
     );
   };
@@ -135,10 +161,9 @@ export function useFrozenListColumns({
     const isLastFrozenColumn = effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
     return cn(
       rowEdgeClass(isFrozen && isLastFrozenColumn),
-      isFrozen &&
-        (selected
-          ? cn(FROZEN_CELL_SELECTED, FROZEN_CELL_SELECTED_HOVER)
-          : cn(FROZEN_CELL_BG, FROZEN_CELL_HOVER))
+      isFrozen
+        ? listTableBodyCellInteractionClass(selected, { frozen: true })
+        : listTableBodyCellInteractionClass(selected)
     );
   };
 
@@ -146,6 +171,7 @@ export function useFrozenListColumns({
     scrollContainerRef,
     headerRefs,
     effectiveFrozenCount,
+    hasHorizontalScroll,
     getStickyCellProps,
     headerCellClass,
     bodyCellClass,

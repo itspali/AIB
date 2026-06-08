@@ -69,6 +69,47 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
     supportsMultiValue: true,
     supportsCompound: true,
   },
+  adjustment_number: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  variant_sku: {
+    valueType: "text",
+    supportsMultiValue: true,
+    supportsCompound: true,
+  },
+  item_name: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  location_name: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  kind: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  reason: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  transfer_number: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  current_status: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  source_location_name: {
+    valueType: "text",
+    supportsCompound: true,
+  },
+  destination_location_name: {
+    valueType: "text",
+    supportsCompound: true,
+  },
 };
 
 const DEFAULT_METADATA: FieldMetadata = {

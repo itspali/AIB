@@ -17,6 +17,7 @@ import {
   getDefaultStockListPrefs,
   loadStockListPrefs,
   saveStockListPrefs,
+  setStockColumnWidth,
   setStockSortPrefs,
   type StockListPrefs,
 } from "@/lib/inventory/stock/list-prefs";
@@ -213,6 +214,9 @@ export function StockManagementTerminal({
           sortDirection={prefs.balanceSortDirection}
           frozenColumnCount={prefs.frozenColumnCount}
           onSortChange={handleBalanceSortChange}
+          onColumnWidthChange={(columnId, width) =>
+            setPrefs((current) => setStockColumnWidth(current, columnId, width))
+          }
           selectedId={null}
           onAdjust={handleAdjustBalance}
         />
@@ -231,6 +235,9 @@ export function StockManagementTerminal({
         sortDirection={prefs.adjustmentSortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleAdjustmentSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setStockColumnWidth(current, columnId, width))
+        }
         selectedId={selectedAdjustmentId}
         onSelect={handleSelectAdjustment}
       />
@@ -262,7 +269,7 @@ export function StockManagementTerminal({
           ) : null
         }
       >
-        <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-auto">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}
         </div>
       </ListModuleShell>

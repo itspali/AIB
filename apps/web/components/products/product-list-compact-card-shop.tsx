@@ -9,7 +9,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ProductCardBulkCheckbox } from "@/components/products/product-list-card-parts";
+import {
+  CardMrpLabel,
+  CardSellingPriceLabel,
+  ProductCardBulkCheckbox,
+} from "@/components/products/product-list-card-parts";
 import {
   renderProductListActiveStatus,
   resolveProductListCellTextWrapClass,
@@ -135,8 +139,8 @@ export function ProductListCompactCardShop({
   const plan = buildCardLayoutPlan(columns, product, showVariants, { rowActive });
   const { shop } = plan;
 
-  const hasPrice = shop.showSellingPrice && shop.sellingPrice;
-  const hasCompare = shop.showComparePrice && shop.comparePrice;
+  const hasPrice = shop.showSellingPrice && shop.sellingPriceAmount;
+  const hasMrp = shop.showMrp && shop.mrpPrice;
   const showImageWell = plan.hero.showImage;
   const secondaryFields = [...plan.details, ...plan.detailOverflow];
 
@@ -255,18 +259,15 @@ export function ProductListCompactCardShop({
         ) : null}
 
         <div className="mt-auto space-y-2 pt-1">
-          {hasPrice || hasCompare ? (
+          {hasPrice || hasMrp ? (
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               {hasPrice ? (
-                <span className="text-lg font-semibold tabular-nums tracking-tight text-foreground">
-                  {shop.sellingPrice}
-                </span>
+                <CardSellingPriceLabel
+                  amount={shop.sellingPriceAmount!}
+                  uom={shop.sellingPriceUom}
+                />
               ) : null}
-              {hasCompare ? (
-                <span className="text-xs tabular-nums text-muted-foreground line-through">
-                  {shop.comparePrice}
-                </span>
-              ) : null}
+              {hasMrp ? <CardMrpLabel amount={shop.mrpPrice!} /> : null}
             </div>
           ) : null}
 

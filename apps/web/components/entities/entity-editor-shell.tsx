@@ -33,7 +33,7 @@ import {
   applyGstinLookupToEntityForm,
   lookupGstinDetails,
   normalizeGstin,
-  validateGstin,
+  validateGstinFormat,
 } from "@/lib/entities/gstin";
 import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
@@ -206,7 +206,7 @@ export function EntityEditorShell({
         setForm((current) => ({ ...current, tax_registration_number: normalized }));
       }
 
-      const validationError = validateGstin(normalized);
+      const validationError = validateGstinFormat(normalized);
       if (validationError) {
         if (normalized.length === 15) {
           toast.error(validationError);

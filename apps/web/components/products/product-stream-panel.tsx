@@ -23,7 +23,6 @@ import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import { redactProductListRow } from "@/lib/products/field-permissions";
 import {
   bumpProductListPrefsRevision,
-  coerceProductListPrefs,
   getColumnPrefsSlice,
   isCardViewMode,
   isTableLikeViewMode,
@@ -159,7 +158,7 @@ export function ProductStreamPanel({
   const initialListPrefsRef = useRef(initialListPrefs);
   const hydratedRef = useRef(false);
   const [prefs, setPrefs] = useState<ProductListPrefs>(() =>
-    resolvePrefsOnMount(initialListPrefs, null)
+    resolvePrefsOnMount(initialListPrefs, loadProductListPrefs())
   );
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
@@ -178,15 +177,7 @@ export function ProductStreamPanel({
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     const localPrefs = loadProductListPrefs();
-    let hydrated = resolvePrefsOnMount(initialListPrefsRef.current, localPrefs);
-    if (ssrListReady && initialListPrefsRef.current) {
-      const serverPrefs = coerceProductListPrefs(initialListPrefsRef.current);
-      hydrated = {
-        ...hydrated,
-        viewMode: serverPrefs.viewMode,
-        columnPrefs: serverPrefs.columnPrefs,
-      };
-    }
+    const hydrated = resolvePrefsOnMount(initialListPrefsRef.current, localPrefs);
     // Sync the comparison ref so the save effect does not treat hydration as a
     // user edit (which would fire a needless saveProductListUserPrefs action).
     prevPrefsRef.current = hydrated;
@@ -617,7 +608,7 @@ export function ProductStreamPanel({
       columnChipDisplay={columnChipDisplay}
       columnWidths={columnWidths}
       deviceClass={listDisplayDeviceClass}
-      compactRows={displayViewMode === "compact"}
+      compactRows={false}
       showVariants={effectiveExpandVariants}
       selectedId={selectedId}
       selectedVariantId={selectedVariantId}

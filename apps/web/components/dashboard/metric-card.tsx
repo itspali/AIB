@@ -1,6 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { MetricSparkline } from "@/components/dashboard/metric-sparkline";
 import { HubPanel } from "@/components/dashboard/hub-panel";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ type MetricCardProps = {
   accent?: HubAccent;
   sparkline?: number[];
   className?: string;
+  href?: string;
 };
 
 export function MetricCard({
@@ -25,8 +27,9 @@ export function MetricCard({
   accent = "cyan",
   sparkline,
   className,
+  href,
 }: MetricCardProps) {
-  return (
+  const panel = (
     <HubPanel accent={accent} icon={icon} className={className}>
       <div className="p-6 pr-16">
         <div className="flex items-start justify-between gap-3">
@@ -45,5 +48,16 @@ export function MetricCard({
         )}
       </div>
     </HubPanel>
+  );
+
+  if (!href) return panel;
+
+  return (
+    <Link
+      href={href}
+      className="block rounded-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {panel}
+    </Link>
   );
 }

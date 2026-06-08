@@ -45,6 +45,8 @@ function formatCell(row: ProductListRow, columnId: string): string {
       return row.is_returnable ? "Yes" : "No";
     case "selling_price":
       return row.selling_price ?? "";
+    case "mrp":
+      return row.mrp ?? "";
     case "purchase_price":
       return row.purchase_price ?? "";
     case "supplier_name":

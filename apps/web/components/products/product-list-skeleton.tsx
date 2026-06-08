@@ -90,7 +90,7 @@ export function ProductListSkeleton({ viewMode, cardLayout = "v2" }: Props) {
       {Array.from({ length: 8 }).map((_, index) => (
         <Skeleton
           key={index}
-          className={cn("w-full rounded-none", viewMode === "compact" ? "h-7" : "h-10")}
+          className="h-10 w-full rounded-none"
         />
       ))}
     </div>
