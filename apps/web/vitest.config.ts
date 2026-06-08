@@ -13,6 +13,8 @@ export default defineConfig({
       "lib/list-columns/__tests__/**/*.test.ts",
       "lib/locations/__tests__/**/*.test.ts",
       "lib/inventory/__tests__/**/*.test.ts",
+      "lib/procurement/__tests__/**/*.test.ts",
+      "lib/group/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

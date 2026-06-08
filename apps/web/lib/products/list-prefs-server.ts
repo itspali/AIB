@@ -16,11 +16,20 @@ export async function loadUserProductListPrefs(
   userId: string,
   tenantId: string
 ): Promise<ProductListPrefs | null> {
+  const { data: membership, error: membershipError } = await supabase
+    .from("user_tenant_memberships")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (membershipError || !membership) return null;
+
   const { data, error } = await supabase
     .from("users")
     .select("metadata_json")
     .eq("id", userId)
-    .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .maybeSingle();
 

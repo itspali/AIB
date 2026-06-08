@@ -9,9 +9,10 @@ import type { OrganizationSettingsFormValues } from "@/lib/organization/types";
 type Props = {
   form: UseFormReturn<OrganizationSettingsFormValues>;
   disabled?: boolean;
+  parentGroupName?: string | null;
 };
 
-export function OrganizationIdentitySection({ form, disabled }: Props) {
+export function OrganizationIdentitySection({ form, disabled, parentGroupName }: Props) {
   const {
     register,
     formState: { errors },
@@ -23,6 +24,13 @@ export function OrganizationIdentitySection({ form, disabled }: Props) {
       description="Registered entity names, statutory identifiers, and primary contact channels."
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {parentGroupName ? (
+          <div className="space-y-2 md:col-span-2 lg:col-span-3">
+            <Label className="text-sm font-medium text-muted-foreground">Parent group</Label>
+            <Input value={parentGroupName} disabled readOnly className="bg-muted/40" />
+          </div>
+        ) : null}
+
         <div className="space-y-2 md:col-span-2 lg:col-span-2">
           <Label htmlFor="legal_name" className="text-sm font-medium text-muted-foreground">
             Formal legal entity name

@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, LogOut, Settings } from "lucide-react";
 import { ProfileNavLink, rowClassName } from "@/components/layout/profile-nav-link";
+import { WorkspaceSwitchSubmenu } from "@/components/layout/workspace-switch-submenu";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { OperatorProfile } from "@/lib/user/types";
@@ -17,6 +18,7 @@ type Props = {
 export function UserProfileActions({ profile, onboardingOnly = false, onNavigate }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const showWorkspaceSwitch = profile.tenantMembershipCount > 1;
 
   const handleSignOut = () => {
@@ -37,12 +39,25 @@ export function UserProfileActions({ profile, onboardingOnly = false, onNavigate
             Account Settings &amp; Security
           </ProfileNavLink>
 
-          {showWorkspaceSwitch && (
-            <button type="button" className={rowClassName} onClick={onNavigate}>
-              <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-              Switch Workspace Instance
-            </button>
-          )}
+          {showWorkspaceSwitch ? (
+            <>
+              <button
+                type="button"
+                className={rowClassName}
+                onClick={() => setWorkspaceOpen((open) => !open)}
+              >
+                <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                Switch Workspace Instance
+              </button>
+              {workspaceOpen ? (
+                <WorkspaceSwitchSubmenu
+                  options={profile.workspaceOptions}
+                  activeTenantId={profile.activeTenantId}
+                  onNavigate={onNavigate}
+                />
+              ) : null}
+            </>
+          ) : null}
 
           <div className="my-1 border-t border-border" />
         </>

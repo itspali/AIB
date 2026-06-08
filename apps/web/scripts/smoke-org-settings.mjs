@@ -373,16 +373,31 @@ async function createStaffMember(admin, url, anonKey, tenantId, locationId, stam
   } = await bootstrapSession.supabase.auth.getUser();
   if (!user) throw new Error("staff auth user missing after silent signup");
 
-  const { error: insertError } = await admin.from("users").insert({
+  const { error: metadataError } = await admin.auth.admin.updateUserById(user.id, {
+    app_metadata: {
+      tenant_id: tenantId,
+      role: "STAFF",
+      assigned_location_id: locationId,
+    },
+  });
+  if (metadataError) throw new Error(`staff app_metadata: ${metadataError.message}`);
+
+  const { error: profileError } = await admin.from("users").upsert({
     id: user.id,
-    tenant_id: tenantId,
-    role: "STAFF",
-    assigned_location_id: locationId,
     first_name: "Staff",
     last_name: "Member",
     email: staffEmail.toLowerCase(),
   });
-  if (insertError) throw new Error(`insert staff user: ${insertError.message}`);
+  if (profileError) throw new Error(`upsert staff profile: ${profileError.message}`);
+
+  const { error: membershipError } = await admin.from("user_tenant_memberships").insert({
+    user_id: user.id,
+    tenant_id: tenantId,
+    role: "STAFF",
+    assigned_location_id: locationId,
+    email: staffEmail.toLowerCase(),
+  });
+  if (membershipError) throw new Error(`insert staff membership: ${membershipError.message}`);
 
   return {
     staffEmail,

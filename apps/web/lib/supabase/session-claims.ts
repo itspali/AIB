@@ -4,6 +4,7 @@ export type SessionClaims = {
   userId: string;
   email: string | null;
   tenantId: string | null;
+  groupId: string | null;
   appMetadata: Record<string, unknown>;
   userMetadata: Record<string, unknown>;
 };
@@ -24,6 +25,7 @@ function toSessionClaims(claims: Record<string, unknown> | null | undefined): Se
     userId: claims.sub,
     email: typeof claims.email === "string" ? claims.email : null,
     tenantId: typeof appMetadata.tenant_id === "string" ? appMetadata.tenant_id : null,
+    groupId: typeof appMetadata.group_id === "string" ? appMetadata.group_id : null,
     appMetadata,
     userMetadata,
   };

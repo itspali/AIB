@@ -48,18 +48,23 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Procurement",
-    href: "/procurement/suppliers",
-    keywords: ["procurement", "purchase", "suppliers"],
-  },
-  {
-    label: "Suppliers",
-    href: "/procurement/suppliers",
-    keywords: ["suppliers", "vendors", "procurement"],
+    href: "/procurement",
+    keywords: ["procurement", "purchase", "suppliers", "grn", "goods receipt"],
   },
   {
     label: "Purchase Orders",
     href: "/procurement/purchase-orders",
     keywords: ["purchase orders", "po", "procurement", "buying"],
+  },
+  {
+    label: "Goods Receipts",
+    href: "/procurement/goods-receipts",
+    keywords: ["goods receipts", "grn", "receipt", "inbound", "procurement"],
+  },
+  {
+    label: "Suppliers",
+    href: "/procurement/suppliers",
+    keywords: ["suppliers", "vendors", "procurement"],
   },
   {
     label: "Bills",
@@ -110,6 +115,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     label: "Organization Settings",
     href: "/settings/organization",
     keywords: ["organization", "company", "tenant", "workspace"],
+  },
+  {
+    label: "Group Settings",
+    href: "/settings/group",
+    keywords: ["group", "enterprise", "holding", "subsidiary", "multi-org"],
   },
   {
     label: "Tax Settings",

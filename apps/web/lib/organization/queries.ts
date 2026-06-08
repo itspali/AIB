@@ -62,11 +62,10 @@ export async function fetchOrganizationSettingsSnapshot(
       .eq("is_active", true)
       .order("name"),
     supabase
-      .from("users")
-      .select("id, first_name, last_name, email")
+      .from("user_tenant_memberships")
+      .select("user_id, email")
       .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .order("first_name"),
+      .eq("is_active", true),
     supabase.from("inventory_ledger").select("id").eq("tenant_id", tenantId).limit(1),
     supabase.from("item_valuations").select("id").eq("tenant_id", tenantId).limit(1),
   ]);
@@ -119,7 +118,6 @@ export async function fetchOrganizationSettingsSnapshot(
     const { data: delegateUsers } = await supabase
       .from("users")
       .select("id, first_name, last_name, email")
-      .eq("tenant_id", tenantId)
       .in("id", delegateUserIds);
 
     for (const user of delegateUsers ?? []) {
@@ -159,6 +157,49 @@ export async function fetchOrganizationSettingsSnapshot(
 
   const baseCurrency = (tenant.base_currency ?? "USD") as OrganizationCurrency;
   const delegateIdSet = new Set(delegateUserIds);
+
+  const eligibleMemberships = eligibleUsers ?? [];
+  const eligibleUserIds = eligibleMemberships.map((row) => row.user_id as string);
+  const eligibleProfilesById = new Map<
+    string,
+    { id: string; first_name: string; last_name: string; email: string }
+  >();
+
+  if (eligibleUserIds.length) {
+    const { data: eligibleProfiles } = await supabase
+      .from("users")
+      .select("id, first_name, last_name, email")
+      .in("id", eligibleUserIds);
+
+    for (const user of eligibleProfiles ?? []) {
+      eligibleProfilesById.set(user.id, user);
+    }
+  }
+
+  const eligibleDelegateUsers = eligibleMemberships
+    .map((row) => {
+      const profile = eligibleProfilesById.get(row.user_id as string);
+      if (!profile) return null;
+      return {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email || (row.email as string),
+      };
+    })
+    .filter((row): row is { id: string; first_name: string; last_name: string; email: string } =>
+      row !== null
+    );
+
+  let parentGroupName: string | null = null;
+  if (tenant.group_id) {
+    const { data: parentGroup } = await supabase
+      .from("tenant_groups")
+      .select("name, trade_name")
+      .eq("id", tenant.group_id)
+      .maybeSingle();
+    parentGroupName = parentGroup?.trade_name || parentGroup?.name || null;
+  }
 
   return {
     tenant_id: tenant.id,
@@ -202,6 +243,8 @@ export async function fetchOrganizationSettingsSnapshot(
     product_fields_access: productFieldsAccess,
     delegates,
     locations: (locations ?? []) as TenantLocationOption[],
-    eligible_delegate_users: (eligibleUsers ?? []).filter((user) => !delegateIdSet.has(user.id)),
+    group_id: (tenant.group_id as string | null) ?? null,
+    parent_group_name: parentGroupName,
+    eligible_delegate_users: eligibleDelegateUsers.filter((user) => !delegateIdSet.has(user.id)),
   };
 }

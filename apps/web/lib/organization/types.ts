@@ -100,6 +100,8 @@ export type OrganizationSettingsSnapshot = {
   delegates: OrganizationDelegateRow[];
   locations: TenantLocationOption[];
   eligible_delegate_users: Array<{ id: string; first_name: string; last_name: string; email: string }>;
+  group_id: string | null;
+  parent_group_name: string | null;
 };
 
 export type OrganizationSettingsFormValues = {

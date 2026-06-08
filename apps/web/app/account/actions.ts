@@ -25,7 +25,7 @@ export async function updateUserProfile(values: {
   phone_number: string;
   avatar_url: string;
 }) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantId();
 
   const first_name = values.first_name.trim();
   const last_name = values.last_name.trim();
@@ -41,8 +41,7 @@ export async function updateUserProfile(values: {
       phone_number: values.phone_number.trim() || null,
       avatar_url: values.avatar_url.trim() || null,
     })
-    .eq("id", userId)
-    .eq("tenant_id", tenantId);
+    .eq("id", userId);
 
   if (error) return { error: error.message };
 

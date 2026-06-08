@@ -41,5 +41,8 @@ export function buildFallbackOperatorProfile(
     locationLabel: role === "OWNER" || role === "ADMIN" ? "All locations" : "Unassigned",
     dutyStatus: parseDutyStatus(user.user_metadata?.duty_status),
     tenantMembershipCount: 1,
+    activeTenantId:
+      typeof user.app_metadata?.tenant_id === "string" ? user.app_metadata.tenant_id : null,
+    workspaceOptions: [],
   };
 }

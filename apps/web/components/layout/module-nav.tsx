@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   MapPin,
   Package,
+  PackageCheck,
   Receipt,
   Ruler,
   ScrollText,
@@ -21,6 +22,7 @@ import {
   Truck,
   User,
   Users,
+  Network,
 } from "lucide-react";
 
 export type ModuleNavChild = {
@@ -58,13 +60,18 @@ export const moduleNavItems: ModuleNavItem[] = [
     icon: ShoppingCart,
     mobilePrimary: true,
     children: [
-      { href: "/procurement/suppliers", label: "Suppliers", icon: Building2, comingSoon: true },
+      { href: "/procurement", label: "Overview", icon: LayoutDashboard },
       {
         href: "/procurement/purchase-orders",
         label: "Purchase Orders",
         icon: ClipboardList,
-        comingSoon: true,
       },
+      {
+        href: "/procurement/goods-receipts",
+        label: "Goods Receipts",
+        icon: PackageCheck,
+      },
+      { href: "/procurement/suppliers", label: "Suppliers", icon: Building2, comingSoon: true },
       { href: "/procurement/bills", label: "Bills", icon: ScrollText, comingSoon: true },
     ],
   },
@@ -125,6 +132,7 @@ export const moduleNavItems: ModuleNavItem[] = [
     icon: Settings2,
     children: [
       { href: "/settings/organization", label: "Organization", icon: Building2 },
+      { href: "/settings/group", label: "Group", icon: Network },
       { href: "/settings/locations", label: "Locations", icon: MapPin },
       { href: "/settings/uom", label: "Units of Measure", icon: Ruler },
       { href: "/settings/tax", label: "Tax", icon: Receipt },

@@ -22,14 +22,15 @@ import type { UserRole } from "@/lib/user/types";
 async function getSessionContext() {
   const { supabase, tenantId, userId } = await requireTenantId();
 
-  const { data: userRow } = await supabase
-    .from("users")
+  const { data: membership } = await supabase
+    .from("user_tenant_memberships")
     .select("role")
-    .eq("id", userId)
+    .eq("user_id", userId)
     .eq("tenant_id", tenantId)
+    .eq("is_active", true)
     .maybeSingle();
 
-  const role = (userRow?.role as UserRole | undefined) ?? "STAFF";
+  const role = (membership?.role as UserRole | undefined) ?? "STAFF";
   return { supabase, tenantId, userId, role };
 }
 

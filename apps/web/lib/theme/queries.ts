@@ -32,22 +32,23 @@ export async function fetchThemePolicyForSession(
   tenantId: string,
   userId: string
 ): Promise<ResolvedThemePolicy> {
-  const [{ data: userRow }, tenantSettings] = await Promise.all([
+  const [{ data: membership }, tenantSettings] = await Promise.all([
     supabase
-      .from("users")
+      .from("user_tenant_memberships")
       .select("assigned_location_id")
-      .eq("id", userId)
+      .eq("user_id", userId)
       .eq("tenant_id", tenantId)
+      .eq("is_active", true)
       .maybeSingle(),
     fetchTenantThemeSettings(supabase, tenantId),
   ]);
 
   let locationOverride = null;
-  if (userRow?.assigned_location_id && tenantSettings.allow_location_theme_override) {
+  if (membership?.assigned_location_id && tenantSettings.allow_location_theme_override) {
     const { data: locationRow } = await supabase
       .from("tenant_locations")
       .select("location_meta")
-      .eq("id", userRow.assigned_location_id)
+      .eq("id", membership.assigned_location_id)
       .eq("tenant_id", tenantId)
       .maybeSingle();
 

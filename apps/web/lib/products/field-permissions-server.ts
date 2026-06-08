@@ -40,14 +40,15 @@ export async function resolveSessionProductFieldPermissions(
   const claims = await readSessionClaims(supabase);
   if (!claims) return null;
 
-  const { data: userRow } = await supabase
-    .from("users")
+  const { data: membership } = await supabase
+    .from("user_tenant_memberships")
     .select("role")
-    .eq("id", claims.userId)
+    .eq("user_id", claims.userId)
     .eq("tenant_id", tenantId)
+    .eq("is_active", true)
     .maybeSingle();
 
-  const role = (userRow?.role as UserRole | undefined) ?? null;
+  const role = (membership?.role as UserRole | undefined) ?? null;
   if (!role) return null;
 
   return resolveProductFieldPermissions(supabase, tenantId, role);

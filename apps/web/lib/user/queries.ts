@@ -3,6 +3,11 @@ import "server-only";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile";
 import { parseDutyStatus } from "@/lib/user/duty-status";
+import {
+  fetchActiveTenantMembership,
+  fetchUserTenantMembershipCount,
+  fetchWorkspaceMembershipOptions,
+} from "@/lib/user/membership";
 import { claimsToUserShape, readSessionClaims } from "@/lib/supabase/auth";
 import type { OperatorProfile, UserRole } from "@/lib/user/types";
 
@@ -19,7 +24,8 @@ export function buildOperatorProfileFromUserRow(
   userId: string,
   userRow: ModulePageUserRow,
   orgName: string,
-  locationName: string | null
+  locationName: string | null,
+  tenantMembershipCount = 1
 ): OperatorProfile {
   const role = userRow.role as UserRole;
   const metadata =
@@ -29,14 +35,16 @@ export function buildOperatorProfileFromUserRow(
 
   return {
     userId,
-    firstName: userRow.first_name,
-    lastName: userRow.last_name,
+    firstName: userRow.first_name ?? "",
+    lastName: userRow.last_name ?? "",
     role,
     avatarUrl: userRow.avatar_url,
     tenantDisplayName: orgName,
     locationLabel: resolveLocationLabel(role, userRow.assigned_location_id, locationName),
     dutyStatus: parseDutyStatus(metadata.duty_status),
-    tenantMembershipCount: 1,
+    tenantMembershipCount,
+    activeTenantId: null,
+    workspaceOptions: [],
   };
 }
 
@@ -56,34 +64,34 @@ export async function fetchOperatorProfile(
   userId: string,
   tenantId: string
 ): Promise<OperatorProfile | null> {
-  const { data: userRow, error: userError } = await supabase
-    .from("users")
-    .select(
-      "tenant_id, first_name, last_name, role, assigned_location_id, avatar_url, metadata_json"
-    )
-    .eq("id", userId)
-    .maybeSingle();
+  const [membership, membershipCount, workspaceOptions] = await Promise.all([
+    fetchActiveTenantMembership(supabase, userId, tenantId),
+    fetchUserTenantMembershipCount(supabase, userId),
+    fetchWorkspaceMembershipOptions(supabase, userId),
+  ]);
 
-  if (userError || !userRow) return null;
+  if (!membership) return null;
 
-  const effectiveTenantId = userRow.tenant_id ?? tenantId;
-  const role = userRow.role as UserRole;
+  const role = membership.role;
 
-  const [{ data: tenant }, { data: location }] = await Promise.all([
+  const [{ data: userRow }, { data: tenant }, { data: location }] = await Promise.all([
     supabase
-      .from("tenants")
-      .select("name, trade_name")
-      .eq("id", effectiveTenantId)
+      .from("users")
+      .select("first_name, last_name, avatar_url, metadata_json")
+      .eq("id", userId)
       .maybeSingle(),
-    userRow.assigned_location_id
+    supabase.from("tenants").select("name, trade_name").eq("id", tenantId).maybeSingle(),
+    membership.assigned_location_id
       ? supabase
           .from("tenant_locations")
           .select("name")
-          .eq("id", userRow.assigned_location_id)
-          .eq("tenant_id", effectiveTenantId)
+          .eq("id", membership.assigned_location_id)
+          .eq("tenant_id", tenantId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
+
+  if (!userRow) return null;
 
   const metadata =
     userRow.metadata_json && typeof userRow.metadata_json === "object"
@@ -92,18 +100,20 @@ export async function fetchOperatorProfile(
 
   return {
     userId,
-    firstName: userRow.first_name,
-    lastName: userRow.last_name,
+    firstName: userRow.first_name ?? "",
+    lastName: userRow.last_name ?? "",
     role,
     avatarUrl: userRow.avatar_url,
     tenantDisplayName: tenant?.trade_name || tenant?.name || "Workspace",
     locationLabel: resolveLocationLabel(
       role,
-      userRow.assigned_location_id,
+      membership.assigned_location_id,
       location?.name ?? null
     ),
     dutyStatus: parseDutyStatus(metadata.duty_status),
-    tenantMembershipCount: 1,
+    tenantMembershipCount: membershipCount,
+    activeTenantId: tenantId,
+    workspaceOptions,
   };
 }
 

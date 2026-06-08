@@ -160,3 +160,14 @@ Full catalog (do not re-create):
 - **Goal:** PO → GRN → stock in; mirror Stock list-module pattern under `/procurement`.
 - **Prerequisite reading:** `20260527134500_create_procurement_and_control_registry.sql`, existing `goods_receipts` schema, [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §5–6.
 - **Defer:** full PO approval workflow, supplier portal, purchase invoices — unless user expands scope.
+
+### Task Sequence 22: Enterprise Group Structure [IMPLEMENTED]
+- **Route:** `/settings/group` — Administration → Group (DESIGN_SYSTEM §6 org-settings pattern).
+- **Schema:** `tenant_groups`, `tenant_group_memberships`, `group_memberships`, `user_tenant_memberships`, `group_membership_events`; nullable `tenants.group_id`.
+- **Identity:** `public.users` profile-only; org roles in `user_tenant_memberships`; `switch_active_tenant_membership` RPC patches JWT.
+- **Phase 1 RPCs:** `create_tenant_group`, `update_tenant_group_profile`, `create_group_organization`, `list_group_organizations`, `request_group_exit`, `complete_group_exit`.
+- **Workspace switch:** profile dropdown submenu; `refreshSession()` after switch.
+- **Non-goals v1:** cross-org inventory, shared catalog, intercompany, invite flow.
+- **Migration:** `20260609100000_tenant_groups_foundation.sql`.
+- **Lib/UI:** `apps/web/lib/group/`, `apps/web/app/settings/group/`, `apps/web/components/settings/group/`.
+- **Org settings:** read-only parent group on Organization Identity when `tenants.group_id` set.

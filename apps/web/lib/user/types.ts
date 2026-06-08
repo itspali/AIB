@@ -2,6 +2,14 @@ export type UserRole = "OWNER" | "ADMIN" | "MANAGER" | "STAFF";
 
 export type DutyStatus = "AVAILABLE" | "IN_MEETING" | "AWAY_ON_BREAK";
 
+export type WorkspaceMembershipOption = {
+  tenantId: string;
+  displayName: string;
+  role: UserRole;
+  groupId: string | null;
+  groupName: string | null;
+};
+
 export type OperatorProfile = {
   userId: string;
   firstName: string;
@@ -12,6 +20,8 @@ export type OperatorProfile = {
   locationLabel: string;
   dutyStatus: DutyStatus;
   tenantMembershipCount: number;
+  activeTenantId: string | null;
+  workspaceOptions: WorkspaceMembershipOption[];
 };
 
 export type ProfileFormValues = {
