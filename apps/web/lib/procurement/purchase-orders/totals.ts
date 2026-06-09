@@ -51,9 +51,9 @@ export function computePurchaseOrderTotals(
   };
 }
 
-export function formatPoMoney(value: number): string {
+export function formatPoMoney(value: number, decimalPlaces = 2): string {
   return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
   });
 }

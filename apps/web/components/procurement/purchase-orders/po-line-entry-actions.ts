@@ -1,9 +1,13 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { lookupPoLineCatalogContext, lookupSupplierVariantPrice } from "@/app/procurement/purchase-orders/actions";
-import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
-import { getCachedBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
+import { mergePoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import {
+  getCachedVariantBaseUnit,
+  getCachedVariantImageUrl,
+} from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
   createEmptyPoLine,
   ensureTrailingPoLine,
@@ -11,7 +15,7 @@ import {
   type PoDraftLine,
 } from "@/lib/procurement/purchase-orders/draft-form";
 
-function focusInput(input: HTMLInputElement | null | undefined) {
+function focusInput(input: HTMLInputElement | HTMLTextAreaElement | null | undefined) {
   if (!input) return;
   window.requestAnimationFrame(() => {
     input.focus();
@@ -19,9 +23,18 @@ function focusInput(input: HTMLInputElement | null | undefined) {
   });
 }
 
-function resolveCachedVariantImageUrl(variantId: string): string | null {
-  const match = getCachedBrowseVariants()?.find((row) => row.variant_id === variantId);
-  return match?.image_url ?? null;
+function resolveVariantImageUrl(
+  variantId: string,
+  patchImageUrl?: string | null
+): string | null {
+  return patchImageUrl?.trim() || getCachedVariantImageUrl(variantId) || null;
+}
+
+function resolveVariantBaseUnit(
+  variantId: string,
+  patchBaseUnit?: string | null
+): string | null {
+  return patchBaseUnit?.trim() || getCachedVariantBaseUnit(variantId) || null;
 }
 
 export function usePoLineEntryActions(
@@ -29,7 +42,7 @@ export function usePoLineEntryActions(
   supplierId: string,
   onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void
 ) {
-  const itemRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const priceRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -124,11 +137,50 @@ export function usePoLineEntryActions(
   );
 
   const applyCatalogContext = useCallback(
-    async (lineKey: string, variantId: string) => {
+    async (lineKey: string, variantId: string, fallbackImageUrl?: string | null) => {
       if (!variantId) return;
       const result = await lookupPoLineCatalogContext({ variant_id: variantId });
-      if ("error" in result) return;
-      patchLine(lineKey, { catalog_context: result.context });
+      if ("error" in result) {
+        toast.error(result.error ?? "Could not load item details for this line");
+        return;
+      }
+      if (!result.context) {
+        toast.error("Item catalog details were not found for this variant");
+        return;
+      }
+
+      onChange((current) =>
+        current.map((line) => {
+          if (line.key !== lineKey) return line;
+          return {
+            ...line,
+            catalog_context: mergePoLineCatalogContext(
+              line.catalog_context,
+              result.context,
+              fallbackImageUrl
+            ),
+          };
+        })
+      );
+    },
+    [onChange]
+  );
+
+  const seedOptimisticCatalogContext = useCallback(
+    (
+      lineKey: string,
+      updatedLine: PoDraftLine,
+      snapshot: { imageUrl: string | null; baseUnit: string | null }
+    ) => {
+      if (!snapshot.imageUrl && !snapshot.baseUnit) return;
+      patchLine(lineKey, {
+        catalog_context: mergePoLineCatalogContext(
+          updatedLine.catalog_context,
+          null,
+          snapshot.imageUrl,
+          snapshot.baseUnit
+        ),
+      });
     },
     [patchLine]
   );
@@ -139,36 +191,34 @@ export function usePoLineEntryActions(
       patch: Partial<PoDraftLine>,
       updatedLine: PoDraftLine,
       isLastLine: boolean,
-      nextLines: PoDraftLine[]
+      nextLines: PoDraftLine[],
+      patchImageUrl?: string | null,
+      patchBaseUnit?: string | null
     ) => {
-      void applySupplierPrice(
-        lineKey,
-        patch.variant_id!,
-        updatedLine.unit_price_contractual ?? "0"
-      );
-      const cachedImage = resolveCachedVariantImageUrl(patch.variant_id!);
-      if (cachedImage) {
-        patchLine(lineKey, {
-          catalog_context: {
-            ...(updatedLine.catalog_context ?? emptyPoLineCatalogContext()),
-            image_url: cachedImage,
-          },
-        });
-      }
-      void applyCatalogContext(lineKey, patch.variant_id!);
+      const variantId = patch.variant_id!;
+      const imageUrl = resolveVariantImageUrl(variantId, patchImageUrl);
+      const baseUnit = resolveVariantBaseUnit(variantId, patchBaseUnit);
+
+      void applySupplierPrice(lineKey, variantId, updatedLine.unit_price_contractual ?? "0");
+      seedOptimisticCatalogContext(lineKey, updatedLine, { imageUrl, baseUnit });
+      void applyCatalogContext(lineKey, variantId, imageUrl);
 
       const qtyIsDefaultOne = Number(updatedLine.quantity_ordered) === 1;
-      if (isLastLine && qtyIsDefaultOne && patch.variant_id) {
+      if (isLastLine && qtyIsDefaultOne && variantId) {
         advanceFromLine(lineKey, nextLines);
         return;
       }
 
       focusQty(lineKey);
     },
-    [advanceFromLine, applyCatalogContext, applySupplierPrice, focusQty, patchLine]
+    [advanceFromLine, applyCatalogContext, applySupplierPrice, focusQty, seedOptimisticCatalogContext]
   );
 
-  type ItemChangePatch = Partial<PoDraftLine> & { unit_cost?: string };
+  type ItemChangePatch = Partial<PoDraftLine> & {
+    unit_cost?: string;
+    image_url?: string | null;
+    base_unit_of_measure?: string | null;
+  };
 
   const bindItemChange = useCallback(
     (lineKey: string) => (patch: ItemChangePatch) => {
@@ -176,10 +226,12 @@ export function usePoLineEntryActions(
         const currentLine = currentLines.find((row) => row.key === lineKey);
         if (!currentLine) return currentLines;
 
-        const hadVariant = Boolean(currentLine.variant_id);
+        const clearingItem = patch.variant_id === "";
+        const variantChanged =
+          Boolean(patch.variant_id) && patch.variant_id !== currentLine.variant_id;
+
         const nextLines = currentLines.map((row) => {
           if (row.key !== lineKey) return row;
-          const clearingItem = patch.variant_id === "";
           return {
             ...row,
             ...patch,
@@ -191,7 +243,7 @@ export function usePoLineEntryActions(
           };
         });
 
-        if (!hadVariant && patch.variant_id) {
+        if (variantChanged && patch.variant_id) {
           const updatedLine = nextLines.find((row) => row.key === lineKey)!;
           window.requestAnimationFrame(() => {
             handleVariantSelected(
@@ -199,7 +251,9 @@ export function usePoLineEntryActions(
               patch,
               updatedLine,
               lineKey === currentLines.at(-1)?.key,
-              nextLines
+              nextLines,
+              patch.image_url,
+              patch.base_unit_of_measure
             );
           });
           return nextLines;

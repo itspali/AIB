@@ -58,4 +58,5 @@ export type StockVariantOption = {
   adjustable: boolean;
   blocked_reason: string | null;
   image_url: string | null;
+  base_unit_of_measure: string | null;
 };

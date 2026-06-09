@@ -12,6 +12,7 @@ const SAMPLE: StockVariantOption[] = [
     adjustable: true,
     blocked_reason: null,
     image_url: null,
+    base_unit_of_measure: null,
   },
   {
     variant_id: "2",
@@ -22,6 +23,7 @@ const SAMPLE: StockVariantOption[] = [
     adjustable: true,
     blocked_reason: null,
     image_url: null,
+    base_unit_of_measure: "KG",
   },
 ];
 

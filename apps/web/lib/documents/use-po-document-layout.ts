@@ -7,7 +7,7 @@ import {
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 
-/** Resolved PO document layout for drawer surfaces (defaults until tenant layout is persisted). */
+/** Resolved PO document layout for drawer surfaces. */
 export function usePoDocumentLayout(
   layout: DocumentLayoutTemplate = DEFAULT_PO_SCREEN_LAYOUT
 ): DocumentLayoutTemplate {

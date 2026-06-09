@@ -654,6 +654,22 @@ export function ListColumnSettings<TId extends string>({
           <div className="min-w-0 flex-1">
             <span className="block truncate text-xs leading-tight">{column.label}</span>
           </div>
+          {visible && applicable && column.chipEligible ? (
+            <label
+              className="flex h-6 shrink-0 cursor-pointer items-center gap-1 pr-0.5"
+              title="Show as chips"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Switch
+                checked={chipEnabled}
+                disabled={rowDisabled}
+                onCheckedChange={(checked) => toggleChipMode(columnId, checked)}
+                aria-label={`Show ${column.label} as chips`}
+                className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
+              />
+              <span className="text-[10px] text-muted-foreground">Chip</span>
+            </label>
+          ) : null}
           {visible && applicable && columnSupportsWrapControl(column.valueKind) ? (
             <Select
               value={effectiveWrapMode(columnId)}
@@ -679,22 +695,6 @@ export function ListColumnSettings<TId extends string>({
           ) : (
             <span className="w-[4.5rem] shrink-0" aria-hidden />
           )}
-          {visible && applicable && column.chipEligible ? (
-            <label
-              className="flex h-6 shrink-0 cursor-pointer items-center gap-1 pr-0.5"
-              title="Show as chips"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Switch
-                checked={chipEnabled}
-                disabled={rowDisabled}
-                onCheckedChange={(checked) => toggleChipMode(columnId, checked)}
-                aria-label={`Show ${column.label} as chips`}
-                className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
-              />
-              <span className="text-[10px] text-muted-foreground">Chip</span>
-            </label>
-          ) : null}
         </div>
         {visible && applicable && column.chipEligible && chipEnabled ? (
           <ColumnChipColorEditor
@@ -734,7 +734,12 @@ export function ListColumnSettings<TId extends string>({
       </div>
       <DropdownMenuContent
         align="end"
-        className="column-settings-panel z-50 w-[min(26rem,calc(100vw-2rem))] min-w-[22rem] border p-0 text-xs ring-1 ring-border/80 dark:ring-primary/25"
+        className={cn(
+          "column-settings-panel z-50 border p-0 text-xs ring-1 ring-border/80 dark:ring-primary/25",
+          useSplitControlBar
+            ? "w-[min(20rem,calc(100vw-2rem))] min-w-[19rem]"
+            : "w-[min(18rem,calc(100vw-2rem))] min-w-[16rem]"
+        )}
         onPointerDownOutside={(event) => {
           if (dragIdRef.current) event.preventDefault();
         }}
@@ -761,9 +766,9 @@ export function ListColumnSettings<TId extends string>({
         </p>
         {showLayoutSwitcher || showDeviceSwitcher ? (
           useSplitControlBar ? (
-            <div className="flex min-w-0 items-center justify-between gap-2 px-2 pb-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-2 pb-1.5">
               {deviceSwitcher}
-              <div className="flex min-w-0 items-center justify-end gap-1.5">
+              <div className="flex shrink-0 items-center justify-end gap-1.5">
                 {layoutSwitcher}
                 {editingLayout === "card" ? cardGridControl : freezeControl}
               </div>

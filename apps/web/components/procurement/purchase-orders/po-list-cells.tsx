@@ -50,6 +50,12 @@ export function renderPurchaseOrderListCell(
       return <span className="tabular-nums">{row.line_count}</span>;
     case "net_amount":
       return <span className="tabular-nums">{row.total_net_amount}</span>;
+    case "created":
+      return (
+        <span className={cn("text-sm text-muted-foreground")}>{formatDate(row.created_at)}</span>
+      );
+    case "created_by":
+      return <span className="text-sm">{row.created_by_name?.trim() || "—"}</span>;
     case "updated":
       return (
         <span className={cn("text-sm text-muted-foreground")}>{formatDate(row.updated_at)}</span>

@@ -6,6 +6,7 @@ import {
   normalizePoLayoutTemplate,
 } from "@/lib/documents/purchase-order-layout";
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import { resolveColumnDecimalPlaces } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import {
   computePurchaseOrderTotals,
@@ -25,16 +26,17 @@ type Props = {
   showFooterOnLarge?: boolean;
 };
 
-function resolveTotalsValue(fieldId: string, totals: PurchaseOrderTotalsSnapshot): string {
-  switch (fieldId) {
+function resolveTotalsValue(field: DocumentColumnPref, totals: PurchaseOrderTotalsSnapshot): string {
+  const decimalPlaces = resolveColumnDecimalPlaces(field);
+  switch (field.id) {
     case "line_count":
       return String(totals.filledLineCount);
     case "subtotal_ex_tax":
-      return formatPoMoney(totals.subtotalGross);
+      return formatPoMoney(totals.subtotalGross, decimalPlaces);
     case "tax_amount":
-      return formatPoMoney(totals.taxAmount);
+      return formatPoMoney(totals.taxAmount, decimalPlaces);
     case "grand_total":
-      return formatPoMoney(totals.grandTotal);
+      return formatPoMoney(totals.grandTotal, decimalPlaces);
     default:
       return "—";
   }
@@ -77,7 +79,7 @@ function TotalsFieldRow({
           )
         )}
       >
-        {resolveTotalsValue(field.id, totals)}
+        {resolveTotalsValue(field, totals)}
       </dd>
     </div>
   );

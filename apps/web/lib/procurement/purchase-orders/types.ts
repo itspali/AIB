@@ -18,6 +18,8 @@ export type PurchaseOrderLineRow = {
   unit_price_contractual: string;
   line_total_gross: string;
   open_quantity: string;
+  /** Item base UOM — read-only display until Phase 3 line `uom_code`. */
+  base_unit_of_measure?: string | null;
 };
 
 export type PurchaseOrderRow = {
@@ -35,6 +37,8 @@ export type PurchaseOrderRow = {
   line_count: number;
   total_net_amount: string;
   custom_fields: Record<string, unknown>;
+  created_by: string;
+  created_by_name: string;
   created_at: string;
   updated_at: string;
   lines?: PurchaseOrderLineRow[];

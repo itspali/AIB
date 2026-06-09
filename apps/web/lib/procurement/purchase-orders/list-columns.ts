@@ -10,6 +10,8 @@ export const PO_LIST_COLUMN_IDS = [
   "status",
   "lines",
   "net_amount",
+  "created",
+  "created_by",
   "updated",
 ] as const;
 
@@ -99,6 +101,22 @@ export const PO_LIST_COLUMNS: ListColumnDef<PurchaseOrderListColumnId>[] = [
     group: "Details",
     valueKind: "number",
     widths: W_AMOUNT,
+  },
+  {
+    id: "created",
+    label: "Created",
+    defaultVisible: true,
+    group: "Timestamps",
+    valueKind: "date",
+    widths: W_DATE,
+  },
+  {
+    id: "created_by",
+    label: "Created by",
+    defaultVisible: false,
+    group: "Timestamps",
+    valueKind: "text",
+    widths: W_NAME,
   },
   {
     id: "updated",

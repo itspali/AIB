@@ -5,6 +5,12 @@ import {
   fetchPurchaseOrderById,
   fetchPurchaseOrders,
 } from "@/lib/procurement/purchase-orders/queries";
+import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
+import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
+import {
+  canAccessPurchaseOrderDestination,
+  resolvePurchaseOrderEditAccess,
+} from "@/lib/procurement/access";
 import { formatPurchaseOrderRpcError } from "@/lib/procurement/purchase-orders/rpc-errors";
 import { serializePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import {
@@ -62,17 +68,30 @@ export async function loadProcurementSuppliers(): Promise<ProcurementSupplierOpt
 }
 
 export async function loadPurchaseOrders(): Promise<PurchaseOrderRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
-  return fetchPurchaseOrders(supabase, tenantId);
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const access = await resolvePurchaseOrderEditAccess(supabase, userId, tenantId);
+  return fetchPurchaseOrders(
+    supabase,
+    tenantId,
+    purchaseOrderFetchOptionsForScope(access.locationScope)
+  );
 }
 
 export async function loadPurchaseOrderDetail(
   purchaseOrderId: string
 ): Promise<{ purchaseOrder: PurchaseOrderRow } | { error: string }> {
   if (!purchaseOrderId.trim()) return { error: "Purchase order id is required." };
-  const { supabase, tenantId } = await requireTenantId();
-  const purchaseOrder = await fetchPurchaseOrderById(supabase, tenantId, purchaseOrderId);
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [purchaseOrder, access] = await Promise.all([
+    fetchPurchaseOrderById(supabase, tenantId, purchaseOrderId),
+    resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
+  ]);
   if (!purchaseOrder) return { error: "Purchase order not found." };
+  if (
+    !canAccessPurchaseOrderDestination(purchaseOrder.destination_location_id, access)
+  ) {
+    return { error: "Purchase order not found." };
+  }
   return { purchaseOrder };
 }
 

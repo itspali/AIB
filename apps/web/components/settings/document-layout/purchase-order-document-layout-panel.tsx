@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { savePurchaseOrderDocumentLayout } from "@/app/settings/modules/procurement/actions";
+import {
+  loadPurchaseOrderDocumentLayout,
+  savePurchaseOrderDocumentLayout,
+} from "@/app/settings/modules/procurement/actions";
 import { DocumentLayoutCatalogFieldsSection } from "@/components/settings/document-layout/document-layout-catalog-fields-section";
 import { DocumentLayoutFieldList } from "@/components/settings/document-layout/document-layout-field-list";
 import { DocumentLayoutPreview } from "@/components/settings/document-layout/document-layout-preview";
@@ -42,7 +45,7 @@ import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-order
 import { cn } from "@/lib/utils";
 
 type Props = {
-  initialLayout?: DocumentLayoutTemplate;
+  initialLayout: DocumentLayoutTemplate;
   locations?: DocumentLayoutLocationOption[];
   canEdit?: boolean;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
@@ -91,18 +94,54 @@ function SectionBlock({
 }
 
 export function PurchaseOrderDocumentLayoutPanel({
-  initialLayout = DEFAULT_PO_SCREEN_LAYOUT,
+  initialLayout,
   locations = [],
   canEdit = true,
   catalogFieldSuggestions,
 }: Props) {
   const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
-  const [viewContext, setViewContext] = useState<DocumentViewContext>("SCREEN_GRID");
+  const [viewContext, setViewContext] = useState<DocumentViewContext>(
+    initialLayout.viewContext ?? "SCREEN_GRID"
+  );
   const [layout, setLayout] = useState<DocumentLayoutTemplate>(() =>
     normalizePoLayoutTemplate(initialLayout)
   );
   const [previewMode, setPreviewMode] = useState<"drawer" | "peek">("drawer");
   const [isPending, startTransition] = useTransition();
+  const [isLoadingLayout, setIsLoadingLayout] = useState(false);
+  const hydratedViewContext = useRef(initialLayout.viewContext ?? "SCREEN_GRID");
+
+  useEffect(() => {
+    const defaultView = initialLayout.viewContext ?? "SCREEN_GRID";
+
+    if (viewContext === defaultView && viewContext === hydratedViewContext.current) {
+      return;
+    }
+
+    if (viewContext === defaultView) {
+      setLayout(normalizePoLayoutTemplate({ ...initialLayout, viewContext }));
+      hydratedViewContext.current = viewContext;
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingLayout(true);
+    void loadPurchaseOrderDocumentLayout({ viewContext }).then((result) => {
+      if (cancelled) return;
+      setIsLoadingLayout(false);
+      if ("error" in result) {
+        toast.error(result.error ?? "Unable to load document layout.");
+        return;
+      }
+      hydratedViewContext.current = viewContext;
+      setLayout(normalizePoLayoutTemplate(result.layout));
+    });
+
+    return () => {
+      cancelled = true;
+      setIsLoadingLayout(false);
+    };
+  }, [viewContext, initialLayout]);
 
   const columnById = useMemo(() => new Map(layout.columns.map((column) => [column.id, column])), [layout.columns]);
 
@@ -138,9 +177,12 @@ export function PurchaseOrderDocumentLayoutPanel({
         return;
       }
 
+      hydratedViewContext.current = viewContext;
       toast.success("Document layout saved.");
     });
   };
+
+  const controlsDisabled = !canEdit || isPending || isLoadingLayout;
 
   return (
     <div className="space-y-3">
@@ -167,11 +209,11 @@ export function PurchaseOrderDocumentLayoutPanel({
           </Tabs>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={!canEdit || isPending} onClick={handleReset}>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={controlsDisabled} onClick={handleReset}>
             Reset
           </Button>
-          <Button type="button" size="sm" className="h-7 px-3 text-xs" disabled={!canEdit || isPending} onClick={handleSave}>
-            {isPending ? "Saving…" : "Save"}
+          <Button type="button" size="sm" className="h-7 px-3 text-xs" disabled={controlsDisabled} onClick={handleSave}>
+            {isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save"}
           </Button>
         </div>
       </div>
@@ -222,7 +264,7 @@ export function PurchaseOrderDocumentLayoutPanel({
           >
             <DocumentLayoutCatalogFieldsSection
               layout={layout}
-              canEdit={canEdit}
+              canEdit={!controlsDisabled}
               customFieldKeys={catalogFieldSuggestions?.customFieldKeys}
               variantAttributeKeys={catalogFieldSuggestions?.variantAttributeKeys}
               onLayoutChange={setLayout}
@@ -250,7 +292,7 @@ export function PurchaseOrderDocumentLayoutPanel({
           <SectionBlock title="Line images" hint="On-screen drawer · print">
             <Select
               value={layout.imageDisplayMode}
-              disabled={!canEdit}
+              disabled={controlsDisabled}
               onValueChange={(value) =>
                 setLayout((current) => ({
                   ...current,
@@ -283,7 +325,7 @@ export function PurchaseOrderDocumentLayoutPanel({
       </div>
 
       <p className="text-[10px] text-muted-foreground">
-        {layoutScopeKey(scope)} · {viewContext} · PO wiring in V2
+        {layoutScopeKey(scope)} · {viewContext} · Saved per tenant and view context
       </p>
     </div>
   );

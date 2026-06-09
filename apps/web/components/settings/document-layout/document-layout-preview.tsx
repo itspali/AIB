@@ -2,17 +2,21 @@
 
 import {
   getItemDetailLineFields,
-  getFlatPoLineColumns,
   getPoLineEntryTableColumns,
   getVisibleHeaderFields,
   getVisibleTotalsFields,
+  isPoLineColumnVisible,
   PO_LINE_IMAGE_COLUMN_ID,
   shouldShowPoLineInlineImage,
 } from "@/lib/documents/purchase-order-layout";
+import { formatDocumentDecimal, resolveColumnDecimalPlaces } from "@/lib/documents/decimal-format";
 import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
+import { resolvePoFormFieldsGridProps } from "@/lib/documents/po-form-layout";
 import { documentTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
+import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
+import { shouldShowPoUnitUnderQtyColumn } from "@/lib/procurement/purchase-orders/po-line-unit";
 import { cn } from "@/lib/utils";
 
 type PreviewMode = "drawer" | "peek";
@@ -23,20 +27,21 @@ type Props = {
   onPreviewModeChange: (mode: PreviewMode) => void;
 };
 
-const PREVIEW_LINE_SAMPLE: Partial<Record<string, string>> = {
-  quantity_ordered: "1.000",
+const PREVIEW_LINE_RAW: Partial<Record<string, string>> = {
+  sku: "SKU-001",
+  quantity_ordered: "1",
   unit: "EA",
-  unit_price: "10.00",
-  line_total: "10.00",
-  discount_pct: "0.00",
-  discount_amount: "0.00",
+  unit_price: "10",
+  line_total: "10",
+  discount_pct: "0",
+  discount_amount: "0",
 };
 
-const PREVIEW_TOTALS_SAMPLE: Partial<Record<string, string>> = {
+const PREVIEW_TOTALS_RAW: Partial<Record<string, string>> = {
   line_count: "1",
-  subtotal_ex_tax: "10.00",
-  tax_amount: "0.00",
-  grand_total: "10.00",
+  subtotal_ex_tax: "10",
+  tax_amount: "0",
+  grand_total: "10",
 };
 
 const PREVIEW_HEADER_SAMPLE: Partial<Record<string, string>> = {
@@ -46,6 +51,20 @@ const PREVIEW_HEADER_SAMPLE: Partial<Record<string, string>> = {
   voucher_number: "PO-00042",
   payment_terms_days: "30",
 };
+
+function previewLineValue(column: DocumentColumnPref): string {
+  const raw = PREVIEW_LINE_RAW[column.id];
+  if (raw == null) return "…";
+  if (column.id === "unit" || column.id === "sku") return raw;
+  return formatDocumentDecimal(raw, resolveColumnDecimalPlaces(column));
+}
+
+function previewTotalsValue(field: DocumentColumnPref): string {
+  const raw = PREVIEW_TOTALS_RAW[field.id];
+  if (raw == null) return "…";
+  if (field.id === "line_count") return raw;
+  return formatDocumentDecimal(raw, resolveColumnDecimalPlaces(field));
+}
 
 function previewCellClass(column: DocumentColumnPref): string {
   return documentTypographyClassName(
@@ -90,11 +109,12 @@ function DetailPreviewRows({ columns }: { columns: ReturnType<typeof getItemDeta
 export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange }: Props) {
   const headerFields = getVisibleHeaderFields(layout);
   const totalsFields = getVisibleTotalsFields(layout);
-  const lineColumns =
-    previewMode === "drawer" ? getPoLineEntryTableColumns(layout) : getFlatPoLineColumns(layout);
-  const detailColumns = previewMode === "drawer" ? getItemDetailLineFields(layout) : [];
+  const lineColumns = getPoLineEntryTableColumns(layout);
+  const detailColumns = getItemDetailLineFields(layout);
+  const showUnitUnderQty = shouldShowPoUnitUnderQtyColumn(layout);
   const showInlineImage = shouldShowPoLineInlineImage(layout.imageDisplayMode);
   const showImageColumn = layout.imageDisplayMode === "SEPARATE_COLUMN";
+  const headerGrid = resolvePoFormFieldsGridProps(headerFields.length);
 
   return (
     <div className="w-full min-w-0 space-y-2.5 text-sm">
@@ -129,22 +149,24 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
 
       <div className="rounded-md border border-border bg-muted/20 p-3 shadow-sm">
         {headerFields.length > 0 ? (
-          <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-2">
-            {headerFields.slice(0, 6).map((field) => (
-              <div key={field.id} className="min-w-0 space-y-0.5">
-                <p
-                  className={documentTypographyClassName(
-                    field.typography,
-                    "truncate text-xs text-muted-foreground"
-                  )}
-                >
-                  {field.label}
-                </p>
-                <p className="truncate text-sm font-medium text-foreground">
-                  {PREVIEW_HEADER_SAMPLE[field.id] ?? "…"}
-                </p>
-              </div>
-            ))}
+          <div className={cn("mb-3", headerGrid.containerClassName)}>
+            <div className={cn(headerGrid.gridClassName, "gap-x-3 gap-y-2")}>
+              {headerFields.slice(0, 6).map((field) => (
+                <div key={field.id} className="min-w-0 space-y-0.5">
+                  <p
+                    className={documentTypographyClassName(
+                      field.typography,
+                      "truncate text-xs text-muted-foreground"
+                    )}
+                  >
+                    {field.label}
+                  </p>
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {PREVIEW_HEADER_SAMPLE[field.id] ?? "…"}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -199,8 +221,24 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
                           ) : null}
                         </div>
                       </div>
+                    ) : column.id === "quantity_ordered" ? (
+                      <div
+                        className={cn(
+                          "flex flex-col",
+                          column.align === "right" && "items-end"
+                        )}
+                      >
+                        <span>{previewLineValue(column)}</span>
+                        {showUnitUnderQty ? (
+                          <PoLineQtyUnitSlot
+                            unitCode={PREVIEW_LINE_RAW.unit ?? "EA"}
+                            align={column.align}
+                            className="px-0"
+                          />
+                        ) : null}
+                      </div>
                     ) : (
-                      <span>{PREVIEW_LINE_SAMPLE[column.id] ?? "…"}</span>
+                      <span>{previewLineValue(column)}</span>
                     )}
                   </td>
                 ))}
@@ -232,7 +270,7 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
                     )
                   )}
                 >
-                  {PREVIEW_TOTALS_SAMPLE[field.id] ?? "…"}
+                  {previewTotalsValue(field)}
                 </dd>
               </div>
             ))}

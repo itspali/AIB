@@ -1,8 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  DEFAULT_PO_SCREEN_LAYOUT,
-  normalizePoLayoutTemplate,
-} from "@/lib/documents/purchase-order-layout";
+import { fetchDocumentLayoutTemplate } from "@/lib/documents/document-layout-queries";
 import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 
@@ -18,19 +15,18 @@ type ResolveParams = {
 
 /**
  * Resolve the effective document layout for runtime surfaces (drawer, peek, print).
- * V1: returns code defaults. V2: load tenant row, then optional location override.
+ * Tenant row when saved; code defaults when no row exists. Location overrides later.
  */
 export async function resolveEffectiveDocumentLayout(
   params: ResolveParams
 ): Promise<DocumentLayoutTemplate> {
-  void params;
+  void params.documentLocationId;
+  void params.scope;
 
-  if (params.moduleKey === "PURCHASE_ORDER") {
-    return normalizePoLayoutTemplate({
-      ...DEFAULT_PO_SCREEN_LAYOUT,
-      viewContext: params.viewContext,
-    });
-  }
-
-  return normalizePoLayoutTemplate(DEFAULT_PO_SCREEN_LAYOUT);
+  return fetchDocumentLayoutTemplate(
+    params.supabase,
+    params.tenantId,
+    params.moduleKey,
+    params.viewContext
+  );
 }

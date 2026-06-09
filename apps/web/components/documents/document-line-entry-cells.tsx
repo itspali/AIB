@@ -72,15 +72,15 @@ export function DocumentLineReadOnlyItemCell({
   hint?: string | null;
 }) {
   return (
-    <div className="min-w-0 px-2 py-2 text-sm">
+    <div className="min-w-0 max-w-full px-2 py-2 text-sm">
       {variantSku ? (
-        <div className="truncate font-mono text-xs leading-snug text-muted-foreground">
+        <div className="break-words font-mono text-xs leading-snug text-muted-foreground">
           {variantSku}
         </div>
       ) : null}
-      <div className="truncate text-sm leading-snug">{itemName || "—"}</div>
+      <div className="break-words text-sm leading-snug">{itemName || "—"}</div>
       {hint ? (
-        <div className="mt-1 truncate text-xs text-muted-foreground">{hint}</div>
+        <div className="mt-1 break-words text-xs text-muted-foreground">{hint}</div>
       ) : null}
     </div>
   );

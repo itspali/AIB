@@ -8,6 +8,8 @@ import {
   useRef,
   useState,
   useTransition,
+  type ChangeEvent,
+  type FocusEvent,
   type Ref,
 } from "react";
 import { createPortal } from "react-dom";
@@ -25,6 +27,7 @@ import {
   getCachedBrowseVariants,
   loadBrowseVariants,
   prefetchBrowseVariants,
+  registerVariantSuggestions,
 } from "@/lib/inventory/stock/variant-suggestion-cache";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +48,10 @@ export type StockLineSkuSelection = {
   variant_sku: string;
   unit_cost: string;
   skuError: string | null;
+  /** Optional thumbnail URL from variant search/browse (PO line image hydration). */
+  image_url?: string | null;
+  /** Base unit from variant search/browse (PO unit column hydration). */
+  base_unit_of_measure?: string | null;
 };
 
 type Props = {
@@ -52,7 +59,9 @@ type Props = {
   compact?: boolean;
   /** When "item", shows item name in the field and SKU as secondary text. */
   displayMode?: "sku" | "item";
-  inputRef?: React.Ref<HTMLInputElement | null>;
+  /** PO line grid: wrap selected item names; textarea grows to show full name without scroll. */
+  wrapSelectedItemName?: boolean;
+  inputRef?: React.Ref<HTMLInputElement | HTMLTextAreaElement | null>;
   inputClassName?: string;
   showSecondaryText?: boolean;
   /** Show a clear control when a variant is selected (default true). */
@@ -114,6 +123,10 @@ function applyVariant(
     variant_sku: variant.variant_sku,
     unit_cost: variant.standard_cost ?? "0",
     skuError: null,
+    ...(variant.image_url ? { image_url: variant.image_url } : {}),
+    ...(variant.base_unit_of_measure
+      ? { base_unit_of_measure: variant.base_unit_of_measure }
+      : {}),
   });
 }
 
@@ -130,6 +143,7 @@ export function StockVariantSkuField({
   disabled = false,
   compact = false,
   displayMode = "sku",
+  wrapSelectedItemName = false,
   inputRef: externalInputRef,
   inputClassName,
   showSecondaryText = true,
@@ -153,11 +167,15 @@ export function StockVariantSkuField({
   const skipSearchRef = useRef(false);
   const searchRequestIdRef = useRef(0);
   const anchorRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const assignInputRef = useCallback(
-    (node: HTMLInputElement | null) => {
+    (node: HTMLInputElement | HTMLTextAreaElement | null) => {
       inputRef.current = node;
       assignRef(externalInputRef, node);
+      if (node instanceof HTMLTextAreaElement) {
+        node.style.height = "auto";
+        node.style.height = `${node.scrollHeight}px`;
+      }
     },
     [externalInputRef]
   );
@@ -264,6 +282,7 @@ export function StockVariantSkuField({
 
   const applySuggestionResults = useCallback(
     (variants: StockVariantOption[], queryOverride?: string) => {
+      registerVariantSuggestions(variants);
       const term = queryOverride ?? queryRef.current;
       const visible =
         term.trim().length < 1
@@ -444,6 +463,7 @@ export function StockVariantSkuField({
           adjustable: true,
           blocked_reason: null,
           image_url: result.variant.image_url ?? null,
+          base_unit_of_measure: result.variant.base_unit_of_measure ?? null,
         },
         onChangeRef.current
       );
@@ -642,6 +662,56 @@ export function StockVariantSkuField({
   const secondaryText =
     value.variant_id && (itemDisplay ? value.variant_sku : value.item_name);
   const secondaryTitle = itemDisplay ? value.variant_sku : value.item_name;
+  const useWrappedItemDisplay =
+    wrapSelectedItemName && itemDisplay && compact && Boolean(value.variant_id);
+
+  const syncWrappedTextareaHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!(el instanceof HTMLTextAreaElement)) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!useWrappedItemDisplay) return;
+    syncWrappedTextareaHeight();
+  }, [useWrappedItemDisplay, query, syncWrappedTextareaHeight]);
+
+  const fieldClassName = cn(
+    !itemDisplay && "font-mono",
+    compact && !useWrappedItemDisplay && "h-9 text-sm",
+    compact && useWrappedItemDisplay && "min-h-9 py-1.5 text-sm leading-snug",
+    inputClassName,
+    useWrappedItemDisplay &&
+      "h-auto resize-none overflow-visible break-words whitespace-normal",
+  );
+  const comboboxFieldProps = {
+    value: query,
+    disabled: inputDisabled,
+    autoComplete: "off" as const,
+    autoCorrect: "off" as const,
+    autoCapitalize: "off" as const,
+    spellCheck: false,
+    placeholder,
+    "aria-label": fieldLabel,
+    role: "combobox" as const,
+    "aria-expanded": open,
+    "aria-controls": open && results.length > 0 ? listboxId : undefined,
+    "aria-autocomplete": "list" as const,
+    "aria-activedescendant":
+      open && results[highlightIndex]
+        ? `${listboxId}-option-${highlightIndex}`
+        : undefined,
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      handleInputChange(event.target.value),
+    onFocus: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      handleFocus();
+      if (value.variant_id) {
+        event.currentTarget.select();
+      }
+    },
+    onBlur: handleBlur,
+  };
 
   return (
     <div className={cn("min-w-0", compact ? "space-y-1.5" : "space-y-2 sm:col-span-2")}>
@@ -654,48 +724,40 @@ export function StockVariantSkuField({
         onKeyDownCapture={handleComboboxKeyDown}
       >
         {showSearchIcon ? (
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            className={cn(
+              "pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground",
+              useWrappedItemDisplay ? "top-2.5" : "top-1/2 -translate-y-1/2"
+            )}
+          />
         ) : null}
-        <Input
-          ref={assignInputRef}
-          className={cn(
-            !itemDisplay && "font-mono",
-            compact && "h-9 text-sm",
-            inputClassName,
-            showSearchIcon ? "pl-8" : "pl-2",
-            "pr-8"
-          )}
-          value={query}
-          disabled={inputDisabled}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          placeholder={placeholder}
-          aria-label={fieldLabel}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={open && results.length > 0 ? listboxId : undefined}
-          aria-autocomplete="list"
-          aria-activedescendant={
-            open && results[highlightIndex]
-              ? `${listboxId}-option-${highlightIndex}`
-              : undefined
-          }
-          onChange={(event) => handleInputChange(event.target.value)}
-          onFocus={(event) => {
-            handleFocus();
-            if (value.variant_id) {
-              event.currentTarget.select();
-            }
-          }}
-          onBlur={handleBlur}
-        />
+        {useWrappedItemDisplay ? (
+          <textarea
+            ref={assignInputRef}
+            rows={1}
+            className={cn(
+              "flex w-full min-w-0 overflow-visible bg-transparent focus-visible:outline-none",
+              fieldClassName,
+              showSearchIcon ? "pl-8" : "pl-2",
+              "pr-8"
+            )}
+            {...comboboxFieldProps}
+          />
+        ) : (
+          <Input
+            ref={assignInputRef}
+            className={cn(fieldClassName, showSearchIcon ? "pl-8" : "pl-2", "pr-8")}
+            {...comboboxFieldProps}
+          />
+        )}
         {showClearControl ? (
           <button
             type="button"
             tabIndex={-1}
-            className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(
+              "absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              useWrappedItemDisplay ? "top-2" : "top-1/2 -translate-y-1/2"
+            )}
             aria-label={`Clear ${fieldLabel.toLowerCase()}`}
             onMouseDown={(event) => event.preventDefault()}
             onClick={clearSelection}
@@ -704,7 +766,10 @@ export function StockVariantSkuField({
           </button>
         ) : (
           <ScanLine
-            className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            className={cn(
+              "pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted-foreground",
+              useWrappedItemDisplay ? "top-2.5" : "top-1/2 -translate-y-1/2"
+            )}
             aria-hidden
           />
         )}
@@ -809,7 +874,8 @@ export function StockVariantSkuField({
       ) : showSecondaryText && secondaryText ? (
         <p
           className={cn(
-            "truncate leading-snug text-muted-foreground",
+            "leading-snug text-muted-foreground",
+            wrapSelectedItemName ? "break-words" : "truncate",
             compact ? "text-xs" : "text-[11px]",
             itemDisplay && "font-mono"
           )}

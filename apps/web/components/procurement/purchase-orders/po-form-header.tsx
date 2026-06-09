@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { DocumentLayoutLabel } from "@/components/documents/document-layout-label";
 import { PoSupplierCombobox } from "@/components/procurement/purchase-orders/po-supplier-combobox";
 import {
@@ -12,9 +13,9 @@ import {
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
   getPoLayoutColumnPref,
-  isPoHeaderFieldVisible,
 } from "@/lib/documents/purchase-order-layout";
-import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import { getVisiblePoFormHeaderPrimaryFields, resolvePoFormFieldsGridProps, resolvePoFormFieldNarrowSpanClass } from "@/lib/documents/po-form-layout";
+import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftFormState } from "@/lib/procurement/purchase-orders/draft-form";
 import {
   supplierDefaultCurrency,
@@ -32,43 +33,33 @@ type Props = {
   locations: ProcurementLocationOption[];
   suppliers: ProcurementSupplierOption[];
   disabled?: boolean;
-  /** Single column when the drawer is at 40vw peek width. */
-  stackVertically?: boolean;
   /** Workspace base currency when the supplier has no trading currency override. */
   defaultCurrency?: string;
   layout?: DocumentLayoutTemplate;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
 };
 
-export function PoFormHeader({
-  form,
-  locations,
-  suppliers,
-  disabled = false,
-  stackVertically = false,
-  defaultCurrency = "USD",
-  layout = DEFAULT_PO_SCREEN_LAYOUT,
-  onPatch,
-}: Props) {
-  const showDestination = isPoHeaderFieldVisible("destination", layout);
-  const showSupplier = isPoHeaderFieldVisible("supplier", layout);
-  const showCurrency = isPoHeaderFieldVisible("currency", layout);
-  const visibleCount = [showDestination, showSupplier, showCurrency].filter(Boolean).length;
+function renderPrimaryHeaderField(
+  field: DocumentColumnPref,
+  props: Props,
+  index: number,
+  fields: DocumentColumnPref[]
+): ReactNode {
+  const {
+    form,
+    locations,
+    suppliers,
+    disabled = false,
+    defaultCurrency = "USD",
+    layout = DEFAULT_PO_SCREEN_LAYOUT,
+    onPatch,
+  } = props;
+  const narrowSpanClass = resolvePoFormFieldNarrowSpanClass(index, fields, "stack");
 
-  if (visibleCount === 0) return null;
-
-  const gridCols = stackVertically
-    ? "grid-cols-1"
-    : visibleCount === 1
-      ? "grid-cols-1"
-      : visibleCount === 2
-        ? "grid-cols-2"
-        : "grid-cols-3";
-
-  return (
-    <div className={cn("grid min-w-0 gap-2 sm:gap-4", gridCols)}>
-      {showDestination ? (
-        <div className="min-w-0 space-y-2">
+  switch (field.id) {
+    case "destination":
+      return (
+        <div key={field.id} className={cn("min-w-0 w-full space-y-2", narrowSpanClass)}>
           <DocumentLayoutLabel
             field={getPoLayoutColumnPref(layout, "destination")}
             fallbackLabel="Destination"
@@ -90,11 +81,12 @@ export function PoFormHeader({
             </SelectContent>
           </Select>
         </div>
-      ) : null}
-
-      {showSupplier ? (
+      );
+    case "supplier":
+      return (
         <PoSupplierCombobox
-          className="min-w-0"
+          key={field.id}
+          className={cn("min-w-0 w-full", narrowSpanClass)}
           suppliers={suppliers}
           value={form.supplier_id}
           disabled={disabled}
@@ -107,10 +99,10 @@ export function PoFormHeader({
             })
           }
         />
-      ) : null}
-
-      {showCurrency ? (
-        <div className="min-w-0 space-y-2">
+      );
+    case "currency":
+      return (
+        <div key={field.id} className={cn("min-w-0 w-full space-y-2", narrowSpanClass)}>
           <DocumentLayoutLabel
             field={getPoLayoutColumnPref(layout, "currency")}
             fallbackLabel="Currency"
@@ -134,7 +126,27 @@ export function PoFormHeader({
             </SelectContent>
           </Select>
         </div>
-      ) : null}
+      );
+    default:
+      return null;
+  }
+}
+
+export function PoFormHeader(props: Props) {
+  const { layout = DEFAULT_PO_SCREEN_LAYOUT } = props;
+  const primaryFields = getVisiblePoFormHeaderPrimaryFields(layout);
+
+  if (primaryFields.length === 0) return null;
+
+  const grid = resolvePoFormFieldsGridProps(primaryFields.length);
+
+  return (
+    <div className={grid.containerClassName}>
+      <div className={cn("gap-2 sm:gap-4", grid.gridClassName)}>
+        {primaryFields.map((field, index) =>
+          renderPrimaryHeaderField(field, props, index, primaryFields)
+        )}
+      </div>
     </div>
   );
 }

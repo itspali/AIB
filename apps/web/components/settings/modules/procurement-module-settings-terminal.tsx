@@ -7,18 +7,21 @@ import type { DocumentLayoutLocationOption } from "@/components/settings/documen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 
 type Props = {
   locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
+  initialLayout: DocumentLayoutTemplate;
 };
 
 export function ProcurementModuleSettingsTerminal({
   locations,
   canEdit,
   catalogFieldSuggestions,
+  initialLayout,
 }: Props) {
   return (
     <div className="canvas-scroll-endpad space-y-3">
@@ -45,6 +48,7 @@ export function ProcurementModuleSettingsTerminal({
 
         <TabsContent value="layout" className="mt-2">
           <PurchaseOrderDocumentLayoutPanel
+            initialLayout={initialLayout}
             locations={locations}
             canEdit={canEdit}
             catalogFieldSuggestions={catalogFieldSuggestions}

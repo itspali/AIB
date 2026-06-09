@@ -9,11 +9,22 @@ import type {
 const DESTINATION_LOCATION_EMBED =
   "destination_location:tenant_locations!purchase_orders_location_tenant_fk";
 const SUPPLIER_EMBED = "supplier:entities!purchase_orders_supplier_tenant_fk";
+const CREATED_BY_EMBED = "created_by_user:users!purchase_orders_created_by_fkey";
 const PO_ITEMS_EMBED =
   "po_lines:purchase_order_items!purchase_order_items_po_tenant_fk";
 
 type LocationEmbed = { name: string; code: string } | { name: string; code: string }[] | null;
 type SupplierEmbed = { name: string } | { name: string }[] | null;
+type CreatorEmbed =
+  | { first_name: string; last_name: string }
+  | { first_name: string; last_name: string }[]
+  | null;
+
+function formatCreatorName(creator: CreatorEmbed): string {
+  const user = resolveJoin(creator);
+  if (!user) return "";
+  return `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
+}
 
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
   if (value == null || value === "") return fallback;
@@ -38,10 +49,12 @@ type PoListDbRow = {
   total_gross_amount: number | string | null;
   total_net_amount: number | string;
   custom_fields: Record<string, unknown> | null;
+  created_by: string;
   created_at: string;
   updated_at: string;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
+  created_by_user: CreatorEmbed;
   po_lines: Array<{ id: string }> | null;
 };
 
@@ -53,7 +66,7 @@ type PoLineDbRow = {
   quantity_received: number | string;
   unit_price_contractual: number | string;
   line_total_gross: number | string;
-  items: { name: string } | { name: string }[] | null;
+  items: { name: string; base_unit_of_measure?: string | null } | { name: string; base_unit_of_measure?: string | null }[] | null;
   item_variants: { sku: string } | { sku: string }[] | null;
 };
 
@@ -70,6 +83,7 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     item_name: item?.name ?? "",
     variant_id: row.variant_id,
     variant_sku: variant?.sku ?? "",
+    base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
     quantity_ordered: ordered,
     quantity_received: received,
     unit_price_contractual: formatDecimal(row.unit_price_contractual),
@@ -97,6 +111,8 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     line_count: row.po_lines?.length ?? 0,
     total_net_amount: formatDecimal(row.total_net_amount),
     custom_fields: row.custom_fields ?? {},
+    created_by: row.created_by,
+    created_by_name: formatCreatorName(row.created_by_user),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -105,7 +121,11 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
 export async function fetchPurchaseOrders(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: { locationId?: string | null; status?: PurchaseOrderStatus | null }
+  options?: {
+    locationId?: string | null;
+    locationIds?: string[] | null;
+    status?: PurchaseOrderStatus | null;
+  }
 ): Promise<PurchaseOrderRow[]> {
   let query = supabase
     .from("purchase_orders")
@@ -121,10 +141,12 @@ export async function fetchPurchaseOrders(
       total_gross_amount,
       total_net_amount,
       custom_fields,
+      created_by,
       created_at,
       updated_at,
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${SUPPLIER_EMBED} (name),
+      ${CREATED_BY_EMBED} (first_name, last_name),
       ${PO_ITEMS_EMBED} (id)
     `
     )
@@ -133,6 +155,8 @@ export async function fetchPurchaseOrders(
 
   if (options?.locationId) {
     query = query.eq("destination_location_id", options.locationId);
+  } else if (options?.locationIds?.length) {
+    query = query.in("destination_location_id", options.locationIds);
   }
 
   if (options?.status) {
@@ -164,10 +188,12 @@ export async function fetchPurchaseOrderById(
       total_gross_amount,
       total_net_amount,
       custom_fields,
+      created_by,
       created_at,
       updated_at,
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${SUPPLIER_EMBED} (name),
+      ${CREATED_BY_EMBED} (first_name, last_name),
       ${PO_ITEMS_EMBED} (
         id,
         item_id,
@@ -176,7 +202,7 @@ export async function fetchPurchaseOrderById(
         quantity_received,
         unit_price_contractual,
         line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name),
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
       )
     `
@@ -217,7 +243,7 @@ export async function fetchReceivablePurchaseOrders(
         quantity_received,
         unit_price_contractual,
         line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name),
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
       )
     `

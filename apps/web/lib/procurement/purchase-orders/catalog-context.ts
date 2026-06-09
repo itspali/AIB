@@ -10,6 +10,8 @@ import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 
 export type { PoLineCatalogContext };
 
+const VARIANT_ITEM_EMBED = "items!item_variants_item_tenant_fk";
+
 function resolveJoin<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -65,7 +67,7 @@ export async function fetchPoLineCatalogContext(
       id,
       item_id,
       variant_attributes,
-      items!inner (
+      ${VARIANT_ITEM_EMBED}!inner (
         description,
         hsn_sac_code,
         base_unit_of_measure,
@@ -78,27 +80,39 @@ export async function fetchPoLineCatalogContext(
     .eq("id", variantId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) return null;
 
   const row = data as VariantCatalogRow;
   const item = resolveJoin(row.items);
   if (!item) return null;
 
   const attributeLabels: Record<string, string> = {};
-  if (item.category_id) {
-    const categories = await fetchCategoryRows(supabase, tenantId);
-    const templates = resolveEffectiveAttributeTemplates(item.category_id, categories);
-    for (const template of templates) {
-      attributeLabels[template.key] = template.label?.trim() || template.key;
+  try {
+    if (item.category_id) {
+      const categories = await fetchCategoryRows(supabase, tenantId);
+      const templates = resolveEffectiveAttributeTemplates(item.category_id, categories);
+      for (const template of templates) {
+        attributeLabels[template.key] = template.label?.trim() || template.key;
+      }
     }
+  } catch {
+    // Attribute labels are optional; catalog fields still load without them.
   }
 
-  const imageUrl = await fetchVariantPrimaryImageUrl(
-    supabase,
-    tenantId,
-    row.item_id,
-    row.id
-  );
+  let imageUrl: string | null = null;
+  try {
+    imageUrl = await fetchVariantPrimaryImageUrl(
+      supabase,
+      tenantId,
+      row.item_id,
+      row.id
+    );
+  } catch {
+    imageUrl = null;
+  }
 
   return {
     description: item.description?.trim() || null,
@@ -108,5 +122,6 @@ export async function fetchPoLineCatalogContext(
     custom_fields: mapCustomFields(item.custom_fields),
     variant_attributes: mapVariantAttributes(row.variant_attributes),
     attribute_labels: attributeLabels,
+    catalog_snapshot_source: "server",
   };
 }

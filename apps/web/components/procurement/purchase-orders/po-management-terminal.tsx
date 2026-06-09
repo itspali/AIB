@@ -29,6 +29,8 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-layout";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
@@ -40,6 +42,8 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   defaultCurrency: string;
+  documentLayout: DocumentLayoutTemplate;
+  preferredDestinationLocationId?: string | null;
 };
 
 export function PoManagementTerminal({
@@ -49,8 +53,13 @@ export function PoManagementTerminal({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   defaultCurrency,
+  documentLayout: initialDocumentLayout,
+  preferredDestinationLocationId = null,
 }: Props) {
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF);
+  const documentLayout = useLivePoDocumentLayout(initialDocumentLayout, {
+    refreshWhen: drawer.isOpen,
+  });
   const [purchaseOrders, setPurchaseOrders] = useState(initialPurchaseOrders);
   const [prefs, setPrefs] = useState<PurchaseOrderListPrefs>(getDefaultPurchaseOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
@@ -231,6 +240,8 @@ export function PoManagementTerminal({
         editAccessGranted={editAccessGranted}
         allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
         defaultCurrency={defaultCurrency}
+        preferredDestinationLocationId={preferredDestinationLocationId}
+        documentLayout={documentLayout}
       />
     </>
   );

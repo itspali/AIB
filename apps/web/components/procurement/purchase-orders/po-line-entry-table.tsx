@@ -9,7 +9,13 @@ import {
   PO_LINE_IMAGE_COLUMN_ID,
   resolvePoLineImageDisplayMode,
 } from "@/lib/documents/purchase-order-layout";
-import type { PoLineColumnId } from "@/lib/documents/purchase-order-layout";
+import { shouldShowPoUnitUnderQtyColumn } from "@/lib/procurement/purchase-orders/po-line-unit";
+import {
+  computeDocumentLineMinTableWidth,
+  getDocumentLineColumnMinWidthRem,
+  getDocumentLineColumnWidthClass,
+  getDocumentLineColumnWidthRem,
+} from "@/lib/documents/line-column-widths";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
@@ -38,15 +44,7 @@ type Props = {
   onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void;
 };
 
-const PO_LINE_COLUMN_WIDTH: Partial<Record<PoLineColumnId | typeof PO_LINE_IMAGE_COLUMN_ID, string>> = {
-  [PO_LINE_IMAGE_COLUMN_ID]: "w-[3.25rem]",
-  item: "min-w-[12rem] w-auto sm:min-w-[16rem]",
-  quantity_ordered: "w-[4.5rem]",
-  unit_price: "w-[5.5rem]",
-  line_total: "w-[5.5rem]",
-};
-
-const PO_LINE_EDITABLE_COLUMN_IDS = new Set<PoLineColumnId>([
+const PO_LINE_EDITABLE_COLUMN_IDS = new Set<string>([
   "item",
   "quantity_ordered",
   "unit_price",
@@ -75,6 +73,7 @@ function PoLineEntryGrid({
   const imageDisplayMode = useMemo(() => resolvePoLineImageDisplayMode(layout), [layout]);
   const visibleColumns = useMemo(() => getPoLineEntryTableColumns(layout), [layout]);
   const nestedColumns = useMemo(() => getItemDetailLineFields(layout), [layout]);
+  const showUnitUnderQty = useMemo(() => shouldShowPoUnitUnderQtyColumn(layout), [layout]);
 
   const columns: DocumentLineColumn[] = useMemo(
     () =>
@@ -82,16 +81,20 @@ function PoLineEntryGrid({
         id: column.id,
         label: column.id === PO_LINE_IMAGE_COLUMN_ID ? "" : column.label,
         align: column.align,
-        widthClass: PO_LINE_COLUMN_WIDTH[column.id as PoLineColumnId | typeof PO_LINE_IMAGE_COLUMN_ID],
-        editable: PO_LINE_EDITABLE_COLUMN_IDS.has(column.id as PoLineColumnId),
+        widthClass: getDocumentLineColumnWidthClass(column.id),
+        colWidthRem: getDocumentLineColumnWidthRem(column.id),
+        colMinWidthRem: getDocumentLineColumnMinWidthRem(column.id),
+        editable: PO_LINE_EDITABLE_COLUMN_IDS.has(column.id),
         headerClassName:
           column.id === PO_LINE_IMAGE_COLUMN_ID ? "w-[3.25rem] px-0" : undefined,
       })),
     [visibleColumns]
   );
 
-  const minTableWidth =
-    imageDisplayMode === "SEPARATE_COLUMN" ? "min-w-[38rem]" : "min-w-[34rem]";
+  const minTableWidth = useMemo(
+    () => computeDocumentLineMinTableWidth(visibleColumns.map((column) => column.id)),
+    [visibleColumns]
+  );
 
   return (
     <DocumentLineEntryGrid
@@ -126,7 +129,8 @@ function PoLineEntryGrid({
           layoutColumn,
           ctx,
           nestedColumns,
-          imageDisplayMode
+          imageDisplayMode,
+          showUnitUnderQty
         );
       }}
     />

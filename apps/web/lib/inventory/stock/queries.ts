@@ -345,6 +345,7 @@ type VariantItemJoin = {
   name: string;
   track_inventory: boolean;
   tracking_mode: string;
+  base_unit_of_measure: string;
   custom_fields: Record<string, unknown> | null;
 };
 
@@ -382,6 +383,7 @@ function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
     adjustable: blockedReason == null,
     blocked_reason: blockedReason,
     image_url: null,
+    base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
   };
 }
 
@@ -478,7 +480,7 @@ const VARIANT_SEARCH_SELECT = `
   sku,
   item_id,
   is_sellable,
-  ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
+  ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, base_unit_of_measure, custom_fields)
 `;
 
 async function queryVariantSearchResults(
@@ -645,6 +647,7 @@ export async function resolveVariantBySku(
       tracking_mode: string;
       standard_cost: string | null;
       blocked_reason: string | null;
+      base_unit_of_measure: string | null;
     }
   | null
 > {
@@ -659,7 +662,7 @@ export async function resolveVariantBySku(
       sku,
       item_id,
       is_sellable,
-      ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
+      ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, base_unit_of_measure, custom_fields)
     `
     )
     .eq("tenant_id", tenantId)
@@ -681,6 +684,7 @@ export async function resolveVariantBySku(
     tracking_mode: item?.tracking_mode ?? "NONE",
     standard_cost: mapped.standard_cost,
     blocked_reason: mapped.blocked_reason,
+    base_unit_of_measure: mapped.base_unit_of_measure,
   };
 }
 
@@ -698,6 +702,7 @@ async function resolveVariantByBarcode(
       tracking_mode: string;
       standard_cost: string | null;
       blocked_reason: string | null;
+      base_unit_of_measure: string | null;
     }
   | null
 > {
@@ -712,7 +717,7 @@ async function resolveVariantByBarcode(
       sku,
       item_id,
       is_sellable,
-      ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, custom_fields)
+      ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, base_unit_of_measure, custom_fields)
     `
     )
     .eq("tenant_id", tenantId)
@@ -735,6 +740,7 @@ async function resolveVariantByBarcode(
     tracking_mode: item?.tracking_mode ?? "NONE",
     standard_cost: mapped.standard_cost,
     blocked_reason: mapped.blocked_reason,
+    base_unit_of_measure: mapped.base_unit_of_measure,
   };
 }
 
@@ -753,6 +759,7 @@ export async function resolveVariantByScanCode(
       tracking_mode: string;
       standard_cost: string | null;
       blocked_reason: string | null;
+      base_unit_of_measure: string | null;
     }
   | null
 > {

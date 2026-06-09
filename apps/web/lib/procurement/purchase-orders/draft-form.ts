@@ -78,11 +78,17 @@ export function supplierDefaultCurrency(
 export function defaultPoDraftForm(
   locations: ProcurementLocationOption[],
   suppliers: ProcurementSupplierOption[],
-  defaultCurrency = "USD"
+  defaultCurrency = "USD",
+  preferredDestinationLocationId?: string | null
 ): PoDraftFormState {
   const supplier = suppliers[0];
+  const destinationLocationId =
+    preferredDestinationLocationId &&
+    locations.some((location) => location.id === preferredDestinationLocationId)
+      ? preferredDestinationLocationId
+      : (locations[0]?.id ?? "");
   return {
-    destination_location_id: locations[0]?.id ?? "",
+    destination_location_id: destinationLocationId,
     supplier_id: supplier?.id ?? "",
     currency_code: supplier
       ? supplierDefaultCurrency(suppliers, supplier.id, defaultCurrency)

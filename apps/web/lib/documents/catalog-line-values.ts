@@ -16,6 +16,8 @@ export type PoLineCatalogContext = {
   variant_attributes: Record<string, string>;
   /** Category template label by attribute key (falls back to key). */
   attribute_labels: Record<string, string>;
+  /** Optimistic picker snapshot vs full server catalog fetch. */
+  catalog_snapshot_source?: "optimistic" | "server";
 };
 
 export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLineCatalogContext {
@@ -27,7 +29,28 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     custom_fields: {},
     variant_attributes: {},
     attribute_labels: {},
+    catalog_snapshot_source: "optimistic",
   };
+}
+
+/** Client-side snapshot from variant picker (image / base unit) before server catalog load. */
+export function createOptimisticPoLineCatalogContext(partial: {
+  image_url?: string | null;
+  base_unit_of_measure?: string | null;
+}): PoLineCatalogContext {
+  return {
+    ...emptyPoLineCatalogContext(partial.image_url ?? null),
+    base_unit_of_measure: partial.base_unit_of_measure?.trim() || null,
+    catalog_snapshot_source: "optimistic",
+  };
+}
+
+/** True when a line still needs the full server catalog fetch. */
+export function needsPoLineCatalogHydration(
+  context: PoLineCatalogContext | null | undefined
+): boolean {
+  if (context == null) return true;
+  return context.catalog_snapshot_source !== "server";
 }
 
 export function resolveCatalogLineFieldDisplay(
@@ -80,4 +103,64 @@ export function resolveLineDetailFieldDisplay(
     return resolveCatalogLineFieldDisplay(column, context);
   }
   return commercialValue ?? null;
+}
+
+/** Merge server catalog snapshot with any optimistic client data (e.g. image from picker). */
+export function mergePoLineCatalogContext(
+  current: PoLineCatalogContext | null | undefined,
+  incoming: PoLineCatalogContext | null | undefined,
+  fallbackImageUrl?: string | null,
+  fallbackBaseUnit?: string | null
+): PoLineCatalogContext | null {
+  const image_url =
+    incoming?.image_url ?? current?.image_url ?? (fallbackImageUrl?.trim() || null);
+  const base_unit_of_measure =
+    incoming?.base_unit_of_measure?.trim() ||
+    current?.base_unit_of_measure?.trim() ||
+    (fallbackBaseUnit?.trim() || null);
+
+  if (!incoming) {
+    if (!current && !image_url && !base_unit_of_measure) return null;
+    if (!current) {
+      return createOptimisticPoLineCatalogContext({ image_url, base_unit_of_measure });
+    }
+    return {
+      ...current,
+      image_url,
+      base_unit_of_measure,
+    };
+  }
+
+  const incomingIsOptimistic = incoming.catalog_snapshot_source === "optimistic";
+  const currentIsServer = current?.catalog_snapshot_source === "server";
+
+  if (incomingIsOptimistic && current) {
+    return {
+      ...current,
+      image_url,
+      base_unit_of_measure,
+      custom_fields: { ...current.custom_fields },
+      variant_attributes: { ...current.variant_attributes },
+      attribute_labels: { ...current.attribute_labels },
+      catalog_snapshot_source: current.catalog_snapshot_source ?? "optimistic",
+    };
+  }
+
+  if (incomingIsOptimistic && currentIsServer) {
+    return {
+      ...current,
+      image_url,
+      base_unit_of_measure,
+    };
+  }
+
+  return {
+    ...incoming,
+    image_url,
+    base_unit_of_measure,
+    custom_fields: { ...incoming.custom_fields },
+    variant_attributes: { ...incoming.variant_attributes },
+    attribute_labels: { ...incoming.attribute_labels },
+    catalog_snapshot_source: incomingIsOptimistic ? "optimistic" : "server",
+  };
 }

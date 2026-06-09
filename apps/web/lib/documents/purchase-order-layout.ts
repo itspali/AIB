@@ -16,6 +16,7 @@ import type {
 /** Line grid column ids — includes Phase 3 discount columns (hidden by default). */
 export const PO_LINE_COLUMN_IDS = [
   "item",
+  "sku",
   "quantity_ordered",
   "unit",
   "unit_price",
@@ -62,10 +63,31 @@ export const PO_HEADER_FIELD_IDS = [
   "expected_delivery_date",
   "internal_notes",
   "document_status",
+  "created_at",
+  "created_by",
   "updated_at",
 ] as const;
 
 export type PoHeaderFieldId = (typeof PO_HEADER_FIELD_IDS)[number];
+
+/** Header fields rendered in the create/edit form top row (supplier block). */
+export const PO_FORM_HEADER_PRIMARY_FIELD_IDS = [
+  "destination",
+  "supplier",
+  "currency",
+] as const satisfies readonly PoHeaderFieldId[];
+
+export type PoFormHeaderPrimaryFieldId = (typeof PO_FORM_HEADER_PRIMARY_FIELD_IDS)[number];
+
+/** Header fields rendered in the details rail / stacked panel. */
+export const PO_FORM_HEADER_DETAILS_FIELD_IDS = [
+  "payment_terms_days",
+  "requisition_number",
+  "expected_delivery_date",
+  "internal_notes",
+] as const satisfies readonly PoHeaderFieldId[];
+
+export type PoFormHeaderDetailsFieldId = (typeof PO_FORM_HEADER_DETAILS_FIELD_IDS)[number];
 
 export const PO_TOTALS_FIELD_IDS = [
   "line_count",
@@ -87,6 +109,16 @@ const PO_LINE_COLUMNS: DocumentColumnPref[] = [
     group: "line",
     align: "left",
     lineSlot: "column",
+  },
+  {
+    id: "sku",
+    label: "SKU",
+    defaultVisible: false,
+    group: "line",
+    align: "left",
+    lineSlot: "item_detail",
+    showLabel: true,
+    itemDetailFlow: "new_line",
   },
   {
     id: "quantity_ordered",
@@ -254,6 +286,20 @@ const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
     align: "left",
   },
   {
+    id: "created_at",
+    label: "Created",
+    defaultVisible: false,
+    group: "header",
+    align: "left",
+  },
+  {
+    id: "created_by",
+    label: "Created by",
+    defaultVisible: false,
+    group: "header",
+    align: "left",
+  },
+  {
     id: "updated_at",
     label: "Updated",
     defaultVisible: false,
@@ -386,7 +432,12 @@ export function mergePoColumnPrefs(saved: readonly DocumentColumnPref[]): Docume
   const merged: DocumentColumnPref[] = [];
 
   for (const registryColumn of registry) {
-    merged.push(savedById.get(registryColumn.id) ?? registryColumn);
+    const savedColumn = savedById.get(registryColumn.id);
+    merged.push(
+      savedColumn
+        ? { ...registryColumn, ...savedColumn, id: registryColumn.id }
+        : registryColumn
+    );
   }
 
   for (const column of saved) {

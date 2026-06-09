@@ -25,6 +25,10 @@ export function getPurchaseOrderListCellDisplayTexts(
       return [String(row.line_count)];
     case "net_amount":
       return [row.total_net_amount];
+    case "created":
+      return [formatDate(row.created_at)];
+    case "created_by":
+      return [row.created_by_name?.trim() || "—"];
     case "updated":
       return [formatDate(row.updated_at)];
     default:

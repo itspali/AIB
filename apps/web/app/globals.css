@@ -173,6 +173,11 @@
     @apply overflow-x-hidden bg-muted/25 dark:bg-[hsl(224_47%_10%)];
   }
 
+  .module-drawer-form-body-scroll {
+    @apply overflow-y-auto overflow-x-hidden overscroll-y-contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .po-line-grid-scroll {
     @apply w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain touch-pan-x;
     -webkit-overflow-scrolling: touch;
@@ -192,16 +197,29 @@
     @apply bg-muted/20 dark:bg-[hsl(224_47%_9%)];
   }
 
-  .po-peek-meta-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 0.75rem;
-    row-gap: 1rem;
+  /* PO header/details: container wraps grid so @container rules can target the inner grid. */
+  .po-form-fields-grid-container {
+    container-type: inline-size;
+    container-name: po-form-fields;
+    width: 100%;
   }
 
-  @media (min-width: 1024px) {
-    .po-peek-meta-grid {
+  .po-form-fields-grid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @container po-form-fields (min-width: 28rem) {
+    .po-form-fields-grid--3,
+    .po-form-fields-grid--4 {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @container po-form-fields (min-width: 40rem) {
+    .po-form-fields-grid--4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
 

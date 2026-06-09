@@ -9,20 +9,26 @@ import {
 } from "@/components/documents/document-line-entry-cells";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  normalizeDocumentDecimalInput,
+  resolveColumnDecimalPlaces,
+} from "@/lib/documents/decimal-format";
 import { cn } from "@/lib/utils";
 import { isCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import { resolveCommercialLineDetailDisplay } from "@/lib/documents/line-detail-display";
 import { resolveLineDetailFieldDisplay } from "@/lib/documents/catalog-line-values";
 import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import type { DocumentColumnPref, DocumentImageDisplayMode } from "@/lib/documents/types";
 import {
   PO_LINE_IMAGE_COLUMN_ID,
   shouldShowPoLineInlineImage,
-  type PoLineColumnId,
 } from "@/lib/documents/purchase-order-layout";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { computeLineGross, formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import { isEnterKey } from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { PoLineSupplierInsightsButton } from "@/components/procurement/purchase-orders/po-line-supplier-insights";
+import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import { resolvePoDraftLineUnitCode } from "@/lib/procurement/purchase-orders/po-line-unit";
 
 export const PO_LINE_COMPACT_INPUT_CLASS = DOCUMENT_LINE_COMPACT_INPUT_CLASS;
 export const PO_LINE_ITEM_CELL_INPUT_CLASS = DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS;
@@ -33,7 +39,7 @@ type LineCellContext = {
   supplierId: string;
   destinationLocationId: string;
   excludePurchaseOrderId?: string | null;
-  itemRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+  itemRefs: React.MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>;
   qtyRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
   priceRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
   patchLine: (key: string, patch: Partial<PoDraftLine>) => void;
@@ -42,23 +48,8 @@ type LineCellContext = {
   advanceFromLine: (lineKey: string) => void;
 };
 
-function commercialNestedFieldValue(columnId: PoLineColumnId, line: PoDraftLine): string | null {
-  switch (columnId) {
-    case "unit":
-      return line.catalog_context?.base_unit_of_measure?.trim() || null;
-    case "discount_pct":
-    case "discount_amount":
-      return null;
-    default:
-      return null;
-  }
-}
-
 function resolveNestedFieldDisplay(column: DocumentColumnPref, line: PoDraftLine): string | null {
-  const commercial = !isCatalogFieldId(column.id)
-    ? commercialNestedFieldValue(column.id as PoLineColumnId, line)
-    : null;
-
+  const commercial = resolveCommercialLineDetailDisplay(column, line);
   return resolveLineDetailFieldDisplay(column, line.catalog_context, commercial);
 }
 
@@ -73,6 +64,10 @@ function resolveLineImageUrl(line: PoDraftLine): string | null {
   return line.catalog_context?.image_url ?? null;
 }
 
+function isSkuLineFieldVisible(columns: DocumentColumnPref[]): boolean {
+  return columns.some((column) => column.id === "sku" && column.defaultVisible);
+}
+
 export function PoLineNestedUnderItemFields({
   line,
   nestedColumns,
@@ -85,14 +80,16 @@ export function PoLineNestedUnderItemFields({
   const columnsToRender = visibleNestedColumns(nestedColumns, line);
   const detailRows = groupItemDetailRows(columnsToRender);
   const showSku =
-    line.variant_sku && !columnsToRender.some((column) => isCatalogFieldId(column.id));
+    Boolean(line.variant_sku) &&
+    !isSkuLineFieldVisible(nestedColumns) &&
+    !columnsToRender.some((column) => isCatalogFieldId(column.id));
 
   if (!showSku && detailRows.length === 0) return null;
 
   return (
     <div className="mt-1.5 space-y-1 border-t border-border/50 px-0 pb-0.5 pt-1.5">
       {showSku ? (
-        <div className="truncate font-mono text-xs leading-snug text-muted-foreground">
+        <div className="break-words font-mono text-xs leading-snug text-muted-foreground">
           {line.variant_sku}
         </div>
       ) : null}
@@ -121,7 +118,14 @@ export function PoLineNestedUnderItemFields({
                   {column.showLabel !== false ? (
                     <span className="shrink-0">{column.label}:</span>
                   ) : null}
-                  <span className="min-w-0 truncate text-foreground">{displayValue}</span>
+                  <span
+                    className={cn(
+                      "min-w-0 break-words text-foreground",
+                      column.id === "sku" && "font-mono"
+                    )}
+                  >
+                    {displayValue}
+                  </span>
                 </span>
               );
             })}
@@ -142,7 +146,14 @@ export function PoLineNestedUnderItemFields({
                 {column.showLabel !== false ? (
                   <span className="shrink-0">{column.label}:</span>
                 ) : null}
-                <span className="min-w-0 truncate text-foreground">{displayValue}</span>
+                <span
+                  className={cn(
+                    "min-w-0 break-words text-foreground",
+                    column.id === "sku" && "font-mono"
+                  )}
+                >
+                  {displayValue}
+                </span>
               </div>
             );
           })()
@@ -174,16 +185,24 @@ export function PoLineItemCell({
   const { line, disabled, supplierId, destinationLocationId, excludePurchaseOrderId, itemRefs, bindItemChange, patchLine } =
     ctx;
 
+  const skuLineFieldVisible = isSkuLineFieldVisible(nestedColumns);
+  const showSkuFallback =
+    Boolean(line.variant_sku) &&
+    !skuLineFieldVisible &&
+    !visibleNestedColumns(nestedColumns, line).some((column) => isCatalogFieldId(column.id));
+
   const hideFieldSecondary =
     nestedColumns.length > 0 &&
     Boolean(line.variant_id) &&
-    (visibleNestedColumns(nestedColumns, line).length > 0 || Boolean(line.variant_sku));
+    (skuLineFieldVisible ||
+      visibleNestedColumns(nestedColumns, line).length > 0 ||
+      showSkuFallback);
 
   const showInlineImage = shouldShowPoLineInlineImage(imageDisplayMode);
 
   return (
     <div className="min-w-0 px-2 py-2 text-sm">
-      <div className="flex items-start gap-2">
+      <div className="flex min-w-0 items-start gap-2">
         {showInlineImage ? (
           <DocumentLineImage imageUrl={resolveLineImageUrl(line)} className="mt-0.5" />
         ) : null}
@@ -192,6 +211,7 @@ export function PoLineItemCell({
             <StockVariantSkuField
               compact
               displayMode="item"
+              wrapSelectedItemName
               disabled={disabled}
               inputClassName={documentFieldTypographyClassName(
                 itemColumn,
@@ -232,32 +252,56 @@ export function PoLineItemCell({
 export function PoLineQtyCell({
   ctx,
   column,
+  showUnitUnderQty,
 }: {
   ctx: LineCellContext;
   column: DocumentColumnPref;
+  showUnitUnderQty: boolean;
 }) {
   const { line, disabled, qtyRefs, patchLine, focusPrice } = ctx;
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
+  const unitCode =
+    showUnitUnderQty && line.variant_id ? resolvePoDraftLineUnitCode(line) : null;
 
   return (
-    <DocumentLineCompactInput
-      ref={(node) => {
-        qtyRefs.current[line.key] = node;
-      }}
-      align={column.align}
-      className={documentFieldTypographyClassName(column, undefined)}
-      value={line.quantity_ordered}
-      disabled={disabled}
-      inputMode="decimal"
-      aria-label="Quantity ordered"
-      onChange={(event) => patchLine(line.key, { quantity_ordered: event.target.value })}
-      onKeyDown={(event) => {
-        if (!isEnterKey(event.key)) return;
-        event.preventDefault();
-        if (line.variant_id && Number(line.quantity_ordered) > 0) {
-          focusPrice(line.key);
-        }
-      }}
-    />
+    <div
+      className={cn(
+        "flex min-w-0 flex-col justify-center py-0.5",
+        column.align === "right" && "items-end"
+      )}
+    >
+      <DocumentLineCompactInput
+        ref={(node) => {
+          qtyRefs.current[line.key] = node;
+        }}
+        align={column.align}
+        className={documentFieldTypographyClassName(column, undefined)}
+        value={line.quantity_ordered}
+        disabled={disabled}
+        inputMode="decimal"
+        aria-label="Quantity ordered"
+        onChange={(event) => patchLine(line.key, { quantity_ordered: event.target.value })}
+        onBlur={() => {
+          const normalized = normalizeDocumentDecimalInput(
+            line.quantity_ordered,
+            decimalPlaces
+          );
+          if (normalized !== line.quantity_ordered) {
+            patchLine(line.key, { quantity_ordered: normalized });
+          }
+        }}
+        onKeyDown={(event) => {
+          if (!isEnterKey(event.key)) return;
+          event.preventDefault();
+          if (line.variant_id && Number(line.quantity_ordered) > 0) {
+            focusPrice(line.key);
+          }
+        }}
+      />
+      {showUnitUnderQty ? (
+        <PoLineQtyUnitSlot unitCode={unitCode} align={column.align} />
+      ) : null}
+    </div>
   );
 }
 
@@ -269,6 +313,7 @@ export function PoLinePriceCell({
   column: DocumentColumnPref;
 }) {
   const { line, disabled, priceRefs, patchLine, advanceFromLine } = ctx;
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
 
   return (
     <DocumentLineCompactInput
@@ -284,6 +329,15 @@ export function PoLinePriceCell({
       onChange={(event) =>
         patchLine(line.key, { unit_price_contractual: event.target.value })
       }
+      onBlur={() => {
+        const normalized = normalizeDocumentDecimalInput(
+          line.unit_price_contractual,
+          decimalPlaces
+        );
+        if (normalized !== line.unit_price_contractual) {
+          patchLine(line.key, { unit_price_contractual: normalized });
+        }
+      }}
       onKeyDown={(event) => {
         if (!isEnterKey(event.key)) return;
         event.preventDefault();
@@ -300,7 +354,10 @@ export function PoLineTotalCell({
   line: PoDraftLine;
   column: DocumentColumnPref;
 }) {
-  const lineTotal = formatPoMoney(computeLineGross(line));
+  const lineTotal = formatPoMoney(
+    computeLineGross(line),
+    resolveColumnDecimalPlaces(column)
+  );
 
   return (
     <div
@@ -317,6 +374,31 @@ export function PoLineTotalCell({
   );
 }
 
+export function PoLineReadOnlyCell({
+  line,
+  column,
+}: {
+  line: PoDraftLine;
+  column: DocumentColumnPref;
+}) {
+  const value = resolveNestedFieldDisplay(column, line) ?? "—";
+
+  return (
+    <div
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          column.id === "sku" && "font-mono tabular-nums",
+          column.align === "right" ? "text-right" : "text-left"
+        )
+      )}
+    >
+      {value}
+    </div>
+  );
+}
+
 export const PoLineRemoveButton = DocumentLineRemoveButton;
 
 export function renderPoLineColumnCell(
@@ -324,7 +406,8 @@ export function renderPoLineColumnCell(
   column: DocumentColumnPref,
   ctx: LineCellContext,
   nestedColumns: DocumentColumnPref[],
-  imageDisplayMode: DocumentImageDisplayMode
+  imageDisplayMode: DocumentImageDisplayMode,
+  showUnitUnderQty: boolean
 ) {
   if (columnId === PO_LINE_IMAGE_COLUMN_ID) {
     return <PoLineImageCell line={ctx.line} />;
@@ -340,7 +423,9 @@ export function renderPoLineColumnCell(
     );
   }
   if (columnId === "quantity_ordered") {
-    return <PoLineQtyCell ctx={ctx} column={column} />;
+    return (
+      <PoLineQtyCell ctx={ctx} column={column} showUnitUnderQty={showUnitUnderQty} />
+    );
   }
   if (columnId === "unit_price") {
     return <PoLinePriceCell ctx={ctx} column={column} />;
@@ -348,7 +433,7 @@ export function renderPoLineColumnCell(
   if (columnId === "line_total") {
     return <PoLineTotalCell line={ctx.line} column={column} />;
   }
-  return <span className="px-2 text-sm text-muted-foreground">—</span>;
+  return <PoLineReadOnlyCell line={ctx.line} column={column} />;
 }
 
 export type { LineCellContext };

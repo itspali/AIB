@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { VARIANT_ATTRIBUTES_ALL_ID } from "@/lib/documents/catalog-field-ids";
 import {
+  mergePoLineCatalogContext,
+  needsPoLineCatalogHydration,
   resolveCatalogLineFieldDisplay,
   type PoLineCatalogContext,
 } from "@/lib/documents/catalog-line-values";
@@ -14,6 +16,7 @@ const sampleContext: PoLineCatalogContext = {
   custom_fields: { brand: "Acme" },
   variant_attributes: { Color: "Red", Size: "L" },
   attribute_labels: { Color: "Colour", Size: "Size" },
+  catalog_snapshot_source: "server",
 };
 
 describe("resolveCatalogLineFieldDisplay", () => {
@@ -57,5 +60,95 @@ describe("resolveCatalogLineFieldDisplay", () => {
         null
       )
     ).toBeNull();
+  });
+});
+
+describe("needsPoLineCatalogHydration", () => {
+  it("requires hydration when context is missing", () => {
+    expect(needsPoLineCatalogHydration(undefined)).toBe(true);
+    expect(needsPoLineCatalogHydration(null)).toBe(true);
+  });
+
+  it("requires hydration for optimistic snapshots", () => {
+    expect(
+      needsPoLineCatalogHydration({
+        description: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: "EA",
+        image_url: "https://cdn.example/item.jpg",
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+        catalog_snapshot_source: "optimistic",
+      })
+    ).toBe(true);
+  });
+
+  it("skips hydration after server catalog fetch", () => {
+    expect(needsPoLineCatalogHydration(sampleContext)).toBe(false);
+  });
+});
+
+describe("mergePoLineCatalogContext", () => {
+  it("keeps optimistic image when server context is missing", () => {
+    const merged = mergePoLineCatalogContext(null, null, "https://cdn.example/item.jpg");
+    expect(merged?.image_url).toBe("https://cdn.example/item.jpg");
+  });
+
+  it("keeps optimistic base unit when server returns null", () => {
+    const merged = mergePoLineCatalogContext(
+      {
+        description: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: "EA",
+        image_url: "https://cdn.example/client.jpg",
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+      },
+      {
+        description: "Test",
+        hsn_sac_code: null,
+        base_unit_of_measure: null,
+        image_url: null,
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+      },
+      "https://cdn.example/client.jpg"
+    );
+
+    expect(merged?.base_unit_of_measure).toBe("EA");
+    expect(merged?.description).toBe("Test");
+  });
+
+  it("does not wipe server catalog fields when optimistic snapshot arrives late", () => {
+    const merged = mergePoLineCatalogContext(
+      {
+        description: "Widget assembly",
+        hsn_sac_code: "8471",
+        base_unit_of_measure: "EA",
+        image_url: null,
+        custom_fields: { brand: "Acme" },
+        variant_attributes: { Color: "Red" },
+        attribute_labels: { Color: "Colour" },
+        catalog_snapshot_source: "server",
+      },
+      {
+        description: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: "EA",
+        image_url: "https://cdn.example/client.jpg",
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+        catalog_snapshot_source: "optimistic",
+      }
+    );
+
+    expect(merged?.catalog_snapshot_source).toBe("server");
+    expect(merged?.custom_fields.brand).toBe("Acme");
+    expect(merged?.variant_attributes.Color).toBe("Red");
+    expect(merged?.image_url).toBe("https://cdn.example/client.jpg");
   });
 });

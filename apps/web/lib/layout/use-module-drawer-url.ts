@@ -87,7 +87,9 @@ export function useModuleDrawerUrl(
   const [historyEpoch, setHistoryEpoch] = useState(0);
 
   const urlState = useMemo(() => {
-    if (typeof window !== "undefined") {
+    // Keep SSR and the first client render aligned on searchParams; after history
+    // sync (pushState / popstate), read the live URL from window.location.
+    if (historyEpoch > 0 && typeof window !== "undefined") {
       return parseModuleDrawerStateFromLocation(window.location);
     }
     return parseModuleDrawerState(searchParams);

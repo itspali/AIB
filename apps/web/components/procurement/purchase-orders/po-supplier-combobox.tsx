@@ -56,13 +56,13 @@ export function PoSupplierCombobox({
   );
 
   return (
-    <div className={cn("min-w-0 space-y-2", className)}>
+    <div className={cn("min-w-0 w-full space-y-2", className)}>
       <DocumentLayoutLabel field={labelField} fallbackLabel="Supplier" />
-      <div ref={anchorRef} className="relative min-w-0">
+      <div ref={anchorRef} className="relative min-w-0 w-full">
         <Input
           value={query}
           disabled={disabled}
-          className="min-w-0"
+          className="w-full min-w-0"
           placeholder="Search suppliers…"
           role="combobox"
           aria-expanded={open}

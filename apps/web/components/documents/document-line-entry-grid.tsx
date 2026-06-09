@@ -9,6 +9,10 @@ export type DocumentLineColumn = {
   label: string;
   align?: "left" | "right" | "center";
   widthClass?: string;
+  /** Fixed `<col>` width in rem; item uses min width and fills remaining space. */
+  colWidthRem?: number;
+  /** Minimum `<col>` width in rem (item column). */
+  colMinWidthRem?: number;
   editable?: boolean;
   headerClassName?: string;
 };
@@ -43,7 +47,7 @@ function lineColumnClass(
     column.id === "item" || column.id === "line_image"
       ? column.id === "line_image"
         ? "p-0 align-middle"
-        : "p-0 align-top"
+        : "min-w-0 p-0 align-top whitespace-normal"
       : "p-0 align-middle",
     column.align === "right"
       ? "text-right"
@@ -77,7 +81,7 @@ export function DocumentLineEntryGrid<T extends LineRow>({
       <div
         className={cn(
           "po-line-grid-scroll",
-          fillHeight ? "min-h-0 flex-1 overflow-y-auto" : "overflow-y-visible"
+          fillHeight ? "min-h-0 flex-1 overflow-x-auto overflow-y-auto" : "overflow-y-visible"
         )}
       >
         <table
@@ -87,6 +91,22 @@ export function DocumentLineEntryGrid<T extends LineRow>({
             "[&_input:focus-visible]:border-transparent [&_input:focus-visible]:shadow-none [&_input:focus-visible]:ring-0 [&_input:focus-visible]:ring-offset-0"
           )}
         >
+          <colgroup>
+            {showLineNumbers ? <col style={{ width: "2.25rem" }} /> : null}
+            {columns.map((column) => (
+              <col
+                key={column.id}
+                style={
+                  column.colMinWidthRem != null
+                    ? { minWidth: `${column.colMinWidthRem}rem` }
+                    : column.colWidthRem != null
+                      ? { width: `${column.colWidthRem}rem` }
+                      : undefined
+                }
+              />
+            ))}
+            {showRemoveColumn ? <col style={{ width: "2.25rem" }} /> : null}
+          </colgroup>
           <thead className="text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               {showLineNumbers ? (
@@ -191,7 +211,7 @@ export function DocumentLineEntrySection({
       ) : (
         <span className="sr-only">{title}</span>
       )}
-      {children}
+      <div className={cn(fillHeight && "flex min-h-0 flex-1 flex-col")}>{children}</div>
     </div>
   );
 }

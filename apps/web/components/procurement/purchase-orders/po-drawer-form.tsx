@@ -17,9 +17,9 @@ import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-vie
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
 import { PoTotalsPanel } from "@/components/procurement/purchase-orders/po-totals-panel";
 import {
-  isNarrowRightDrawer,
   RightDrawer,
   useRightDrawerLayout,
+  type RightDrawerLayoutValue,
 } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -40,8 +40,9 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import { cn } from "@/lib/utils";
-import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
 import { usePoDocumentLayout } from "@/lib/documents/use-po-document-layout";
+import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 
 type Props = {
   open: boolean;
@@ -59,11 +60,40 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   defaultCurrency: string;
+  documentLayout: DocumentLayoutTemplate;
+  preferredDestinationLocationId?: string | null;
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
   if (surface === "create") return "New purchase order";
   return order?.voucher_number ?? "Purchase order";
+}
+
+/** Flex column shell so the line grid can claim height and scroll internally. */
+function poLinesTableSlotClass(fillHeight: boolean) {
+  return cn(
+    "min-h-0 min-w-0 max-w-full",
+    fillHeight && "flex flex-1 flex-col"
+  );
+}
+
+const PO_LINES_SECTION_LABEL = (
+  <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    Lines
+  </p>
+);
+
+/** Syncs drawer width from inside RightDrawerLayoutProvider to PoDrawerForm (parent of RightDrawer). */
+function PoDrawerLayoutBridge({
+  onLayout,
+}: {
+  onLayout: (layout: RightDrawerLayoutValue) => void;
+}) {
+  const layout = useRightDrawerLayout();
+  useEffect(() => {
+    if (layout) onLayout(layout);
+  }, [layout, onLayout]);
+  return null;
 }
 
 type PoMutatingFormContentProps = {
@@ -72,6 +102,7 @@ type PoMutatingFormContentProps = {
   suppliers: ProcurementSupplierOption[];
   editOrderId: string | null;
   defaultCurrency: string;
+  documentLayout: DocumentLayoutTemplate;
   isPending: boolean;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
   onLinesChange: (
@@ -85,20 +116,17 @@ function PoMutatingFormContent({
   suppliers,
   editOrderId,
   defaultCurrency,
+  documentLayout,
   isPending,
   onPatch,
   onLinesChange,
 }: PoMutatingFormContentProps) {
-  const documentLayout = usePoDocumentLayout();
-  const drawerLayout = useRightDrawerLayout();
-  const stackVertically = isNarrowRightDrawer(drawerLayout);
-  const usePageScroll = stackVertically || drawerLayout?.isPartialDrawer !== true;
-  /** Wide partial drawer: lines scroll inside the panel; summary lives in the right rail. */
-  const useWidePartialDrawer = !usePageScroll && !stackVertically;
-  /** Full-page drawer on large viewports: lines + side rail; stacked summary below lg. */
-  const useFullPageSideRail = usePageScroll && !stackVertically;
-  /** md+: line grid fills remaining drawer height; below md the table grows with page scroll. */
-  const lineTableFillHeight = useDocumentLineTableFillHeight();
+  const resolvedDocumentLayout = usePoDocumentLayout(documentLayout);
+  const {
+    useWidePartialDrawer,
+    useFullPageLayout,
+    lineTableFillHeight,
+  } = usePoDrawerFormLayout(true);
 
   const linesTable = (
     <PoLineEntryTable
@@ -109,18 +137,18 @@ function PoMutatingFormContent({
       destinationLocationId={form.destination_location_id}
       excludePurchaseOrderId={editOrderId}
       disabled={isPending}
-      layout={documentLayout}
+      layout={resolvedDocumentLayout}
       onChange={onLinesChange}
     />
   );
 
   const stackedSummaryDetails = (
     <>
-      <div className="space-y-3 border-t border-border pt-3">
+      <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
         </p>
-        <PoTotalsPanel lines={form.lines} layout={documentLayout} layoutMode="embedded" />
+        <PoTotalsPanel lines={form.lines} layout={resolvedDocumentLayout} layoutMode="embedded" />
       </div>
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -130,8 +158,7 @@ function PoMutatingFormContent({
           form={form}
           disabled={isPending}
           layout="stack"
-          stackVertically={stackVertically}
-          documentLayout={documentLayout}
+          documentLayout={resolvedDocumentLayout}
           onPatch={onPatch}
         />
       </div>
@@ -139,12 +166,12 @@ function PoMutatingFormContent({
   );
 
   const sideRail = (
-    <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[15rem]">
+    <aside className="flex w-full shrink-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:w-[15rem] lg:max-h-full lg:max-w-[40%] lg:shrink-0 lg:overflow-hidden">
       <div className="shrink-0 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
         </p>
-        <PoTotalsPanel lines={form.lines} layout={documentLayout} layoutMode="embedded" />
+        <PoTotalsPanel lines={form.lines} layout={resolvedDocumentLayout} layoutMode="embedded" />
       </div>
       <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -155,7 +182,7 @@ function PoMutatingFormContent({
             form={form}
             disabled={isPending}
             layout="rail"
-            documentLayout={documentLayout}
+            documentLayout={resolvedDocumentLayout}
             onPatch={onPatch}
           />
         </div>
@@ -166,100 +193,74 @@ function PoMutatingFormContent({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3",
-        lineTableFillHeight ? "h-full min-h-0 flex-1 overflow-hidden" : "min-h-0"
+        "flex w-full flex-col gap-3",
+        lineTableFillHeight && "h-full min-h-0 flex-1 overflow-hidden"
       )}
     >
-      <div className="shrink-0">
+      <div className="shrink-0 w-full min-w-0">
         <PoFormHeader
           form={form}
           locations={locations}
           suppliers={suppliers}
           disabled={isPending}
-          stackVertically={stackVertically}
           defaultCurrency={defaultCurrency}
-          layout={documentLayout}
+          layout={resolvedDocumentLayout}
           onPatch={onPatch}
         />
       </div>
 
       {useWidePartialDrawer ? (
-        <section className="flex min-h-0 min-w-0 flex-1 flex-row gap-4 overflow-hidden">
-          <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden">
-            <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Lines
-            </p>
-            <div className="min-h-0 min-w-0 max-w-full flex-1">{linesTable}</div>
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch">
+          <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden lg:min-w-0">
+            {PO_LINES_SECTION_LABEL}
+            <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
           </div>
           {sideRail}
         </section>
-      ) : useFullPageSideRail ? (
+      ) : useFullPageLayout ? (
         <>
           <section
             className={cn(
               "flex w-full min-w-0 max-w-full flex-col gap-3",
-              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:flex-row lg:gap-4"
+              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:flex-row lg:items-stretch lg:gap-4"
             )}
           >
             <div
               className={cn(
                 "flex min-w-0 max-w-full flex-col gap-3",
-                lineTableFillHeight && "min-h-0 flex-1 lg:min-w-0"
+                lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:min-w-0"
               )}
             >
-              <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Lines
-              </p>
-              <div
-                className={cn(
-                  "min-w-0 max-w-full",
-                  lineTableFillHeight && "min-h-0 flex-1"
-                )}
-              >
-                {linesTable}
-              </div>
+              {PO_LINES_SECTION_LABEL}
+              <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
             </div>
-            <div className="hidden lg:flex">{sideRail}</div>
+            <div className="hidden lg:flex lg:min-h-0">{sideRail}</div>
           </section>
-          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-3 bg-background lg:hidden">
+          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-4 bg-background lg:hidden">
             {stackedSummaryDetails}
           </div>
         </>
+      ) : lineTableFillHeight ? (
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(12rem,1fr)_auto] gap-3 overflow-hidden">
+          <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
+            {PO_LINES_SECTION_LABEL}
+            <div className={poLinesTableSlotClass(true)}>{linesTable}</div>
+          </section>
+          <div className="max-h-[min(40vh,16rem)] min-h-0 overflow-y-auto border-t border-border pt-4">
+            {stackedSummaryDetails}
+          </div>
+        </div>
       ) : (
         <>
-          <section
-            className={cn(
-              "flex w-full min-w-0 max-w-full flex-col gap-3",
-              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden"
-            )}
-          >
-            <div
-              className={cn(
-                "flex min-w-0 max-w-full flex-col gap-3",
-                lineTableFillHeight && "min-h-0 flex-1"
-              )}
-            >
-              <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Lines
-              </p>
-              <div
-                className={cn(
-                  "min-w-0 max-w-full",
-                  lineTableFillHeight && "min-h-0 flex-1"
-                )}
-              >
-                {linesTable}
-              </div>
-            </div>
-            <div
-              className={cn(
-                "relative z-0 flex w-full min-w-0 flex-col gap-3 bg-background",
-                lineTableFillHeight && "shrink-0"
-              )}
-            >
-              {stackedSummaryDetails}
+          <section className="flex w-full min-w-0 max-w-full flex-col gap-4">
+            <div className="flex min-w-0 max-w-full flex-col gap-3">
+              {PO_LINES_SECTION_LABEL}
+              <div className={poLinesTableSlotClass(false)}>{linesTable}</div>
             </div>
           </section>
+          <div className="flex w-full min-w-0 flex-col gap-4 border-t border-border pt-4">
+            {stackedSummaryDetails}
+          </div>
         </>
       )}
     </div>
@@ -281,19 +282,38 @@ export function PoDrawerForm({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   defaultCurrency,
+  documentLayout: documentLayoutProp,
+  preferredDestinationLocationId = null,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
-  const documentLayout = usePoDocumentLayout();
-  const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
+  const documentLayout = usePoDocumentLayout(documentLayoutProp);
+  const [drawerLayoutSnapshot, setDrawerLayoutSnapshot] =
+    useState<RightDrawerLayoutValue | null>(null);
+  const handleDrawerLayout = useCallback((layout: RightDrawerLayoutValue) => {
+    setDrawerLayoutSnapshot((prev) =>
+      prev?.widthVw === layout.widthVw &&
+      prev?.isPartialDrawer === layout.isPartialDrawer
+        ? prev
+        : layout
+    );
+  }, []);
+  const { lineTableFillHeight, useDrawerBodyScroll } = usePoDrawerFormLayout(
+    isMutating,
+    drawerLayoutSnapshot
+  );
   const resolvedPeekRecordId =
     surface === "peek" ? (peekOrder?.id ?? peekRecordId) : null;
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
   });
 
+  useEffect(() => {
+    if (!open) setDrawerLayoutSnapshot(null);
+  }, [open]);
+
   const [form, setForm] = useState<PoDraftFormState>(() =>
-    defaultPoDraftForm(locations, suppliers, defaultCurrency)
+    defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
   );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
@@ -309,12 +329,12 @@ export function PoDrawerForm({
     setErrorAction(null);
     setIsDirty(false);
     if (surface !== "peek") {
-      setForm(defaultPoDraftForm(locations, suppliers, defaultCurrency));
+      setForm(defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId));
       setDetail(peekOrder);
     } else if (peekOrder?.lines?.length) {
       setDetail(peekOrder);
     }
-  }, [open, surface, peekOrder?.id, peekOrder?.lines?.length, locations, suppliers, defaultCurrency]);
+  }, [open, surface, peekOrder?.id, peekOrder?.lines?.length, locations, suppliers, defaultCurrency, preferredDestinationLocationId]);
 
   useEffect(() => {
     if (!open || surface !== "peek" || !resolvedPeekRecordId) return;
@@ -583,6 +603,53 @@ export function PoDrawerForm({
       />
     ) : undefined;
 
+  const errorBanner = error ? (
+    <UserFacingErrorMessage
+      message={error}
+      action={errorAction ?? undefined}
+      className="mb-4 shrink-0"
+    />
+  ) : null;
+
+  const loadingMessage =
+    showLoadingPeek || showLoadingEdit ? (
+      <p className="text-sm text-muted-foreground">Loading purchase order…</p>
+    ) : null;
+
+  const mutatingForm =
+    isMutating && !showLoadingPeek && !showLoadingEdit ? (
+      <PoMutatingFormContent
+        form={form}
+        locations={locations}
+        suppliers={suppliers}
+        editOrderId={editOrderId ?? detail?.id ?? null}
+        defaultCurrency={defaultCurrency}
+        documentLayout={documentLayout}
+        isPending={isPending}
+        onPatch={patchForm}
+        onLinesChange={(linesOrUpdater) => {
+          setForm((current) => ({
+            ...current,
+            lines:
+              typeof linesOrUpdater === "function"
+                ? linesOrUpdater(current.lines)
+                : linesOrUpdater,
+          }));
+          setIsDirty(true);
+        }}
+      />
+    ) : null;
+
+  const drawerBody = (
+    <>
+      <PoDrawerLayoutBridge onLayout={handleDrawerLayout} />
+      {errorBanner}
+      {loadingMessage}
+      {readOnly && detail ? <PoPeekView order={detail} layout={documentLayout} /> : null}
+      {mutatingForm}
+    </>
+  );
+
   return (
     <>
       <RightDrawer
@@ -601,50 +668,23 @@ export function PoDrawerForm({
           surface === "peek"
             ? "module-drawer-peek-body"
             : isMutating
-              ? "module-drawer-form-body"
+              ? cn(
+                  "module-drawer-form-body",
+                  useDrawerBodyScroll && "module-drawer-form-body-scroll"
+                )
               : undefined
         }
-        scrollable={!(isMutating && lineTableFillHeight)}
+        scrollable={useDrawerBodyScroll || !(isMutating && lineTableFillHeight)}
         showCloseButton
       >
         <div
           className={cn(
-            isMutating && lineTableFillHeight && "flex min-h-0 flex-1 flex-col"
+            "flex flex-col",
+            isMutating && lineTableFillHeight && "min-h-0 flex-1 overflow-hidden",
+            isMutating && useDrawerBodyScroll && "shrink-0 pb-6"
           )}
         >
-          {error ? (
-            <UserFacingErrorMessage
-              message={error}
-              action={errorAction ?? undefined}
-              className="mb-4 shrink-0"
-            />
-          ) : null}
-
-          {showLoadingPeek || showLoadingEdit ? (
-            <p className="text-sm text-muted-foreground">Loading purchase order…</p>
-          ) : readOnly && detail ? (
-            <PoPeekView order={detail} layout={documentLayout} />
-          ) : isMutating ? (
-            <PoMutatingFormContent
-              form={form}
-              locations={locations}
-              suppliers={suppliers}
-              editOrderId={editOrderId ?? detail?.id ?? null}
-              defaultCurrency={defaultCurrency}
-              isPending={isPending}
-              onPatch={patchForm}
-              onLinesChange={(linesOrUpdater) => {
-                setForm((current) => ({
-                  ...current,
-                  lines:
-                    typeof linesOrUpdater === "function"
-                      ? linesOrUpdater(current.lines)
-                      : linesOrUpdater,
-                }));
-                setIsDirty(true);
-              }}
-            />
-          ) : null}
+          {drawerBody}
         </div>
       </RightDrawer>
       {discardDialog}

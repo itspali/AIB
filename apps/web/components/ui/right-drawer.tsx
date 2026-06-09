@@ -111,6 +111,11 @@ function readStoredWidthVw(): number {
   return DEFAULT_WIDTH_VW;
 }
 
+/** Session-stored drawer width — for components rendered outside RightDrawerLayoutProvider. */
+export function readRightDrawerStoredWidthVw(): number {
+  return readStoredWidthVw();
+}
+
 function persistWidthVw(width: number) {
   try {
     sessionStorage.setItem(STORAGE_KEY, String(Math.round(width * 10) / 10));

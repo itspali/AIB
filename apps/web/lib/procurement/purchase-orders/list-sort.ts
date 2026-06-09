@@ -25,6 +25,9 @@ export const PO_LIST_SORT_OPTIONS: PurchaseOrderSortOption[] = [
   { field: "status", direction: "asc", label: "Status (A–Z)" },
   { field: "lines", direction: "desc", label: "Lines (high–low)" },
   { field: "net_amount", direction: "desc", label: "Net amount (high–low)" },
+  { field: "created", direction: "desc", label: "Created (newest)" },
+  { field: "created", direction: "asc", label: "Created (oldest)" },
+  { field: "created_by", direction: "asc", label: "Created by (A–Z)" },
   { field: "updated", direction: "desc", label: "Updated (newest)" },
   { field: "updated", direction: "asc", label: "Updated (oldest)" },
 ];
@@ -36,7 +39,12 @@ export function purchaseOrderSortOptionKey(
   return `${field}:${direction}`;
 }
 
-const DESC_FIRST = new Set<PurchaseOrderListSortField>(["lines", "net_amount", "updated"]);
+const DESC_FIRST = new Set<PurchaseOrderListSortField>([
+  "lines",
+  "net_amount",
+  "created",
+  "updated",
+]);
 
 export function getInitialPurchaseOrderSortDirection(
   field: PurchaseOrderListSortField
@@ -135,6 +143,12 @@ export function sortPurchaseOrderListRows(
         break;
       case "net_amount":
         primary = compareAmounts(a.total_net_amount, b.total_net_amount, direction);
+        break;
+      case "created":
+        primary = compareDates(a.created_at, b.created_at, direction);
+        break;
+      case "created_by":
+        primary = compareStrings(a.created_by_name, b.created_by_name, direction);
         break;
       case "updated":
         primary = compareDates(a.updated_at, b.updated_at, direction);

@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { lookupPoLineCatalogContext } from "@/app/procurement/purchase-orders/actions";
+import {
+  mergePoLineCatalogContext,
+  needsPoLineCatalogHydration,
+} from "@/lib/documents/catalog-line-values";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 
 /** Loads read-only catalog snapshots for existing lines (e.g. when opening a saved PO). */
@@ -15,7 +19,9 @@ export function usePoLineCatalogHydration(
     const variantIds = [
       ...new Set(
         lines
-          .filter((line) => line.variant_id && line.catalog_context === undefined)
+          .filter(
+            (line) => line.variant_id && needsPoLineCatalogHydration(line.catalog_context)
+          )
           .map((line) => line.variant_id)
       ),
     ];
@@ -30,8 +36,15 @@ export function usePoLineCatalogHydration(
 
         onChange((current) =>
           current.map((line) =>
-            line.variant_id === variantId && line.catalog_context === undefined
-              ? { ...line, catalog_context: result.context }
+            line.variant_id === variantId &&
+            needsPoLineCatalogHydration(line.catalog_context)
+              ? {
+                  ...line,
+                  catalog_context: mergePoLineCatalogContext(
+                    line.catalog_context,
+                    result.context
+                  ),
+                }
               : line
           )
         );
