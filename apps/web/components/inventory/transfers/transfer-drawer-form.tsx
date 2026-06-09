@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   cancelStockTransfer,
@@ -10,7 +9,21 @@ import {
   receiveStockTransfer,
   saveStockTransfer,
 } from "@/app/inventory/transfers/actions";
-import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
+import {
+  createEmptyTransferLine,
+  filterSavableTransferLines,
+  TransferLineEntryTable,
+  type TransferDraftLine,
+} from "@/components/inventory/transfers/transfer-line-entry-table";
+import {
+  TransferReceiptLineEntryTable,
+  type TransferReceiptLine,
+} from "@/components/inventory/transfers/transfer-receipt-line-entry-table";
+import {
+  DocumentLinePeekItemCell,
+  DocumentLinePeekTable,
+  DocumentLinePeekValueCell,
+} from "@/components/documents/document-line-peek-table";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -35,26 +48,7 @@ import type {
   TransferLineRow,
   TransferLocationOption,
 } from "@/lib/inventory/transfers/types";
-
-type DraftLine = {
-  key: string;
-  sku: string;
-  variant_id: string;
-  item_name: string;
-  variant_sku: string;
-  quantity_dispatched: string;
-  skuError: string | null;
-};
-
-type ReceiptLine = {
-  line_id: string;
-  item_name: string;
-  variant_sku: string;
-  quantity_dispatched: string;
-  quantity_accepted: string;
-  quantity_damaged: string;
-  quantity_lost: string;
-};
+import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 
 type DraftFormState = {
   source_location_id: string;
@@ -62,7 +56,7 @@ type DraftFormState = {
   inter_company_freight_cost: string;
   loading_overhead_cost: string;
   unloading_overhead_cost: string;
-  lines: DraftLine[];
+  lines: TransferDraftLine[];
 };
 
 type Props = {
@@ -76,18 +70,6 @@ type Props = {
   onAfterSave: (transferId: string) => void;
   onOpenEdit: (transferId: string) => void;
 };
-
-function createEmptyLine(): DraftLine {
-  return {
-    key: crypto.randomUUID(),
-    sku: "",
-    variant_id: "",
-    item_name: "",
-    variant_sku: "",
-    quantity_dispatched: "",
-    skuError: null,
-  };
-}
 
 function defaultDraftForm(
   locations: TransferLocationOption[],
@@ -114,7 +96,7 @@ function defaultDraftForm(
       locations.find((location) => location.id !== sourceId)?.id ?? destinationId;
   }
 
-  const line = createEmptyLine();
+  const line = createEmptyTransferLine();
   if (prefill?.variant_id) {
     line.variant_id = prefill.variant_id;
     line.variant_sku = prefill.variant_sku;
@@ -128,7 +110,7 @@ function defaultDraftForm(
     inter_company_freight_cost: "0",
     loading_overhead_cost: "0",
     unloading_overhead_cost: "0",
-    lines: [line],
+    lines: ensureTrailingEmptyLine([line], () => false, createEmptyTransferLine),
   };
 }
 
@@ -151,11 +133,11 @@ function draftFormFromTransfer(
         variant_sku: line.variant_sku,
         quantity_dispatched: line.quantity_dispatched,
         skuError: null,
-      })) ?? [createEmptyLine()],
+      })) ?? ensureTrailingEmptyLine([], () => false, createEmptyTransferLine),
   };
 }
 
-function receiptLinesFromTransfer(lines: TransferLineRow[]): ReceiptLine[] {
+function receiptLinesFromTransfer(lines: TransferLineRow[]): TransferReceiptLine[] {
   return lines.map((line) => ({
     line_id: line.id,
     item_name: line.item_name,
@@ -194,7 +176,7 @@ export function TransferDrawerForm({
   });
 
   const [form, setForm] = useState<DraftFormState>(() => defaultDraftForm(locations));
-  const [receiptLines, setReceiptLines] = useState<ReceiptLine[]>([]);
+  const [receiptLines, setReceiptLines] = useState<TransferReceiptLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -280,14 +262,6 @@ export function TransferDrawerForm({
     setIsDirty(true);
   }, []);
 
-  const patchLine = useCallback((key: string, next: Partial<DraftLine>) => {
-    setForm((current) => ({
-      ...current,
-      lines: current.lines.map((line) => (line.key === key ? { ...line, ...next } : line)),
-    }));
-    setIsDirty(true);
-  }, []);
-
   const closeForm = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -303,15 +277,6 @@ export function TransferDrawerForm({
     closeForm();
   }, [closeForm, isDirty, isMutating, requestClose]);
 
-  const addLine = () => {
-    patchForm({ lines: [...form.lines, createEmptyLine()] });
-  };
-
-  const removeLine = (key: string) => {
-    if (form.lines.length <= 1) return;
-    patchForm({ lines: form.lines.filter((line) => line.key !== key) });
-  };
-
   const handleSaveDraft = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -323,7 +288,7 @@ export function TransferDrawerForm({
         inter_company_freight_cost: form.inter_company_freight_cost,
         loading_overhead_cost: form.loading_overhead_cost,
         unloading_overhead_cost: form.unloading_overhead_cost,
-        lines: form.lines.map((line) => ({
+        lines: filterSavableTransferLines(form.lines).map((line) => ({
           variant_id: line.variant_id,
           quantity_dispatched: line.quantity_dispatched,
         })),
@@ -618,62 +583,20 @@ export function TransferDrawerForm({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Lines</Label>
-                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addLine}>
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  Add line
-                </Button>
-              </div>
-
-              {form.lines.map((line) => (
-                <div
-                  key={line.key}
-                  className="space-y-3 rounded-lg border border-border/80 p-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1 space-y-3">
-                      <StockVariantSkuField
-                        value={{
-                          sku: line.sku,
-                          variant_id: line.variant_id,
-                          item_name: line.item_name,
-                          variant_sku: line.variant_sku,
-                          unit_cost: "0",
-                          skuError: line.skuError,
-                        }}
-                        onChange={(patch) => patchLine(line.key, patch)}
-                      />
-                      <div className="space-y-2">
-                        <Label htmlFor={`qty-${line.key}`}>Quantity to transfer</Label>
-                        <Input
-                          id={`qty-${line.key}`}
-                          inputMode="decimal"
-                          value={line.quantity_dispatched}
-                          onChange={(event) =>
-                            patchLine(line.key, { quantity_dispatched: event.target.value })
-                          }
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                    {form.lines.length > 1 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-muted-foreground"
-                        onClick={() => removeLine(line.key)}
-                        aria-label="Remove line"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <TransferLineEntryTable
+              lines={form.lines}
+              disabled={isPending}
+              onChange={(linesOrUpdater) => {
+                setForm((current) => ({
+                  ...current,
+                  lines:
+                    typeof linesOrUpdater === "function"
+                      ? linesOrUpdater(current.lines)
+                      : linesOrUpdater,
+                }));
+                setIsDirty(true);
+              }}
+            />
           </div>
         ) : showLoadingPeek ? (
           <p className="text-sm text-muted-foreground">Loading transfer…</p>
@@ -739,125 +662,50 @@ export function TransferDrawerForm({
             ) : null}
 
             {detail.current_status === "DISPATCHED_IN_TRANSIT" && receiptLines.length > 0 ? (
-              <div className="space-y-3">
-                <div>
-                  <Label>Receipt quantities</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Accepted + damaged + lost must equal dispatched quantity on every line.
-                  </p>
-                </div>
-                {receiptLines.map((line) => (
-                  <div
-                    key={line.line_id}
-                    className="space-y-3 rounded-lg border border-border/80 p-3"
-                  >
-                    <div>
-                      <div className="font-medium">{line.item_name}</div>
-                      <div className="font-mono text-xs text-muted-foreground">{line.variant_sku}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        Dispatched: {line.quantity_dispatched}
-                      </div>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="space-y-2">
-                        <Label htmlFor={`accepted-${line.line_id}`}>Accepted</Label>
-                        <Input
-                          id={`accepted-${line.line_id}`}
-                          inputMode="decimal"
-                          value={line.quantity_accepted}
-                          onChange={(event) =>
-                            setReceiptLines((current) =>
-                              current.map((row) =>
-                                row.line_id === line.line_id
-                                  ? { ...row, quantity_accepted: event.target.value }
-                                  : row
-                              )
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`damaged-${line.line_id}`}>Damaged</Label>
-                        <Input
-                          id={`damaged-${line.line_id}`}
-                          inputMode="decimal"
-                          value={line.quantity_damaged}
-                          onChange={(event) =>
-                            setReceiptLines((current) =>
-                              current.map((row) =>
-                                row.line_id === line.line_id
-                                  ? { ...row, quantity_damaged: event.target.value }
-                                  : row
-                              )
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`lost-${line.line_id}`}>Lost</Label>
-                        <Input
-                          id={`lost-${line.line_id}`}
-                          inputMode="decimal"
-                          value={line.quantity_lost}
-                          onChange={(event) =>
-                            setReceiptLines((current) =>
-                              current.map((row) =>
-                                row.line_id === line.line_id
-                                  ? { ...row, quantity_lost: event.target.value }
-                                  : row
-                              )
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TransferReceiptLineEntryTable
+                lines={receiptLines}
+                disabled={isPending}
+                onChange={setReceiptLines}
+              />
             ) : detail.lines && detail.lines.length > 0 ? (
-              <div className="space-y-2">
-                <Label>Lines</Label>
-                <div className="overflow-hidden rounded-lg border border-border/80">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="p-2 text-left font-medium">SKU</th>
-                        <th className="p-2 text-right font-medium">Dispatched</th>
-                        {detail.current_status !== "DRAFT" ? (
-                          <>
-                            <th className="p-2 text-right font-medium">Accepted</th>
-                            <th className="p-2 text-right font-medium">Damaged</th>
-                            <th className="p-2 text-right font-medium">Lost</th>
-                          </>
-                        ) : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.lines.map((line) => (
-                        <tr key={line.id} className="border-t border-border/80">
-                          <td className="p-2">
-                            <div className="font-medium">{line.item_name}</div>
-                            <div className="font-mono text-xs text-muted-foreground">
-                              {line.variant_sku}
-                            </div>
-                          </td>
-                          <td className="p-2 text-right tabular-nums">{line.quantity_dispatched}</td>
-                          {detail.current_status !== "DRAFT" ? (
-                            <>
-                              <td className="p-2 text-right tabular-nums">
-                                {line.quantity_accepted}
-                              </td>
-                              <td className="p-2 text-right tabular-nums">
-                                {line.quantity_damaged}
-                              </td>
-                              <td className="p-2 text-right tabular-nums">{line.quantity_lost}</td>
-                            </>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Lines
+                </p>
+                <DocumentLinePeekTable
+                  lines={detail.lines}
+                  getRowKey={(line) => line.id}
+                  columns={[
+                    { id: "item", label: "Item", align: "left" },
+                    { id: "quantity_dispatched", label: "Dispatched", align: "right", widthClass: "w-[5.5rem]" },
+                    ...(detail.current_status !== "DRAFT"
+                      ? [
+                          { id: "quantity_accepted", label: "Accepted", align: "right" as const, widthClass: "w-[5rem]" },
+                          { id: "quantity_damaged", label: "Damaged", align: "right" as const, widthClass: "w-[5rem]" },
+                          { id: "quantity_lost", label: "Lost", align: "right" as const, widthClass: "w-[5rem]" },
+                        ]
+                      : []),
+                  ]}
+                  renderCell={(column, line) => {
+                    if (column.id === "item") {
+                      return (
+                        <DocumentLinePeekItemCell
+                          itemName={line.item_name}
+                          variantSku={line.variant_sku}
+                        />
+                      );
+                    }
+                    const value =
+                      column.id === "quantity_dispatched"
+                        ? line.quantity_dispatched
+                        : column.id === "quantity_accepted"
+                          ? line.quantity_accepted
+                          : column.id === "quantity_damaged"
+                            ? line.quantity_damaged
+                            : line.quantity_lost;
+                    return <DocumentLinePeekValueCell value={value} />;
+                  }}
+                />
               </div>
             ) : null}
           </div>

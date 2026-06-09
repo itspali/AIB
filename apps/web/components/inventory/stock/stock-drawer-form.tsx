@@ -1,10 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { loadStockAdjustmentDetail, postStockAdjustment } from "@/app/inventory/stock/actions";
-import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
+import {
+  createEmptyStockAdjustmentLine,
+  filterSavableStockAdjustmentLines,
+  StockAdjustmentLineEntryTable,
+  type StockAdjustmentDraftLine,
+} from "@/components/inventory/stock/stock-adjustment-line-entry-table";
+import {
+  DocumentLinePeekItemCell,
+  DocumentLinePeekTable,
+  DocumentLinePeekValueCell,
+} from "@/components/documents/document-line-peek-table";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -27,25 +36,14 @@ import type {
   StockAdjustmentRow,
   StockLocationOption,
 } from "@/lib/inventory/stock/types";
-
-type DraftLine = {
-  key: string;
-  sku: string;
-  variant_id: string;
-  item_name: string;
-  variant_sku: string;
-  quantity_delta: string;
-  unit_cost: string;
-  line_notes: string;
-  skuError: string | null;
-};
+import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 
 type CreateFormState = {
   location_id: string;
   kind: StockAdjustmentKind;
   reason: string;
   notes: string;
-  lines: DraftLine[];
+  lines: StockAdjustmentDraftLine[];
 };
 
 export type StockDrawerCreatePrefill = {
@@ -66,20 +64,6 @@ type Props = {
   onAfterSave: (adjustmentId: string) => void;
 };
 
-function createEmptyLine(): DraftLine {
-  return {
-    key: crypto.randomUUID(),
-    sku: "",
-    variant_id: "",
-    item_name: "",
-    variant_sku: "",
-    quantity_delta: "",
-    unit_cost: "0",
-    line_notes: "",
-    skuError: null,
-  };
-}
-
 function defaultCreateForm(
   locations: StockLocationOption[],
   prefill?: StockDrawerCreatePrefill | null
@@ -89,7 +73,7 @@ function defaultCreateForm(
       ? prefill.location_id
       : (locations[0]?.id ?? "");
 
-  const line = createEmptyLine();
+  const line = createEmptyStockAdjustmentLine();
   if (prefill?.variant_id) {
     line.variant_id = prefill.variant_id;
     line.variant_sku = prefill.variant_sku;
@@ -103,7 +87,7 @@ function defaultCreateForm(
     kind: "CORRECTION",
     reason: "",
     notes: "",
-    lines: [line],
+    lines: ensureTrailingEmptyLine([line], () => false, createEmptyStockAdjustmentLine),
   };
 }
 
@@ -183,14 +167,6 @@ export function StockDrawerForm({
     setIsDirty(true);
   }, []);
 
-  const patchLine = useCallback((key: string, next: Partial<DraftLine>) => {
-    setForm((current) => ({
-      ...current,
-      lines: current.lines.map((line) => (line.key === key ? { ...line, ...next } : line)),
-    }));
-    setIsDirty(true);
-  }, []);
-
   const closeForm = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -206,15 +182,6 @@ export function StockDrawerForm({
     closeForm();
   }, [closeForm, isDirty, isMutating, requestClose]);
 
-  const addLine = () => {
-    patchForm({ lines: [...form.lines, createEmptyLine()] });
-  };
-
-  const removeLine = (key: string) => {
-    if (form.lines.length <= 1) return;
-    patchForm({ lines: form.lines.filter((line) => line.key !== key) });
-  };
-
   const handleSubmit = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -224,7 +191,7 @@ export function StockDrawerForm({
         kind: form.kind,
         reason: form.reason,
         notes: form.notes || undefined,
-        lines: form.lines.map((line) => ({
+        lines: filterSavableStockAdjustmentLines(form.lines).map((line) => ({
           variant_id: line.variant_id,
           quantity_delta: line.quantity_delta,
           unit_cost: line.unit_cost || "0",
@@ -351,27 +318,34 @@ export function StockDrawerForm({
                   </div>
                 </div>
 
-                <div className="surface-inset overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-left text-sm">
-                    <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="p-2.5 font-medium">Item</th>
-                        <th className="p-2.5 font-medium">SKU</th>
-                        <th className="p-2.5 text-right font-medium">Qty Δ</th>
-                        <th className="p-2.5 text-right font-medium">Unit cost</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(detail.lines ?? []).map((line) => (
-                        <tr key={line.id} className="border-b border-border">
-                          <td className="p-2.5 font-medium">{line.item_name}</td>
-                          <td className="p-2.5 font-mono text-xs">{line.variant_sku}</td>
-                          <td className="p-2.5 text-right tabular-nums">{line.quantity_delta}</td>
-                          <td className="p-2.5 text-right tabular-nums">{line.unit_cost}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Lines
+                  </p>
+                  <DocumentLinePeekTable
+                    lines={detail.lines ?? []}
+                    minTableWidth="min-w-[40rem]"
+                    getRowKey={(line) => line.id}
+                    columns={[
+                      { id: "item", label: "Item", align: "left" },
+                      { id: "quantity_delta", label: "Qty Δ", align: "right", widthClass: "w-[4.5rem]" },
+                      { id: "unit_cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
+                    ]}
+                    renderCell={(column, line) => {
+                      if (column.id === "item") {
+                        return (
+                          <DocumentLinePeekItemCell
+                            itemName={line.item_name}
+                            variantSku={line.variant_sku}
+                          />
+                        );
+                      }
+                      if (column.id === "quantity_delta") {
+                        return <DocumentLinePeekValueCell value={line.quantity_delta} />;
+                      }
+                      return <DocumentLinePeekValueCell value={line.unit_cost} />;
+                    }}
+                  />
                 </div>
               </div>
             ) : (
@@ -453,101 +427,20 @@ export function StockDrawerForm({
                 </div>
               </div>
 
-              <div className="space-y-2.5">
-                <h3 className="text-sm font-semibold">Lines</h3>
-
-                <div className="surface-inset overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="min-w-[12rem] p-2.5 font-medium">SKU</th>
-                        <th className="w-28 p-2.5 font-medium">Qty Δ</th>
-                        <th className="w-28 p-2.5 font-medium">Unit cost</th>
-                        <th className="min-w-[8rem] p-2.5 font-medium">Notes</th>
-                        <th className="w-10 p-2.5">
-                          <span className="sr-only">Remove</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.lines.map((line) => (
-                        <tr key={line.key} className="border-b border-border align-top">
-                          <td className="p-2">
-                            <StockVariantSkuField
-                              compact
-                              disabled={isPending}
-                              value={line}
-                              onChange={(patch) => patchLine(line.key, patch)}
-                            />
-                          </td>
-                          <td className="p-2">
-                            <Input
-                              className="h-9 tabular-nums"
-                              value={line.quantity_delta}
-                              disabled={isPending}
-                              placeholder="10"
-                              aria-label="Quantity delta"
-                              onChange={(event) =>
-                                patchLine(line.key, { quantity_delta: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="p-2">
-                            <Input
-                              className="h-9 tabular-nums"
-                              value={line.unit_cost}
-                              disabled={isPending}
-                              aria-label="Unit cost"
-                              onChange={(event) =>
-                                patchLine(line.key, { unit_cost: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="p-2">
-                            <Input
-                              className="h-9"
-                              value={line.line_notes}
-                              disabled={isPending}
-                              placeholder="Optional"
-                              aria-label="Line notes"
-                              onChange={(event) =>
-                                patchLine(line.key, { line_notes: event.target.value })
-                              }
-                            />
-                          </td>
-                          <td className="p-2">
-                            {form.lines.length > 1 ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-9 w-9 p-0 text-destructive hover:text-destructive"
-                                disabled={isPending}
-                                onClick={() => removeLine(line.key)}
-                                aria-label="Remove line"
-                              >
-                                <Trash2 className="h-4 w-4" aria-hidden />
-                              </Button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={isPending}
-                  onClick={addLine}
-                >
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  Add line
-                </Button>
-              </div>
+              <StockAdjustmentLineEntryTable
+                lines={form.lines}
+                disabled={isPending}
+                onChange={(linesOrUpdater) => {
+                  setForm((current) => ({
+                    ...current,
+                    lines:
+                      typeof linesOrUpdater === "function"
+                        ? linesOrUpdater(current.lines)
+                        : linesOrUpdater,
+                  }));
+                  setIsDirty(true);
+                }}
+              />
             </div>
           )}
         </div>

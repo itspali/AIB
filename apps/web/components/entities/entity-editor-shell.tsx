@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { EntityBankAccountsSection } from "@/components/entities/entity-bank-accounts-section";
+import { EntityCategoryCombobox } from "@/components/entities/entity-category-combobox";
 import { EntityCustomFieldsSection } from "@/components/entities/entity-custom-fields-section";
 import { EntityLogoUploader } from "@/components/entities/entity-logo-uploader";
 import { DrawerFormField, DrawerFormGrid } from "@/components/layout/drawer-form-grid";
@@ -37,10 +38,24 @@ import {
   validateGstinFormat,
 } from "@/lib/entities/gstin";
 import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
-import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
-import { ENTITY_COMMERCIAL_TYPES, taxRegistrationRequired } from "@/lib/entities/types";
+import {
+  ENTITY_TYPE_LABELS,
+  PARTY_NATURE_LABELS,
+  TAX_TREATMENT_LABELS,
+} from "@/lib/entities/labels";
+import {
+  ENTITY_COMMERCIAL_TYPES,
+  PARTY_NATURE_TYPES,
+  taxRegistrationRequired,
+} from "@/lib/entities/types";
 import type { EntityWorkspace } from "@/lib/entities/types";
+import {
+  resolveWorkspaceEffectiveFieldDefinitions,
+  workspaceCategoryIdField,
+  workspaceCustomFieldBucket,
+} from "@/lib/entities/use-entity-form";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import {
   CURRENCY_OPTIONS,
   currencyLabel,
@@ -136,6 +151,7 @@ type Props = {
   tenantId: string;
   formApi: FormApi;
   customFieldDefinitions?: EntityCustomFieldDefinition[];
+  categoryRows?: EntityCategoryRow[];
   readOnly?: boolean;
   activeSection?: string;
   onActiveSectionChange?: (id: string) => void;
@@ -176,6 +192,7 @@ export function EntityEditorShell({
   tenantId,
   formApi,
   customFieldDefinitions = [],
+  categoryRows = [],
   readOnly = false,
   activeSection = ENTITY_SECTION_ESSENTIALS_ID,
   onActiveSectionChange,
@@ -187,6 +204,9 @@ export function EntityEditorShell({
     form,
     setForm,
     setFormWithBillingMirror,
+    setEntityName,
+    setPartyNature,
+    setCategoryId,
     error,
     isPending,
     showAdvanced,
@@ -202,6 +222,20 @@ export function EntityEditorShell({
   const [gstinLookupPending, setGstinLookupPending] = useState(false);
   const fieldsDisabled = isPending || readOnly || gstinLookupPending;
   const showTaxId = taxRegistrationRequired(form.tax_treatment);
+  const isIndividual = form.party_nature === "INDIVIDUAL";
+  const isOrganization = form.party_nature === "ORGANIZATION";
+  const categoryField = workspaceCategoryIdField(workspace);
+  const customFieldBucket = workspaceCustomFieldBucket(workspace);
+  const effectiveFieldDefinitions = useMemo(
+    () =>
+      resolveWorkspaceEffectiveFieldDefinitions(
+        workspace,
+        form,
+        categoryRows,
+        customFieldDefinitions
+      ),
+    [categoryRows, customFieldDefinitions, form, workspace]
+  );
 
   const handleGstinBlur = useCallback(
     async (rawGstin: string) => {
@@ -256,7 +290,7 @@ export function EntityEditorShell({
   );
   const showBankAccounts =
     workspace === "supplier" && entityTypeSupportsBankAccounts(form.type);
-  const drawerSections = getEntityDrawerSections(workspace, customFieldDefinitions);
+  const drawerSections = getEntityDrawerSections(workspace, effectiveFieldDefinitions);
   const typeOptions = useMemo(
     () =>
       ENTITY_COMMERCIAL_TYPES.filter((type) => config.typeFilter.includes(type)).map((type) => ({
@@ -307,15 +341,45 @@ export function EntityEditorShell({
           />
 
           <DrawerFormGrid>
+            <DrawerFormField>
+              <Label htmlFor="entity-party-nature">Party nature</Label>
+              <Select
+                value={form.party_nature}
+                disabled={fieldsDisabled}
+                onValueChange={(value) => setPartyNature(value as typeof form.party_nature)}
+              >
+                <SelectTrigger id="entity-party-nature">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PARTY_NATURE_TYPES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {PARTY_NATURE_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </DrawerFormField>
+
             <DrawerFormField span="full">
-              <Label htmlFor="entity-name">Name</Label>
+              <Label htmlFor="entity-name">
+                {isOrganization ? "Business name" : "Full name"}
+              </Label>
               <Input
                 id="entity-name"
                 value={form.name}
                 disabled={fieldsDisabled}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, name: event.target.value }))
-                }
+                onChange={(event) => setEntityName(event.target.value)}
+              />
+            </DrawerFormField>
+
+            <DrawerFormField span="full">
+              <EntityCategoryCombobox
+                workspace={workspace}
+                categoryRows={categoryRows}
+                value={form[categoryField]}
+                disabled={fieldsDisabled}
+                onChange={setCategoryId}
               />
             </DrawerFormField>
 
@@ -406,36 +470,42 @@ export function EntityEditorShell({
           <Separator />
 
           <div className="space-y-3">
-            <p className="text-sm font-medium">Primary contact</p>
+            <p className="text-sm font-medium">
+              {isOrganization ? "Primary contact" : "Contact details"}
+            </p>
             <DrawerFormGrid>
-              <DrawerFormField>
-                <Label htmlFor="primary-first-name">First name</Label>
-                <Input
-                  id="primary-first-name"
-                  value={form.primary_contact.first_name}
-                  disabled={fieldsDisabled}
-                  onChange={(event) =>
-                    setPrimaryContact((contact) => ({
-                      ...contact,
-                      first_name: event.target.value,
-                    }))
-                  }
-                />
-              </DrawerFormField>
-              <DrawerFormField>
-                <Label htmlFor="primary-last-name">Last name</Label>
-                <Input
-                  id="primary-last-name"
-                  value={form.primary_contact.last_name}
-                  disabled={fieldsDisabled}
-                  onChange={(event) =>
-                    setPrimaryContact((contact) => ({
-                      ...contact,
-                      last_name: event.target.value,
-                    }))
-                  }
-                />
-              </DrawerFormField>
+              {isOrganization ? (
+                <>
+                  <DrawerFormField>
+                    <Label htmlFor="primary-first-name">First name</Label>
+                    <Input
+                      id="primary-first-name"
+                      value={form.primary_contact.first_name}
+                      disabled={fieldsDisabled}
+                      onChange={(event) =>
+                        setPrimaryContact((contact) => ({
+                          ...contact,
+                          first_name: event.target.value,
+                        }))
+                      }
+                    />
+                  </DrawerFormField>
+                  <DrawerFormField>
+                    <Label htmlFor="primary-last-name">Last name</Label>
+                    <Input
+                      id="primary-last-name"
+                      value={form.primary_contact.last_name}
+                      disabled={fieldsDisabled}
+                      onChange={(event) =>
+                        setPrimaryContact((contact) => ({
+                          ...contact,
+                          last_name: event.target.value,
+                        }))
+                      }
+                    />
+                  </DrawerFormField>
+                </>
+              ) : null}
               <DrawerFormField>
                 <Label htmlFor="primary-email">Email</Label>
                 <Input
@@ -471,20 +541,22 @@ export function EntityEditorShell({
             </DrawerFormGrid>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
-            <div>
-              <p className="text-sm font-medium">Show advanced fields</p>
-              <p className="text-xs text-muted-foreground">
-                Legal name, addresses, extended contacts, and company profile.
-              </p>
+          {isOrganization ? (
+            <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Show advanced fields</p>
+                <p className="text-xs text-muted-foreground">
+                  Legal name, addresses, extended contacts, and company profile.
+                </p>
+              </div>
+              <Switch
+                checked={showAdvanced}
+                disabled={fieldsDisabled}
+                onCheckedChange={setShowAdvanced}
+                aria-label="Show advanced fields"
+              />
             </div>
-            <Switch
-              checked={showAdvanced}
-              disabled={fieldsDisabled}
-              onCheckedChange={setShowAdvanced}
-              aria-label="Show advanced fields"
-            />
-          </div>
+          ) : null}
         </Section>
 
         <Section
@@ -737,17 +809,19 @@ export function EntityEditorShell({
           </>
         ) : null}
 
-        {customFieldDefinitions.length > 0 ? (
+        {effectiveFieldDefinitions.length > 0 ? (
           <Section
             id={ENTITY_SECTION_CUSTOM_FIELDS_ID}
             title="Custom fields"
-            help="Organization-defined profile fields for this workspace."
+            help="Category and organization-defined profile fields for this workspace."
           >
             <EntityCustomFieldsSection
-              definitions={customFieldDefinitions}
-              values={form.custom_fields}
+              definitions={effectiveFieldDefinitions}
+              values={form[customFieldBucket]}
               disabled={fieldsDisabled}
-              onChange={(values) => setForm((current) => ({ ...current, custom_fields: values }))}
+              onChange={(values) =>
+                setForm((current) => ({ ...current, [customFieldBucket]: values }))
+              }
             />
           </Section>
         ) : null}

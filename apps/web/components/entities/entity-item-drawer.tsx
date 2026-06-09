@@ -5,12 +5,14 @@ import { loadEntityDetail } from "@/app/entities/actions";
 import { EntityDrawerForm } from "@/components/entities/entity-drawer-form";
 import type { EntityDetailSnapshot, EntityListRow, EntityWorkspace } from "@/lib/entities/types";
 import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 
 type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
   customFieldDefinitions: EntityCustomFieldDefinition[];
+  categoryRows: EntityCategoryRow[];
   open: boolean;
   surface: DrawerSurface;
   recordId: string | null;
@@ -25,6 +27,7 @@ export function EntityItemDrawer({
   workspace,
   tenantId,
   customFieldDefinitions,
+  categoryRows,
   open,
   surface,
   recordId,
@@ -69,8 +72,13 @@ export function EntityItemDrawer({
               legal_name: peekListRow.legal_name,
               code: peekListRow.code,
               type: peekListRow.type,
+              party_nature: peekListRow.party_nature,
               tax_registration_number: peekListRow.tax_registration_number,
               tax_treatment: peekListRow.tax_treatment,
+              customer_category_id: peekListRow.customer_category_id,
+              customer_category_name: peekListRow.customer_category_name,
+              supplier_category_id: peekListRow.supplier_category_id,
+              supplier_category_name: peekListRow.supplier_category_name,
               base_currency_override: null,
               credit_limit: peekListRow.credit_limit,
               current_balance: peekListRow.current_balance,
@@ -95,6 +103,8 @@ export function EntityItemDrawer({
               internal_notes: null,
               logo_url: peekListRow.logo_url ?? null,
               custom_fields: {},
+              customer_custom_fields: {},
+              supplier_custom_fields: {},
               is_active: peekListRow.is_active,
               created_at: peekListRow.created_at,
               updated_at: peekListRow.updated_at,
@@ -109,6 +119,7 @@ export function EntityItemDrawer({
       workspace={workspace}
       tenantId={tenantId}
       customFieldDefinitions={customFieldDefinitions}
+      categoryRows={categoryRows}
       open={open}
       surface={surface}
       editingEntity={editingEntity}

@@ -38,7 +38,7 @@ export function EntityCustomFieldsSection({
       <div>
         <p className="text-sm font-medium">Custom fields</p>
         <p className="text-xs text-muted-foreground">
-          Additional profile fields configured for this workspace.
+          Category and organization-defined profile fields for this workspace.
         </p>
       </div>
       <DrawerFormGrid>

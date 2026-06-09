@@ -1,23 +1,22 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
 import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  DOCUMENT_LINE_COMPACT_INPUT_CLASS,
+  DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS,
+  DocumentLineCompactInput,
+  DocumentLineRemoveButton,
+} from "@/components/documents/document-line-entry-cells";
+import { cn } from "@/lib/utils";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoLineColumnId } from "@/lib/documents/purchase-order-layout";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { computeLineGross, formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
-import { cn } from "@/lib/utils";
 import { isEnterKey } from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { PoLineSupplierInsightsButton } from "@/components/procurement/purchase-orders/po-line-supplier-insights";
 
-export const PO_LINE_COMPACT_INPUT_CLASS =
-  "h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-2 text-sm shadow-none focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
-
-/** Spreadsheet cell embed — square corners, no inner border box. */
-export const PO_LINE_ITEM_CELL_INPUT_CLASS =
-  "h-9 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:border-transparent focus-visible:outline-none focus-visible:shadow-none focus-visible:ring-0 focus-visible:ring-offset-0";
+export const PO_LINE_COMPACT_INPUT_CLASS = DOCUMENT_LINE_COMPACT_INPUT_CLASS;
+export const PO_LINE_ITEM_CELL_INPUT_CLASS = DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS;
 
 type LineCellContext = {
   line: PoDraftLine;
@@ -140,31 +139,24 @@ export function PoLineQtyCell({
   const { line, disabled, qtyRefs, patchLine, focusPrice } = ctx;
 
   return (
-    <div className={align === "right" ? "flex justify-end" : undefined}>
-      <Input
-        ref={(node) => {
-          qtyRefs.current[line.key] = node;
-        }}
-        className={cn(
-          "tabular-nums",
-          PO_LINE_COMPACT_INPUT_CLASS,
-          "w-full",
-          align === "right" && "text-right"
-        )}
-        value={line.quantity_ordered}
-        disabled={disabled}
-        inputMode="decimal"
-        aria-label="Quantity ordered"
-        onChange={(event) => patchLine(line.key, { quantity_ordered: event.target.value })}
-        onKeyDown={(event) => {
-          if (!isEnterKey(event.key)) return;
-          event.preventDefault();
-          if (line.variant_id && Number(line.quantity_ordered) > 0) {
-            focusPrice(line.key);
-          }
-        }}
-      />
-    </div>
+    <DocumentLineCompactInput
+      ref={(node) => {
+        qtyRefs.current[line.key] = node;
+      }}
+      align={align}
+      value={line.quantity_ordered}
+      disabled={disabled}
+      inputMode="decimal"
+      aria-label="Quantity ordered"
+      onChange={(event) => patchLine(line.key, { quantity_ordered: event.target.value })}
+      onKeyDown={(event) => {
+        if (!isEnterKey(event.key)) return;
+        event.preventDefault();
+        if (line.variant_id && Number(line.quantity_ordered) > 0) {
+          focusPrice(line.key);
+        }
+      }}
+    />
   );
 }
 
@@ -178,31 +170,24 @@ export function PoLinePriceCell({
   const { line, disabled, priceRefs, patchLine, advanceFromLine } = ctx;
 
   return (
-    <div className={align === "right" ? "flex justify-end" : undefined}>
-      <Input
-        ref={(node) => {
-          priceRefs.current[line.key] = node;
-        }}
-        className={cn(
-          "tabular-nums",
-          PO_LINE_COMPACT_INPUT_CLASS,
-          "w-full",
-          align === "right" && "text-right"
-        )}
-        value={line.unit_price_contractual}
-        disabled={disabled}
-        inputMode="decimal"
-        aria-label="Unit price ex tax"
-        onChange={(event) =>
-          patchLine(line.key, { unit_price_contractual: event.target.value })
-        }
-        onKeyDown={(event) => {
-          if (!isEnterKey(event.key)) return;
-          event.preventDefault();
-          advanceFromLine(line.key);
-        }}
-      />
-    </div>
+    <DocumentLineCompactInput
+      ref={(node) => {
+        priceRefs.current[line.key] = node;
+      }}
+      align={align}
+      value={line.unit_price_contractual}
+      disabled={disabled}
+      inputMode="decimal"
+      aria-label="Unit price ex tax"
+      onChange={(event) =>
+        patchLine(line.key, { unit_price_contractual: event.target.value })
+      }
+      onKeyDown={(event) => {
+        if (!isEnterKey(event.key)) return;
+        event.preventDefault();
+        advanceFromLine(line.key);
+      }}
+    />
   );
 }
 
@@ -227,31 +212,7 @@ export function PoLineTotalCell({
   );
 }
 
-export function PoLineRemoveButton({
-  lineKey,
-  disabled,
-  canRemove,
-  onRemove,
-}: {
-  lineKey: string;
-  disabled: boolean;
-  canRemove: boolean;
-  onRemove: (key: string) => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="h-8 w-8 p-0 text-muted-foreground"
-      disabled={disabled || !canRemove}
-      onClick={() => onRemove(lineKey)}
-      aria-label="Remove line"
-    >
-      <Trash2 className="h-4 w-4" />
-    </Button>
-  );
-}
+export const PoLineRemoveButton = DocumentLineRemoveButton;
 
 export function renderPoLineColumnCell(
   columnId: PoLineColumnId,

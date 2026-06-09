@@ -4,9 +4,10 @@ import {
 import { columnWidths } from "@/lib/list-columns/sizing";
 import type { ListColumnDef, ListColumnRegistry } from "@/lib/list-columns/types";
 import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
-import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
+import { ENTITY_TYPE_LABELS, PARTY_NATURE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
 import {
   ENTITY_COMMERCIAL_TYPES,
+  PARTY_NATURE_TYPES,
   TAX_TREATMENT_TYPES,
   type EntityCommercialType,
 } from "@/lib/entities/types";
@@ -15,6 +16,9 @@ export const ENTITY_LIST_COLUMN_IDS = [
   "name",
   "code",
   "type",
+  "party_nature",
+  "customer_category",
+  "supplier_category",
   "legal_name",
   "tax_treatment",
   "tax_registration_number",
@@ -83,6 +87,17 @@ const ENTITY_TYPE_CHIP_DEFAULTS: Record<string, { preset: "sky" | "amber" | "vio
     [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
   };
 
+const PARTY_NATURE_CHIP_CATALOG = PARTY_NATURE_TYPES.map((value) => ({
+  value,
+  label: PARTY_NATURE_LABELS[value],
+}));
+
+const PARTY_NATURE_CHIP_DEFAULTS: Record<string, { preset: "sky" | "violet" | "neutral" }> = {
+  INDIVIDUAL: { preset: "sky" },
+  ORGANIZATION: { preset: "violet" },
+  [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
+};
+
 const TAX_TREATMENT_CHIP_DEFAULTS: Record<
   string,
   { preset: "emerald" | "slate" | "amber" | "indigo" | "sky" | "violet" | "neutral" }
@@ -123,6 +138,33 @@ export const ENTITY_LIST_COLUMNS: EntityListColumnDef[] = [
     chipEligible: true,
     chipValueCatalog: ENTITY_TYPE_CHIP_CATALOG,
     chipDefaultColors: ENTITY_TYPE_CHIP_DEFAULTS,
+  },
+  {
+    id: "party_nature",
+    label: "Party nature",
+    defaultVisible: false,
+    group: "Identity",
+    valueKind: "text",
+    widths: W_TEXT,
+    chipEligible: true,
+    chipValueCatalog: PARTY_NATURE_CHIP_CATALOG,
+    chipDefaultColors: PARTY_NATURE_CHIP_DEFAULTS,
+  },
+  {
+    id: "customer_category",
+    label: "Customer category",
+    defaultVisible: false,
+    group: "Identity",
+    valueKind: "text",
+    widths: W_TEXT,
+  },
+  {
+    id: "supplier_category",
+    label: "Supplier category",
+    defaultVisible: false,
+    group: "Identity",
+    valueKind: "text",
+    widths: W_TEXT,
   },
   {
     id: "legal_name",
@@ -242,6 +284,8 @@ export const ENTITY_LIST_COLUMNS: EntityListColumnDef[] = [
 export const CUSTOMER_LIST_COLUMN_IDS = [
   "name",
   "code",
+  "party_nature",
+  "customer_category",
   "primary_contact_name",
   "credit_limit",
   "current_balance",
@@ -253,6 +297,8 @@ export const CUSTOMER_LIST_COLUMN_IDS = [
 export const SUPPLIER_LIST_COLUMN_IDS = [
   "name",
   "code",
+  "party_nature",
+  "supplier_category",
   "primary_contact_name",
   "primary_contact_email",
   "company_email",

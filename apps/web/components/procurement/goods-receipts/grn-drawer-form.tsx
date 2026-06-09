@@ -1,18 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   loadGoodsReceiptDetail,
   postGoodsReceipt,
 } from "@/app/procurement/goods-receipts/actions";
-import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
+import {
+  createEmptyGrnLine,
+  filterSavableGrnLines,
+  GrnLineEntryTable,
+  type GrnDraftLine,
+} from "@/components/procurement/goods-receipts/grn-line-entry-table";
+import {
+  DocumentLinePeekItemCell,
+  DocumentLinePeekTable,
+  DocumentLinePeekValueCell,
+} from "@/components/documents/document-line-peek-table";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -27,24 +35,12 @@ import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawe
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
-
-type DraftLine = {
-  key: string;
-  sku: string;
-  variant_id: string;
-  item_name: string;
-  variant_sku: string;
-  po_item_id: string | null;
-  quantity_received: string;
-  raw_unit_cost: string;
-  open_quantity: string | null;
-  skuError: string | null;
-};
+import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 
 type CreateFormState = {
   destination_location_id: string;
   purchase_order_id: string | null;
-  lines: DraftLine[];
+  lines: GrnDraftLine[];
 };
 
 type Props = {
@@ -57,21 +53,6 @@ type Props = {
   onClose: () => void;
   onAfterSave: (goodsReceiptId: string) => void;
 };
-
-function createEmptyLine(): DraftLine {
-  return {
-    key: crypto.randomUUID(),
-    sku: "",
-    variant_id: "",
-    item_name: "",
-    variant_sku: "",
-    po_item_id: null,
-    quantity_received: "",
-    raw_unit_cost: "0",
-    open_quantity: null,
-    skuError: null,
-  };
-}
 
 function defaultCreateForm(
   locations: ProcurementLocationOption[],
@@ -104,7 +85,7 @@ function defaultCreateForm(
   return {
     destination_location_id: locations[0]?.id ?? "",
     purchase_order_id: null,
-    lines: [createEmptyLine()],
+    lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
   };
 }
 
@@ -197,14 +178,6 @@ export function GrnDrawerForm({
     setIsDirty(true);
   }, []);
 
-  const patchLine = useCallback((key: string, next: Partial<DraftLine>) => {
-    setForm((current) => ({
-      ...current,
-      lines: current.lines.map((line) => (line.key === key ? { ...line, ...next } : line)),
-    }));
-    setIsDirty(true);
-  }, []);
-
   const closeForm = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -224,7 +197,7 @@ export function GrnDrawerForm({
     if (purchaseOrderId === "none") {
       patchForm({
         purchase_order_id: null,
-        lines: [createEmptyLine()],
+        lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
       });
       return;
     }
@@ -250,16 +223,6 @@ export function GrnDrawerForm({
     });
   };
 
-  const addLine = () => {
-    if (form.purchase_order_id) return;
-    patchForm({ lines: [...form.lines, createEmptyLine()] });
-  };
-
-  const removeLine = (key: string) => {
-    if (form.lines.length <= 1 || form.purchase_order_id) return;
-    patchForm({ lines: form.lines.filter((line) => line.key !== key) });
-  };
-
   const handleSubmit = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -267,7 +230,7 @@ export function GrnDrawerForm({
       const payload = {
         destination_location_id: form.destination_location_id,
         purchase_order_id: form.purchase_order_id,
-        lines: form.lines.map((line) => ({
+        lines: filterSavableGrnLines(form.lines).map((line) => ({
           variant_id: line.variant_id,
           po_item_id: line.po_item_id,
           quantity_received: line.quantity_received,
@@ -378,29 +341,29 @@ export function GrnDrawerForm({
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Lines
               </p>
-              <div className="surface-inset overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="p-2 text-left">SKU</th>
-                      <th className="p-2 text-right">Received</th>
-                      <th className="p-2 text-right">Unit cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.lines ?? []).map((line) => (
-                      <tr key={line.id} className="border-b border-border">
-                        <td className="p-2">
-                          <div className="font-mono text-xs">{line.variant_sku}</div>
-                          <div className="text-xs text-muted-foreground">{line.item_name}</div>
-                        </td>
-                        <td className="p-2 text-right tabular-nums">{line.quantity_received}</td>
-                        <td className="p-2 text-right tabular-nums">{line.raw_unit_cost}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DocumentLinePeekTable
+                lines={detail.lines ?? []}
+                getRowKey={(line) => line.id}
+                columns={[
+                  { id: "item", label: "Item", align: "left" },
+                  { id: "quantity_received", label: "Received", align: "right", widthClass: "w-[5.5rem]" },
+                  { id: "raw_unit_cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
+                ]}
+                renderCell={(column, line) => {
+                  if (column.id === "item") {
+                    return (
+                      <DocumentLinePeekItemCell
+                        itemName={line.item_name}
+                        variantSku={line.variant_sku}
+                      />
+                    );
+                  }
+                  if (column.id === "quantity_received") {
+                    return <DocumentLinePeekValueCell value={line.quantity_received} />;
+                  }
+                  return <DocumentLinePeekValueCell value={line.raw_unit_cost} />;
+                }}
+              />
             </div>
           </div>
         ) : isMutating ? (
@@ -434,7 +397,11 @@ export function GrnDrawerForm({
                     patchForm({
                       destination_location_id: value,
                       purchase_order_id: null,
-                      lines: [createEmptyLine()],
+                      lines: ensureTrailingEmptyLine(
+                        [createEmptyGrnLine()],
+                        () => false,
+                        createEmptyGrnLine
+                      ),
                     })
                   }
                 >
@@ -452,91 +419,21 @@ export function GrnDrawerForm({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Lines
-                </p>
-                {!poLocked ? (
-                  <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addLine}>
-                    <Plus className="h-3.5 w-3.5" />
-                    Add line
-                  </Button>
-                ) : null}
-              </div>
-
-              {form.lines.map((line) => (
-                <div
-                  key={line.key}
-                  className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_120px_120px_auto]"
-                >
-                  {poLocked ? (
-                    <div>
-                      <p className="font-mono text-xs font-medium">{line.variant_sku}</p>
-                      <p className="text-xs text-muted-foreground">{line.item_name}</p>
-                      {line.open_quantity ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Open: {line.open_quantity}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <StockVariantSkuField
-                      disabled={isPending}
-                      value={{
-                        sku: line.sku,
-                        variant_id: line.variant_id,
-                        item_name: line.item_name,
-                        variant_sku: line.variant_sku,
-                        unit_cost: line.raw_unit_cost || "0",
-                        skuError: line.skuError,
-                      }}
-                      onChange={(patch) =>
-                        patchLine(line.key, {
-                          ...patch,
-                          raw_unit_cost: patch.unit_cost ?? line.raw_unit_cost,
-                        })
-                      }
-                    />
-                  )}
-                  <div className="space-y-1">
-                    <Label className="text-xs">Qty received</Label>
-                    <Input
-                      value={line.quantity_received}
-                      onChange={(event) =>
-                        patchLine(line.key, { quantity_received: event.target.value })
-                      }
-                      inputMode="decimal"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Unit cost</Label>
-                    <Input
-                      value={line.raw_unit_cost}
-                      onChange={(event) =>
-                        patchLine(line.key, { raw_unit_cost: event.target.value })
-                      }
-                      inputMode="decimal"
-                    />
-                  </div>
-                  {!poLocked ? (
-                    <div className="flex items-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 shrink-0 p-0 text-muted-foreground"
-                        disabled={form.lines.length <= 1}
-                        onClick={() => removeLine(line.key)}
-                        aria-label="Remove line"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+            <GrnLineEntryTable
+              lines={form.lines}
+              poLocked={poLocked}
+              disabled={isPending}
+              onChange={(linesOrUpdater) => {
+                setForm((current) => ({
+                  ...current,
+                  lines:
+                    typeof linesOrUpdater === "function"
+                      ? linesOrUpdater(current.lines)
+                      : linesOrUpdater,
+                }));
+                setIsDirty(true);
+              }}
+            />
           </div>
         ) : null}
       </RightDrawer>

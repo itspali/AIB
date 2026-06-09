@@ -1,19 +1,29 @@
 import type { AstClause } from "@/lib/search/types";
 import type { CategoryRow } from "@/lib/categories/types";
+import type { EntityListRow } from "@/lib/entities/types";
+import {
+  ENTITY_TYPE_LABELS,
+  PARTY_NATURE_LABELS,
+  TAX_TREATMENT_LABELS,
+} from "@/lib/entities/labels";
 import type { LocationRow } from "@/lib/locations/types";
 import type { StockAdjustmentRow, StockBalanceRow } from "@/lib/inventory/stock/types";
 import type { StockTransferRow } from "@/lib/inventory/transfers/types";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
 
-function resolveRowField(scope: "categories" | "locations", field: string): string {
+type ClientFilterScope = "categories" | "locations" | "entities";
+
+function resolveRowField(scope: ClientFilterScope, field: string): string {
   if (scope === "categories" && field === "category_name") return "name";
+  if (scope === "entities" && field === "customer_category") return "customer_category_name";
+  if (scope === "entities" && field === "supplier_category") return "supplier_category_name";
   return field;
 }
 
 function matchPredicate(
   row: Record<string, unknown>,
   clause: Extract<AstClause, { kind: "predicate" }>,
-  scope: "categories" | "locations"
+  scope: ClientFilterScope
 ): boolean {
   const raw = row[resolveRowField(scope, clause.field)];
   const value = clause.value;
@@ -246,4 +256,139 @@ export function filterStockAdjustmentsByResidual(
 export function filterTransfersByResidual(rows: StockTransferRow[], residualText: string): StockTransferRow[] {
   if (!residualText.trim()) return rows;
   return filterTransfersByAst(rows, [{ kind: "text", value: residualText }]);
+}
+
+function entityHaystack(row: EntityListRow): string {
+  return [
+    row.name,
+    row.code,
+    row.legal_name,
+    row.tax_registration_number,
+    row.customer_category_name,
+    row.supplier_category_name,
+    row.primary_contact_name,
+    row.primary_contact_email,
+    row.company_email,
+    row.company_phone,
+    ENTITY_TYPE_LABELS[row.type],
+    PARTY_NATURE_LABELS[row.party_nature],
+    TAX_TREATMENT_LABELS[row.tax_treatment].label,
+    row.tax_treatment,
+    row.is_active ? "active" : "inactive",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchEntityPredicate(
+  row: EntityListRow,
+  clause: Extract<AstClause, { kind: "predicate" }>
+): boolean {
+  if (clause.field === "party_nature") {
+    const needle = String(clause.value).toLowerCase();
+    const haystack = [
+      row.party_nature,
+      PARTY_NATURE_LABELS[row.party_nature],
+    ]
+      .join(" ")
+      .toLowerCase();
+    switch (clause.operator) {
+      case "EQ":
+        return haystack.includes(needle);
+      case "NEQ":
+        return !haystack.includes(needle);
+      case "ILIKE":
+        return haystack.includes(needle.replace(/^\^/, ""));
+      case "NOT_ILIKE":
+        return !haystack.includes(needle.replace(/^\^/, ""));
+      default:
+        return matchPredicate(row as unknown as Record<string, unknown>, clause, "entities");
+    }
+  }
+
+  if (clause.field === "tax_treatment") {
+    const needle = String(clause.value).toLowerCase();
+    const haystack = [row.tax_treatment, TAX_TREATMENT_LABELS[row.tax_treatment].label]
+      .join(" ")
+      .toLowerCase();
+    switch (clause.operator) {
+      case "EQ":
+        return haystack.includes(needle);
+      case "NEQ":
+        return !haystack.includes(needle);
+      case "ILIKE":
+        return haystack.includes(needle.replace(/^\^/, ""));
+      case "NOT_ILIKE":
+        return !haystack.includes(needle.replace(/^\^/, ""));
+      default:
+        return matchPredicate(row as unknown as Record<string, unknown>, clause, "entities");
+    }
+  }
+
+  if (clause.field === "type") {
+    const needle = String(clause.value).toLowerCase();
+    const haystack = [row.type, ENTITY_TYPE_LABELS[row.type]].join(" ").toLowerCase();
+    switch (clause.operator) {
+      case "EQ":
+        return haystack.includes(needle);
+      case "NEQ":
+        return !haystack.includes(needle);
+      case "ILIKE":
+        return haystack.includes(needle.replace(/^\^/, ""));
+      case "NOT_ILIKE":
+        return !haystack.includes(needle.replace(/^\^/, ""));
+      default:
+        return matchPredicate(row as unknown as Record<string, unknown>, clause, "entities");
+    }
+  }
+
+  if (clause.field === "is_active") {
+    const active = row.is_active;
+    const normalized = String(clause.value).toLowerCase();
+    const matchesActive =
+      normalized === "true" ||
+      normalized === "active" ||
+      normalized === "yes" ||
+      normalized === "1";
+    const matchesInactive =
+      normalized === "false" ||
+      normalized === "inactive" ||
+      normalized === "no" ||
+      normalized === "0";
+    switch (clause.operator) {
+      case "EQ":
+        return matchesActive ? active : matchesInactive ? !active : active === (normalized === "true");
+      case "NEQ":
+        return matchesActive ? !active : matchesInactive ? active : active !== (normalized === "true");
+      default:
+        return matchPredicate(row as unknown as Record<string, unknown>, clause, "entities");
+    }
+  }
+
+  return matchPredicate(row as unknown as Record<string, unknown>, clause, "entities");
+}
+
+export function filterEntitiesByAst(rows: EntityListRow[], ast: AstClause[]): EntityListRow[] {
+  const structural = ast.filter((clause) => clause.kind === "predicate");
+  const textClauses = ast.filter((clause) => clause.kind === "text");
+
+  let filtered = rows;
+  for (const clause of structural) {
+    if (clause.kind !== "predicate") continue;
+    filtered = filtered.filter((row) => matchEntityPredicate(row, clause));
+  }
+
+  for (const clause of textClauses) {
+    if (clause.kind !== "text") continue;
+    const q = clause.value.toLowerCase();
+    filtered = filtered.filter((row) => entityHaystack(row).includes(q));
+  }
+
+  return filtered;
+}
+
+export function filterEntitiesByResidual(rows: EntityListRow[], residualText: string): EntityListRow[] {
+  if (!residualText.trim()) return rows;
+  return filterEntitiesByAst(rows, [{ kind: "text", value: residualText }]);
 }

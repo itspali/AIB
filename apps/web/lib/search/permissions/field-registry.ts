@@ -57,7 +57,7 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     key: "name",
     synonyms: ["name", "title"],
     sensitivity: "standard",
-    scopes: ["items", "locations", "categories"],
+    scopes: ["items", "locations", "categories", "customers", "suppliers"],
   },
   {
     key: "default_sku",
@@ -69,7 +69,7 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     key: "is_active",
     synonyms: ["active status", "item status", "status", "is active", "is inactive"],
     sensitivity: "standard",
-    scopes: ["items"],
+    scopes: ["items", "customers", "suppliers"],
   },
   {
     key: "city",
@@ -148,6 +148,36 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     synonyms: ["destination", "to location", "to", "destination location"],
     sensitivity: "standard",
     scopes: ["transfers"],
+  },
+  {
+    key: "party_nature",
+    synonyms: ["party nature", "individual", "organization", "person", "company"],
+    sensitivity: "standard",
+    scopes: ["customers", "suppliers"],
+  },
+  {
+    key: "customer_category_id",
+    synonyms: ["customer category", "customer category id", "customer_category"],
+    sensitivity: "standard",
+    scopes: ["customers"],
+  },
+  {
+    key: "supplier_category_id",
+    synonyms: ["supplier category", "supplier category id", "supplier_category"],
+    sensitivity: "standard",
+    scopes: ["suppliers"],
+  },
+  {
+    key: "type",
+    synonyms: ["type", "entity type", "customer", "supplier", "mutual partner"],
+    sensitivity: "standard",
+    scopes: ["customers", "suppliers"],
+  },
+  {
+    key: "tax_treatment",
+    synonyms: ["tax treatment", "tax status", "gst treatment", "registered", "unregistered"],
+    sensitivity: "standard",
+    scopes: ["customers", "suppliers"],
   },
 ];
 

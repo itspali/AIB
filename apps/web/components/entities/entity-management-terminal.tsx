@@ -22,6 +22,7 @@ import { EntityListTable } from "@/components/entities/entity-list-table";
 import {
   EntityListToolbar,
   type EntityActiveStatusFilter,
+  type EntityPartyNatureFilter,
 } from "@/components/entities/entity-list-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
@@ -49,13 +50,16 @@ import {
 import type { EntityDetailSnapshot, EntityListRow, EntityWorkspace } from "@/lib/entities/types";
 import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { filterEntitiesByAst } from "@/lib/search/executor/client-scopes";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 
 type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
   customFieldDefinitions: EntityCustomFieldDefinition[];
+  categoryRows: EntityCategoryRow[];
   initialRows: EntityListRow[];
   initialTotalCount?: number;
   initialSavedView?: SavedViewSnapshot | null;
@@ -71,43 +75,70 @@ function resolveBulkEntityIds(
 }
 
 function useFilteredEntityRows(
+  workspace: EntityWorkspace,
   rows: EntityListRow[],
-  activeStatusFilter: EntityActiveStatusFilter
+  activeStatusFilter: EntityActiveStatusFilter,
+  categoryFilter: string,
+  partyNatureFilter: EntityPartyNatureFilter
 ) {
   const omnibar = useOptionalOmnibarContext();
 
   return useMemo(() => {
-    const query = omnibar?.appliedQuery?.trim().toLowerCase() ?? "";
-
-    const filtered = rows.filter((row) => {
+    let filtered = rows.filter((row) => {
       if (activeStatusFilter === "active" && !row.is_active) return false;
       if (activeStatusFilter === "inactive" && row.is_active) return false;
-      if (!query) return true;
-
-      return [
-        row.name,
-        row.code,
-        row.legal_name,
-        row.primary_contact_name,
-        row.primary_contact_email,
-        row.company_email,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(query));
+      if (partyNatureFilter !== "all" && row.party_nature !== partyNatureFilter) return false;
+      if (categoryFilter !== "all") {
+        const categoryId =
+          workspace === "customer" ? row.customer_category_id : row.supplier_category_id;
+        if (categoryId !== categoryFilter) return false;
+      }
+      return true;
     });
+
+    if (omnibar?.activeAst?.length) {
+      filtered = filterEntitiesByAst(filtered, omnibar.activeAst);
+    } else {
+      const query = omnibar?.appliedQuery?.trim().toLowerCase() ?? "";
+      if (query) {
+        filtered = filtered.filter((row) =>
+          [
+            row.name,
+            row.code,
+            row.legal_name,
+            row.primary_contact_name,
+            row.primary_contact_email,
+            row.company_email,
+            row.customer_category_name,
+            row.supplier_category_name,
+          ]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(query))
+        );
+      }
+    }
 
     return {
       filteredRows: filtered,
       totalCount: rows.length,
       resultCount: filtered.length,
     };
-  }, [activeStatusFilter, omnibar?.appliedQuery, rows]);
+  }, [
+    activeStatusFilter,
+    categoryFilter,
+    omnibar?.activeAst,
+    omnibar?.appliedQuery,
+    partyNatureFilter,
+    rows,
+    workspace,
+  ]);
 }
 
 export function EntityManagementTerminal({
   workspace,
   tenantId,
   customFieldDefinitions,
+  categoryRows,
   initialRows,
   initialTotalCount,
   initialSavedView = null,
@@ -122,6 +153,9 @@ export function EntityManagementTerminal({
   const [rows, setRows] = useState(initialRows);
   const [activeStatusFilter, setActiveStatusFilter] =
     useState<EntityActiveStatusFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [partyNatureFilter, setPartyNatureFilter] =
+    useState<EntityPartyNatureFilter>("all");
   const [pendingDelete, setPendingDelete] = useState<EntityListRow | null>(null);
   const [prefs, setPrefs] = useState<EntityListPrefs>(() =>
     getDefaultEntityListPrefs(registryKey)
@@ -132,8 +166,11 @@ export function EntityManagementTerminal({
   const [isBulkPending, startBulkTransition] = useTransition();
 
   const { filteredRows, totalCount, resultCount } = useFilteredEntityRows(
+    workspace,
     rows,
-    activeStatusFilter
+    activeStatusFilter,
+    categoryFilter,
+    partyNatureFilter
   );
 
   const selectedId = drawer.recordId;
@@ -319,6 +356,12 @@ export function EntityManagementTerminal({
   }, [config.savedViewModuleKey, initialSavedView, omnibar]);
 
   useEffect(() => {
+    if (!omnibar?.scopePinnedToAll) return;
+    setCategoryFilter("all");
+    setPartyNatureFilter("all");
+  }, [omnibar?.moduleFilterRevision, omnibar?.scopePinnedToAll]);
+
+  useEffect(() => {
     setPrefs(loadEntityListPrefs(registryKey));
     setPrefsHydrated(true);
   }, [registryKey]);
@@ -421,10 +464,15 @@ export function EntityManagementTerminal({
             <EntityListToolbar
               workspace={workspace}
               registryKey={registryKey}
+              categoryRows={categoryRows}
               prefs={prefs}
               onPrefsChange={setPrefs}
               activeStatusFilter={activeStatusFilter}
               onActiveStatusFilterChange={setActiveStatusFilter}
+              categoryFilter={categoryFilter}
+              onCategoryFilterChange={setCategoryFilter}
+              partyNatureFilter={partyNatureFilter}
+              onPartyNatureFilterChange={setPartyNatureFilter}
               detectedDeviceClass={deviceClass}
               resultCount={resultCount}
               totalCount={initialTotalCount ?? totalCount}
@@ -444,6 +492,7 @@ export function EntityManagementTerminal({
         workspace={workspace}
         tenantId={tenantId}
         customFieldDefinitions={customFieldDefinitions}
+        categoryRows={categoryRows}
         open={drawer.isOpen}
         surface={drawer.surface}
         recordId={drawer.recordId}

@@ -102,7 +102,10 @@ export function PoSupplierCombobox({
             )}
           >
             {filtered.length === 0 ? (
-              <li className="px-2.5 py-2 text-sm text-muted-foreground">No suppliers match.</li>
+              <li className="px-2.5 py-2 text-sm text-muted-foreground">
+                No categorized suppliers match. Assign a supplier category before using a vendor on
+                purchase orders.
+              </li>
             ) : (
               filtered.map((supplier, index) => (
                 <li key={supplier.id} role="presentation">

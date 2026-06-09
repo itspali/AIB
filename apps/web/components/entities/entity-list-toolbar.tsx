@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { ArrowUpDown, Rows3, Table2 } from "lucide-react";
 import { EntityListColumnSettings } from "@/components/entities/entity-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
@@ -32,19 +33,29 @@ import {
   ENTITY_LIST_SORT_OPTIONS,
   sortOptionKey,
 } from "@/lib/entities/list-sort";
+import { PARTY_NATURE_LABELS } from "@/lib/entities/labels";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
-import type { EntityWorkspace } from "@/lib/entities/types";
+import type { EntityWorkspace, PartyNatureType } from "@/lib/entities/types";
+import { PARTY_NATURE_TYPES } from "@/lib/entities/types";
+import { entityCategoryParentSelectOptions } from "@/lib/entity-categories/tree";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { cn } from "@/lib/utils";
 
 export type EntityActiveStatusFilter = "all" | "active" | "inactive";
+export type EntityPartyNatureFilter = "all" | PartyNatureType;
 
 type Props = {
   workspace: EntityWorkspace;
   registryKey: EntityListColumnRegistryKey;
+  categoryRows: EntityCategoryRow[];
   prefs: EntityListPrefs;
   onPrefsChange: (prefs: EntityListPrefs) => void;
   activeStatusFilter: EntityActiveStatusFilter;
   onActiveStatusFilterChange: (filter: EntityActiveStatusFilter) => void;
+  categoryFilter: string;
+  onCategoryFilterChange: (categoryId: string) => void;
+  partyNatureFilter: EntityPartyNatureFilter;
+  onPartyNatureFilterChange: (filter: EntityPartyNatureFilter) => void;
   detectedDeviceClass: DeviceClass;
   resultCount: number;
   totalCount: number;
@@ -55,10 +66,15 @@ type Props = {
 export function EntityListToolbar({
   workspace,
   registryKey,
+  categoryRows,
   prefs,
   onPrefsChange,
   activeStatusFilter,
   onActiveStatusFilterChange,
+  categoryFilter,
+  onCategoryFilterChange,
+  partyNatureFilter,
+  onPartyNatureFilterChange,
   detectedDeviceClass,
   resultCount,
   totalCount,
@@ -71,8 +87,26 @@ export function EntityListToolbar({
   const controlsDisabled = !prefsHydrated;
   const isTableLike = isEntityTableLikeViewMode(prefs.viewMode);
   const statusFilterActive = activeStatusFilter !== "all";
+  const isCategoryFilterActive = categoryFilter !== "all";
+  const isPartyNatureFilterActive = partyNatureFilter !== "all";
+  const extraFilterCount =
+    (statusFilterActive ? 1 : 0) +
+    (isCategoryFilterActive ? 1 : 0) +
+    (isPartyNatureFilterActive ? 1 : 0);
   const countNoun = config.singularLabel.toLowerCase();
   const countNounPlural = `${countNoun}s`;
+
+  const categoryOptions = useMemo(
+    () =>
+      entityCategoryParentSelectOptions(categoryRows.filter((row) => row.is_active))
+        .filter((option): option is { id: string; label: string; depth: number } => option.id !== null)
+        .map((option) => ({
+          id: option.id,
+          label: option.label,
+          depth: option.depth,
+        })),
+    [categoryRows]
+  );
 
   const setViewMode = (viewMode: EntityListViewMode) => {
     if (controlsDisabled || prefs.viewMode === viewMode) return;
@@ -99,31 +133,126 @@ export function EntityListToolbar({
         <>
           <ModuleListToolbarFilters
             extras={{
-              extraFilterCount: statusFilterActive ? 1 : 0,
-              onClearExtras: () => onActiveStatusFilterChange("all"),
+              extraFilterCount,
+              onClearExtras: () => {
+                onActiveStatusFilterChange("all");
+                onCategoryFilterChange("all");
+                onPartyNatureFilterChange("all");
+              },
               extraDropdownContent: (
-                <div className="space-y-2 p-1">
-                  <p className="px-2 text-xs font-medium text-muted-foreground">Status</p>
-                  <Select
-                    value={activeStatusFilter}
-                    disabled={controlsDisabled}
-                    onValueChange={(value) =>
-                      onActiveStatusFilterChange(value as EntityActiveStatusFilter)
-                    }
-                  >
-                    <SelectTrigger className="h-8 w-full">
-                      <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All statuses</SelectItem>
-                      <SelectItem value="active">Active only</SelectItem>
-                      <SelectItem value="inactive">Inactive only</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3 p-1">
+                  <div className="space-y-2">
+                    <p className="px-2 text-xs font-medium text-muted-foreground">Status</p>
+                    <Select
+                      value={activeStatusFilter}
+                      disabled={controlsDisabled}
+                      onValueChange={(value) =>
+                        onActiveStatusFilterChange(value as EntityActiveStatusFilter)
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue placeholder="All statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="active">Active only</SelectItem>
+                        <SelectItem value="inactive">Inactive only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="px-2 text-xs font-medium text-muted-foreground">Category</p>
+                    <Select
+                      value={categoryFilter}
+                      disabled={controlsDisabled}
+                      onValueChange={onCategoryFilterChange}
+                    >
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue placeholder="All categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All categories</SelectItem>
+                        {categoryOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {"\u00A0".repeat(option.depth * 2)}
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="px-2 text-xs font-medium text-muted-foreground">Party nature</p>
+                    <Select
+                      value={partyNatureFilter}
+                      disabled={controlsDisabled}
+                      onValueChange={(value) =>
+                        onPartyNatureFilterChange(value as EntityPartyNatureFilter)
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue placeholder="All party types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All party types</SelectItem>
+                        {PARTY_NATURE_TYPES.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {PARTY_NATURE_LABELS[value]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               ),
             }}
           />
+
+          <Select
+            value={categoryFilter}
+            disabled={controlsDisabled}
+            onValueChange={onCategoryFilterChange}
+          >
+            <SelectTrigger
+              className={cn(listToolbarSelectClass(isCategoryFilterActive), "hidden md:inline-flex")}
+            >
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {categoryOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {"\u00A0".repeat(option.depth * 2)}
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={partyNatureFilter}
+            disabled={controlsDisabled}
+            onValueChange={(value) =>
+              onPartyNatureFilterChange(value as EntityPartyNatureFilter)
+            }
+          >
+            <SelectTrigger
+              className={cn(
+                listToolbarSelectClass(isPartyNatureFilterActive),
+                "hidden md:inline-flex"
+              )}
+            >
+              <SelectValue placeholder="Party nature" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All party types</SelectItem>
+              {PARTY_NATURE_TYPES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {PARTY_NATURE_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <ModuleViewSelect
             borderless

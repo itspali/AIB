@@ -17,6 +17,10 @@ export const TAX_TREATMENT_TYPES = [
 
 export type TaxTreatmentType = (typeof TAX_TREATMENT_TYPES)[number];
 
+export const PARTY_NATURE_TYPES = ["INDIVIDUAL", "ORGANIZATION"] as const;
+
+export type PartyNatureType = (typeof PARTY_NATURE_TYPES)[number];
+
 export type EntityWorkspace = "customer" | "supplier";
 
 export type EntityRow = {
@@ -25,8 +29,13 @@ export type EntityRow = {
   legal_name: string | null;
   code: string | null;
   type: EntityCommercialType;
+  party_nature: PartyNatureType;
   tax_registration_number: string | null;
   tax_treatment: TaxTreatmentType;
+  customer_category_id: string | null;
+  customer_category_name: string | null;
+  supplier_category_id: string | null;
+  supplier_category_name: string | null;
   base_currency_override: string | null;
   credit_limit: string;
   current_balance: string;
@@ -51,6 +60,8 @@ export type EntityRow = {
   internal_notes: string | null;
   logo_url: string | null;
   custom_fields: Record<string, unknown>;
+  customer_custom_fields: Record<string, unknown>;
+  supplier_custom_fields: Record<string, unknown>;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -96,8 +107,13 @@ export type EntityListRow = {
   legal_name: string | null;
   code: string | null;
   type: EntityCommercialType;
+  party_nature: PartyNatureType;
   tax_treatment: TaxTreatmentType;
   tax_registration_number: string | null;
+  customer_category_id: string | null;
+  customer_category_name: string | null;
+  supplier_category_id: string | null;
+  supplier_category_name: string | null;
   credit_limit: string;
   current_balance: string;
   payment_terms_days: number;
@@ -152,7 +168,10 @@ export type EntityFormValues = {
   draft_storage_key: string;
   name: string;
   type: EntityCommercialType;
+  party_nature: PartyNatureType;
   tax_treatment: TaxTreatmentType;
+  customer_category_id: string;
+  supplier_category_id: string;
   tax_registration_number: string;
   legal_name: string;
   code: string;
@@ -179,6 +198,8 @@ export type EntityFormValues = {
   website_url: string;
   internal_notes: string;
   custom_fields: Record<string, string>;
+  customer_custom_fields: Record<string, string>;
+  supplier_custom_fields: Record<string, string>;
   is_active: boolean;
   primary_contact: EntityFormContactValues;
   extended_contacts: EntityFormContactValues[];
@@ -221,6 +242,10 @@ export function isEntityCommercialType(value: string): value is EntityCommercial
 
 export function isTaxTreatmentType(value: string): value is TaxTreatmentType {
   return (TAX_TREATMENT_TYPES as readonly string[]).includes(value);
+}
+
+export function isPartyNatureType(value: string): value is PartyNatureType {
+  return (PARTY_NATURE_TYPES as readonly string[]).includes(value);
 }
 
 export function isEntityWorkspace(value: string): value is EntityWorkspace {

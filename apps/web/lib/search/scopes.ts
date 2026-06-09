@@ -55,6 +55,8 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
 };
 
 const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
+  { prefix: "/entities/customers/categories", scope: "customers" },
+  { prefix: "/entities/suppliers/categories", scope: "suppliers" },
   { prefix: "/entities/customers", scope: "customers" },
   { prefix: "/entities/suppliers", scope: "suppliers" },
   { prefix: "/entities", scope: "all" },

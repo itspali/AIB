@@ -53,6 +53,15 @@ export const peekPurchaseOrderNumberSchema = z.object({
   destination_location_id: z.string().uuid("Select a destination location."),
 });
 
+export const updatePurchaseOrderVoucherNumberSchema = z.object({
+  purchase_order_id: z.string().uuid("Purchase order id is required."),
+  voucher_number: z
+    .string()
+    .trim()
+    .min(1, "PO number is required.")
+    .max(64, "PO number must be 64 characters or fewer."),
+});
+
 export const supplierItemInsightsSchema = z.object({
   supplier_id: z.string().uuid("Select a supplier."),
   variant_id: z.string().uuid("Select a variant."),

@@ -1,4 +1,4 @@
-import type { EntityCommercialType, TaxTreatmentType } from "@/lib/entities/types";
+import type { EntityCommercialType, PartyNatureType, TaxTreatmentType } from "@/lib/entities/types";
 
 export type TaxTreatmentLabel = {
   label: string;
@@ -39,10 +39,19 @@ export const ENTITY_TYPE_LABELS: Record<EntityCommercialType, string> = {
   MUTUAL_PARTNER: "Customer & Supplier",
 };
 
+export const PARTY_NATURE_LABELS: Record<PartyNatureType, string> = {
+  INDIVIDUAL: "Individual",
+  ORGANIZATION: "Organization",
+};
+
 export function getTaxTreatmentLabel(taxTreatment: TaxTreatmentType): string {
   return TAX_TREATMENT_LABELS[taxTreatment].label;
 }
 
 export function getEntityTypeLabel(type: EntityCommercialType): string {
   return ENTITY_TYPE_LABELS[type];
+}
+
+export function getPartyNatureLabel(partyNature: PartyNatureType): string {
+  return PARTY_NATURE_LABELS[partyNature];
 }

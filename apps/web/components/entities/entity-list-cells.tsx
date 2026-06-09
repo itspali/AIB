@@ -3,7 +3,11 @@
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
 import { getEntityColumnDef, type EntityListColumnId } from "@/lib/entities/list-columns";
-import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
+import {
+  ENTITY_TYPE_LABELS,
+  PARTY_NATURE_LABELS,
+  TAX_TREATMENT_LABELS,
+} from "@/lib/entities/labels";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import type { EntityListRow } from "@/lib/entities/types";
@@ -41,6 +45,21 @@ export function renderEntityListCell(
         chipDisplay: options?.chipDisplay?.type,
       });
     }
+    case "party_nature": {
+      const column = getEntityColumnDef("party_nature");
+      const label = PARTY_NATURE_LABELS[row.party_nature];
+      return renderChipOrText({
+        column,
+        valueKey: row.party_nature,
+        label,
+        textNode: <span className="text-sm">{label}</span>,
+        chipDisplay: options?.chipDisplay?.party_nature,
+      });
+    }
+    case "customer_category":
+      return row.customer_category_name ?? "—";
+    case "supplier_category":
+      return row.supplier_category_name ?? "—";
     case "legal_name":
       return row.legal_name ?? "—";
     case "tax_treatment": {

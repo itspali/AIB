@@ -75,6 +75,8 @@ type RightDrawerProps = {
   description?: string;
   /** Shown beside the title (e.g. item thumbnail). */
   titleLeading?: React.ReactNode;
+  /** Replaces the default title text (e.g. inline editable title). */
+  titleContent?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   scrollable?: boolean;
@@ -91,6 +93,8 @@ type RightDrawerProps = {
   bodyClassName?: string;
   /** Sticky action bar below the scrollable body (e.g. Save / Cancel). */
   footer?: React.ReactNode;
+  /** Pin footer inside the scroll body with a floating backdrop (forms with long content). */
+  footerFloating?: boolean;
 };
 
 function readStoredWidthVw(): number {
@@ -133,6 +137,7 @@ type DrawerChromeProps = {
   title: string;
   description?: string;
   titleLeading?: ReactNode;
+  titleContent?: ReactNode;
   headerActions?: ReactNode;
   showCloseButton: boolean;
   onClose: () => void;
@@ -147,6 +152,7 @@ type DrawerChromeProps = {
   scrollable: boolean;
   panelClassName?: string;
   footer?: ReactNode;
+  footerFloating?: boolean;
   /** When true, use Radix SheetTitle (mobile sheet only). */
   inSheet: boolean;
   children: ReactNode;
@@ -161,6 +167,7 @@ function DrawerChrome({
   title,
   description,
   titleLeading,
+  titleContent,
   headerActions,
   showCloseButton,
   onClose,
@@ -176,6 +183,7 @@ function DrawerChrome({
   scrollable,
   panelClassName,
   footer,
+  footerFloating = false,
   children,
 }: DrawerChromeProps) {
   return (
@@ -231,7 +239,9 @@ function DrawerChrome({
           ) : null}
           {titleLeading ? <div className="shrink-0">{titleLeading}</div> : null}
           <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
-            {inSheet ? (
+            {titleContent ? (
+              <div className="min-w-0 w-full">{titleContent}</div>
+            ) : inSheet ? (
               <>
                 <SheetTitle className={cn(drawerTitleClassName, "min-w-0 w-full text-left")}>
                   {title}
@@ -252,6 +262,9 @@ function DrawerChrome({
                 )}
               </>
             )}
+            {titleContent && description ? (
+              <p className={drawerDescriptionClassName}>{description}</p>
+            ) : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -271,21 +284,39 @@ function DrawerChrome({
           ) : null}
         </div>
       </SheetHeader>
-      <div
-        ref={bodyRef}
-        className={cn(
-          "flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6",
-          scrollable ? "overflow-y-auto" : "overflow-hidden",
-          panelClassName
-        )}
-      >
-        {children}
-      </div>
-      {footer ? (
-        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border/80 border-black/[0.06] px-4 py-3 dark:border-white/10 sm:px-6">
-          {footer}
-        </footer>
-      ) : null}
+      {footer && footerFloating ? (
+        <div
+          ref={bodyRef}
+          className={cn(
+            "flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6",
+            scrollable ? "overflow-x-hidden overflow-y-auto" : "overflow-hidden",
+            panelClassName
+          )}
+        >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+          <footer className="module-drawer-floating-footer sticky bottom-0 z-10 mt-4 shrink-0">
+            {footer}
+          </footer>
+        </div>
+      ) : (
+        <>
+          <div
+            ref={bodyRef}
+            className={cn(
+              "flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6",
+              scrollable ? "overflow-x-hidden overflow-y-auto" : "overflow-hidden",
+              panelClassName
+            )}
+          >
+            {children}
+          </div>
+          {footer ? (
+            <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border/80 border-black/[0.06] bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-white/10 sm:px-6">
+              {footer}
+            </footer>
+          ) : null}
+        </>
+      )}
     </>
   );
 }
@@ -296,6 +327,7 @@ export function RightDrawer({
   title,
   description,
   titleLeading,
+  titleContent,
   children,
   className,
   scrollable = true,
@@ -308,6 +340,7 @@ export function RightDrawer({
   preferredWidthVw,
   bodyClassName,
   footer,
+  footerFloating,
 }: RightDrawerProps) {
   const [widthVw, setWidthVw] = useState(DEFAULT_WIDTH_VW);
   const [portalReady, setPortalReady] = useState(false);
@@ -407,6 +440,7 @@ export function RightDrawer({
     title,
     description,
     titleLeading,
+    titleContent,
     headerActions,
     showCloseButton,
     onClose: () => requestClose(),
@@ -422,6 +456,7 @@ export function RightDrawer({
     scrollable,
     panelClassName: bodyClassName,
     footer,
+    footerFloating,
     children,
   };
 

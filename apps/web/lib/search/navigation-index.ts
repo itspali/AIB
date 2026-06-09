@@ -27,9 +27,19 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["customers", "accounts", "crm", "sales", "entities"],
   },
   {
+    label: "Customer Categories",
+    href: "/entities/customers/categories",
+    keywords: ["customer categories", "customer taxonomy", "entities", "partners"],
+  },
+  {
     label: "Suppliers",
     href: "/entities/suppliers",
     keywords: ["suppliers", "vendors", "procurement", "entities"],
+  },
+  {
+    label: "Supplier Categories",
+    href: "/entities/suppliers/categories",
+    keywords: ["supplier categories", "vendor categories", "entities", "partners"],
   },
   {
     label: "Inventory",

@@ -1,6 +1,10 @@
 import { formatDate } from "@/lib/dashboard/format";
 import type { EntityListColumnId } from "@/lib/entities/list-columns";
-import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
+import {
+  ENTITY_TYPE_LABELS,
+  PARTY_NATURE_LABELS,
+  TAX_TREATMENT_LABELS,
+} from "@/lib/entities/labels";
 import type { EntityListRow } from "@/lib/entities/types";
 
 export function getEntityListCellDisplayTexts(
@@ -17,6 +21,12 @@ export function getEntityListCellDisplayTexts(
       return [row.code?.trim() || "—"];
     case "type":
       return [ENTITY_TYPE_LABELS[row.type]];
+    case "party_nature":
+      return [PARTY_NATURE_LABELS[row.party_nature]];
+    case "customer_category":
+      return [row.customer_category_name?.trim() || "—"];
+    case "supplier_category":
+      return [row.supplier_category_name?.trim() || "—"];
     case "legal_name":
       return [row.legal_name?.trim() || "—"];
     case "tax_treatment":

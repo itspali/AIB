@@ -94,7 +94,9 @@ export const moduleNavItems: ModuleNavItem[] = [
     children: [
       { href: "/entities", label: "Overview", icon: LayoutDashboard },
       { href: "/entities/customers", label: "Customers", icon: Users },
+      { href: "/entities/customers/categories", label: "Customer Categories", icon: FolderTree },
       { href: "/entities/suppliers", label: "Suppliers", icon: Building2 },
+      { href: "/entities/suppliers/categories", label: "Supplier Categories", icon: FolderTree },
     ],
   },
   {

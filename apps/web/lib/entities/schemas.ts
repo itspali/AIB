@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ENTITY_COMMERCIAL_TYPES,
+  PARTY_NATURE_TYPES,
   TAX_TREATMENT_TYPES,
   taxRegistrationRequired,
 } from "@/lib/entities/types";
@@ -71,10 +72,13 @@ export const entityMasterSchema = z
     draft_storage_key: z.string().trim().min(1).max(80),
     name: z.string().trim().min(1, "Name is required").max(200),
     type: z.enum(ENTITY_COMMERCIAL_TYPES),
+    party_nature: z.enum(PARTY_NATURE_TYPES),
     tax_treatment: z.enum(TAX_TREATMENT_TYPES),
     tax_registration_number: z.string().trim().max(50),
     legal_name: z.string().trim().max(200),
     code: z.string().trim().max(30),
+    customer_category_id: z.string().trim(),
+    supplier_category_id: z.string().trim(),
     credit_limit: z
       .string()
       .trim()
@@ -133,6 +137,8 @@ export const entityMasterSchema = z
     website_url: z.union([z.literal(""), z.string().trim().url("Enter a valid URL").max(500)]),
     internal_notes: z.string().trim().max(4000),
     custom_fields: z.record(z.string(), z.string()),
+    customer_custom_fields: z.record(z.string(), z.string()),
+    supplier_custom_fields: z.record(z.string(), z.string()),
     is_active: z.boolean(),
     primary_contact: entityContactSchema,
     extended_contacts: entityContactsSchema,
@@ -147,6 +153,28 @@ export const entityMasterSchema = z
         code: z.ZodIssueCode.custom,
         path: ["tax_registration_number"],
         message: "Tax registration number is required for this tax treatment",
+      });
+    }
+
+    if (
+      (values.type === "CUSTOMER" || values.type === "MUTUAL_PARTNER") &&
+      !values.customer_category_id.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["customer_category_id"],
+        message: "Customer category is required",
+      });
+    }
+
+    if (
+      (values.type === "SUPPLIER" || values.type === "MUTUAL_PARTNER") &&
+      !values.supplier_category_id.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["supplier_category_id"],
+        message: "Supplier category is required",
       });
     }
   });

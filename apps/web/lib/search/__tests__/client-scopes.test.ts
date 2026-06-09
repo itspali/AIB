@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CategoryRow } from "@/lib/categories/types";
+import type { EntityListRow } from "@/lib/entities/types";
 import type { StockTransferRow } from "@/lib/inventory/transfers/types";
 import {
   filterCategoriesByAst,
+  filterEntitiesByAst,
   filterTransfersByAst,
   filterTransfersByResidual,
 } from "@/lib/search/executor/client-scopes";
@@ -57,6 +59,85 @@ describe("filterCategoriesByAst", () => {
     ]);
 
     expect(filtered.map((row) => row.name)).toEqual(["Books"]);
+  });
+});
+
+const ENTITY_ROWS: EntityListRow[] = [
+  {
+    id: "e1",
+    name: "Acme Retail",
+    legal_name: null,
+    code: null,
+    type: "CUSTOMER",
+    party_nature: "ORGANIZATION",
+    tax_treatment: "REGULAR_B2B",
+    tax_registration_number: null,
+    customer_category_id: "cat-retail",
+    customer_category_name: "Retail",
+    supplier_category_id: null,
+    supplier_category_name: null,
+    credit_limit: "0",
+    current_balance: "0",
+    payment_terms_days: 0,
+    company_email: null,
+    company_phone: null,
+    is_active: true,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    primary_contact_name: null,
+    primary_contact_email: null,
+  },
+  {
+    id: "e2",
+    name: "Jane Doe",
+    legal_name: null,
+    code: null,
+    type: "CUSTOMER",
+    party_nature: "INDIVIDUAL",
+    tax_treatment: "UNREGISTERED_B2C",
+    tax_registration_number: null,
+    customer_category_id: "cat-wholesale",
+    customer_category_name: "Wholesale",
+    supplier_category_id: null,
+    supplier_category_name: null,
+    credit_limit: "0",
+    current_balance: "0",
+    payment_terms_days: 0,
+    company_email: null,
+    company_phone: null,
+    is_active: true,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    primary_contact_name: "Jane Doe",
+    primary_contact_email: null,
+  },
+];
+
+describe("filterEntitiesByAst", () => {
+  it("filters by party_nature", () => {
+    const filtered = filterEntitiesByAst(ENTITY_ROWS, [
+      {
+        kind: "predicate",
+        field: "party_nature",
+        operator: "EQ",
+        value: "INDIVIDUAL",
+      },
+    ]);
+
+    expect(filtered.map((row) => row.id)).toEqual(["e2"]);
+  });
+
+  it("filters by customer_category_id", () => {
+    const filtered = filterEntitiesByAst(ENTITY_ROWS, [
+      {
+        kind: "predicate",
+        field: "customer_category_id",
+        operator: "EQ",
+        value: "cat-retail",
+      },
+    ]);
+
+    expect(filtered.map((row) => row.id)).toEqual(["e1"]);
   });
 });
 

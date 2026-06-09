@@ -4,6 +4,7 @@ import {
   slugifyAttributeKey,
   suggestUniqueAttributeKey,
 } from "@/lib/categories/attribute-key";
+import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { EntityWorkspace } from "@/lib/entities/types";
 
 export const ENTITY_CUSTOM_FIELD_TYPES = [
@@ -42,6 +43,37 @@ export function entitySettingsWorkspaceKey(
   workspace: EntityWorkspace
 ): keyof EntitySettingsMetadata {
   return workspace === "customer" ? "customer" : "supplier";
+}
+
+function mapAttributeTypeToEntityFieldType(type: string): EntityCustomFieldType {
+  if (type === "boolean") return "boolean";
+  if (type === "date" || type === "datetime") return "date";
+  if (type === "select") return "select";
+  if (
+    type === "number" ||
+    type === "integer" ||
+    type === "decimal" ||
+    type === "currency" ||
+    type === "percent"
+  ) {
+    return "number";
+  }
+  return "text";
+}
+
+export function templateEntryToEntityFieldDefinition(
+  entry: AttributeTemplateEntry
+): EntityCustomFieldDefinition {
+  const key = normalizeAttributeKey(entry.key);
+  const type = mapAttributeTypeToEntityFieldType(entry.type);
+
+  return {
+    key,
+    label: entry.label.trim() || key,
+    type,
+    required: entry.required === true,
+    options: type === "select" ? entry.options ?? [] : undefined,
+  };
 }
 
 export function parseEntityCustomFieldDefinitions(raw: unknown): EntityCustomFieldDefinition[] {

@@ -95,6 +95,22 @@ export function formatPurchaseOrderRpcError(
     };
   }
 
+  if (
+    message.toLowerCase().includes("purchase_orders_tenant_voucher_unique") ||
+    message.toLowerCase().includes("duplicate key value") ||
+    message.toLowerCase().includes("already exists")
+  ) {
+    return {
+      message: "That PO number is already used. Choose a different number.",
+    };
+  }
+
+  if (message.toLowerCase().includes("only draft purchase orders can change po number")) {
+    return {
+      message: "Only draft purchase orders can change PO number.",
+    };
+  }
+
   return {
     message: replaceLocationTokens(message, context),
   };

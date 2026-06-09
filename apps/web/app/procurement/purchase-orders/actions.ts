@@ -12,6 +12,7 @@ import {
   peekPurchaseOrderNumberSchema,
   savePurchaseOrderSchema,
   supplierItemInsightsSchema,
+  updatePurchaseOrderVoucherNumberSchema,
 } from "@/lib/procurement/purchase-orders/schemas";
 import { fetchSupplierVariantPrice } from "@/lib/procurement/purchase-orders/supplier-price";
 import {
@@ -210,6 +211,36 @@ export async function savePurchaseOrder(raw: unknown) {
 
   revalidatePurchaseOrderPaths();
   return { success: true as const, purchaseOrderId: data as string };
+}
+
+export async function updatePurchaseOrderVoucherNumber(raw: unknown) {
+  const parsed = updatePurchaseOrderVoucherNumberSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid PO number." };
+  }
+
+  const { supabase } = await requireTenantId();
+
+  const { data, error } = await supabase.rpc("update_purchase_order_voucher_number", {
+    p_purchase_order_id: parsed.data.purchase_order_id,
+    p_voucher_number: parsed.data.voucher_number,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("update_purchase_order_voucher_number") };
+    }
+
+    const formatted = formatPurchaseOrderRpcError(error.message);
+    return { error: formatted.message };
+  }
+
+  revalidatePurchaseOrderPaths();
+  return {
+    success: true as const,
+    purchaseOrderId: data as string,
+    voucherNumber: parsed.data.voucher_number,
+  };
 }
 
 export async function issuePurchaseOrder(raw: unknown) {

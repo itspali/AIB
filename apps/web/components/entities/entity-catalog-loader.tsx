@@ -3,6 +3,7 @@ import { fetchResolvedEntityCustomFieldDefinitions } from "@/lib/entities/custom
 import { fetchEntityListPage } from "@/lib/entities/list-queries";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityWorkspace } from "@/lib/entities/types";
+import { fetchEntityCategoryRows } from "@/lib/entity-categories/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchDefaultCustomModuleView } from "@/lib/search/views/queries";
 import { toSavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
@@ -16,10 +17,11 @@ export async function EntityCatalogLoader({ workspace }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [page, defaultView, customFieldDefinitions] = await Promise.all([
+  const [page, defaultView, customFieldDefinitions, categoryRows] = await Promise.all([
     fetchEntityListPage(supabase, workspace),
     fetchDefaultCustomModuleView(supabase, tenantId, userId, config.savedViewModuleKey),
     fetchResolvedEntityCustomFieldDefinitions(supabase, tenantId, workspace),
+    fetchEntityCategoryRows(supabase, tenantId, workspace),
   ]);
 
   const initialSavedView: SavedViewSnapshot | null = defaultView
@@ -31,6 +33,7 @@ export async function EntityCatalogLoader({ workspace }: Props) {
       workspace={workspace}
       tenantId={tenantId}
       customFieldDefinitions={customFieldDefinitions}
+      categoryRows={categoryRows}
       initialRows={page.rows}
       initialTotalCount={page.totalCount}
       initialSavedView={initialSavedView}

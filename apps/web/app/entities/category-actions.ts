@@ -1,0 +1,302 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { finalizeAttributeTemplateRows } from "@/lib/categories/attribute-key";
+import { attributeTypeNeedsOptions } from "@/lib/categories/attribute-types";
+import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
+import { validateCategoryParentAssignment } from "@/lib/categories/validate-parent";
+import { getEntityCategoryWorkspaceConfig } from "@/lib/entity-categories/config";
+import { entityCategoriesHref } from "@/lib/entity-categories/navigation";
+import {
+  fetchEntityCategoryCounts,
+  fetchEntityCategoryRowById,
+} from "@/lib/entity-categories/queries";
+import type {
+  EntityCategoryFormValues,
+  EntityCategoryRow,
+  EntityCategoryWorkspace,
+} from "@/lib/entity-categories/types";
+import { requireTenantId } from "@/lib/supabase/require-tenant";
+
+function revalidateEntityCategoryPaths(workspace: EntityCategoryWorkspace) {
+  const base = entityCategoriesHref(workspace);
+  const listHref =
+    workspace === "customer" ? "/entities/customers" : "/entities/suppliers";
+  for (const path of [base, listHref] as const) {
+    revalidatePath(path);
+  }
+}
+
+function buildAttributeTemplates(
+  entries: AttributeTemplateEntry[]
+): Record<string, unknown>[] {
+  return entries
+    .filter((entry) => entry.key.trim())
+    .map((entry) => {
+      const template: Record<string, unknown> = {
+        key: entry.key.trim(),
+        label: entry.label.trim() || entry.key.trim(),
+        type: entry.type,
+        required: Boolean(entry.required),
+      };
+
+      if (attributeTypeNeedsOptions(entry.type) && entry.options?.length) {
+        template.options = entry.options.map((option) => option.trim()).filter(Boolean);
+      }
+
+      if (entry.role === "axis" || entry.role === "descriptive") {
+        template.role = entry.role;
+      }
+
+      return template;
+    });
+}
+
+type EntityCategoryMutationSuccess = { success: true; category: EntityCategoryRow };
+type EntityCategoryMutationError = { error: string };
+type EntityCategoryMutationResult = EntityCategoryMutationSuccess | EntityCategoryMutationError;
+
+export async function loadEntityCategoryCounts(
+  workspace: EntityCategoryWorkspace
+): Promise<Record<string, number>> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchEntityCategoryCounts(supabase, tenantId, workspace);
+}
+
+export async function saveEntityCategory(
+  workspace: EntityCategoryWorkspace,
+  values: EntityCategoryFormValues
+): Promise<EntityCategoryMutationResult> {
+  const { supabase, tenantId } = await requireTenantId();
+  const { table, saveRpc } = getEntityCategoryWorkspaceConfig(workspace);
+
+  const name = values.name.trim();
+  if (!name) return { error: "Category name is required" };
+
+  const finalizedTemplates = finalizeAttributeTemplateRows(values.attribute_templates);
+  const templateError = validateAttributeTemplates(finalizedTemplates);
+  if (templateError) return { error: templateError };
+
+  const templates = buildAttributeTemplates(finalizedTemplates);
+
+  if (values.category_id) {
+    const { data: parentRows, error: fetchError } = await supabase
+      .from(table)
+      .select("id, parent_id")
+      .eq("tenant_id", tenantId);
+
+    if (fetchError) return { error: fetchError.message };
+
+    const parentError = validateCategoryParentAssignment(
+      values.category_id,
+      values.parent_id,
+      parentRows ?? []
+    );
+    if (parentError) return { error: parentError };
+  }
+
+  const { data: categoryId, error } = await supabase.rpc(saveRpc, {
+    p_name: name,
+    p_parent_id: values.parent_id,
+    p_is_active: values.is_active,
+    p_attribute_templates: templates,
+    p_category_id: values.category_id ?? null,
+    p_inherit_parent_attributes: values.parent_id ? values.inherit_parent_attributes : true,
+  });
+
+  if (error) return { error: error.message };
+
+  const category = await fetchEntityCategoryRowById(
+    supabase,
+    tenantId,
+    workspace,
+    categoryId as string
+  );
+  if (!category) return { error: "Category saved but could not be loaded." };
+
+  revalidateEntityCategoryPaths(workspace);
+  return { success: true, category };
+}
+
+async function deleteEntityCategoryInternal(
+  workspace: EntityCategoryWorkspace,
+  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  categoryId: string
+): Promise<{ ok: true; outcome: string } | { ok: false; error: string }> {
+  const { deleteRpc } = getEntityCategoryWorkspaceConfig(workspace);
+  const { data, error } = await supabase.rpc(deleteRpc, {
+    p_category_id: categoryId,
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, outcome: (data as string) ?? "DELETED" };
+}
+
+export async function deleteEntityCategory(
+  workspace: EntityCategoryWorkspace,
+  categoryId: string
+) {
+  if (!categoryId) return { error: "Category id is required." };
+
+  const { supabase } = await requireTenantId();
+  const result = await deleteEntityCategoryInternal(workspace, supabase, categoryId);
+  if (!result.ok) return { error: result.error };
+
+  revalidateEntityCategoryPaths(workspace);
+  return { success: true as const, categoryId, outcome: result.outcome };
+}
+
+export async function deactivateEntityCategory(
+  workspace: EntityCategoryWorkspace,
+  categoryId: string
+) {
+  if (!categoryId) return { error: "Category id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { table } = getEntityCategoryWorkspaceConfig(workspace);
+
+  const { error } = await supabase
+    .from(table)
+    .update({ is_active: false })
+    .eq("id", categoryId)
+    .eq("tenant_id", tenantId)
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  const category = await fetchEntityCategoryRowById(supabase, tenantId, workspace, categoryId);
+  if (!category) return { error: "Category updated but could not be loaded." };
+
+  revalidateEntityCategoryPaths(workspace);
+  return { success: true as const, category };
+}
+
+export async function activateEntityCategory(
+  workspace: EntityCategoryWorkspace,
+  categoryId: string
+) {
+  if (!categoryId) return { error: "Category id is required." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { table } = getEntityCategoryWorkspaceConfig(workspace);
+
+  const { data, error } = await supabase
+    .from(table)
+    .update({ is_active: true })
+    .eq("id", categoryId)
+    .eq("tenant_id", tenantId)
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+  if (!data) return { error: "Category not found" };
+
+  const category = await fetchEntityCategoryRowById(
+    supabase,
+    tenantId,
+    workspace,
+    data.id
+  );
+  if (!category) return { error: "Category updated but could not be loaded." };
+
+  revalidateEntityCategoryPaths(workspace);
+  return { success: true as const, category };
+}
+
+function uniqueCategoryIds(categoryIds: string[]): string[] {
+  return [...new Set(categoryIds.filter(Boolean))];
+}
+
+export async function bulkActivateEntityCategories(
+  workspace: EntityCategoryWorkspace,
+  categoryIds: string[]
+) {
+  const ids = uniqueCategoryIds(categoryIds);
+  if (ids.length === 0) return { error: "Select at least one category." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { table } = getEntityCategoryWorkspaceConfig(workspace);
+
+  const { data, error } = await supabase
+    .from(table)
+    .update({ is_active: true })
+    .in("id", ids)
+    .eq("tenant_id", tenantId)
+    .select("id");
+
+  if (error) return { error: error.message };
+
+  revalidateEntityCategoryPaths(workspace);
+  return {
+    success: true as const,
+    affectedIds: (data ?? []).map((row) => row.id as string),
+  };
+}
+
+export async function bulkDeactivateEntityCategories(
+  workspace: EntityCategoryWorkspace,
+  categoryIds: string[]
+) {
+  const ids = uniqueCategoryIds(categoryIds);
+  if (ids.length === 0) return { error: "Select at least one category." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const { table } = getEntityCategoryWorkspaceConfig(workspace);
+
+  const { data, error } = await supabase
+    .from(table)
+    .update({ is_active: false })
+    .in("id", ids)
+    .eq("tenant_id", tenantId)
+    .select("id");
+
+  if (error) return { error: error.message };
+
+  revalidateEntityCategoryPaths(workspace);
+  return {
+    success: true as const,
+    affectedIds: (data ?? []).map((row) => row.id as string),
+  };
+}
+
+export async function bulkDeleteEntityCategories(
+  workspace: EntityCategoryWorkspace,
+  categoryIds: string[]
+) {
+  const ids = uniqueCategoryIds(categoryIds);
+  if (ids.length === 0) return { error: "Select at least one category." };
+
+  const { supabase } = await requireTenantId();
+
+  const results = await Promise.all(
+    ids.map(async (categoryId) => ({
+      categoryId,
+      result: await deleteEntityCategoryInternal(workspace, supabase, categoryId),
+    }))
+  );
+
+  const deletedIds: string[] = [];
+  const errors: string[] = [];
+
+  for (const { categoryId, result } of results) {
+    if (result.ok) {
+      deletedIds.push(categoryId);
+      continue;
+    }
+    errors.push(result.error ?? "Unable to delete category.");
+  }
+
+  if (deletedIds.length === 0) {
+    return { error: errors[0] ?? "Unable to delete selected categories." };
+  }
+
+  revalidateEntityCategoryPaths(workspace);
+  return {
+    success: true as const,
+    deletedIds,
+    skippedCount: ids.length - deletedIds.length,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}

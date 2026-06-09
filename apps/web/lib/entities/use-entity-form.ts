@@ -10,12 +10,21 @@ import {
   validateEntityCustomFieldValues,
   type EntityCustomFieldDefinition,
 } from "@/lib/entities/custom-field-definitions";
+import {
+  effectiveEntityFieldKeys,
+  resolveEffectiveEntityFields,
+} from "@/lib/entity-categories/field-resolution";
+import { pruneCustomFieldValues } from "@/lib/entity-categories/prune-custom-fields";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type {
+  EntityCommercialType,
   EntityDetailSnapshot,
   EntityFormContactValues,
   EntityFormValues,
   EntityWorkspace,
+  PartyNatureType,
+  TaxTreatmentType,
 } from "@/lib/entities/types";
 import { taxRegistrationRequired } from "@/lib/entities/types";
 
@@ -49,10 +58,13 @@ export function createDefaultEntityFormValues(workspace: EntityWorkspace): Entit
     draft_storage_key: createDraftStorageKey(),
     name: "",
     type: config.defaultType,
+    party_nature: "ORGANIZATION",
     tax_treatment: "REGULAR_B2B",
     tax_registration_number: "",
     legal_name: "",
     code: "",
+    customer_category_id: "",
+    supplier_category_id: "",
     credit_limit: "0",
     payment_terms_days: "0",
     base_currency_override: "",
@@ -76,6 +88,8 @@ export function createDefaultEntityFormValues(workspace: EntityWorkspace): Entit
     website_url: "",
     internal_notes: "",
     custom_fields: {},
+    customer_custom_fields: {},
+    supplier_custom_fields: {},
     is_active: true,
     primary_contact: {
       ...defaultEntityFormContactValues,
@@ -130,6 +144,12 @@ function addressesMatch(entity: EntityDetailSnapshot): boolean {
   return pairs.every(([billing, shipping]) => (billing ?? "") === (shipping ?? ""));
 }
 
+function jsonObjectToStringRecord(values: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, String(value ?? "")])
+  );
+}
+
 export function formFromEntityDetail(
   entity: EntityDetailSnapshot,
   workspace: EntityWorkspace
@@ -144,10 +164,13 @@ export function formFromEntityDetail(
     draft_storage_key: createDraftStorageKey(),
     name: entity.name,
     type: entity.type,
+    party_nature: entity.party_nature,
     tax_treatment: entity.tax_treatment,
     tax_registration_number: entity.tax_registration_number ?? "",
     legal_name: entity.legal_name ?? "",
     code: entity.code ?? "",
+    customer_category_id: entity.customer_category_id ?? "",
+    supplier_category_id: entity.supplier_category_id ?? "",
     credit_limit: entity.credit_limit,
     payment_terms_days: String(entity.payment_terms_days),
     base_currency_override: entity.base_currency_override ?? "",
@@ -170,9 +193,9 @@ export function formFromEntityDetail(
     company_phone: entity.company_phone ?? "",
     website_url: entity.website_url ?? "",
     internal_notes: entity.internal_notes ?? "",
-    custom_fields: Object.fromEntries(
-      Object.entries(entity.custom_fields ?? {}).map(([key, value]) => [key, String(value ?? "")])
-    ),
+    custom_fields: jsonObjectToStringRecord(entity.custom_fields ?? {}),
+    customer_custom_fields: jsonObjectToStringRecord(entity.customer_custom_fields ?? {}),
+    supplier_custom_fields: jsonObjectToStringRecord(entity.supplier_custom_fields ?? {}),
     is_active: entity.is_active,
     primary_contact: contactFromRow(primaryContact, true),
     extended_contacts: entity.contacts
@@ -229,6 +252,54 @@ function normalizeContactForSave(contact: EntityFormContactValues): EntityFormCo
   };
 }
 
+export function splitIndividualName(fullName: string): { first_name: string; last_name: string } {
+  const trimmed = fullName.trim();
+  const lastSpace = trimmed.lastIndexOf(" ");
+  if (lastSpace <= 0) {
+    return { first_name: trimmed, last_name: "" };
+  }
+  return {
+    first_name: trimmed.slice(0, lastSpace),
+    last_name: trimmed.slice(lastSpace + 1),
+  };
+}
+
+export function workspaceCustomFieldBucket(
+  workspace: EntityWorkspace
+): "customer_custom_fields" | "supplier_custom_fields" {
+  return workspace === "customer" ? "customer_custom_fields" : "supplier_custom_fields";
+}
+
+export function workspaceCategoryIdField(
+  workspace: EntityWorkspace
+): "customer_category_id" | "supplier_category_id" {
+  return workspace === "customer" ? "customer_category_id" : "supplier_category_id";
+}
+
+export function isCustomerCategoryApplicable(type: EntityCommercialType): boolean {
+  return type === "CUSTOMER" || type === "MUTUAL_PARTNER";
+}
+
+export function isSupplierCategoryApplicable(type: EntityCommercialType): boolean {
+  return type === "SUPPLIER" || type === "MUTUAL_PARTNER";
+}
+
+export function suggestedTaxTreatmentForPartyNature(
+  partyNature: PartyNatureType
+): TaxTreatmentType {
+  return partyNature === "INDIVIDUAL" ? "UNREGISTERED_B2C" : "REGULAR_B2B";
+}
+
+export function resolveWorkspaceEffectiveFieldDefinitions(
+  workspace: EntityWorkspace,
+  form: EntityFormValues,
+  categoryRows: EntityCategoryRow[],
+  orgDefinitions: EntityCustomFieldDefinition[]
+): EntityCustomFieldDefinition[] {
+  const categoryId = form[workspaceCategoryIdField(workspace)].trim() || null;
+  return resolveEffectiveEntityFields(workspace, categoryId, categoryRows, orgDefinitions);
+}
+
 export function buildEntitySavePayload(form: EntityFormValues): {
   entity: Record<string, unknown>;
   primary_contact: Record<string, unknown> | null;
@@ -242,12 +313,19 @@ export function buildEntitySavePayload(form: EntityFormValues): {
     entity_id: form.entity_id,
     name: form.name.trim(),
     type: form.type,
+    party_nature: form.party_nature,
     tax_treatment: form.tax_treatment,
     tax_registration_number: taxRegistrationRequired(form.tax_treatment)
       ? form.tax_registration_number.trim()
       : null,
     legal_name: form.legal_name.trim() || null,
     code: form.code.trim() || null,
+    customer_category_id: isCustomerCategoryApplicable(form.type)
+      ? form.customer_category_id.trim() || null
+      : null,
+    supplier_category_id: isSupplierCategoryApplicable(form.type)
+      ? form.supplier_category_id.trim() || null
+      : null,
     credit_limit: form.credit_limit.trim() || "0",
     payment_terms_days: form.payment_terms_days.trim() || "0",
     base_currency_override: form.base_currency_override.trim() || null,
@@ -270,6 +348,8 @@ export function buildEntitySavePayload(form: EntityFormValues): {
     website_url: form.website_url.trim() || null,
     internal_notes: form.internal_notes.trim() || null,
     custom_fields: form.custom_fields,
+    customer_custom_fields: form.customer_custom_fields,
+    supplier_custom_fields: form.supplier_custom_fields,
     logo_url: form.logo_url.trim() || null,
     draft_storage_key: form.draft_storage_key,
     is_active: form.is_active,
@@ -334,15 +414,31 @@ export function buildEntitySavePayload(form: EntityFormValues): {
   return { entity, primary_contact, extended_contacts, bank_accounts };
 }
 
+export type ValidateEntityFormOptions = {
+  workspace: EntityWorkspace;
+  orgDefinitions?: EntityCustomFieldDefinition[];
+  categoryRows?: EntityCategoryRow[];
+};
+
 export function validateEntityFormState(
   form: EntityFormValues,
-  customFieldDefinitions: EntityCustomFieldDefinition[] = []
+  options: ValidateEntityFormOptions
 ): string | null {
   const parsed = entityMasterSchema.safeParse(form);
   if (!parsed.success) {
     return parsed.error.issues[0]?.message ?? "Unable to validate entity form.";
   }
-  return validateEntityCustomFieldValues(customFieldDefinitions, form.custom_fields);
+
+  const orgDefinitions = options.orgDefinitions ?? [];
+  const categoryRows = options.categoryRows ?? [];
+  const effectiveDefinitions = resolveWorkspaceEffectiveFieldDefinitions(
+    options.workspace,
+    form,
+    categoryRows,
+    orgDefinitions
+  );
+  const bucket = workspaceCustomFieldBucket(options.workspace);
+  return validateEntityCustomFieldValues(effectiveDefinitions, form[bucket]);
 }
 
 export type EntityPersistResult =
@@ -356,6 +452,7 @@ export type UseEntityFormOptions = {
   editingEntity?: EntityDetailSnapshot | null;
   logoPreviewUrl?: string | null;
   customFieldDefinitions?: EntityCustomFieldDefinition[];
+  categoryRows?: EntityCategoryRow[];
   onSaved: (entity: EntityDetailSnapshot) => void;
   onPersist: (payload: EntityPersistPayload) => Promise<EntityPersistResult>;
   notifyOnSave?: boolean;
@@ -366,6 +463,7 @@ export function useEntityForm({
   editingEntity = null,
   logoPreviewUrl = null,
   customFieldDefinitions = [],
+  categoryRows = [],
   onSaved,
   onPersist,
   notifyOnSave = true,
@@ -387,39 +485,61 @@ export function useEntityForm({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const syncWorkspaceCustomFields = useCallback(
+    (values: EntityFormValues): EntityFormValues => {
+      const bucket = workspaceCustomFieldBucket(workspace);
+      const categoryId = values[workspaceCategoryIdField(workspace)].trim() || null;
+      const effectiveDefinitions = resolveEffectiveEntityFields(
+        workspace,
+        categoryId,
+        categoryRows,
+        customFieldDefinitions
+      );
+      return {
+        ...values,
+        [bucket]: syncEntityCustomFieldValues(effectiveDefinitions, values[bucket]),
+      };
+    },
+    [categoryRows, customFieldDefinitions, workspace]
+  );
+
   const resetFromEditing = useCallback(() => {
     if (editingEntity) {
-      const next = formFromEntityDetail(editingEntity, workspace);
-      next.custom_fields = syncEntityCustomFieldValues(
-        customFieldDefinitions,
-        next.custom_fields
-      );
+      let next = formFromEntityDetail(editingEntity, workspace);
+      next = syncWorkspaceCustomFields(next);
       setForm(next);
       setBaseline(next);
       setResolvedLogoPreviewUrl(editingEntity.logo_preview_url ?? null);
+      const effectiveDefinitions = resolveWorkspaceEffectiveFieldDefinitions(
+        workspace,
+        next,
+        categoryRows,
+        customFieldDefinitions
+      );
       setShowAdvanced(
-        Boolean(
-          next.legal_name.trim() ||
-            next.code.trim() ||
-            next.company_email.trim() ||
-            next.extended_contacts.length ||
-            next.bank_accounts.length ||
-            customFieldDefinitions.length
-        )
+        next.party_nature === "ORGANIZATION" &&
+          Boolean(
+            next.legal_name.trim() ||
+              next.code.trim() ||
+              next.company_email.trim() ||
+              next.extended_contacts.length ||
+              next.bank_accounts.length ||
+              effectiveDefinitions.length
+          )
       );
     } else {
-      const next = {
+      let next = {
         ...createDefaultEntityFormValues(workspace),
         draft_storage_key: draftStorageKeyRef.current,
-        custom_fields: syncEntityCustomFieldValues(customFieldDefinitions, {}),
       };
+      next = syncWorkspaceCustomFields(next);
       setForm(next);
       setBaseline(next);
       setResolvedLogoPreviewUrl(null);
       setShowAdvanced(false);
     }
     setError(null);
-  }, [customFieldDefinitions, editingEntity, workspace]);
+  }, [categoryRows, customFieldDefinitions, editingEntity, syncWorkspaceCustomFields, workspace]);
 
   useEffect(() => {
     setResolvedLogoPreviewUrl(logoPreviewUrl ?? editingEntity?.logo_preview_url ?? null);
@@ -495,9 +615,72 @@ export function useEntityForm({
     [form, baseline]
   );
 
+  const setPartyNature = useCallback(
+    (partyNature: PartyNatureType) => {
+      setForm((current) => {
+        const next: EntityFormValues = {
+          ...current,
+          party_nature: partyNature,
+          tax_treatment: suggestedTaxTreatmentForPartyNature(partyNature),
+        };
+        if (partyNature === "INDIVIDUAL") {
+          const { first_name, last_name } = splitIndividualName(current.name);
+          next.primary_contact = {
+            ...current.primary_contact,
+            first_name,
+            last_name,
+          };
+        }
+        return next;
+      });
+      if (partyNature === "INDIVIDUAL") {
+        setShowAdvanced(false);
+      }
+    },
+    []
+  );
+
+  const setCategoryId = useCallback(
+    (categoryId: string) => {
+      const categoryField = workspaceCategoryIdField(workspace);
+      const bucket = workspaceCustomFieldBucket(workspace);
+      setForm((current) => {
+        const allowedKeys = effectiveEntityFieldKeys(workspace, categoryId, categoryRows);
+        return {
+          ...current,
+          [categoryField]: categoryId,
+          [bucket]: pruneCustomFieldValues(current[bucket], allowedKeys),
+        };
+      });
+    },
+    [categoryRows, workspace]
+  );
+
+  const setEntityName = useCallback(
+    (name: string) => {
+      setForm((current) => {
+        const next: EntityFormValues = { ...current, name };
+        if (current.party_nature === "INDIVIDUAL") {
+          const { first_name, last_name } = splitIndividualName(name);
+          next.primary_contact = {
+            ...current.primary_contact,
+            first_name,
+            last_name,
+          };
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const submit = useCallback(() => {
     setError(null);
-    const validationError = validateEntityFormState(form, customFieldDefinitions);
+    const validationError = validateEntityFormState(form, {
+      workspace,
+      orgDefinitions: customFieldDefinitions,
+      categoryRows,
+    });
     if (validationError) {
       setError(validationError);
       if (notifyOnSave) toast.error(validationError);
@@ -525,12 +708,15 @@ export function useEntityForm({
       setForm(nextBaseline);
       onSaved(result.entity);
     });
-  }, [customFieldDefinitions, form, isEditing, notifyOnSave, onPersist, onSaved, workspace]);
+  }, [categoryRows, customFieldDefinitions, form, isEditing, notifyOnSave, onPersist, onSaved, workspace]);
 
   return {
     form,
     setForm,
     setFormWithBillingMirror,
+    setEntityName,
+    setPartyNature,
+    setCategoryId,
     baseline,
     error,
     setError,
@@ -554,7 +740,12 @@ export function useEntityForm({
     logoPreviewUrl: resolvedLogoPreviewUrl,
     resetFromEditing,
     submit,
-    validateForm: () => validateEntityFormState(form, customFieldDefinitions),
+    validateForm: () =>
+      validateEntityFormState(form, {
+        workspace,
+        orgDefinitions: customFieldDefinitions,
+        categoryRows,
+      }),
     buildSavePayload: () => buildEntitySavePayload(form),
   };
 }

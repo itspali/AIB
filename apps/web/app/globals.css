@@ -160,17 +160,27 @@
     @apply rounded-lg border border-border bg-muted/35 shadow-sm dark:bg-muted/20;
   }
 
-  /* Module drawer peek: lifted surface in light and dark. */
+  /* Module drawer peek: opaque lifted surface (no transparency — list must not show through). */
   .module-drawer-peek-shell {
-    @apply bg-muted/40 dark:bg-[hsl(224_47%_11%)];
+    @apply bg-background dark:bg-[hsl(224_47%_11%)];
   }
 
   .module-drawer-peek-body {
-    @apply bg-muted/25 dark:bg-[hsl(224_47%_10%)];
+    @apply overflow-x-hidden bg-muted dark:bg-[hsl(224_47%_10%)];
   }
 
   .module-drawer-form-body {
-    @apply bg-muted/25 dark:bg-[hsl(224_47%_10%)];
+    @apply overflow-x-hidden bg-muted/25 dark:bg-[hsl(224_47%_10%)];
+  }
+
+  .po-line-grid-scroll {
+    @apply w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain touch-pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .module-drawer-floating-footer {
+    @apply flex items-center justify-end gap-2 border-t border-border/80 border-black/[0.06] bg-background/95 py-3 shadow-[0_-8px_24px_-12px_hsl(var(--foreground)/0.08)] backdrop-blur-sm dark:border-white/10;
+    @apply -mx-4 px-4 sm:-mx-6 sm:px-6;
   }
 
   /* Compact PO line grid: paper-white cells (light) / lifted card (dark). */
@@ -180,6 +190,19 @@
 
   .po-line-grid-canvas {
     @apply bg-muted/20 dark:bg-[hsl(224_47%_9%)];
+  }
+
+  .po-peek-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0.75rem;
+    row-gap: 1rem;
+  }
+
+  @media (min-width: 1024px) {
+    .po-peek-meta-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
 
   .po-peek-lines-table {

@@ -12,6 +12,7 @@ import type {
 import { getEntityLogoSignedUrl } from "@/lib/entities/logo";
 import {
   isEntityCommercialType,
+  isPartyNatureType,
   isTaxTreatmentType,
 } from "@/lib/entities/types";
 
@@ -20,17 +21,24 @@ function formatDecimal(value: number | string | null | undefined, fallback = "0"
   return String(value);
 }
 
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
 function mapEntityRow(row: Record<string, unknown>): EntityRow | null {
   const type = String(row.type ?? "");
   const taxTreatment = String(row.tax_treatment ?? "");
-  if (!isEntityCommercialType(type) || !isTaxTreatmentType(taxTreatment)) {
+  const partyNature = String(row.party_nature ?? "ORGANIZATION");
+  if (
+    !isEntityCommercialType(type) ||
+    !isTaxTreatmentType(taxTreatment) ||
+    !isPartyNatureType(partyNature)
+  ) {
     return null;
   }
 
-  const customFields =
-    row.custom_fields && typeof row.custom_fields === "object"
-      ? (row.custom_fields as Record<string, unknown>)
-      : {};
+  const customerCategory = row.customer_category as { name?: string | null } | null | undefined;
+  const supplierCategory = row.supplier_category as { name?: string | null } | null | undefined;
 
   return {
     id: String(row.id),
@@ -38,8 +46,13 @@ function mapEntityRow(row: Record<string, unknown>): EntityRow | null {
     legal_name: (row.legal_name as string | null) ?? null,
     code: (row.code as string | null) ?? null,
     type,
+    party_nature: partyNature,
     tax_registration_number: (row.tax_registration_number as string | null) ?? null,
     tax_treatment: taxTreatment,
+    customer_category_id: (row.customer_category_id as string | null) ?? null,
+    customer_category_name: customerCategory?.name ?? null,
+    supplier_category_id: (row.supplier_category_id as string | null) ?? null,
+    supplier_category_name: supplierCategory?.name ?? null,
     base_currency_override: (row.base_currency_override as string | null) ?? null,
     credit_limit: formatDecimal(row.credit_limit as number | string | null),
     current_balance: formatDecimal(row.current_balance as number | string | null),
@@ -63,7 +76,9 @@ function mapEntityRow(row: Record<string, unknown>): EntityRow | null {
     website_url: (row.website_url as string | null) ?? null,
     internal_notes: (row.internal_notes as string | null) ?? null,
     logo_url: (row.logo_url as string | null) ?? null,
-    custom_fields: customFields,
+    custom_fields: parseJsonObject(row.custom_fields),
+    customer_custom_fields: parseJsonObject(row.customer_custom_fields),
+    supplier_custom_fields: parseJsonObject(row.supplier_custom_fields),
     is_active: Boolean(row.is_active),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -109,7 +124,7 @@ function mapEntityBankAccountRow(row: Record<string, unknown>): EntityBankAccoun
 }
 
 const ENTITY_SELECT =
-  "id, name, legal_name, code, type, tax_registration_number, tax_treatment, base_currency_override, credit_limit, current_balance, payment_terms_days, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_zip_postal, billing_country_code, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_zip_postal, shipping_country_code, incoterms_code, default_shipping_method, company_email, company_phone, website_url, internal_notes, logo_url, custom_fields, is_active, created_at, updated_at";
+  "id, name, legal_name, code, type, party_nature, tax_registration_number, tax_treatment, customer_category_id, supplier_category_id, base_currency_override, credit_limit, current_balance, payment_terms_days, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_zip_postal, billing_country_code, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_zip_postal, shipping_country_code, incoterms_code, default_shipping_method, company_email, company_phone, website_url, internal_notes, logo_url, custom_fields, customer_custom_fields, supplier_custom_fields, is_active, created_at, updated_at, customer_category:entity_customer_categories(name), supplier_category:entity_supplier_categories(name)";
 
 const CONTACT_SELECT =
   "id, entity_id, first_name, last_name, email, phone, mobile, whatsapp_number, department, job_title, is_primary, is_active, created_at, updated_at";

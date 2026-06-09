@@ -182,6 +182,16 @@ Because data entry occurs within the sliding drawer space rather than an isolate
 - **Save Optimization Shortcut**: Pressing `Cmd+Enter` or `Ctrl+Enter` programmatically fires the validation engine and triggers the underlying Supabase database mutation. The primary submit button specifies this shortcut inside its floating native hover tooltip asset.
 - **Sticky Control Footer**: Pinned permanently at the bottom edge of the sheet viewport layer: `sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-background/95 py-3 px-6 backdrop-blur`. Contains clear "Cancel" and "Save Changes" execution controls.
 
+### 5.3 Entity partner forms (Customers / Suppliers)
+
+Entity drawers use the same URL-driven `RightDrawer` shell but add **party nature** and **workspace-scoped categories**:
+
+- **`party_nature`**: `INDIVIDUAL` or `ORGANIZATION` — controls essentials layout (full name vs business/trading name + primary contact).
+- **Dual categories**: `customer_category_id` and `supplier_category_id` on `entities`; each points to its own tree (`entity_customer_categories`, `entity_supplier_categories`). Category admin lives at `/entities/customers/categories` and `/entities/suppliers/categories`.
+- **Required categories**: Customers and mutual partners require a customer category; suppliers and mutual partners require a supplier category. PO supplier pickers only list categorized suppliers.
+- **Custom field buckets**: `customer_custom_fields` and `supplier_custom_fields` JSONB store template + org baseline values per side. Changing category prunes keys not in the new effective template.
+- **Field grids**: Use `DrawerFormGrid` / `DrawerFormField` from `components/layout/drawer-form-grid.tsx` — column count follows measured drawer width (1–4 columns).
+
 ---
 
 ## 6. Single-Page Configuration Form (Organization Settings Pattern)

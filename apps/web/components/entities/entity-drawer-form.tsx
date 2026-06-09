@@ -10,6 +10,7 @@ import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import type { EntityDetailSnapshot, EntityWorkspace } from "@/lib/entities/types";
 import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import { useEntityForm } from "@/lib/entities/use-entity-form";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
@@ -20,6 +21,7 @@ type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
   customFieldDefinitions: EntityCustomFieldDefinition[];
+  categoryRows: EntityCategoryRow[];
   open: boolean;
   surface: DrawerSurface;
   editingEntity: EntityDetailSnapshot | null;
@@ -47,6 +49,7 @@ export function EntityDrawerForm({
   workspace,
   tenantId,
   customFieldDefinitions,
+  categoryRows,
   open,
   surface,
   editingEntity,
@@ -69,6 +72,7 @@ export function EntityDrawerForm({
     editingEntity: isMutating || readOnly ? editingEntity : editingEntity,
     logoPreviewUrl: editingEntity?.logo_preview_url ?? null,
     customFieldDefinitions,
+    categoryRows,
     onSaved: (entity) => {
       onAfterSave(entity.id, entity);
     },
@@ -205,6 +209,7 @@ export function EntityDrawerForm({
                 tenantId={tenantId}
                 formApi={formApi}
                 customFieldDefinitions={customFieldDefinitions}
+                categoryRows={categoryRows}
                 readOnly={readOnly}
                 activeSection={activeSection}
                 onActiveSectionChange={setActiveSection}
