@@ -17,10 +17,10 @@ export function AttributeTemplatePreview({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border/80 dark:border-white/10">
-      <table className="w-full text-sm">
+    <div className="table-chrome-frame overflow-x-auto rounded-lg border border-border/80 dark:border-white/10">
+      <table data-header-tone="muted-50" className="table-chrome w-full border-separate border-spacing-0 text-sm">
         <thead>
-          <tr className="border-b bg-muted/50 text-left">
+          <tr className="border-b text-left">
             <th className="p-2 font-medium text-muted-foreground">Label</th>
             <th className="p-2 font-medium text-muted-foreground">Type</th>
             <th className="p-2 font-medium text-muted-foreground">Required</th>

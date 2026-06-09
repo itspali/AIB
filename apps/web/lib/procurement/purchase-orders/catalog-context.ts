@@ -53,6 +53,25 @@ function mapVariantAttributes(raw: Record<string, unknown> | null | undefined): 
   return Object.fromEntries(listVariantAttributeEntries(raw));
 }
 
+async function resolveCatalogAttributeLabels(
+  supabase: SupabaseClient,
+  tenantId: string,
+  categoryId: string | null | undefined
+): Promise<Record<string, string>> {
+  const attributeLabels: Record<string, string> = {};
+  try {
+    if (!categoryId) return attributeLabels;
+    const categories = await fetchCategoryRows(supabase, tenantId);
+    const templates = resolveEffectiveAttributeTemplates(categoryId, categories);
+    for (const template of templates) {
+      attributeLabels[template.key] = template.label?.trim() || template.key;
+    }
+  } catch {
+    // Attribute labels are optional; catalog fields still load without them.
+  }
+  return attributeLabels;
+}
+
 export async function fetchPoLineCatalogContext(
   supabase: SupabaseClient,
   tenantId: string,
@@ -89,30 +108,10 @@ export async function fetchPoLineCatalogContext(
   const item = resolveJoin(row.items);
   if (!item) return null;
 
-  const attributeLabels: Record<string, string> = {};
-  try {
-    if (item.category_id) {
-      const categories = await fetchCategoryRows(supabase, tenantId);
-      const templates = resolveEffectiveAttributeTemplates(item.category_id, categories);
-      for (const template of templates) {
-        attributeLabels[template.key] = template.label?.trim() || template.key;
-      }
-    }
-  } catch {
-    // Attribute labels are optional; catalog fields still load without them.
-  }
-
-  let imageUrl: string | null = null;
-  try {
-    imageUrl = await fetchVariantPrimaryImageUrl(
-      supabase,
-      tenantId,
-      row.item_id,
-      row.id
-    );
-  } catch {
-    imageUrl = null;
-  }
+  const [attributeLabels, imageUrl] = await Promise.all([
+    resolveCatalogAttributeLabels(supabase, tenantId, item.category_id),
+    fetchVariantPrimaryImageUrl(supabase, tenantId, row.item_id, row.id).catch(() => null),
+  ]);
 
   return {
     description: item.description?.trim() || null,

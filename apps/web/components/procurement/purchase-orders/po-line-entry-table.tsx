@@ -18,6 +18,9 @@ import {
 } from "@/lib/documents/line-column-widths";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
+import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
+import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import { usePoLineEntryActions } from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { usePoLineCatalogHydration } from "@/components/procurement/purchase-orders/use-po-line-catalog-hydration";
@@ -41,6 +44,8 @@ type Props = {
   /** Fill parent height and scroll line rows inside the table panel. */
   fillHeight?: boolean;
   layout?: DocumentLayoutTemplate;
+  entryAnchor?: PoLineEntryAnchor;
+  onEntryAnchorChange?: (anchor: PoLineEntryAnchor) => void;
   onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void;
 };
 
@@ -146,21 +151,39 @@ export function PoLineEntryTable({
   showSectionTitle = true,
   fillHeight = false,
   layout = DEFAULT_PO_SCREEN_LAYOUT,
+  entryAnchor: entryAnchorProp,
+  onEntryAnchorChange,
   onChange,
 }: Props) {
   const resolvedLayout = useMemo(() => normalizePoLayoutTemplate(layout), [layout]);
-  const actions = usePoLineEntryActions(lines, supplierId, onChange);
+  const isAnchorControlled = entryAnchorProp !== undefined;
+  const internalAnchor = usePoLineEntryAnchor(lines, onChange, {
+    enabled: !isAnchorControlled,
+  });
+  const entryAnchor = entryAnchorProp ?? internalAnchor.entryAnchor;
+  const handleEntryAnchorChange =
+    onEntryAnchorChange ?? internalAnchor.handleEntryAnchorChange;
+  const actions = usePoLineEntryActions(lines, supplierId, onChange, entryAnchor);
   usePoLineCatalogHydration(lines, onChange);
 
   useEffect(() => {
     prefetchBrowseVariants();
   }, []);
 
+  const anchorToggle = (
+    <PoLineEntryAnchorToggle
+      value={entryAnchor}
+      disabled={disabled}
+      onChange={handleEntryAnchorChange}
+    />
+  );
+
   return (
     <DocumentLineEntrySection
       title="Lines"
       fillHeight={fillHeight}
       showSectionTitle={showSectionTitle}
+      headerAction={showSectionTitle ? anchorToggle : null}
     >
       <PoLineEntryGrid
         lines={lines}

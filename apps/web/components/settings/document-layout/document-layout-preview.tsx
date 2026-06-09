@@ -15,6 +15,8 @@ import { resolvePoFormFieldsGridProps } from "@/lib/documents/po-form-layout";
 import { documentTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
 import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
+import { PREVIEW_PO_ADDRESS_BLOCKS } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import { shouldShowPoUnitUnderQtyColumn } from "@/lib/procurement/purchase-orders/po-line-unit";
 import { cn } from "@/lib/utils";
@@ -148,6 +150,10 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
       </div>
 
       <div className="rounded-md border border-border bg-muted/20 p-3 shadow-sm">
+        {previewMode === "peek" ? (
+          <PoAddressBlocks blocks={PREVIEW_PO_ADDRESS_BLOCKS} compact className="mb-3" />
+        ) : null}
+
         {headerFields.length > 0 ? (
           <div className={cn("mb-3", headerGrid.containerClassName)}>
             <div className={cn(headerGrid.gridClassName, "gap-x-3 gap-y-2")}>
@@ -170,10 +176,10 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
           </div>
         ) : null}
 
-        <div className="overflow-x-auto rounded-md border border-border bg-background">
-          <table className="w-full min-w-0 border-collapse text-sm">
+        <div className="table-chrome-frame overflow-x-auto rounded-md border border-border bg-background">
+          <table data-header-tone="subtle" className="table-chrome w-full min-w-0 border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="w-8 px-1 py-1.5 text-center font-medium">#</th>
                 {lineColumns.map((column) => (
                   <th

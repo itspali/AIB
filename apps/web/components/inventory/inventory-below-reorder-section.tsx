@@ -32,9 +32,12 @@ export function InventoryBelowReorderSection({ rows, totalCount }: Props) {
         </Link>
       </div>
 
-      <div className="surface-inset overflow-auto rounded-lg">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+      <div className="surface-inset table-chrome-frame overflow-auto rounded-lg">
+        <table
+          data-header-tone="subtle"
+          className="table-chrome w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm"
+        >
+          <thead className="text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="p-2.5 font-medium">Location</th>
               <th className="p-2.5 font-medium">Item</th>

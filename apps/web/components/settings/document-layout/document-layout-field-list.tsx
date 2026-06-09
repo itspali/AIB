@@ -359,15 +359,16 @@ export function DocumentLayoutFieldList<TId extends string>({
     showPresentationColumns || showAlignColumn || showDecimalsColumn || showTypographyColumns;
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <div className="table-chrome-frame overflow-x-auto rounded-md border border-border">
       <table
+        data-header-tone="subtle"
         className={cn(
-          "w-full text-xs",
+          "table-chrome w-full border-separate border-spacing-0 text-xs",
           isWideTable ? "min-w-[56rem] table-auto" : "min-w-[20rem] table-fixed"
         )}
       >
         <thead>
-          <tr className="border-b border-border bg-muted/40 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b border-border text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <th className="w-7 px-1 py-1.5" aria-label="Reorder" />
             <th className="w-11 py-1.5 pl-1 pr-3 text-left">Show</th>
             <th className={cn("py-1.5 pl-1 pr-2 text-left", isWideTable ? "min-w-[10rem]" : "")}>

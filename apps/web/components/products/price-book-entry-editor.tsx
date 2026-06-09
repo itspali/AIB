@@ -261,10 +261,10 @@ export function PriceBookEntryEditor({ itemId, variants, uomCodes, readOnly = fa
         {currentBook && <Badge variant="active">{currentBook.currency_code}</Badge>}
       </div>
 
-      <div className="surface-inset overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="surface-inset table-chrome-frame overflow-x-auto">
+        <table data-header-tone="subtle" className="table-chrome w-full border-separate border-spacing-0 text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-left">
+            <tr className="border-b border-border text-left">
               <th className="p-3 font-medium text-muted-foreground">Variant</th>
               <th className="p-3 font-medium text-muted-foreground">Unit</th>
               <th className="p-3 text-right font-medium text-muted-foreground">Min qty</th>

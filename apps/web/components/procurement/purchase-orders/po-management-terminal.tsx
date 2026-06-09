@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { loadPurchaseOrders } from "@/app/procurement/purchase-orders/actions";
 import { PoDrawerForm } from "@/components/procurement/purchase-orders/po-drawer-form";
 import { PoEmptyState } from "@/components/procurement/purchase-orders/po-empty-state";
@@ -31,6 +32,7 @@ import type {
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
@@ -44,6 +46,7 @@ type Props = {
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
+  organizationBillTo: OrganizationBillToSnapshot;
 };
 
 export function PoManagementTerminal({
@@ -55,6 +58,7 @@ export function PoManagementTerminal({
   defaultCurrency,
   documentLayout: initialDocumentLayout,
   preferredDestinationLocationId = null,
+  organizationBillTo,
 }: Props) {
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF);
   const documentLayout = useLivePoDocumentLayout(initialDocumentLayout, {
@@ -77,8 +81,15 @@ export function PoManagementTerminal({
 
   const refreshList = useCallback(() => {
     startRefreshTransition(async () => {
-      const nextOrders = await loadPurchaseOrders();
-      setPurchaseOrders(nextOrders);
+      try {
+        const nextOrders = await loadPurchaseOrders();
+        setPurchaseOrders(nextOrders);
+      } catch (error) {
+        console.error("[PoManagementTerminal] refresh failed", error);
+        toast.error(
+          error instanceof Error ? error.message : "Unable to refresh purchase orders."
+        );
+      }
     });
   }, []);
 
@@ -242,6 +253,7 @@ export function PoManagementTerminal({
         defaultCurrency={defaultCurrency}
         preferredDestinationLocationId={preferredDestinationLocationId}
         documentLayout={documentLayout}
+        organizationBillTo={organizationBillTo}
       />
     </>
   );

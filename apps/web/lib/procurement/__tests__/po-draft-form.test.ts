@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyPoLine,
   defaultPoDraftForm,
+  ensureLeadingPoLine,
   ensureTrailingPoLine,
   filterSavablePoLines,
   isPoLineComplete,
+  normalizePoLinesForAnchor,
   supplierDefaultCurrency,
 } from "@/lib/procurement/purchase-orders/draft-form";
 
@@ -27,6 +29,31 @@ describe("po draft form line helpers", () => {
     const next = ensureTrailingPoLine([complete]);
     expect(next).toHaveLength(2);
     expect(isPoLineComplete(next[1]!)).toBe(false);
+  });
+
+  it("prepends a leading blank row when the first line is complete", () => {
+    const complete = {
+      ...createEmptyPoLine(),
+      variant_id: "b162d4b9-0c3e-5d6f-9a2b-3c4d5e6f7a8b",
+      quantity_ordered: "2",
+    };
+    const next = ensureLeadingPoLine([complete]);
+    expect(next).toHaveLength(2);
+    expect(isPoLineComplete(next[0]!)).toBe(false);
+    expect(next[1]).toEqual(complete);
+  });
+
+  it("moves the blank entry row when normalizing for top anchor", () => {
+    const complete = {
+      ...createEmptyPoLine(),
+      variant_id: "b162d4b9-0c3e-5d6f-9a2b-3c4d5e6f7a8b",
+      quantity_ordered: "2",
+    };
+    const trailing = createEmptyPoLine();
+    const normalized = normalizePoLinesForAnchor([complete, trailing], "top");
+    expect(normalized).toHaveLength(2);
+    expect(isPoLineComplete(normalized[0]!)).toBe(false);
+    expect(normalized[1]?.variant_id).toBe(complete.variant_id);
   });
 
   it("filters incomplete trailing rows before save", () => {

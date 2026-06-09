@@ -94,10 +94,10 @@ export function PurchaseOrderEditDelegateSection({
           users.
         </p>
       ) : (
-        <div className="surface-inset overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="surface-inset table-chrome-frame overflow-x-auto">
+          <table data-header-tone="subtle" className="table-chrome w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/40 text-left">
+              <tr className="border-b border-border text-left">
                 <th className="p-3 font-medium text-muted-foreground">Employee</th>
                 <th className="p-3 font-medium text-muted-foreground">Work email</th>
                 <th className="p-3 font-medium text-muted-foreground">Granted</th>

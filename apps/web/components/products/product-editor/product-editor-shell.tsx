@@ -3044,9 +3044,9 @@ export function ProductEditorShell({
                       compact={isPanelLayout}
                     />
                     <div className={editorInsetTableWrapClass(isPanelLayout)}>
-                      <table className="w-full text-sm">
+                      <table data-header-tone="subtle" className="table-chrome w-full border-separate border-spacing-0 text-sm">
                         <thead>
-                          <tr className="border-b border-border bg-muted/40 text-left">
+                          <tr className="border-b border-border text-left">
                             <th className="p-3 font-medium text-muted-foreground">Location</th>
                             <th className="p-3 font-medium text-muted-foreground">On hand</th>
                             <th className="p-3 font-medium text-muted-foreground">MWAC</th>

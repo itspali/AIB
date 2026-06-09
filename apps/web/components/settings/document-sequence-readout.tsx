@@ -17,10 +17,10 @@ export function DocumentSequenceReadout({ rows }: Props) {
   }
 
   return (
-    <div className="surface-inset overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="surface-inset table-chrome-frame overflow-x-auto">
+      <table data-header-tone="subtle" className="table-chrome w-full border-separate border-spacing-0 text-sm">
         <thead>
-          <tr className="border-b border-border bg-muted/40 text-left">
+          <tr className="border-b border-border text-left">
             <th className="p-3 font-medium text-muted-foreground">Voucher type</th>
             <th className="p-3 font-medium text-muted-foreground">Prefix</th>
             <th className="p-3 font-medium text-muted-foreground">Next value</th>

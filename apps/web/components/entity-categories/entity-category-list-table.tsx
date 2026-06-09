@@ -185,7 +185,7 @@ export function EntityCategoryListTable({
         <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
           <table className={listTableElementClass("narrow", compactRows)}>
             <thead>
-              <tr className="bg-muted text-left">
+              <tr className="text-left">
                 <th
                   ref={selectionColumnRef}
                   className={cn(

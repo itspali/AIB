@@ -14,8 +14,10 @@ import type {
   StockVariantOption,
 } from "@/lib/inventory/stock/types";
 import { resolveStockVariantBlockedReason } from "@/lib/inventory/stock/variant-eligibility";
+import { filterUserCustomFieldEntries } from "@/lib/products/catalog-reserved-fields";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
+import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 
 /** Disambiguate composite tenant FK embeds on item_valuations. */
 const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
@@ -343,6 +345,8 @@ export async function fetchStockAdjustmentById(
 
 type VariantItemJoin = {
   name: string;
+  description: string | null;
+  hsn_sac_code: string | null;
   track_inventory: boolean;
   tracking_mode: string;
   base_unit_of_measure: string;
@@ -354,8 +358,22 @@ type VariantSearchDbRow = {
   sku: string;
   item_id: string;
   is_sellable: boolean;
+  variant_attributes: Record<string, unknown> | null;
   items: VariantItemJoin | VariantItemJoin[] | null;
 };
+
+function mapSuggestionCustomFields(
+  raw: Record<string, unknown> | null | undefined
+): Record<string, string> {
+  if (!raw) return {};
+  const entries = Object.entries(raw).map(([key, value]) => ({
+    key,
+    value: value == null ? "" : String(value),
+  }));
+  return Object.fromEntries(
+    filterUserCustomFieldEntries(entries).map((row) => [row.key, row.value])
+  );
+}
 
 function escapeIlikePattern(value: string): string {
   return value.replace(/[%_\\]/g, "\\$&");
@@ -384,6 +402,10 @@ function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
     blocked_reason: blockedReason,
     image_url: null,
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
+    description: item?.description?.trim() || null,
+    hsn_sac_code: item?.hsn_sac_code?.trim() || null,
+    variant_attributes: Object.fromEntries(listVariantAttributeEntries(row.variant_attributes)),
+    custom_fields: mapSuggestionCustomFields(item?.custom_fields),
   };
 }
 
@@ -480,7 +502,8 @@ const VARIANT_SEARCH_SELECT = `
   sku,
   item_id,
   is_sellable,
-  ${VARIANT_ITEM_EMBED}!inner (name, track_inventory, tracking_mode, base_unit_of_measure, custom_fields)
+  variant_attributes,
+  ${VARIANT_ITEM_EMBED}!inner (name, description, hsn_sac_code, track_inventory, tracking_mode, base_unit_of_measure, custom_fields)
 `;
 
 async function queryVariantSearchResults(

@@ -29,11 +29,15 @@ import {
   shouldShowPoUnitUnderQtyColumn,
 } from "@/lib/procurement/purchase-orders/po-line-unit";
 import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
 import { cn } from "@/lib/utils";
+import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
+import { resolvePoAddressBlocksForOrder } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
 
 type Props = {
   order: PurchaseOrderRow;
   layout?: DocumentLayoutTemplate;
+  organizationBillTo: OrganizationBillToSnapshot;
 };
 
 function resolvePeekHeaderValue(
@@ -279,9 +283,17 @@ function PeekLineValueCell({
   );
 }
 
-export function PoPeekView({ order, layout = DEFAULT_PO_SCREEN_LAYOUT }: Props) {
+export function PoPeekView({
+  order,
+  layout = DEFAULT_PO_SCREEN_LAYOUT,
+  organizationBillTo,
+}: Props) {
   const customFields = parsePurchaseOrderCustomFields(order.custom_fields);
   const resolvedLayout = useMemo(() => normalizePoLayoutTemplate(layout), [layout]);
+  const addressBlocks = useMemo(
+    () => resolvePoAddressBlocksForOrder(order, organizationBillTo),
+    [order, organizationBillTo]
+  );
   const headerFields = getVisibleHeaderFields(resolvedLayout);
   const lineColumns = useMemo(() => getPoPeekLineColumns(resolvedLayout), [resolvedLayout]);
   const nestedColumns = useMemo(() => getItemDetailLineFields(resolvedLayout), [resolvedLayout]);
@@ -298,6 +310,8 @@ export function PoPeekView({ order, layout = DEFAULT_PO_SCREEN_LAYOUT }: Props) 
 
   return (
     <div className="space-y-6">
+      {addressBlocks.length > 0 ? <PoAddressBlocks blocks={addressBlocks} /> : null}
+
       {gridFields.length > 0 ? (
         <div className={cn("min-w-0", headerGrid.containerClassName)}>
           <div className={cn(headerGrid.gridClassName, "gap-x-3 gap-y-4")}>

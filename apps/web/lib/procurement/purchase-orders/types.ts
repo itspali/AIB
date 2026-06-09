@@ -22,6 +22,17 @@ export type PurchaseOrderLineRow = {
   base_unit_of_measure?: string | null;
 };
 
+export type PurchaseOrderPartyAddress = {
+  name: string;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  zip_postal: string | null;
+  country_code: string | null;
+  tax_identifier: string | null;
+};
+
 export type PurchaseOrderRow = {
   id: string;
   voucher_number: string;
@@ -30,6 +41,8 @@ export type PurchaseOrderRow = {
   destination_location_code: string;
   supplier_id: string;
   supplier_name: string;
+  supplier_address: PurchaseOrderPartyAddress | null;
+  destination_address: PurchaseOrderPartyAddress | null;
   document_status: PurchaseOrderStatus;
   currency_code: string;
   payment_terms_days: number;

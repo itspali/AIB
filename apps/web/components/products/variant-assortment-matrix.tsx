@@ -661,16 +661,19 @@ export const VariantAssortmentMatrix = forwardRef<
 
       <div
         className={cn(
-          "max-w-full overflow-x-auto",
+          "table-chrome-frame max-w-full overflow-x-auto",
           embedded ? "rounded-md border border-border/60" : "surface-inset"
         )}
       >
-        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+        <table
+          data-header-tone="subtle"
+          className="table-chrome w-max min-w-full border-separate border-spacing-0 text-sm"
+        >
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-left">
+            <tr className="border-b border-border text-left">
               <th
                 rowSpan={2}
-                className="sticky left-0 z-10 w-10 bg-muted/40 px-2 py-1.5 align-middle"
+                className="sticky left-0 z-10 w-10 px-2 py-1.5 align-middle"
               >
                 {!readOnly ? (
                   <VariantMatrixSelectHeader
@@ -683,7 +686,7 @@ export const VariantAssortmentMatrix = forwardRef<
               </th>
               <th
                 rowSpan={2}
-                className="sticky left-10 z-10 min-w-[7rem] bg-muted/40 px-2 py-1.5 align-middle text-xs font-medium text-muted-foreground"
+                className="sticky left-10 z-10 min-w-[7rem] px-2 py-1.5 align-middle text-xs font-medium text-muted-foreground"
               >
                 Variant
               </th>

@@ -164,9 +164,12 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             .
           </div>
         ) : (
-          <div className="surface-inset overflow-auto rounded-lg">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+          <div className="surface-inset table-chrome-frame overflow-auto rounded-lg">
+            <table
+              data-header-tone="subtle"
+              className="table-chrome w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm"
+            >
+              <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="p-2.5 font-medium">Document</th>
                   <th className="p-2.5 font-medium">From</th>
@@ -231,9 +234,12 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             .
           </div>
         ) : (
-          <div className="surface-inset overflow-auto rounded-lg">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+          <div className="surface-inset table-chrome-frame overflow-auto rounded-lg">
+            <table
+              data-header-tone="subtle"
+              className="table-chrome w-full min-w-[640px] border-separate border-spacing-0 text-left text-sm"
+            >
+              <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="p-2.5 font-medium">Document</th>
                   <th className="p-2.5 font-medium">Location</th>

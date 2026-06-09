@@ -142,7 +142,7 @@ export function UomManagementTerminal({ initialRows, canManage }: Props) {
         </div>
       ) : (
         <Card className="overflow-hidden p-0">
-          <table className="w-full border-collapse text-sm">
+          <table className="table-chrome w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr className="border-b border-border/80 text-xs uppercase tracking-wide text-muted-foreground dark:border-white/10">
                 <th className="px-4 py-2.5 text-left font-medium">Code</th>

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   PurchaseOrderLineRow,
+  PurchaseOrderPartyAddress,
   PurchaseOrderRow,
   PurchaseOrderStatus,
   ReceivablePurchaseOrderOption,
@@ -9,21 +10,154 @@ import type {
 const DESTINATION_LOCATION_EMBED =
   "destination_location:tenant_locations!purchase_orders_location_tenant_fk";
 const SUPPLIER_EMBED = "supplier:entities!purchase_orders_supplier_tenant_fk";
-const CREATED_BY_EMBED = "created_by_user:users!purchase_orders_created_by_fkey";
 const PO_ITEMS_EMBED =
   "po_lines:purchase_order_items!purchase_order_items_po_tenant_fk";
 
-type LocationEmbed = { name: string; code: string } | { name: string; code: string }[] | null;
-type SupplierEmbed = { name: string } | { name: string }[] | null;
-type CreatorEmbed =
-  | { first_name: string; last_name: string }
-  | { first_name: string; last_name: string }[]
+const PO_DESTINATION_ADDRESS_FIELDS = `
+        name,
+        code,
+        address_line1,
+        address_line2,
+        city,
+        state,
+        zip_postal,
+        country_code,
+        location_tax_identifier,
+        tax_registered_name
+      `;
+
+const PO_SUPPLIER_ADDRESS_FIELDS = `
+        name,
+        legal_name,
+        billing_address_line1,
+        billing_address_line2,
+        billing_city,
+        billing_state,
+        billing_zip_postal,
+        billing_country_code,
+        tax_registration_number
+      `;
+
+const PO_DESTINATION_MINIMAL_FIELDS = "name, code";
+const PO_SUPPLIER_MINIMAL_FIELDS = "name";
+
+function isRecoverablePoSelectError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("could not find") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("column") ||
+    normalized.includes("relationship") ||
+    normalized.includes("foreign key")
+  );
+}
+
+function buildPurchaseOrderListSelect(options: {
+  includeAddresses: boolean;
+  includeLineIds: boolean;
+}): string {
+  const destinationFields = options.includeAddresses
+    ? PO_DESTINATION_ADDRESS_FIELDS
+    : PO_DESTINATION_MINIMAL_FIELDS;
+  const supplierFields = options.includeAddresses
+    ? PO_SUPPLIER_ADDRESS_FIELDS
+    : PO_SUPPLIER_MINIMAL_FIELDS;
+
+  return `
+      id,
+      voucher_number,
+      destination_location_id,
+      supplier_id,
+      document_status,
+      currency_code,
+      payment_terms_days,
+      total_gross_amount,
+      total_net_amount,
+      custom_fields,
+      created_by,
+      created_at,
+      updated_at,
+      ${DESTINATION_LOCATION_EMBED} (${destinationFields}),
+      ${SUPPLIER_EMBED} (${supplierFields}),
+      ${PO_ITEMS_EMBED} (id)
+    `;
+}
+
+type LocationEmbed =
+  | {
+      name: string;
+      code: string;
+      address_line1?: string | null;
+      address_line2?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zip_postal?: string | null;
+      country_code?: string | null;
+      location_tax_identifier?: string | null;
+      tax_registered_name?: string | null;
+    }
+  | Array<{
+      name: string;
+      code: string;
+      address_line1?: string | null;
+      address_line2?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zip_postal?: string | null;
+      country_code?: string | null;
+      location_tax_identifier?: string | null;
+      tax_registered_name?: string | null;
+    }>
+  | null;
+type SupplierEmbed =
+  | {
+      name: string;
+      legal_name?: string | null;
+      billing_address_line1?: string | null;
+      billing_address_line2?: string | null;
+      billing_city?: string | null;
+      billing_state?: string | null;
+      billing_zip_postal?: string | null;
+      billing_country_code?: string | null;
+      tax_registration_number?: string | null;
+    }
+  | Array<{
+      name: string;
+      legal_name?: string | null;
+      billing_address_line1?: string | null;
+      billing_address_line2?: string | null;
+      billing_city?: string | null;
+      billing_state?: string | null;
+      billing_zip_postal?: string | null;
+      billing_country_code?: string | null;
+      tax_registration_number?: string | null;
+    }>
   | null;
 
-function formatCreatorName(creator: CreatorEmbed): string {
-  const user = resolveJoin(creator);
-  if (!user) return "";
-  return `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
+async function hydratePurchaseOrderCreatorNames(
+  supabase: SupabaseClient,
+  rows: PurchaseOrderRow[]
+): Promise<void> {
+  const creatorIds = [...new Set(rows.map((row) => row.created_by).filter(Boolean))];
+  if (creatorIds.length === 0) return;
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, first_name, last_name")
+    .in("id", creatorIds);
+
+  if (error || !data?.length) return;
+
+  const nameById = new Map(
+    data.map((user) => [
+      user.id as string,
+      `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim(),
+    ])
+  );
+
+  for (const row of rows) {
+    row.created_by_name = nameById.get(row.created_by) ?? "";
+  }
 }
 
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
@@ -54,7 +188,6 @@ type PoListDbRow = {
   updated_at: string;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
-  created_by_user: CreatorEmbed;
   po_lines: Array<{ id: string }> | null;
 };
 
@@ -69,6 +202,62 @@ type PoLineDbRow = {
   items: { name: string; base_unit_of_measure?: string | null } | { name: string; base_unit_of_measure?: string | null }[] | null;
   item_variants: { sku: string } | { sku: string }[] | null;
 };
+
+function mapSupplierAddress(
+  supplier: ReturnType<typeof resolveJoin<NonNullable<SupplierEmbed>>>,
+  fallbackName: string
+): PurchaseOrderPartyAddress | null {
+  if (!supplier) return null;
+
+  const name = supplier.legal_name?.trim() || supplier.name?.trim() || fallbackName.trim();
+  const address: PurchaseOrderPartyAddress = {
+    name,
+    address_line1: supplier.billing_address_line1?.trim() || null,
+    address_line2: supplier.billing_address_line2?.trim() || null,
+    city: supplier.billing_city?.trim() || null,
+    state: supplier.billing_state?.trim() || null,
+    zip_postal: supplier.billing_zip_postal?.trim() || null,
+    country_code: supplier.billing_country_code?.trim() || null,
+    tax_identifier: supplier.tax_registration_number?.trim() || null,
+  };
+
+  if (
+    !address.address_line1 &&
+    !address.address_line2 &&
+    !address.city &&
+    !address.state &&
+    !address.zip_postal &&
+    !address.country_code &&
+    !address.tax_identifier
+  ) {
+    return name ? { ...address, name } : null;
+  }
+
+  return address;
+}
+
+function mapDestinationAddress(
+  destination: ReturnType<typeof resolveJoin<NonNullable<LocationEmbed>>>,
+  fallbackName: string
+): PurchaseOrderPartyAddress | null {
+  if (!destination) return null;
+
+  const name =
+    destination.tax_registered_name?.trim() ||
+    destination.name?.trim() ||
+    fallbackName.trim();
+
+  return {
+    name,
+    address_line1: destination.address_line1?.trim() || null,
+    address_line2: destination.address_line2?.trim() || null,
+    city: destination.city?.trim() || null,
+    state: destination.state?.trim() || null,
+    zip_postal: destination.zip_postal?.trim() || null,
+    country_code: destination.country_code?.trim() || null,
+    tax_identifier: destination.location_tax_identifier?.trim() || null,
+  };
+}
 
 function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
   const item = resolveJoin(row.items);
@@ -95,6 +284,7 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
 function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
   const destination = resolveJoin(row.destination_location);
   const supplier = resolveJoin(row.supplier);
+  const supplierName = supplier?.name ?? "";
 
   return {
     id: row.id,
@@ -103,7 +293,9 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     destination_location_name: destination?.name ?? "",
     destination_location_code: destination?.code ?? "",
     supplier_id: row.supplier_id,
-    supplier_name: supplier?.name ?? "",
+    supplier_name: supplierName,
+    supplier_address: mapSupplierAddress(supplier, supplierName),
+    destination_address: mapDestinationAddress(destination, destination?.name ?? ""),
     document_status: row.document_status as PurchaseOrderStatus,
     currency_code: row.currency_code ?? "USD",
     payment_terms_days: Number(row.payment_terms_days) || 0,
@@ -112,7 +304,7 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     total_net_amount: formatDecimal(row.total_net_amount),
     custom_fields: row.custom_fields ?? {},
     created_by: row.created_by,
-    created_by_name: formatCreatorName(row.created_by_user),
+    created_by_name: "",
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -127,31 +319,14 @@ export async function fetchPurchaseOrders(
     status?: PurchaseOrderStatus | null;
   }
 ): Promise<PurchaseOrderRow[]> {
-  let query = supabase
-    .from("purchase_orders")
-    .select(
-      `
-      id,
-      voucher_number,
-      destination_location_id,
-      supplier_id,
-      document_status,
-      currency_code,
-      payment_terms_days,
-      total_gross_amount,
-      total_net_amount,
-      custom_fields,
-      created_by,
-      created_at,
-      updated_at,
-      ${DESTINATION_LOCATION_EMBED} (name, code),
-      ${SUPPLIER_EMBED} (name),
-      ${CREATED_BY_EMBED} (first_name, last_name),
-      ${PO_ITEMS_EMBED} (id)
-    `
-    )
-    .eq("tenant_id", tenantId)
-    .order("updated_at", { ascending: false });
+  const runQuery = (includeAddresses: boolean) =>
+    supabase
+      .from("purchase_orders")
+      .select(buildPurchaseOrderListSelect({ includeAddresses, includeLineIds: true }))
+      .eq("tenant_id", tenantId)
+      .order("updated_at", { ascending: false });
+
+  let query = runQuery(true);
 
   if (options?.locationId) {
     query = query.eq("destination_location_id", options.locationId);
@@ -163,10 +338,26 @@ export async function fetchPurchaseOrders(
     query = query.eq("document_status", options.status);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  if (error && isRecoverablePoSelectError(error.message)) {
+    let fallbackQuery = runQuery(false);
+    if (options?.locationId) {
+      fallbackQuery = fallbackQuery.eq("destination_location_id", options.locationId);
+    } else if (options?.locationIds?.length) {
+      fallbackQuery = fallbackQuery.in("destination_location_id", options.locationIds);
+    }
+    if (options?.status) {
+      fallbackQuery = fallbackQuery.eq("document_status", options.status);
+    }
+    ({ data, error } = await fallbackQuery);
+  }
+
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((row) => mapPoListRow(row as PoListDbRow));
+  const rows = (data ?? []).map((row) => mapPoListRow(row as PoListDbRow));
+  await hydratePurchaseOrderCreatorNames(supabase, rows);
+  return rows;
 }
 
 export async function fetchPurchaseOrderById(
@@ -174,10 +365,11 @@ export async function fetchPurchaseOrderById(
   tenantId: string,
   purchaseOrderId: string
 ): Promise<PurchaseOrderRow | null> {
-  const { data, error } = await supabase
-    .from("purchase_orders")
-    .select(
-      `
+  const runQuery = (includeAddresses: boolean) =>
+    supabase
+      .from("purchase_orders")
+      .select(
+        `
       id,
       voucher_number,
       destination_location_id,
@@ -191,9 +383,8 @@ export async function fetchPurchaseOrderById(
       created_by,
       created_at,
       updated_at,
-      ${DESTINATION_LOCATION_EMBED} (name, code),
-      ${SUPPLIER_EMBED} (name),
-      ${CREATED_BY_EMBED} (first_name, last_name),
+      ${DESTINATION_LOCATION_EMBED} (${includeAddresses ? PO_DESTINATION_ADDRESS_FIELDS : PO_DESTINATION_MINIMAL_FIELDS}),
+      ${SUPPLIER_EMBED} (${includeAddresses ? PO_SUPPLIER_ADDRESS_FIELDS : PO_SUPPLIER_MINIMAL_FIELDS}),
       ${PO_ITEMS_EMBED} (
         id,
         item_id,
@@ -206,10 +397,16 @@ export async function fetchPurchaseOrderById(
         item_variants!purchase_order_items_variant_tenant_fk (sku)
       )
     `
-    )
-    .eq("tenant_id", tenantId)
-    .eq("id", purchaseOrderId)
-    .maybeSingle();
+      )
+      .eq("tenant_id", tenantId)
+      .eq("id", purchaseOrderId)
+      .maybeSingle();
+
+  let { data, error } = await runQuery(true);
+
+  if (error && isRecoverablePoSelectError(error.message)) {
+    ({ data, error } = await runQuery(false));
+  }
 
   if (error) throw new Error(error.message);
   if (!data) return null;
@@ -217,6 +414,7 @@ export async function fetchPurchaseOrderById(
   const row = data as PoListDbRow & { po_lines?: PoLineDbRow[] | null };
   const mapped = mapPoListRow(row);
   mapped.lines = (row.po_lines ?? []).map(mapPoLine);
+  await hydratePurchaseOrderCreatorNames(supabase, [mapped]);
   return mapped;
 }
 

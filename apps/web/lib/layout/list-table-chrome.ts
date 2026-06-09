@@ -90,7 +90,7 @@ export const LIST_TABLE_ROOT =
 
 /** Rounded outer frame; pair with {@link LIST_TABLE_ROOT}. */
 export const LIST_TABLE_SURFACE =
-  "surface-inset absolute inset-0 flex flex-col overflow-hidden !bg-background";
+  "surface-inset table-chrome-frame absolute inset-0 flex flex-col overflow-hidden !bg-background";
 
 export const LIST_TABLE_SCROLL =
   "min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain bg-background pb-px";
@@ -101,7 +101,7 @@ export const LIST_TABLE_SCROLL =
  * via {@link stretchListTableColumnWidth} when it has no user-resized width.
  */
 export const LIST_TABLE_ELEMENT_BASE =
-  "w-full min-w-full border-separate border-spacing-0 bg-background text-left text-sm [&_td]:box-border [&_th]:box-border";
+  "table-chrome w-full min-w-full border-separate border-spacing-0 bg-background text-left text-sm [&_td]:box-border [&_th]:box-border";
 export const LIST_TABLE_MIN_WIDTH = {
   narrow: "min-w-[720px]",
   medium: "min-w-[760px]",

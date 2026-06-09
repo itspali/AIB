@@ -8,6 +8,7 @@ import {
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
 import { fetchPurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
+import { mapOrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import {
   fetchProcurementLocations,
   fetchProcurementSuppliers,
@@ -23,7 +24,13 @@ export async function PoCatalogLoader() {
       fetchProcurementSuppliers(supabase, tenantId),
       resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
       fetchProcurementSettings(supabase, tenantId),
-      supabase.from("tenants").select("base_currency").eq("id", tenantId).maybeSingle(),
+      supabase
+        .from("tenants")
+        .select(
+          "base_currency, name, legal_name, trade_name, tax_identifier, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_zip_postal, billing_country_code"
+        )
+        .eq("id", tenantId)
+        .maybeSingle(),
       resolveEffectiveDocumentLayout({
         supabase,
         tenantId,
@@ -40,6 +47,7 @@ export async function PoCatalogLoader() {
   );
 
   const defaultCurrency = (tenantRow.data?.base_currency as string | undefined) ?? "USD";
+  const organizationBillTo = mapOrganizationBillToSnapshot(tenantRow.data ?? {});
   const preferredDestinationLocationId = preferredPurchaseOrderDestinationId(
     scopedLocations,
     editAccess.locationScope
@@ -57,6 +65,7 @@ export async function PoCatalogLoader() {
       defaultCurrency={defaultCurrency}
       documentLayout={documentLayout}
       preferredDestinationLocationId={preferredDestinationLocationId ?? null}
+      organizationBillTo={organizationBillTo}
     />
   );
 }

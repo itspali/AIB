@@ -149,7 +149,9 @@ export function editorToggleGroupClass(panel: boolean) {
 }
 
 export function editorInsetTableWrapClass(panel: boolean) {
-  return panel ? "overflow-x-auto" : "overflow-x-auto rounded-lg border border-border";
+  return panel
+    ? "table-chrome-frame overflow-x-auto"
+    : "table-chrome-frame overflow-x-auto rounded-lg border border-border";
 }
 
 /** Panel width at or below which section tabs move to the top strip (not left rail). */

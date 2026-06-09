@@ -194,6 +194,7 @@ type SectionProps = {
   title?: string;
   fillHeight?: boolean;
   showSectionTitle?: boolean;
+  headerAction?: ReactNode;
 };
 
 export function DocumentLineEntrySection({
@@ -201,13 +202,21 @@ export function DocumentLineEntrySection({
   title = "Lines",
   fillHeight = false,
   showSectionTitle = true,
+  headerAction,
 }: SectionProps) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", fillHeight && "min-h-0 flex-1")}>
-      {showSectionTitle ? (
-        <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
-        </p>
+      {showSectionTitle || headerAction ? (
+        <div className="flex shrink-0 items-center justify-between gap-3">
+          {showSectionTitle ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {title}
+            </p>
+          ) : (
+            <span className="sr-only">{title}</span>
+          )}
+          {headerAction ? <div className={cn(!showSectionTitle && "ml-auto")}>{headerAction}</div> : null}
+        </div>
       ) : (
         <span className="sr-only">{title}</span>
       )}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { VARIANT_ATTRIBUTES_ALL_ID } from "@/lib/documents/catalog-field-ids";
 import {
+  createOptimisticPoLineCatalogContextFromPicker,
   mergePoLineCatalogContext,
   needsPoLineCatalogHydration,
   resolveCatalogLineFieldDisplay,
@@ -60,6 +61,29 @@ describe("resolveCatalogLineFieldDisplay", () => {
         null
       )
     ).toBeNull();
+  });
+});
+
+describe("createOptimisticPoLineCatalogContextFromPicker", () => {
+  it("includes picker catalog fields for immediate layout rendering", () => {
+    const context = createOptimisticPoLineCatalogContextFromPicker({
+      image_url: "https://cdn.example/item.jpg",
+      base_unit_of_measure: "EA",
+      description: "Widget",
+      hsn_sac_code: "8471",
+      variant_attributes: { Color: "Red" },
+      custom_fields: { brand: "Acme" },
+    });
+
+    expect(context.catalog_snapshot_source).toBe("optimistic");
+    expect(context.variant_attributes.Color).toBe("Red");
+    expect(context.custom_fields.brand).toBe("Acme");
+    expect(
+      resolveCatalogLineFieldDisplay(
+        createPoCatalogFieldPref("variant_attribute", "Color"),
+        context
+      )
+    ).toBe("Red");
   });
 });
 

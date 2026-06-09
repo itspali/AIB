@@ -5,6 +5,7 @@ import {
 } from "@/lib/procurement/purchase-orders/custom-fields";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
+import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
 
 export type PoDraftLine = {
@@ -59,6 +60,59 @@ export function ensureTrailingPoLine(lines: PoDraftLine[]): PoDraftLine[] {
     return [...lines, createEmptyPoLine()];
   }
   return lines;
+}
+
+/** Keeps a leading empty row for top-anchored spreadsheet entry. */
+export function ensureLeadingPoLine(lines: PoDraftLine[]): PoDraftLine[] {
+  const first = lines[0];
+  if (!first || isPoLineComplete(first)) {
+    return [createEmptyPoLine(), ...lines];
+  }
+  return lines;
+}
+
+export function ensureEntryPoLine(
+  lines: PoDraftLine[],
+  anchor: PoLineEntryAnchor = "bottom"
+): PoDraftLine[] {
+  return anchor === "top" ? ensureLeadingPoLine(lines) : ensureTrailingPoLine(lines);
+}
+
+export function resolvePoEntryLineKey(
+  lines: PoDraftLine[],
+  anchor: PoLineEntryAnchor = "bottom"
+): string | null {
+  if (!lines.length) return null;
+  return anchor === "top" ? lines[0]!.key : lines.at(-1)!.key;
+}
+
+export function isPoEntryLineKey(
+  lineKey: string,
+  lines: PoDraftLine[],
+  anchor: PoLineEntryAnchor = "bottom"
+): boolean {
+  return resolvePoEntryLineKey(lines, anchor) === lineKey;
+}
+
+/** Move the blank entry row to the configured edge; drop extra blank rows. */
+export function normalizePoLinesForAnchor(
+  lines: PoDraftLine[],
+  anchor: PoLineEntryAnchor
+): PoDraftLine[] {
+  const dataLines = lines.filter((line) => !isPoLineBlank(line));
+  if (!dataLines.length) return [createEmptyPoLine()];
+  return ensureEntryPoLine(dataLines, anchor);
+}
+
+export function poLinesNeedAnchorNormalization(
+  lines: PoDraftLine[],
+  anchor: PoLineEntryAnchor
+): boolean {
+  const blankLines = lines.filter(isPoLineBlank);
+  if (blankLines.length !== 1) return true;
+  const blankKey = blankLines[0]!.key;
+  if (anchor === "top") return lines[0]?.key !== blankKey;
+  return lines.at(-1)?.key !== blankKey;
 }
 
 export function filterSavablePoLines(lines: PoDraftLine[]): PoDraftLine[] {

@@ -38,9 +38,26 @@ export function createOptimisticPoLineCatalogContext(partial: {
   image_url?: string | null;
   base_unit_of_measure?: string | null;
 }): PoLineCatalogContext {
+  return createOptimisticPoLineCatalogContextFromPicker(partial);
+}
+
+/** Rich picker snapshot — shows layout fields immediately while server labels load. */
+export function createOptimisticPoLineCatalogContextFromPicker(partial: {
+  image_url?: string | null;
+  base_unit_of_measure?: string | null;
+  description?: string | null;
+  hsn_sac_code?: string | null;
+  variant_attributes?: Record<string, string>;
+  custom_fields?: Record<string, string>;
+}): PoLineCatalogContext {
   return {
-    ...emptyPoLineCatalogContext(partial.image_url ?? null),
+    description: partial.description?.trim() || null,
+    hsn_sac_code: partial.hsn_sac_code?.trim() || null,
     base_unit_of_measure: partial.base_unit_of_measure?.trim() || null,
+    image_url: partial.image_url?.trim() || null,
+    custom_fields: { ...(partial.custom_fields ?? {}) },
+    variant_attributes: { ...(partial.variant_attributes ?? {}) },
+    attribute_labels: {},
     catalog_snapshot_source: "optimistic",
   };
 }

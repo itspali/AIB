@@ -251,13 +251,15 @@ export function VariantChannelAvailabilityMatrix({
 
       <div
         className={
-          embedded ? "overflow-x-auto rounded-md border border-border/60" : "surface-inset overflow-x-auto"
+          embedded
+            ? "table-chrome-frame overflow-x-auto rounded-md border border-border/60"
+            : "surface-inset table-chrome-frame overflow-x-auto"
         }
       >
-        <table className="w-full text-sm">
+        <table data-header-tone="subtle" className="table-chrome w-full border-separate border-spacing-0 text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-left">
-              <th className="sticky left-0 z-10 w-10 bg-muted/40 px-2 py-1.5">
+            <tr className="border-b border-border text-left">
+              <th className="sticky left-0 z-10 w-10 px-2 py-1.5">
                 {!readOnly ? (
                   <VariantMatrixSelectHeader
                     checked={selection.allSelected}
@@ -267,7 +269,7 @@ export function VariantChannelAvailabilityMatrix({
                   />
                 ) : null}
               </th>
-              <th className="sticky left-10 z-10 min-w-[7rem] bg-muted/40 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+              <th className="sticky left-10 z-10 min-w-[7rem] px-2 py-1.5 text-xs font-medium text-muted-foreground">
                 Variant
               </th>
               {listedChannels.map((channel) => (

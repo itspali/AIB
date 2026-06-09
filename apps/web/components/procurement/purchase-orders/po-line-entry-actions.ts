@@ -2,18 +2,31 @@
 
 import { useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { lookupPoLineCatalogContext, lookupSupplierVariantPrice } from "@/app/procurement/purchase-orders/actions";
-import { mergePoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import {
+  lookupPoLineCatalogContext,
+  lookupSupplierVariantPrice,
+} from "@/app/procurement/purchase-orders/actions";
+import {
+  createOptimisticPoLineCatalogContextFromPicker,
+  mergePoLineCatalogContext,
+} from "@/lib/documents/catalog-line-values";
+import {
+  getCachedPoLineCatalogContext,
+  loadPoLineCatalogContext,
+  setCachedPoLineCatalogContext,
+} from "@/lib/documents/po-line-catalog-cache";
 import {
   getCachedVariantBaseUnit,
   getCachedVariantImageUrl,
 } from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
   createEmptyPoLine,
-  ensureTrailingPoLine,
+  ensureEntryPoLine,
+  isPoEntryLineKey,
   isPoLineComplete,
   type PoDraftLine,
 } from "@/lib/procurement/purchase-orders/draft-form";
+import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
 
 function focusInput(input: HTMLInputElement | HTMLTextAreaElement | null | undefined) {
   if (!input) return;
@@ -37,10 +50,35 @@ function resolveVariantBaseUnit(
   return patchBaseUnit?.trim() || getCachedVariantBaseUnit(variantId) || null;
 }
 
+type ItemChangePatch = Partial<PoDraftLine> & {
+  unit_cost?: string;
+  image_url?: string | null;
+  base_unit_of_measure?: string | null;
+  description?: string | null;
+  hsn_sac_code?: string | null;
+  variant_attributes?: Record<string, string>;
+  custom_fields?: Record<string, string>;
+};
+
+function buildOptimisticCatalogContext(
+  variantId: string,
+  patch: ItemChangePatch
+): PoDraftLine["catalog_context"] {
+  return createOptimisticPoLineCatalogContextFromPicker({
+    image_url: resolveVariantImageUrl(variantId, patch.image_url),
+    base_unit_of_measure: resolveVariantBaseUnit(variantId, patch.base_unit_of_measure),
+    description: patch.description,
+    hsn_sac_code: patch.hsn_sac_code,
+    variant_attributes: patch.variant_attributes,
+    custom_fields: patch.custom_fields,
+  });
+}
+
 export function usePoLineEntryActions(
   lines: PoDraftLine[],
   supplierId: string,
-  onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void
+  onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void,
+  entryAnchor: PoLineEntryAnchor = "bottom"
 ) {
   const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -50,10 +88,10 @@ export function usePoLineEntryActions(
     (key: string, patch: Partial<PoDraftLine>) => {
       onChange((current) => {
         const next = current.map((line) => (line.key === key ? { ...line, ...patch } : line));
-        return ensureTrailingPoLine(next);
+        return ensureEntryPoLine(next, entryAnchor);
       });
     },
-    [onChange]
+    [entryAnchor, onChange]
   );
 
   const focusItem = useCallback((lineKey: string) => {
@@ -81,15 +119,20 @@ export function usePoLineEntryActions(
           return { lines: currentLines, focusKey: null as string | null };
         }
 
-        const withTrailing =
-          lineIndex === currentLines.length - 1
-            ? ensureTrailingPoLine(currentLines)
-            : currentLines;
+        const onEntryEdge =
+          entryAnchor === "top" ? lineIndex === 0 : lineIndex === currentLines.length - 1;
+        const withEntryRow = onEntryEdge
+          ? ensureEntryPoLine(currentLines, entryAnchor)
+          : currentLines;
 
-        const nextLine = withTrailing[lineIndex + 1];
+        const focusKey =
+          entryAnchor === "top"
+            ? withEntryRow[0]?.key ?? null
+            : withEntryRow[lineIndex + 1]?.key ?? null;
+
         return {
-          lines: withTrailing,
-          focusKey: nextLine?.key ?? null,
+          lines: withEntryRow,
+          focusKey,
         };
       };
 
@@ -108,7 +151,7 @@ export function usePoLineEntryActions(
         return nextLines;
       });
     },
-    [focusItem, onChange]
+    [entryAnchor, focusItem, onChange]
   );
 
   const removeLine = useCallback(
@@ -116,10 +159,10 @@ export function usePoLineEntryActions(
       onChange((current) => {
         if (current.length <= 1) return [createEmptyPoLine()];
         const next = current.filter((line) => line.key !== key);
-        return ensureTrailingPoLine(next);
+        return ensureEntryPoLine(next, entryAnchor);
       });
     },
-    [onChange]
+    [entryAnchor, onChange]
   );
 
   const applySupplierPrice = useCallback(
@@ -139,6 +182,35 @@ export function usePoLineEntryActions(
   const applyCatalogContext = useCallback(
     async (lineKey: string, variantId: string, fallbackImageUrl?: string | null) => {
       if (!variantId) return;
+
+      const applyContext = (context: NonNullable<PoDraftLine["catalog_context"]>) => {
+        onChange((current) =>
+          current.map((line) => {
+            if (line.key !== lineKey) return line;
+            return {
+              ...line,
+              catalog_context: mergePoLineCatalogContext(
+                line.catalog_context,
+                context,
+                fallbackImageUrl
+              ),
+            };
+          })
+        );
+      };
+
+      const cached = getCachedPoLineCatalogContext(variantId);
+      if (cached) {
+        applyContext(cached);
+        return;
+      }
+
+      const inflight = await loadPoLineCatalogContext(variantId);
+      if (inflight) {
+        applyContext(inflight);
+        return;
+      }
+
       const result = await lookupPoLineCatalogContext({ variant_id: variantId });
       if ("error" in result) {
         toast.error(result.error ?? "Could not load item details for this line");
@@ -149,120 +221,76 @@ export function usePoLineEntryActions(
         return;
       }
 
-      onChange((current) =>
-        current.map((line) => {
-          if (line.key !== lineKey) return line;
-          return {
-            ...line,
-            catalog_context: mergePoLineCatalogContext(
-              line.catalog_context,
-              result.context,
-              fallbackImageUrl
-            ),
-          };
-        })
-      );
+      setCachedPoLineCatalogContext(variantId, result.context);
+      applyContext(result.context);
     },
     [onChange]
-  );
-
-  const seedOptimisticCatalogContext = useCallback(
-    (
-      lineKey: string,
-      updatedLine: PoDraftLine,
-      snapshot: { imageUrl: string | null; baseUnit: string | null }
-    ) => {
-      if (!snapshot.imageUrl && !snapshot.baseUnit) return;
-      patchLine(lineKey, {
-        catalog_context: mergePoLineCatalogContext(
-          updatedLine.catalog_context,
-          null,
-          snapshot.imageUrl,
-          snapshot.baseUnit
-        ),
-      });
-    },
-    [patchLine]
   );
 
   const handleVariantSelected = useCallback(
     (
       lineKey: string,
-      patch: Partial<PoDraftLine>,
+      patch: ItemChangePatch,
       updatedLine: PoDraftLine,
-      isLastLine: boolean,
       nextLines: PoDraftLine[],
-      patchImageUrl?: string | null,
-      patchBaseUnit?: string | null
+      patchImageUrl?: string | null
     ) => {
       const variantId = patch.variant_id!;
-      const imageUrl = resolveVariantImageUrl(variantId, patchImageUrl);
-      const baseUnit = resolveVariantBaseUnit(variantId, patchBaseUnit);
+      const imageUrl = resolveVariantImageUrl(variantId, patchImageUrl ?? patch.image_url);
+      const isEntryLine = isPoEntryLineKey(lineKey, nextLines, entryAnchor);
 
       void applySupplierPrice(lineKey, variantId, updatedLine.unit_price_contractual ?? "0");
-      seedOptimisticCatalogContext(lineKey, updatedLine, { imageUrl, baseUnit });
       void applyCatalogContext(lineKey, variantId, imageUrl);
 
       const qtyIsDefaultOne = Number(updatedLine.quantity_ordered) === 1;
-      if (isLastLine && qtyIsDefaultOne && variantId) {
-        advanceFromLine(lineKey, nextLines);
-        return;
-      }
-
-      focusQty(lineKey);
+      window.requestAnimationFrame(() => {
+        if (isEntryLine && qtyIsDefaultOne && variantId) {
+          advanceFromLine(lineKey, nextLines);
+          return;
+        }
+        focusQty(lineKey);
+      });
     },
-    [advanceFromLine, applyCatalogContext, applySupplierPrice, focusQty, seedOptimisticCatalogContext]
+    [advanceFromLine, applyCatalogContext, applySupplierPrice, entryAnchor, focusQty]
   );
-
-  type ItemChangePatch = Partial<PoDraftLine> & {
-    unit_cost?: string;
-    image_url?: string | null;
-    base_unit_of_measure?: string | null;
-  };
 
   const bindItemChange = useCallback(
     (lineKey: string) => (patch: ItemChangePatch) => {
-      onChange((currentLines) => {
-        const currentLine = currentLines.find((row) => row.key === lineKey);
-        if (!currentLine) return currentLines;
+      const currentLine = lines.find((row) => row.key === lineKey);
+      if (!currentLine) return;
 
-        const clearingItem = patch.variant_id === "";
-        const variantChanged =
-          Boolean(patch.variant_id) && patch.variant_id !== currentLine.variant_id;
+      const clearingItem = patch.variant_id === "";
+      const variantChanged =
+        Boolean(patch.variant_id) && patch.variant_id !== currentLine.variant_id;
 
-        const nextLines = currentLines.map((row) => {
-          if (row.key !== lineKey) return row;
-          return {
-            ...row,
-            ...patch,
-            item_id: clearingItem ? "" : patch.item_id ?? row.item_id,
-            unit_price_contractual: clearingItem
-              ? "0"
-              : patch.unit_cost ?? row.unit_price_contractual,
-            catalog_context: clearingItem ? undefined : row.catalog_context,
-          };
-        });
-
-        if (variantChanged && patch.variant_id) {
-          const updatedLine = nextLines.find((row) => row.key === lineKey)!;
-          window.requestAnimationFrame(() => {
-            handleVariantSelected(
-              lineKey,
-              patch,
-              updatedLine,
-              lineKey === currentLines.at(-1)?.key,
-              nextLines,
-              patch.image_url,
-              patch.base_unit_of_measure
-            );
-          });
-          return nextLines;
-        }
-
-        return ensureTrailingPoLine(nextLines);
+      const nextLines = lines.map((row) => {
+        if (row.key !== lineKey) return row;
+        return {
+          ...row,
+          ...patch,
+          item_id: clearingItem ? "" : patch.item_id ?? row.item_id,
+          unit_price_contractual: clearingItem
+            ? "0"
+            : patch.unit_cost ?? row.unit_price_contractual,
+          catalog_context: clearingItem
+            ? undefined
+            : variantChanged && patch.variant_id
+              ? buildOptimisticCatalogContext(patch.variant_id, patch)
+              : row.catalog_context,
+        };
       });
+
+      if (variantChanged && patch.variant_id) {
+        const updatedLine = nextLines.find((row) => row.key === lineKey)!;
+        const linesWithEntryRow = ensureEntryPoLine(nextLines, entryAnchor);
+        onChange(linesWithEntryRow);
+        handleVariantSelected(lineKey, patch, updatedLine, linesWithEntryRow, patch.image_url);
+        return;
+      }
+
+      onChange(ensureEntryPoLine(nextLines, entryAnchor));
     },
-    [handleVariantSelected, onChange]
+    [entryAnchor, handleVariantSelected, lines, onChange]
   );
 
   return {

@@ -928,10 +928,13 @@ export function ProductItemSummaryCard({
               <Row label="Costing method" value={itemCostingMethodLabel(detail.costing_method)} />
               <Row label="Tracking mode" value={itemTrackingModeLabel(detail.tracking_mode)} />
               {detail.valuations.length > 0 ? (
-                <div className="mt-2 overflow-x-auto rounded-md border border-border/60">
-                  <table className="w-full min-w-[16rem]">
+                <div className="table-chrome-frame mt-2 overflow-x-auto rounded-md border border-border/60">
+                  <table
+                    data-header-tone="subtle"
+                    className="table-chrome w-full min-w-[16rem] border-separate border-spacing-0"
+                  >
                     <thead>
-                      <tr className="border-b border-border bg-muted/40 text-left">
+                      <tr className="border-b border-border text-left">
                         <th className={cn("px-2.5 py-1.5", fieldLabelClass)}>Location</th>
                         <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>On hand</th>
                         <th className={cn("px-2.5 py-1.5 text-right", fieldLabelClass)}>Avg cost</th>
@@ -986,9 +989,9 @@ export function ProductItemSummaryCard({
             {tableVariants.length === 0 ? (
               <p className="text-sm text-muted-foreground">{VARIANTS_EMPTY_STATE}</p>
             ) : (
-              <div className="max-h-56 overflow-x-auto overflow-y-auto rounded-md border border-border/60">
-                <table className="w-max min-w-full text-sm">
-                  <thead className="sticky top-0 z-[1] bg-muted/80 backdrop-blur">
+              <div className="table-chrome-frame max-h-56 overflow-x-auto overflow-y-auto rounded-md border border-border/60">
+                <table data-header-tone="sticky" className="table-chrome w-max min-w-full border-separate border-spacing-0 text-sm">
+                  <thead className="sticky top-0 z-[1]">
                     <tr className="border-b border-border text-left">
                       <th className={cn("whitespace-nowrap px-2.5 py-1.5", fieldLabelClass)}>
                         {VARIANT_SKU_LABEL}

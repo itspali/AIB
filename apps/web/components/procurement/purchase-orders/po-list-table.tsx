@@ -118,7 +118,7 @@ export function PoListTable({
         <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
           <table className={listTableElementClass("wide")}>
             <thead>
-              <tr className="bg-muted text-left">
+              <tr className="text-left">
                 {columns.map((columnId, index) => {
                   const column = getPurchaseOrderColumnDef(columnId);
                   const active = sortField === columnId;

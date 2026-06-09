@@ -160,6 +160,62 @@
     @apply rounded-lg border border-border bg-muted/35 shadow-sm dark:bg-muted/20;
   }
 
+  /* Rounded table frames — clip scroll content; radius vars match wrapper rounding. */
+  .table-chrome-frame {
+    @apply overflow-hidden;
+    --table-chrome-radius: 0.5rem;
+  }
+
+  .table-chrome-frame.rounded-md {
+    --table-chrome-radius: 0.375rem;
+  }
+
+  .table-chrome-frame.rounded-lg,
+  .surface-inset.table-chrome-frame {
+    --table-chrome-radius: 0.5rem;
+  }
+
+  .table-chrome-frame.rounded-xl {
+    --table-chrome-radius: 0.75rem;
+  }
+
+  /* Header band: paint on <th> so top corners follow the frame curve. */
+  .table-chrome thead tr:first-child {
+    @apply bg-transparent;
+  }
+
+  .table-chrome thead tr:first-child th {
+    @apply bg-muted;
+  }
+
+  .table-chrome[data-header-tone="subtle"] thead tr:first-child th {
+    @apply bg-muted/40;
+  }
+
+  .table-chrome[data-header-tone="muted-30"] thead tr:first-child th {
+    @apply bg-muted/30;
+  }
+
+  .table-chrome[data-header-tone="muted-50"] thead tr:first-child th {
+    @apply bg-muted/50;
+  }
+
+  .table-chrome[data-header-tone="glass"] thead tr:first-child th {
+    @apply bg-white/5;
+  }
+
+  .table-chrome[data-header-tone="sticky"] thead tr:first-child th {
+    @apply bg-muted/80 backdrop-blur;
+  }
+
+  .table-chrome thead tr:first-child th:first-child {
+    border-top-left-radius: var(--table-chrome-radius, 0.5rem);
+  }
+
+  .table-chrome thead tr:first-child th:last-child {
+    border-top-right-radius: var(--table-chrome-radius, 0.5rem);
+  }
+
   /* Module drawer peek: opaque lifted surface (no transparency — list must not show through). */
   .module-drawer-peek-shell {
     @apply bg-background dark:bg-[hsl(224_47%_11%)];
@@ -194,7 +250,15 @@
   }
 
   .po-line-grid-canvas {
-    @apply bg-muted/20 dark:bg-[hsl(224_47%_9%)];
+    @apply overflow-hidden bg-muted/20 dark:bg-[hsl(224_47%_9%)];
+  }
+
+  .po-line-grid-canvas table thead tr:first-child th:first-child {
+    @apply rounded-tl-md;
+  }
+
+  .po-line-grid-canvas table thead tr:first-child th:last-child {
+    @apply rounded-tr-md;
   }
 
   /* PO header/details: container wraps grid so @container rules can target the inner grid. */

@@ -55,10 +55,10 @@ export const StepTaxRegistry = forwardRef<StepSubmitHandle, Props>(function Step
       <p className="text-sm text-muted-foreground">
         Presets are based on your country ({countryCode}). Adjust rates before saving.
       </p>
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+      <div className="table-chrome-frame overflow-x-auto rounded-md border">
+        <table data-header-tone="muted-50" className="table-chrome w-full border-separate border-spacing-0 text-sm">
           <thead>
-            <tr className="border-b bg-muted/50 text-left">
+            <tr className="border-b text-left">
               <th className="p-3 font-medium text-muted-foreground">Component</th>
               <th className="p-3 font-medium text-muted-foreground text-right">Rate %</th>
               <th className="p-3 font-medium text-muted-foreground">Active From</th>

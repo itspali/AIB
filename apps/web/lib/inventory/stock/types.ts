@@ -59,4 +59,9 @@ export type StockVariantOption = {
   blocked_reason: string | null;
   image_url: string | null;
   base_unit_of_measure: string | null;
+  /** PO line layout fields — available from variant search/browse without extra fetch. */
+  description?: string | null;
+  hsn_sac_code?: string | null;
+  variant_attributes?: Record<string, string>;
+  custom_fields?: Record<string, string>;
 };

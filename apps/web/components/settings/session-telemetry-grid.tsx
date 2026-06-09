@@ -56,9 +56,12 @@ export function SessionTelemetryGrid({ sessions, timezone, authSessionId, disabl
         <h2 className="text-xl font-semibold">Live Session Telemetry</h2>
       </div>
 
-      <div className="surface-inset overflow-x-auto">
-        <table className="w-full min-w-[420px] text-left text-sm">
-          <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+      <div className="surface-inset table-chrome-frame overflow-x-auto">
+        <table
+          data-header-tone="subtle"
+          className="table-chrome w-full min-w-[420px] border-separate border-spacing-0 text-left text-sm"
+        >
+          <thead className="text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-3 py-2 font-medium">OS / Browser</th>
               <th className="px-3 py-2 font-medium">IP</th>

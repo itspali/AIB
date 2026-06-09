@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
 import type { StockVariantOption } from "@/lib/inventory/stock/types";
+import { prefetchPoLineCatalogContext } from "@/lib/documents/po-line-catalog-cache";
 import {
   filterStockVariantSuggestions,
   getCachedBrowseVariants,
@@ -52,6 +53,10 @@ export type StockLineSkuSelection = {
   image_url?: string | null;
   /** Base unit from variant search/browse (PO unit column hydration). */
   base_unit_of_measure?: string | null;
+  description?: string | null;
+  hsn_sac_code?: string | null;
+  variant_attributes?: Record<string, string>;
+  custom_fields?: Record<string, string>;
 };
 
 type Props = {
@@ -103,7 +108,7 @@ function VariantSuggestionThumb({ imageUrl }: { imageUrl: string | null }) {
   return (
     <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-border/60 bg-muted">
       {imageUrl ? (
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
       ) : (
         <Package className="h-4 w-4 text-muted-foreground" aria-hidden />
       )}
@@ -126,6 +131,14 @@ function applyVariant(
     ...(variant.image_url ? { image_url: variant.image_url } : {}),
     ...(variant.base_unit_of_measure
       ? { base_unit_of_measure: variant.base_unit_of_measure }
+      : {}),
+    ...(variant.description ? { description: variant.description } : {}),
+    ...(variant.hsn_sac_code ? { hsn_sac_code: variant.hsn_sac_code } : {}),
+    ...(variant.variant_attributes && Object.keys(variant.variant_attributes).length > 0
+      ? { variant_attributes: variant.variant_attributes }
+      : {}),
+    ...(variant.custom_fields && Object.keys(variant.custom_fields).length > 0
+      ? { custom_fields: variant.custom_fields }
       : {}),
   });
 }
@@ -813,7 +826,10 @@ export function StockVariantSkuField({
                           "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors",
                           selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/70"
                         )}
-                        onMouseEnter={() => setHighlight(index)}
+                        onMouseEnter={() => {
+                          setHighlight(index);
+                          prefetchPoLineCatalogContext(variant.variant_id);
+                        }}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectVariant(variant)}
                       >

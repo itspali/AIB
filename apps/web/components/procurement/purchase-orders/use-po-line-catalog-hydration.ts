@@ -6,6 +6,10 @@ import {
   mergePoLineCatalogContext,
   needsPoLineCatalogHydration,
 } from "@/lib/documents/catalog-line-values";
+import {
+  getCachedPoLineCatalogContext,
+  setCachedPoLineCatalogContext,
+} from "@/lib/documents/po-line-catalog-cache";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 
 /** Loads read-only catalog snapshots for existing lines (e.g. when opening a saved PO). */
@@ -28,11 +32,31 @@ export function usePoLineCatalogHydration(
 
     for (const variantId of variantIds) {
       if (inflightRef.current.has(variantId)) continue;
+
+      const cached = getCachedPoLineCatalogContext(variantId);
+      if (cached) {
+        onChange((current) =>
+          current.map((line) =>
+            line.variant_id === variantId &&
+            needsPoLineCatalogHydration(line.catalog_context)
+              ? {
+                  ...line,
+                  catalog_context: mergePoLineCatalogContext(line.catalog_context, cached),
+                }
+              : line
+          )
+        );
+        continue;
+      }
+
       inflightRef.current.add(variantId);
 
       void lookupPoLineCatalogContext({ variant_id: variantId }).then((result) => {
         inflightRef.current.delete(variantId);
         if ("error" in result) return;
+        if (result.context) {
+          setCachedPoLineCatalogContext(variantId, result.context);
+        }
 
         onChange((current) =>
           current.map((line) =>

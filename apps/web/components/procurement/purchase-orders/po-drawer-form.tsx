@@ -12,7 +12,9 @@ import {
 } from "@/app/procurement/purchase-orders/actions";
 import { PoDetailsPanel } from "@/components/procurement/purchase-orders/po-details-panel";
 import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
+import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
 import { PoLineEntryTable } from "@/components/procurement/purchase-orders/po-line-entry-table";
+import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
 import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
 import { PoTotalsPanel } from "@/components/procurement/purchase-orders/po-totals-panel";
@@ -43,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { usePoDocumentLayout } from "@/lib/documents/use-po-document-layout";
 import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 
 type Props = {
   open: boolean;
@@ -62,6 +65,7 @@ type Props = {
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
+  organizationBillTo: OrganizationBillToSnapshot;
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
@@ -76,12 +80,6 @@ function poLinesTableSlotClass(fillHeight: boolean) {
     fillHeight && "flex flex-1 flex-col"
   );
 }
-
-const PO_LINES_SECTION_LABEL = (
-  <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-    Lines
-  </p>
-);
 
 /** Syncs drawer width from inside RightDrawerLayoutProvider to PoDrawerForm (parent of RightDrawer). */
 function PoDrawerLayoutBridge({
@@ -127,6 +125,18 @@ function PoMutatingFormContent({
     useFullPageLayout,
     lineTableFillHeight,
   } = usePoDrawerFormLayout(true);
+  const { entryAnchor, handleEntryAnchorChange } = usePoLineEntryAnchor(form.lines, onLinesChange);
+
+  const linesSectionHeader = (
+    <div className="flex shrink-0 items-center justify-between gap-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lines</p>
+      <PoLineEntryAnchorToggle
+        value={entryAnchor}
+        disabled={isPending}
+        onChange={handleEntryAnchorChange}
+      />
+    </div>
+  );
 
   const linesTable = (
     <PoLineEntryTable
@@ -138,6 +148,8 @@ function PoMutatingFormContent({
       excludePurchaseOrderId={editOrderId}
       disabled={isPending}
       layout={resolvedDocumentLayout}
+      entryAnchor={entryAnchor}
+      onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange}
     />
   );
@@ -212,7 +224,7 @@ function PoMutatingFormContent({
       {useWidePartialDrawer ? (
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch">
           <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden lg:min-w-0">
-            {PO_LINES_SECTION_LABEL}
+            {linesSectionHeader}
             <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
           </div>
           {sideRail}
@@ -231,7 +243,7 @@ function PoMutatingFormContent({
                 lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:min-w-0"
               )}
             >
-              {PO_LINES_SECTION_LABEL}
+              {linesSectionHeader}
               <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
             </div>
             <div className="hidden lg:flex lg:min-h-0">{sideRail}</div>
@@ -243,7 +255,7 @@ function PoMutatingFormContent({
       ) : lineTableFillHeight ? (
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(12rem,1fr)_auto] gap-3 overflow-hidden">
           <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-            {PO_LINES_SECTION_LABEL}
+            {linesSectionHeader}
             <div className={poLinesTableSlotClass(true)}>{linesTable}</div>
           </section>
           <div className="max-h-[min(40vh,16rem)] min-h-0 overflow-y-auto border-t border-border pt-4">
@@ -254,7 +266,7 @@ function PoMutatingFormContent({
         <>
           <section className="flex w-full min-w-0 max-w-full flex-col gap-4">
             <div className="flex min-w-0 max-w-full flex-col gap-3">
-              {PO_LINES_SECTION_LABEL}
+              {linesSectionHeader}
               <div className={poLinesTableSlotClass(false)}>{linesTable}</div>
             </div>
           </section>
@@ -284,6 +296,7 @@ export function PoDrawerForm({
   defaultCurrency,
   documentLayout: documentLayoutProp,
   preferredDestinationLocationId = null,
+  organizationBillTo,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
@@ -645,7 +658,13 @@ export function PoDrawerForm({
       <PoDrawerLayoutBridge onLayout={handleDrawerLayout} />
       {errorBanner}
       {loadingMessage}
-      {readOnly && detail ? <PoPeekView order={detail} layout={documentLayout} /> : null}
+      {readOnly && detail ? (
+        <PoPeekView
+          order={detail}
+          layout={documentLayout}
+          organizationBillTo={organizationBillTo}
+        />
+      ) : null}
       {mutatingForm}
     </>
   );

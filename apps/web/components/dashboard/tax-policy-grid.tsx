@@ -80,10 +80,10 @@ export function TaxPolicyGrid({ rows }: TaxPolicyGridProps) {
           {rows.length === 0 && !showForm ? (
             <TaxPolicyEmptyState onAdd={openForm} />
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[640px] text-sm">
+            <div className="table-chrome-frame overflow-x-auto rounded-xl border border-white/10">
+              <table data-header-tone="glass" className="table-chrome w-full min-w-[640px] border-separate border-spacing-0 text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 bg-white/5 text-left">
+                  <tr className="border-b border-white/10 text-left">
                     <th className="p-3 font-medium text-muted-foreground">Component Key Name</th>
                     <th className="p-3 font-medium text-muted-foreground text-right">
                       Percentage Value

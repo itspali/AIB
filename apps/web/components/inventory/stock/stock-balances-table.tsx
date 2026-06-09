@@ -169,7 +169,7 @@ export function StockBalancesTable({
         <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
           <table className={listTableElementClass("narrow")}>
             <thead>
-              <tr className="bg-muted text-left">
+              <tr className="text-left">
               {columns.map((columnId, index) => {
                 const column = getStockBalanceColumnDef(columnId);
                 const active = sortField === columnId;

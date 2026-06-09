@@ -215,10 +215,13 @@ export function GroupOrganizationsSection({
         </div>
       ) : null}
 
-      <div className="surface-inset overflow-x-auto rounded-lg">
-        <table className="w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm">
+      <div className="surface-inset table-chrome-frame overflow-x-auto rounded-lg">
+        <table
+          data-header-tone="subtle"
+          className="table-chrome w-full min-w-[720px] border-separate border-spacing-0 bg-background text-sm"
+        >
           <thead>
-            <tr className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="p-2.5 font-medium">Name</th>
               <th className="p-2.5 font-medium">Code</th>
               <th className="p-2.5 font-medium">Status</th>

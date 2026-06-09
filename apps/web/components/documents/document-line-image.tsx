@@ -23,7 +23,7 @@ export function DocumentLineImage({ imageUrl, size = "sm", className }: Props) {
       )}
     >
       {imageUrl ? (
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
       ) : (
         <Package className="h-4 w-4 text-muted-foreground" aria-hidden />
       )}
