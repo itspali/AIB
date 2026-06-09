@@ -105,6 +105,12 @@ export async function saveOrganizationSettings(raw: unknown) {
       },
     }),
     supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: "PROCUREMENT_SETTINGS",
+      p_metadata_patch: {
+        allow_edit_issued_purchase_orders: values.allow_edit_issued_purchase_orders,
+      },
+    }),
+    supabase.rpc("upsert_tenant_workspace_control", {
       p_registry_key: "FINANCIAL_SETTINGS",
       p_metadata_patch: {
         accounting_period_closing_date: closingDate,
@@ -211,6 +217,59 @@ export async function revokeOrganizationSettingsDelegate(userId: string) {
   }
 
   revalidatePath("/settings/organization");
+  return { success: true as const };
+}
+
+export async function grantPurchaseOrderEditDelegate(raw: unknown) {
+  const parsed = grantDelegateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid delegate selection" };
+  }
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+  if (!access.canGrantDelegates) {
+    return { error: "Only workspace owners can grant purchase order edit access." };
+  }
+
+  const { error } = await supabase.rpc("grant_purchase_order_edit_delegate", {
+    p_user_id: parsed.data.user_id,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("grant_purchase_order_edit_delegate") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/procurement/purchase-orders");
+  return { success: true as const };
+}
+
+export async function revokePurchaseOrderEditDelegate(userId: string) {
+  const { supabase, tenantId, userId: actorId } = await requireTenantId();
+
+  const access = await resolveOrganizationSettingsAccess(supabase, actorId, tenantId);
+  if (!access.canGrantDelegates) {
+    return { error: "Only workspace owners can revoke purchase order edit access." };
+  }
+
+  const { error } = await supabase.rpc("revoke_purchase_order_edit_delegate", {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("revoke_purchase_order_edit_delegate") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/procurement/purchase-orders");
   return { success: true as const };
 }
 

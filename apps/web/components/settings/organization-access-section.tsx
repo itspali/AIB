@@ -3,6 +3,7 @@
 import type { UseFormReturn } from "react-hook-form";
 import { GrantDelegateModalSection } from "@/components/settings/grant-delegate-modal";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
+import { PurchaseOrderEditDelegateSection } from "@/components/settings/purchase-order-edit-delegate-section";
 import { ProductFieldAccessMatrix } from "@/components/settings/product-field-access-matrix";
 import { Label } from "@/components/ui/label";
 import {
@@ -72,6 +73,17 @@ export function OrganizationAccessSection({ form, snapshot, access, disabled }: 
         <GrantDelegateModalSection
           delegates={snapshot.delegates}
           eligibleUsers={snapshot.eligible_delegate_users}
+          canGrantDelegates={access.canGrantDelegates}
+        />
+      </OrgSettingsSection>
+
+      <OrgSettingsSection
+        title="Purchase Order Edit Access"
+        description="Owners edit purchase orders by default. Delegate create and edit access to other users."
+      >
+        <PurchaseOrderEditDelegateSection
+          delegates={snapshot.po_edit_delegates}
+          eligibleUsers={snapshot.po_edit_eligible_delegate_users}
           canGrantDelegates={access.canGrantDelegates}
         />
       </OrgSettingsSection>

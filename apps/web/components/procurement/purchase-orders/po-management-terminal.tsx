@@ -21,6 +21,7 @@ import {
   type PurchaseOrderListSortField,
 } from "@/lib/procurement/purchase-orders/list-sort";
 import { PROCUREMENT_PO_HREF } from "@/lib/procurement/navigation";
+import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { useFilteredPurchaseOrders } from "@/lib/procurement/purchase-orders/use-filtered-purchase-orders";
 import type {
@@ -36,12 +37,18 @@ type Props = {
   initialPurchaseOrders: PurchaseOrderRow[];
   locations: ProcurementLocationOption[];
   suppliers: ProcurementSupplierOption[];
+  editAccessGranted: boolean;
+  allowEditIssuedPurchaseOrders: boolean;
+  defaultCurrency: string;
 };
 
 export function PoManagementTerminal({
   initialPurchaseOrders,
   locations,
   suppliers,
+  editAccessGranted,
+  allowEditIssuedPurchaseOrders,
+  defaultCurrency,
 }: Props) {
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF);
   const [purchaseOrders, setPurchaseOrders] = useState(initialPurchaseOrders);
@@ -94,10 +101,44 @@ export function PoManagementTerminal({
 
   const handleOpenEdit = useCallback(
     (purchaseOrderId: string) => {
+      const order = purchaseOrders.find((row) => row.id === purchaseOrderId);
+      if (
+        order &&
+        !canEditPurchaseOrderDocument(order.document_status, {
+          allowEditIssued: allowEditIssuedPurchaseOrders,
+          hasEditPermission: editAccessGranted,
+        })
+      ) {
+        drawer.openPeek(purchaseOrderId);
+        return;
+      }
       drawer.openEdit(purchaseOrderId);
+    },
+    [allowEditIssuedPurchaseOrders, drawer, editAccessGranted, purchaseOrders]
+  );
+
+  const handleEditNotAllowed = useCallback(
+    (purchaseOrderId: string) => {
+      drawer.openPeek(purchaseOrderId);
     },
     [drawer]
   );
+
+  useEffect(() => {
+    if (!editAccessGranted && drawer.surface === "create") {
+      drawer.close();
+    }
+  }, [drawer.surface, drawer.close, editAccessGranted]);
+
+  useEffect(() => {
+    if (!editAccessGranted && drawer.surface === "edit") {
+      if (drawer.recordId) {
+        drawer.openPeek(drawer.recordId);
+      } else {
+        drawer.close();
+      }
+    }
+  }, [drawer.surface, drawer.recordId, drawer.openPeek, drawer.close, editAccessGranted]);
 
   const hasAnyData = purchaseOrders.length > 0;
   const filteredRows = ordersView.filteredRows;
@@ -117,7 +158,7 @@ export function PoManagementTerminal({
   const listPrimary = !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <PoEmptyState
-        onCreate={drawer.openCreate}
+        onCreate={editAccessGranted ? drawer.openCreate : undefined}
         hasLocations={locations.length > 0}
         hasSuppliers={suppliers.length > 0}
       />
@@ -152,7 +193,7 @@ export function PoManagementTerminal({
             title="Purchase Orders"
             description={PO_PAGE_DESCRIPTION}
             createLabel="New purchase order"
-            onCreate={drawer.openCreate}
+            onCreate={editAccessGranted ? drawer.openCreate : undefined}
             aboutAriaLabel="About Purchase Orders"
           />
         }
@@ -181,10 +222,15 @@ export function PoManagementTerminal({
         locations={locations}
         suppliers={suppliers}
         peekOrder={peekOrder}
+        peekRecordId={selectedId}
         editOrderId={editOrderId}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
         onOpenEdit={handleOpenEdit}
+        onEditNotAllowed={handleEditNotAllowed}
+        editAccessGranted={editAccessGranted}
+        allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
+        defaultCurrency={defaultCurrency}
       />
     </>
   );

@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
 import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
+import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import {
   defaultPoDraftForm,
   filterSavablePoLines,
@@ -44,10 +45,16 @@ type Props = {
   locations: ProcurementLocationOption[];
   suppliers: ProcurementSupplierOption[];
   peekOrder: PurchaseOrderRow | null;
+  /** URL record id when peeking before the list row is refreshed. */
+  peekRecordId: string | null;
   editOrderId: string | null;
   onClose: () => void;
   onAfterSave: (purchaseOrderId: string) => void;
   onOpenEdit: (purchaseOrderId: string) => void;
+  onEditNotAllowed: (purchaseOrderId: string) => void;
+  editAccessGranted: boolean;
+  allowEditIssuedPurchaseOrders: boolean;
+  defaultCurrency: string;
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
@@ -60,6 +67,8 @@ type PoMutatingFormContentProps = {
   locations: ProcurementLocationOption[];
   suppliers: ProcurementSupplierOption[];
   assignedVoucherNumber: string | null;
+  editOrderId: string | null;
+  defaultCurrency: string;
   isPending: boolean;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
   onLinesChange: (
@@ -72,6 +81,8 @@ function PoMutatingFormContent({
   locations,
   suppliers,
   assignedVoucherNumber,
+  editOrderId,
+  defaultCurrency,
   isPending,
   onPatch,
   onLinesChange,
@@ -79,12 +90,76 @@ function PoMutatingFormContent({
   const drawerLayout = useRightDrawerLayout();
   const stackVertically = isNarrowRightDrawer(drawerLayout);
   const usePageScroll = stackVertically || drawerLayout?.isPartialDrawer !== true;
+  /** Wide partial drawer: lines scroll inside the panel; summary lives in the right rail. */
+  const useWidePartialDrawer = !usePageScroll && !stackVertically;
+  /** Full-page drawer on large viewports: lines + side rail; stacked summary below lg. */
+  const useFullPageSideRail = usePageScroll && !stackVertically;
+
+  const linesTable = (
+    <PoLineEntryTable
+      fillHeight={useWidePartialDrawer}
+      showSectionTitle={false}
+      lines={form.lines}
+      supplierId={form.supplier_id}
+      destinationLocationId={form.destination_location_id}
+      excludePurchaseOrderId={editOrderId}
+      disabled={isPending}
+      onChange={onLinesChange}
+    />
+  );
+
+  const stackedSummaryDetails = (
+    <>
+      <div className="space-y-3 border-t border-border pt-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Summary
+        </p>
+        <PoTotalsPanel lines={form.lines} layout="embedded" />
+      </div>
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Details
+        </p>
+        <PoDetailsPanel
+          form={form}
+          disabled={isPending}
+          layout="stack"
+          stackVertically={stackVertically}
+          onPatch={onPatch}
+        />
+      </div>
+    </>
+  );
+
+  const sideRail = (
+    <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[15rem]">
+      <div className="shrink-0 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Summary
+        </p>
+        <PoTotalsPanel lines={form.lines} layout="embedded" />
+      </div>
+      <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+        <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Details
+        </p>
+        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <PoDetailsPanel
+            form={form}
+            disabled={isPending}
+            layout="rail"
+            onPatch={onPatch}
+          />
+        </div>
+      </div>
+    </aside>
+  );
 
   return (
     <div
       className={cn(
         "flex flex-col gap-3",
-        usePageScroll ? "min-h-0" : "h-full min-h-0 flex-1 overflow-hidden"
+        useWidePartialDrawer ? "h-full min-h-0 flex-1 overflow-hidden" : "min-h-0"
       )}
     >
       <div className="shrink-0">
@@ -95,79 +170,49 @@ function PoMutatingFormContent({
           assignedVoucherNumber={assignedVoucherNumber}
           disabled={isPending}
           stackVertically={stackVertically}
+          defaultCurrency={defaultCurrency}
           onPatch={onPatch}
         />
       </div>
 
-      <div className={cn("shrink-0", !stackVertically && "lg:hidden")}>
-        <PoDetailsPanel
-          form={form}
-          disabled={isPending}
-          layout="stack"
-          stackVertically={stackVertically}
-          onPatch={onPatch}
-        />
-      </div>
-
-      <section
-        className={cn(
-          "flex flex-col gap-3",
-          usePageScroll ? "min-h-0" : "min-h-0 flex-1 overflow-hidden",
-          !stackVertically && "lg:flex-row lg:gap-4"
-        )}
-      >
-        <div
-          className={cn(
-            "flex min-w-0 flex-col gap-3",
-            usePageScroll ? "min-h-0" : "min-h-0 min-w-0 flex-1 overflow-hidden"
-          )}
-        >
-          <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Lines
-          </p>
-          <PoLineEntryTable
-            fillHeight={!usePageScroll}
-            showSectionTitle={false}
-            lines={form.lines}
-            supplierId={form.supplier_id}
-            disabled={isPending}
-            onChange={onLinesChange}
-          />
-        </div>
-
-        <div
-          className={cn(
-            "hidden min-h-0 shrink-0 flex-col gap-4 overflow-hidden",
-            !stackVertically && "lg:flex lg:w-[15rem]"
-          )}
-        >
-          <div className="shrink-0 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Summary
-            </p>
-            <PoTotalsPanel lines={form.lines} layout="embedded" />
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      {useWidePartialDrawer ? (
+        <section className="flex min-h-0 flex-1 flex-row gap-4 overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
             <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Details
+              Lines
             </p>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <PoDetailsPanel
-                form={form}
-                disabled={isPending}
-                layout="rail"
-                onPatch={onPatch}
-              />
-            </div>
+            {linesTable}
           </div>
-        </div>
-      </section>
-
-      <PoTotalsPanel
-        lines={form.lines}
-        layout="footer"
-        showFooterOnLarge={stackVertically}
-      />
+          {sideRail}
+        </section>
+      ) : useFullPageSideRail ? (
+        <>
+          <section className="flex w-full min-w-0 flex-col gap-3 lg:flex-row lg:gap-4">
+            <div className="flex min-w-0 flex-col gap-3 lg:min-h-0 lg:flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Lines
+              </p>
+              {linesTable}
+            </div>
+            <div className="hidden lg:flex">{sideRail}</div>
+          </section>
+          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-3 bg-background lg:hidden">
+            {stackedSummaryDetails}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex w-full min-w-0 flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Lines
+            </p>
+            {linesTable}
+          </div>
+          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-3 bg-background">
+            {stackedSummaryDetails}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -178,18 +223,27 @@ export function PoDrawerForm({
   locations,
   suppliers,
   peekOrder,
+  peekRecordId,
   editOrderId,
   onClose,
   onAfterSave,
   onOpenEdit,
+  onEditNotAllowed,
+  editAccessGranted,
+  allowEditIssuedPurchaseOrders,
+  defaultCurrency,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const resolvedPeekRecordId =
+    surface === "peek" ? (peekOrder?.id ?? peekRecordId) : null;
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
   });
 
-  const [form, setForm] = useState<PoDraftFormState>(() => defaultPoDraftForm(locations, suppliers));
+  const [form, setForm] = useState<PoDraftFormState>(() =>
+    defaultPoDraftForm(locations, suppliers, defaultCurrency)
+  );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -200,12 +254,40 @@ export function PoDrawerForm({
 
   useEffect(() => {
     if (!open) return;
-    setForm(defaultPoDraftForm(locations, suppliers));
     setError(null);
     setErrorAction(null);
     setIsDirty(false);
-    setDetail(peekOrder);
-  }, [open, surface, peekOrder?.id, locations, suppliers]);
+    if (surface !== "peek") {
+      setForm(defaultPoDraftForm(locations, suppliers, defaultCurrency));
+      setDetail(peekOrder);
+    } else if (peekOrder?.lines?.length) {
+      setDetail(peekOrder);
+    }
+  }, [open, surface, peekOrder?.id, peekOrder?.lines?.length, locations, suppliers, defaultCurrency]);
+
+  useEffect(() => {
+    if (!open || surface !== "peek" || !resolvedPeekRecordId) return;
+    if (peekOrder?.lines?.length) {
+      setDetail(peekOrder);
+      return;
+    }
+
+    let cancelled = false;
+    setDetailLoading(true);
+    void loadPurchaseOrderDetail(resolvedPeekRecordId).then((result) => {
+      if (cancelled) return;
+      setDetailLoading(false);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setDetail(result.purchaseOrder);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, resolvedPeekRecordId, surface, peekOrder?.lines?.length]);
 
   useEffect(() => {
     if (!open || surface !== "edit" || !editOrderId) return;
@@ -229,29 +311,20 @@ export function PoDrawerForm({
     };
   }, [open, surface, editOrderId]);
 
+  const canEditThisOrder =
+    detail != null
+      ? canEditPurchaseOrderDocument(detail.document_status, {
+          allowEditIssued: allowEditIssuedPurchaseOrders,
+          hasEditPermission: editAccessGranted,
+        })
+      : editAccessGranted;
+
   useEffect(() => {
-    if (!open || surface !== "peek" || !peekOrder?.id) return;
-    if (peekOrder.lines?.length) {
-      setDetail(peekOrder);
-      return;
+    if (!open || surface !== "edit" || detailLoading || !detail?.id) return;
+    if (!canEditThisOrder) {
+      onEditNotAllowed(detail.id);
     }
-
-    let cancelled = false;
-    setDetailLoading(true);
-    void loadPurchaseOrderDetail(peekOrder.id).then((result) => {
-      if (cancelled) return;
-      setDetailLoading(false);
-      if ("error" in result) {
-        setError(result.error);
-        return;
-      }
-      setDetail(result.purchaseOrder);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, surface, peekOrder]);
+  }, [canEditThisOrder, detail?.id, detailLoading, onEditNotAllowed, open, surface]);
 
   const patchForm = useCallback((next: Partial<PoDraftFormState>) => {
     setForm((current) => ({ ...current, ...next }));
@@ -281,6 +354,7 @@ export function PoDrawerForm({
         purchase_order_id: editOrderId ?? detail?.id ?? null,
         destination_location_id: form.destination_location_id,
         supplier_id: form.supplier_id,
+        currency_code: form.currency_code,
         payment_terms_days: form.payment_terms_days,
         custom_fields: form.custom_fields,
         lines: filterSavablePoLines(form.lines).map((line) => ({
@@ -298,10 +372,10 @@ export function PoDrawerForm({
       }
 
       toast.success("Purchase order saved");
-      closeForm();
+      setIsDirty(false);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [closeForm, detail?.id, editOrderId, form, onAfterSave]);
+  }, [detail?.id, editOrderId, form, onAfterSave]);
 
   const handleIssue = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -318,10 +392,10 @@ export function PoDrawerForm({
       }
 
       toast.success("Purchase order issued");
-      closeForm();
+      setIsDirty(false);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [closeForm, detail?.id, editOrderId, onAfterSave]);
+  }, [detail?.id, editOrderId, onAfterSave]);
 
   submitRef.current = handleSaveDraft;
 
@@ -341,32 +415,11 @@ export function PoDrawerForm({
     detail?.document_status === "ISSUED_ACTIVE" ||
     detail?.document_status === "PARTIALLY_FULFILLED";
 
-  const headerActions =
-    surface === "peek" && detail ? (
-      <>
-        {detail.document_status === "DRAFT" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label="Edit purchase order"
-            onClick={() => onOpenEdit(detail.id)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-        ) : null}
-        {canReceive ? (
-          <Button type="button" size="sm" asChild>
-            <Link
-              href={`${PROCUREMENT_GRN_HREF}?action=new&${GRN_DRAWER_PO_PARAM}=${detail.id}`}
-            >
-              Receive
-            </Link>
-          </Button>
-        ) : null}
-      </>
-    ) : isMutating ? (
+  const isDraftOrder = detail?.document_status === "DRAFT";
+  const saveActionLabel = isDraftOrder ? "Save draft" : "Save";
+
+  const mutationFooter =
+    isMutating ? (
       <>
         <Button
           type="button"
@@ -382,11 +435,11 @@ export function PoDrawerForm({
           size="sm"
           disabled={isPending || locations.length === 0 || suppliers.length === 0}
           onClick={handleSaveDraft}
-          title="Save draft (Ctrl+Enter)"
+          title={`${saveActionLabel} (Ctrl+Enter)`}
         >
-          {isPending ? "Saving…" : "Save draft"}
+          {isPending ? "Saving…" : saveActionLabel}
         </Button>
-        {(editOrderId ?? detail?.id) && detail?.document_status === "DRAFT" ? (
+        {isDraftOrder && (editOrderId ?? detail?.id) ? (
           <Button
             type="button"
             size="sm"
@@ -400,9 +453,53 @@ export function PoDrawerForm({
       </>
     ) : null;
 
+  const headerActions =
+    surface === "peek" && detail ? (
+      <>
+        {canEditThisOrder ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              aria-label="Edit purchase order"
+              onClick={() => onOpenEdit(detail.id)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            {isDraftOrder ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={isPending}
+                onClick={handleIssue}
+              >
+                {isPending ? "Issuing…" : "Issue"}
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+        {canReceive ? (
+          <Button type="button" size="sm" asChild>
+            <Link
+              href={`${PROCUREMENT_GRN_HREF}?action=new&${GRN_DRAWER_PO_PARAM}=${detail.id}`}
+            >
+              Receive
+            </Link>
+          </Button>
+        ) : null}
+      </>
+    ) : null;
+
   if (!open || surface === "closed") return discardDialog;
 
-  const showLoadingPeek = surface === "peek" && detailLoading && !detail?.lines?.length;
+  const detailReadyForPeek = detail?.id === resolvedPeekRecordId;
+  const showLoadingPeek =
+    surface === "peek" &&
+    resolvedPeekRecordId != null &&
+    (detailLoading || !detailReadyForPeek);
   const showLoadingEdit = surface === "edit" && detailLoading;
   const assignedVoucherNumber = detail?.voucher_number ?? null;
 
@@ -417,7 +514,16 @@ export function PoDrawerForm({
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
+        footer={mutationFooter}
         allowBackgroundInteraction={surface === "peek"}
+        className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
+        bodyClassName={
+          surface === "peek"
+            ? "module-drawer-peek-body"
+            : isMutating
+              ? "module-drawer-form-body"
+              : undefined
+        }
         scrollable
         showCloseButton
       >
@@ -439,6 +545,8 @@ export function PoDrawerForm({
             locations={locations}
             suppliers={suppliers}
             assignedVoucherNumber={assignedVoucherNumber}
+            editOrderId={editOrderId ?? detail?.id ?? null}
+            defaultCurrency={defaultCurrency}
             isPending={isPending}
             onPatch={patchForm}
             onLinesChange={(linesOrUpdater) => {

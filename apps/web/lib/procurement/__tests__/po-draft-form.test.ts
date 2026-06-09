@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyPoLine,
+  defaultPoDraftForm,
   ensureTrailingPoLine,
   filterSavablePoLines,
   isPoLineComplete,
+  supplierDefaultCurrency,
 } from "@/lib/procurement/purchase-orders/draft-form";
 
 describe("po draft form line helpers", () => {
@@ -35,5 +37,40 @@ describe("po draft form line helpers", () => {
     };
     const trailing = createEmptyPoLine();
     expect(filterSavablePoLines([complete, trailing])).toEqual([complete]);
+  });
+});
+
+describe("supplier default currency", () => {
+  const suppliers = [
+    {
+      id: "supplier-a",
+      name: "Acme",
+      payment_terms_days: 30,
+      base_currency_override: "EUR",
+    },
+    {
+      id: "supplier-b",
+      name: "Beta",
+      payment_terms_days: 15,
+      base_currency_override: null,
+    },
+  ];
+
+  it("uses supplier override when set", () => {
+    expect(supplierDefaultCurrency(suppliers, "supplier-a", "INR")).toBe("EUR");
+  });
+
+  it("falls back to workspace currency when override is unset", () => {
+    expect(supplierDefaultCurrency(suppliers, "supplier-b", "INR")).toBe("INR");
+  });
+
+  it("defaults new PO currency from the first supplier", () => {
+    const draft = defaultPoDraftForm(
+      [{ id: "loc-1", name: "Main", code: "MAIN" }],
+      suppliers,
+      "INR"
+    );
+    expect(draft.currency_code).toBe("EUR");
+    expect(draft.supplier_id).toBe("supplier-a");
   });
 });

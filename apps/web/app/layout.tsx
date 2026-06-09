@@ -70,7 +70,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             initialWorkspaceAccess={initialWorkspaceAccess}
           >
             {children}
-            <Toaster position="top-right" richColors />
+            <Toaster
+              position="bottom-left"
+              richColors
+              closeButton
+              offset={{ bottom: "1rem", left: "1rem" }}
+            />
           </OnboardingProvider>
         </Providers>
       </body>

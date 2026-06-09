@@ -16,6 +16,7 @@ import {
 import { EntityBankAccountsSection } from "@/components/entities/entity-bank-accounts-section";
 import { EntityCustomFieldsSection } from "@/components/entities/entity-custom-fields-section";
 import { EntityLogoUploader } from "@/components/entities/entity-logo-uploader";
+import { DrawerFormField, DrawerFormGrid } from "@/components/layout/drawer-form-grid";
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,11 @@ import { ENTITY_TYPE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels"
 import { ENTITY_COMMERCIAL_TYPES, taxRegistrationRequired } from "@/lib/entities/types";
 import type { EntityWorkspace } from "@/lib/entities/types";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
+import {
+  CURRENCY_OPTIONS,
+  currencyLabel,
+  type OrganizationCurrency,
+} from "@/lib/organization/currency-options";
 import type { useEntityForm } from "@/lib/entities/use-entity-form";
 
 type FormApi = ReturnType<typeof useEntityForm>;
@@ -300,8 +306,8 @@ export function EntityEditorShell({
             onUploaded={(storagePath) => setLogoUrl(storagePath)}
           />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5 sm:col-span-2">
+          <DrawerFormGrid>
+            <DrawerFormField span="full">
               <Label htmlFor="entity-name">Name</Label>
               <Input
                 id="entity-name"
@@ -311,9 +317,9 @@ export function EntityEditorShell({
                   setForm((current) => ({ ...current, name: event.target.value }))
                 }
               />
-            </div>
+            </DrawerFormField>
 
-            <div className="space-y-1.5">
+            <DrawerFormField>
               <Label htmlFor="entity-type">Type</Label>
               <Select
                 value={form.type}
@@ -336,9 +342,9 @@ export function EntityEditorShell({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </DrawerFormField>
 
-            <div className="space-y-1.5">
+            <DrawerFormField>
               <Label htmlFor="entity-tax-treatment">Tax treatment</Label>
               <Select
                 value={form.tax_treatment}
@@ -361,10 +367,10 @@ export function EntityEditorShell({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </DrawerFormField>
 
             {showTaxId ? (
-              <div className="space-y-1.5 sm:col-span-2">
+              <DrawerFormField span="full">
                 <Label htmlFor="entity-tax-id">Tax registration number (GSTIN)</Label>
                 <div className="relative">
                   <Input
@@ -393,16 +399,16 @@ export function EntityEditorShell({
                 <p className="text-xs text-muted-foreground">
                   Tab out after entering a valid GSTIN to auto-fill legal name and billing address.
                 </p>
-              </div>
+              </DrawerFormField>
             ) : null}
-          </div>
+          </DrawerFormGrid>
 
           <Separator />
 
           <div className="space-y-3">
             <p className="text-sm font-medium">Primary contact</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
+            <DrawerFormGrid>
+              <DrawerFormField>
                 <Label htmlFor="primary-first-name">First name</Label>
                 <Input
                   id="primary-first-name"
@@ -415,8 +421,8 @@ export function EntityEditorShell({
                     }))
                   }
                 />
-              </div>
-              <div className="space-y-1.5">
+              </DrawerFormField>
+              <DrawerFormField>
                 <Label htmlFor="primary-last-name">Last name</Label>
                 <Input
                   id="primary-last-name"
@@ -429,8 +435,8 @@ export function EntityEditorShell({
                     }))
                   }
                 />
-              </div>
-              <div className="space-y-1.5">
+              </DrawerFormField>
+              <DrawerFormField>
                 <Label htmlFor="primary-email">Email</Label>
                 <Input
                   id="primary-email"
@@ -444,8 +450,8 @@ export function EntityEditorShell({
                     }))
                   }
                 />
-              </div>
-              <div className="space-y-1.5">
+              </DrawerFormField>
+              <DrawerFormField>
                 <Label htmlFor="primary-mobile">Mobile</Label>
                 <Input
                   id="primary-mobile"
@@ -461,8 +467,8 @@ export function EntityEditorShell({
                     }))
                   }
                 />
-              </div>
-            </div>
+              </DrawerFormField>
+            </DrawerFormGrid>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border/80 px-3 py-2">
@@ -484,10 +490,10 @@ export function EntityEditorShell({
         <Section
           id={ENTITY_SECTION_COMMERCIAL_ID}
           title="Commercial"
-          help="Credit limit and payment terms for this partner."
+          help="Credit limit, trading currency, and payment terms for this partner."
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
+          <DrawerFormGrid>
+            <DrawerFormField>
               <Label htmlFor="entity-credit-limit">Credit limit</Label>
               <Input
                 id="entity-credit-limit"
@@ -497,8 +503,8 @@ export function EntityEditorShell({
                   setForm((current) => ({ ...current, credit_limit: event.target.value }))
                 }
               />
-            </div>
-            <div className="space-y-1.5">
+            </DrawerFormField>
+            <DrawerFormField>
               <Label htmlFor="entity-payment-terms">Payment terms (days)</Label>
               <Input
                 id="entity-payment-terms"
@@ -511,8 +517,38 @@ export function EntityEditorShell({
                   }))
                 }
               />
-            </div>
-          </div>
+            </DrawerFormField>
+            <DrawerFormField span="full">
+              <Label htmlFor="entity-trading-currency">Trading currency</Label>
+              <Select
+                value={form.base_currency_override || "__workspace_default__"}
+                disabled={fieldsDisabled}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    base_currency_override:
+                      value === "__workspace_default__" ? "" : (value as OrganizationCurrency),
+                  }))
+                }
+              >
+                <SelectTrigger id="entity-trading-currency" className="w-full">
+                  <SelectValue placeholder="Workspace default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__workspace_default__">Workspace default</SelectItem>
+                  {CURRENCY_OPTIONS.map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {currencyLabel(code)} ({code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Used as the default currency on purchase orders for this supplier. Leave unset to
+                use the workspace base currency.
+              </p>
+            </DrawerFormField>
+          </DrawerFormGrid>
         </Section>
 
         {showBankAccounts ? (
@@ -536,8 +572,8 @@ export function EntityEditorShell({
               title="Addresses"
               help="Billing and shipping address blocks."
             >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
+              <DrawerFormGrid>
+                <DrawerFormField span="full">
                   <Label htmlFor="billing-line1">Billing address line 1</Label>
                   <Input
                     id="billing-line1"
@@ -550,8 +586,8 @@ export function EntityEditorShell({
                       }))
                     }
                   />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
+                </DrawerFormField>
+                <DrawerFormField span="full">
                   <Label htmlFor="billing-city">Billing city</Label>
                   <Input
                     id="billing-city"
@@ -564,8 +600,8 @@ export function EntityEditorShell({
                       }))
                     }
                   />
-                </div>
-              </div>
+                </DrawerFormField>
+              </DrawerFormGrid>
 
               <div className="flex items-center gap-2">
                 <Switch
@@ -578,8 +614,8 @@ export function EntityEditorShell({
               </div>
 
               {!form.same_as_billing ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5 sm:col-span-2">
+                <DrawerFormGrid>
+                  <DrawerFormField span="full">
                     <Label htmlFor="shipping-line1">Shipping address line 1</Label>
                     <Input
                       id="shipping-line1"
@@ -592,8 +628,8 @@ export function EntityEditorShell({
                         }))
                       }
                     />
-                  </div>
-                </div>
+                  </DrawerFormField>
+                </DrawerFormGrid>
               ) : null}
             </Section>
 
@@ -602,8 +638,8 @@ export function EntityEditorShell({
               title="Company"
               help="Legal identity and company contact channels."
             >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
+              <DrawerFormGrid>
+                <DrawerFormField>
                   <Label htmlFor="entity-legal-name">Legal name</Label>
                   <Input
                     id="entity-legal-name"
@@ -613,8 +649,8 @@ export function EntityEditorShell({
                       setForm((current) => ({ ...current, legal_name: event.target.value }))
                     }
                   />
-                </div>
-                <div className="space-y-1.5">
+                </DrawerFormField>
+                <DrawerFormField>
                   <Label htmlFor="entity-code">Code</Label>
                   <Input
                     id="entity-code"
@@ -624,8 +660,8 @@ export function EntityEditorShell({
                       setForm((current) => ({ ...current, code: event.target.value }))
                     }
                   />
-                </div>
-                <div className="space-y-1.5">
+                </DrawerFormField>
+                <DrawerFormField>
                   <Label htmlFor="entity-company-email">Company email</Label>
                   <Input
                     id="entity-company-email"
@@ -636,8 +672,8 @@ export function EntityEditorShell({
                       setForm((current) => ({ ...current, company_email: event.target.value }))
                     }
                   />
-                </div>
-                <div className="space-y-1.5">
+                </DrawerFormField>
+                <DrawerFormField>
                   <Label htmlFor="entity-company-phone">Company phone</Label>
                   <Input
                     id="entity-company-phone"
@@ -647,8 +683,8 @@ export function EntityEditorShell({
                       setForm((current) => ({ ...current, company_phone: event.target.value }))
                     }
                   />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
+                </DrawerFormField>
+                <DrawerFormField span="full">
                   <Label htmlFor="entity-website">Website</Label>
                   <Input
                     id="entity-website"
@@ -658,8 +694,8 @@ export function EntityEditorShell({
                       setForm((current) => ({ ...current, website_url: event.target.value }))
                     }
                   />
-                </div>
-              </div>
+                </DrawerFormField>
+              </DrawerFormGrid>
             </Section>
 
             <Section
@@ -677,20 +713,22 @@ export function EntityEditorShell({
                 <Label>Same number for WhatsApp</Label>
               </div>
               {!form.primary_contact.use_mobile_for_whatsapp ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="primary-whatsapp">WhatsApp number</Label>
-                  <Input
-                    id="primary-whatsapp"
-                    value={form.primary_contact.whatsapp_number}
-                    disabled={fieldsDisabled}
-                    onChange={(event) =>
-                      setPrimaryContact((contact) => ({
-                        ...contact,
-                        whatsapp_number: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
+                <DrawerFormGrid>
+                  <DrawerFormField>
+                    <Label htmlFor="primary-whatsapp">WhatsApp number</Label>
+                    <Input
+                      id="primary-whatsapp"
+                      value={form.primary_contact.whatsapp_number}
+                      disabled={fieldsDisabled}
+                      onChange={(event) =>
+                        setPrimaryContact((contact) => ({
+                          ...contact,
+                          whatsapp_number: event.target.value,
+                        }))
+                      }
+                    />
+                  </DrawerFormField>
+                </DrawerFormGrid>
               ) : null}
               <p className="text-sm text-muted-foreground">
                 Extended contacts repeater will be expanded in a follow-up pass.

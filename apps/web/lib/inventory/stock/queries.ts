@@ -14,6 +14,8 @@ import type {
   StockVariantOption,
 } from "@/lib/inventory/stock/types";
 import { resolveStockVariantBlockedReason } from "@/lib/inventory/stock/variant-eligibility";
+import { resolveProductMediaSignedUrls } from "@/lib/products/media";
+import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
 
 /** Disambiguate composite tenant FK embeds on item_valuations. */
 const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
@@ -379,7 +381,88 @@ function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
     standard_cost: extractStandardCost(item?.custom_fields ?? null),
     adjustable: blockedReason == null,
     blocked_reason: blockedReason,
+    image_url: null,
   };
+}
+
+type VariantSuggestionMediaRow = {
+  item_id: string;
+  variant_id: string | null;
+  storage_url: string;
+  sort_order: number;
+  is_primary: boolean;
+};
+
+type VariantSuggestionMasterRow = {
+  id: string;
+  item_id: string;
+  is_master: boolean | null;
+};
+
+async function attachStockVariantSuggestionImages(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options: StockVariantOption[]
+): Promise<StockVariantOption[]> {
+  if (!options.length) return options;
+
+  const itemIds = [...new Set(options.map((option) => option.item_id))];
+  const [{ data: mediaRows, error: mediaError }, { data: variantRows, error: variantError }] =
+    await Promise.all([
+      supabase
+        .from("item_media")
+        .select("item_id, variant_id, storage_url, sort_order, is_primary")
+        .eq("tenant_id", tenantId)
+        .in("item_id", itemIds),
+      supabase
+        .from("item_variants")
+        .select("id, item_id, is_master")
+        .eq("tenant_id", tenantId)
+        .in("item_id", itemIds)
+        .eq("is_active", true),
+    ]);
+
+  if (mediaError) throw new Error(mediaError.message);
+  if (variantError) throw new Error(variantError.message);
+
+  const mediaByItem = new Map<string, VariantSuggestionMediaRow[]>();
+  for (const row of (mediaRows ?? []) as VariantSuggestionMediaRow[]) {
+    const list = mediaByItem.get(row.item_id) ?? [];
+    list.push(row);
+    mediaByItem.set(row.item_id, list);
+  }
+
+  const variantsByItem = new Map<string, VariantSuggestionMasterRow[]>();
+  for (const row of (variantRows ?? []) as VariantSuggestionMasterRow[]) {
+    const list = variantsByItem.get(row.item_id) ?? [];
+    list.push(row);
+    variantsByItem.set(row.item_id, list);
+  }
+
+  const pathByVariantId = new Map<string, string>();
+  for (const option of options) {
+    const storagePath = pickPrimaryImageStoragePath(
+      mediaByItem.get(option.item_id) ?? [],
+      option.variant_id,
+      variantsByItem.get(option.item_id) ?? undefined
+    );
+    if (storagePath) {
+      pathByVariantId.set(option.variant_id, storagePath);
+    }
+  }
+
+  const signedUrls = await resolveProductMediaSignedUrls(
+    supabase,
+    [...new Set(pathByVariantId.values())]
+  );
+
+  return options.map((option) => {
+    const storagePath = pathByVariantId.get(option.variant_id);
+    return {
+      ...option,
+      image_url: storagePath ? signedUrls.get(storagePath) ?? null : null,
+    };
+  });
 }
 
 function tokenizeStockSearchQuery(query: string): string[] {
@@ -507,11 +590,15 @@ export async function listStockVariantsForBrowse(
 
   if (error) throw new Error(error.message);
 
-  return sortStockVariantsAlphabetically(
-    ((data ?? []) as VariantSearchDbRow[])
-      .map((row) => mapVariantSearchResult(row))
-      .filter((option) => option.adjustable)
-  ).slice(0, limit);
+  return attachStockVariantSuggestionImages(
+    supabase,
+    tenantId,
+    sortStockVariantsAlphabetically(
+      ((data ?? []) as VariantSearchDbRow[])
+        .map((row) => mapVariantSearchResult(row))
+        .filter((option) => option.adjustable)
+    ).slice(0, limit)
+  );
 }
 
 export async function searchStockVariants(
@@ -535,9 +622,13 @@ export async function searchStockVariants(
     }
   }
 
-  return rankStockVariantResults([...merged.values()], trimmed)
-    .filter((option) => option.adjustable)
-    .slice(0, limit);
+  return attachStockVariantSuggestionImages(
+    supabase,
+    tenantId,
+    rankStockVariantResults([...merged.values()], trimmed)
+      .filter((option) => option.adjustable)
+      .slice(0, limit)
+  );
 }
 
 export async function resolveVariantBySku(

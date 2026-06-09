@@ -13,6 +13,16 @@ export const PO_LINE_COLUMN_IDS = [
 
 export type PoLineColumnId = (typeof PO_LINE_COLUMN_IDS)[number];
 
+/** Standalone columns in compact (spreadsheet) line entry. */
+export const PO_COMPACT_PRIMARY_LINE_COLUMN_IDS = [
+  "item",
+  "quantity_ordered",
+  "unit_price",
+  "line_total",
+] as const satisfies readonly PoLineColumnId[];
+
+export type PoCompactPrimaryLineColumnId = (typeof PO_COMPACT_PRIMARY_LINE_COLUMN_IDS)[number];
+
 export const PO_HEADER_FIELD_IDS = [
   "supplier",
   "destination",
@@ -90,6 +100,23 @@ export function getVisiblePoLineColumns(
   layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
 ): DocumentColumnPref[] {
   return layout.columns.filter((column) => column.defaultVisible);
+}
+
+export function getCompactPoTableColumns(
+  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
+): DocumentColumnPref[] {
+  const visible = getVisiblePoLineColumns(layout);
+  const primarySet = new Set<string>(PO_COMPACT_PRIMARY_LINE_COLUMN_IDS);
+  return visible.filter((column) => primarySet.has(column.id));
+}
+
+/** Visible line columns rendered nested under the item cell in compact view. */
+export function getNestedUnderItemPoLineColumns(
+  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
+): DocumentColumnPref[] {
+  const visible = getVisiblePoLineColumns(layout);
+  const primarySet = new Set<string>([...PO_COMPACT_PRIMARY_LINE_COLUMN_IDS]);
+  return visible.filter((column) => !primarySet.has(column.id));
 }
 
 export function isPoLineColumnVisible(

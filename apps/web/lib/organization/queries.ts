@@ -19,6 +19,7 @@ import {
 } from "@/lib/theme/governance";
 
 const DELEGATE_REGISTRY_KEY = "allow_organization_settings_modification";
+const PO_EDIT_DELEGATE_REGISTRY_KEY = "allow_purchase_order_modification";
 
 function toDateOnly(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -33,6 +34,7 @@ export async function fetchOrganizationSettingsSnapshot(
     { data: tenant, error: tenantError },
     { data: registryRows },
     { data: delegateRows },
+    { data: poEditDelegateRows },
     { data: locations },
     { data: eligibleUsers },
     inventoryLedgerProbe,
@@ -49,6 +51,7 @@ export async function fetchOrganizationSettingsSnapshot(
         "SALES_SETTINGS",
         "FINANCIAL_SETTINGS",
         "SEARCH_SETTINGS",
+        "PROCUREMENT_SETTINGS",
         THEME_SETTINGS_REGISTRY_KEY,
       ]),
     supabase
@@ -56,6 +59,12 @@ export async function fetchOrganizationSettingsSnapshot(
       .select("target_reference_id, created_at, configuration_metadata")
       .eq("tenant_id", tenantId)
       .eq("registry_key", DELEGATE_REGISTRY_KEY)
+      .not("target_reference_id", "is", null),
+    supabase
+      .from("workspace_control_registry")
+      .select("target_reference_id, created_at, configuration_metadata")
+      .eq("tenant_id", tenantId)
+      .eq("registry_key", PO_EDIT_DELEGATE_REGISTRY_KEY)
       .not("target_reference_id", "is", null),
     supabase
       .from("tenant_locations")
@@ -83,6 +92,7 @@ export async function fetchOrganizationSettingsSnapshot(
   const entitySettings = parseEntitySettingsMetadata(tenantMetadata);
 
   let allowLineItemDiscounts = true;
+  let allowEditIssuedPurchaseOrders = false;
   let accountingPeriodClosingDate: string | null = null;
   let searchFinancialFieldsMode: SearchFinancialFieldsMode = "role_default";
   let themeSettings = DEFAULT_TENANT_THEME_SETTINGS;
@@ -107,44 +117,62 @@ export async function fetchOrganizationSettingsSnapshot(
     if (row.registry_key === THEME_SETTINGS_REGISTRY_KEY) {
       themeSettings = parseTenantThemeSettings(meta);
     }
+    if (row.registry_key === "PROCUREMENT_SETTINGS") {
+      if (typeof meta?.allow_edit_issued_purchase_orders === "boolean") {
+        allowEditIssuedPurchaseOrders = meta.allow_edit_issued_purchase_orders;
+      }
+    }
   }
 
   const delegateUserIds = (delegateRows ?? [])
     .map((row) => row.target_reference_id)
     .filter((id): id is string => Boolean(id));
 
+  const poEditDelegateUserIds = (poEditDelegateRows ?? [])
+    .map((row) => row.target_reference_id)
+    .filter((id): id is string => Boolean(id));
+
+  const allDelegateUserIds = [...new Set([...delegateUserIds, ...poEditDelegateUserIds])];
+
   const delegateUsersById = new Map<
     string,
     { first_name: string; last_name: string; email: string }
   >();
-  if (delegateUserIds.length) {
+  if (allDelegateUserIds.length) {
     const { data: delegateUsers } = await supabase
       .from("users")
       .select("id, first_name, last_name, email")
-      .in("id", delegateUserIds);
+      .in("id", allDelegateUserIds);
 
     for (const user of delegateUsers ?? []) {
       delegateUsersById.set(user.id, user);
     }
   }
 
-  const delegates: OrganizationDelegateRow[] = (delegateRows ?? [])
-    .map((row) => {
-      if (!row.target_reference_id) return null;
-      const user = delegateUsersById.get(row.target_reference_id);
-      if (!user) return null;
-      const meta = row.configuration_metadata as Record<string, unknown> | null;
-      const grantedAt =
-        typeof meta?.granted_at === "string" ? meta.granted_at : row.created_at;
-      return {
-        user_id: row.target_reference_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        granted_at: grantedAt,
-      };
-    })
-    .filter((row): row is OrganizationDelegateRow => row !== null);
+  function buildDelegateList(
+    rows: typeof delegateRows
+  ): OrganizationDelegateRow[] {
+    return (rows ?? [])
+      .map((row) => {
+        if (!row.target_reference_id) return null;
+        const user = delegateUsersById.get(row.target_reference_id);
+        if (!user) return null;
+        const meta = row.configuration_metadata as Record<string, unknown> | null;
+        const grantedAt =
+          typeof meta?.granted_at === "string" ? meta.granted_at : row.created_at;
+        return {
+          user_id: row.target_reference_id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          granted_at: grantedAt,
+        };
+      })
+      .filter((row): row is OrganizationDelegateRow => row !== null);
+  }
+
+  const delegates = buildDelegateList(delegateRows);
+  const po_edit_delegates = buildDelegateList(poEditDelegateRows);
 
   let createdByName: string | null = null;
   if (tenant.created_by_user_id) {
@@ -160,6 +188,7 @@ export async function fetchOrganizationSettingsSnapshot(
 
   const baseCurrency = (tenant.base_currency ?? "USD") as OrganizationCurrency;
   const delegateIdSet = new Set(delegateUserIds);
+  const poEditDelegateIdSet = new Set(poEditDelegateUserIds);
 
   const eligibleMemberships = eligibleUsers ?? [];
   const eligibleUserIds = eligibleMemberships.map((row) => row.user_id as string);
@@ -246,6 +275,7 @@ export async function fetchOrganizationSettingsSnapshot(
     accounting_config: parsed.accounting_config,
     location_governance_config: parsed.location_governance_config,
     allow_line_item_discounts: allowLineItemDiscounts,
+    allow_edit_issued_purchase_orders: allowEditIssuedPurchaseOrders,
     accounting_period_closing_date: accountingPeriodClosingDate,
     search_financial_fields_mode: searchFinancialFieldsMode,
     theme_settings: themeSettings,
@@ -253,9 +283,13 @@ export async function fetchOrganizationSettingsSnapshot(
     entity_settings: entitySettings,
     group_entity_settings: groupEntitySettings,
     delegates,
+    po_edit_delegates,
     locations: (locations ?? []) as TenantLocationOption[],
     group_id: groupId,
     parent_group_name: parentGroupName,
     eligible_delegate_users: eligibleDelegateUsers.filter((user) => !delegateIdSet.has(user.id)),
+    po_edit_eligible_delegate_users: eligibleDelegateUsers.filter(
+      (user) => !poEditDelegateIdSet.has(user.id)
+    ),
   };
 }

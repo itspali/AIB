@@ -95,6 +95,7 @@ export type OrganizationSettingsSnapshot = {
   accounting_config: OrganizationAccountingConfig;
   location_governance_config: OrganizationLocationGovernanceConfig;
   allow_line_item_discounts: boolean;
+  allow_edit_issued_purchase_orders: boolean;
   accounting_period_closing_date: string | null;
   search_financial_fields_mode: SearchFinancialFieldsMode;
   theme_settings: TenantThemeSettings;
@@ -102,8 +103,15 @@ export type OrganizationSettingsSnapshot = {
   entity_settings: EntitySettingsMetadata;
   group_entity_settings: EntitySettingsMetadata | null;
   delegates: OrganizationDelegateRow[];
+  po_edit_delegates: OrganizationDelegateRow[];
   locations: TenantLocationOption[];
   eligible_delegate_users: Array<{ id: string; first_name: string; last_name: string; email: string }>;
+  po_edit_eligible_delegate_users: Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  }>;
   group_id: string | null;
   parent_group_name: string | null;
 };
@@ -142,6 +150,7 @@ export type OrganizationSettingsFormValues = {
   sku_auto_pattern: string;
   sku_auto_prefix: string;
   allow_line_item_discounts: boolean;
+  allow_edit_issued_purchase_orders: boolean;
   accounting_period_closing_date: string;
   search_financial_fields_mode: SearchFinancialFieldsMode;
   default_theme: Theme;
@@ -242,6 +251,7 @@ export function snapshotToFormValues(
     sku_auto_pattern: snapshot.accounting_config.catalog_items.sku_auto_pattern,
     sku_auto_prefix: snapshot.accounting_config.catalog_items.sku_auto_prefix,
     allow_line_item_discounts: snapshot.allow_line_item_discounts,
+    allow_edit_issued_purchase_orders: snapshot.allow_edit_issued_purchase_orders,
     accounting_period_closing_date: snapshot.accounting_period_closing_date
       ? snapshot.accounting_period_closing_date.slice(0, 10)
       : "",

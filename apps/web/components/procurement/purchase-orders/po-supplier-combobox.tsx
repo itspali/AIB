@@ -14,10 +14,17 @@ type Props = {
   suppliers: ProcurementSupplierOption[];
   value: string;
   disabled?: boolean;
+  className?: string;
   onChange: (supplierId: string) => void;
 };
 
-export function PoSupplierCombobox({ suppliers, value, disabled = false, onChange }: Props) {
+export function PoSupplierCombobox({
+  suppliers,
+  value,
+  disabled = false,
+  className,
+  onChange,
+}: Props) {
   const listboxId = useId();
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
@@ -46,12 +53,13 @@ export function PoSupplierCombobox({ suppliers, value, disabled = false, onChang
   );
 
   return (
-    <div className="space-y-2">
+    <div className={cn("min-w-0 space-y-2", className)}>
       <Label>Supplier</Label>
-      <div ref={anchorRef} className="relative">
+      <div ref={anchorRef} className="relative min-w-0">
         <Input
           value={query}
           disabled={disabled}
+          className="min-w-0"
           placeholder="Search suppliers…"
           role="combobox"
           aria-expanded={open}

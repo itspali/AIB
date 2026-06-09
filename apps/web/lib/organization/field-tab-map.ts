@@ -40,6 +40,7 @@ const FIELD_TAB: Partial<Record<keyof OrganizationSettingsFormValues, OrgSetting
   sku_auto_pattern: ORG_SETTINGS_TAB_IDS.accounting,
   sku_auto_prefix: ORG_SETTINGS_TAB_IDS.accounting,
   allow_line_item_discounts: ORG_SETTINGS_TAB_IDS.accounting,
+  allow_edit_issued_purchase_orders: ORG_SETTINGS_TAB_IDS.accounting,
   accounting_period_closing_date: ORG_SETTINGS_TAB_IDS.accounting,
   search_financial_fields_mode: ORG_SETTINGS_TAB_IDS.access,
 };

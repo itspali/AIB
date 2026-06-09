@@ -87,6 +87,10 @@ type RightDrawerProps = {
   closeOnEscape?: boolean;
   /** On open, bump stored width up to this minimum when still at the default 40vw peek size. */
   preferredWidthVw?: number;
+  /** Classes applied to the scrollable body region below the header. */
+  bodyClassName?: string;
+  /** Sticky action bar below the scrollable body (e.g. Save / Cancel). */
+  footer?: React.ReactNode;
 };
 
 function readStoredWidthVw(): number {
@@ -142,6 +146,7 @@ type DrawerChromeProps = {
   bodyRef?: RefObject<HTMLDivElement | null>;
   scrollable: boolean;
   panelClassName?: string;
+  footer?: ReactNode;
   /** When true, use Radix SheetTitle (mobile sheet only). */
   inSheet: boolean;
   children: ReactNode;
@@ -170,6 +175,7 @@ function DrawerChrome({
   bodyRef,
   scrollable,
   panelClassName,
+  footer,
   children,
 }: DrawerChromeProps) {
   return (
@@ -204,7 +210,7 @@ function DrawerChrome({
 
       <SheetHeader
         className={cn(
-          "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b border-border/80 border-black/[0.06] dark:border-white/10",
+          "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 text-left border-b border-border/80 border-black/[0.06] dark:border-white/10",
           APP_HEADER_HEIGHT_CLASS,
           APP_HEADER_PADDING_X_CLASS
         )}
@@ -238,7 +244,7 @@ function DrawerChrome({
               </>
             ) : (
               <>
-                <h2 className={cn(drawerTitleClassName, "min-w-0 w-full truncate")}>{title}</h2>
+                <h2 className={cn(drawerTitleClassName, "min-w-0 w-full truncate text-left")}>{title}</h2>
                 {description ? (
                   <p className={drawerDescriptionClassName}>{description}</p>
                 ) : (
@@ -275,6 +281,11 @@ function DrawerChrome({
       >
         {children}
       </div>
+      {footer ? (
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border/80 border-black/[0.06] px-4 py-3 dark:border-white/10 sm:px-6">
+          {footer}
+        </footer>
+      ) : null}
     </>
   );
 }
@@ -295,6 +306,8 @@ export function RightDrawer({
   onRequestClose,
   closeOnEscape = true,
   preferredWidthVw,
+  bodyClassName,
+  footer,
 }: RightDrawerProps) {
   const [widthVw, setWidthVw] = useState(DEFAULT_WIDTH_VW);
   const [portalReady, setPortalReady] = useState(false);
@@ -407,6 +420,8 @@ export function RightDrawer({
     onResizePointerEnd: endResize,
     bodyRef,
     scrollable,
+    panelClassName: bodyClassName,
+    footer,
     children,
   };
 

@@ -54,7 +54,7 @@ export async function fetchProcurementSuppliers(
 ): Promise<ProcurementSupplierOption[]> {
   const { data, error } = await supabase
     .from("entities")
-    .select("id, name, payment_terms_days")
+    .select("id, name, payment_terms_days, base_currency_override")
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .in("type", ["SUPPLIER", "MUTUAL_PARTNER"])
@@ -66,5 +66,6 @@ export async function fetchProcurementSuppliers(
     id: row.id as string,
     name: row.name as string,
     payment_terms_days: Number(row.payment_terms_days) || 0,
+    base_currency_override: (row.base_currency_override as string | null) ?? null,
   }));
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
+import { DrawerFormField, DrawerFormGrid } from "@/components/layout/drawer-form-grid";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,12 +41,9 @@ export function EntityCustomFieldsSection({
           Additional profile fields configured for this workspace.
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <DrawerFormGrid>
         {definitions.map((definition) => (
-          <div
-            key={definition.key}
-            className="space-y-1.5 sm:col-span-2 sm:max-w-xl"
-          >
+          <DrawerFormField key={definition.key}>
             <div className="flex items-center gap-1.5">
               <Label htmlFor={`entity-custom-${definition.key}`}>
                 {definition.label}
@@ -96,9 +94,9 @@ export function EntityCustomFieldsSection({
                 onChange={(event) => setValue(definition.key, event.target.value)}
               />
             )}
-          </div>
+          </DrawerFormField>
         ))}
-      </div>
+      </DrawerFormGrid>
     </div>
   );
 }

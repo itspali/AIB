@@ -21,6 +21,7 @@ export type PoDraftLine = {
 export type PoDraftFormState = {
   destination_location_id: string;
   supplier_id: string;
+  currency_code: string;
   payment_terms_days: string;
   custom_fields: PurchaseOrderCustomFields;
   lines: PoDraftLine[];
@@ -61,14 +62,28 @@ export function filterSavablePoLines(lines: PoDraftLine[]): PoDraftLine[] {
   return lines.filter(isPoLineComplete);
 }
 
+export function supplierDefaultCurrency(
+  suppliers: ProcurementSupplierOption[],
+  supplierId: string,
+  workspaceDefaultCurrency: string
+): string {
+  const supplier = suppliers.find((row) => row.id === supplierId);
+  const override = supplier?.base_currency_override?.trim();
+  return override || workspaceDefaultCurrency;
+}
+
 export function defaultPoDraftForm(
   locations: ProcurementLocationOption[],
-  suppliers: ProcurementSupplierOption[]
+  suppliers: ProcurementSupplierOption[],
+  defaultCurrency = "USD"
 ): PoDraftFormState {
   const supplier = suppliers[0];
   return {
     destination_location_id: locations[0]?.id ?? "",
     supplier_id: supplier?.id ?? "",
+    currency_code: supplier
+      ? supplierDefaultCurrency(suppliers, supplier.id, defaultCurrency)
+      : defaultCurrency,
     payment_terms_days: supplier ? String(supplier.payment_terms_days) : "0",
     custom_fields: emptyPurchaseOrderCustomFields(),
     lines: [createEmptyPoLine()],
@@ -84,6 +99,7 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
   return {
     destination_location_id: order.destination_location_id,
     supplier_id: order.supplier_id,
+    currency_code: order.currency_code,
     payment_terms_days: String(order.payment_terms_days ?? 0),
     custom_fields: parsePurchaseOrderCustomFields(order.custom_fields),
     lines:

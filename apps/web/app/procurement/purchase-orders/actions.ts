@@ -11,8 +11,13 @@ import {
   issuePurchaseOrderSchema,
   peekPurchaseOrderNumberSchema,
   savePurchaseOrderSchema,
+  supplierItemInsightsSchema,
 } from "@/lib/procurement/purchase-orders/schemas";
 import { fetchSupplierVariantPrice } from "@/lib/procurement/purchase-orders/supplier-price";
+import {
+  fetchSupplierItemInsights,
+  type PoSupplierItemInsights,
+} from "@/lib/procurement/purchase-orders/supplier-item-insights";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import {
   fetchProcurementLocationLabel,
@@ -127,6 +132,33 @@ export async function lookupSupplierVariantPrice(input: {
   }
 }
 
+export async function loadSupplierItemInsights(
+  raw: unknown
+): Promise<{ insights: PoSupplierItemInsights } | { error: string }> {
+  const parsed = supplierItemInsightsSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid insights request." };
+  }
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const insights = await fetchSupplierItemInsights(supabase, tenantId, {
+      supplier_id: parsed.data.supplier_id,
+      variant_id: parsed.data.variant_id,
+      destination_location_id: parsed.data.destination_location_id,
+      exclude_purchase_order_id: parsed.data.exclude_purchase_order_id,
+    });
+    if (!insights) {
+      return { error: "Item not found." };
+    }
+    return { insights };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load supplier item insights.",
+    };
+  }
+}
+
 export { searchStockVariantsForAdjustment, lookupStockVariantBySku };
 
 export async function savePurchaseOrder(raw: unknown) {
@@ -150,6 +182,7 @@ export async function savePurchaseOrder(raw: unknown) {
     p_created_by: userId,
     p_payment_terms_days: Number(values.payment_terms_days || 0),
     p_custom_fields: serializePurchaseOrderCustomFields(values.custom_fields),
+    p_currency_code: values.currency_code,
   });
 
   if (error) {

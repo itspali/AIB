@@ -160,6 +160,32 @@
     @apply rounded-lg border border-border bg-muted/35 shadow-sm dark:bg-muted/20;
   }
 
+  /* Module drawer peek: lifted surface in light and dark. */
+  .module-drawer-peek-shell {
+    @apply bg-muted/40 dark:bg-[hsl(224_47%_11%)];
+  }
+
+  .module-drawer-peek-body {
+    @apply bg-muted/25 dark:bg-[hsl(224_47%_10%)];
+  }
+
+  .module-drawer-form-body {
+    @apply bg-muted/25 dark:bg-[hsl(224_47%_10%)];
+  }
+
+  /* Compact PO line grid: paper-white cells (light) / lifted card (dark). */
+  .po-line-cell-surface {
+    @apply bg-white dark:bg-[hsl(224_47%_14%)];
+  }
+
+  .po-line-grid-canvas {
+    @apply bg-muted/20 dark:bg-[hsl(224_47%_9%)];
+  }
+
+  .po-peek-lines-table {
+    @apply rounded-lg border border-border bg-white shadow-sm dark:bg-[hsl(224_47%_14%)];
+  }
+
   /* Product list cards: solid surface on every row (same for parent + variant). */
   .product-list-card {
     background-color: hsl(var(--card));

@@ -29,6 +29,7 @@ export type PurchaseOrderRow = {
   supplier_id: string;
   supplier_name: string;
   document_status: PurchaseOrderStatus;
+  currency_code: string;
   payment_terms_days: number;
   total_gross_amount: string;
   line_count: number;

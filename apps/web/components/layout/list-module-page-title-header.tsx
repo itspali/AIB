@@ -12,7 +12,7 @@ type Props = {
   title: string;
   description: string;
   createLabel: string;
-  onCreate: () => void;
+  onCreate?: () => void;
   aboutAriaLabel?: string;
 };
 
@@ -43,15 +43,17 @@ export function ListModulePageTitleHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <Button
-        type="button"
-        size="sm"
-        className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-        onClick={onCreate}
-      >
-        <Plus className="h-4 w-4" aria-hidden />
-        {createLabel}
-      </Button>
+      {onCreate ? (
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+          onClick={onCreate}
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          {createLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }

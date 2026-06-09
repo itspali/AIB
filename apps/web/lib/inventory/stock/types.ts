@@ -57,4 +57,5 @@ export type StockVariantOption = {
   standard_cost: string | null;
   adjustable: boolean;
   blocked_reason: string | null;
+  image_url: string | null;
 };

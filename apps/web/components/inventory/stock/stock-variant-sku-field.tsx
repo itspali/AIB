@@ -11,9 +11,8 @@ import {
   type Ref,
 } from "react";
 import { createPortal } from "react-dom";
-import { ScanLine, Search } from "lucide-react";
+import { Package, ScanLine, Search, X } from "lucide-react";
 import {
-  listStockVariantsForAdjustmentBrowse,
   lookupStockVariantBySku,
   searchStockVariantsForAdjustment,
 } from "@/app/inventory/stock/actions";
@@ -21,7 +20,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
 import type { StockVariantOption } from "@/lib/inventory/stock/types";
+import {
+  filterStockVariantSuggestions,
+  getCachedBrowseVariants,
+  loadBrowseVariants,
+  prefetchBrowseVariants,
+} from "@/lib/inventory/stock/variant-suggestion-cache";
 import { cn } from "@/lib/utils";
+
+const SEARCH_DEBOUNCE_MS = 100;
 
 const STOCK_VARIANT_NOT_ADJUSTABLE =
   "This variant is not available for stock adjustments or transfers.";
@@ -33,6 +40,7 @@ function isEnterKey(key: string): boolean {
 export type StockLineSkuSelection = {
   sku: string;
   variant_id: string;
+  item_id?: string;
   item_name: string;
   variant_sku: string;
   unit_cost: string;
@@ -45,6 +53,10 @@ type Props = {
   /** When "item", shows item name in the field and SKU as secondary text. */
   displayMode?: "sku" | "item";
   inputRef?: React.Ref<HTMLInputElement | null>;
+  inputClassName?: string;
+  showSecondaryText?: boolean;
+  /** Show a clear control when a variant is selected (default true). */
+  clearable?: boolean;
   value: StockLineSkuSelection;
   onChange: (patch: Partial<StockLineSkuSelection>) => void;
 };
@@ -78,6 +90,18 @@ function resolveVariantDisplayQuery(
   return displayMode === "item" ? variant.item_name : variant.variant_sku;
 }
 
+function VariantSuggestionThumb({ imageUrl }: { imageUrl: string | null }) {
+  return (
+    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-border/60 bg-muted">
+      {imageUrl ? (
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <Package className="h-4 w-4 text-muted-foreground" aria-hidden />
+      )}
+    </span>
+  );
+}
+
 function applyVariant(
   variant: StockVariantOption,
   onChange: (patch: Partial<StockLineSkuSelection>) => void
@@ -85,6 +109,7 @@ function applyVariant(
   onChange({
     sku: variant.variant_sku,
     variant_id: variant.variant_id,
+    item_id: variant.item_id,
     item_name: variant.item_name,
     variant_sku: variant.variant_sku,
     unit_cost: variant.standard_cost ?? "0",
@@ -106,6 +131,9 @@ export function StockVariantSkuField({
   compact = false,
   displayMode = "sku",
   inputRef: externalInputRef,
+  inputClassName,
+  showSecondaryText = true,
+  clearable = true,
   value,
   onChange,
 }: Props) {
@@ -119,7 +147,7 @@ export function StockVariantSkuField({
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [fieldError, setFieldError] = useState<string | null>(value.skuError);
-  const [isSearching, startSearchTransition] = useTransition();
+  const [isSearching, setIsSearching] = useState(false);
   const [isResolving, startResolveTransition] = useTransition();
   const blurTimeoutRef = useRef<number | null>(null);
   const skipSearchRef = useRef(false);
@@ -148,7 +176,8 @@ export function StockVariantSkuField({
   variantIdRef.current = value.variant_id;
   const [portalReady, setPortalReady] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<{
-    top: number;
+    top?: number;
+    bottom?: number;
     left: number;
     width: number;
     maxHeight: number;
@@ -158,6 +187,7 @@ export function StockVariantSkuField({
 
   useEffect(() => {
     setPortalReady(true);
+    prefetchBrowseVariants();
   }, []);
 
   const updateDropdownPosition = useCallback(() => {
@@ -165,12 +195,25 @@ export function StockVariantSkuField({
     if (!anchor) return;
 
     const rect = anchor.getBoundingClientRect();
+    const gap = 4;
     const viewportPadding = 8;
-    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
-    const maxHeight = Math.max(120, Math.min(224, spaceBelow));
+    const preferredMaxHeight = 224;
+    const minOpenSpace = 80;
+
+    const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
+    const spaceAbove = rect.top - gap - viewportPadding;
+
+    const openBelow =
+      spaceBelow >= preferredMaxHeight ||
+      (spaceBelow >= spaceAbove && spaceBelow >= minOpenSpace);
+
+    const available = Math.max(0, openBelow ? spaceBelow : spaceAbove);
+    const maxHeight = Math.min(preferredMaxHeight, available);
 
     setDropdownStyle({
-      top: rect.bottom + 4,
+      ...(openBelow
+        ? { top: rect.bottom + gap }
+        : { bottom: window.innerHeight - rect.top + gap }),
       left: rect.left,
       width: rect.width,
       maxHeight,
@@ -195,7 +238,7 @@ export function StockVariantSkuField({
   }, []);
 
   useLayoutEffect(() => {
-    if (!open || results.length === 0) {
+    if (!open) {
       setDropdownStyle(null);
       return;
     }
@@ -207,7 +250,7 @@ export function StockVariantSkuField({
       window.removeEventListener("resize", updateDropdownPosition);
       window.removeEventListener("scroll", updateDropdownPosition, true);
     };
-  }, [open, results.length, updateDropdownPosition]);
+  }, [open, updateDropdownPosition]);
 
   useLayoutEffect(() => {
     if (!open || results.length === 0) return;
@@ -219,47 +262,78 @@ export function StockVariantSkuField({
     setFieldError(value.skuError);
   }, [displayMode, value.item_name, value.sku, value.variant_id, value.variant_sku, value.skuError]);
 
-  const runBrowse = useCallback(() => {
-    if (!focusedRef.current || variantIdRef.current) return;
+  const applySuggestionResults = useCallback(
+    (variants: StockVariantOption[], queryOverride?: string) => {
+      const term = queryOverride ?? queryRef.current;
+      const visible =
+        term.trim().length < 1
+          ? variants
+          : filterStockVariantSuggestions(variants, term);
 
-    const requestId = ++searchRequestIdRef.current;
-
-    startSearchTransition(async () => {
-      const result = await listStockVariantsForAdjustmentBrowse();
-      if (requestId !== searchRequestIdRef.current || !focusedRef.current) return;
-
-      if ("error" in result) {
-        setResults([]);
-        setOpen(false);
-        setFieldError(result.error);
-        return;
-      }
-
-      setResults(result.variants);
+      setResults(visible);
       highlightIndexRef.current = 0;
       setHighlightIndex(0);
-      setOpen(result.variants.length > 0);
-      setFieldError(null);
-    });
-  }, []);
+      setOpen(true);
+      setFieldError(
+        visible.length === 0 && term.trim().length > 0 ? "No matching variants." : null
+      );
+    },
+    []
+  );
+
+  const runBrowse = useCallback(async () => {
+    if (!focusedRef.current || variantIdRef.current) return;
+
+    const cached = getCachedBrowseVariants();
+    if (cached) {
+      applySuggestionResults(cached);
+    } else {
+      setOpen(true);
+      setIsSearching(true);
+    }
+
+    const requestId = ++searchRequestIdRef.current;
+    const variants = await loadBrowseVariants();
+    if (requestId !== searchRequestIdRef.current || !focusedRef.current) return;
+
+    setIsSearching(false);
+    if (!variants) {
+      setResults([]);
+      setOpen(false);
+      setFieldError("Unable to load variants.");
+      return;
+    }
+
+    applySuggestionResults(variants);
+  }, [applySuggestionResults]);
 
   const runBrowseRef = useRef(runBrowse);
   runBrowseRef.current = runBrowse;
 
-  const runSearch = useCallback((nextQuery: string) => {
-    const trimmed = nextQuery.trim();
-    if (trimmed.length < 1) {
-      setResults([]);
-      setOpen(false);
-      setFieldError(null);
-      return;
-    }
+  const runSearch = useCallback(
+    async (nextQuery: string) => {
+      const trimmed = nextQuery.trim();
+      if (trimmed.length < 1) {
+        setResults([]);
+        setOpen(false);
+        setFieldError(null);
+        return;
+      }
 
-    const requestId = ++searchRequestIdRef.current;
+      const cached = getCachedBrowseVariants();
+      if (cached) {
+        applySuggestionResults(cached, trimmed);
+      } else {
+        setOpen(true);
+      }
 
-    startSearchTransition(async () => {
+      const requestId = ++searchRequestIdRef.current;
+      setIsSearching(true);
+
       const result = await searchStockVariantsForAdjustment(trimmed);
       if (requestId !== searchRequestIdRef.current) return;
+
+      setIsSearching(false);
 
       if ("error" in result) {
         setResults([]);
@@ -273,8 +347,9 @@ export function StockVariantSkuField({
       setHighlightIndex(0);
       setOpen(result.variants.length > 0);
       setFieldError(result.variants.length === 0 ? "No matching variants." : null);
-    });
-  }, []);
+    },
+    [applySuggestionResults]
+  );
 
   useEffect(() => {
     if (skipSearchRef.current) {
@@ -284,14 +359,19 @@ export function StockVariantSkuField({
     if (value.variant_id && isSelectionDisplayQuery(query, value, displayMode)) return;
     if (query.trim().length < 1) return;
 
+    const cached = getCachedBrowseVariants();
+    if (cached) {
+      applySuggestionResults(cached, query);
+    }
+
     if (debounceTimeoutRef.current) {
       window.clearTimeout(debounceTimeoutRef.current);
     }
 
     debounceTimeoutRef.current = window.setTimeout(() => {
       debounceTimeoutRef.current = null;
-      runSearch(query);
-    }, 250);
+      void runSearch(query);
+    }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceTimeoutRef.current) {
@@ -299,7 +379,7 @@ export function StockVariantSkuField({
         debounceTimeoutRef.current = null;
       }
     };
-  }, [displayMode, query, runSearch, value]);
+  }, [applySuggestionResults, displayMode, query, runSearch, value]);
 
   const selectVariant = useCallback((variant: StockVariantOption) => {
     if (!variant.adjustable) {
@@ -363,6 +443,7 @@ export function StockVariantSkuField({
           standard_cost: result.variant.standard_cost,
           adjustable: true,
           blocked_reason: null,
+          image_url: result.variant.image_url ?? null,
         },
         onChangeRef.current
       );
@@ -476,12 +557,41 @@ export function StockVariantSkuField({
       skuError: null,
     });
     setFieldError(null);
-    if (nextQuery.trim().length < 1) {
-      runBrowseRef.current();
-      return;
+
+    const cached = getCachedBrowseVariants();
+    if (cached) {
+      applySuggestionResults(cached, nextQuery);
+    } else {
+      setOpen(true);
     }
-    setOpen(true);
+
+    if (nextQuery.trim().length < 1) {
+      void runBrowseRef.current();
+    }
   };
+
+  const clearSelection = useCallback(() => {
+    cancelBlurClose();
+    cancelPendingSearch();
+    searchRequestIdRef.current += 1;
+    skipSearchRef.current = true;
+    onChangeRef.current({
+      sku: "",
+      variant_id: "",
+      item_name: "",
+      variant_sku: "",
+      unit_cost: "0",
+      skuError: null,
+    });
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+    setFieldError(null);
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+      runBrowseRef.current();
+    });
+  }, [cancelBlurClose, cancelPendingSearch]);
 
   const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
     const related = event.relatedTarget as Node | null;
@@ -504,14 +614,23 @@ export function StockVariantSkuField({
       blurTimeoutRef.current = null;
     }
     if (!variantIdRef.current && queryRef.current.trim().length < 1) {
-      runBrowseRef.current();
+      void runBrowseRef.current();
       return;
     }
-    if (results.length > 0) setOpen(true);
+    if (results.length > 0) {
+      setOpen(true);
+      return;
+    }
+    const cached = getCachedBrowseVariants();
+    if (cached && queryRef.current.trim().length > 0) {
+      applySuggestionResults(cached, queryRef.current);
+    }
   };
 
   const inputDisabled = disabled || isResolving;
   const itemDisplay = displayMode === "item";
+  const showClearControl = clearable && Boolean(value.variant_id) && !inputDisabled;
+  const showSearchIcon = !value.variant_id;
   const fieldLabel = itemDisplay ? "Item" : "SKU";
   const placeholder = compact
     ? itemDisplay
@@ -525,7 +644,7 @@ export function StockVariantSkuField({
   const secondaryTitle = itemDisplay ? value.variant_sku : value.item_name;
 
   return (
-    <div className={cn("min-w-0", compact ? "space-y-1" : "space-y-2 sm:col-span-2")}>
+    <div className={cn("min-w-0", compact ? "space-y-1.5" : "space-y-2 sm:col-span-2")}>
       {!compact ? (
         <Label className="text-sm font-medium text-muted-foreground">{fieldLabel}</Label>
       ) : null}
@@ -534,10 +653,18 @@ export function StockVariantSkuField({
         className="relative min-w-0"
         onKeyDownCapture={handleComboboxKeyDown}
       >
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        {showSearchIcon ? (
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        ) : null}
         <Input
           ref={assignInputRef}
-          className={cn("pl-8 pr-8", !itemDisplay && "font-mono", compact && "h-9 text-xs")}
+          className={cn(
+            !itemDisplay && "font-mono",
+            compact && "h-9 text-sm",
+            inputClassName,
+            showSearchIcon ? "pl-8" : "pl-2",
+            "pr-8"
+          )}
           value={query}
           disabled={inputDisabled}
           autoComplete="off"
@@ -556,23 +683,44 @@ export function StockVariantSkuField({
               : undefined
           }
           onChange={(event) => handleInputChange(event.target.value)}
-          onFocus={handleFocus}
+          onFocus={(event) => {
+            handleFocus();
+            if (value.variant_id) {
+              event.currentTarget.select();
+            }
+          }}
           onBlur={handleBlur}
         />
-        <ScanLine
-          className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
+        {showClearControl ? (
+          <button
+            type="button"
+            tabIndex={-1}
+            className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Clear ${fieldLabel.toLowerCase()}`}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={clearSelection}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : (
+          <ScanLine
+            className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+        )}
 
-        {portalReady && open && results.length > 0 && dropdownStyle
+        {portalReady && open && dropdownStyle
           ? createPortal(
+              results.length > 0 ? (
               <ul
                 ref={listboxRef}
                 id={listboxId}
                 role="listbox"
                 style={{
                   position: "fixed",
-                  top: dropdownStyle.top,
+                  ...(dropdownStyle.bottom != null
+                    ? { bottom: dropdownStyle.bottom }
+                    : { top: dropdownStyle.top }),
                   left: dropdownStyle.left,
                   width: dropdownStyle.width,
                   maxHeight: dropdownStyle.maxHeight,
@@ -597,31 +745,60 @@ export function StockVariantSkuField({
                         aria-selected={selected}
                         tabIndex={-1}
                         className={cn(
-                          "flex w-full flex-col rounded-sm px-2.5 py-2 text-left text-sm transition-colors",
+                          "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors",
                           selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/70"
                         )}
                         onMouseEnter={() => setHighlight(index)}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectVariant(variant)}
                       >
-                        {itemDisplay ? (
-                          <>
-                            <span className="text-xs font-medium">{variant.item_name}</span>
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {variant.variant_sku}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="font-mono text-xs font-medium">{variant.variant_sku}</span>
-                            <span className="text-xs text-muted-foreground">{variant.item_name}</span>
-                          </>
-                        )}
+                        <VariantSuggestionThumb imageUrl={variant.image_url} />
+                        <span className="min-w-0 flex-1">
+                          {itemDisplay ? (
+                            <>
+                              <span className="block truncate text-xs font-medium">
+                                {variant.item_name}
+                              </span>
+                              <span className="block truncate font-mono text-xs text-muted-foreground">
+                                {variant.variant_sku}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="block truncate font-mono text-xs font-medium">
+                                {variant.variant_sku}
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {variant.item_name}
+                              </span>
+                            </>
+                          )}
+                        </span>
                       </button>
                     </li>
                   );
                 })}
-              </ul>,
+              </ul>
+              ) : isSearching ? (
+                <ul
+                  role="listbox"
+                  style={{
+                    position: "fixed",
+                    ...(dropdownStyle.bottom != null
+                      ? { bottom: dropdownStyle.bottom }
+                      : { top: dropdownStyle.top }),
+                    left: dropdownStyle.left,
+                    width: dropdownStyle.width,
+                  }}
+                  className={cn(
+                    "rounded-md border border-border bg-popover p-1 shadow-md",
+                    popoverAboveDrawerClassName
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  <li className="px-2.5 py-2 text-sm text-muted-foreground">Loading items…</li>
+                </ul>
+              ) : null,
               document.body
             )
           : null}
@@ -629,10 +806,11 @@ export function StockVariantSkuField({
 
       {fieldError ? (
         <p className="line-clamp-2 text-[11px] leading-snug text-destructive">{fieldError}</p>
-      ) : secondaryText ? (
+      ) : showSecondaryText && secondaryText ? (
         <p
           className={cn(
-            "truncate text-[11px] leading-snug text-muted-foreground",
+            "truncate leading-snug text-muted-foreground",
+            compact ? "text-xs" : "text-[11px]",
             itemDisplay && "font-mono"
           )}
           title={secondaryTitle}

@@ -33,6 +33,7 @@ type PoListDbRow = {
   destination_location_id: string;
   supplier_id: string;
   document_status: string;
+  currency_code: string;
   payment_terms_days: number | string | null;
   total_gross_amount: number | string | null;
   total_net_amount: number | string;
@@ -90,6 +91,7 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     supplier_id: row.supplier_id,
     supplier_name: supplier?.name ?? "",
     document_status: row.document_status as PurchaseOrderStatus,
+    currency_code: row.currency_code ?? "USD",
     payment_terms_days: Number(row.payment_terms_days) || 0,
     total_gross_amount: formatDecimal(row.total_gross_amount),
     line_count: row.po_lines?.length ?? 0,
@@ -114,6 +116,7 @@ export async function fetchPurchaseOrders(
       destination_location_id,
       supplier_id,
       document_status,
+      currency_code,
       payment_terms_days,
       total_gross_amount,
       total_net_amount,
@@ -156,6 +159,7 @@ export async function fetchPurchaseOrderById(
       destination_location_id,
       supplier_id,
       document_status,
+      currency_code,
       payment_terms_days,
       total_gross_amount,
       total_net_amount,

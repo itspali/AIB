@@ -45,6 +45,10 @@ export function PoPeekView({ order }: Props) {
           <p className="text-sm font-medium">{order.destination_location_name}</p>
         </div>
         <div>
+          <p className="text-xs font-medium text-muted-foreground">Currency</p>
+          <p className="text-sm font-medium">{order.currency_code}</p>
+        </div>
+        <div>
           <p className="text-xs font-medium text-muted-foreground">Status</p>
           <Badge variant={purchaseOrderStatusBadgeVariant(order.document_status)}>
             {purchaseOrderStatusLabel(order.document_status)}
@@ -86,26 +90,26 @@ export function PoPeekView({ order }: Props) {
             Total {formatPoMoney(Number(order.total_net_amount) || 0)}
           </p>
         </div>
-        <div className="surface-inset">
+        <div className="po-peek-lines-table overflow-hidden">
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="sticky top-0 z-[5] w-10 bg-muted/95 p-2 text-center backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                <th className="sticky top-0 z-[5] w-10 bg-muted/95 p-2 text-center backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]">
                   #
                 </th>
-                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-left backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-left backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]">
                   Item
                 </th>
-                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]">
                   Ordered
                 </th>
-                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]">
                   Received
                 </th>
-                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]">
                   Unit price
                 </th>
-                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                <th className="sticky top-0 z-[5] bg-muted/95 p-2 text-right backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]">
                   Line total
                 </th>
               </tr>

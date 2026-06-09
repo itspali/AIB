@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CURRENCY_OPTIONS } from "@/lib/organization/currency-options";
 import { purchaseOrderCustomFieldsSchema } from "@/lib/procurement/purchase-orders/custom-fields";
 
 export const purchaseOrderLineSchema = z.object({
@@ -25,6 +26,7 @@ export const savePurchaseOrderSchema = z.object({
   purchase_order_id: z.string().uuid().optional().nullable(),
   destination_location_id: z.string().uuid("Select a destination location."),
   supplier_id: z.string().uuid("Select a supplier."),
+  currency_code: z.enum(CURRENCY_OPTIONS, { message: "Select a currency." }),
   payment_terms_days: z
     .string()
     .trim()
@@ -49,4 +51,12 @@ export const issuePurchaseOrderSchema = z.object({
 
 export const peekPurchaseOrderNumberSchema = z.object({
   destination_location_id: z.string().uuid("Select a destination location."),
+});
+
+export const supplierItemInsightsSchema = z.object({
+  supplier_id: z.string().uuid("Select a supplier."),
+  variant_id: z.string().uuid("Select a variant."),
+  destination_location_id: z.string().uuid("Select a destination location."),
+  line_unit_price: z.string().trim().optional(),
+  exclude_purchase_order_id: z.string().uuid().optional().nullable(),
 });

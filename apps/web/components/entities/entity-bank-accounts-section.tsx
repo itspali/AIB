@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { Building2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DrawerFormField, DrawerFormGrid } from "@/components/layout/drawer-form-grid";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -166,8 +167,8 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
             ) : null}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5 sm:col-span-2">
+          <DrawerFormGrid>
+            <DrawerFormField span="full">
               <Label>Account holder name</Label>
               <Input
                 value={account.account_holder_name}
@@ -176,16 +177,16 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
                   updateAccount(index, { account_holder_name: event.target.value })
                 }
               />
-            </div>
-            <div className="space-y-1.5">
+            </DrawerFormField>
+            <DrawerFormField>
               <Label>Account number</Label>
               <Input
                 value={account.account_number}
                 disabled={disabled}
                 onChange={(event) => updateAccount(index, { account_number: event.target.value })}
               />
-            </div>
-            <div className="space-y-1.5">
+            </DrawerFormField>
+            <DrawerFormField>
               <Label>IFSC</Label>
               <Input
                 value={account.ifsc_code}
@@ -196,16 +197,16 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
                 }
                 onBlur={(event) => void handleIfscBlur(index, event.target.value)}
               />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            </DrawerFormField>
+            <DrawerFormField span="full">
               <Label>Branch</Label>
               <Input
                 value={account.branch_name}
                 disabled={disabled}
                 onChange={(event) => updateAccount(index, { branch_name: event.target.value })}
               />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            </DrawerFormField>
+            <DrawerFormField span="full">
               <Label>UPI ID</Label>
               <Input
                 value={account.upi_id}
@@ -213,8 +214,8 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
                 placeholder="name@bank"
                 onChange={(event) => updateAccount(index, { upi_id: event.target.value })}
               />
-            </div>
-          </div>
+            </DrawerFormField>
+          </DrawerFormGrid>
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
