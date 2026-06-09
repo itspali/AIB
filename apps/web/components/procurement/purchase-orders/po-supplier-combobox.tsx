@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { DocumentLayoutLabel } from "@/components/documents/document-layout-label";
+import type { DocumentColumnPref } from "@/lib/documents/types";
 import { entityCreateHref } from "@/lib/entities/entity-navigation";
 import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
 import type { ProcurementSupplierOption } from "@/lib/procurement/shared/types";
@@ -15,6 +16,7 @@ type Props = {
   value: string;
   disabled?: boolean;
   className?: string;
+  labelField?: Pick<DocumentColumnPref, "label" | "typography">;
   onChange: (supplierId: string) => void;
 };
 
@@ -23,6 +25,7 @@ export function PoSupplierCombobox({
   value,
   disabled = false,
   className,
+  labelField,
   onChange,
 }: Props) {
   const listboxId = useId();
@@ -54,7 +57,7 @@ export function PoSupplierCombobox({
 
   return (
     <div className={cn("min-w-0 space-y-2", className)}>
-      <Label>Supplier</Label>
+      <DocumentLayoutLabel field={labelField} fallbackLabel="Supplier" />
       <div ref={anchorRef} className="relative min-w-0">
         <Input
           value={query}

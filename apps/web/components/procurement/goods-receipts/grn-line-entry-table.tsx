@@ -12,7 +12,10 @@ import {
   DocumentLineEntrySection,
   type DocumentLineColumn,
 } from "@/components/documents/document-line-entry-grid";
-import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
+import {
+  ensureTrailingEmptyLine,
+  isDocumentLineItemSelected,
+} from "@/lib/documents/line-entry";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 
 export type GrnDraftLine = {
@@ -124,7 +127,7 @@ function useGrnLineEntryActions(
           };
         });
         if (!poLocked) {
-          return ensureTrailingEmptyLine(next, isGrnLineComplete, createEmptyGrnLine);
+          return ensureTrailingEmptyLine(next, isDocumentLineItemSelected, createEmptyGrnLine);
         }
         return next;
       });
@@ -204,11 +207,6 @@ export function GrnLineEntryTable({
                   }}
                   onChange={actions.bindItemChange(line.key)}
                 />
-                {line.variant_sku ? (
-                  <div className="mt-1.5 truncate border-t border-border/50 pt-1.5 font-mono text-xs leading-snug text-muted-foreground">
-                    {line.variant_sku}
-                  </div>
-                ) : null}
               </div>
             );
           }

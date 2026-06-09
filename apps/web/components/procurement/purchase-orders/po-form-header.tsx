@@ -1,7 +1,7 @@
 "use client";
 
+import { DocumentLayoutLabel } from "@/components/documents/document-layout-label";
 import { PoSupplierCombobox } from "@/components/procurement/purchase-orders/po-supplier-combobox";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -9,6 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DEFAULT_PO_SCREEN_LAYOUT,
+  getPoLayoutColumnPref,
+  isPoHeaderFieldVisible,
+} from "@/lib/documents/purchase-order-layout";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftFormState } from "@/lib/procurement/purchase-orders/draft-form";
 import {
   supplierDefaultCurrency,
@@ -30,6 +36,7 @@ type Props = {
   stackVertically?: boolean;
   /** Workspace base currency when the supplier has no trading currency override. */
   defaultCurrency?: string;
+  layout?: DocumentLayoutTemplate;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
 };
 
@@ -40,70 +47,94 @@ export function PoFormHeader({
   disabled = false,
   stackVertically = false,
   defaultCurrency = "USD",
+  layout = DEFAULT_PO_SCREEN_LAYOUT,
   onPatch,
 }: Props) {
+  const showDestination = isPoHeaderFieldVisible("destination", layout);
+  const showSupplier = isPoHeaderFieldVisible("supplier", layout);
+  const showCurrency = isPoHeaderFieldVisible("currency", layout);
+  const visibleCount = [showDestination, showSupplier, showCurrency].filter(Boolean).length;
+
+  if (visibleCount === 0) return null;
+
+  const gridCols = stackVertically
+    ? "grid-cols-1"
+    : visibleCount === 1
+      ? "grid-cols-1"
+      : visibleCount === 2
+        ? "grid-cols-2"
+        : "grid-cols-3";
+
   return (
-    <div
-      className={cn(
-        "grid min-w-0 gap-2 sm:gap-4",
-        stackVertically ? "grid-cols-1" : "grid-cols-3"
-      )}
-    >
-      <div className="min-w-0 space-y-2">
-        <Label>Destination</Label>
-        <Select
-          value={form.destination_location_id}
-          disabled={disabled}
-          onValueChange={(value) => onPatch({ destination_location_id: value })}
-        >
-          <SelectTrigger className="w-full min-w-0">
-            <SelectValue placeholder="Select location" />
-          </SelectTrigger>
-          <SelectContent>
-            {locations.map((location) => (
-              <SelectItem key={location.id} value={location.id}>
-                {location.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <div className={cn("grid min-w-0 gap-2 sm:gap-4", gridCols)}>
+      {showDestination ? (
+        <div className="min-w-0 space-y-2">
+          <DocumentLayoutLabel
+            field={getPoLayoutColumnPref(layout, "destination")}
+            fallbackLabel="Destination"
+          />
+          <Select
+            value={form.destination_location_id}
+            disabled={disabled}
+            onValueChange={(value) => onPatch({ destination_location_id: value })}
+          >
+            <SelectTrigger className="w-full min-w-0">
+              <SelectValue placeholder="Select location" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
-      <PoSupplierCombobox
-        className="min-w-0"
-        suppliers={suppliers}
-        value={form.supplier_id}
-        disabled={disabled}
-        onChange={(supplierId) =>
-          onPatch({
-            supplier_id: supplierId,
-            payment_terms_days: supplierPaymentTerms(suppliers, supplierId),
-            currency_code: supplierDefaultCurrency(suppliers, supplierId, defaultCurrency),
-          })
-        }
-      />
-
-      <div className="min-w-0 space-y-2">
-        <Label>Currency</Label>
-        <Select
-          value={form.currency_code}
+      {showSupplier ? (
+        <PoSupplierCombobox
+          className="min-w-0"
+          suppliers={suppliers}
+          value={form.supplier_id}
           disabled={disabled}
-          onValueChange={(value) =>
-            onPatch({ currency_code: value as OrganizationCurrency })
+          labelField={getPoLayoutColumnPref(layout, "supplier")}
+          onChange={(supplierId) =>
+            onPatch({
+              supplier_id: supplierId,
+              payment_terms_days: supplierPaymentTerms(suppliers, supplierId),
+              currency_code: supplierDefaultCurrency(suppliers, supplierId, defaultCurrency),
+            })
           }
-        >
-          <SelectTrigger className="w-full min-w-0">
-            <SelectValue placeholder="Currency" />
-          </SelectTrigger>
-          <SelectContent>
-            {CURRENCY_OPTIONS.map((code) => (
-              <SelectItem key={code} value={code}>
-                {code}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+        />
+      ) : null}
+
+      {showCurrency ? (
+        <div className="min-w-0 space-y-2">
+          <DocumentLayoutLabel
+            field={getPoLayoutColumnPref(layout, "currency")}
+            fallbackLabel="Currency"
+          />
+          <Select
+            value={form.currency_code}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onPatch({ currency_code: value as OrganizationCurrency })
+            }
+          >
+            <SelectTrigger className="w-full min-w-0">
+              <SelectValue placeholder="Currency" />
+            </SelectTrigger>
+            <SelectContent>
+              {CURRENCY_OPTIONS.map((code) => (
+                <SelectItem key={code} value={code}>
+                  {code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
     </div>
   );
 }

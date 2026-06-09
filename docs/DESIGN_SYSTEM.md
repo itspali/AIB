@@ -6,6 +6,8 @@ responsive web framework (Next.js App Router + Tailwind CSS + Shadcn/UI + Lucide
 The standard is derived from reference implementations that are considered **frozen**:
 - **Items Master** (`/items`, alias `/inventory/items`) — full catalog list module (dual views, bulk select, saved views).
 - **Operational list modules** (`/inventory/stock`, `/inventory/transfers`) — lean document lists via `ListModuleShell`; see §3.7 and [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
+- **Document line-entry modules** (`/procurement/purchase-orders`, `/procurement/goods-receipts`, `/inventory/stock`, `/inventory/transfers`) — Tier B list + wide drawer with spreadsheet lines; see §3.7, §5.4, and [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) / [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
+- **Entity partners** (`/entities/customers`, `/entities/suppliers`) — Tier A list on `ListModuleShell` with party-specific drawer forms; see §5.3.
 - **Organization Settings** (`/settings/organization`) — single-page configuration forms.
 - **Module overview landings** (`/inventory`, `/procurement`, …) — KPI tiles + shortcut cards; see [`NAVIGATION.md`](./NAVIGATION.md) §4.
 
@@ -77,6 +79,8 @@ Form field grids collapse from multi-column to a single stack:
 - Organization Settings sections: `grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3`; wide fields span `md:col-span-2 lg:col-span-2`.
 - Mobile (`< sm`): always a 1-column full-width stack.
 
+**Drawer header bands (operational documents):** do **not** rely on viewport `md:` alone for column count inside a partial drawer — at **40vw peek** the viewport is still `md+` but the panel is narrow. Branch on `useRightDrawerLayout()` and `isNarrowRightDrawer()` instead (see §5.4). Example: stock adjustment **Location + Kind** on one row and **Reason** full width below at 40vw; all three fields in one row at 60vw / 80vw.
+
 ---
 
 ## 3. Master Data List Standard (The Items Master Pattern)
@@ -104,8 +108,8 @@ A view toggle in the toolbar switches between two presentations of the same reco
 
 ### 3.4 Row Interaction & Selection
 - Body row: `group cursor-pointer transition-colors duration-[25ms]`.
-- **Hover**: subtle background tint on unfrozen cells (`group-hover:bg-[hsl(214_28%_96%)]` / dark `color-mix` accent).
-- **Selected (drawer open)**: persistent `ring-1 ring-inset ring-primary/20` plus a tinted background; the compact card uses `border-primary/50 bg-primary/5 ring-1 ring-primary/20`.
+- **Hover**: muted band tint via `listTableBodyCellInteractionClass()` from `lib/layout/list-table-chrome.ts` (`LIST_TABLE_CELL_HOVER_*` tokens).
+- **Selected (drawer open)**: persistent `ring-1 ring-inset ring-border/70` (dark: `ring-border/55`) plus the same muted active fill as hover; compact cards may still use `border-primary/50 bg-primary/5 ring-1 ring-primary/20`.
 - Clicking anywhere on a row invokes router push changes to reflect row targeting inside the URL query parameter state. This opens the **right-side drawer instantly** without shifting table columns (frozen columns keep their inset shadow).
 - The bulk-selection checkbox column is `sticky left-0`, `w-10`, and **stops click propagation** so ticking a row does not inadvertently mutate URL tracking parameters or flash the open drawer canvas container.
 
@@ -122,20 +126,22 @@ Control shell component: `w-full min-w-0 rounded-lg border border-primary/25 bg-
 ### 3.6 Bulk Action Toolbar
 Appears when selection count > 0: `sticky top-0 z-30 animate-in fade-in slide-in-from-top-2 duration-200 backdrop-blur-sm`. Desktop shows primary outline actions + destructive Archive + a "More" dropdown; mobile collapses to a single "Actions" dropdown. Selection label `truncate text-sm font-semibold tracking-tight`.
 
-### 3.7 Operational Document List Modules (Stock / Transfers / GRN)
+### 3.7 Operational Document List Modules (Stock / Transfers / PO / GRN)
 
-Use this **lean** variant when the module posts location-scoped inventory documents rather than editing rich master records.
+Use this **lean** variant when the module posts location-scoped inventory or procurement documents rather than editing rich master records.
 
-**Canonical files:** `apps/web/components/inventory/stock/`, `apps/web/components/inventory/transfers/`, `apps/web/components/layout/list-module-shell.tsx`, `apps/web/lib/layout/use-module-drawer-url.ts`.
+**Canonical files:** `apps/web/components/inventory/stock/`, `apps/web/components/inventory/transfers/`, `apps/web/components/procurement/purchase-orders/`, `apps/web/components/procurement/goods-receipts/`, `apps/web/components/layout/list-module-shell.tsx`, `apps/web/lib/layout/use-module-drawer-url.ts`.
 
 | Aspect | Full catalog (§3) | Operational (§3.7) |
 |--------|-------------------|---------------------|
-| Shell | Custom page layout | `ListModuleShell` + `*-catalog-loader.tsx` (RSC) |
+| Shell | Custom page layout (Items) or `ListModuleShell` (Entities) | `ListModuleShell` + `*-catalog-loader.tsx` (RSC) |
+| Page title | Custom header or `ListModulePageTitleHeader` | `ListModulePageTitleHeader` — `text-2xl` title, module description (Info popover on mobile), `h-8` **New …** CTA |
 | Views | Table + compact cards | **Table only** (or single view toggle when meaningful, e.g. Stock balances vs adjustments) |
 | Bulk select | Sticky checkbox column | **None** |
-| Toolbar | Saved views, column settings | `ListModuleToolbarRow` + filter extras (location, status) + omnibar scope `stock` / `transfers` |
+| Toolbar | Saved views, column settings | `ListModuleToolbarRow` + `ModuleListToolbarFilters`; status/location filters inline on `md+` |
+| Table chrome | Shared hooks | `list-table-chrome.ts` — resize, freeze, sortable headers, muted hover/selection band |
 | Create CTA | Header + `?action=new` | Same; optional **prefill params** (see §4) |
-| Drawer | Peek / edit / create | Same; operational forms may post via RPC in one step (adjustments) or multi-step status (transfers) |
+| Drawer | Peek / edit / create | Same; simple forms (adjustments) or multi-step status (transfers); **line-entry docs** → §5.4 |
 | Empty state | `ProductEmptyState` or dashed prompt | Module-specific empty state with single **New …** CTA |
 | Errors | Toast + inline | `UserFacingErrorMessage` with optional settings link (numbering, MWAC) |
 
@@ -159,6 +165,7 @@ Clicking a list row or clicking the primary create button opens a contextual rig
 - **Optional prefill params** (operational modules): preserve module-specific keys on create, clear on drawer close via `useModuleDrawerUrl(..., { clearParamsOnClose: [...] })`. Examples:
   - Stock adjust from balance: `?action=new&variant=[uuid]&loc=[location_uuid]`
   - Transfer from reorder: `?action=new&variant=[uuid]&dest=[location_uuid]&src=[location_uuid]` (source optional)
+  - GRN from PO peek: `?action=new&po=[purchase_order_uuid]` (`GRN_DRAWER_PO_PARAM` in `lib/procurement/navigation.ts`)
 - **Router Implementation**: Use Next.js shallow routing (`router.push(..., { shallow: true })`) to manipulate query parameters. This changes the address bar and opens/closes the drawer instantly without executing expensive full-page server re-renders or losing background layout scroll state.
 - **Desktop Width Matrix**: Defaults to **40vw** width for lightweight peeks. Features an interactive header toggle icon (`Maximize2` / `Minimize2`) that cycles the layout across **40vw → 60vw → 80vw** to easily fit complex tables or rich multi-column fields. The user's width preference persists in `sessionStorage` (key: `aib-right-drawer-width`).
 - **Mobile Adaptation (< lg)**: The drawer auto-transforms into a **100vw full-screen takeover view**. The horizontal width step toggles are programmatically hidden.
@@ -180,7 +187,8 @@ Because data entry occurs within the sliding drawer space rather than an isolate
 - **Read-Only Peek State**: Default view when an item is chosen (`?id=[uuid]`). All form input fields render inside a customized, disabled `read-only` state with minimalist borders to prevent accidental data contamination or keystroke modifications. The drawer header uses **icon-only** actions: **Edit** (`Pencil`), **Open full page** (`ExternalLink`), width cycle (`Maximize2`), and close (`X`).
 - **Mutation State**: Triggered by clicking Edit or loading an explicit `action` param (`action=edit` or `action=new`). Form inputs transition to active, borders color-mix with primary theme tones, and a dedicated action footer slides into view.
 - **Save Optimization Shortcut**: Pressing `Cmd+Enter` or `Ctrl+Enter` programmatically fires the validation engine and triggers the underlying Supabase database mutation. The primary submit button specifies this shortcut inside its floating native hover tooltip asset.
-- **Sticky Control Footer**: Pinned permanently at the bottom edge of the sheet viewport layer: `sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-background/95 py-3 px-6 backdrop-blur`. Contains clear "Cancel" and "Save Changes" execution controls.
+- **Mutate actions (operational document drawers):** primary save/post controls live in the **drawer header** (`headerActions` on `RightDrawer`) — not a sticky footer. Do **not** add a redundant header **Cancel** on create/edit; closing via **X** or background interaction runs `useDiscardChangesConfirmation` when the form is dirty. Lifecycle-only actions (e.g. transfer **Cancel transfer** on a posted draft) remain in the header when they are domain operations, not navigation.
+- **Sticky Control Footer** (catalog / settings forms only): Pinned at the bottom edge of the sheet: `sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-background/95 py-3 px-6 backdrop-blur`. Contains **Cancel** and **Save Changes** — used by Items, Categories, Entity partners, Organization Settings, not by PO / GRN / Stock / Transfer line-entry drawers.
 
 ### 5.3 Entity partner forms (Customers / Suppliers)
 
@@ -191,6 +199,85 @@ Entity drawers use the same URL-driven `RightDrawer` shell but add **party natur
 - **Required categories**: Customers and mutual partners require a customer category; suppliers and mutual partners require a supplier category. PO supplier pickers only list categorized suppliers.
 - **Custom field buckets**: `customer_custom_fields` and `supplier_custom_fields` JSONB store template + org baseline values per side. Changing category prunes keys not in the new effective template.
 - **Field grids**: Use `DrawerFormGrid` / `DrawerFormField` from `components/layout/drawer-form-grid.tsx` — column count follows measured drawer width (1–4 columns).
+
+### 5.4 Document modules with line entry (PO / GRN / inventory pattern)
+
+Use for **multi-line documents** opened from a Tier B list: purchase orders, goods receipts, stock adjustments, stock transfers, and future Sales Quotation / Sales Order / Sales Invoice modules. Procurement-specific UX decisions live in [`PO_UX_PLAN.md`](./PO_UX_PLAN.md); inventory drawer rules in [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md); this section covers reusable layout and component contracts.
+
+**List surface:** identical to §3.7 (shell, toolbar, table chrome, URL drawer). Copy list structure from `po-management-terminal.tsx` or `grn-management-terminal.tsx`.
+
+**Drawer body surfaces** — apply CSS utility classes from `globals.css`:
+
+| Surface | Shell / body classes | Purpose |
+|---------|----------------------|---------|
+| Peek | `module-drawer-peek-shell`, `module-drawer-peek-body` | Opaque lifted peek; list must not show through |
+| Create / edit | `module-drawer-form-body` | Muted workspace for spreadsheet entry |
+
+**Responsive mutate layout** — branch on `useRightDrawerLayout()` and `isNarrowRightDrawer()` (drawer width, not viewport `md:`):
+
+| Drawer width | PO / GRN (commercial) | Stock / Transfer (inventory) |
+|--------------|----------------------|------------------------------|
+| Wide partial (`60vw` / `80vw`) | Header → **Lines** (`fillHeight`) + **side rail** (`lg:w-[15rem]`: totals + details) | Header fields (see below) → **Lines** (`fillHeight`); transfer adds receipt/overhead sections below |
+| Full-page (`100vw`, mobile) | Lines + side rail in a row; summary/details stack below `lg` | Vertical stack: header → lines → notes / receipt panels |
+| Narrow partial (`40vw`) | Vertical stack: header → lines → summary → details | **Compact header:** e.g. stock adjustment Location + Kind on one row, Reason full width on next row (`compactHeader = !isPartialDrawer \|\| isNarrowRightDrawer`) |
+
+Operators should open create/edit at **≥ 60vw** when possible (`RightDrawer` `preferredWidthVw={60}` bumps stored width from the default 40vw peek). Peek keeps the user's stored width.
+
+**Line table height (`fillHeight`)** — on **md+ viewports** (`useDocumentLineTableFillHeight`, `(min-width: 768px)`), mutate surfaces pass `fillHeight` to `DocumentLineEntryGrid` so the lines region consumes remaining drawer height and scrolls internally (`.po-line-grid-scroll` with `overflow-y-auto`). Below `md`, the table grows with content and the drawer body scrolls. When `fillHeight` is active, set `RightDrawer` `scrollable={false}` and use a flex column body (`h-full min-h-0 flex-1 overflow-hidden`) so only the line grid scrolls. Hook path: `lib/documents/use-document-line-table-fill-height.ts`.
+
+**Shared line-entry primitives** (`components/documents/`, `lib/documents/`):
+
+| Primitive | Role |
+|-----------|------|
+| `DocumentLineEntryGrid` | Spreadsheet table — sticky header, line numbers, remove column, horizontal scroll (`.po-line-grid-scroll`); `fillHeight` enables flex + internal vertical scroll |
+| `DocumentLinePeekTable` + peek cells | Read-only line grid in peek mode |
+| `useDocumentLineTableFillHeight` | `true` on md+ when mutate form is open — drives `fillHeight` + drawer `scrollable={false}` |
+| `lib/documents/line-entry.ts` | `ensureTrailingEmptyLine`, `filterCompleteLines`, `isDocumentLineItemSelected` — always keep one blank row; inventory modules append a row when an item is picked (qty not required) |
+| `lib/documents/<module>-layout.ts` | Column registry (`id`, `label`, `align`, future `decimalPlaces`) consumed by line table and peek |
+| Module `*-line-entry-cells.tsx` | Column renderers wired through `renderCell` callback |
+| Item/SKU combobox fields | Show SKU as **secondary text inside the field** only — do not render a duplicate SKU line below the control |
+
+**Form regions (mutate):**
+
+1. **Header band** — destination, supplier/party, voucher preview, currency (`*-form-header.tsx`); inventory: location, kind, reason (stock) or source/dest (transfer). Grid columns follow §2.3 drawer-width rules.
+2. **Lines** — `DocumentLineEntryGrid` with scan+search item resolution (GTIN/barcode → SKU per tenant policy); `fillHeight` on md+ per table above.
+3. **Summary** — live totals rail (`*-totals-panel.tsx`, `layout="embedded"` in side rail) — PO/GRN only in V1.
+4. **Details / notes** — advanced header fields in `custom_fields` JSON (`*-details-panel.tsx`, `layout="rail" | "stack"`) or trailing **Notes** textarea (stock adjustment).
+
+**Peek & actions:**
+
+- Peek loads full detail on demand when list row lacks embedded lines (`loadPurchaseOrderDetail`, `loadGoodsReceiptDetail`).
+- Peek header: icon-only **Edit** (`Pencil`), lifecycle actions (**Issue**, **Receive** deep-link to GRN with `?po=`), width cycle, close.
+- Mutate header: primary **Save** / **Save draft** / **Post** + secondary lifecycle buttons (e.g. **Issue**, **Cancel transfer**); **no** redundant **Cancel** for close — `Cmd/Ctrl+Enter` submits save.
+- Dirty close: `useDiscardChangesConfirmation` — confirm before stripping URL params (triggered by **X** or background row switch, not a Cancel button).
+
+**Cross-module links:** peek actions may `Link` to related modules with prefill query params (PO → GRN `?action=new&po=`). Preserve params via `clearParamsOnClose` only on the target module's drawer hook.
+
+**Canonical file map:**
+
+```
+apps/web/components/documents/     # DocumentLineEntryGrid, DocumentLinePeekTable, cells
+apps/web/lib/documents/            # line-entry helpers, purchase-order-layout.ts (column registry)
+apps/web/components/procurement/purchase-orders/
+  po-management-terminal.tsx       # Tier B list
+  po-drawer-form.tsx               # Responsive mutate layout + peek shell
+  po-line-entry-table.tsx          # DocumentLineEntryGrid adapter
+  po-peek-view.tsx                 # Read-only document summary
+apps/web/components/procurement/goods-receipts/
+  grn-management-terminal.tsx
+  grn-drawer-form.tsx
+  grn-line-entry-table.tsx
+apps/web/components/inventory/stock/
+  stock-drawer-form.tsx              # StockAdjustmentMutateForm — drawer-width header grid
+  stock-adjustment-line-entry-table.tsx
+apps/web/components/inventory/transfers/
+  transfer-drawer-form.tsx
+  transfer-line-entry-table.tsx
+apps/web/lib/documents/
+  use-document-line-table-fill-height.ts
+```
+
+Future Sales modules should clone this stack (list terminal + drawer form + line-entry-table + layout registry + optional totals panel), not invent a separate full-page editor unless product explicitly requires it (see PO_UX_PLAN Phase 2 **Expand to full page**).
 
 ---
 
@@ -271,8 +358,9 @@ Pick the tier that matches the module. When in doubt: **master/catalog data → 
 
 | Tier | Table component | Terminal |
 |------|-----------------|----------|
-| A (catalog) | `entity-list-table.tsx` or `product-list-table.tsx` | `entity-management-terminal.tsx` |
-| B (operational) | `transfer-list-table.tsx` or `stock-balances-table.tsx` | `transfer-management-terminal.tsx` |
+| A (catalog) | `entity-list-table.tsx` or `product-list-table.tsx` | `entity-management-terminal.tsx` or `product-catalog-terminal.tsx` |
+| B (operational) | `transfer-list-table.tsx` or `stock-balances-table.tsx` | `transfer-management-terminal.tsx` or `stock-management-terminal.tsx` |
+| B (line-entry doc) | `po-list-table.tsx` or `grn-list-table.tsx` | `po-management-terminal.tsx` or `grn-management-terminal.tsx` |
 
 **Shared table stack (required for all tiers with configurable columns)**
 
@@ -302,7 +390,8 @@ Do **not** implement resize, freeze, or row-hover inline in module tables — ex
 | Omnibar native scope | items, categories, locations, customers, suppliers | stock, transfers | Text + predicate filters client-side |
 | Sort (toolbar or header) | Yes | Yes | |
 | Row hover + frozen cell parity | Yes | Yes | `listTableBodyCellInteractionClass` |
-| Selected row ring | Yes | Yes | `listTableRowClass` |
+| Selected row ring | Yes | Yes | `listTableRowClass` — muted `ring-border/70`, not primary tint |
+| Document line drawer (§5.4) | No | Optional | PO, GRN, stock adjustments, transfers; future Sales docs |
 
 ### Tier A — Full catalog (Items Master)
 
@@ -314,7 +403,7 @@ Customers, Suppliers (rich profiles), Items, Categories, Entities, etc. **must**
 - [ ] Dual view modes (Table + Compact card) with a `bg-muted` segmented view toggle.
 - [ ] Table: `LIST_TABLE_SURFACE` + `LIST_TABLE_SCROLL`, `bg-muted` header (`LIST_TABLE_HEADER_CELL_BG`), `p-2.5` cell density, `LIST_TABLE_BODY_CELL` row dividers.
 - [ ] Row typography: line-1 `font-medium` identifier, line-2 `text-xs text-muted-foreground` subtext; numerics `text-right tabular-nums`; identifiers `font-mono`.
-- [ ] Hover tint + persistent selected `ring-1 ring-inset ring-primary/20`.
+- [ ] Hover tint + persistent selected `ring-1 ring-inset ring-border/70` (via `listTableRowClass` / `listTableBodyCellInteractionClass`).
 - [ ] Sticky `w-10` bulk checkbox column that stops propagation.
 
 **Toolbar & data controls**
@@ -342,7 +431,7 @@ Customers, Suppliers (rich profiles), Items, Categories, Entities, etc. **must**
 
 Purchase orders, GRNs, stock transfers, stock adjustments, shipment postings, etc. Satisfy §3.7 and:
 
-- [ ] `ListModuleShell` + `Suspense` loader page; drawer `id` omitted from RSC `searchParams` (client-only `history.pushState`).
+- [ ] `ListModuleShell` + `ListModulePageTitleHeader` + `Suspense` loader page; drawer `id` omitted from RSC `searchParams` (client-only `history.pushState`).
 - [ ] `useModuleDrawerUrl(baseHref)` for peek / edit / create; `UserFacingErrorMessage` for RPC failures.
 - [ ] Server actions call SECURITY DEFINER RPCs; `revalidatePath` on affected module routes.
 - [ ] Zod schemas in `lib/<module>/schemas.ts`; friendly RPC error formatters where operators need settings links.
@@ -353,4 +442,19 @@ Purchase orders, GRNs, stock transfers, stock adjustments, shipment postings, et
 
 **Inventory-specific Tier B rules:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §2.
 
-**Related IA:** [`NAVIGATION.md`](./NAVIGATION.md) · **Agent handover:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) · **Next build:** Procurement GRN (Sequence 21).
+### Tier B — Line-entry documents (PO / GRN / inventory pattern)
+
+Sales Quotation, Sales Order, Sales Invoice, stock adjustments, stock transfers, and any future multi-line document. Satisfy Tier B list checklist **plus** §5.4:
+
+- [ ] `*-drawer-form.tsx` with `module-drawer-peek-shell` / `module-drawer-form-body` body classes.
+- [ ] Mutate layout branches on `useRightDrawerLayout()` / `isNarrowRightDrawer()` — not viewport `md:` alone for header grids.
+- [ ] `useDocumentLineTableFillHeight` + `fillHeight` on `DocumentLineEntryGrid`; `RightDrawer` `scrollable={false}` when fill height is active.
+- [ ] `DocumentLineEntryGrid` adapter (`*-line-entry-table.tsx`) + column registry in `lib/documents/<module>-layout.ts` when columns are configurable.
+- [ ] `ensureTrailingEmptyLine` (or `isDocumentLineItemSelected` for inventory) for scan/type-friendly entry; peek uses `DocumentLinePeekTable`.
+- [ ] SKU shown once via combobox secondary text — no duplicate SKU row under the field.
+- [ ] Live totals panel + side rail for commercial docs; inventory header band + optional notes below lines.
+- [ ] `useDiscardChangesConfirmation` on dirty mutate close; save via header primary action + `Cmd/Ctrl+Enter` — no redundant header Cancel.
+- [ ] Cross-module deep links with prefill query params where applicable (e.g. PO → GRN).
+- [ ] Procurement UX specifics: [`PO_UX_PLAN.md`](./PO_UX_PLAN.md).
+
+**Related IA:** [`NAVIGATION.md`](./NAVIGATION.md) · **Agent handover:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) · **Procurement roadmap:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) · **Inventory ops:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)

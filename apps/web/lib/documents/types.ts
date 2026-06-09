@@ -13,20 +13,54 @@ export type DocumentTypography = {
   fontStyle?: "normal" | "italic";
 };
 
+/** Line field placement in the compact drawer grid. */
+export type DocumentLineSlot = "column" | "item_detail";
+
+/** How item-detail fields flow under the item cell. */
+export type DocumentItemDetailFlow = "new_line" | "inline_previous";
+
+export type DocumentCatalogFieldSource =
+  | "item_column"
+  | "item_custom_field"
+  | "variant_attribute"
+  | "variant_attributes_all";
+
 export type DocumentColumnPref = {
   id: string;
   label: string;
   defaultVisible: boolean;
   showLabel?: boolean;
-  group?: "line" | "header" | "totals" | "custom";
+  group?: "line" | "header" | "totals" | "catalog";
   align?: "left" | "right" | "center";
   typography?: DocumentTypography;
   /** Display decimal places for numeric fields (Phase 2 layout settings). */
   decimalPlaces?: number;
+  /** Line fields: table column vs stacked under the item cell (drawer compact mode). */
+  lineSlot?: DocumentLineSlot;
+  /** When lineSlot is item_detail — own row vs inline with previous detail field. */
+  itemDetailFlow?: DocumentItemDetailFlow;
+  /** Catalog-backed line field — resolved from item/variant at render time. */
+  catalogSource?: DocumentCatalogFieldSource;
+  catalogSourceKey?: string;
 };
+
+export type DocumentImageDisplayMode = "INLINE_CELL" | "SEPARATE_COLUMN" | "HIDDEN";
 
 export type DocumentLayoutDefaults = {
   moduleKey: DocumentModuleKey;
   viewContext: DocumentViewContext;
   columns: DocumentColumnPref[];
 };
+
+/** Full tenant layout template (settings UI + DB shape). */
+export type DocumentLayoutTemplate = DocumentLayoutDefaults & {
+  lineColumnOrder: string[];
+  /** Item/variant catalog fields shown on PO lines (read-only). */
+  catalogLineFieldOrder: string[];
+  headerFieldOrder: string[];
+  totalsFieldOrder: string[];
+  imageDisplayMode: DocumentImageDisplayMode;
+};
+
+/** When true, Print and Email view tabs are editable in module layout settings. */
+export const DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED = false;

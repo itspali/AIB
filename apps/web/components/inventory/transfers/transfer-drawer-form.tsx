@@ -49,6 +49,8 @@ import type {
   TransferLocationOption,
 } from "@/lib/inventory/transfers/types";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
+import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
+import { cn } from "@/lib/utils";
 
 type DraftFormState = {
   source_location_id: string;
@@ -118,22 +120,28 @@ function draftFormFromTransfer(
   transfer: StockTransferRow,
   locations: TransferLocationOption[]
 ): DraftFormState {
+  const mappedLines =
+    transfer.lines?.map((line) => ({
+      key: line.id,
+      sku: line.variant_sku,
+      variant_id: line.variant_id,
+      item_name: line.item_name,
+      variant_sku: line.variant_sku,
+      quantity_dispatched: line.quantity_dispatched,
+      skuError: null,
+    })) ?? [];
+
   return {
     source_location_id: transfer.source_location_id,
     destination_location_id: transfer.destination_location_id,
     inter_company_freight_cost: transfer.inter_company_freight_cost || "0",
     loading_overhead_cost: transfer.loading_overhead_cost || "0",
     unloading_overhead_cost: transfer.unloading_overhead_cost || "0",
-    lines:
-      transfer.lines?.map((line) => ({
-        key: line.id,
-        sku: line.variant_sku,
-        variant_id: line.variant_id,
-        item_name: line.item_name,
-        variant_sku: line.variant_sku,
-        quantity_dispatched: line.quantity_dispatched,
-        skuError: null,
-      })) ?? ensureTrailingEmptyLine([], () => false, createEmptyTransferLine),
+    lines: ensureTrailingEmptyLine(
+      mappedLines,
+      (line) => Boolean(line.variant_id) && Number(line.quantity_dispatched) > 0,
+      createEmptyTransferLine
+    ),
   };
 }
 
@@ -171,6 +179,7 @@ export function TransferDrawerForm({
 }: Props) {
   const isDraftForm = surface === "create" || surface === "edit";
   const isMutating = isMutationSurface(surface);
+  const lineTableFillHeight = useDocumentLineTableFillHeight(isDraftForm);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
   });
@@ -404,26 +413,15 @@ export function TransferDrawerForm({
   );
 
   const headerActions = isDraftForm ? (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={isPending}
-        onClick={() => handleRequestClose()}
-      >
-        Cancel
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        disabled={isPending || locations.length < 2}
-        onClick={handleSaveDraft}
-        title="Save draft (Ctrl+Enter)"
-      >
-        {isPending ? "Saving…" : "Save draft"}
-      </Button>
-    </>
+    <Button
+      type="button"
+      size="sm"
+      disabled={isPending || locations.length < 2}
+      onClick={handleSaveDraft}
+      title="Save draft (Ctrl+Enter)"
+    >
+      {isPending ? "Saving…" : "Save draft"}
+    </Button>
   ) : detail?.current_status === "DRAFT" ? (
     <>
       <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={handleCancel}>
@@ -476,19 +474,31 @@ export function TransferDrawerForm({
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
+        bodyClassName={isDraftForm ? "module-drawer-form-body" : undefined}
+        scrollable={!(isDraftForm && lineTableFillHeight)}
         showCloseButton
       >
-        {error ? (
-          <UserFacingErrorMessage
-            message={error}
-            action={errorAction}
-            className="mb-4"
-          />
-        ) : null}
+        <div
+          className={cn(
+            isDraftForm && lineTableFillHeight && "flex min-h-0 flex-1 flex-col"
+          )}
+        >
+          {error ? (
+            <UserFacingErrorMessage
+              message={error}
+              action={errorAction ?? undefined}
+              className="mb-4 shrink-0"
+            />
+          ) : null}
 
-        {isDraftForm ? (
-          <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
+          {isDraftForm ? (
+            <div
+              className={cn(
+                "flex flex-col gap-5",
+                lineTableFillHeight && "h-full min-h-0 flex-1 overflow-hidden"
+              )}
+            >
+              <div className="grid shrink-0 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="transfer-source">Source location</Label>
                 <Select
@@ -538,7 +548,7 @@ export function TransferDrawerForm({
               </div>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-border/80 p-3">
+            <div className="shrink-0 space-y-3 rounded-lg border border-border/80 p-3">
               <div>
                 <Label>Transfer overhead (optional)</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -583,20 +593,28 @@ export function TransferDrawerForm({
               </div>
             </div>
 
-            <TransferLineEntryTable
-              lines={form.lines}
-              disabled={isPending}
-              onChange={(linesOrUpdater) => {
-                setForm((current) => ({
-                  ...current,
-                  lines:
-                    typeof linesOrUpdater === "function"
-                      ? linesOrUpdater(current.lines)
-                      : linesOrUpdater,
-                }));
-                setIsDirty(true);
-              }}
-            />
+            <div
+              className={cn(
+                "min-h-0 min-w-0",
+                lineTableFillHeight && "flex flex-1 flex-col"
+              )}
+            >
+              <TransferLineEntryTable
+                fillHeight={lineTableFillHeight}
+                lines={form.lines}
+                disabled={isPending}
+                onChange={(linesOrUpdater) => {
+                  setForm((current) => ({
+                    ...current,
+                    lines:
+                      typeof linesOrUpdater === "function"
+                        ? linesOrUpdater(current.lines)
+                        : linesOrUpdater,
+                  }));
+                  setIsDirty(true);
+                }}
+              />
+            </div>
           </div>
         ) : showLoadingPeek ? (
           <p className="text-sm text-muted-foreground">Loading transfer…</p>
@@ -712,6 +730,7 @@ export function TransferDrawerForm({
         ) : (
           <p className="text-sm text-muted-foreground">Transfer not found.</p>
         )}
+        </div>
       </RightDrawer>
       {discardDialog}
     </>

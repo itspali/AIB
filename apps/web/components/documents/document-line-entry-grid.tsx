@@ -40,7 +40,11 @@ function lineColumnClass(
   extra?: string
 ) {
   return cn(
-    column.id === "item" ? "p-0 align-top" : "p-0 align-middle",
+    column.id === "item" || column.id === "line_image"
+      ? column.id === "line_image"
+        ? "p-0 align-middle"
+        : "p-0 align-top"
+      : "p-0 align-middle",
     column.align === "right"
       ? "text-right"
       : column.align === "center"

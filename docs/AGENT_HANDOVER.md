@@ -4,8 +4,9 @@
 You are an Elite Enterprise Full-Stack Engineer and Core Database Architect. You are taking over the building of the "AIB Smart ERP" platform.
 - **Absolute Mandate**: Before generating any database query, schema modification, frontend screen, form component, or API routing path, you MUST read and follow the constraints defined in:
   1. `@docs/DATA_STANDARDS.md` (Relational UUIDv4 constraints, NUMERIC(15,4) and NUMERIC(15,6) financial scales, UTC timezones)
-  2. `@docs/DESIGN_SYSTEM.md` (Three-Zone Dashboard layouts, Mobile responsive grid stacks, Progressive disclosure toggles)
+  2. `@docs/DESIGN_SYSTEM.md` (Three-Zone Dashboard layouts, Mobile responsive grid stacks, Progressive disclosure toggles, **§5.4 document line-entry drawers**)
 - **Inventory / stock / transfers / procurement inbound:** read [`docs/INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for what is shipped, V1 constraints, and the current execution roadmap.
+- **Procurement PO / GRN / future Sales line-entry docs:** read [`docs/PO_UX_PLAN.md`](./PO_UX_PLAN.md) for commercial UX decisions and [`docs/DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4 for reusable drawer layout.
 
 ## 2. Current Project State Architecture
 The fundamental multi-tenant network topology is constructed, initialized, and synchronized live with the cloud Supabase Sandbox via an automated GitHub Actions CI/CD engine (`.github/workflows/deploy.yml`).
@@ -43,13 +44,16 @@ The folder tree structure is:
 - `supabase/migrations/20260608130000_location_document_sequence_counters.sql` -> admin-set `next_value` on location document numbering save.
 - `supabase/migrations/20260608150000_default_location_document_naming_prefixes.sql` -> year-scoped default prefixes (e.g. `ST-2026-`, `SA-2026-`) for locations missing naming.
 - `apps/web/app/inventory/` -> Overview, Stock, Transfers modules (see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)).
+- `apps/web/app/procurement/purchase-orders/`, `apps/web/app/procurement/goods-receipts/` -> Tier B list modules + line-entry drawers (see [`PO_UX_PLAN.md`](./PO_UX_PLAN.md), DESIGN_SYSTEM §5.4).
+- `apps/web/components/documents/` -> Shared `DocumentLineEntryGrid` / `DocumentLinePeekTable` for multi-line commercial and inventory documents.
+- `apps/web/lib/documents/use-document-line-table-fill-height.ts` -> md+ line entry tables fill remaining drawer height; drawer body does not scroll when active.
 
 ## 3. Active System Tables Definition (Do Not Re-create)
 The database contains forty-five+ active models, protected by Row-Level Security. Notable **inventory operations** tables (in addition to catalog tables):
 - `stock_adjustments`, `stock_adjustment_lines` — location-scoped posted adjustments (V1).
 - `stock_transfers`, `stock_transfer_items` — inter-location moves with status machine.
 - `item_valuations`, `inventory_ledger` — MWAC on-hand and append-only ledger.
-- Procurement (schema present, **UI not built**): `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`.
+- Procurement (**UI built** for PO + GRN V1): `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`. Purchase invoices UI not built.
 
 Full catalog (do not re-create):
 - `tenants`, `tenant_locations`, `users`, `entities`, `entity_contacts`, `item_categories`, `items`, `item_variants`, `item_uoms`, `supplier_items`, `price_books`, `price_book_entries`, `storefront_channels`, `storefront_items`, `item_media`, `tags`, `workspace_control_registry`, `document_layout_templates`, `document_sequences`, `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`, `stock_transfers`, `stock_transfer_items`, `stock_transfer_incidents`, `transfer_discrepancy_claims`, `item_valuations`, `inventory_buffer_thresholds`, `sales_quotations`, `sales_orders`, `sales_invoices`, `sales_shipments`, `payment_gateway_vouchers`, `customer_payments`, `payment_applications`, `sales_credit_notes`, `sales_returns`, `document_approvals`, `accounts`, `tax_rate_registry`, `return_policies`, `currency_exchange_rates`, `general_ledger_headers`, `general_ledger_entries`, `inventory_ledger`, `stock_adjustments`, `stock_adjustment_lines`.
@@ -156,13 +160,17 @@ Full catalog (do not re-create):
 - **In-transit drill-down:** metric card → `/inventory/transfers?status=DISPATCHED_IN_TRANSIT`.
 - **Omnibar:** scopes `stock` and `transfers` with client-side list filtering (`lib/search/scopes.ts`, `use-filtered-stock.ts`, `use-filtered-transfers.ts`).
 - **List-module parity:** Tier B chrome (columns, sort, resize, freeze) on Stock, Transfers, PO, GRN; Category skeleton aligned to single-panel layout.
+- **Document drawer UX:** line tables fill drawer height on md+; trailing blank rows; GRN/Stock/Transfer header-only save; stock adjustment drawer-width header grid — see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) §1.
 - **Location numbering:** sequence counter updates + default prefixes (`20260608130000_*`, `20260608150000_*`).
 - **Details:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 
-### Task Sequence 21: Procurement Inbound (GRN) [IMPLEMENTED]
-- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — list-module pattern under Procurement.
-- **Migration:** `20260608160000_procurement_grn_v1_rpcs.sql`.
-- **Defer:** full PO approval workflow, supplier portal, purchase invoices — unless user expands scope.
+### Task Sequence 21: Procurement Inbound (PO + GRN) [IMPLEMENTED]
+- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules under Procurement.
+- **PO V1 UX:** spreadsheet line entry, supplier combobox + catalog prefill, totals rail, voucher preview, md+ line-table fill height — see [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) Phase 1.
+- **Shared document UI:** `components/documents/` + `lib/documents/` (`DocumentLineEntryGrid`, `useDocumentLineTableFillHeight`, line-entry helpers) — reuse for stock adjustments, transfers, Sales Quotation / Order / Invoice (DESIGN_SYSTEM §5.4).
+- **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`.
+- **Cross-link:** PO peek **Receive** → GRN create with `?po=[uuid]`.
+- **Defer:** full PO approval workflow, supplier portal, purchase invoices, document layout settings UI — unless user expands scope.
 
 ### Task Sequence 22: Enterprise Group Structure [IMPLEMENTED — Phase 2 UI]
 - **Route:** `/settings/group` — Administration → Group (DESIGN_SYSTEM §6 org-settings pattern).

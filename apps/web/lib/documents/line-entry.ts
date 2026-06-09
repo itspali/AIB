@@ -1,3 +1,8 @@
+/** True when the operator has picked a variant (spreadsheet row is "started"). */
+export function isDocumentLineItemSelected(line: { variant_id: string }): boolean {
+  return Boolean(line.variant_id);
+}
+
 /** Keeps a trailing empty row for spreadsheet-style entry. */
 export function ensureTrailingEmptyLine<T>(
   lines: T[],

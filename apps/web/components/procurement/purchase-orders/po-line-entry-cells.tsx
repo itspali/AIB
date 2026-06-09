@@ -7,9 +7,18 @@ import {
   DocumentLineCompactInput,
   DocumentLineRemoveButton,
 } from "@/components/documents/document-line-entry-cells";
+import { DocumentLineImage } from "@/components/documents/document-line-image";
+import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { cn } from "@/lib/utils";
-import type { DocumentColumnPref } from "@/lib/documents/types";
-import type { PoLineColumnId } from "@/lib/documents/purchase-order-layout";
+import { isCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import { resolveLineDetailFieldDisplay } from "@/lib/documents/catalog-line-values";
+import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
+import type { DocumentColumnPref, DocumentImageDisplayMode } from "@/lib/documents/types";
+import {
+  PO_LINE_IMAGE_COLUMN_ID,
+  shouldShowPoLineInlineImage,
+  type PoLineColumnId,
+} from "@/lib/documents/purchase-order-layout";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { computeLineGross, formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import { isEnterKey } from "@/components/procurement/purchase-orders/po-line-entry-actions";
@@ -33,15 +42,35 @@ type LineCellContext = {
   advanceFromLine: (lineKey: string) => void;
 };
 
-function nestedFieldDisplayValue(columnId: PoLineColumnId, _line: PoDraftLine): string {
+function commercialNestedFieldValue(columnId: PoLineColumnId, line: PoDraftLine): string | null {
   switch (columnId) {
     case "unit":
+      return line.catalog_context?.base_unit_of_measure?.trim() || null;
     case "discount_pct":
     case "discount_amount":
-      return "—";
+      return null;
     default:
-      return "—";
+      return null;
   }
+}
+
+function resolveNestedFieldDisplay(column: DocumentColumnPref, line: PoDraftLine): string | null {
+  const commercial = !isCatalogFieldId(column.id)
+    ? commercialNestedFieldValue(column.id as PoLineColumnId, line)
+    : null;
+
+  return resolveLineDetailFieldDisplay(column, line.catalog_context, commercial);
+}
+
+function visibleNestedColumns(columns: DocumentColumnPref[], line: PoDraftLine): DocumentColumnPref[] {
+  return columns.filter((column) => {
+    const value = resolveNestedFieldDisplay(column, line);
+    return value != null && value !== "";
+  });
+}
+
+function resolveLineImageUrl(line: PoDraftLine): string | null {
+  return line.catalog_context?.image_url ?? null;
 }
 
 export function PoLineNestedUnderItemFields({
@@ -53,26 +82,80 @@ export function PoLineNestedUnderItemFields({
 }) {
   if (!line.variant_id || nestedColumns.length === 0) return null;
 
+  const columnsToRender = visibleNestedColumns(nestedColumns, line);
+  const detailRows = groupItemDetailRows(columnsToRender);
+  const showSku =
+    line.variant_sku && !columnsToRender.some((column) => isCatalogFieldId(column.id));
+
+  if (!showSku && detailRows.length === 0) return null;
+
   return (
     <div className="mt-1.5 space-y-1 border-t border-border/50 px-0 pb-0.5 pt-1.5">
-      {line.variant_sku ? (
+      {showSku ? (
         <div className="truncate font-mono text-xs leading-snug text-muted-foreground">
           {line.variant_sku}
         </div>
       ) : null}
-      {nestedColumns.map((column) => (
-        <div
-          key={column.id}
-          className="flex min-w-0 items-baseline gap-1 text-xs leading-snug"
-        >
-          {column.showLabel !== false ? (
-            <span className="shrink-0 text-muted-foreground">{column.label}:</span>
-          ) : null}
-          <span className="min-w-0 truncate tabular-nums text-foreground">
-            {nestedFieldDisplayValue(column.id as PoLineColumnId, line)}
-          </span>
-        </div>
-      ))}
+      {detailRows.map((rowColumns, rowIndex) =>
+        rowColumns.length > 1 ? (
+          <div
+            key={`inline-${rowIndex}`}
+            className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0 text-xs leading-snug"
+          >
+            {rowColumns.map((column, columnIndex) => {
+              const displayValue = resolveNestedFieldDisplay(column, line);
+              if (!displayValue) return null;
+              return (
+                <span
+                  key={column.id}
+                  className={documentFieldTypographyClassName(
+                    column,
+                    "inline-flex min-w-0 items-baseline gap-1 text-muted-foreground"
+                  )}
+                >
+                  {columnIndex > 0 ? (
+                    <span className="text-muted-foreground/45" aria-hidden>
+                      ·
+                    </span>
+                  ) : null}
+                  {column.showLabel !== false ? (
+                    <span className="shrink-0">{column.label}:</span>
+                  ) : null}
+                  <span className="min-w-0 truncate text-foreground">{displayValue}</span>
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          (() => {
+            const column = rowColumns[0]!;
+            const displayValue = resolveNestedFieldDisplay(column, line);
+            if (!displayValue) return null;
+            return (
+              <div
+                key={column.id}
+                className={documentFieldTypographyClassName(
+                  column,
+                  "flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
+                )}
+              >
+                {column.showLabel !== false ? (
+                  <span className="shrink-0">{column.label}:</span>
+                ) : null}
+                <span className="min-w-0 truncate text-foreground">{displayValue}</span>
+              </div>
+            );
+          })()
+        )
+      )}
+    </div>
+  );
+}
+
+export function PoLineImageCell({ line }: { line: PoDraftLine }) {
+  return (
+    <div className="flex items-center justify-center px-1 py-2">
+      <DocumentLineImage imageUrl={resolveLineImageUrl(line)} />
     </div>
   );
 }
@@ -80,49 +163,66 @@ export function PoLineNestedUnderItemFields({
 export function PoLineItemCell({
   ctx,
   nestedColumns,
+  itemColumn,
+  imageDisplayMode,
 }: {
   ctx: LineCellContext;
   nestedColumns: DocumentColumnPref[];
+  itemColumn: DocumentColumnPref;
+  imageDisplayMode: DocumentImageDisplayMode;
 }) {
   const { line, disabled, supplierId, destinationLocationId, excludePurchaseOrderId, itemRefs, bindItemChange, patchLine } =
     ctx;
 
-  const hideFieldSecondary = nestedColumns.length > 0 && Boolean(line.variant_id);
+  const hideFieldSecondary =
+    nestedColumns.length > 0 &&
+    Boolean(line.variant_id) &&
+    (visibleNestedColumns(nestedColumns, line).length > 0 || Boolean(line.variant_sku));
+
+  const showInlineImage = shouldShowPoLineInlineImage(imageDisplayMode);
 
   return (
     <div className="min-w-0 px-2 py-2 text-sm">
-      <div className="flex items-start gap-1">
-        <div className="min-w-0 flex-1">
-          <StockVariantSkuField
-            compact
-            displayMode="item"
+      <div className="flex items-start gap-2">
+        {showInlineImage ? (
+          <DocumentLineImage imageUrl={resolveLineImageUrl(line)} className="mt-0.5" />
+        ) : null}
+        <div className="flex min-w-0 flex-1 items-start gap-1">
+          <div className="min-w-0 flex-1">
+            <StockVariantSkuField
+              compact
+              displayMode="item"
+              disabled={disabled}
+              inputClassName={documentFieldTypographyClassName(
+                itemColumn,
+                cn(PO_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")
+              )}
+              showSecondaryText={!hideFieldSecondary}
+              inputRef={(node) => {
+                itemRefs.current[line.key] = node;
+              }}
+              value={{
+                sku: line.sku,
+                variant_id: line.variant_id,
+                item_name: line.item_name,
+                variant_sku: line.variant_sku,
+                unit_cost: line.unit_price_contractual || "0",
+                skuError: line.skuError,
+              }}
+              onChange={bindItemChange(line.key)}
+            />
+          </div>
+          <PoLineSupplierInsightsButton
+            line={line}
+            supplierId={supplierId}
+            destinationLocationId={destinationLocationId}
+            excludePurchaseOrderId={excludePurchaseOrderId}
             disabled={disabled}
-            inputClassName={PO_LINE_ITEM_CELL_INPUT_CLASS}
-            showSecondaryText={!hideFieldSecondary}
-            inputRef={(node) => {
-              itemRefs.current[line.key] = node;
-            }}
-            value={{
-              sku: line.sku,
-              variant_id: line.variant_id,
-              item_name: line.item_name,
-              variant_sku: line.variant_sku,
-              unit_cost: line.unit_price_contractual || "0",
-              skuError: line.skuError,
-            }}
-            onChange={bindItemChange(line.key)}
+            onApplyCatalogPrice={(lineKey, price) =>
+              patchLine(lineKey, { unit_price_contractual: price })
+            }
           />
         </div>
-        <PoLineSupplierInsightsButton
-          line={line}
-          supplierId={supplierId}
-          destinationLocationId={destinationLocationId}
-          excludePurchaseOrderId={excludePurchaseOrderId}
-          disabled={disabled}
-          onApplyCatalogPrice={(lineKey, price) =>
-            patchLine(lineKey, { unit_price_contractual: price })
-          }
-        />
       </div>
       <PoLineNestedUnderItemFields line={line} nestedColumns={nestedColumns} />
     </div>
@@ -131,10 +231,10 @@ export function PoLineItemCell({
 
 export function PoLineQtyCell({
   ctx,
-  align,
+  column,
 }: {
   ctx: LineCellContext;
-  align?: "left" | "right" | "center";
+  column: DocumentColumnPref;
 }) {
   const { line, disabled, qtyRefs, patchLine, focusPrice } = ctx;
 
@@ -143,7 +243,8 @@ export function PoLineQtyCell({
       ref={(node) => {
         qtyRefs.current[line.key] = node;
       }}
-      align={align}
+      align={column.align}
+      className={documentFieldTypographyClassName(column, undefined)}
       value={line.quantity_ordered}
       disabled={disabled}
       inputMode="decimal"
@@ -162,10 +263,10 @@ export function PoLineQtyCell({
 
 export function PoLinePriceCell({
   ctx,
-  align,
+  column,
 }: {
   ctx: LineCellContext;
-  align?: "left" | "right" | "center";
+  column: DocumentColumnPref;
 }) {
   const { line, disabled, priceRefs, patchLine, advanceFromLine } = ctx;
 
@@ -174,7 +275,8 @@ export function PoLinePriceCell({
       ref={(node) => {
         priceRefs.current[line.key] = node;
       }}
-      align={align}
+      align={column.align}
+      className={documentFieldTypographyClassName(column, undefined)}
       value={line.unit_price_contractual}
       disabled={disabled}
       inputMode="decimal"
@@ -193,18 +295,21 @@ export function PoLinePriceCell({
 
 export function PoLineTotalCell({
   line,
-  align,
+  column,
 }: {
   line: PoDraftLine;
-  align?: "left" | "right" | "center";
+  column: DocumentColumnPref;
 }) {
   const lineTotal = formatPoMoney(computeLineGross(line));
 
   return (
     <div
-      className={cn(
-        "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
-        align === "right" ? "text-right" : "text-left"
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          column.align === "right" ? "text-right" : "text-left"
+        )
       )}
     >
       {lineTotal}
@@ -215,22 +320,33 @@ export function PoLineTotalCell({
 export const PoLineRemoveButton = DocumentLineRemoveButton;
 
 export function renderPoLineColumnCell(
-  columnId: PoLineColumnId,
+  columnId: string,
   column: DocumentColumnPref,
   ctx: LineCellContext,
-  nestedColumns: DocumentColumnPref[]
+  nestedColumns: DocumentColumnPref[],
+  imageDisplayMode: DocumentImageDisplayMode
 ) {
+  if (columnId === PO_LINE_IMAGE_COLUMN_ID) {
+    return <PoLineImageCell line={ctx.line} />;
+  }
   if (columnId === "item") {
-    return <PoLineItemCell ctx={ctx} nestedColumns={nestedColumns} />;
+    return (
+      <PoLineItemCell
+        ctx={ctx}
+        nestedColumns={nestedColumns}
+        itemColumn={column}
+        imageDisplayMode={imageDisplayMode}
+      />
+    );
   }
   if (columnId === "quantity_ordered") {
-    return <PoLineQtyCell ctx={ctx} align={column.align} />;
+    return <PoLineQtyCell ctx={ctx} column={column} />;
   }
   if (columnId === "unit_price") {
-    return <PoLinePriceCell ctx={ctx} align={column.align} />;
+    return <PoLinePriceCell ctx={ctx} column={column} />;
   }
   if (columnId === "line_total") {
-    return <PoLineTotalCell line={ctx.line} align={column.align} />;
+    return <PoLineTotalCell line={ctx.line} column={column} />;
   }
   return <span className="px-2 text-sm text-muted-foreground">—</span>;
 }

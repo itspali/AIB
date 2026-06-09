@@ -8,13 +8,13 @@ Organization Settings internal layouts stay frozen.
 
 ---
 
-## 1. Current State (as of 2026-06-08)
+## 1. Current State (as of 2026-06-09)
 
 | Area | Today | Source |
 |------|-------|--------|
 | Primary rail | Dashboard, Procurement, **Items** (Catalog/Categories), **Inventory** (Overview/Stock/Transfers), Sales, Fulfillment & Shipping, Financials, **Administration** | [module-nav.tsx](../apps/web/components/layout/module-nav.tsx) |
-| Built operational modules | **Dashboard**, **Items** catalog, **Inventory** (overview + stock + transfers), **Administration** (org, locations, tax, profile) | `apps/web/app/**` |
-| Coming soon shells | Procurement children, Sales, Fulfillment, Financials, Users & Roles | `comingSoon: true` in `module-nav.tsx` |
+| Built operational modules | **Dashboard**, **Items** catalog, **Inventory** (overview + stock + transfers), **Procurement** (PO + GRN), **Entities** (customers + suppliers), **Administration** (org, locations, tax, profile, group) | `apps/web/app/**` |
+| Coming soon shells | Procurement Bills; Sales, Fulfillment, Financials transactional UIs; Users & Roles | `comingSoon: true` in `module-nav.tsx` |
 | Locations | Under **Administration → Locations** (`/settings/locations`), not Inventory children | `module-nav.tsx` |
 | Inventory ops detail | Stock, transfers, opening stock, overview — see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) | — |
 | Secondary nav | Left sidebar expands active module's children (Overview / Stock / …) | [sidebar-nav.tsx](../apps/web/components/layout/sidebar-nav.tsx) |
@@ -177,6 +177,7 @@ New `/settings` (Administration) becomes a first-class module with its own secon
 | 6. Mobile | Bottom-nav "More" tab + drawer Soon badges | Done | [mobile-bottom-nav.tsx](../apps/web/components/layout/mobile-bottom-nav.tsx), [mobile-nav-drawer.tsx](../apps/web/components/layout/mobile-nav-drawer.tsx) |
 | 7. Docs sync | DESIGN_SYSTEM references this IA | Done | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
 | 8. Inventory ops | Stock, Transfers, Overview, opening stock, omnibar scopes, in-transit drill-down | Done | [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), `app/inventory/{stock,transfers}/` |
+| 9. Procurement ops | PO + GRN list modules, line-entry drawers, PO→GRN deep link | Done | [`PO_UX_PLAN.md`](./PO_UX_PLAN.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4, `app/procurement/{purchase-orders,goods-receipts}/` |
 
 ### Implementation notes / deviations
 
@@ -199,5 +200,4 @@ New `/settings` (Administration) becomes a first-class module with its own secon
   states, `surface-panel`, and Lucide icons only.
 - **Single scroll root**: all content continues to scroll inside `<main data-dashboard-scroll-root>`;
   the secondary nav must not shadow it.
-- **List modules**: every records-list section (Items, Categories, Locations, future Suppliers,
-  Customers, Orders) follows the List Module Replication Checklist in DESIGN_SYSTEM §9.
+- **List modules**: every records-list section (Items, Categories, Entities, Stock, Transfers, PO, GRN, future Sales docs) follows the List Module Replication Checklist in DESIGN_SYSTEM §9 — pick Tier A, Tier B, or Tier B line-entry (§5.4).

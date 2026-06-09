@@ -1,74 +1,127 @@
 "use client";
 
+import { useMemo, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  DEFAULT_PO_SCREEN_LAYOUT,
+  getVisibleHeaderFields,
+  normalizePoLayoutTemplate,
+} from "@/lib/documents/purchase-order-layout";
+import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import { formatDate } from "@/lib/dashboard/format";
 import {
   purchaseOrderStatusBadgeVariant,
   purchaseOrderStatusLabel,
 } from "@/lib/procurement/purchase-orders/labels";
 import { parsePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
+import type { PurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 
 type Props = {
   order: PurchaseOrderRow;
+  layout?: DocumentLayoutTemplate;
 };
 
-export function PoPeekView({ order }: Props) {
+function resolvePeekHeaderValue(
+  fieldId: string,
+  order: PurchaseOrderRow,
+  customFields: PurchaseOrderCustomFields
+): ReactNode {
+  switch (fieldId) {
+    case "voucher_number":
+      return (
+        <p className="truncate font-mono text-sm font-medium">{order.voucher_number}</p>
+      );
+    case "supplier":
+      return <p className="truncate text-sm font-medium">{order.supplier_name}</p>;
+    case "destination":
+      return (
+        <p className="truncate text-sm font-medium">{order.destination_location_name}</p>
+      );
+    case "currency":
+      return <p className="text-sm font-medium">{order.currency_code}</p>;
+    case "document_status":
+      return (
+        <Badge variant={purchaseOrderStatusBadgeVariant(order.document_status)}>
+          {purchaseOrderStatusLabel(order.document_status)}
+        </Badge>
+      );
+    case "payment_terms_days":
+      return <p className="text-sm">{order.payment_terms_days} days</p>;
+    case "updated_at":
+      return <p className="truncate text-sm">{formatDate(order.updated_at)}</p>;
+    case "requisition_number":
+      return (
+        <p className="truncate text-sm">{customFields.requisition_number || "—"}</p>
+      );
+    case "expected_delivery_date":
+      return (
+        <p className="truncate text-sm">{customFields.expected_delivery_date || "—"}</p>
+      );
+    case "internal_notes":
+      return <p className="text-sm">{customFields.internal_notes || "—"}</p>;
+    default:
+      return null;
+  }
+}
+
+function PeekHeaderField({
+  field,
+  order,
+  customFields,
+}: {
+  field: DocumentColumnPref;
+  order: PurchaseOrderRow;
+  customFields: PurchaseOrderCustomFields;
+}) {
+  const value = resolvePeekHeaderValue(field.id, order, customFields);
+  if (value == null) return null;
+
+  return (
+    <div className="min-w-0">
+      <p
+        className={documentFieldTypographyClassName(
+          field,
+          "text-xs font-medium text-muted-foreground"
+        )}
+      >
+        {field.label}
+      </p>
+      {value}
+    </div>
+  );
+}
+
+export function PoPeekView({ order, layout = DEFAULT_PO_SCREEN_LAYOUT }: Props) {
   const customFields = parsePurchaseOrderCustomFields(order.custom_fields);
+  const resolvedLayout = useMemo(() => normalizePoLayoutTemplate(layout), [layout]);
+  const headerFields = getVisibleHeaderFields(resolvedLayout);
+  const gridFields = headerFields.filter((field) => field.id !== "internal_notes");
+  const internalNotesField = headerFields.find((field) => field.id === "internal_notes");
 
   return (
     <div className="space-y-6">
-      <div className="po-peek-meta-grid min-w-0">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">PO number</p>
-          <p className="truncate font-mono text-sm font-medium">{order.voucher_number}</p>
+      {gridFields.length > 0 ? (
+        <div className="po-peek-meta-grid min-w-0">
+          {gridFields.map((field) => (
+            <PeekHeaderField
+              key={field.id}
+              field={field}
+              order={order}
+              customFields={customFields}
+            />
+          ))}
         </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">Supplier</p>
-          <p className="truncate text-sm font-medium">{order.supplier_name}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">Destination</p>
-          <p className="truncate text-sm font-medium">{order.destination_location_name}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">Currency</p>
-          <p className="text-sm font-medium">{order.currency_code}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">Status</p>
-          <Badge variant={purchaseOrderStatusBadgeVariant(order.document_status)}>
-            {purchaseOrderStatusLabel(order.document_status)}
-          </Badge>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">Payment terms</p>
-          <p className="text-sm">{order.payment_terms_days} days</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">Updated</p>
-          <p className="truncate text-sm">{formatDate(order.updated_at)}</p>
-        </div>
-        {customFields.requisition_number ? (
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">Requisition #</p>
-            <p className="truncate text-sm">{customFields.requisition_number}</p>
-          </div>
-        ) : null}
-        {customFields.expected_delivery_date ? (
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">Expected delivery</p>
-            <p className="truncate text-sm">{customFields.expected_delivery_date}</p>
-          </div>
-        ) : null}
-      </div>
+      ) : null}
 
-      {customFields.internal_notes ? (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">Internal notes</p>
-          <p className="text-sm">{customFields.internal_notes}</p>
-        </div>
+      {internalNotesField ? (
+        <PeekHeaderField
+          field={internalNotesField}
+          order={order}
+          customFields={customFields}
+        />
       ) : null}
 
       <div>

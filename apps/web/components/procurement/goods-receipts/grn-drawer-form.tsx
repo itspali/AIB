@@ -36,6 +36,8 @@ import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
+import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
+import { cn } from "@/lib/utils";
 
 type CreateFormState = {
   destination_location_id: string;
@@ -106,6 +108,7 @@ export function GrnDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
   });
@@ -269,26 +272,15 @@ export function GrnDrawerForm({
   }, [isMutating, open]);
 
   const headerActions = isMutating ? (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={isPending}
-        onClick={() => handleRequestClose()}
-      >
-        Cancel
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        disabled={isPending || locations.length === 0}
-        onClick={handleSubmit}
-        title="Post receipt (Ctrl+Enter)"
-      >
-        {isPending ? "Posting…" : "Post receipt"}
-      </Button>
-    </>
+    <Button
+      type="button"
+      size="sm"
+      disabled={isPending || locations.length === 0}
+      onClick={handleSubmit}
+      title="Post receipt (Ctrl+Enter)"
+    >
+      {isPending ? "Posting…" : "Post receipt"}
+    </Button>
   ) : null;
 
   if (!open || surface === "closed") return discardDialog;
@@ -308,17 +300,24 @@ export function GrnDrawerForm({
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
+        bodyClassName={isMutating ? "module-drawer-form-body" : undefined}
+        scrollable={!(isMutating && lineTableFillHeight)}
         showCloseButton
       >
-        {error ? (
-          <UserFacingErrorMessage
-            message={error}
-            action={errorAction ?? undefined}
-            className="mb-4"
-          />
-        ) : null}
+        <div
+          className={cn(
+            isMutating && lineTableFillHeight && "flex min-h-0 flex-1 flex-col"
+          )}
+        >
+          {error ? (
+            <UserFacingErrorMessage
+              message={error}
+              action={errorAction ?? undefined}
+              className="mb-4 shrink-0"
+            />
+          ) : null}
 
-        {showLoadingPeek ? (
+          {showLoadingPeek ? (
           <p className="text-sm text-muted-foreground">Loading goods receipt…</p>
         ) : readOnly && detail ? (
           <div className="space-y-6">
@@ -367,8 +366,14 @@ export function GrnDrawerForm({
             </div>
           </div>
         ) : isMutating ? (
-          <div className="space-y-6 pb-20">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div
+            className={cn(
+              "flex flex-col gap-5",
+              lineTableFillHeight && "h-full min-h-0 flex-1 overflow-hidden",
+              !lineTableFillHeight && "pb-20"
+            )}
+          >
+            <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Purchase order (optional)</Label>
                 <Select
@@ -419,23 +424,32 @@ export function GrnDrawerForm({
               </div>
             </div>
 
-            <GrnLineEntryTable
-              lines={form.lines}
-              poLocked={poLocked}
-              disabled={isPending}
-              onChange={(linesOrUpdater) => {
-                setForm((current) => ({
-                  ...current,
-                  lines:
-                    typeof linesOrUpdater === "function"
-                      ? linesOrUpdater(current.lines)
-                      : linesOrUpdater,
-                }));
-                setIsDirty(true);
-              }}
-            />
+            <div
+              className={cn(
+                "min-h-0 min-w-0",
+                lineTableFillHeight && "flex flex-1 flex-col"
+              )}
+            >
+              <GrnLineEntryTable
+                fillHeight={lineTableFillHeight}
+                lines={form.lines}
+                poLocked={poLocked}
+                disabled={isPending}
+                onChange={(linesOrUpdater) => {
+                  setForm((current) => ({
+                    ...current,
+                    lines:
+                      typeof linesOrUpdater === "function"
+                        ? linesOrUpdater(current.lines)
+                        : linesOrUpdater,
+                  }));
+                  setIsDirty(true);
+                }}
+              />
+            </div>
           </div>
         ) : null}
+        </div>
       </RightDrawer>
       {discardDialog}
     </>

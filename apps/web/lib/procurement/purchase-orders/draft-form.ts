@@ -3,6 +3,7 @@ import {
   type PurchaseOrderCustomFields,
   parsePurchaseOrderCustomFields,
 } from "@/lib/procurement/purchase-orders/custom-fields";
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
 
@@ -16,6 +17,8 @@ export type PoDraftLine = {
   quantity_ordered: string;
   unit_price_contractual: string;
   skuError: string | null;
+  /** Read-only item/variant catalog snapshot for layout-driven detail fields. */
+  catalog_context?: PoLineCatalogContext | null;
 };
 
 export type PoDraftFormState = {

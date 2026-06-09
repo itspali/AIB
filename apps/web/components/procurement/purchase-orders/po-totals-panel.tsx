@@ -1,6 +1,13 @@
 "use client";
 
 import {
+  DEFAULT_PO_SCREEN_LAYOUT,
+  getVisibleTotalsFields,
+  normalizePoLayoutTemplate,
+} from "@/lib/documents/purchase-order-layout";
+import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
+import {
   computePurchaseOrderTotals,
   formatPoMoney,
   type PurchaseOrderTotalsSnapshot,
@@ -11,57 +18,120 @@ import { cn } from "@/lib/utils";
 type Props = {
   lines: PoDraftLine[];
   className?: string;
-  layout?: "rail" | "footer" | "embedded";
+  layout?: DocumentLayoutTemplate;
+  layoutMode?: "rail" | "footer" | "embedded";
   showSectionTitle?: boolean;
   /** Keep footer totals visible on large viewports (narrow 40vw drawer). */
   showFooterOnLarge?: boolean;
 };
 
-function TotalsCard({ totals, className }: { totals: PurchaseOrderTotalsSnapshot; className?: string }) {
+function resolveTotalsValue(fieldId: string, totals: PurchaseOrderTotalsSnapshot): string {
+  switch (fieldId) {
+    case "line_count":
+      return String(totals.filledLineCount);
+    case "subtotal_ex_tax":
+      return formatPoMoney(totals.subtotalGross);
+    case "tax_amount":
+      return formatPoMoney(totals.taxAmount);
+    case "grand_total":
+      return formatPoMoney(totals.grandTotal);
+    default:
+      return "—";
+  }
+}
+
+function TotalsFieldRow({
+  field,
+  totals,
+}: {
+  field: DocumentColumnPref;
+  totals: PurchaseOrderTotalsSnapshot;
+}) {
+  const isGrandTotal = field.id === "grand_total";
+
   return (
-    <div className={cn("surface-inset p-4", className)}>
-      <TotalsBody totals={totals} />
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3",
+        isGrandTotal && "border-t border-border pt-2"
+      )}
+    >
+      <dt
+        className={documentFieldTypographyClassName(
+          field,
+          isGrandTotal ? "font-semibold text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {field.label}
+      </dt>
+      <dd
+        className={documentFieldTypographyClassName(
+          field,
+          cn(
+            "tabular-nums",
+            isGrandTotal
+              ? "text-base font-semibold text-foreground"
+              : field.id === "tax_amount"
+                ? "font-medium text-muted-foreground"
+                : "font-medium text-foreground"
+          )
+        )}
+      >
+        {resolveTotalsValue(field.id, totals)}
+      </dd>
     </div>
   );
 }
 
-function TotalsBody({ totals }: { totals: PurchaseOrderTotalsSnapshot }) {
+function TotalsBody({
+  totals,
+  fields,
+}: {
+  totals: PurchaseOrderTotalsSnapshot;
+  fields: DocumentColumnPref[];
+}) {
   return (
     <dl className="space-y-2 text-sm">
-      <div className="flex items-center justify-between gap-3">
-        <dt className="text-muted-foreground">Lines</dt>
-        <dd className="tabular-nums font-medium">{totals.filledLineCount}</dd>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <dt className="text-muted-foreground">Subtotal (ex tax)</dt>
-        <dd className="tabular-nums font-medium">{formatPoMoney(totals.subtotalGross)}</dd>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <dt className="text-muted-foreground">Tax</dt>
-        <dd className="tabular-nums text-muted-foreground">{formatPoMoney(totals.taxAmount)}</dd>
-      </div>
-      <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
-        <dt className="font-semibold">Total</dt>
-        <dd className="tabular-nums text-base font-semibold">{formatPoMoney(totals.grandTotal)}</dd>
-      </div>
+      {fields.map((field) => (
+        <TotalsFieldRow key={field.id} field={field} totals={totals} />
+      ))}
     </dl>
+  );
+}
+
+function TotalsCard({
+  totals,
+  fields,
+  className,
+}: {
+  totals: PurchaseOrderTotalsSnapshot;
+  fields: DocumentColumnPref[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("surface-inset p-4", className)}>
+      <TotalsBody totals={totals} fields={fields} />
+    </div>
   );
 }
 
 export function PoTotalsPanel({
   lines,
   className,
-  layout = "rail",
+  layout = DEFAULT_PO_SCREEN_LAYOUT,
+  layoutMode = "rail",
   showSectionTitle = true,
   showFooterOnLarge = false,
 }: Props) {
+  const resolvedLayout = normalizePoLayoutTemplate(layout);
+  const visibleTotalsFields = getVisibleTotalsFields(resolvedLayout);
   const totals = computePurchaseOrderTotals(filterSavablePoLines(lines));
 
-  if (layout === "embedded") {
-    return <TotalsCard totals={totals} className={className} />;
+  if (layoutMode === "embedded") {
+    return <TotalsCard totals={totals} fields={visibleTotalsFields} className={className} />;
   }
 
-  if (layout === "footer") {
+  if (layoutMode === "footer") {
     return (
       <div
         className={cn(
@@ -70,7 +140,7 @@ export function PoTotalsPanel({
           className
         )}
       >
-        <TotalsBody totals={totals} />
+        <TotalsBody totals={totals} fields={visibleTotalsFields} />
       </div>
     );
   }
@@ -82,7 +152,7 @@ export function PoTotalsPanel({
           Summary
         </p>
       ) : null}
-      <TotalsCard totals={totals} />
+      <TotalsCard totals={totals} fields={visibleTotalsFields} />
     </aside>
   );
 }

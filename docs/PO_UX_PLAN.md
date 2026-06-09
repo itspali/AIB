@@ -1,7 +1,28 @@
 # Purchase Order UX & Document Layout Plan
 
-**Status:** Phase 1 (V1) in progress  
-**Related:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §3.7, [`DATA_STANDARDS.md`](./DATA_STANDARDS.md)
+**Status:** Phase 1 (V1) **shipped** — Phase 2 UI **in progress** (module settings layout editor); V2 wiring to PO surfaces next  
+**Related:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §3.7 + §5.4, [`DATA_STANDARDS.md`](./DATA_STANDARDS.md)
+
+---
+
+## Module settings IA (Phase 2 UI)
+
+Document and module preferences live under **Administration → Module settings** (not Organization Settings).
+
+| Route | Purpose |
+|-------|---------|
+| `/settings/modules` | Hub — Procurement (active), Inventory / Sales / Fulfillment (soon) |
+| `/settings/modules/procurement` | Tabs: **Document layout** (V1 UI) · **Policies** (soon) |
+
+**Scope:** Location dropdown shows **All locations** (disabled in V1). Code uses `DocumentLayoutScope` (`tenant` \| `location`) so per-location overrides can ship without URL changes. Runtime resolver: `resolveEffectiveDocumentLayout()` (tenant row → location override → code default).
+
+**V1 vs V2:**
+
+| V1 (UI) | V2 (wire) |
+|---------|-----------|
+| Layout editor + preview + drag reorder | Persist `document_layout_templates` (+ nullable `location_id`) |
+| Mock save (`savePurchaseOrderDocumentLayout` validates only) | PO drawer / peek consume `resolveEffectiveDocumentLayout` |
+| On-screen tab only | Print / Email tabs when `DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED` |
 
 ---
 
@@ -9,7 +30,7 @@
 
 1. **PO V1** — Fast, spreadsheet-style create/edit in a wide drawer with live totals, supplier intelligence, and scan-friendly line entry.
 2. **Document layout engine** — Tenant-configurable columns/labels/print (phased); starts with code defaults consumed by PO UI.
-3. **Cross-module reuse** — Same patterns for GRN, Sales Order, Quotation, Invoice later.
+3. **Cross-module reuse** — Same patterns for GRN, stock adjustments, stock transfers, Sales Order, Quotation, Invoice later.
 
 ---
 
@@ -45,21 +66,26 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 ---
 
-## Phase 1 — PO V1 UX [IN PROGRESS]
+## Phase 1 — PO V1 UX [SHIPPED]
 
 **Scope:** Drawer-first operational PO; no org settings UI for layout yet.
 
-### Shipped / shipping in V1
+### Shipped in V1
 
-- Wide drawer default (**60vw**) for create/edit; peek stays user width.
-- **Spreadsheet line table** (item, qty, unit price ex-tax, line total, remove).
+- Tier B list module — `ListModuleShell`, column selector, sort, resize, freeze, muted row hover/selection (`list-table-chrome.ts`).
+- Wide drawer layout for create/edit — responsive lines + side rail (summary + details); peek uses opaque `module-drawer-*` surfaces.
+- **Line table fill height** — `useDocumentLineTableFillHeight` on md+; lines scroll inside the drawer (`fillHeight` + `scrollable={false}`); shared with GRN, stock, transfer ([`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4).
+- **Spreadsheet line table** via `DocumentLineEntryGrid` (item, qty, unit price ex-tax, line total, remove).
 - **Unified scan + search** — GTIN/barcode then SKU per tenant `scan_identifier_policy`; Enter resolves.
 - **Searchable supplier combobox** + **Create supplier…** link (`/entities/suppliers?action=new`).
 - **Supplier prefill** — `payment_terms_days` from entity; **unit price** from `supplier_items` (variant → item fallback).
-- **PO number preview** — `peek_document_voucher_string` RPC (no sequence consume until save).
-- **Totals rail** — sticky right on `lg+`, footer on mobile (subtotal, line count; tax placeholder 0).
+- **PO number preview** — `peek_document_voucher_string` RPC (no sequence consume until save); inline edit on saved drafts.
+- **Totals rail** — sticky right on wide drawer, stacked on mobile (subtotal, line count; tax placeholder 0).
 - **Advanced header fields** — requisition #, expected delivery, internal notes → `custom_fields`; payment terms days.
 - **Layout defaults** — `lib/documents/purchase-order-layout.ts` registry (columns for future settings UI).
+- **GRN cross-link** — peek **Receive** → `/procurement/goods-receipts?action=new&po=[uuid]`.
+- **Trailing blank row** — `ensureTrailingEmptyLine` on PO lines; GRN/stock/transfer use `isDocumentLineItemSelected` (row added when item is picked).
+- **Mutate header** — primary save in drawer header; no redundant Cancel (dirty close via X + discard confirmation).
 - **RPC** — extend `save_purchase_order` with `p_payment_terms_days`, `p_custom_fields`.
 
 ### Explicitly out of V1
@@ -85,15 +111,37 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 ## Phase 2 — Document layout settings + PO polish
 
-- Organization Settings → **Document layouts** (PO tab: On-screen | Print).
-- Wire PO form/peek/print preview to `document_layout_templates` (seed defaults migration).
-- **Per-field decimal places** — settings UI + `decimalPlaces` on each numeric column in `grid_columns_json` / `line_item_formatting`; wire PO line table, totals rail, and peek to shared formatter (defaults: qty **3**, money **2**).
-- **Item unit column** — optional line column `unit` (read-only): display `items.purchase_uom` when set, else `base_unit_of_measure`; shown beside qty in screen grid, peek, and print when enabled in layout (hidden by default in seed template).
+- **Module settings** → Procurement → **Document layout** (`/settings/modules/procurement`).
+- Wire PO form/peek/print preview to `document_layout_templates` (seed defaults migration; add nullable `location_id`).
+- **Per-field decimal places** — settings UI + `decimalPlaces` on numeric columns (defaults: qty **3**, money **2**).
+- **Column reorder** — drag handles on header / line / totals lists; `lineColumnOrder`, `headerFieldOrder`, `totalsFieldOrder` on template JSON; `item` pinned first on lines.
+- **Item unit column** — optional line column `unit` (read-only): `purchase_uom` → `base_unit_of_measure`.
+- Drawer uses compact primary/nested split; peek/print use flat ordered visible columns (preview toggles both modes).
 - User overrides for screen (optional localStorage).
 - PO number manual override (admin-gated RPC).
 - **Expand to full page** action for 15+ lines.
 - Duplicate PO / copy lines.
 - Omnibar scope `purchase-orders`.
+
+### PO layout settings — field inventory (On-screen)
+
+**Shell:** location scope (All locations) · view tabs (On-screen \| Print \| Email) · reset · save · live preview
+
+**Header fields:** `supplier`, `destination`, `currency`, `voucher_number`, `payment_terms_days`, `requisition_number`, `expected_delivery_date`, `internal_notes`, `document_status`, `updated_at` — each: visible, label, reorder
+
+**Line columns:** `item` (pinned), `quantity_ordered`, `unit`, `unit_price`, `line_total`, `discount_pct` / `discount_amount` (Phase 3, disabled in editor) — each: visible, label, align, decimal places (where numeric), reorder
+
+**Item catalog fields (read-only, from item master):** resolved at line pick from `items` / `item_variants` / category attribute templates — not stored on PO until Issue snapshot (future). Layout ids: `variant_attr:__all__`, `variant_attr:{key}`, `item_col:{key}`, `item_cf:{key}`. Default on: all variant attributes under item cell. Settings section **Item catalog fields** — add HSN, description, base unit, tenant custom field keys, individual category attributes; same Place / Label / Flow prefs as commercial line fields.
+
+**Peek line (registry):** `quantity_received` — decimals default 3
+
+**Totals:** `line_count`, `subtotal_ex_tax`, `tax_amount`, `grand_total` — visible, label, align, decimals, reorder
+
+**Line images:** `image_display_mode` (`INLINE_CELL` \| `SEPARATE_COLUMN` \| `HIDDEN`) — on-screen drawer and print
+
+| **Per-column pref shape:** `id`, `label`, `defaultVisible`, `align`, `decimalPlaces`, `lineSlot` (`column` \| `item_detail`), `showLabel`, `itemDetailFlow` (`new_line` \| `inline_previous`), `catalogSource`, `catalogSourceKey`, `typography` (`fontSize`, `fontWeight`, `fontStyle`) — **Size / Wt / Ital** columns in settings UI (V2)
+
+**Not in document layout settings:** PO **list** columns (`PO_LIST_COLUMN_IDS` — list toolbar column settings)
 
 ---
 
@@ -126,33 +174,73 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 ---
 
-## File index (Phase 1)
+## File index (Phase 1 — shipped)
 
 ```
 docs/PO_UX_PLAN.md
+docs/DESIGN_SYSTEM.md                    # §5.4 — reusable document-module pattern
+supabase/migrations/20260608160000_procurement_grn_v1_rpcs.sql
 supabase/migrations/20260611140000_purchase_order_v1_ux_rpcs.sql
 
 apps/web/lib/documents/
   types.ts
+  layout-scope.ts
+  layout-order.ts
+  line-entry.ts
   purchase-order-layout.ts
+  catalog-field-ids.ts
+  catalog-line-values.ts
+  resolve-effective-document-layout.ts
+  use-document-line-table-fill-height.ts
+
+apps/web/components/settings/document-layout/
+  document-layout-scope-select.tsx
+  document-layout-field-list.tsx
+  document-layout-preview.tsx
+  purchase-order-document-layout-panel.tsx
+
+apps/web/components/settings/modules/
+  procurement-module-settings-terminal.tsx
+
+apps/web/app/settings/modules/
+  page.tsx
+  procurement/page.tsx
+  procurement/actions.ts
+
+apps/web/components/documents/
+  document-line-entry-grid.tsx
+  document-line-peek-table.tsx
+  document-line-entry-cells.tsx
 
 apps/web/lib/procurement/purchase-orders/
   custom-fields.ts
   totals.ts
   supplier-price.ts
   draft-form.ts
+  list-columns.ts
+  list-prefs.ts
 
 apps/web/lib/procurement/__tests__/
   po-totals.test.ts
   purchase-order-schemas.test.ts (extended)
 
 apps/web/components/procurement/purchase-orders/
-  po-drawer-form.tsx (shell)
+  po-management-terminal.tsx
+  po-drawer-form.tsx
   po-form-header.tsx
   po-line-entry-table.tsx
+  po-line-entry-cells.tsx
   po-totals-panel.tsx
+  po-details-panel.tsx
   po-peek-view.tsx
   po-supplier-combobox.tsx
+  po-list-table.tsx
+  po-list-toolbar.tsx
+
+apps/web/components/procurement/goods-receipts/
+  grn-management-terminal.tsx
+  grn-drawer-form.tsx
+  grn-line-entry-table.tsx
 ```
 
 ---
@@ -167,3 +255,6 @@ apps/web/components/procurement/purchase-orders/
 | 2026-06-08 | Custom fields V1 = fixed keys in `custom_fields`; builder in Phase 5. |
 | 2026-06-09 | Document layout Phase 2 adds per-field `decimalPlaces` (qty 3, money 2 defaults). |
 | 2026-06-09 | Item **unit** column: read-only in Phase 2 (`purchase_uom` → base); editable alternate UOM on lines deferred to Phase 3+. |
+| 2026-06-09 | Phase 1 shipped: shared `DocumentLineEntryGrid`, Tier B list parity, GRN module, cross-module Receive link. |
+| 2026-06-09 | Cross-module drawer polish: `useDocumentLineTableFillHeight`, trailing rows, header-only save (no Cancel), drawer-width header grids for inventory forms. |
+| 2026-06-09 | Document layout settings UI under `/settings/modules/procurement`; location scope + column reorder in template JSON; V2 wires DB + PO surfaces. |

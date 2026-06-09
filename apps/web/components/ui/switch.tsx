@@ -11,6 +11,10 @@ const switchSizes = {
     root: "h-5 w-9",
     thumb: "h-4 w-4 data-[state=checked]:translate-x-4",
   },
+  xs: {
+    root: "h-4 w-7",
+    thumb: "h-3 w-3 data-[state=checked]:translate-x-3",
+  },
 } as const;
 
 type SwitchProps = React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> & {

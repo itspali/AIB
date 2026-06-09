@@ -14,7 +14,7 @@ import {
   DocumentLinePeekTable,
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
-import { RightDrawer } from "@/components/ui/right-drawer";
+import { RightDrawer, isNarrowRightDrawer, useRightDrawerLayout } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,8 @@ import type {
   StockLocationOption,
 } from "@/lib/inventory/stock/types";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
+import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
+import { cn } from "@/lib/utils";
 
 type CreateFormState = {
   location_id: string;
@@ -96,6 +98,133 @@ function resolveDrawerTitle(surface: DrawerSurface, adjustment: StockAdjustmentR
   return adjustment?.adjustment_number ?? "Stock adjustment";
 }
 
+type StockAdjustmentMutateFormProps = {
+  form: CreateFormState;
+  locations: StockLocationOption[];
+  lineTableFillHeight: boolean;
+  isPending: boolean;
+  onPatch: (patch: Partial<CreateFormState>) => void;
+  onLinesChange: (
+    lines:
+      | StockAdjustmentDraftLine[]
+      | ((current: StockAdjustmentDraftLine[]) => StockAdjustmentDraftLine[])
+  ) => void;
+};
+
+function StockAdjustmentMutateForm({
+  form,
+  locations,
+  lineTableFillHeight,
+  isPending,
+  onPatch,
+  onLinesChange,
+}: StockAdjustmentMutateFormProps) {
+  const drawerLayout = useRightDrawerLayout();
+  /** 40vw peek + mobile sheet: Location/Kind on one row, Reason below. */
+  const compactHeader =
+    drawerLayout?.isPartialDrawer !== true || isNarrowRightDrawer(drawerLayout);
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-5",
+        lineTableFillHeight && "h-full min-h-0 flex-1 overflow-hidden"
+      )}
+    >
+      {locations.length === 0 ? (
+        <p className="shrink-0 rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          No active stock-holding locations are configured. Add one under Settings → Locations
+          before posting adjustments.
+        </p>
+      ) : null}
+
+      <div
+        className={cn(
+          "grid shrink-0 gap-4",
+          compactHeader ? "grid-cols-2" : "grid-cols-3"
+        )}
+      >
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-muted-foreground">Location</Label>
+          <Select
+            value={form.location_id}
+            disabled={isPending || locations.length === 0}
+            onValueChange={(value) => onPatch({ location_id: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select location" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                  {location.code ? ` (${location.code})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-muted-foreground">Kind</Label>
+          <Select
+            value={form.kind}
+            disabled={isPending}
+            onValueChange={(value) => onPatch({ kind: value as StockAdjustmentKind })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STOCK_ADJUSTMENT_KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {stockAdjustmentKindLabel(kind)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className={cn("space-y-2", compactHeader && "col-span-2")}>
+          <Label htmlFor="stock-reason" className="text-sm font-medium text-muted-foreground">
+            Reason
+          </Label>
+          <Input
+            id="stock-reason"
+            value={form.reason}
+            disabled={isPending}
+            placeholder="Cycle count variance, damaged goods…"
+            onChange={(event) => onPatch({ reason: event.target.value })}
+          />
+        </div>
+      </div>
+
+      <div
+        className={cn("min-h-0 min-w-0", lineTableFillHeight && "flex flex-1 flex-col")}
+      >
+        <StockAdjustmentLineEntryTable
+          fillHeight={lineTableFillHeight}
+          lines={form.lines}
+          disabled={isPending}
+          onChange={onLinesChange}
+        />
+      </div>
+
+      <div className="shrink-0 space-y-2">
+        <Label htmlFor="stock-notes" className="text-sm font-medium text-muted-foreground">
+          Notes (optional)
+        </Label>
+        <textarea
+          id="stock-notes"
+          value={form.notes}
+          disabled={isPending}
+          rows={2}
+          className="flex min-h-[4.5rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          onChange={(event) => onPatch({ notes: event.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function StockDrawerForm({
   open,
   surface,
@@ -107,6 +236,7 @@ export function StockDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
   });
@@ -227,26 +357,15 @@ export function StockDrawerForm({
   }, [isMutating, open]);
 
   const headerActions = isMutating ? (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={isPending}
-        onClick={() => handleRequestClose()}
-      >
-        Cancel
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        disabled={isPending || locations.length === 0}
-        onClick={handleSubmit}
-        title="Post (Ctrl+Enter)"
-      >
-        {isPending ? "Posting…" : "Post adjustment"}
-      </Button>
-    </>
+    <Button
+      type="button"
+      size="sm"
+      disabled={isPending || locations.length === 0}
+      onClick={handleSubmit}
+      title="Post (Ctrl+Enter)"
+    >
+      {isPending ? "Posting…" : "Post adjustment"}
+    </Button>
   ) : null;
 
   if (!open || surface === "closed") return discardDialog;
@@ -265,9 +384,16 @@ export function StockDrawerForm({
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
+        bodyClassName={isMutating ? "module-drawer-form-body" : undefined}
+        scrollable={!(isMutating && lineTableFillHeight)}
         showCloseButton
       >
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            isMutating && lineTableFillHeight && "overflow-hidden"
+          )}
+        >
           {error ? (
             <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
               <UserFacingErrorMessage
@@ -352,96 +478,23 @@ export function StockDrawerForm({
               <p className="py-8 text-sm text-muted-foreground">Adjustment not found.</p>
             )
           ) : (
-            <div className="space-y-5">
-              {locations.length === 0 ? (
-                <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-                  No active stock-holding locations are configured. Add one under Settings →
-                  Locations before posting adjustments.
-                </p>
-              ) : null}
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Location</Label>
-                  <Select
-                    value={form.location_id}
-                    disabled={isPending || locations.length === 0}
-                    onValueChange={(value) => patchForm({ location_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                          {location.code ? ` (${location.code})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Kind</Label>
-                  <Select
-                    value={form.kind}
-                    disabled={isPending}
-                    onValueChange={(value) => patchForm({ kind: value as StockAdjustmentKind })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STOCK_ADJUSTMENT_KINDS.map((kind) => (
-                        <SelectItem key={kind} value={kind}>
-                          {stockAdjustmentKindLabel(kind)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="stock-reason" className="text-sm font-medium text-muted-foreground">
-                    Reason
-                  </Label>
-                  <Input
-                    id="stock-reason"
-                    value={form.reason}
-                    disabled={isPending}
-                    placeholder="Cycle count variance, damaged goods, opening balance…"
-                    onChange={(event) => patchForm({ reason: event.target.value })}
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="stock-notes" className="text-sm font-medium text-muted-foreground">
-                    Notes (optional)
-                  </Label>
-                  <textarea
-                    id="stock-notes"
-                    value={form.notes}
-                    disabled={isPending}
-                    rows={2}
-                    className="flex min-h-[4.5rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    onChange={(event) => patchForm({ notes: event.target.value })}
-                  />
-                </div>
-              </div>
-
-              <StockAdjustmentLineEntryTable
-                lines={form.lines}
-                disabled={isPending}
-                onChange={(linesOrUpdater) => {
-                  setForm((current) => ({
-                    ...current,
-                    lines:
-                      typeof linesOrUpdater === "function"
-                        ? linesOrUpdater(current.lines)
-                        : linesOrUpdater,
-                  }));
-                  setIsDirty(true);
-                }}
-              />
-            </div>
+            <StockAdjustmentMutateForm
+              form={form}
+              locations={locations}
+              lineTableFillHeight={lineTableFillHeight}
+              isPending={isPending}
+              onPatch={patchForm}
+              onLinesChange={(linesOrUpdater) => {
+                setForm((current) => ({
+                  ...current,
+                  lines:
+                    typeof linesOrUpdater === "function"
+                      ? linesOrUpdater(current.lines)
+                      : linesOrUpdater,
+                }));
+                setIsDirty(true);
+              }}
+            />
           )}
         </div>
       </RightDrawer>

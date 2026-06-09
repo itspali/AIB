@@ -8,7 +8,10 @@ import {
   DocumentLineEntrySection,
   type DocumentLineColumn,
 } from "@/components/documents/document-line-entry-grid";
-import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
+import {
+  ensureTrailingEmptyLine,
+  isDocumentLineItemSelected,
+} from "@/lib/documents/line-entry";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 
 export type TransferDraftLine = {
@@ -97,7 +100,7 @@ function useTransferLineActions(
     (lineKey: string) => (patch: Partial<TransferDraftLine>) => {
       onChange((current) => {
         const next = current.map((line) => (line.key === lineKey ? { ...line, ...patch } : line));
-        return ensureTrailingEmptyLine(next, isTransferLineComplete, createEmptyTransferLine);
+        return ensureTrailingEmptyLine(next, isDocumentLineItemSelected, createEmptyTransferLine);
       });
     },
     [onChange]
@@ -154,11 +157,6 @@ export function TransferLineEntryTable({
                   }}
                   onChange={actions.bindItemChange(line.key)}
                 />
-                {line.variant_sku ? (
-                  <div className="mt-1.5 truncate border-t border-border/50 pt-1.5 font-mono text-xs leading-snug text-muted-foreground">
-                    {line.variant_sku}
-                  </div>
-                ) : null}
               </div>
             );
           }

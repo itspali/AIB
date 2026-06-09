@@ -40,6 +40,8 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import { cn } from "@/lib/utils";
+import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
+import { usePoDocumentLayout } from "@/lib/documents/use-po-document-layout";
 
 type Props = {
   open: boolean;
@@ -87,6 +89,7 @@ function PoMutatingFormContent({
   onPatch,
   onLinesChange,
 }: PoMutatingFormContentProps) {
+  const documentLayout = usePoDocumentLayout();
   const drawerLayout = useRightDrawerLayout();
   const stackVertically = isNarrowRightDrawer(drawerLayout);
   const usePageScroll = stackVertically || drawerLayout?.isPartialDrawer !== true;
@@ -94,16 +97,19 @@ function PoMutatingFormContent({
   const useWidePartialDrawer = !usePageScroll && !stackVertically;
   /** Full-page drawer on large viewports: lines + side rail; stacked summary below lg. */
   const useFullPageSideRail = usePageScroll && !stackVertically;
+  /** md+: line grid fills remaining drawer height; below md the table grows with page scroll. */
+  const lineTableFillHeight = useDocumentLineTableFillHeight();
 
   const linesTable = (
     <PoLineEntryTable
-      fillHeight={useWidePartialDrawer}
+      fillHeight={lineTableFillHeight}
       showSectionTitle={false}
       lines={form.lines}
       supplierId={form.supplier_id}
       destinationLocationId={form.destination_location_id}
       excludePurchaseOrderId={editOrderId}
       disabled={isPending}
+      layout={documentLayout}
       onChange={onLinesChange}
     />
   );
@@ -114,7 +120,7 @@ function PoMutatingFormContent({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
         </p>
-        <PoTotalsPanel lines={form.lines} layout="embedded" />
+        <PoTotalsPanel lines={form.lines} layout={documentLayout} layoutMode="embedded" />
       </div>
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -125,6 +131,7 @@ function PoMutatingFormContent({
           disabled={isPending}
           layout="stack"
           stackVertically={stackVertically}
+          documentLayout={documentLayout}
           onPatch={onPatch}
         />
       </div>
@@ -137,7 +144,7 @@ function PoMutatingFormContent({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
         </p>
-        <PoTotalsPanel lines={form.lines} layout="embedded" />
+        <PoTotalsPanel lines={form.lines} layout={documentLayout} layoutMode="embedded" />
       </div>
       <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -148,6 +155,7 @@ function PoMutatingFormContent({
             form={form}
             disabled={isPending}
             layout="rail"
+            documentLayout={documentLayout}
             onPatch={onPatch}
           />
         </div>
@@ -159,7 +167,7 @@ function PoMutatingFormContent({
     <div
       className={cn(
         "flex flex-col gap-3",
-        useWidePartialDrawer ? "h-full min-h-0 flex-1 overflow-hidden" : "min-h-0"
+        lineTableFillHeight ? "h-full min-h-0 flex-1 overflow-hidden" : "min-h-0"
       )}
     >
       <div className="shrink-0">
@@ -170,13 +178,14 @@ function PoMutatingFormContent({
           disabled={isPending}
           stackVertically={stackVertically}
           defaultCurrency={defaultCurrency}
+          layout={documentLayout}
           onPatch={onPatch}
         />
       </div>
 
       {useWidePartialDrawer ? (
         <section className="flex min-h-0 min-w-0 flex-1 flex-row gap-4 overflow-hidden">
-          <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3">
+          <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden">
             <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Lines
             </p>
@@ -186,12 +195,29 @@ function PoMutatingFormContent({
         </section>
       ) : useFullPageSideRail ? (
         <>
-          <section className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:gap-4">
-            <div className="flex min-w-0 max-w-full flex-col gap-3 lg:min-h-0 lg:min-w-0 lg:flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <section
+            className={cn(
+              "flex w-full min-w-0 max-w-full flex-col gap-3",
+              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:flex-row lg:gap-4"
+            )}
+          >
+            <div
+              className={cn(
+                "flex min-w-0 max-w-full flex-col gap-3",
+                lineTableFillHeight && "min-h-0 flex-1 lg:min-w-0"
+              )}
+            >
+              <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Lines
               </p>
-              <div className="min-w-0 max-w-full">{linesTable}</div>
+              <div
+                className={cn(
+                  "min-w-0 max-w-full",
+                  lineTableFillHeight && "min-h-0 flex-1"
+                )}
+              >
+                {linesTable}
+              </div>
             </div>
             <div className="hidden lg:flex">{sideRail}</div>
           </section>
@@ -201,15 +227,39 @@ function PoMutatingFormContent({
         </>
       ) : (
         <>
-          <div className="flex w-full min-w-0 max-w-full flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Lines
-            </p>
-            <div className="min-w-0 max-w-full">{linesTable}</div>
-          </div>
-          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-3 bg-background">
-            {stackedSummaryDetails}
-          </div>
+          <section
+            className={cn(
+              "flex w-full min-w-0 max-w-full flex-col gap-3",
+              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden"
+            )}
+          >
+            <div
+              className={cn(
+                "flex min-w-0 max-w-full flex-col gap-3",
+                lineTableFillHeight && "min-h-0 flex-1"
+              )}
+            >
+              <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Lines
+              </p>
+              <div
+                className={cn(
+                  "min-w-0 max-w-full",
+                  lineTableFillHeight && "min-h-0 flex-1"
+                )}
+              >
+                {linesTable}
+              </div>
+            </div>
+            <div
+              className={cn(
+                "relative z-0 flex w-full min-w-0 flex-col gap-3 bg-background",
+                lineTableFillHeight && "shrink-0"
+              )}
+            >
+              {stackedSummaryDetails}
+            </div>
+          </section>
         </>
       )}
     </div>
@@ -234,6 +284,8 @@ export function PoDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const documentLayout = usePoDocumentLayout();
+  const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
   const resolvedPeekRecordId =
     surface === "peek" ? (peekOrder?.id ?? peekRecordId) : null;
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
@@ -552,42 +604,48 @@ export function PoDrawerForm({
               ? "module-drawer-form-body"
               : undefined
         }
-        scrollable
+        scrollable={!(isMutating && lineTableFillHeight)}
         showCloseButton
       >
-        {error ? (
-          <UserFacingErrorMessage
-            message={error}
-            action={errorAction ?? undefined}
-            className="mb-4"
-          />
-        ) : null}
+        <div
+          className={cn(
+            isMutating && lineTableFillHeight && "flex min-h-0 flex-1 flex-col"
+          )}
+        >
+          {error ? (
+            <UserFacingErrorMessage
+              message={error}
+              action={errorAction ?? undefined}
+              className="mb-4 shrink-0"
+            />
+          ) : null}
 
-        {showLoadingPeek || showLoadingEdit ? (
-          <p className="text-sm text-muted-foreground">Loading purchase order…</p>
-        ) : readOnly && detail ? (
-          <PoPeekView order={detail} />
-        ) : isMutating ? (
-          <PoMutatingFormContent
-            form={form}
-            locations={locations}
-            suppliers={suppliers}
-            editOrderId={editOrderId ?? detail?.id ?? null}
-            defaultCurrency={defaultCurrency}
-            isPending={isPending}
-            onPatch={patchForm}
-            onLinesChange={(linesOrUpdater) => {
-              setForm((current) => ({
-                ...current,
-                lines:
-                  typeof linesOrUpdater === "function"
-                    ? linesOrUpdater(current.lines)
-                    : linesOrUpdater,
-              }));
-              setIsDirty(true);
-            }}
-          />
-        ) : null}
+          {showLoadingPeek || showLoadingEdit ? (
+            <p className="text-sm text-muted-foreground">Loading purchase order…</p>
+          ) : readOnly && detail ? (
+            <PoPeekView order={detail} layout={documentLayout} />
+          ) : isMutating ? (
+            <PoMutatingFormContent
+              form={form}
+              locations={locations}
+              suppliers={suppliers}
+              editOrderId={editOrderId ?? detail?.id ?? null}
+              defaultCurrency={defaultCurrency}
+              isPending={isPending}
+              onPatch={patchForm}
+              onLinesChange={(linesOrUpdater) => {
+                setForm((current) => ({
+                  ...current,
+                  lines:
+                    typeof linesOrUpdater === "function"
+                      ? linesOrUpdater(current.lines)
+                      : linesOrUpdater,
+                }));
+                setIsDirty(true);
+              }}
+            />
+          ) : null}
+        </div>
       </RightDrawer>
       {discardDialog}
     </>

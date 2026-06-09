@@ -8,7 +8,10 @@ import {
   DocumentLineEntrySection,
   type DocumentLineColumn,
 } from "@/components/documents/document-line-entry-grid";
-import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
+import {
+  ensureTrailingEmptyLine,
+  isDocumentLineItemSelected,
+} from "@/lib/documents/line-entry";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 
 export type StockAdjustmentDraftLine = {
@@ -126,7 +129,7 @@ function useStockAdjustmentLineActions(
             unit_cost: patch.unit_cost ?? line.unit_cost,
           };
         });
-        return ensureTrailingEmptyLine(next, isStockAdjustmentLineComplete, createEmptyStockAdjustmentLine);
+        return ensureTrailingEmptyLine(next, isDocumentLineItemSelected, createEmptyStockAdjustmentLine);
       });
     },
     [onChange]
@@ -184,11 +187,6 @@ export function StockAdjustmentLineEntryTable({
                   }}
                   onChange={actions.bindItemChange(line.key)}
                 />
-                {line.variant_sku ? (
-                  <div className="mt-1.5 truncate border-t border-border/50 pt-1.5 font-mono text-xs leading-snug text-muted-foreground">
-                    {line.variant_sku}
-                  </div>
-                ) : null}
               </div>
             );
           }

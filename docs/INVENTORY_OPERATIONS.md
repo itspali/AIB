@@ -4,7 +4,7 @@
 
 **Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA).
 
-**Last updated:** 2026-06-08 (post Stock V1, Transfers V1, Overview Tier 1 polish, omnibar scopes).
+**Last updated:** 2026-06-09 (document drawer UX polish: line-table fill height, trailing rows, stock header layout, GRN/Stock/Transfer header actions).
 
 ---
 
@@ -74,14 +74,37 @@
 
 ### List-module UI parity (Stock / Transfers / PO / GRN)
 
-- **Tier B** list modules share `ListModuleShell`, `ListModulePageTitleHeader`, column selector, sort, resize, freeze, and unified row hover/selection chrome (see [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9).
+- **Tier B** list modules share `ListModuleShell`, `ListModulePageTitleHeader`, column selector, sort, resize, freeze, and unified row hover/selection chrome from `lib/layout/list-table-chrome.ts` (see [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9).
+- **Document line-entry drawers** (PO, GRN, stock adjustments, transfers) use `DocumentLineEntryGrid`, drawer-width-aware headers, and responsive line layout — see [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4 and [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) for procurement specifics.
 - **Stock** balances/adjustments and **Transfers** filter via omnibar when scope is `stock` or `transfers` (`lib/search/scopes.ts`).
 - **Transfers** list reads `?status=` once on mount for drill-down from overview (does not reset when drawer `?id=` opens).
+- **PO → GRN:** peek **Receive** opens `/procurement/goods-receipts?action=new&po=[uuid]`.
 - **Key paths:**
   - `apps/web/lib/inventory/stock/use-filtered-stock.ts`
   - `apps/web/lib/inventory/transfers/use-filtered-transfers.ts`
   - `apps/web/lib/inventory/transfers/navigation.ts` — `TRANSFER_STATUS_FILTER_PARAM`, `transfersHrefWithStatusFilter()`
+  - `apps/web/lib/procurement/navigation.ts` — `PROCUREMENT_PO_HREF`, `PROCUREMENT_GRN_HREF`, `GRN_DRAWER_PO_PARAM`
   - `apps/web/lib/search/executor/client-scopes.ts` — `filterStockBalancesByAst`, `filterStockAdjustmentsByAst`, `filterTransfersByAst`
+  - `apps/web/components/documents/` — shared line-entry grid + peek table
+  - `apps/web/lib/documents/use-document-line-table-fill-height.ts` — md+ line table fills drawer height
+
+### Document drawer UX (Stock / Transfers / GRN parity — 2026-06-09)
+
+Shared with PO where noted in [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4:
+
+| Change | Modules | Implementation |
+|--------|---------|----------------|
+| **Line table fill height** | PO, GRN, stock adjustment, transfer draft | `useDocumentLineTableFillHeight()` → `fillHeight` on `DocumentLineEntryGrid`; drawer `scrollable={false}` on md+ mutate |
+| **Trailing blank row** | All line-entry drawers | `ensureTrailingEmptyLine` (PO); `isDocumentLineItemSelected` + item pick adds row without qty (GRN, stock, transfer) |
+| **No duplicate SKU** | GRN, stock, transfer | SKU only as combobox secondary text — removed extra `{variant_sku}` row under `StockVariantSkuField` |
+| **Header actions only** | GRN, stock, transfer create/edit | Primary save/post in drawer header; no redundant **Cancel** — dirty close via **X** + `useDiscardChangesConfirmation`. Transfer keeps **Cancel transfer** as a lifecycle RPC, not navigation. |
+| **Stock adjustment header** | Stock create/edit | `StockAdjustmentMutateForm`: Location + Kind + Reason; at **40vw peek** → 2 cols + Reason full width; at **60/80vw** → 3 cols one row; Notes below lines table |
+
+**Key paths:**
+- `apps/web/components/inventory/stock/stock-drawer-form.tsx` — `StockAdjustmentMutateForm`
+- `apps/web/components/inventory/transfers/transfer-drawer-form.tsx`
+- `apps/web/components/procurement/goods-receipts/grn-drawer-form.tsx`
+- `apps/web/lib/documents/line-entry.ts` — `isDocumentLineItemSelected`
 
 ### Document numbering (per location)
 
@@ -118,13 +141,15 @@
 
 ## 3. UI pattern (mirror for new list modules)
 
-All inventory list modules follow **Items Master / Stock** pattern:
+All inventory and procurement list modules follow the **Tier B** pattern in [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §3.7 + §9:
 
 1. `app/.../page.tsx` → Suspense → `*-catalog-loader.tsx` (RSC fetch).
-2. `*-management-terminal.tsx` — client list + `useModuleDrawerUrl`.
-3. `*-drawer-form.tsx` — create / peek / edit surfaces.
+2. `*-management-terminal.tsx` — client list + `useModuleDrawerUrl` + `ListModuleShell`.
+3. `*-drawer-form.tsx` — create / peek / edit surfaces (`RightDrawer`, URL-driven).
 4. `lib/.../queries.ts` — Supabase reads; `actions.ts` — RPC writes + `revalidatePath`.
 5. Drawer `id` is client-only (`history.pushState`); omit from RSC `searchParams` on page.
+
+**Multi-line documents** (PO, GRN, stock adjustments, transfers, future Sales orders/invoices) additionally follow §5.4 — `DocumentLineEntryGrid`, `useDocumentLineTableFillHeight`, column registry in `lib/documents/` where applicable, drawer-width-aware header grids (`useRightDrawerLayout` / `isNarrowRightDrawer`).
 
 ---
 
@@ -147,9 +172,10 @@ All inventory list modules follow **Items Master / Stock** pattern:
 
 ### Tier 2 — Procurement inbound [IMPLEMENTED — Sequence 21]
 
-- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules.
-- **Migration:** `20260608160000_procurement_grn_v1_rpcs.sql`
-- **Defer:** full PO approval workflow, supplier portal, purchase invoices — unless scope expands.
+- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules with line-entry drawers (§5.4).
+- **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`
+- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 1 shipped; Phase 2 = document layout settings.
+- **Defer:** full PO approval workflow, supplier portal, purchase invoices, omnibar `purchase-orders` scope — unless scope expands.
 
 ### Tier 2b — Remaining inventory polish
 
@@ -172,7 +198,14 @@ All inventory list modules follow **Items Master / Stock** pattern:
 
 **Default recommendation:** confirm scope with the user — net-new domains (Sales UI, Financials, RBAC) or remaining inventory deferred items (transfer approval, incidents UI, permissions hardening).
 
-### Recently shipped (2026-06-08 polish)
+### Recently shipped (2026-06-09 polish)
+
+1. **PO V1 UX** — spreadsheet line entry, supplier intelligence, totals rail, voucher preview ([`PO_UX_PLAN.md`](./PO_UX_PLAN.md)).
+2. **GRN V1** — receive against PO or standalone; shared `DocumentLineEntryGrid`.
+3. **List-module chrome parity** — Stock, Transfers, PO, GRN share `list-table-chrome.ts` hover/selection band + column hooks.
+4. **Document drawer UX** — line tables fill drawer height on md+ (`useDocumentLineTableFillHeight`); auto trailing blank rows; no duplicate SKU under item fields; GRN/Stock/Transfer save via header only (no redundant Cancel); stock adjustment header uses drawer-width grid (Location/Kind/Reason).
+
+### Previously shipped (2026-06-08)
 
 1. Category loading skeleton — single full-width panel (`category-catalog-page-skeleton.tsx`).
 2. Overview **In transit** → `/inventory/transfers?status=DISPATCHED_IN_TRANSIT`.
@@ -199,6 +232,12 @@ apps/web/
     page.tsx              # Overview loader
     stock/                # Stock module
     transfers/            # Transfers module
+  app/procurement/
+    purchase-orders/      # PO module
+    goods-receipts/       # GRN module
+  components/documents/   # Shared line-entry grid + peek table
+  lib/documents/          # Column registries, line-entry helpers, use-document-line-table-fill-height.ts
+  lib/procurement/        # PO + GRN queries, schemas, list prefs
   lib/inventory/
     stock/                # Balances, adjustments, valuation-engine
     transfers/            # Transfers queries, schemas, receipt-validation
@@ -212,6 +251,8 @@ supabase/migrations/
   20260608120000_stock_transfer_rpcs.sql
   20260608130000_location_document_sequence_counters.sql
   20260608150000_default_location_document_naming_prefixes.sql
+  20260608160000_procurement_grn_v1_rpcs.sql
+  20260611140000_purchase_order_v1_ux_rpcs.sql
 ```
 
 ---
@@ -224,3 +265,5 @@ supabase/migrations/
 4. **Transfer:** draft → dispatch → receive — destination balance increases; in-transit clears.
 5. Overview shows in-transit count; **In transit** card opens filtered transfers list; below-reorder **Adjust** / **Transfer** links work.
 6. On `/inventory/stock` and `/inventory/transfers`, omnibar auto-selects module scope; text search filters the visible list.
+7. Stock adjustment create at **40vw**: Location + Kind on one row, Reason on next row; at **60vw+** all three on one row; line table scrolls inside drawer on md+.
+8. GRN / stock / transfer line entry: picking an item appends a trailing blank row; no duplicate SKU text under the item field.

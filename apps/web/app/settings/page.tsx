@@ -1,5 +1,6 @@
 import {
   Building2,
+  LayoutTemplate,
   MapPin,
   Network,
   Receipt,
@@ -43,6 +44,12 @@ export default async function AdministrationPage() {
             label: "Locations",
             description: "Warehouses, stores, document numbering, and location governance.",
             icon: MapPin,
+          },
+          {
+            href: "/settings/modules",
+            label: "Module settings",
+            description: "Document layouts, module policies, and operational preferences by module.",
+            icon: LayoutTemplate,
           },
           {
             href: "/settings/uom",

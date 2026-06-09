@@ -19,7 +19,10 @@ import {
   fetchSupplierItemInsights,
   type PoSupplierItemInsights,
 } from "@/lib/procurement/purchase-orders/supplier-item-insights";
-import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
+import {
+  fetchPoLineCatalogContext,
+  type PoLineCatalogContext,
+} from "@/lib/procurement/purchase-orders/catalog-context";
 import {
   fetchProcurementLocationLabel,
   fetchProcurementLocations,
@@ -109,6 +112,22 @@ export async function peekPurchaseOrderNumber(raw: unknown) {
   }
 
   return { voucherPreview: data as string };
+}
+
+export async function lookupPoLineCatalogContext(input: {
+  variant_id: string;
+}): Promise<{ context: PoLineCatalogContext | null } | { error: string }> {
+  if (!input.variant_id.trim()) {
+    return { context: null };
+  }
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const context = await fetchPoLineCatalogContext(supabase, tenantId, input.variant_id);
+    return { context };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to load item details." };
+  }
 }
 
 export async function lookupSupplierVariantPrice(input: {

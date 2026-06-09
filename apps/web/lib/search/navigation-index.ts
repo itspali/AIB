@@ -147,6 +147,16 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["group", "enterprise", "holding", "subsidiary", "multi-org"],
   },
   {
+    label: "Module settings",
+    href: "/settings/modules",
+    keywords: ["module", "document layout", "purchase order layout", "procurement settings", "preferences"],
+  },
+  {
+    label: "Procurement document layout",
+    href: "/settings/modules/procurement",
+    keywords: ["procurement", "purchase order", "po columns", "document layout", "print"],
+  },
+  {
     label: "Tax Settings",
     href: "/settings/tax",
     keywords: ["tax", "gst", "vat", "tax rule", "tax code", "slab", "rate", "settings"],
