@@ -55,6 +55,30 @@ describe("po line tax components", () => {
     expect(breakdown.igst_amount).toBe(36);
   });
 
+  it("synthesizes CGST/SGST from flat rate when components are missing", () => {
+    const breakdown = resolvePoLineTaxComponentBreakdown({
+      taxableBase: 200,
+      lineTaxAmount: 36,
+      components: [],
+      supplyNature: "INTRASTATE",
+      flatTaxRate: 18,
+    });
+    expect(breakdown.cgst_amount).toBe(18);
+    expect(breakdown.sgst_amount).toBe(18);
+    expect(breakdown.igst_amount).toBe(0);
+  });
+
+  it("synthesizes IGST from flat rate when components are missing", () => {
+    const breakdown = resolvePoLineTaxComponentBreakdown({
+      taxableBase: 200,
+      lineTaxAmount: 36,
+      components: [],
+      supplyNature: "INTERSTATE",
+      flatTaxRate: 18,
+    });
+    expect(breakdown.igst_amount).toBe(36);
+  });
+
   it("parses persisted tax component JSON", () => {
     expect(
       parsePoLineTaxComponentsJson([

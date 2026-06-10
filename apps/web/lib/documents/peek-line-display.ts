@@ -17,6 +17,7 @@ import {
   resolvePoPeekLineIgstAmountDisplay,
   resolvePoPeekLineSgstAmountDisplay,
 } from "@/lib/procurement/purchase-orders/po-line-tax-components";
+import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
 
 function formatPeekDecimal(raw: string, column: DocumentColumnPref): string {
   const trimmed = raw.trim();
@@ -28,6 +29,7 @@ function formatPeekDecimal(raw: string, column: DocumentColumnPref): string {
 
 export type PoPeekLineDisplayOptions = {
   discountAmountColumn?: DocumentColumnPref | null;
+  taxSupplyNature?: PoTaxSupplyNature;
 };
 
 /** Read-only peek line cell value for a saved purchase order line. */
@@ -63,11 +65,23 @@ export function resolvePoPeekLineCellDisplay(
     case "line_tax_amount":
       return resolvePoPeekLineTaxAmountDisplay(line, column);
     case "cgst_amount":
-      return resolvePoPeekLineCgstAmountDisplay(line, column);
+      return resolvePoPeekLineCgstAmountDisplay(
+        line,
+        column,
+        options?.taxSupplyNature ?? "INTERSTATE"
+      );
     case "sgst_amount":
-      return resolvePoPeekLineSgstAmountDisplay(line, column);
+      return resolvePoPeekLineSgstAmountDisplay(
+        line,
+        column,
+        options?.taxSupplyNature ?? "INTERSTATE"
+      );
     case "igst_amount":
-      return resolvePoPeekLineIgstAmountDisplay(line, column);
+      return resolvePoPeekLineIgstAmountDisplay(
+        line,
+        column,
+        options?.taxSupplyNature ?? "INTERSTATE"
+      );
     default:
       return null;
   }

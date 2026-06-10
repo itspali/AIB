@@ -418,8 +418,9 @@ export function PoPeekView({
   const peekDisplayOptions = useMemo<PoPeekLineDisplayOptions>(
     () => ({
       discountAmountColumn: getPoLayoutColumnPref(resolvedLayout, "discount_amount"),
+      taxSupplyNature: order.tax_supply_nature,
     }),
-    [resolvedLayout]
+    [resolvedLayout, order.tax_supply_nature]
   );
   const grandTotalField = resolvedLayout.columns.find((column) => column.id === "grand_total");
   const grandTotalDecimals = grandTotalField

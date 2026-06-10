@@ -2,6 +2,11 @@ import {
   formatDocumentDecimal,
   resolveColumnDecimalPlaces,
 } from "@/lib/documents/decimal-format";
+import {
+  getPoLayoutColumnPref,
+  normalizePoLayoutTemplate,
+  type DocumentLayoutDefaults,
+} from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
@@ -14,6 +19,26 @@ import {
 export type PoLineTaxDisplayOptions = PurchaseOrderTotalsOptions & {
   taxSupplyNature?: PoTaxSupplyNature;
 };
+
+/** True when the Tax % line field is visible as its own column. */
+export function isPoTaxRateLineFieldVisible(
+  layout: DocumentLayoutDefaults
+): boolean {
+  return (
+    getPoLayoutColumnPref(normalizePoLayoutTemplate(layout), "tax_rate_pct")
+      ?.defaultVisible === true
+  );
+}
+
+/** Embed tax rate under line tax when the standalone Tax % column is off. */
+export function shouldShowPoTaxRateUnderLineTaxColumn(
+  layout: DocumentLayoutDefaults
+): boolean {
+  const normalized = normalizePoLayoutTemplate(layout);
+  const lineTaxVisible =
+    getPoLayoutColumnPref(normalized, "line_tax_amount")?.defaultVisible === true;
+  return lineTaxVisible && !isPoTaxRateLineFieldVisible(normalized);
+}
 
 function formatTaxRate(rate: number, column: DocumentColumnPref): string {
   if (!Number.isFinite(rate) || rate <= 0) return "—";

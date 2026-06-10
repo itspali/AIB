@@ -2,6 +2,11 @@ import {
   formatDocumentDecimal,
   resolveColumnDecimalPlaces,
 } from "@/lib/documents/decimal-format";
+import {
+  getPoLayoutColumnPref,
+  normalizePoLayoutTemplate,
+  type DocumentLayoutDefaults,
+} from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
@@ -44,6 +49,26 @@ export function resolvePoLineDiscountInputValue(line: PoLineDiscountFields): str
   return resolvePoLineDiscountType(line) === "amount"
     ? line.discount_amount
     : line.discount_percentage;
+}
+
+/** True when the Discount line field is visible as its own column. */
+export function isPoDiscountPctLineFieldVisible(
+  layout: DocumentLayoutDefaults
+): boolean {
+  return (
+    getPoLayoutColumnPref(normalizePoLayoutTemplate(layout), "discount_pct")
+      ?.defaultVisible === true
+  );
+}
+
+/** Embed discount entry under disc amount when the standalone Discount column is off. */
+export function shouldShowPoDiscountPctUnderAmountColumn(
+  layout: DocumentLayoutDefaults
+): boolean {
+  const normalized = normalizePoLayoutTemplate(layout);
+  const discountAmountVisible =
+    getPoLayoutColumnPref(normalized, "discount_amount")?.defaultVisible === true;
+  return discountAmountVisible && !isPoDiscountPctLineFieldVisible(normalized);
 }
 
 /** Always show % | Amt under the discount entry column (independent of disc amount column visibility). */

@@ -11,6 +11,9 @@ import {
   resolvePoLineImageDisplayMode,
 } from "@/lib/documents/purchase-order-layout";
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import { shouldShowPoDiscountPctUnderAmountColumn } from "@/lib/procurement/purchase-orders/po-line-discount";
+import { shouldShowPoTaxRateUnderLineTaxColumn } from "@/lib/procurement/purchase-orders/po-line-tax";
+import { shouldShowPoUnitUnderQtyColumn } from "@/lib/procurement/purchase-orders/po-line-unit";
 import {
   computeDocumentLineMinTableWidth,
   getDocumentLineColumnMinWidthRem,
@@ -109,6 +112,19 @@ function PoLineEntryGrid({
     () => getPoLayoutColumnPref(layout, "discount_amount"),
     [layout]
   );
+  const discountPctColumn = useMemo(
+    () => getPoLayoutColumnPref(layout, "discount_pct"),
+    [layout]
+  );
+  const taxRateColumn = useMemo(() => getPoLayoutColumnPref(layout, "tax_rate_pct"), [layout]);
+  const showTaxRateUnderLineTax = useMemo(
+    () => shouldShowPoTaxRateUnderLineTaxColumn(layout),
+    [layout]
+  );
+  const showDiscountPctUnderAmount = useMemo(
+    () => shouldShowPoDiscountPctUnderAmountColumn(layout),
+    [layout]
+  );
   const mrpColumnVisible = useMemo(
     () => visibleColumns.some((column) => column.id === "mrp"),
     [visibleColumns]
@@ -180,15 +196,14 @@ function PoLineEntryGrid({
           advanceFromLine: actions.advanceFromLine,
         };
 
-        return renderPoLineColumnCell(
-          column.id,
-          layoutColumn,
-          ctx,
-          nestedColumns,
-          imageDisplayMode,
+        return renderPoLineColumnCell(column.id, layoutColumn, ctx, nestedColumns, imageDisplayMode, {
           showUnitUnderQty,
-          discountAmountColumn
-        );
+          discountAmountColumn,
+          showTaxRateUnderLineTax,
+          taxRateColumn,
+          showDiscountPctUnderAmount,
+          discountPctColumn,
+        });
       }}
     />
   );

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PO_SCREEN_LAYOUT } from "@/lib/documents/purchase-order-layout";
 import {
   resolvePoDraftLineTaxAmountDisplay,
   resolvePoDraftLineTaxRateDisplay,
+  shouldShowPoTaxRateUnderLineTaxColumn,
 } from "@/lib/procurement/purchase-orders/po-line-tax";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
@@ -24,6 +26,32 @@ const baseLine: PoDraftLine = {
     tax_is_variable: false,
   },
 };
+
+describe("po line tax layout", () => {
+  it("stacks tax rate under line tax when Tax % column is hidden", () => {
+    const layout = {
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
+        column.id === "line_tax_amount" ? { ...column, defaultVisible: true } : column
+      ),
+    };
+
+    expect(shouldShowPoTaxRateUnderLineTaxColumn(layout)).toBe(true);
+  });
+
+  it("keeps tax rate in its own column when Tax % is visible", () => {
+    const layout = {
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
+        column.id === "line_tax_amount" || column.id === "tax_rate_pct"
+          ? { ...column, defaultVisible: true }
+          : column
+      ),
+    };
+
+    expect(shouldShowPoTaxRateUnderLineTaxColumn(layout)).toBe(false);
+  });
+});
 
 describe("po line tax display", () => {
   it("formats draft tax rate with percent suffix", () => {

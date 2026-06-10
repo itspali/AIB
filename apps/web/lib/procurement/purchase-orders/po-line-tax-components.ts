@@ -56,13 +56,47 @@ export function filterTaxComponentsForSupply(
   });
 }
 
+/** When tax_code_components is empty, derive statutory split from the code's flat rate. */
+export function synthesizeGstComponentsFromFlatRate(
+  totalRate: number,
+  supplyNature: PoTaxSupplyNature
+): TaxComponentRow[] {
+  if (!Number.isFinite(totalRate) || totalRate <= 0) return [];
+
+  if (supplyNature === "INTRASTATE") {
+    const half = totalRate / 2;
+    return [
+      { name: "CGST", rate: half, sort_order: 0 },
+      { name: "SGST", rate: half, sort_order: 1 },
+    ];
+  }
+
+  return [{ name: "IGST", rate: totalRate, sort_order: 0 }];
+}
+
+export function resolveEffectiveTaxComponents(
+  components: TaxComponentRow[],
+  flatTaxRate: number,
+  supplyNature: PoTaxSupplyNature
+): TaxComponentRow[] {
+  const matched = filterTaxComponentsForSupply(components, supplyNature);
+  if (matched.length > 0) return matched;
+  return synthesizeGstComponentsFromFlatRate(flatTaxRate, supplyNature);
+}
+
 export function resolvePoLineTaxComponentBreakdown(input: {
   taxableBase: number;
   lineTaxAmount: number;
   components: TaxComponentRow[];
   supplyNature: PoTaxSupplyNature;
+  flatTaxRate?: number;
 }): PoLineTaxComponentBreakdown {
-  const filtered = filterTaxComponentsForSupply(input.components, input.supplyNature);
+  const flatTaxRate = input.flatTaxRate ?? 0;
+  const filtered = resolveEffectiveTaxComponents(
+    input.components,
+    flatTaxRate,
+    input.supplyNature
+  );
   if (filtered.length === 0 || input.taxableBase <= 0 || input.lineTaxAmount <= 0) {
     return { cgst_amount: 0, sgst_amount: 0, igst_amount: 0, components: [] };
   }
@@ -142,16 +176,42 @@ function resolveDraftBreakdown(
 ): PoLineTaxComponentBreakdown | null {
   if (!line.variant_id) return null;
   if (line.catalog_context?.tax_is_variable) return null;
-  const components = line.catalog_context?.tax_components ?? [];
-  if (components.length === 0) return null;
 
   const supplyNature = options.taxSupplyNature ?? "INTERSTATE";
   const resolved = resolvePoLineTaxAmount(line, options);
+  if (resolved.taxAmount <= 0) return null;
+
   return resolvePoLineTaxComponentBreakdown({
     taxableBase: resolved.taxableBase,
     lineTaxAmount: resolved.taxAmount,
-    components,
+    components: line.catalog_context?.tax_components ?? [],
     supplyNature,
+    flatTaxRate: line.catalog_context?.tax_rate ?? 0,
+  });
+}
+
+function resolvePeekBreakdown(
+  line: PurchaseOrderLineRow,
+  supplyNature: PoTaxSupplyNature
+): PoLineTaxComponentBreakdown {
+  if (line.tax_components.length > 0) {
+    return breakdownFromPersistedComponents(line.tax_components);
+  }
+
+  const lineTaxAmount = Number(line.line_tax_amount);
+  const taxableBase = Number(line.line_total_gross);
+  const flatTaxRate = Number(line.tax_rate_percentage);
+
+  if (!Number.isFinite(lineTaxAmount) || lineTaxAmount <= 0) {
+    return { cgst_amount: 0, sgst_amount: 0, igst_amount: 0, components: [] };
+  }
+
+  return resolvePoLineTaxComponentBreakdown({
+    taxableBase: Number.isFinite(taxableBase) ? taxableBase : 0,
+    lineTaxAmount,
+    components: [],
+    supplyNature,
+    flatTaxRate: Number.isFinite(flatTaxRate) ? flatTaxRate : 0,
   });
 }
 
@@ -194,24 +254,27 @@ export function resolvePoDraftLineIgstAmountDisplay(
 
 export function resolvePoPeekLineCgstAmountDisplay(
   line: PurchaseOrderLineRow,
-  column: DocumentColumnPref
+  column: DocumentColumnPref,
+  supplyNature: PoTaxSupplyNature = "INTERSTATE"
 ): string {
-  const breakdown = breakdownFromPersistedComponents(line.tax_components);
+  const breakdown = resolvePeekBreakdown(line, supplyNature);
   return formatComponentAmount(breakdown.cgst_amount, column);
 }
 
 export function resolvePoPeekLineSgstAmountDisplay(
   line: PurchaseOrderLineRow,
-  column: DocumentColumnPref
+  column: DocumentColumnPref,
+  supplyNature: PoTaxSupplyNature = "INTERSTATE"
 ): string {
-  const breakdown = breakdownFromPersistedComponents(line.tax_components);
+  const breakdown = resolvePeekBreakdown(line, supplyNature);
   return formatComponentAmount(breakdown.sgst_amount, column);
 }
 
 export function resolvePoPeekLineIgstAmountDisplay(
   line: PurchaseOrderLineRow,
-  column: DocumentColumnPref
+  column: DocumentColumnPref,
+  supplyNature: PoTaxSupplyNature = "INTERSTATE"
 ): string {
-  const breakdown = breakdownFromPersistedComponents(line.tax_components);
+  const breakdown = resolvePeekBreakdown(line, supplyNature);
   return formatComponentAmount(breakdown.igst_amount, column);
 }
