@@ -58,10 +58,38 @@ function isRecoverablePoSelectError(message: string): boolean {
   );
 }
 
-function buildPurchaseOrderListSelect(options: {
+type PoSelectShape = {
   includeAddresses: boolean;
   includeLineIds: boolean;
-}): string {
+  includeTaxColumns: boolean;
+};
+
+const PO_LIST_SELECT_SHAPES: PoSelectShape[] = [
+  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false },
+];
+
+const PO_DETAIL_SELECT_SHAPES: PoSelectShape[] = [
+  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false },
+];
+
+function buildPoHeaderTaxFields(includeTaxColumns: boolean): string {
+  if (!includeTaxColumns) return "";
+  return `
+      prices_tax_inclusive,
+      tax_supply_nature,`;
+}
+
+function buildPoLineTaxFields(includeTaxColumns: boolean): string {
+  if (!includeTaxColumns) return "";
+  return `
+        tax_components_json,`;
+}
+
+function buildPurchaseOrderListSelect(options: PoSelectShape): string {
   const destinationFields = options.includeAddresses
     ? PO_DESTINATION_ADDRESS_FIELDS
     : PO_DESTINATION_MINIMAL_FIELDS;
@@ -79,9 +107,7 @@ function buildPurchaseOrderListSelect(options: {
       payment_terms_days,
       total_gross_amount,
       total_tax_amount,
-      total_net_amount,
-      prices_tax_inclusive,
-      tax_supply_nature,
+      total_net_amount,${buildPoHeaderTaxFields(options.includeTaxColumns)}
       custom_fields,
       created_by,
       created_at,
@@ -90,6 +116,97 @@ function buildPurchaseOrderListSelect(options: {
       ${SUPPLIER_EMBED} (${supplierFields}),
       ${PO_ITEMS_EMBED} (id)
     `;
+}
+
+function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
+  const destinationFields = options.includeAddresses
+    ? PO_DESTINATION_ADDRESS_FIELDS
+    : PO_DESTINATION_MINIMAL_FIELDS;
+  const supplierFields = options.includeAddresses
+    ? PO_SUPPLIER_ADDRESS_FIELDS
+    : PO_SUPPLIER_MINIMAL_FIELDS;
+
+  return `
+      id,
+      voucher_number,
+      destination_location_id,
+      supplier_id,
+      document_status,
+      currency_code,
+      payment_terms_days,
+      total_gross_amount,
+      total_tax_amount,
+      total_net_amount,${buildPoHeaderTaxFields(options.includeTaxColumns)}
+      custom_fields,
+      created_by,
+      created_at,
+      updated_at,
+      ${DESTINATION_LOCATION_EMBED} (${destinationFields}),
+      ${SUPPLIER_EMBED} (${supplierFields}),
+      ${PO_ITEMS_EMBED} (
+        id,
+        item_id,
+        variant_id,
+        uom_code,
+        uom_conversion_factor,
+        quantity_ordered,
+        quantity_received,
+        unit_price_contractual,
+        discount_percentage,
+        discount_amount,
+        tax_rate_percentage,
+        line_tax_amount,${buildPoLineTaxFields(options.includeTaxColumns)}
+        line_total_gross,
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
+        item_variants!purchase_order_items_variant_tenant_fk (sku)
+      )
+    `;
+}
+
+function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string {
+  return `
+      id,
+      voucher_number,
+      destination_location_id,
+      document_status,
+      ${DESTINATION_LOCATION_EMBED} (name, code),
+      ${SUPPLIER_EMBED} (name),
+      ${PO_ITEMS_EMBED} (
+        id,
+        item_id,
+        variant_id,
+        uom_code,
+        uom_conversion_factor,
+        quantity_ordered,
+        quantity_received,
+        unit_price_contractual,
+        discount_percentage,
+        discount_amount,
+        tax_rate_percentage,
+        line_tax_amount,${buildPoLineTaxFields(includeTaxColumns)}
+        line_total_gross,
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
+        item_variants!purchase_order_items_variant_tenant_fk (sku)
+      )
+    `;
+}
+
+async function runPoSelectWithFallback<T>(
+  shapes: PoSelectShape[],
+  run: (shape: PoSelectShape) => PromiseLike<{ data: T | null; error: { message: string } | null }>
+): Promise<{ data: T | null; error: { message: string } | null }> {
+  let lastResult: { data: T | null; error: { message: string } | null } = {
+    data: null,
+    error: null,
+  };
+
+  for (const shape of shapes) {
+    lastResult = await run(shape);
+    if (!lastResult.error) return lastResult;
+    if (!isRecoverablePoSelectError(lastResult.error.message)) return lastResult;
+  }
+
+  return lastResult;
 }
 
 type LocationEmbed =
@@ -233,6 +350,15 @@ type PoLineDbRow = {
   item_variants: { sku: string } | { sku: string }[] | null;
 };
 
+type ReceivablePoDbRow = {
+  id: string;
+  voucher_number: string;
+  destination_location_id: string;
+  destination_location: LocationEmbed;
+  supplier: SupplierEmbed;
+  po_lines?: PoLineDbRow[] | null;
+};
+
 function mapSupplierAddress(
   supplier: ReturnType<typeof resolveJoin<NonNullable<SupplierEmbed>>>,
   fallbackName: string
@@ -362,39 +488,28 @@ export async function fetchPurchaseOrders(
     status?: PurchaseOrderStatus | null;
   }
 ): Promise<PurchaseOrderRow[]> {
-  const runQuery = (includeAddresses: boolean) =>
-    supabase
-      .from("purchase_orders")
-      .select(buildPurchaseOrderListSelect({ includeAddresses, includeLineIds: true }))
-      .eq("tenant_id", tenantId)
-      .order("updated_at", { ascending: false });
+  const { data, error } = await runPoSelectWithFallback<PoListDbRow[]>(
+    PO_LIST_SELECT_SHAPES,
+    (shape) => {
+      let query = supabase
+        .from("purchase_orders")
+        .select(buildPurchaseOrderListSelect(shape))
+        .eq("tenant_id", tenantId)
+        .order("updated_at", { ascending: false });
 
-  let query = runQuery(true);
+      if (options?.locationId) {
+        query = query.eq("destination_location_id", options.locationId);
+      } else if (options?.locationIds?.length) {
+        query = query.in("destination_location_id", options.locationIds);
+      }
 
-  if (options?.locationId) {
-    query = query.eq("destination_location_id", options.locationId);
-  } else if (options?.locationIds?.length) {
-    query = query.in("destination_location_id", options.locationIds);
-  }
+      if (options?.status) {
+        query = query.eq("document_status", options.status);
+      }
 
-  if (options?.status) {
-    query = query.eq("document_status", options.status);
-  }
-
-  let { data, error } = await query;
-
-  if (error && isRecoverablePoSelectError(error.message)) {
-    let fallbackQuery = runQuery(false);
-    if (options?.locationId) {
-      fallbackQuery = fallbackQuery.eq("destination_location_id", options.locationId);
-    } else if (options?.locationIds?.length) {
-      fallbackQuery = fallbackQuery.in("destination_location_id", options.locationIds);
+      return query;
     }
-    if (options?.status) {
-      fallbackQuery = fallbackQuery.eq("document_status", options.status);
-    }
-    ({ data, error } = await fallbackQuery);
-  }
+  );
 
   if (error) throw new Error(error.message);
 
@@ -408,58 +523,16 @@ export async function fetchPurchaseOrderById(
   tenantId: string,
   purchaseOrderId: string
 ): Promise<PurchaseOrderRow | null> {
-  const runQuery = (includeAddresses: boolean) =>
+  const { data, error } = await runPoSelectWithFallback<
+    PoListDbRow & { po_lines?: PoLineDbRow[] | null }
+  >(PO_DETAIL_SELECT_SHAPES, (shape) =>
     supabase
       .from("purchase_orders")
-      .select(
-        `
-      id,
-      voucher_number,
-      destination_location_id,
-      supplier_id,
-      document_status,
-      currency_code,
-      payment_terms_days,
-      total_gross_amount,
-      total_tax_amount,
-      total_net_amount,
-      prices_tax_inclusive,
-      tax_supply_nature,
-      custom_fields,
-      created_by,
-      created_at,
-      updated_at,
-      ${DESTINATION_LOCATION_EMBED} (${includeAddresses ? PO_DESTINATION_ADDRESS_FIELDS : PO_DESTINATION_MINIMAL_FIELDS}),
-      ${SUPPLIER_EMBED} (${includeAddresses ? PO_SUPPLIER_ADDRESS_FIELDS : PO_SUPPLIER_MINIMAL_FIELDS}),
-      ${PO_ITEMS_EMBED} (
-        id,
-        item_id,
-        variant_id,
-        uom_code,
-        uom_conversion_factor,
-        quantity_ordered,
-        quantity_received,
-        unit_price_contractual,
-        discount_percentage,
-        discount_amount,
-        tax_rate_percentage,
-        line_tax_amount,
-        tax_components_json,
-        line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
-        item_variants!purchase_order_items_variant_tenant_fk (sku)
-      )
-    `
-      )
+      .select(buildPurchaseOrderDetailSelect(shape))
       .eq("tenant_id", tenantId)
       .eq("id", purchaseOrderId)
-      .maybeSingle();
-
-  let { data, error } = await runQuery(true);
-
-  if (error && isRecoverablePoSelectError(error.message)) {
-    ({ data, error } = await runQuery(false));
-  }
+      .maybeSingle()
+  );
 
   if (error) throw new Error(error.message);
   if (!data) return null;
@@ -476,55 +549,30 @@ export async function fetchReceivablePurchaseOrders(
   tenantId: string,
   options?: { locationId?: string | null }
 ): Promise<ReceivablePurchaseOrderOption[]> {
-  let query = supabase
-    .from("purchase_orders")
-    .select(
-      `
-      id,
-      voucher_number,
-      destination_location_id,
-      document_status,
-      ${DESTINATION_LOCATION_EMBED} (name, code),
-      ${SUPPLIER_EMBED} (name),
-      ${PO_ITEMS_EMBED} (
-        id,
-        item_id,
-        variant_id,
-        uom_code,
-        uom_conversion_factor,
-        quantity_ordered,
-        quantity_received,
-        unit_price_contractual,
-        discount_percentage,
-        discount_amount,
-        tax_rate_percentage,
-        line_tax_amount,
-        tax_components_json,
-        line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
-        item_variants!purchase_order_items_variant_tenant_fk (sku)
-      )
-    `
-    )
-    .eq("tenant_id", tenantId)
-    .in("document_status", ["ISSUED_ACTIVE", "PARTIALLY_FULFILLED"])
-    .order("voucher_number");
+  const receivableShapes: PoSelectShape[] = [
+    { includeAddresses: false, includeLineIds: true, includeTaxColumns: true },
+    { includeAddresses: false, includeLineIds: true, includeTaxColumns: false },
+  ];
 
-  if (options?.locationId) {
-    query = query.eq("destination_location_id", options.locationId);
-  }
+  const { data, error } = await runPoSelectWithFallback<ReceivablePoDbRow[]>(
+    receivableShapes,
+    (shape) => {
+      let query = supabase
+        .from("purchase_orders")
+        .select(buildReceivablePurchaseOrderSelect(shape.includeTaxColumns))
+        .eq("tenant_id", tenantId)
+        .in("document_status", ["ISSUED_ACTIVE", "PARTIALLY_FULFILLED"])
+        .order("voucher_number");
 
-  const { data, error } = await query;
+      if (options?.locationId) {
+        query = query.eq("destination_location_id", options.locationId);
+      }
+
+      return query;
+    }
+  );
+
   if (error) throw new Error(error.message);
-
-  type ReceivablePoDbRow = {
-    id: string;
-    voucher_number: string;
-    destination_location_id: string;
-    destination_location: LocationEmbed;
-    supplier: SupplierEmbed;
-    po_lines?: PoLineDbRow[] | null;
-  };
 
   return (data ?? [])
     .map((row) => {
