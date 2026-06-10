@@ -53,6 +53,27 @@ const INDIA_TAX_CODES: PresetTaxCode[] = [
   { code: "EXEMPT", name: "Exempt", kind: "EXEMPT", rate: 0, is_inclusive_default: false, is_variable: false, components: [], rules: [] },
   { code: "NIL", name: "Nil-rated", kind: "NIL", rate: 0, is_inclusive_default: false, is_variable: false, components: [], rules: [] },
   { code: "ZERO-EXPORT", name: "Zero-rated (export)", kind: "ZERO", rate: 0, is_inclusive_default: false, is_variable: false, components: [], rules: [] },
+  { code: "IMPORT-ZERO", name: "Import — zero vendor GST", kind: "ZERO", rate: 0, is_inclusive_default: false, is_variable: false, components: [], rules: [] },
+  {
+    code: "IMPORT-IGST",
+    name: "Import IGST",
+    kind: "GST",
+    rate: 18,
+    is_inclusive_default: false,
+    is_variable: false,
+    components: [{ name: "IGST", rate: 18, sort_order: 0 }],
+    rules: [],
+  },
+  {
+    code: "RCM-STD",
+    name: "Reverse charge (import of services)",
+    kind: "GST",
+    rate: 18,
+    is_inclusive_default: false,
+    is_variable: false,
+    components: [{ name: "IGST", rate: 18, sort_order: 0 }],
+    rules: [],
+  },
 ];
 
 const US_TAX_CODES: PresetTaxCode[] = [

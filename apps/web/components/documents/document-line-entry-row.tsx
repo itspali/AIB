@@ -10,6 +10,8 @@ import {
 import {
   DOCUMENT_LINE_BODY_CELL,
   DOCUMENT_LINE_EDITABLE_CELL,
+  DOCUMENT_LINE_ROW_BASE,
+  DOCUMENT_LINE_ROW_CELL_HOVER,
   type DocumentLineColumn,
 } from "@/components/documents/document-line-entry-grid";
 import {
@@ -85,11 +87,12 @@ export function DocumentLineEntryRow<T extends LineRow>({
   const cellShiftStyle = lineRowCellShiftStyle(visualShiftPx, isReordering);
 
   return (
-    <tr ref={rowRef} data-line-key={line.key}>
+    <tr ref={rowRef} data-line-key={line.key} className={DOCUMENT_LINE_ROW_BASE}>
       {showLineNumbers ? (
         <td
           className={cn(
             "border border-border px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground",
+            !isDragging && DOCUMENT_LINE_ROW_CELL_HOVER,
             isDragging && "opacity-40"
           )}
           style={{ width: lineNumberColWidth, ...cellShiftStyle }}
@@ -128,6 +131,7 @@ export function DocumentLineEntryRow<T extends LineRow>({
           className={cn(
             lineColumnClass(column),
             column.editable ? DOCUMENT_LINE_EDITABLE_CELL : DOCUMENT_LINE_BODY_CELL,
+            !isDragging && DOCUMENT_LINE_ROW_CELL_HOVER,
             isDragging && "opacity-40"
           )}
         >
@@ -139,6 +143,7 @@ export function DocumentLineEntryRow<T extends LineRow>({
           style={cellShiftStyle}
           className={cn(
             "border border-border p-0 text-center align-top",
+            !isDragging && DOCUMENT_LINE_ROW_CELL_HOVER,
             isDragging && "opacity-40"
           )}
         >

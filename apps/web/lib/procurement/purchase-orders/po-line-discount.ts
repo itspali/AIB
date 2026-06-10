@@ -61,14 +61,15 @@ export function isPoDiscountPctLineFieldVisible(
   );
 }
 
-/** Embed discount entry under disc amount when the standalone Discount column is off. */
-export function shouldShowPoDiscountPctUnderAmountColumn(
+/** Embed computed disc amount under Discount when the standalone Disc amount column is off. */
+export function shouldShowPoDiscountAmountUnderPctColumn(
   layout: DocumentLayoutDefaults
 ): boolean {
   const normalized = normalizePoLayoutTemplate(layout);
-  const discountAmountVisible =
-    getPoLayoutColumnPref(normalized, "discount_amount")?.defaultVisible === true;
-  return discountAmountVisible && !isPoDiscountPctLineFieldVisible(normalized);
+  return (
+    isPoDiscountPctLineFieldVisible(normalized) &&
+    getPoLayoutColumnPref(normalized, "discount_amount")?.defaultVisible !== true
+  );
 }
 
 /** Always show % | Amt under the discount entry column (independent of disc amount column visibility). */

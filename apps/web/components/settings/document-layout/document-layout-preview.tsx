@@ -11,7 +11,11 @@ import {
 } from "@/lib/documents/purchase-order-layout";
 import { formatDocumentDecimal, resolveColumnDecimalPlaces } from "@/lib/documents/decimal-format";
 import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
-import { resolvePoFormFieldsGridProps } from "@/lib/documents/po-form-layout";
+import {
+  getVisiblePoFormHeaderDetailsFields,
+  getVisiblePoFormHeaderPrimaryFields,
+  resolvePoFormFieldsGridProps,
+} from "@/lib/documents/po-form-layout";
 import { documentTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
 import {
@@ -51,8 +55,12 @@ const PREVIEW_LINE_RAW: Partial<Record<string, string>> = {
 const PREVIEW_TOTALS_RAW: Partial<Record<string, string>> = {
   line_count: "1",
   subtotal_ex_tax: "10",
-  tax_amount: "0",
-  grand_total: "10",
+  tax_amount: "1.80",
+  shipping_amount: "2.00",
+  shipping_tax_amount: "0.36",
+  round_off_amount: "0.04",
+  additional_charges_amount: "1.00",
+  grand_total: "15.20",
 };
 
 const PREVIEW_HEADER_SAMPLE: Partial<Record<string, string>> = {
@@ -120,15 +128,43 @@ function DetailPreviewRows({ columns }: { columns: ReturnType<typeof getItemDeta
   );
 }
 
+function HeaderFieldPreview({
+  field,
+  className,
+}: {
+  field: DocumentColumnPref;
+  className?: string;
+}) {
+  return (
+    <div className={cn("min-w-0 space-y-0.5", className)}>
+      <p
+        className={documentTypographyClassName(
+          field.typography,
+          "truncate text-xs text-muted-foreground"
+        )}
+      >
+        {field.label}
+      </p>
+      <p className="truncate text-sm font-medium text-foreground">
+        {PREVIEW_HEADER_SAMPLE[field.id] ?? "…"}
+      </p>
+    </div>
+  );
+}
+
 export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange }: Props) {
-  const headerFields = getVisibleHeaderFields(layout);
+  const peekHeaderFields = getVisibleHeaderFields(layout);
+  const primaryHeaderFields = getVisiblePoFormHeaderPrimaryFields(layout);
+  const detailsHeaderFields = getVisiblePoFormHeaderDetailsFields(layout);
   const totalsFields = getVisibleTotalsFields(layout);
   const lineColumns = getPoLineEntryTableColumns(layout);
   const detailColumns = getItemDetailLineFields(layout);
   const showUnitUnderQty = shouldShowPoUnitUnderQtyColumn(layout);
   const showInlineImage = shouldShowPoLineInlineImage(layout.imageDisplayMode);
   const showImageColumn = layout.imageDisplayMode === "SEPARATE_COLUMN";
-  const headerGrid = resolvePoFormFieldsGridProps(headerFields.length);
+  const drawerPrimaryGrid = resolvePoFormFieldsGridProps(primaryHeaderFields.length);
+  const drawerDetailsGrid = resolvePoFormFieldsGridProps(detailsHeaderFields.length, true);
+  const peekHeaderGrid = resolvePoFormFieldsGridProps(peekHeaderFields.length);
 
   return (
     <div className="w-full min-w-0 space-y-2.5 text-sm">
@@ -166,23 +202,37 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
           <PoAddressBlocks blocks={PREVIEW_PO_ADDRESS_BLOCKS} compact className="mb-3" />
         ) : null}
 
-        {headerFields.length > 0 ? (
-          <div className={cn("mb-3", headerGrid.containerClassName)}>
-            <div className={cn(headerGrid.gridClassName, "gap-x-3 gap-y-2")}>
-              {headerFields.slice(0, 6).map((field) => (
-                <div key={field.id} className="min-w-0 space-y-0.5">
-                  <p
-                    className={documentTypographyClassName(
-                      field.typography,
-                      "truncate text-xs text-muted-foreground"
-                    )}
-                  >
-                    {field.label}
-                  </p>
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {PREVIEW_HEADER_SAMPLE[field.id] ?? "…"}
-                  </p>
-                </div>
+        {previewMode === "peek" && peekHeaderFields.length > 0 ? (
+          <div className={cn("mb-3", peekHeaderGrid.containerClassName)}>
+            <div className={cn(peekHeaderGrid.gridClassName, "gap-x-3 gap-y-2")}>
+              {peekHeaderFields.slice(0, 6).map((field) => (
+                <HeaderFieldPreview key={field.id} field={field} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {previewMode === "drawer" && primaryHeaderFields.length > 0 ? (
+          <div className={cn("mb-3", drawerPrimaryGrid.containerClassName)}>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Header
+            </p>
+            <div className={cn(drawerPrimaryGrid.gridClassName, "gap-x-3 gap-y-2")}>
+              {primaryHeaderFields.map((field) => (
+                <HeaderFieldPreview key={field.id} field={field} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {previewMode === "drawer" && detailsHeaderFields.length > 0 ? (
+          <div className={cn("mb-3", drawerDetailsGrid.containerClassName)}>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Details
+            </p>
+            <div className={cn(drawerDetailsGrid.gridClassName, "gap-x-3 gap-y-2")}>
+              {detailsHeaderFields.map((field) => (
+                <HeaderFieldPreview key={field.id} field={field} />
               ))}
             </div>
           </div>

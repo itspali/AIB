@@ -77,6 +77,51 @@ function mapRules(raw: RawRule[] | null): TaxRuleRow[] {
     .sort((a, b) => a.threshold_min - b.threshold_min);
 }
 
+/** Active tax rules for PO line GST picker (includes statutory components). */
+export async function fetchActivePoLineTaxCodeOptions(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<
+  Array<{
+    id: string;
+    code: string;
+    name: string;
+    rate: number;
+    kind: string;
+    is_variable: boolean;
+    components: TaxComponentRow[];
+  }>
+> {
+  const { data, error } = await supabase
+    .from("tax_codes")
+    .select(
+      "id, code, name, rate, kind, is_variable, tax_code_components ( name, rate, sort_order )"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("name");
+
+  if (error || !data) return [];
+
+  return (data as Array<{
+    id: string;
+    code: string;
+    name: string;
+    rate: number | string | null;
+    kind: string;
+    is_variable: boolean;
+    tax_code_components: RawComponent[] | null;
+  }>).map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    rate: toNumber(row.rate),
+    kind: row.kind,
+    is_variable: Boolean(row.is_variable),
+    components: mapComponents(row.tax_code_components),
+  }));
+}
+
 export async function fetchTaxCodeRows(
   supabase: SupabaseClient,
   tenantId: string

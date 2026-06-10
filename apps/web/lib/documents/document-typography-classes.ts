@@ -47,10 +47,10 @@ export function documentTypographyClassName(
   if (!typography) return className ?? "";
 
   return cn(
+    className,
     typography.fontSize ? FONT_SIZE_CLASS[typography.fontSize] : null,
     typography.fontWeight ? FONT_WEIGHT_CLASS[typography.fontWeight] : null,
-    typography.fontStyle ? FONT_STYLE_CLASS[typography.fontStyle] : null,
-    className
+    typography.fontStyle ? FONT_STYLE_CLASS[typography.fontStyle] : null
   );
 }
 

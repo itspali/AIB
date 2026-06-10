@@ -17,7 +17,8 @@ import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
-import { resolvePoTaxSupplyNatureFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import { cn } from "@/lib/utils";
 
 export const PO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
@@ -46,6 +47,8 @@ export type PoDocumentEditorShellProps = {
   documentLayout: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  tenantCountry?: string | null;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
@@ -65,6 +68,8 @@ export function PoDocumentEditorShell({
   documentLayout,
   allowLineItemDiscounts = false,
   enableMrpTradeTerms = true,
+  taxCodeOptions = [],
+  tenantCountry = null,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -74,15 +79,16 @@ export function PoDocumentEditorShell({
   const { useWidePartialDrawer, useFullPageLayout, lineTableFillHeight } =
     usePoDrawerFormLayout(true, layoutOverride);
   const { entryAnchor, handleEntryAnchorChange } = usePoLineEntryAnchor(form.lines, onLinesChange);
-  const taxSupplyNature = useMemo(
+  const gstContext = useMemo(
     () =>
-      resolvePoTaxSupplyNatureFromForm(
+      resolvePoGstContextFromForm(
         suppliers,
         form.supplier_id,
         locations,
-        form.destination_location_id
+        form.destination_location_id,
+        tenantCountry
       ),
-    [suppliers, form.supplier_id, locations, form.destination_location_id]
+    [suppliers, form.supplier_id, locations, form.destination_location_id, tenantCountry]
   );
 
   const linesSectionHeader = (
@@ -116,7 +122,9 @@ export function PoDocumentEditorShell({
       allowLineItemDiscounts={allowLineItemDiscounts}
       enableMrpTradeTerms={enableMrpTradeTerms}
       pricesTaxInclusive={form.prices_tax_inclusive}
-      taxSupplyNature={taxSupplyNature}
+      taxSupplyNature={gstContext.supplyNature}
+      taxMechanism={gstContext.taxMechanism}
+      taxCodeOptions={taxCodeOptions}
       entryAnchor={entryAnchor}
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange}
@@ -134,6 +142,12 @@ export function PoDocumentEditorShell({
           layout={resolvedDocumentLayout}
           layoutMode="embedded"
           purchasePricesTaxInclusive={form.prices_tax_inclusive}
+          taxMechanism={gstContext.taxMechanism}
+          headerCharges={form.header_charges}
+          disabled={isPending}
+          onHeaderChargesChange={(patch) =>
+            onPatch({ header_charges: { ...form.header_charges, ...patch } })
+          }
         />
       </div>
       <div className="space-y-3">
@@ -147,6 +161,7 @@ export function PoDocumentEditorShell({
           documentLayout={resolvedDocumentLayout}
           suppliers={suppliers}
           locations={locations}
+          tenantCountry={tenantCountry}
           onPatch={onPatch}
         />
       </div>
@@ -169,6 +184,12 @@ export function PoDocumentEditorShell({
           layout={resolvedDocumentLayout}
           layoutMode="embedded"
           purchasePricesTaxInclusive={form.prices_tax_inclusive}
+          taxMechanism={gstContext.taxMechanism}
+          headerCharges={form.header_charges}
+          disabled={isPending}
+          onHeaderChargesChange={(patch) =>
+            onPatch({ header_charges: { ...form.header_charges, ...patch } })
+          }
         />
       </div>
       <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">

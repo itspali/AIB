@@ -14,11 +14,12 @@ import {
   fetchProcurementSuppliers,
 } from "@/lib/procurement/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
+import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 
 export async function PoCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, suppliers, editAccess, procurementSettings, tenantRow, documentLayout] =
+  const [locations, suppliers, editAccess, procurementSettings, tenantRow, documentLayout, taxCodeOptions] =
     await Promise.all([
       fetchProcurementLocations(supabase, tenantId),
       fetchProcurementSuppliers(supabase, tenantId),
@@ -37,6 +38,7 @@ export async function PoCatalogLoader() {
         moduleKey: "PURCHASE_ORDER",
         viewContext: "SCREEN_GRID",
       }),
+      fetchActivePoLineTaxCodeOptions(supabase, tenantId),
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
@@ -69,6 +71,7 @@ export async function PoCatalogLoader() {
       documentLayout={documentLayout}
       preferredDestinationLocationId={preferredDestinationLocationId ?? null}
       organizationBillTo={organizationBillTo}
+      taxCodeOptions={taxCodeOptions}
     />
   );
 }

@@ -10,8 +10,10 @@ import {
   PO_LINE_IMAGE_COLUMN_ID,
   resolvePoLineImageDisplayMode,
 } from "@/lib/documents/purchase-order-layout";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
-import { shouldShowPoDiscountPctUnderAmountColumn } from "@/lib/procurement/purchase-orders/po-line-discount";
+import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
+import { shouldShowPoDiscountAmountUnderPctColumn } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { shouldShowPoTaxRateUnderLineTaxColumn } from "@/lib/procurement/purchase-orders/po-line-tax";
 import { shouldShowPoUnitUnderQtyColumn } from "@/lib/procurement/purchase-orders/po-line-unit";
 import {
@@ -60,6 +62,8 @@ type Props = {
   enableMrpTradeTerms?: boolean;
   pricesTaxInclusive?: boolean;
   taxSupplyNature?: PoTaxSupplyNature;
+  taxMechanism?: GstTaxMechanism;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
   onPricesTaxInclusiveChange?: (value: boolean) => void;
   entryAnchor?: PoLineEntryAnchor;
   onEntryAnchorChange?: (anchor: PoLineEntryAnchor) => void;
@@ -85,6 +89,8 @@ function PoLineEntryGrid({
   enableMrpTradeTerms,
   pricesTaxInclusive = false,
   taxSupplyNature = "INTERSTATE",
+  taxMechanism = "FORWARD",
+  taxCodeOptions = [],
   actions,
 }: {
   lines: PoDraftLine[];
@@ -98,6 +104,8 @@ function PoLineEntryGrid({
   enableMrpTradeTerms: boolean;
   pricesTaxInclusive: boolean;
   taxSupplyNature: PoTaxSupplyNature;
+  taxMechanism: GstTaxMechanism;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
   actions: ReturnType<typeof usePoLineEntryActions>;
 }) {
   const layout = useMemo(() => normalizePoLayoutTemplate(layoutProp), [layoutProp]);
@@ -112,17 +120,13 @@ function PoLineEntryGrid({
     () => getPoLayoutColumnPref(layout, "discount_amount"),
     [layout]
   );
-  const discountPctColumn = useMemo(
-    () => getPoLayoutColumnPref(layout, "discount_pct"),
-    [layout]
-  );
   const taxRateColumn = useMemo(() => getPoLayoutColumnPref(layout, "tax_rate_pct"), [layout]);
   const showTaxRateUnderLineTax = useMemo(
     () => shouldShowPoTaxRateUnderLineTaxColumn(layout),
     [layout]
   );
-  const showDiscountPctUnderAmount = useMemo(
-    () => shouldShowPoDiscountPctUnderAmountColumn(layout),
+  const showDiscountAmountUnderPct = useMemo(
+    () => shouldShowPoDiscountAmountUnderPctColumn(layout),
     [layout]
   );
   const mrpColumnVisible = useMemo(
@@ -187,6 +191,7 @@ function PoLineEntryGrid({
           mrpColumnVisible,
           pricesTaxInclusive,
           taxSupplyNature,
+          taxMechanism,
           itemRefs: actions.itemRefs,
           qtyRefs: actions.qtyRefs,
           priceRefs: actions.priceRefs,
@@ -201,8 +206,8 @@ function PoLineEntryGrid({
           discountAmountColumn,
           showTaxRateUnderLineTax,
           taxRateColumn,
-          showDiscountPctUnderAmount,
-          discountPctColumn,
+          showDiscountAmountUnderPct,
+          taxCodeOptions,
         });
       }}
     />
@@ -222,6 +227,8 @@ export function PoLineEntryTable({
   enableMrpTradeTerms = true,
   pricesTaxInclusive = false,
   taxSupplyNature = "INTERSTATE",
+  taxMechanism = "FORWARD",
+  taxCodeOptions = [],
   onPricesTaxInclusiveChange,
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
@@ -285,6 +292,8 @@ export function PoLineEntryTable({
         enableMrpTradeTerms={enableMrpTradeTerms}
         pricesTaxInclusive={pricesTaxInclusive}
         taxSupplyNature={taxSupplyNature}
+        taxMechanism={taxMechanism}
+        taxCodeOptions={taxCodeOptions}
         actions={actions}
       />
     </DocumentLineEntrySection>

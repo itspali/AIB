@@ -34,6 +34,7 @@ import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
@@ -51,6 +52,7 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
   organizationBillTo: OrganizationBillToSnapshot;
+  taxCodeOptions: readonly PoLineTaxCodeOption[];
 };
 
 export function PoManagementTerminal({
@@ -66,6 +68,7 @@ export function PoManagementTerminal({
   documentLayout: initialDocumentLayout,
   preferredDestinationLocationId = null,
   organizationBillTo,
+  taxCodeOptions,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF, {
@@ -282,6 +285,7 @@ export function PoManagementTerminal({
         organizationBillTo={organizationBillTo}
         copyFromId={copyFromId}
         onDuplicate={editAccessGranted ? handleDuplicate : undefined}
+        taxCodeOptions={taxCodeOptions}
       />
     </>
   );

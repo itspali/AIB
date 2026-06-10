@@ -9,7 +9,7 @@ import {
   patchPoLineDiscountType,
   resolvePoLineDiscountInputValue,
   resolvePoLineDiscountType,
-  shouldShowPoDiscountPctUnderAmountColumn,
+  shouldShowPoDiscountAmountUnderPctColumn,
   shouldShowPoDiscountTypeUnderPctColumn,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
 
@@ -18,18 +18,18 @@ describe("po-line-discount layout", () => {
     expect(shouldShowPoDiscountTypeUnderPctColumn()).toBe(true);
   });
 
-  it("stacks discount entry under disc amount when Discount column is hidden", () => {
+  it("stacks disc amount under Discount when Disc amount column is hidden", () => {
     const layout = {
       ...DEFAULT_PO_SCREEN_LAYOUT,
       columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
-        column.id === "discount_amount" ? { ...column, defaultVisible: true } : column
+        column.id === "discount_pct" ? { ...column, defaultVisible: true } : column
       ),
     };
 
-    expect(shouldShowPoDiscountPctUnderAmountColumn(layout)).toBe(true);
+    expect(shouldShowPoDiscountAmountUnderPctColumn(layout)).toBe(true);
   });
 
-  it("keeps discount entry in its own column when Discount is visible", () => {
+  it("keeps disc amount in its own column when Disc amount is visible", () => {
     const layout = {
       ...DEFAULT_PO_SCREEN_LAYOUT,
       columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
@@ -39,7 +39,7 @@ describe("po-line-discount layout", () => {
       ),
     };
 
-    expect(shouldShowPoDiscountPctUnderAmountColumn(layout)).toBe(false);
+    expect(shouldShowPoDiscountAmountUnderPctColumn(layout)).toBe(false);
   });
 });
 

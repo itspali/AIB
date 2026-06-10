@@ -15,6 +15,7 @@ import {
 } from "@/lib/procurement/access";
 import { formatPurchaseOrderRpcError } from "@/lib/procurement/purchase-orders/rpc-errors";
 import { serializePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
+import { normalizePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/po-header-charges";
 import {
   issuePurchaseOrderSchema,
   peekPurchaseOrderNumberSchema,
@@ -230,6 +231,14 @@ export async function savePurchaseOrder(raw: unknown) {
 
   const values = parsed.data;
   const { supabase, tenantId, userId } = await requireTenantId();
+  const headerCharges = normalizePoHeaderChargesForSave({
+    shipping_amount: values.shipping_amount,
+    shipping_tax_rate_pct: values.shipping_tax_rate_pct,
+    shipping_tax_amount: values.shipping_tax_amount,
+    shipping_tax_type: values.shipping_tax_type,
+    round_off_amount: values.round_off_amount,
+    additional_charges_amount: values.additional_charges_amount,
+  });
 
   const { data, error } = await supabase.rpc("save_purchase_order", {
     p_purchase_order_id: values.purchase_order_id ?? null,
@@ -248,6 +257,12 @@ export async function savePurchaseOrder(raw: unknown) {
     p_custom_fields: serializePurchaseOrderCustomFields(values.custom_fields),
     p_currency_code: values.currency_code,
     p_prices_tax_inclusive: values.prices_tax_inclusive,
+    p_shipping_amount: headerCharges.shipping_amount,
+    p_shipping_tax_rate_pct: headerCharges.shipping_tax_rate_pct,
+    p_shipping_tax_amount: headerCharges.shipping_tax_amount,
+    p_shipping_tax_type: headerCharges.shipping_tax_type,
+    p_round_off_amount: headerCharges.round_off_amount,
+    p_additional_charges_amount: headerCharges.additional_charges_amount,
   });
 
   if (error) {

@@ -17,7 +17,8 @@ describe("po line tax components", () => {
     expect(taxComponentBucket("CGST_9")).toBe("CGST");
     expect(taxComponentBucket("SGST 9")).toBe("SGST");
     expect(taxComponentBucket("IGST-18")).toBe("IGST");
-    expect(taxComponentBucket("CESS")).toBeNull();
+    expect(taxComponentBucket("CESS-1")).toBe("CESS");
+    expect(taxComponentBucket("CESS")).toBe("CESS");
   });
 
   it("filters intrastate components to CGST and SGST", () => {

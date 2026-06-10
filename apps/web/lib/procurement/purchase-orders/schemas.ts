@@ -58,6 +58,44 @@ export const savePurchaseOrderSchema = z.object({
     internal_notes: "",
   }),
   prices_tax_inclusive: z.boolean().default(false),
+  shipping_amount: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0;
+    }, "Shipping amount must be zero or greater."),
+  shipping_tax_rate_pct: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
+    }, "Shipping tax rate must be between 0 and 100."),
+  shipping_tax_amount: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0;
+    }, "Shipping tax amount must be zero or greater."),
+  shipping_tax_type: z.enum(["percent", "amount"]).default("percent"),
+  round_off_amount: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => Number.isFinite(Number(value)), "Round off must be a valid number."),
+  additional_charges_amount: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0;
+    }, "Additional charges must be zero or greater."),
   lines: z.array(purchaseOrderLineSchema).min(1, "Add at least one line."),
 });
 

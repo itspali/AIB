@@ -212,8 +212,22 @@ describe("copyPoDraftFromOrder", () => {
       currency_code: "EUR",
       payment_terms_days: 30,
       total_gross_amount: "100",
+      total_tax_amount: "0",
       line_count: 1,
       total_net_amount: "100",
+      shipping_amount: "0",
+      shipping_tax_rate_pct: "0",
+      shipping_tax_amount: "0",
+      shipping_tax_type: "percent" as const,
+      round_off_amount: "0",
+      additional_charges_amount: "0",
+      prices_tax_inclusive: false,
+      tax_supply_nature: "INTERSTATE" as const,
+      tax_mechanism: "FORWARD" as const,
+      supplier_tax_treatment: null,
+      supplier_country_code: null,
+      incoterms_code: null,
+      rcm_applicable: false,
       custom_fields: { requisition_number: "REQ-9", internal_notes: "Keep" },
       created_by: "u1",
       created_by_name: "Alex",
@@ -229,6 +243,13 @@ describe("copyPoDraftFromOrder", () => {
           quantity_ordered: "2",
           quantity_received: "0",
           unit_price_contractual: "10",
+          discount_percentage: "0",
+          discount_amount: "0",
+          line_tax_amount: "0",
+          tax_rate_percentage: "0",
+          tax_components: [],
+          uom_code: "PCS",
+          uom_conversion_factor: "1",
           line_total_gross: "20",
           open_quantity: "2",
         },
@@ -239,6 +260,7 @@ describe("copyPoDraftFromOrder", () => {
     expect(draft.supplier_id).toBe("supplier-a");
     expect(draft.custom_fields.requisition_number).toBe("");
     expect(draft.custom_fields.internal_notes).toBe("Keep");
+    expect(draft.header_charges.shipping_amount).toBe("0");
     expect(draft.lines[0]?.key).not.toBe("line-db-id");
     expect(draft.lines[0]?.variant_id).toBe("var-1");
     expect(filterSavablePoLines(draft.lines)).toHaveLength(1);

@@ -9,6 +9,8 @@ import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/typ
 
 export const PO_LINE_MRP_MARKDOWN_CUSTOM_FIELD_KEY = "mrp_markdown_percentage";
 
+export type PoLineMrpVarianceDirection = "above" | "below";
+
 function parsePositiveAmount(value: string | undefined | null): number {
   const parsed = Number((value ?? "").trim());
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -19,9 +21,34 @@ function parseNonNegativeAmount(value: string | undefined | null): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function parseSignedAmount(value: string | undefined | null): number {
+  const parsed = Number(String(value ?? "").trim().replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseSignedDraftDecimal(raw: string): number | null {
+  const trimmed = raw.trim().replace(/,/g, "");
+  if (!trimmed || trimmed === "-" || trimmed === "+" || trimmed === "." || trimmed === "-.") {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /** MRP reference for the line (from hydrated catalog snapshot). */
 export function resolvePoLineMrp(line: Pick<PoDraftLine, "catalog_context">): number {
   return parsePositiveAmount(line.catalog_context?.mrp ?? null);
+}
+
+/** Offer vs MRP — red up when above, green down when below, none when equal/unset. */
+export function resolvePoLineMrpVarianceDirection(
+  mrp: number,
+  unitPrice: number
+): PoLineMrpVarianceDirection | null {
+  if (mrp <= 0 || unitPrice <= 0) return null;
+  if (unitPrice > mrp) return "above";
+  if (unitPrice < mrp) return "below";
+  return null;
 }
 
 export function shouldShowPoMrpTradeTermsStack(
@@ -32,15 +59,14 @@ export function shouldShowPoMrpTradeTermsStack(
   return resolvePoLineMrp(line) > 0;
 }
 
-/** Offer unit price from MRP and trade markdown percent. */
+/** Offer unit price from MRP and trade markdown percent (negative % = above MRP). */
 export function computeOfferUnitFromMrpMarkdown(
   mrp: number,
   markdownPct: number,
   decimalPlaces = 2
 ): string {
   if (mrp <= 0) return "0";
-  const clampedPct = Math.min(Math.max(markdownPct, 0), 100);
-  const offer = mrp * (1 - clampedPct / 100);
+  const offer = mrp * (1 - markdownPct / 100);
   return Math.max(offer, 0).toFixed(decimalPlaces);
 }
 
@@ -51,7 +77,7 @@ export function computeImpliedMrpMarkdownPct(mrp: number, unitPrice: number): st
   // Unset/zero offer is not "100% off MRP" — treat as no trade markdown entered yet.
   if (unit <= 0) return "0";
   const pct = ((mrp - unit) / mrp) * 100;
-  return formatDocumentDecimal(Math.min(Math.max(pct, 0), 100), 2);
+  return formatDocumentDecimal(pct, 2);
 }
 
 export function resolvePoLineMrpMarkdownPercentage(line: PoDraftLine): string {
@@ -60,7 +86,7 @@ export function resolvePoLineMrpMarkdownPercentage(line: PoDraftLine): string {
   if (mrp <= 0) return "0";
 
   const explicit = line.mrp_markdown_percentage?.trim();
-  if (explicit && (unit > 0 || parseNonNegativeAmount(explicit) > 0)) {
+  if (explicit && (unit > 0 || parseSignedAmount(explicit) !== 0)) {
     return explicit;
   }
 
@@ -73,17 +99,14 @@ export function patchPoLineMrpMarkdownPercentage(
   priceColumn: DocumentColumnPref
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const decimalPlaces = resolveColumnDecimalPlaces(priceColumn);
-  const markdownPct = parseNonNegativeAmount(
-    normalizeDocumentDecimalInput(markdownPctRaw, 2)
-  );
+  const markdownPct = parseSignedAmount(normalizeDocumentDecimalInput(markdownPctRaw, 2));
   const mrp = resolvePoLineMrp(line);
-  const clampedPct = Math.min(markdownPct, 100);
 
   return {
-    mrp_markdown_percentage: formatDocumentDecimal(clampedPct, 2),
+    mrp_markdown_percentage: formatDocumentDecimal(markdownPct, 2),
     unit_price_contractual:
       mrp > 0
-        ? computeOfferUnitFromMrpMarkdown(mrp, clampedPct, decimalPlaces)
+        ? computeOfferUnitFromMrpMarkdown(mrp, markdownPct, decimalPlaces)
         : line.unit_price_contractual,
   };
 }
@@ -140,12 +163,11 @@ export function patchPoLineMrpMarkdownPercentageDraft(
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const decimalPlaces = resolveColumnDecimalPlaces(priceColumn);
   const mrp = resolvePoLineMrp(line);
-  const parsed = parseDraftDecimal(markdownPctRaw);
-  const clampedPct = parsed == null ? 0 : Math.min(parsed, 100);
+  const parsed = parseSignedDraftDecimal(markdownPctRaw);
 
   const offer =
     mrp > 0 && parsed != null
-      ? Math.max(mrp * (1 - clampedPct / 100), 0).toFixed(decimalPlaces)
+      ? Math.max(mrp * (1 - parsed / 100), 0).toFixed(decimalPlaces)
       : null;
 
   return {

@@ -1,16 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
+  addPoCatalogField,
+  createPoCatalogFieldPref,
   getColumnLineFields,
   getCompactPoTableColumns,
   getItemDetailLineFields,
   getNestedUnderItemPoLineColumns,
+  getPoLineSettingsColumnOrder,
   getVisibleCatalogLineFields,
   getVisiblePoLineColumns,
   getPoLineEntryTableColumns,
+  isPoFormHeaderPlaceableField,
   isPoHeaderFieldVisible,
   movePoLineColumnOrder,
+  normalizePoLayoutTemplate,
   patchPoLayoutColumn,
+  removePoCatalogField,
+  resolveHeaderFieldSlot,
 } from "@/lib/documents/purchase-order-layout";
 import {
   getPoPeekLineColumns,
@@ -228,6 +235,77 @@ describe("purchase-order-layout compact columns", () => {
       "payment_terms_days",
       "tax_supply_nature",
     ]);
+  });
+
+  it("routes header fields by headerSlot", () => {
+    const layout = patchPoLayoutColumn(DEFAULT_PO_SCREEN_LAYOUT, "payment_terms_days", {
+      headerSlot: "primary",
+    });
+
+    expect(getVisiblePoFormHeaderPrimaryFields(layout).map((field) => field.id)).toContain(
+      "payment_terms_days"
+    );
+    expect(getVisiblePoFormHeaderDetailsFields(layout).map((field) => field.id)).not.toContain(
+      "payment_terms_days"
+    );
+    expect(resolveHeaderFieldSlot(getVisiblePoFormHeaderPrimaryFields(layout)[0]!)).toBe(
+      "primary"
+    );
+  });
+
+  it("backfills headerSlot from legacy defaults", () => {
+    const supplier = DEFAULT_PO_SCREEN_LAYOUT.columns.find((column) => column.id === "supplier");
+    expect(supplier?.headerSlot).toBe("primary");
+    expect(isPoFormHeaderPlaceableField("supplier")).toBe(true);
+    expect(isPoFormHeaderPlaceableField("voucher_number")).toBe(false);
+  });
+
+  it("excludes internal line columns from settings order", () => {
+    expect(getPoLineSettingsColumnOrder(DEFAULT_PO_SCREEN_LAYOUT)).not.toContain("discount_amount");
+    expect(getPoLineSettingsColumnOrder(DEFAULT_PO_SCREEN_LAYOUT)).not.toContain("tax_rate_pct");
+    expect(getPoLineSettingsColumnOrder(DEFAULT_PO_SCREEN_LAYOUT)).toContain("discount_pct");
+    expect(getPoLineSettingsColumnOrder(DEFAULT_PO_SCREEN_LAYOUT)).toContain("line_tax_amount");
+  });
+
+  it("folds legacy visible disc amount into discount column on normalize", () => {
+    const layout = normalizePoLayoutTemplate({
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
+        column.id === "discount_amount"
+          ? { ...column, defaultVisible: true }
+          : column.id === "discount_pct"
+            ? { ...column, defaultVisible: false }
+            : column
+      ),
+    });
+
+    expect(
+      layout.columns.find((column) => column.id === "discount_amount")?.defaultVisible
+    ).toBe(false);
+    expect(
+      layout.columns.find((column) => column.id === "discount_pct")?.defaultVisible
+    ).toBe(true);
+  });
+
+  it("removes catalog fields from order and columns", () => {
+    const customPref = createPoCatalogFieldPref("item_custom_field", "brand");
+    const withCatalog = addPoCatalogField(DEFAULT_PO_SCREEN_LAYOUT, customPref);
+    const removed = removePoCatalogField(withCatalog, customPref.id);
+
+    expect(removed.catalogLineFieldOrder).not.toContain(customPref.id);
+    expect(removed.columns.some((column) => column.id === customPref.id)).toBe(false);
+  });
+
+  it("re-adds removed catalog fields", () => {
+    const customPref = createPoCatalogFieldPref("item_custom_field", "brand");
+    const removed = removePoCatalogField(
+      addPoCatalogField(DEFAULT_PO_SCREEN_LAYOUT, customPref),
+      customPref.id
+    );
+    const restored = addPoCatalogField(removed, customPref);
+
+    expect(restored.catalogLineFieldOrder).toContain(customPref.id);
+    expect(restored.columns.some((column) => column.id === customPref.id)).toBe(true);
   });
 
   it("inserts received qty into peek columns after ordered qty", () => {

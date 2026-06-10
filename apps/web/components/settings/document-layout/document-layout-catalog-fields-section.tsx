@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,6 +23,7 @@ import {
   addPoCatalogField,
   createPoCatalogFieldPref,
   movePoCatalogLineFieldOrder,
+  removePoCatalogField,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentCatalogFieldSource, DocumentLayoutTemplate } from "@/lib/documents/types";
 
@@ -131,6 +132,10 @@ export function DocumentLayoutCatalogFieldsSection({
     setCustomKey("");
   };
 
+  const handleRemoveField = (fieldId: string) => {
+    onLayoutChange(removePoCatalogField(layout, fieldId));
+  };
+
   return (
     <div className="space-y-2">
       <DocumentLayoutFieldList
@@ -148,6 +153,28 @@ export function DocumentLayoutCatalogFieldsSection({
           onLayoutChange(movePoCatalogLineFieldOrder(layout, fromId, toId))
         }
       />
+
+      {canEdit && layout.catalogLineFieldOrder.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {layout.catalogLineFieldOrder.map((fieldId) => {
+            const column = layout.columns.find((entry) => entry.id === fieldId);
+            if (!column) return null;
+            return (
+              <Button
+                key={fieldId}
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 px-2 text-[10px] text-muted-foreground"
+                onClick={() => handleRemoveField(fieldId)}
+              >
+                <Trash2 className="h-3 w-3" aria-hidden />
+                Remove {column.label}
+              </Button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {layout.catalogLineFieldOrder.length === 0 ? (
         <p className="text-[10px] text-muted-foreground">

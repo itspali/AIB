@@ -37,6 +37,13 @@ export const DOCUMENT_LINE_BODY_CELL = "border border-border";
 
 export const DOCUMENT_LINE_EDITABLE_CELL = "border border-border po-line-cell-surface";
 
+export const DOCUMENT_LINE_ROW_BASE =
+  "group transition-colors duration-100 ease-out";
+
+/** Row hover/focus fill for line grid body cells (`group` on `<tr>`). */
+export const DOCUMENT_LINE_ROW_CELL_HOVER =
+  "transition-colors duration-100 ease-out group-hover:bg-[color-mix(in_srgb,hsl(var(--border))_5%,hsl(var(--background)))] dark:group-hover:bg-[color-mix(in_srgb,hsl(var(--background))_8%,hsl(var(--muted)))] group-focus-within:bg-[color-mix(in_srgb,hsl(var(--border))_5%,hsl(var(--background)))] dark:group-focus-within:bg-[color-mix(in_srgb,hsl(var(--background))_8%,hsl(var(--muted)))]";
+
 type LineRow = { key: string };
 
 type Props<T extends LineRow> = {

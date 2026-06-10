@@ -21,6 +21,23 @@ export function resolvePoUnitPriceAriaLabel(pricesTaxInclusive: boolean): string
   return pricesTaxInclusive ? "Offer unit price inc tax" : "Offer unit price ex tax";
 }
 
-export function resolvePoLineTotalColumnLabel(pricesTaxInclusive: boolean): string {
-  return pricesTaxInclusive ? "Line net (inc tax)" : "Line net (ex tax)";
+export function resolvePoLineTotalColumnLabel(_pricesTaxInclusive?: boolean): string {
+  return "Line total";
+}
+
+export function shouldShowPoLineTotalExTaxSubline(
+  line: { variant_id?: string; catalog_context?: { tax_is_variable?: boolean } | null },
+  resolved: { taxRate: number; taxAmount: number }
+): boolean {
+  if (!line.variant_id) return false;
+  if (line.catalog_context?.tax_is_variable) return false;
+  return resolved.taxRate > 0 && resolved.taxAmount > 0;
+}
+
+/** Primary line total in the grid (inc-tax when a tax breakdown subline is shown). */
+export function resolvePoLineTotalPrimaryAmount(
+  resolved: { taxableBase: number; taxAmount: number; lineTotal: number },
+  showExTaxSubline: boolean
+): number {
+  return showExTaxSubline ? resolved.lineTotal : resolved.taxableBase;
 }

@@ -22,6 +22,7 @@ export type PoLineTaxComponentBreakdown = {
   cgst_amount: number;
   sgst_amount: number;
   igst_amount: number;
+  cess_amount: number;
   components: PoLineTaxComponentEntry[];
 };
 
@@ -29,7 +30,7 @@ export type PoLineTaxComponentDisplayOptions = PurchaseOrderTotalsOptions & {
   taxSupplyNature?: PoTaxSupplyNature;
 };
 
-type TaxComponentBucket = "CGST" | "SGST" | "IGST";
+type TaxComponentBucket = "CGST" | "SGST" | "IGST" | "CESS";
 
 function roundMoney(value: number): number {
   return Math.round(value * 10_000) / 10_000;
@@ -40,6 +41,7 @@ export function taxComponentBucket(name: string): TaxComponentBucket | null {
   if (upper.startsWith("CGST")) return "CGST";
   if (upper.startsWith("SGST")) return "SGST";
   if (upper.startsWith("IGST")) return "IGST";
+  if (upper.startsWith("CESS")) return "CESS";
   return null;
 }
 
@@ -98,7 +100,7 @@ export function resolvePoLineTaxComponentBreakdown(input: {
     input.supplyNature
   );
   if (filtered.length === 0 || input.taxableBase <= 0 || input.lineTaxAmount <= 0) {
-    return { cgst_amount: 0, sgst_amount: 0, igst_amount: 0, components: [] };
+    return { cgst_amount: 0, sgst_amount: 0, igst_amount: 0, cess_amount: 0, components: [] };
   }
 
   const entries: PoLineTaxComponentEntry[] = filtered.map((component) => ({
@@ -118,17 +120,20 @@ export function resolvePoLineTaxComponentBreakdown(input: {
   let cgst_amount = 0;
   let sgst_amount = 0;
   let igst_amount = 0;
+  let cess_amount = 0;
   for (const entry of entries) {
     const bucket = taxComponentBucket(entry.name);
     if (bucket === "CGST") cgst_amount += entry.amount;
     else if (bucket === "SGST") sgst_amount += entry.amount;
     else if (bucket === "IGST") igst_amount += entry.amount;
+    else if (bucket === "CESS") cess_amount += entry.amount;
   }
 
   return {
     cgst_amount: roundMoney(cgst_amount),
     sgst_amount: roundMoney(sgst_amount),
     igst_amount: roundMoney(igst_amount),
+    cess_amount: roundMoney(cess_amount),
     components: entries,
   };
 }
@@ -156,16 +161,19 @@ function breakdownFromPersistedComponents(
   let cgst_amount = 0;
   let sgst_amount = 0;
   let igst_amount = 0;
+  let cess_amount = 0;
   for (const entry of components) {
     const bucket = taxComponentBucket(entry.name);
     if (bucket === "CGST") cgst_amount += entry.amount;
     else if (bucket === "SGST") sgst_amount += entry.amount;
     else if (bucket === "IGST") igst_amount += entry.amount;
+    else if (bucket === "CESS") cess_amount += entry.amount;
   }
   return {
     cgst_amount: roundMoney(cgst_amount),
     sgst_amount: roundMoney(sgst_amount),
     igst_amount: roundMoney(igst_amount),
+    cess_amount: roundMoney(cess_amount),
     components,
   };
 }
@@ -203,7 +211,7 @@ function resolvePeekBreakdown(
   const flatTaxRate = Number(line.tax_rate_percentage);
 
   if (!Number.isFinite(lineTaxAmount) || lineTaxAmount <= 0) {
-    return { cgst_amount: 0, sgst_amount: 0, igst_amount: 0, components: [] };
+    return { cgst_amount: 0, sgst_amount: 0, igst_amount: 0, cess_amount: 0, components: [] };
   }
 
   return resolvePoLineTaxComponentBreakdown({

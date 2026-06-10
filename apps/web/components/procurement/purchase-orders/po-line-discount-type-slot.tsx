@@ -1,5 +1,6 @@
 "use client";
 
+import { PO_LINE_SUBLINE_SELECT_CLASS } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { cn } from "@/lib/utils";
 import type { PoLineDiscountType } from "@/lib/procurement/purchase-orders/po-line-discount";
 
@@ -28,7 +29,8 @@ export function PoLineDiscountTypeSlot({
       aria-label="Discount type"
       onChange={(event) => onTypeChange?.(event.target.value as PoLineDiscountType)}
       className={cn(
-        "h-4 w-full max-w-full cursor-pointer truncate border-0 bg-transparent px-2 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+        "h-4 w-full max-w-full cursor-pointer truncate px-2",
+        PO_LINE_SUBLINE_SELECT_CLASS,
         PO_LINE_DISCOUNT_TYPE_TEXT_CLASS,
         align === "right" && "text-right",
         align === "center" && "text-center",

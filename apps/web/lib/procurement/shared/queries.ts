@@ -55,7 +55,9 @@ export async function fetchProcurementSuppliers(
 ): Promise<ProcurementSupplierOption[]> {
   const { data, error } = await supabase
     .from("entities")
-    .select("id, name, payment_terms_days, base_currency_override, billing_state")
+    .select(
+      "id, name, payment_terms_days, base_currency_override, billing_state, billing_country_code, tax_treatment, incoterms_code"
+    )
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .in("type", ["SUPPLIER", "MUTUAL_PARTNER"])
@@ -69,5 +71,8 @@ export async function fetchProcurementSuppliers(
     payment_terms_days: Number(row.payment_terms_days) || 0,
     base_currency_override: (row.base_currency_override as string | null) ?? null,
     billing_state: (row.billing_state as string | null) ?? null,
+    billing_country_code: (row.billing_country_code as string | null) ?? null,
+    tax_treatment: (row.tax_treatment as ProcurementSupplierOption["tax_treatment"]) ?? "REGULAR_B2B",
+    incoterms_code: (row.incoterms_code as string | null) ?? null,
   }));
 }

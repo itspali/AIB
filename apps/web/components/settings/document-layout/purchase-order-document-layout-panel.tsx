@@ -29,13 +29,15 @@ import {
 } from "@/lib/documents/layout-scope";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
+  getPoLineSettingsColumnOrder,
+  isPoFormHeaderPlaceableField,
   movePoHeaderFieldOrder,
   movePoLineColumnOrder,
   movePoTotalsFieldOrder,
   normalizePoLayoutTemplate,
   patchPoLayoutColumn,
   type PoHeaderFieldId,
-  type PoLineColumnId,
+  type PoLineSettingsColumnId,
   type PoTotalsFieldId,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentImageDisplayMode, DocumentLayoutTemplate, DocumentViewContext } from "@/lib/documents/types";
@@ -76,6 +78,10 @@ function hasDecimalPlaces(columnId: string): boolean {
     "igst_amount",
     "subtotal_ex_tax",
     "tax_amount",
+    "shipping_amount",
+    "shipping_tax_amount",
+    "round_off_amount",
+    "additional_charges_amount",
     "grand_total",
   ].includes(columnId);
 }
@@ -249,11 +255,15 @@ export function PurchaseOrderDocumentLayoutPanel({
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
         <div className="min-w-0 space-y-3 rounded-md border border-border bg-card p-2.5 sm:p-3">
-          <SectionBlock title="Header">
+          <SectionBlock title="Header" hint="Header · top row · Details · side panel">
             <DocumentLayoutFieldList<PoHeaderFieldId>
               order={layout.headerFieldOrder as PoHeaderFieldId[]}
               getColumn={(id) => getColumn(id)}
+              showHeaderPlacementColumns
               showTypographyColumns
+              getMeta={(id) => ({
+                showHeaderPlacement: isPoFormHeaderPlaceableField(id),
+              })}
               onPatch={patchColumn}
               onMove={(fromId, toId) =>
                 setLayout((current) => movePoHeaderFieldOrder(current, fromId, toId))
@@ -261,9 +271,12 @@ export function PurchaseOrderDocumentLayoutPanel({
             />
           </SectionBlock>
 
-          <SectionBlock title="Lines" hint="Column · Detail under item · inline flow">
-            <DocumentLayoutFieldList<PoLineColumnId>
-              order={layout.lineColumnOrder as PoLineColumnId[]}
+          <SectionBlock
+            title="Lines"
+            hint="Column · Detail · Discount and Line tax support embedded sublines"
+          >
+            <DocumentLayoutFieldList<PoLineSettingsColumnId>
+              order={getPoLineSettingsColumnOrder(layout)}
               getColumn={(id) => getColumn(id)}
               showPresentationColumns
               showAlignColumn

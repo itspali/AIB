@@ -1,4 +1,10 @@
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
+import {
+  emptyPoHeaderCharges,
+  resolvePoHeaderChargesSnapshot,
+  type PoHeaderChargesFields,
+} from "@/lib/procurement/purchase-orders/po-header-charges";
 import { resolveFlatLineTax } from "@/lib/tax/resolve-line-tax";
 
 export type PoLineTotalsInput = {
@@ -15,11 +21,17 @@ export type PurchaseOrderTotalsSnapshot = {
   filledLineCount: number;
   subtotalGross: number;
   taxAmount: number;
+  shippingAmount: number;
+  shippingTaxAmount: number;
+  roundOffAmount: number;
+  additionalChargesAmount: number;
   grandTotal: number;
 };
 
 export type PurchaseOrderTotalsOptions = {
   purchasePricesTaxInclusive?: boolean;
+  taxMechanism?: GstTaxMechanism;
+  headerCharges?: PoHeaderChargesFields;
 };
 
 function parseAmount(value: string | undefined): number {
@@ -83,6 +95,7 @@ export function resolvePoLineTaxAmount(
     taxRate: catalog?.tax_rate ?? 0,
     taxIsVariable: catalog?.tax_is_variable,
     pricesTaxInclusive,
+    taxMechanism: options.taxMechanism,
   });
 }
 
@@ -107,12 +120,26 @@ export function computePurchaseOrderTotals(
     }
   }
 
+  const headerCharges = resolvePoHeaderChargesSnapshot(
+    options.headerCharges ?? emptyPoHeaderCharges()
+  );
+
   return {
     lineCount: lines.length,
     filledLineCount,
     subtotalGross,
     taxAmount,
-    grandTotal: subtotalGross + taxAmount,
+    shippingAmount: headerCharges.shippingAmount,
+    shippingTaxAmount: headerCharges.shippingTaxAmount,
+    roundOffAmount: headerCharges.roundOffAmount,
+    additionalChargesAmount: headerCharges.additionalChargesAmount,
+    grandTotal:
+      subtotalGross +
+      taxAmount +
+      headerCharges.shippingAmount +
+      headerCharges.shippingTaxAmount +
+      headerCharges.additionalChargesAmount +
+      headerCharges.roundOffAmount,
   };
 }
 

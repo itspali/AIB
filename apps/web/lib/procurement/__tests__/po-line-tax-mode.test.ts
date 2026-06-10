@@ -3,7 +3,9 @@ import {
   PO_PRICES_TAX_MODE_LABEL,
   poPricesTaxInclusiveToMode,
   poPricesTaxModeToInclusive,
+  resolvePoLineTotalPrimaryAmount,
   resolvePoUnitPriceColumnLabel,
+  shouldShowPoLineTotalExTaxSubline,
 } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 
 describe("po line tax mode", () => {
@@ -22,5 +24,40 @@ describe("po line tax mode", () => {
   it("updates unit price column label for tax mode", () => {
     expect(resolvePoUnitPriceColumnLabel(false)).toBe("Offer price (ex tax)");
     expect(resolvePoUnitPriceColumnLabel(true)).toBe("Offer price (inc tax)");
+  });
+
+  it("shows ex tax subline when line tax is computed", () => {
+    const line = {
+      variant_id: "variant-1",
+      catalog_context: { tax_is_variable: false },
+    };
+
+    expect(
+      shouldShowPoLineTotalExTaxSubline(line, { taxRate: 18, taxAmount: 234 })
+    ).toBe(true);
+    expect(
+      shouldShowPoLineTotalExTaxSubline(line, { taxRate: 0, taxAmount: 0 })
+    ).toBe(false);
+    expect(
+      shouldShowPoLineTotalExTaxSubline(
+        { variant_id: "variant-1", catalog_context: { tax_is_variable: true } },
+        { taxRate: 18, taxAmount: 234 }
+      )
+    ).toBe(false);
+  });
+
+  it("uses inc-tax line total as primary when ex tax subline is shown", () => {
+    expect(
+      resolvePoLineTotalPrimaryAmount(
+        { taxableBase: 1300, taxAmount: 234, lineTotal: 1534 },
+        true
+      )
+    ).toBe(1534);
+    expect(
+      resolvePoLineTotalPrimaryAmount(
+        { taxableBase: 1300, taxAmount: 234, lineTotal: 1534 },
+        false
+      )
+    ).toBe(1300);
   });
 });

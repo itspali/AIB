@@ -9,6 +9,7 @@ import {
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import {
@@ -45,7 +46,18 @@ function formatTaxRate(rate: number, column: DocumentColumnPref): string {
   return `${formatDocumentDecimal(rate, resolveColumnDecimalPlaces(column))}%`;
 }
 
-/** Live draft line tax rate from catalog (read-only). */
+export function canEditPoLineTaxRate(
+  line: PoDraftLine,
+  taxCodeOptions: readonly PoLineTaxCodeOption[] = []
+): boolean {
+  return Boolean(line.variant_id) && taxCodeOptions.length > 0;
+}
+
+export function resolvePoDraftLineTaxCodeId(line: PoDraftLine): string {
+  return line.catalog_context?.tax_code_id ?? "";
+}
+
+/** Live draft line tax rate from catalog. */
 export function resolvePoDraftLineTaxRateDisplay(
   line: PoDraftLine,
   column: DocumentColumnPref

@@ -25,29 +25,38 @@ import {
 } from "@/lib/documents/purchase-order-layout";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import {
+  canEditPoLineTaxRate,
   resolvePoDraftLineTaxAmountDisplay,
   resolvePoDraftLineTaxRateDisplay,
 } from "@/lib/procurement/purchase-orders/po-line-tax";
+import { patchPoLineTaxCodeSelection } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import { PoLineTaxCodeSlot } from "@/components/procurement/purchase-orders/po-line-tax-code-slot";
 import {
   resolvePoDraftLineCgstAmountDisplay,
   resolvePoDraftLineIgstAmountDisplay,
   resolvePoDraftLineSgstAmountDisplay,
 } from "@/lib/procurement/purchase-orders/po-line-tax-components";
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
 import {
   formatPoMoney,
   resolvePoLineTaxAmount,
 } from "@/lib/procurement/purchase-orders/totals";
 import {
+  resolvePoLineTotalPrimaryAmount,
   resolvePoUnitPriceAriaLabel,
+  shouldShowPoLineTotalExTaxSubline,
 } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 import { isEnterKey } from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { PoLineSupplierInsightsButton } from "@/components/procurement/purchase-orders/po-line-supplier-insights";
 import {
-  PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
   PO_LINE_SUBLINE_TEXT_CLASS,
   PoLineQtyUnitSlot,
   PoLineQtyValueStack,
+  PoLineSublineRow,
+  PoLineSublineSingleRow,
+  PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { PoLineDiscountTypeSlot } from "@/components/procurement/purchase-orders/po-line-discount-type-slot";
 import {
@@ -87,6 +96,7 @@ type LineCellContext = {
   enableMrpTradeTerms?: boolean;
   pricesTaxInclusive?: boolean;
   taxSupplyNature?: PoTaxSupplyNature;
+  taxMechanism?: GstTaxMechanism;
   /** MRP rendered as its own table column — suppress duplicate reference under offer price. */
   mrpColumnVisible?: boolean;
   itemRefs: React.MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>;
@@ -515,7 +525,6 @@ export function PoLinePriceCell({
     <PoLineQtyValueStack
       showUnitUnderQty
       align={column.align}
-      className="min-w-0 w-full max-w-full"
       unitSlot={
         <PoLineMrpMarkdownSlot
           line={line}
@@ -539,14 +548,40 @@ export function PoLinePriceCell({
   );
 }
 
+function PoLineDiscountAmountSubline({
+  line,
+  column,
+  align,
+}: {
+  line: PoDraftLine;
+  column: DocumentColumnPref;
+  align?: DocumentColumnPref["align"];
+}) {
+  const value = formatPoLineComputedDiscountAmount(line, column);
+
+  return (
+    <span
+      className={cn(
+        "w-full truncate px-2 tabular-nums",
+        PO_LINE_SUBLINE_TEXT_CLASS,
+        align === "right" && "text-right"
+      )}
+    >
+      {value}
+    </span>
+  );
+}
+
 export function PoLineDiscountPctCell({
   ctx,
   column,
   discountAmountColumn,
+  showDiscountAmountSubline = false,
 }: {
   ctx: LineCellContext;
   column: DocumentColumnPref;
   discountAmountColumn?: DocumentColumnPref | null;
+  showDiscountAmountSubline?: boolean;
 }) {
   const { line, disabled, patchLine } = ctx;
   const discountType = resolvePoLineDiscountType(line);
@@ -557,6 +592,8 @@ export function PoLineDiscountPctCell({
     discountAmountColumn
   );
   const showStack = Boolean(line.variant_id);
+  const showAmountSubline =
+    showDiscountAmountSubline && Boolean(discountAmountColumn) && showStack;
   const ariaLabel = discountType === "amount" ? "Discount amount" : "Discount percent";
 
   if (!showStack) {
@@ -568,12 +605,36 @@ export function PoLineDiscountPctCell({
       showUnitUnderQty={showStack}
       align={column.align}
       unitSlot={
-        <PoLineDiscountTypeSlot
-          type={discountType}
-          align={column.align}
-          disabled={disabled}
-          onTypeChange={(type) => patchLine(line.key, patchPoLineDiscountType(line, type))}
-        />
+        showAmountSubline && discountAmountColumn ? (
+          <PoLineSublineZone align={column.align}>
+            <PoLineSublineRow align={column.align}>
+              <PoLineDiscountTypeSlot
+                type={discountType}
+                align={column.align}
+                disabled={disabled}
+                onTypeChange={(type) =>
+                  patchLine(line.key, patchPoLineDiscountType(line, type))
+                }
+              />
+            </PoLineSublineRow>
+            <PoLineSublineRow align={column.align}>
+              <PoLineDiscountAmountSubline
+                line={line}
+                column={discountAmountColumn}
+                align={column.align}
+              />
+            </PoLineSublineRow>
+          </PoLineSublineZone>
+        ) : (
+          <PoLineSublineSingleRow align={column.align}>
+            <PoLineDiscountTypeSlot
+              type={discountType}
+              align={column.align}
+              disabled={disabled}
+              onTypeChange={(type) => patchLine(line.key, patchPoLineDiscountType(line, type))}
+            />
+          </PoLineSublineSingleRow>
+        )
       }
     >
       <DocumentLineCompactInput
@@ -607,143 +668,15 @@ export function PoLineDiscountPctCell({
   );
 }
 
-function PoLineDiscountEntrySubline({
-  line,
-  column,
-  amountColumn,
-  disabled,
-  patchLine,
-}: {
-  line: PoDraftLine;
-  column: DocumentColumnPref;
-  amountColumn?: DocumentColumnPref | null;
-  disabled: boolean;
-  patchLine: LineCellContext["patchLine"];
-}) {
-  const discountType = resolvePoLineDiscountType(line);
-  const inputValue = resolvePoLineDiscountInputValue(line);
-  const decimalPlaces = resolvePoLineDiscountDecimalPlaces(
-    discountType,
-    column,
-    amountColumn
-  );
-  const ariaLabel = discountType === "amount" ? "Discount amount" : "Discount percent";
-
-  return (
-    <div
-      className={cn(
-        "flex w-full flex-col",
-        PO_LINE_SUBLINE_TEXT_CLASS,
-        column.align === "right" && "items-end"
-      )}
-    >
-      <DocumentLineCompactInput
-        align={column.align}
-        className={cn(
-          documentFieldTypographyClassName(column, PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS),
-          "w-full max-w-[4.5rem]",
-          column.align === "right" && "text-right"
-        )}
-        value={inputValue}
-        disabled={disabled}
-        inputMode="decimal"
-        aria-label={ariaLabel}
-        onChange={(event) => {
-          const value = event.target.value;
-          patchLine(
-            line.key,
-            discountType === "amount"
-              ? patchPoLineDiscountAmountInput(line, value)
-              : patchPoLineDiscountPercentInput(line, value)
-          );
-        }}
-        onBlur={() => {
-          const normalized = normalizeDocumentDecimalInput(inputValue, decimalPlaces);
-          if (normalized === inputValue) return;
-          patchLine(
-            line.key,
-            discountType === "amount"
-              ? patchPoLineDiscountAmountInput(line, normalized)
-              : patchPoLineDiscountPercentInput(line, normalized)
-          );
-        }}
-      />
-      <PoLineDiscountTypeSlot
-        type={discountType}
-        align={column.align}
-        disabled={disabled}
-        onTypeChange={(type) => patchLine(line.key, patchPoLineDiscountType(line, type))}
-      />
-    </div>
-  );
-}
-
 export function PoLineDiscountAmountCell({
   ctx,
   column,
-  showDiscountPctSubline = false,
-  discountPctColumn,
 }: {
   ctx: LineCellContext;
   column: DocumentColumnPref;
-  showDiscountPctSubline?: boolean;
-  discountPctColumn?: DocumentColumnPref | null;
 }) {
-  const { line, disabled, patchLine } = ctx;
+  const { line } = ctx;
   const value = formatPoLineComputedDiscountAmount(line, column);
-  const showStack =
-    showDiscountPctSubline && Boolean(line.variant_id) && Boolean(discountPctColumn);
-
-  if (!showStack || !discountPctColumn) {
-    return (
-      <div
-        className={documentFieldTypographyClassName(
-          column,
-          cn(
-            "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
-            column.align === "right" ? "text-right" : "text-left"
-          )
-        )}
-      >
-        {value}
-      </div>
-    );
-  }
-
-  return (
-    <PoLineQtyValueStack
-      showUnitUnderQty
-      align={column.align}
-      unitSlot={
-        <PoLineDiscountEntrySubline
-          line={line}
-          column={discountPctColumn}
-          amountColumn={column}
-          disabled={disabled}
-          patchLine={patchLine}
-        />
-      }
-    >
-      <span
-        className={cn(
-          "block h-8 px-2 text-sm leading-8 tabular-nums text-muted-foreground",
-          column.align === "right" ? "text-right" : "text-left"
-        )}
-      >
-        {value}
-      </span>
-    </PoLineQtyValueStack>
-  );
-}
-
-export function PoLineTaxRateCell({
-  line,
-  column,
-}: {
-  line: PoDraftLine;
-  column: DocumentColumnPref;
-}) {
-  const value = resolvePoDraftLineTaxRateDisplay(line, column);
 
   return (
     <div
@@ -760,29 +693,100 @@ export function PoLineTaxRateCell({
   );
 }
 
-export function PoLineTaxAmountCell({
+function PoLineTaxRateInput({
   line,
+  column,
+  taxCodeOptions,
+  disabled,
+  patchLine,
+  compact = false,
+}: {
+  line: PoDraftLine;
+  column: DocumentColumnPref;
+  taxCodeOptions: readonly PoLineTaxCodeOption[];
+  disabled: boolean;
+  patchLine: LineCellContext["patchLine"];
+  compact?: boolean;
+}) {
+  if (!canEditPoLineTaxRate(line, taxCodeOptions)) {
+    const value = resolvePoDraftLineTaxRateDisplay(line, column);
+    return (
+      <span
+        className={cn(
+          "block px-2 tabular-nums text-muted-foreground",
+          compact ? PO_LINE_SUBLINE_TEXT_CLASS : "py-1.5 text-sm",
+          column.align === "right" && "text-right"
+        )}
+      >
+        {value}
+      </span>
+    );
+  }
+
+  return (
+    <PoLineTaxCodeSlot
+      line={line}
+      taxCodeOptions={taxCodeOptions}
+      align={column.align}
+      compact={compact}
+      disabled={disabled}
+      onTaxCodeChange={(taxCodeId) =>
+        patchLine(line.key, patchPoLineTaxCodeSelection(line, taxCodeId, taxCodeOptions))
+      }
+    />
+  );
+}
+
+export function PoLineTaxRateCell({
+  ctx,
+  column,
+  taxCodeOptions = [],
+}: {
+  ctx: LineCellContext;
+  column: DocumentColumnPref;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
+}) {
+  const { line, disabled, patchLine } = ctx;
+
+  if (!line.variant_id) {
+    return null;
+  }
+
+  return (
+    <PoLineTaxRateInput
+      line={line}
+      column={column}
+      taxCodeOptions={taxCodeOptions}
+      disabled={disabled}
+      patchLine={patchLine}
+    />
+  );
+}
+
+export function PoLineTaxAmountCell({
+  ctx,
   column,
   pricesTaxInclusive = false,
   showTaxRateSubline = false,
   taxRateColumn,
+  taxCodeOptions = [],
 }: {
-  line: PoDraftLine;
+  ctx: LineCellContext;
   column: DocumentColumnPref;
   pricesTaxInclusive?: boolean;
   showTaxRateSubline?: boolean;
   taxRateColumn?: DocumentColumnPref | null;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
 }) {
+  const { line, disabled, patchLine } = ctx;
   const value = resolvePoDraftLineTaxAmountDisplay(line, column, {
     purchasePricesTaxInclusive: pricesTaxInclusive,
+    taxMechanism: ctx.taxMechanism,
   });
   const showStack =
     showTaxRateSubline && Boolean(line.variant_id) && Boolean(taxRateColumn);
-  const taxRateValue = taxRateColumn
-    ? resolvePoDraftLineTaxRateDisplay(line, taxRateColumn)
-    : "—";
 
-  if (!showStack) {
+  if (!showStack || !taxRateColumn) {
     return (
       <div
         className={documentFieldTypographyClassName(
@@ -803,21 +807,25 @@ export function PoLineTaxAmountCell({
       showUnitUnderQty
       align={column.align}
       unitSlot={
-        <span
-          className={cn(
-            "block w-full px-2 tabular-nums",
-            PO_LINE_SUBLINE_TEXT_CLASS,
-            column.align === "right" && "text-right"
-          )}
-        >
-          {taxRateValue}
-        </span>
+        <PoLineSublineSingleRow align={column.align}>
+          <PoLineTaxRateInput
+            line={line}
+            column={taxRateColumn}
+            taxCodeOptions={taxCodeOptions}
+            disabled={disabled}
+            patchLine={patchLine}
+            compact
+          />
+        </PoLineSublineSingleRow>
       }
     >
       <span
-        className={cn(
-          "block h-8 px-2 text-sm leading-8 tabular-nums text-muted-foreground",
-          column.align === "right" ? "text-right" : "text-left"
+        className={documentFieldTypographyClassName(
+          column,
+          cn(
+            "block h-8 px-2 text-sm leading-8 tabular-nums text-muted-foreground",
+            column.align === "right" ? "text-right" : "text-left"
+          )
         )}
       >
         {value}
@@ -867,28 +875,82 @@ export function PoLineTotalCell({
   line,
   column,
   pricesTaxInclusive = false,
+  taxMechanism,
 }: {
   line: PoDraftLine;
   column: DocumentColumnPref;
   pricesTaxInclusive?: boolean;
+  taxMechanism?: GstTaxMechanism;
 }) {
-  const lineTotal = formatPoMoney(
-    resolvePoLineTaxAmount(line, { purchasePricesTaxInclusive: pricesTaxInclusive }).taxableBase,
-    resolveColumnDecimalPlaces(column)
-  );
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
+  const resolved = resolvePoLineTaxAmount(line, {
+    purchasePricesTaxInclusive: pricesTaxInclusive,
+    taxMechanism,
+  });
+  const showStack = shouldShowPoLineTotalExTaxSubline(line, resolved);
+  const primaryAmount = resolvePoLineTotalPrimaryAmount(resolved, showStack);
+  const primaryValue = formatPoMoney(primaryAmount, decimalPlaces);
+  const exTaxValue = formatPoMoney(resolved.taxableBase, decimalPlaces);
+
+  if (!showStack) {
+    return (
+      <div
+        className={documentFieldTypographyClassName(
+          column,
+          cn(
+            "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+            column.align === "right" ? "text-right" : "text-left"
+          )
+        )}
+      >
+        {primaryValue}
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={documentFieldTypographyClassName(
-        column,
-        cn(
-          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
-          column.align === "right" ? "text-right" : "text-left"
-        )
-      )}
+    <PoLineQtyValueStack
+      showUnitUnderQty
+      align={column.align}
+      unitSlot={
+        <PoLineSublineZone align={column.align}>
+          <PoLineSublineRow align={column.align}>
+            <span
+              className={cn(
+                "w-full px-2",
+                PO_LINE_SUBLINE_TEXT_CLASS,
+                column.align === "right" && "text-right"
+              )}
+            >
+              Before Tax
+            </span>
+          </PoLineSublineRow>
+          <PoLineSublineRow align={column.align}>
+            <span
+              className={cn(
+                "w-full truncate px-2 tabular-nums",
+                PO_LINE_SUBLINE_TEXT_CLASS,
+                column.align === "right" && "text-right"
+              )}
+            >
+              {exTaxValue}
+            </span>
+          </PoLineSublineRow>
+        </PoLineSublineZone>
+      }
     >
-      {lineTotal}
-    </div>
+      <span
+        className={documentFieldTypographyClassName(
+          column,
+          cn(
+            "block h-8 px-2 text-sm leading-8 tabular-nums text-muted-foreground",
+            column.align === "right" ? "text-right" : "text-left"
+          )
+        )}
+      >
+        {primaryValue}
+      </span>
+    </PoLineQtyValueStack>
   );
 }
 
@@ -929,8 +991,8 @@ export type PoLineEntryLayoutOptions = {
   discountAmountColumn?: DocumentColumnPref | null;
   showTaxRateUnderLineTax?: boolean;
   taxRateColumn?: DocumentColumnPref | null;
-  showDiscountPctUnderAmount?: boolean;
-  discountPctColumn?: DocumentColumnPref | null;
+  showDiscountAmountUnderPct?: boolean;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
 };
 
 export function renderPoLineColumnCell(
@@ -946,8 +1008,8 @@ export function renderPoLineColumnCell(
     discountAmountColumn,
     showTaxRateUnderLineTax = false,
     taxRateColumn,
-    showDiscountPctUnderAmount = false,
-    discountPctColumn,
+    showDiscountAmountUnderPct = false,
+    taxCodeOptions = [],
   } = layoutOptions;
   if (columnId === PO_LINE_IMAGE_COLUMN_ID) {
     return <PoLineImageCell line={ctx.line} />;
@@ -979,30 +1041,25 @@ export function renderPoLineColumnCell(
         ctx={ctx}
         column={column}
         discountAmountColumn={discountAmountColumn}
+        showDiscountAmountSubline={showDiscountAmountUnderPct}
       />
     );
   }
   if (columnId === "discount_amount") {
-    return (
-      <PoLineDiscountAmountCell
-        ctx={ctx}
-        column={column}
-        showDiscountPctSubline={showDiscountPctUnderAmount}
-        discountPctColumn={discountPctColumn}
-      />
-    );
+    return <PoLineDiscountAmountCell ctx={ctx} column={column} />;
   }
   if (columnId === "tax_rate_pct") {
-    return <PoLineTaxRateCell line={ctx.line} column={column} />;
+    return <PoLineTaxRateCell ctx={ctx} column={column} taxCodeOptions={taxCodeOptions} />;
   }
   if (columnId === "line_tax_amount") {
     return (
       <PoLineTaxAmountCell
-        line={ctx.line}
+        ctx={ctx}
         column={column}
         pricesTaxInclusive={ctx.pricesTaxInclusive}
         showTaxRateSubline={showTaxRateUnderLineTax}
         taxRateColumn={taxRateColumn}
+        taxCodeOptions={taxCodeOptions}
       />
     );
   }
@@ -1045,6 +1102,7 @@ export function renderPoLineColumnCell(
         line={ctx.line}
         column={column}
         pricesTaxInclusive={ctx.pricesTaxInclusive}
+        taxMechanism={ctx.taxMechanism}
       />
     );
   }

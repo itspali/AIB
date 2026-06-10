@@ -16,6 +16,9 @@ export type DocumentTypography = {
 /** Line field placement in the compact drawer grid. */
 export type DocumentLineSlot = "column" | "item_detail";
 
+/** Header field placement on the PO create/edit form. */
+export type DocumentHeaderSlot = "primary" | "details";
+
 /** How item-detail fields flow under the item cell. */
 export type DocumentItemDetailFlow = "new_line" | "inline_previous";
 
@@ -35,6 +38,8 @@ export type DocumentColumnPref = {
   typography?: DocumentTypography;
   /** Display decimal places for numeric fields (Phase 2 layout settings). */
   decimalPlaces?: number;
+  /** Header fields: top row vs details rail / stacked panel (create/edit form). */
+  headerSlot?: DocumentHeaderSlot;
   /** Line fields: table column vs stacked under the item cell (drawer compact mode). */
   lineSlot?: DocumentLineSlot;
   /** When lineSlot is item_detail — own row vs inline with previous detail field. */

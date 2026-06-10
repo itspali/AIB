@@ -1,4 +1,6 @@
+import type { TaxTreatmentType } from "@/lib/entities/types";
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
 
 export type PurchaseOrderStatus =
   | "DRAFT"
@@ -62,8 +64,19 @@ export type PurchaseOrderRow = {
   total_tax_amount: string;
   line_count: number;
   total_net_amount: string;
+  shipping_amount: string;
+  shipping_tax_rate_pct: string;
+  shipping_tax_amount: string;
+  shipping_tax_type: "percent" | "amount";
+  round_off_amount: string;
+  additional_charges_amount: string;
   prices_tax_inclusive: boolean;
   tax_supply_nature: PoTaxSupplyNature;
+  tax_mechanism: GstTaxMechanism;
+  supplier_tax_treatment: TaxTreatmentType | null;
+  supplier_country_code: string | null;
+  incoterms_code: string | null;
+  rcm_applicable: boolean;
   custom_fields: Record<string, unknown>;
   created_by: string;
   created_by_name: string;
@@ -79,5 +92,6 @@ export type ReceivablePurchaseOrderOption = {
   destination_location_name: string;
   destination_location_code: string;
   supplier_name: string;
+  tax_supply_nature: PoTaxSupplyNature;
   lines: PurchaseOrderLineRow[];
 };

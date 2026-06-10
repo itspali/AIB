@@ -10,6 +10,11 @@ import {
   inferPoLineDiscountTypeFromSaved,
   type PoLineDiscountType,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
+import {
+  emptyPoHeaderCharges,
+  type PoHeaderChargesFields,
+  type PoShippingTaxType,
+} from "@/lib/procurement/purchase-orders/po-header-charges";
 import { computeImpliedMrpMarkdownPct } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
 
@@ -43,6 +48,7 @@ export type PoDraftFormState = {
   /** When true, line unit prices are entered and stored as tax-inclusive. */
   prices_tax_inclusive: boolean;
   custom_fields: PurchaseOrderCustomFields;
+  header_charges: PoHeaderChargesFields;
   lines: PoDraftLine[];
 };
 
@@ -217,6 +223,7 @@ export function defaultPoDraftForm(
     payment_terms_days: supplier ? String(supplier.payment_terms_days) : "0",
     prices_tax_inclusive: defaultPricesTaxInclusive,
     custom_fields: emptyPurchaseOrderCustomFields(),
+    header_charges: emptyPoHeaderCharges(),
     lines: [createEmptyPoLine(entryLineKey)],
   };
 }
@@ -254,6 +261,19 @@ function lineCatalogSnapshot(line: {
   };
 }
 
+export function mapPurchaseOrderHeaderCharges(order: PurchaseOrderRow): PoHeaderChargesFields {
+  const shippingTaxType: PoShippingTaxType =
+    order.shipping_tax_type === "amount" ? "amount" : "percent";
+  return {
+    shipping_amount: order.shipping_amount ?? "0",
+    shipping_tax_rate_pct: order.shipping_tax_rate_pct ?? "0",
+    shipping_tax_amount: order.shipping_tax_amount ?? "0",
+    shipping_tax_type: shippingTaxType,
+    round_off_amount: order.round_off_amount ?? "0",
+    additional_charges_amount: order.additional_charges_amount ?? "0",
+  };
+}
+
 export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormState {
   return {
     destination_location_id: order.destination_location_id,
@@ -262,6 +282,7 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
     payment_terms_days: String(order.payment_terms_days ?? 0),
     prices_tax_inclusive: order.prices_tax_inclusive,
     custom_fields: parsePurchaseOrderCustomFields(order.custom_fields),
+    header_charges: mapPurchaseOrderHeaderCharges(order),
     lines:
       order.lines?.length
         ? ensureTrailingPoLine(

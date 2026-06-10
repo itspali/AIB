@@ -86,6 +86,13 @@ export async function postGoodsReceipt(
       raw_unit_cost: Number(line.raw_unit_cost),
     })),
     p_created_by: userId,
+    p_bill_of_entry_number: values.bill_of_entry_number ?? null,
+    p_bill_of_entry_date: values.bill_of_entry_date || null,
+    p_port_code: values.port_code ?? null,
+    p_exchange_rate: values.exchange_rate ? Number(values.exchange_rate) : null,
+    p_assessable_value: values.assessable_value ? Number(values.assessable_value) : null,
+    p_customs_duty_amount: values.customs_duty_amount ? Number(values.customs_duty_amount) : null,
+    p_import_igst_amount: values.import_igst_amount ? Number(values.import_igst_amount) : null,
   });
 
   if (error) {

@@ -7,6 +7,7 @@ import {
 import type {
   DocumentColumnPref,
   DocumentCatalogFieldSource,
+  DocumentHeaderSlot,
   DocumentImageDisplayMode,
   DocumentLayoutDefaults,
   DocumentLayoutTemplate,
@@ -32,6 +33,27 @@ export const PO_LINE_COLUMN_IDS = [
 ] as const;
 
 export type PoLineColumnId = (typeof PO_LINE_COLUMN_IDS)[number];
+
+/** Line columns shown in layout settings (subline-only helpers excluded). */
+export const PO_LINE_SETTINGS_COLUMN_IDS = [
+  "item",
+  "sku",
+  "quantity_ordered",
+  "unit",
+  "unit_price",
+  "mrp",
+  "discount_pct",
+  "line_tax_amount",
+  "cgst_amount",
+  "sgst_amount",
+  "igst_amount",
+  "line_total",
+] as const satisfies readonly PoLineColumnId[];
+
+export type PoLineSettingsColumnId = (typeof PO_LINE_SETTINGS_COLUMN_IDS)[number];
+
+/** Internal line columns kept for subline rendering — not listed in settings. */
+export const PO_LINE_INTERNAL_COLUMN_IDS = ["discount_amount", "tax_rate_pct"] as const;
 
 /** Synthetic grid column when imageDisplayMode is SEPARATE_COLUMN. */
 export const PO_LINE_IMAGE_COLUMN_ID = "line_image";
@@ -97,12 +119,37 @@ export const PO_FORM_HEADER_DETAILS_FIELD_IDS = [
 
 export type PoFormHeaderDetailsFieldId = (typeof PO_FORM_HEADER_DETAILS_FIELD_IDS)[number];
 
+/** Header fields that support primary/details placement in layout settings. */
+export const PO_FORM_HEADER_PLACEABLE_FIELD_IDS = [
+  ...PO_FORM_HEADER_PRIMARY_FIELD_IDS,
+  ...PO_FORM_HEADER_DETAILS_FIELD_IDS,
+] as const;
+
+export type PoFormHeaderPlaceableFieldId = (typeof PO_FORM_HEADER_PLACEABLE_FIELD_IDS)[number];
+
 export const PO_TOTALS_FIELD_IDS = [
   "line_count",
   "subtotal_ex_tax",
   "tax_amount",
+  "shipping_amount",
+  "shipping_tax_amount",
+  "round_off_amount",
+  "additional_charges_amount",
   "grand_total",
 ] as const;
+
+/** Totals rows editable on the PO form (not computed from lines). */
+export const PO_EDITABLE_TOTALS_FIELD_IDS = [
+  "shipping_amount",
+  "shipping_tax_amount",
+  "round_off_amount",
+  "additional_charges_amount",
+] as const;
+
+export type PoEditableTotalsFieldId = (typeof PO_EDITABLE_TOTALS_FIELD_IDS)[number];
+
+/** Internal helper for shipping tax subline — not in layout settings. */
+export const PO_TOTALS_INTERNAL_FIELD_IDS = ["shipping_tax_rate_pct"] as const;
 
 export type PoTotalsFieldId = (typeof PO_TOTALS_FIELD_IDS)[number];
 
@@ -304,16 +351,38 @@ const PO_PEEK_LINE_COLUMNS: DocumentColumnPref[] = [
 ];
 
 const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
-  { id: "supplier", label: "Supplier", defaultVisible: true, group: "header", align: "left" },
-  { id: "destination", label: "Destination", defaultVisible: true, group: "header", align: "left" },
+  {
+    id: "supplier",
+    label: "Supplier",
+    defaultVisible: true,
+    group: "header",
+    align: "left",
+    headerSlot: "primary",
+  },
+  {
+    id: "destination",
+    label: "Destination",
+    defaultVisible: true,
+    group: "header",
+    align: "left",
+    headerSlot: "primary",
+  },
   {
     id: "tax_supply_nature",
     label: "Supply type",
     defaultVisible: true,
     group: "header",
     align: "left",
+    headerSlot: "details",
   },
-  { id: "currency", label: "Currency", defaultVisible: true, group: "header", align: "left" },
+  {
+    id: "currency",
+    label: "Currency",
+    defaultVisible: true,
+    group: "header",
+    align: "left",
+    headerSlot: "primary",
+  },
   {
     id: "voucher_number",
     label: "PO number",
@@ -327,6 +396,7 @@ const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
     defaultVisible: true,
     group: "header",
     align: "left",
+    headerSlot: "details",
   },
   {
     id: "requisition_number",
@@ -334,6 +404,7 @@ const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
     defaultVisible: true,
     group: "header",
     align: "left",
+    headerSlot: "details",
   },
   {
     id: "expected_delivery_date",
@@ -341,6 +412,7 @@ const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
     defaultVisible: true,
     group: "header",
     align: "left",
+    headerSlot: "details",
   },
   {
     id: "internal_notes",
@@ -348,6 +420,7 @@ const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
     defaultVisible: true,
     group: "header",
     align: "left",
+    headerSlot: "details",
   },
   {
     id: "document_status",
@@ -398,6 +471,46 @@ const PO_TOTALS_COLUMNS: DocumentColumnPref[] = [
     decimalPlaces: 2,
   },
   {
+    id: "shipping_amount",
+    label: "Shipping",
+    defaultVisible: false,
+    group: "totals",
+    align: "right",
+    decimalPlaces: 2,
+  },
+  {
+    id: "shipping_tax_rate_pct",
+    label: "Shipping tax %",
+    defaultVisible: false,
+    group: "totals",
+    align: "right",
+    decimalPlaces: 2,
+  },
+  {
+    id: "shipping_tax_amount",
+    label: "Tax on shipping",
+    defaultVisible: false,
+    group: "totals",
+    align: "right",
+    decimalPlaces: 2,
+  },
+  {
+    id: "round_off_amount",
+    label: "Round off",
+    defaultVisible: false,
+    group: "totals",
+    align: "right",
+    decimalPlaces: 2,
+  },
+  {
+    id: "additional_charges_amount",
+    label: "Additional charges",
+    defaultVisible: false,
+    group: "totals",
+    align: "right",
+    decimalPlaces: 2,
+  },
+  {
     id: "grand_total",
     label: "Total",
     defaultVisible: true,
@@ -408,6 +521,9 @@ const PO_TOTALS_COLUMNS: DocumentColumnPref[] = [
 ];
 
 export const DEFAULT_PO_LINE_COLUMN_ORDER: PoLineColumnId[] = [...PO_LINE_COLUMN_IDS];
+export const DEFAULT_PO_LINE_SETTINGS_COLUMN_ORDER: PoLineSettingsColumnId[] = [
+  ...PO_LINE_SETTINGS_COLUMN_IDS,
+];
 export const DEFAULT_PO_CATALOG_LINE_FIELD_ORDER: string[] = PO_CATALOG_LINE_COLUMNS.map(
   (column) => column.id
 );
@@ -442,14 +558,79 @@ function getColumnPref(
   return columnMap(layout).get(columnId);
 }
 
+function backfillHeaderSlots(columns: DocumentColumnPref[]): DocumentColumnPref[] {
+  return columns.map((column) => {
+    if (column.group !== "header" || column.headerSlot) return column;
+    if ((PO_FORM_HEADER_PRIMARY_FIELD_IDS as readonly string[]).includes(column.id)) {
+      return { ...column, headerSlot: "primary" as const };
+    }
+    if ((PO_FORM_HEADER_DETAILS_FIELD_IDS as readonly string[]).includes(column.id)) {
+      return { ...column, headerSlot: "details" as const };
+    }
+    return column;
+  });
+}
+
+/** Fold standalone disc amount / tax % visibility into parent columns (legacy layouts). */
+function foldLegacyLineColumnVisibility(columns: DocumentColumnPref[]): DocumentColumnPref[] {
+  const discAmountVisible =
+    columns.find((column) => column.id === "discount_amount")?.defaultVisible === true;
+  const taxRateVisible =
+    columns.find((column) => column.id === "tax_rate_pct")?.defaultVisible === true;
+
+  if (!discAmountVisible && !taxRateVisible) return columns;
+
+  return columns.map((column) => {
+    if (discAmountVisible && column.id === "discount_amount") {
+      return { ...column, defaultVisible: false };
+    }
+    if (discAmountVisible && column.id === "discount_pct") {
+      return { ...column, defaultVisible: true };
+    }
+    if (taxRateVisible && column.id === "tax_rate_pct") {
+      return { ...column, defaultVisible: false };
+    }
+    if (taxRateVisible && column.id === "line_tax_amount") {
+      return { ...column, defaultVisible: true };
+    }
+    return column;
+  });
+}
+
+export function resolveHeaderFieldSlot(column: DocumentColumnPref): DocumentHeaderSlot | null {
+  if (column.headerSlot) return column.headerSlot;
+  if ((PO_FORM_HEADER_PRIMARY_FIELD_IDS as readonly string[]).includes(column.id)) {
+    return "primary";
+  }
+  if ((PO_FORM_HEADER_DETAILS_FIELD_IDS as readonly string[]).includes(column.id)) {
+    return "details";
+  }
+  return null;
+}
+
+export function isPoFormHeaderPlaceableField(fieldId: string): boolean {
+  return (PO_FORM_HEADER_PLACEABLE_FIELD_IDS as readonly string[]).includes(fieldId);
+}
+
+export function getPoLineSettingsColumnOrder(
+  layout: DocumentLayoutTemplate
+): PoLineSettingsColumnId[] {
+  const normalized = normalizePoLayoutTemplate(layout);
+  const settingsSet = new Set<string>(PO_LINE_SETTINGS_COLUMN_IDS);
+  return normalized.lineColumnOrder.filter(
+    (id): id is PoLineSettingsColumnId => settingsSet.has(id)
+  );
+}
+
 export function normalizePoLayoutTemplate(
   template: Partial<DocumentLayoutTemplate> | DocumentLayoutDefaults
 ): DocumentLayoutTemplate {
   const base = DEFAULT_PO_SCREEN_LAYOUT;
-  const columns =
+  const rawColumns =
     template.columns && template.columns.length > 0
       ? mergePoColumnPrefs(template.columns)
       : base.columns;
+  const columns = foldLegacyLineColumnVisibility(backfillHeaderSlots(rawColumns));
 
   return {
     moduleKey: template.moduleKey ?? base.moduleKey,
@@ -478,18 +659,14 @@ export function normalizePoLayoutTemplate(
   };
 }
 
-/** Merge saved catalog field order with registry ids (new fields appended). */
+/** Merge saved catalog field order — saved order is authoritative (supports remove/re-add). */
 function mergeCatalogLineFieldOrder(
   saved: readonly string[] | undefined,
   registryIds: readonly string[]
 ): string[] {
   if (!saved || saved.length === 0) return [...registryIds];
   const registrySet = new Set(registryIds);
-  const merged = saved.filter((id) => registrySet.has(id) || isCatalogFieldId(id));
-  for (const id of registryIds) {
-    if (!merged.includes(id)) merged.push(id);
-  }
-  return merged;
+  return saved.filter((id) => registrySet.has(id) || isCatalogFieldId(id));
 }
 
 /** Merge saved prefs with registry defaults (new fields appended). */
@@ -582,9 +759,11 @@ export function removePoCatalogField(
   layout: DocumentLayoutTemplate,
   fieldId: string
 ): DocumentLayoutTemplate {
+  if (!isCatalogFieldId(fieldId)) return layout;
   return {
     ...layout,
     catalogLineFieldOrder: layout.catalogLineFieldOrder.filter((id) => id !== fieldId),
+    columns: layout.columns.filter((column) => column.id !== fieldId),
   };
 }
 
@@ -621,11 +800,14 @@ export function orderedHeaderFields(layout: DocumentLayoutTemplate): DocumentCol
 
 export function orderedTotalsFields(layout: DocumentLayoutTemplate): DocumentColumnPref[] {
   const normalized = normalizePoLayoutTemplate(layout);
+  const internalTotals = new Set<string>(PO_TOTALS_INTERNAL_FIELD_IDS);
   return normalized.totalsFieldOrder
     .map((id) => getColumnPref(normalized, id))
     .filter(
       (column): column is DocumentColumnPref =>
-        !!column && (PO_TOTALS_FIELD_IDS as readonly string[]).includes(column.id)
+        !!column &&
+        (PO_TOTALS_FIELD_IDS as readonly string[]).includes(column.id) &&
+        !internalTotals.has(column.id)
     );
 }
 

@@ -109,4 +109,27 @@ describe("purchase order totals", () => {
     expect(totals.taxAmount).toBe(36);
     expect(totals.grandTotal).toBe(236);
   });
+
+  it("includes document-level charges in grand total", () => {
+    const totals = computePurchaseOrderTotals(
+      [{ quantity_ordered: "1", unit_price_contractual: "100" }],
+      {
+        headerCharges: {
+          shipping_amount: "10",
+          shipping_tax_rate_pct: "18",
+          shipping_tax_amount: "0",
+          shipping_tax_type: "percent",
+          round_off_amount: "0.50",
+          additional_charges_amount: "5",
+        },
+      }
+    );
+
+    expect(totals.subtotalGross).toBe(100);
+    expect(totals.shippingAmount).toBe(10);
+    expect(totals.shippingTaxAmount).toBe(1.8);
+    expect(totals.additionalChargesAmount).toBe(5);
+    expect(totals.roundOffAmount).toBe(0.5);
+    expect(totals.grandTotal).toBe(117.3);
+  });
 });

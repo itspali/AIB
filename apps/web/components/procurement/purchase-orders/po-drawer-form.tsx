@@ -32,6 +32,7 @@ import {
   mapPurchaseOrderToDraft,
   type PoDraftFormState,
 } from "@/lib/procurement/purchase-orders/draft-form";
+import { normalizePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/po-header-charges";
 import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
@@ -43,6 +44,7 @@ import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-la
 import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -69,6 +71,7 @@ type Props = {
   organizationBillTo: OrganizationBillToSnapshot;
   copyFromId?: string | null;
   onDuplicate?: (purchaseOrderId: string) => void;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
@@ -112,6 +115,7 @@ export function PoDrawerForm({
   organizationBillTo,
   copyFromId = null,
   onDuplicate,
+  taxCodeOptions = [],
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
@@ -338,6 +342,7 @@ export function PoDrawerForm({
     setError(null);
     setErrorAction(null);
     startTransition(async () => {
+      const headerCharges = normalizePoHeaderChargesForSave(form.header_charges);
       const payload = {
         purchase_order_id: editOrderId ?? detail?.id ?? null,
         destination_location_id: form.destination_location_id,
@@ -346,6 +351,12 @@ export function PoDrawerForm({
         payment_terms_days: form.payment_terms_days,
         prices_tax_inclusive: form.prices_tax_inclusive,
         custom_fields: form.custom_fields,
+        shipping_amount: String(headerCharges.shipping_amount),
+        shipping_tax_rate_pct: String(headerCharges.shipping_tax_rate_pct),
+        shipping_tax_amount: String(headerCharges.shipping_tax_amount),
+        shipping_tax_type: headerCharges.shipping_tax_type,
+        round_off_amount: String(headerCharges.round_off_amount),
+        additional_charges_amount: String(headerCharges.additional_charges_amount),
         lines: filterSavablePoLines(form.lines).map((line) => {
           const discount = normalizePoLineDiscountForSave(line);
           return {
@@ -562,6 +573,8 @@ export function PoDrawerForm({
         documentLayout={documentLayout}
         allowLineItemDiscounts={allowLineItemDiscounts}
         enableMrpTradeTerms={enableMrpTradeTerms}
+        taxCodeOptions={taxCodeOptions}
+        tenantCountry={organizationBillTo?.country_code ?? null}
         isPending={isPending}
         layoutOverride={drawerLayoutSnapshot}
         onPatch={patchForm}

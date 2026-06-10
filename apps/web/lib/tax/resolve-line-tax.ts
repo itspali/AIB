@@ -1,3 +1,6 @@
+import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
+import { shouldZeroVendorGstOnPo } from "@/lib/tax/gst-supply-context";
+
 export type ResolveLineTaxInput = {
   qty: number;
   unitPrice: number;
@@ -5,6 +8,7 @@ export type ResolveLineTaxInput = {
   taxRate: number;
   pricesTaxInclusive: boolean;
   taxIsVariable?: boolean;
+  taxMechanism?: GstTaxMechanism;
 };
 
 export type ResolvedLineTax = {
@@ -24,6 +28,15 @@ export function resolveFlatLineTax(input: ResolveLineTaxInput): ResolvedLineTax 
   const discountPerUnit = qty > 0 ? input.lineDiscount / qty : 0;
   const netUnit = Math.max(input.unitPrice - discountPerUnit, 0);
   const gross = roundMoney(netUnit * qty);
+
+  if (input.taxMechanism && shouldZeroVendorGstOnPo(input.taxMechanism)) {
+    return {
+      taxableBase: gross,
+      taxAmount: 0,
+      lineTotal: gross,
+      taxRate: 0,
+    };
+  }
 
   if (input.taxIsVariable) {
     return {

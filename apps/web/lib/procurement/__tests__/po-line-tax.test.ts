@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PO_SCREEN_LAYOUT } from "@/lib/documents/purchase-order-layout";
+import { patchPoLineTaxCodeSelection } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import {
   resolvePoDraftLineTaxAmountDisplay,
   resolvePoDraftLineTaxRateDisplay,
@@ -73,6 +74,36 @@ describe("po line tax display", () => {
         { purchasePricesTaxInclusive: false }
       )
     ).toBe("36.00");
+  });
+
+  it("patches catalog tax rule from dropdown selection", () => {
+    const taxOptions = [
+      {
+        id: "tax-12",
+        code: "GST12",
+        name: "GST 12%",
+        rate: 12,
+        kind: "GST",
+        is_variable: false,
+        components: [
+          { name: "CGST", rate: 6, sort_order: 0 },
+          { name: "SGST", rate: 6, sort_order: 1 },
+        ],
+      },
+    ] as const;
+
+    expect(patchPoLineTaxCodeSelection(baseLine, "tax-12", taxOptions)).toEqual({
+      catalog_context: {
+        ...baseLine.catalog_context,
+        tax_code_id: "tax-12",
+        tax_rate: 12,
+        tax_is_variable: false,
+        tax_components: [
+          { name: "CGST", rate: 6, sort_order: 0 },
+          { name: "SGST", rate: 6, sort_order: 1 },
+        ],
+      },
+    });
   });
 
   it("shows Variable for variable tax codes", () => {

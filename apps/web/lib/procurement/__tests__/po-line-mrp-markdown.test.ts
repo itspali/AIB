@@ -6,6 +6,7 @@ import {
   patchPoLineOfferUnitPrice,
   patchPoLineOfferUnitPriceDraft,
   resolvePoLineMrpMarkdownPercentage,
+  resolvePoLineMrpVarianceDirection,
   shouldShowPoMrpTradeTermsStack,
   syncPoLineMrpMarkdownFromOfferPrice,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
@@ -60,6 +61,11 @@ describe("po-line-mrp-markdown", () => {
     expect(computeImpliedMrpMarkdownPct(120, 108)).toBe("10.00");
   });
 
+  it("derives negative markdown when offer exceeds MRP", () => {
+    expect(computeImpliedMrpMarkdownPct(2000, 2200)).toBe("-10.00");
+    expect(computeOfferUnitFromMrpMarkdown(2000, -10)).toBe("2200.00");
+  });
+
   it("shows trade stack when MRP exists", () => {
     expect(shouldShowPoMrpTradeTermsStack(sampleLine())).toBe(true);
     expect(shouldShowPoMrpTradeTermsStack(sampleLine({ catalog_context: null }))).toBe(false);
@@ -83,6 +89,43 @@ describe("po-line-mrp-markdown", () => {
     });
   });
 
+  it("updates negative markdown when offer unit is above MRP", () => {
+    expect(
+      patchPoLineOfferUnitPrice(
+        sampleLine({
+          unit_price_contractual: "2200",
+          catalog_context: {
+            ...sampleLine().catalog_context!,
+            mrp: "2000",
+          },
+        }),
+        "2200",
+        priceColumn
+      )
+    ).toEqual({
+      unit_price_contractual: "2200.00",
+      mrp_markdown_percentage: "-10.00",
+    });
+  });
+
+  it("updates offer unit when negative markdown percent is entered", () => {
+    expect(
+      patchPoLineMrpMarkdownPercentage(
+        sampleLine({
+          catalog_context: {
+            ...sampleLine().catalog_context!,
+            mrp: "2000",
+          },
+        }),
+        "-10",
+        priceColumn
+      )
+    ).toEqual({
+      mrp_markdown_percentage: "-10.00",
+      unit_price_contractual: "2200.00",
+    });
+  });
+
   it("infers markdown from offer when explicit value is unset", () => {
     expect(resolvePoLineMrpMarkdownPercentage(sampleLine())).toBe("10.00");
   });
@@ -102,6 +145,13 @@ describe("po-line-mrp-markdown", () => {
       unit_price_contractual: "12.50",
       mrp_markdown_percentage: "89.58",
     });
+  });
+
+  it("resolves offer-vs-MRP variance direction", () => {
+    expect(resolvePoLineMrpVarianceDirection(120, 108)).toBe("below");
+    expect(resolvePoLineMrpVarianceDirection(120, 125)).toBe("above");
+    expect(resolvePoLineMrpVarianceDirection(120, 120)).toBeNull();
+    expect(resolvePoLineMrpVarianceDirection(120, 0)).toBeNull();
   });
 
   it("treats zero offer price as unset markdown, not 100% off MRP", () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { DocumentLineCompactInput } from "@/components/documents/document-line-entry-cells";
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { normalizeDocumentDecimalInput } from "@/lib/documents/decimal-format";
@@ -9,10 +10,14 @@ import {
   formatPoLineMrpReference,
   resolvePoLineMrp,
   resolvePoLineMrpMarkdownPercentage,
+  resolvePoLineMrpVarianceDirection,
+  type PoLineMrpVarianceDirection,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
 import {
   PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
   PO_LINE_SUBLINE_TEXT_CLASS,
+  PoLineSublineRow,
+  PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +30,40 @@ type Props = {
   onMarkdownChange: (markdownPct: string) => void;
   onMarkdownBlur?: (markdownPct: string) => void;
 };
+
+function parseUnitPrice(value: string | undefined): number {
+  const parsed = Number((value ?? "").trim());
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+/** Single variance chevron — solid pill above MRP (red), below MRP (green). */
+export function PoLineMrpVarianceArrow({
+  direction,
+  className,
+}: {
+  direction: PoLineMrpVarianceDirection | null;
+  className?: string;
+}) {
+  if (!direction) return null;
+
+  const isAbove = direction === "above";
+  const Icon = isAbove ? ChevronUp : ChevronDown;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full shadow-sm",
+        isAbove
+          ? "bg-destructive text-destructive-foreground"
+          : "bg-emerald-600 text-white dark:bg-emerald-500",
+        className
+      )}
+      aria-hidden
+    >
+      <Icon className="h-2.5 w-2.5" strokeWidth={3} />
+    </span>
+  );
+}
 
 /** Compact trade markdown control stacked under offer unit price (cell-contained). */
 export function PoLineMrpMarkdownSlot({
@@ -39,54 +78,65 @@ export function PoLineMrpMarkdownSlot({
   if (mrp <= 0) return null;
 
   const markdownValue = resolvePoLineMrpMarkdownPercentage(line);
+  const varianceDirection = resolvePoLineMrpVarianceDirection(
+    mrp,
+    parseUnitPrice(line.unit_price_contractual)
+  );
 
   return (
-    <div
-      className={cn(
-        "w-full min-w-0 max-w-full",
-        PO_LINE_SUBLINE_TEXT_CLASS,
-        column.align === "right" && "text-right"
-      )}
-    >
-      <div
-        role="group"
-        aria-label="Percent off MRP"
-        className={cn(
-          "inline-flex max-w-full items-center gap-0.5",
-          column.align === "right" ? "ml-auto" : "mr-auto"
-        )}
-      >
-        <DocumentLineCompactInput
-          align={column.align}
+    <PoLineSublineZone align={column.align}>
+      <PoLineSublineRow align={column.align}>
+        <div
+          role="group"
+          aria-label="Percent variance from MRP"
           className={cn(
-            PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
-            documentFieldTypographyClassName(column),
-            column.align === "right" && "text-right"
+            "flex w-full min-w-0 items-center gap-1 px-2",
+            PO_LINE_SUBLINE_TEXT_CLASS,
+            column.align === "right" && "justify-end text-right",
+            column.align === "center" && "justify-center text-center"
           )}
-          value={markdownValue}
-          disabled={disabled}
-          inputMode="decimal"
-          title="Edit percent off MRP"
-          onChange={(event) => onMarkdownChange(event.target.value)}
-          onBlur={(event) => {
-            if (onMarkdownBlur) {
-              onMarkdownBlur(event.target.value);
-              return;
-            }
-            const normalized = normalizeDocumentDecimalInput(event.target.value, 2);
-            if (normalized !== event.target.value) {
-              onMarkdownChange(normalized);
-            }
-          }}
-        />
-        <span className="shrink-0 select-none">%</span>
-        <span className="shrink-0 select-none">Off</span>
-      </div>
-      {showMrpReference ? (
-        <p className="mt-0.5 truncate tabular-nums">
-          MRP {formatPoLineMrpReference(mrp, 2)}
-        </p>
-      ) : null}
-    </div>
+        >
+          <DocumentLineCompactInput
+            className={cn(
+              PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
+              "!w-[3.75rem]",
+              documentFieldTypographyClassName(column),
+              column.align === "right" && "text-right"
+            )}
+            value={markdownValue}
+            disabled={disabled}
+            inputMode="decimal"
+            title="Edit percent variance from MRP"
+            onChange={(event) => onMarkdownChange(event.target.value)}
+            onBlur={(event) => {
+              if (onMarkdownBlur) {
+                onMarkdownBlur(event.target.value);
+                return;
+              }
+              const normalized = normalizeDocumentDecimalInput(event.target.value, 2);
+              if (normalized !== event.target.value) {
+                onMarkdownChange(normalized);
+              }
+            }}
+          />
+          <span className="shrink-0 select-none">%</span>
+          <PoLineMrpVarianceArrow direction={varianceDirection} />
+        </div>
+      </PoLineSublineRow>
+      <PoLineSublineRow align={column.align} reserve={!showMrpReference}>
+        {showMrpReference ? (
+          <span
+            className={cn(
+              "w-full truncate px-2 tabular-nums",
+              PO_LINE_SUBLINE_TEXT_CLASS,
+              column.align === "right" && "text-right",
+              column.align === "center" && "text-center"
+            )}
+          >
+            MRP {formatPoLineMrpReference(mrp, 2)}
+          </span>
+        ) : null}
+      </PoLineSublineRow>
+    </PoLineSublineZone>
   );
 }

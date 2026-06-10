@@ -16,7 +16,12 @@ import {
   patchDocumentTypography,
   typographySelectValue,
 } from "@/lib/documents/document-typography-classes";
-import type { DocumentColumnPref, DocumentItemDetailFlow, DocumentLineSlot } from "@/lib/documents/types";
+import type {
+  DocumentColumnPref,
+  DocumentHeaderSlot,
+  DocumentItemDetailFlow,
+  DocumentLineSlot,
+} from "@/lib/documents/types";
 import { cn } from "@/lib/utils";
 
 export type DocumentLayoutFieldRowMeta = {
@@ -28,6 +33,8 @@ export type DocumentLayoutFieldRowMeta = {
   showAlign?: boolean;
   showTypography?: boolean;
   lockLineSlot?: DocumentLineSlot;
+  showHeaderPlacement?: boolean;
+  lockHeaderSlot?: DocumentHeaderSlot;
 };
 
 type RowProps<TId extends string> = {
@@ -37,6 +44,7 @@ type RowProps<TId extends string> = {
   showAlignColumn: boolean;
   showDecimalsColumn: boolean;
   showPresentationColumns: boolean;
+  showHeaderPlacementColumns: boolean;
   showTypographyColumns: boolean;
   onPatch: (patch: Partial<DocumentColumnPref>) => void;
   onMove: (fromId: TId, toId: TId) => void;
@@ -119,6 +127,7 @@ function DocumentLayoutFieldRow<TId extends string>({
   showAlignColumn,
   showDecimalsColumn,
   showPresentationColumns,
+  showHeaderPlacementColumns,
   showTypographyColumns,
   onPatch,
   onMove,
@@ -135,12 +144,15 @@ function DocumentLayoutFieldRow<TId extends string>({
     showAlign = false,
     showTypography = true,
     lockLineSlot,
+    showHeaderPlacement = false,
+    lockHeaderSlot,
   } = meta;
 
   const rowDisabled = disabled || !!meta.disabled;
   const canDrag = draggable && !pinned && !rowDisabled;
   const lineSlot = lockLineSlot ?? column.lineSlot ?? "column";
   const isItemDetail = lineSlot === "item_detail";
+  const headerSlot = lockHeaderSlot ?? column.headerSlot ?? "primary";
 
   return (
     <tr
@@ -212,6 +224,29 @@ function DocumentLayoutFieldRow<TId extends string>({
           )}
         />
       </td>
+      {showHeaderPlacementColumns ? (
+        <td className="min-w-[5.5rem] px-1 py-1 align-middle">
+          {showHeaderPlacement ? (
+            <Select
+              value={headerSlot}
+              disabled={rowDisabled || lockHeaderSlot != null}
+              onValueChange={(value) =>
+                onPatch({ headerSlot: value as DocumentHeaderSlot })
+              }
+            >
+              <SelectTrigger className="h-7 w-full min-w-[5rem] border-transparent bg-transparent px-1.5 text-[11px] shadow-none focus:ring-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="primary">Header</SelectItem>
+                <SelectItem value="details">Details</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="block px-1 text-[10px] text-muted-foreground/50">Peek</span>
+          )}
+        </td>
+      ) : null}
       {showPresentationColumns ? (
         <>
           <td className="min-w-[5.5rem] px-1 py-1 align-middle">
@@ -341,6 +376,7 @@ type ListProps<TId extends string> = {
   showAlignColumn?: boolean;
   showDecimalsColumn?: boolean;
   showPresentationColumns?: boolean;
+  showHeaderPlacementColumns?: boolean;
   showTypographyColumns?: boolean;
 };
 
@@ -353,10 +389,15 @@ export function DocumentLayoutFieldList<TId extends string>({
   showAlignColumn = false,
   showDecimalsColumn = false,
   showPresentationColumns = false,
+  showHeaderPlacementColumns = false,
   showTypographyColumns = false,
 }: ListProps<TId>) {
   const isWideTable =
-    showPresentationColumns || showAlignColumn || showDecimalsColumn || showTypographyColumns;
+    showPresentationColumns ||
+    showHeaderPlacementColumns ||
+    showAlignColumn ||
+    showDecimalsColumn ||
+    showTypographyColumns;
 
   return (
     <div className="table-chrome-frame overflow-x-auto rounded-md border border-border">
@@ -374,6 +415,9 @@ export function DocumentLayoutFieldList<TId extends string>({
             <th className={cn("py-1.5 pl-1 pr-2 text-left", isWideTable ? "min-w-[10rem]" : "")}>
               Label
             </th>
+            {showHeaderPlacementColumns ? (
+              <th className="min-w-[5.5rem] px-1 py-1.5 text-left">Place</th>
+            ) : null}
             {showPresentationColumns ? (
               <>
                 <th className="min-w-[5.5rem] px-1 py-1.5 text-left">Place</th>
@@ -406,6 +450,7 @@ export function DocumentLayoutFieldList<TId extends string>({
                 showAlignColumn={showAlignColumn}
                 showDecimalsColumn={showDecimalsColumn}
                 showPresentationColumns={showPresentationColumns}
+                showHeaderPlacementColumns={showHeaderPlacementColumns}
                 showTypographyColumns={showTypographyColumns}
                 onPatch={(patch) => onPatch(columnId, patch)}
                 onMove={onMove}

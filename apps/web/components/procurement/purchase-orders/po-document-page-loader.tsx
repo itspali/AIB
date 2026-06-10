@@ -14,13 +14,14 @@ import {
   fetchProcurementSuppliers,
 } from "@/lib/procurement/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
+import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 async function loadPoDocumentPageContext() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, suppliers, editAccess, procurementSettings, tenantRow, documentLayout] =
+  const [locations, suppliers, editAccess, procurementSettings, tenantRow, documentLayout, taxCodeOptions] =
     await Promise.all([
       fetchProcurementLocations(supabase, tenantId),
       fetchProcurementSuppliers(supabase, tenantId),
@@ -39,6 +40,7 @@ async function loadPoDocumentPageContext() {
         moduleKey: "PURCHASE_ORDER",
         viewContext: "SCREEN_GRID",
       }),
+      fetchActivePoLineTaxCodeOptions(supabase, tenantId),
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
@@ -61,6 +63,7 @@ async function loadPoDocumentPageContext() {
     documentLayout,
     preferredDestinationLocationId: preferredDestinationLocationId ?? null,
     organizationBillTo,
+    taxCodeOptions,
   };
 }
 
@@ -99,6 +102,7 @@ export async function PoDocumentCreateLoader({
       documentLayout={context.documentLayout}
       preferredDestinationLocationId={context.preferredDestinationLocationId}
       organizationBillTo={context.organizationBillTo}
+      taxCodeOptions={context.taxCodeOptions}
     />
   );
 }
@@ -130,6 +134,7 @@ export async function PoDocumentEditLoader({
       documentLayout={context.documentLayout}
       preferredDestinationLocationId={context.preferredDestinationLocationId}
       organizationBillTo={context.organizationBillTo}
+      taxCodeOptions={context.taxCodeOptions}
     />
   );
 }

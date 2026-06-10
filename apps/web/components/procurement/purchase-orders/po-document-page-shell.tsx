@@ -23,6 +23,7 @@ import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 
 type Props = {
   mode: "create" | "edit";
@@ -39,6 +40,7 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
   organizationBillTo: OrganizationBillToSnapshot;
+  taxCodeOptions: readonly PoLineTaxCodeOption[];
 };
 
 export function PoDocumentPageShell({
@@ -55,6 +57,7 @@ export function PoDocumentPageShell({
   defaultCurrency,
   documentLayout,
   preferredDestinationLocationId = null,
+  taxCodeOptions,
 }: Props) {
   const router = useRouter();
   const returnHref = poListReturnHref(editOrderId);
@@ -202,6 +205,7 @@ export function PoDocumentPageShell({
                 documentLayout={documentLayout}
                 allowLineItemDiscounts={allowLineItemDiscounts}
                 enableMrpTradeTerms={enableMrpTradeTerms}
+                taxCodeOptions={taxCodeOptions}
                 isPending={mutate.isPending}
                 layoutOverride={PO_FULL_PAGE_LAYOUT}
                 onPatch={mutate.patchForm}

@@ -42,6 +42,8 @@ import {
   PO_LINE_SUBLINE_TEXT_CLASS,
   PoLineQtyUnitSlot,
   PoLineQtyValueStack,
+  PoLineSublineRow,
+  PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
 import { cn } from "@/lib/utils";
@@ -51,8 +53,14 @@ import {
   formatPoLineMrpReference,
   resolvePeekLineMrp,
   resolvePeekLineMrpMarkdownPct,
+  resolvePoLineMrpVarianceDirection,
   shouldShowPeekMrpTradeTermsStack,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { PoLineMrpVarianceArrow } from "@/components/procurement/purchase-orders/po-line-mrp-markdown-slot";
+import {
+  DOCUMENT_LINE_ROW_BASE,
+  DOCUMENT_LINE_ROW_CELL_HOVER,
+} from "@/components/documents/document-line-entry-grid";
 
 type Props = {
   order: PurchaseOrderRow;
@@ -240,7 +248,7 @@ function PeekLineItemCell({
   const showSkuUnderItem = !skuLineFieldVisible && Boolean(line.variant_sku);
 
   return (
-    <td className="p-2 align-top">
+    <td className={cn("p-2 align-top", DOCUMENT_LINE_ROW_CELL_HOVER)}>
       <div className="truncate text-xs font-medium">{line.item_name}</div>
       {showSkuUnderItem && line.variant_sku ? (
         <div className="truncate font-mono text-xs text-muted-foreground">{line.variant_sku}</div>
@@ -274,7 +282,8 @@ function PeekLineQtyCell({
         cn(
           "align-top tabular-nums text-muted-foreground",
           showUnitUnderQty ? "p-0" : "p-2",
-          column.align === "right" ? "text-right" : "text-left"
+          column.align === "right" ? "text-right" : "text-left",
+          DOCUMENT_LINE_ROW_CELL_HOVER
         )
       )}
     >
@@ -320,7 +329,8 @@ function PeekLineValueCell({
         column,
         cn(
           "p-2 tabular-nums text-muted-foreground",
-          column.align === "right" ? "text-right" : "text-left"
+          column.align === "right" ? "text-right" : "text-left",
+          DOCUMENT_LINE_ROW_CELL_HOVER
         )
       )}
     >
@@ -343,10 +353,13 @@ function PeekLinePriceCell({
   const value = resolvePoPeekLineCellDisplay(column, line) ?? "—";
   const markdownPct = resolvePeekLineMrpMarkdownPct(line);
   const mrp = resolvePeekLineMrp(line);
+  const unitPrice = Number(line.unit_price_contractual ?? 0);
+  const varianceDirection = resolvePoLineMrpVarianceDirection(mrp, unitPrice);
   const hasMarkdownDisplay = Boolean(markdownPct && markdownPct !== "0.00");
+  const hasVarianceDisplay = varianceDirection != null;
   const showMrpStack =
     shouldShowPeekMrpTradeTermsStack(line, enableMrpTradeTerms) &&
-    (!mrpColumnVisible || hasMarkdownDisplay);
+    (!mrpColumnVisible || hasMarkdownDisplay || hasVarianceDisplay);
 
   return (
     <td
@@ -355,7 +368,8 @@ function PeekLinePriceCell({
         cn(
           "align-top tabular-nums text-muted-foreground",
           showMrpStack ? "p-0" : "p-2",
-          column.align === "right" ? "text-right" : "text-left"
+          column.align === "right" ? "text-right" : "text-left",
+          DOCUMENT_LINE_ROW_CELL_HOVER
         )
       )}
     >
@@ -364,20 +378,37 @@ function PeekLinePriceCell({
         align={column.align}
         unitSlot={
           showMrpStack ? (
-            <div
-              className={cn(
-                "flex w-full flex-col gap-0.5 px-2",
-                PO_LINE_SUBLINE_TEXT_CLASS,
-                column.align === "right" && "items-end text-right"
-              )}
-            >
-              {markdownPct && markdownPct !== "0.00" ? (
-                <span className="tabular-nums">{markdownPct}% Off</span>
-              ) : null}
-              {!mrpColumnVisible ? (
-                <span className="tabular-nums">MRP {formatPoLineMrpReference(mrp, 2)}</span>
-              ) : null}
-            </div>
+            <PoLineSublineZone align={column.align}>
+              <PoLineSublineRow align={column.align} reserve={!hasMarkdownDisplay && !hasVarianceDisplay}>
+                {hasMarkdownDisplay || hasVarianceDisplay ? (
+                  <span
+                    className={cn(
+                      "flex w-full min-w-0 items-center gap-1 px-2 tabular-nums",
+                      PO_LINE_SUBLINE_TEXT_CLASS,
+                      column.align === "right" && "justify-end text-right",
+                      column.align === "center" && "justify-center text-center"
+                    )}
+                  >
+                    {markdownPct ?? "0"}%
+                    <PoLineMrpVarianceArrow direction={varianceDirection} />
+                  </span>
+                ) : null}
+              </PoLineSublineRow>
+              <PoLineSublineRow align={column.align} reserve={mrpColumnVisible}>
+                {!mrpColumnVisible ? (
+                  <span
+                    className={cn(
+                      "w-full truncate px-2 tabular-nums",
+                      PO_LINE_SUBLINE_TEXT_CLASS,
+                      column.align === "right" && "text-right",
+                      column.align === "center" && "text-center"
+                    )}
+                  >
+                    MRP {formatPoLineMrpReference(mrp, 2)}
+                  </span>
+                ) : null}
+              </PoLineSublineRow>
+            </PoLineSublineZone>
           ) : null
         }
       >
@@ -498,8 +529,16 @@ export function PoPeekView({
               </thead>
               <tbody>
                 {(order.lines ?? []).map((line, lineIndex) => (
-                  <tr key={line.id} className="border-b border-border">
-                    <td className="w-10 p-2 text-center tabular-nums text-xs text-muted-foreground">
+                  <tr
+                    key={line.id}
+                    className={cn("border-b border-border", DOCUMENT_LINE_ROW_BASE)}
+                  >
+                    <td
+                      className={cn(
+                        "w-10 p-2 text-center tabular-nums text-xs text-muted-foreground",
+                        DOCUMENT_LINE_ROW_CELL_HOVER
+                      )}
+                    >
                       {lineIndex + 1}
                     </td>
                     {lineColumns.map((column) =>

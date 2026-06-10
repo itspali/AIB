@@ -12,8 +12,9 @@ import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents
 import type { PoDraftFormState } from "@/lib/procurement/purchase-orders/draft-form";
 import {
   poTaxSupplyNatureLabel,
-  resolvePoTaxSupplyNatureFromForm,
+  resolvePoGstContextFromForm,
 } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import { gstTaxMechanismLabel, isGstImportSupplyNature } from "@/lib/tax/gst-supply-context";
 import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
@@ -29,6 +30,7 @@ type Props = {
   documentLayout?: DocumentLayoutTemplate;
   suppliers?: ProcurementSupplierOption[];
   locations?: ProcurementLocationOption[];
+  tenantCountry?: string | null;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
 };
 
@@ -143,11 +145,12 @@ function renderDetailsField(
     case "tax_supply_nature": {
       const suppliers = props.suppliers ?? [];
       const locations = props.locations ?? [];
-      const nature = resolvePoTaxSupplyNatureFromForm(
+      const gstCtx = resolvePoGstContextFromForm(
         suppliers,
         form.supplier_id,
         locations,
-        form.destination_location_id
+        form.destination_location_id,
+        props.tenantCountry
       );
       return (
         <div key={field.id} className={fieldClassName}>
@@ -155,7 +158,16 @@ function renderDetailsField(
             field={getPoLayoutColumnPref(documentLayout, "tax_supply_nature")}
             fallbackLabel="Supply type"
           />
-          <p className="text-sm font-medium">{poTaxSupplyNatureLabel(nature)}</p>
+          <p className="text-sm font-medium">{poTaxSupplyNatureLabel(gstCtx.supplyNature)}</p>
+          <p className="text-xs text-muted-foreground">
+            {gstTaxMechanismLabel(gstCtx.taxMechanism)}
+          </p>
+          {isGstImportSupplyNature(gstCtx.supplyNature) ? (
+            <p className="text-xs text-muted-foreground">
+              No Indian GST on the foreign commercial invoice. Import tax is assessed at customs
+              (goods) or under reverse charge (services).
+            </p>
+          ) : null}
         </div>
       );
     }
@@ -172,6 +184,7 @@ export function PoDetailsPanel({
   documentLayout = DEFAULT_PO_SCREEN_LAYOUT,
   suppliers = [],
   locations = [],
+  tenantCountry = null,
   onPatch,
 }: Props) {
   const isRail = layout === "rail";
@@ -193,6 +206,7 @@ export function PoDetailsPanel({
               documentLayout,
               suppliers,
               locations,
+              tenantCountry,
               onPatch,
             }, index, detailFields)
           )}

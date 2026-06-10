@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 import { parsePoLineTaxComponentsJson } from "@/lib/procurement/purchase-orders/po-line-tax-components";
+import type { TaxTreatmentType } from "@/lib/entities/types";
 import {
   isPoTaxSupplyNature,
   type PoTaxSupplyNature,
 } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
 import type {
   PurchaseOrderLineRow,
   PurchaseOrderPartyAddress,
@@ -62,25 +64,44 @@ type PoSelectShape = {
   includeAddresses: boolean;
   includeLineIds: boolean;
   includeTaxColumns: boolean;
+  includeHeaderCharges: boolean;
 };
 
 const PO_LIST_SELECT_SHAPES: PoSelectShape[] = [
-  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false },
+  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
 ];
 
 const PO_DETAIL_SELECT_SHAPES: PoSelectShape[] = [
-  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false },
+  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
 ];
+
+function buildPoHeaderChargeFields(includeHeaderCharges: boolean): string {
+  if (!includeHeaderCharges) return "";
+  return `
+      shipping_amount,
+      shipping_tax_rate_pct,
+      shipping_tax_amount,
+      shipping_tax_type,
+      round_off_amount,
+      additional_charges_amount,`;
+}
 
 function buildPoHeaderTaxFields(includeTaxColumns: boolean): string {
   if (!includeTaxColumns) return "";
   return `
       prices_tax_inclusive,
-      tax_supply_nature,`;
+      tax_supply_nature,
+      tax_mechanism,
+      supplier_tax_treatment,
+      supplier_country_code,
+      incoterms_code,
+      rcm_applicable,`;
 }
 
 function buildPoLineTaxFields(includeTaxColumns: boolean): string {
@@ -107,7 +128,7 @@ function buildPurchaseOrderListSelect(options: PoSelectShape): string {
       payment_terms_days,
       total_gross_amount,
       total_tax_amount,
-      total_net_amount,${buildPoHeaderTaxFields(options.includeTaxColumns)}
+      total_net_amount,${buildPoHeaderChargeFields(options.includeHeaderCharges)}${buildPoHeaderTaxFields(options.includeTaxColumns)}
       custom_fields,
       created_by,
       created_at,
@@ -136,7 +157,7 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
       payment_terms_days,
       total_gross_amount,
       total_tax_amount,
-      total_net_amount,${buildPoHeaderTaxFields(options.includeTaxColumns)}
+      total_net_amount,${buildPoHeaderChargeFields(options.includeHeaderCharges)}${buildPoHeaderTaxFields(options.includeTaxColumns)}
       custom_fields,
       created_by,
       created_at,
@@ -309,8 +330,19 @@ type PoListDbRow = {
   total_gross_amount: number | string | null;
   total_tax_amount: number | string | null;
   total_net_amount: number | string;
+  shipping_amount?: number | string | null;
+  shipping_tax_rate_pct?: number | string | null;
+  shipping_tax_amount?: number | string | null;
+  shipping_tax_type?: string | null;
+  round_off_amount?: number | string | null;
+  additional_charges_amount?: number | string | null;
   prices_tax_inclusive?: boolean | null;
   tax_supply_nature?: string | null;
+  tax_mechanism?: string | null;
+  supplier_tax_treatment?: string | null;
+  supplier_country_code?: string | null;
+  incoterms_code?: string | null;
+  rcm_applicable?: boolean | null;
   custom_fields: Record<string, unknown> | null;
   created_by: string;
   created_at: string;
@@ -354,6 +386,7 @@ type ReceivablePoDbRow = {
   id: string;
   voucher_number: string;
   destination_location_id: string;
+  tax_supply_nature?: string | null;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
   po_lines?: PoLineDbRow[] | null;
@@ -445,6 +478,23 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
   };
 }
 
+const GST_TAX_MECHANISMS: GstTaxMechanism[] = [
+  "FORWARD",
+  "REVERSE_CHARGE",
+  "IMPORT_IGST",
+  "ZERO_RATED",
+  "EXEMPT",
+  "COMPOSITION",
+];
+
+function mapGstTaxMechanism(value: string | null | undefined): GstTaxMechanism {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (GST_TAX_MECHANISMS.includes(normalized as GstTaxMechanism)) {
+    return normalized as GstTaxMechanism;
+  }
+  return "FORWARD";
+}
+
 function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
   const destination = resolveJoin(row.destination_location);
   const supplier = resolveJoin(row.supplier);
@@ -467,10 +517,21 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     total_tax_amount: formatDecimal(row.total_tax_amount ?? 0),
     line_count: row.po_lines?.length ?? 0,
     total_net_amount: formatDecimal(row.total_net_amount),
+    shipping_amount: formatDecimal(row.shipping_amount ?? 0),
+    shipping_tax_rate_pct: formatDecimal(row.shipping_tax_rate_pct ?? 0),
+    shipping_tax_amount: formatDecimal(row.shipping_tax_amount ?? 0),
+    shipping_tax_type: row.shipping_tax_type === "amount" ? "amount" : "percent",
+    round_off_amount: formatDecimal(row.round_off_amount ?? 0),
+    additional_charges_amount: formatDecimal(row.additional_charges_amount ?? 0),
     prices_tax_inclusive: row.prices_tax_inclusive === true,
     tax_supply_nature: isPoTaxSupplyNature(String(row.tax_supply_nature ?? ""))
       ? (row.tax_supply_nature as PoTaxSupplyNature)
       : "INTERSTATE",
+    tax_mechanism: mapGstTaxMechanism(row.tax_mechanism),
+    supplier_tax_treatment: (row.supplier_tax_treatment as TaxTreatmentType | null) ?? null,
+    supplier_country_code: row.supplier_country_code?.trim() || null,
+    incoterms_code: row.incoterms_code?.trim() || null,
+    rcm_applicable: row.rcm_applicable === true,
     custom_fields: row.custom_fields ?? {},
     created_by: row.created_by,
     created_by_name: "",
@@ -590,6 +651,9 @@ export async function fetchReceivablePurchaseOrders(
         destination_location_name: destination?.name ?? "",
         destination_location_code: destination?.code ?? "",
         supplier_name: supplier?.name ?? "",
+        tax_supply_nature: isPoTaxSupplyNature(String(typed.tax_supply_nature ?? ""))
+          ? (typed.tax_supply_nature as PoTaxSupplyNature)
+          : "INTERSTATE",
         lines: openLines,
       } satisfies ReceivablePurchaseOrderOption;
     })

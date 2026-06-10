@@ -21,6 +21,7 @@ import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -42,6 +43,13 @@ import { cn } from "@/lib/utils";
 type CreateFormState = {
   destination_location_id: string;
   purchase_order_id: string | null;
+  bill_of_entry_number: string;
+  bill_of_entry_date: string;
+  port_code: string;
+  exchange_rate: string;
+  assessable_value: string;
+  customs_duty_amount: string;
+  import_igst_amount: string;
   lines: GrnDraftLine[];
 };
 
@@ -69,6 +77,13 @@ function defaultCreateForm(
     return {
       destination_location_id: selectedPo.destination_location_id,
       purchase_order_id: selectedPo.id,
+      bill_of_entry_number: "",
+      bill_of_entry_date: "",
+      port_code: "",
+      exchange_rate: "1",
+      assessable_value: "",
+      customs_duty_amount: "",
+      import_igst_amount: "",
       lines: selectedPo.lines.map((line) => ({
         key: line.id,
         sku: line.variant_sku,
@@ -87,6 +102,13 @@ function defaultCreateForm(
   return {
     destination_location_id: locations[0]?.id ?? "",
     purchase_order_id: null,
+    bill_of_entry_number: "",
+    bill_of_entry_date: "",
+    port_code: "",
+    exchange_rate: "1",
+    assessable_value: "",
+    customs_duty_amount: "",
+    import_igst_amount: "",
     lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
   };
 }
@@ -233,6 +255,13 @@ export function GrnDrawerForm({
       const payload = {
         destination_location_id: form.destination_location_id,
         purchase_order_id: form.purchase_order_id,
+        bill_of_entry_number: form.bill_of_entry_number || null,
+        bill_of_entry_date: form.bill_of_entry_date || null,
+        port_code: form.port_code || null,
+        exchange_rate: form.exchange_rate || null,
+        assessable_value: form.assessable_value || null,
+        customs_duty_amount: form.customs_duty_amount || null,
+        import_igst_amount: form.import_igst_amount || null,
         lines: filterSavableGrnLines(form.lines).map((line) => ({
           variant_id: line.variant_id,
           po_item_id: line.po_item_id,
@@ -287,6 +316,10 @@ export function GrnDrawerForm({
 
   const showLoadingPeek = surface === "peek" && detailLoading && !detail?.lines?.length;
   const poLocked = Boolean(form.purchase_order_id);
+  const selectedReceivablePo = form.purchase_order_id
+    ? receivableOrders.find((order) => order.id === form.purchase_order_id)
+    : null;
+  const isImportGoodsPo = selectedReceivablePo?.tax_supply_nature === "IMPORT_GOODS";
 
   return (
     <>
@@ -423,6 +456,75 @@ export function GrnDrawerForm({
                 </Select>
               </div>
             </div>
+
+            {isImportGoodsPo ? (
+              <div className="surface-inset grid shrink-0 grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+                <p className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Import / Bill of entry
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-boe-number">Bill of entry #</Label>
+                  <Input
+                    id="grn-boe-number"
+                    value={form.bill_of_entry_number}
+                    onChange={(event) => patchForm({ bill_of_entry_number: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-boe-date">BoE date</Label>
+                  <Input
+                    id="grn-boe-date"
+                    type="date"
+                    value={form.bill_of_entry_date}
+                    onChange={(event) => patchForm({ bill_of_entry_date: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-port-code">Port code</Label>
+                  <Input
+                    id="grn-port-code"
+                    value={form.port_code}
+                    onChange={(event) => patchForm({ port_code: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-exchange-rate">Exchange rate</Label>
+                  <Input
+                    id="grn-exchange-rate"
+                    inputMode="decimal"
+                    value={form.exchange_rate}
+                    onChange={(event) => patchForm({ exchange_rate: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-assessable-value">Assessable value</Label>
+                  <Input
+                    id="grn-assessable-value"
+                    inputMode="decimal"
+                    value={form.assessable_value}
+                    onChange={(event) => patchForm({ assessable_value: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-customs-duty">Customs duty</Label>
+                  <Input
+                    id="grn-customs-duty"
+                    inputMode="decimal"
+                    value={form.customs_duty_amount}
+                    onChange={(event) => patchForm({ customs_duty_amount: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grn-import-igst">Import IGST</Label>
+                  <Input
+                    id="grn-import-igst"
+                    inputMode="decimal"
+                    value={form.import_igst_amount}
+                    onChange={(event) => patchForm({ import_igst_amount: event.target.value })}
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <div
               className={cn(

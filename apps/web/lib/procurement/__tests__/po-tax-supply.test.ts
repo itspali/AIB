@@ -20,6 +20,10 @@ describe("po tax supply nature", () => {
     expect(resolvePoTaxSupplyNature("", "DL")).toBe("INTERSTATE");
   });
 
+  it("labels import goods supply nature", () => {
+    expect(poTaxSupplyNatureLabel("IMPORT_GOODS")).toBe("Import (goods)");
+  });
+
   it("maps sales tax mode tokens to PO supply nature", () => {
     expect(mapSalesTaxModeToPoSupplyNature("CGST_SGST")).toBe("INTRASTATE");
     expect(mapSalesTaxModeToPoSupplyNature("IGST")).toBe("INTERSTATE");

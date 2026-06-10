@@ -16,7 +16,13 @@ describe("documentTypographyClassName", () => {
         { fontSize: "lg", fontWeight: "bold", fontStyle: "italic" },
         "tabular-nums"
       )
-    ).toBe("text-lg font-bold italic tabular-nums");
+    ).toBe("tabular-nums text-lg font-bold italic");
+  });
+
+  it("lets column typography override default font weight", () => {
+    expect(
+      documentTypographyClassName({ fontWeight: "bold" }, "text-sm font-medium tabular-nums")
+    ).toBe("text-sm tabular-nums font-bold");
   });
 });
 

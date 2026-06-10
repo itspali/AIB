@@ -2,7 +2,11 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { DOCUMENT_LINE_HEADER_CELL } from "@/components/documents/document-line-entry-grid";
+import {
+  DOCUMENT_LINE_HEADER_CELL,
+  DOCUMENT_LINE_ROW_BASE,
+  DOCUMENT_LINE_ROW_CELL_HOVER,
+} from "@/components/documents/document-line-entry-grid";
 
 export type DocumentLinePeekColumn = {
   id: string;
@@ -73,9 +77,17 @@ export function DocumentLinePeekTable<T>({
         </thead>
         <tbody>
           {lines.map((line, lineIndex) => (
-            <tr key={getRowKey(line, lineIndex)} className="border-b border-border last:border-0">
+            <tr
+              key={getRowKey(line, lineIndex)}
+              className={cn("border-b border-border last:border-0", DOCUMENT_LINE_ROW_BASE)}
+            >
               {showLineNumbers ? (
-                <td className="w-9 border border-border px-0 py-1 text-center align-middle text-xs tabular-nums text-muted-foreground">
+                <td
+                  className={cn(
+                    "w-9 border border-border px-0 py-1 text-center align-middle text-xs tabular-nums text-muted-foreground",
+                    DOCUMENT_LINE_ROW_CELL_HOVER
+                  )}
+                >
                   {lineIndex + 1}
                 </td>
               ) : null}
@@ -84,7 +96,8 @@ export function DocumentLinePeekTable<T>({
                   key={column.id}
                   className={cn(
                     "border border-border p-2 align-top",
-                    peekColumnClass(column)
+                    peekColumnClass(column),
+                    DOCUMENT_LINE_ROW_CELL_HOVER
                   )}
                 >
                   {renderCell(column, line, lineIndex)}

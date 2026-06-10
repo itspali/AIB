@@ -24,6 +24,13 @@ export const goodsReceiptLineSchema = z.object({
 export const postGoodsReceiptSchema = z.object({
   destination_location_id: z.string().uuid("Select a destination location."),
   purchase_order_id: z.string().uuid().optional().nullable(),
+  bill_of_entry_number: z.string().trim().optional().nullable(),
+  bill_of_entry_date: z.string().trim().optional().nullable(),
+  port_code: z.string().trim().max(10).optional().nullable(),
+  exchange_rate: z.string().trim().optional().nullable(),
+  assessable_value: z.string().trim().optional().nullable(),
+  customs_duty_amount: z.string().trim().optional().nullable(),
+  import_igst_amount: z.string().trim().optional().nullable(),
   lines: z.array(goodsReceiptLineSchema).min(1, "Add at least one line."),
 });
 

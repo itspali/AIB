@@ -4,8 +4,7 @@ import {
   getPoLayoutColumnPref,
   getVisibleHeaderFields,
   normalizePoLayoutTemplate,
-  PO_FORM_HEADER_DETAILS_FIELD_IDS,
-  PO_FORM_HEADER_PRIMARY_FIELD_IDS,
+  resolveHeaderFieldSlot,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref, DocumentLayoutDefaults } from "@/lib/documents/types";
 
@@ -64,18 +63,16 @@ export function resolvePoFormFieldsGridProps(
 export function getVisiblePoFormHeaderPrimaryFields(
   layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
 ): DocumentColumnPref[] {
-  const primaryIds = new Set<string>(PO_FORM_HEADER_PRIMARY_FIELD_IDS);
-  return getVisibleHeaderFields(normalizePoLayoutTemplate(layout)).filter((field) =>
-    primaryIds.has(field.id)
+  return getVisibleHeaderFields(normalizePoLayoutTemplate(layout)).filter(
+    (field) => resolveHeaderFieldSlot(field) === "primary"
   );
 }
 
 export function getVisiblePoFormHeaderDetailsFields(
   layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
 ): DocumentColumnPref[] {
-  const detailsIds = new Set<string>(PO_FORM_HEADER_DETAILS_FIELD_IDS);
-  return getVisibleHeaderFields(normalizePoLayoutTemplate(layout)).filter((field) =>
-    detailsIds.has(field.id)
+  return getVisibleHeaderFields(normalizePoLayoutTemplate(layout)).filter(
+    (field) => resolveHeaderFieldSlot(field) === "details"
   );
 }
 

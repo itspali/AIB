@@ -157,6 +157,17 @@ export const entityMasterSchema = z
     }
 
     if (
+      values.tax_treatment === "OVERSEAS_EXPORT" &&
+      values.billing_country_code.trim().toUpperCase() === "IN"
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["billing_country_code"],
+        message: "Overseas suppliers must have a billing country other than India",
+      });
+    }
+
+    if (
       (values.type === "CUSTOMER" || values.type === "MUTUAL_PARTNER") &&
       !values.customer_category_id.trim()
     ) {
