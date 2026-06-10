@@ -1,8 +1,12 @@
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import { resolveFlatLineTax } from "@/lib/tax/resolve-line-tax";
+
 export type PoLineTotalsInput = {
   quantity_ordered: string;
   unit_price_contractual: string;
   discount_percentage?: string;
   discount_amount?: string;
+  catalog_context?: PoLineCatalogContext | null;
 };
 
 export type PurchaseOrderTotalsSnapshot = {
@@ -11,6 +15,10 @@ export type PurchaseOrderTotalsSnapshot = {
   subtotalGross: number;
   taxAmount: number;
   grandTotal: number;
+};
+
+export type PurchaseOrderTotalsOptions = {
+  purchasePricesTaxInclusive?: boolean;
 };
 
 function parseAmount(value: string | undefined): number {
@@ -43,14 +51,42 @@ export function resolveLineDiscount(line: PoLineTotalsInput): number {
   return 0;
 }
 
-export function computeLineGross(line: PoLineTotalsInput): number {
-  return Math.max(0, lineExtension(line) - resolveLineDiscount(line));
+/** Ex-tax line net after discount (matches persisted `line_total_gross`). */
+export function computeLineGross(
+  line: PoLineTotalsInput,
+  options: PurchaseOrderTotalsOptions = {}
+): number {
+  const qty = parseAmount(line.quantity_ordered);
+  if (qty <= 0) return 0;
+  return resolvePoLineTaxAmount(line, options).taxableBase;
+}
+
+export function resolvePoLineTaxAmount(
+  line: PoLineTotalsInput,
+  options: PurchaseOrderTotalsOptions = {}
+): { taxableBase: number; taxAmount: number; lineTotal: number } {
+  const qty = parseAmount(line.quantity_ordered);
+  const unit = parseAmount(line.unit_price_contractual);
+  const lineDiscount = resolveLineDiscount(line);
+  const catalog = line.catalog_context;
+  const pricesTaxInclusive = options.purchasePricesTaxInclusive ?? false;
+
+  return resolveFlatLineTax({
+    qty,
+    unitPrice: unit,
+    lineDiscount,
+    taxRate: catalog?.tax_rate ?? 0,
+    taxIsVariable: catalog?.tax_is_variable,
+    pricesTaxInclusive,
+  });
 }
 
 export function computePurchaseOrderTotals(
-  lines: PoLineTotalsInput[]
+  lines: PoLineTotalsInput[],
+  options: PurchaseOrderTotalsOptions = {}
 ): PurchaseOrderTotalsSnapshot {
   let subtotalGross = 0;
+  let taxAmount = 0;
   let filledLineCount = 0;
 
   for (const line of lines) {
@@ -58,13 +94,13 @@ export function computePurchaseOrderTotals(
     const qty = parseAmount(line.quantity_ordered);
     if (qty > 0) {
       filledLineCount += 1;
-      subtotalGross += computeLineGross(line);
+      const resolved = resolvePoLineTaxAmount(line, options);
+      subtotalGross += resolved.taxableBase;
+      taxAmount += resolved.taxAmount;
     } else if (variantReady) {
       filledLineCount += 1;
     }
   }
-
-  const taxAmount = 0;
 
   return {
     lineCount: lines.length,

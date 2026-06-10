@@ -150,12 +150,12 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 | Slice | Status | Notes |
 |-------|--------|-------|
 | Line discounts | **Shipped** | `discount_percentage` / `discount_amount` on `purchase_order_items`; `save_purchase_order` totals; `PROCUREMENT_SETTINGS.allow_line_item_discounts`; drawer + layout settings |
-| Tax mode + line tax | Pending | ex-tax / inc-tax; resolve from `tax_codes` + item `tax_code_id` / HSN |
-| Layout tax columns | Pending | Enable totals `tax_amount` with live values |
+| Tax mode + line tax | **Shipped** | `purchase_prices_tax_inclusive` policy; `resolve_line_tax` in save RPC; live totals from item `tax_codes` |
+| Layout tax columns | **Shipped** | Totals rail `tax_amount` + `grand_total` use computed tax |
 | Editable line UOM | Pending | `item_uoms` conversion on save; read-only unit in Phase 2 |
 | Approval workflow | Pending | `PENDING_APPROVAL` + `document_approvals`; schema exists, no RPC/UI yet |
 
-**Migration (discounts):** `20260616100000_purchase_order_line_discounts.sql`
+**Migrations (Phase 3):** `20260616100000_purchase_order_line_discounts.sql`, `20260616200000_purchase_order_line_tax.sql`
 
 ---
 

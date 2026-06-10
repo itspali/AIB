@@ -28,6 +28,7 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
+  purchasePricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
@@ -43,6 +44,7 @@ export function PoDocumentPageShell({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
+  purchasePricesTaxInclusive,
   defaultCurrency,
   documentLayout,
   preferredDestinationLocationId = null,
@@ -163,6 +165,7 @@ export function PoDocumentPageShell({
               defaultCurrency={defaultCurrency}
               documentLayout={documentLayout}
               allowLineItemDiscounts={allowLineItemDiscounts}
+              purchasePricesTaxInclusive={purchasePricesTaxInclusive}
               isPending={mutate.isPending}
               layoutOverride={PO_FULL_PAGE_LAYOUT}
               onPatch={mutate.patchForm}

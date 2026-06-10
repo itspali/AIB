@@ -19,6 +19,8 @@ export type PurchaseOrderLineRow = {
   discount_percentage: string;
   discount_amount: string;
   line_total_gross: string;
+  line_tax_amount: string;
+  tax_rate_percentage: string;
   open_quantity: string;
   /** Item base UOM — read-only display until Phase 3 line `uom_code`. */
   base_unit_of_measure?: string | null;
@@ -49,6 +51,7 @@ export type PurchaseOrderRow = {
   currency_code: string;
   payment_terms_days: number;
   total_gross_amount: string;
+  total_tax_amount: string;
   line_count: number;
   total_net_amount: string;
   custom_fields: Record<string, unknown>;

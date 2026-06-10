@@ -33,6 +33,10 @@ export function resolvePoPeekLineCellDisplay(
       return formatPeekDecimal(line.unit_price_contractual, column);
     case "line_total":
       return formatPeekDecimal(line.line_total_gross, column);
+    case "discount_pct":
+      return formatPeekDecimal(line.discount_percentage, column);
+    case "discount_amount":
+      return formatPeekDecimal(line.discount_amount, column);
     default:
       return null;
   }

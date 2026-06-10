@@ -34,6 +34,7 @@ export type PoDocumentEditorShellProps = {
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
+  purchasePricesTaxInclusive?: boolean;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
@@ -52,6 +53,7 @@ export function PoDocumentEditorShell({
   defaultCurrency,
   documentLayout,
   allowLineItemDiscounts = false,
+  purchasePricesTaxInclusive = false,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -96,7 +98,12 @@ export function PoDocumentEditorShell({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
         </p>
-        <PoTotalsPanel lines={form.lines} layout={resolvedDocumentLayout} layoutMode="embedded" />
+        <PoTotalsPanel
+          lines={form.lines}
+          layout={resolvedDocumentLayout}
+          layoutMode="embedded"
+          purchasePricesTaxInclusive={purchasePricesTaxInclusive}
+        />
       </div>
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -119,7 +126,12 @@ export function PoDocumentEditorShell({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
         </p>
-        <PoTotalsPanel lines={form.lines} layout={resolvedDocumentLayout} layoutMode="embedded" />
+        <PoTotalsPanel
+          lines={form.lines}
+          layout={resolvedDocumentLayout}
+          layoutMode="embedded"
+          purchasePricesTaxInclusive={purchasePricesTaxInclusive}
+        />
       </div>
       <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

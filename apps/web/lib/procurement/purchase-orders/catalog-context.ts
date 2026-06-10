@@ -28,6 +28,17 @@ type VariantCatalogRow = {
         base_unit_of_measure: string;
         custom_fields: Record<string, unknown> | null;
         category_id: string | null;
+        tax_code_id: string | null;
+        tax_codes:
+          | {
+              rate: number | string | null;
+              is_variable: boolean | null;
+            }
+          | {
+              rate: number | string | null;
+              is_variable: boolean | null;
+            }[]
+          | null;
       }
     | {
         description: string | null;
@@ -35,6 +46,17 @@ type VariantCatalogRow = {
         base_unit_of_measure: string;
         custom_fields: Record<string, unknown> | null;
         category_id: string | null;
+        tax_code_id: string | null;
+        tax_codes:
+          | {
+              rate: number | string | null;
+              is_variable: boolean | null;
+            }
+          | {
+              rate: number | string | null;
+              is_variable: boolean | null;
+            }[]
+          | null;
       }[]
     | null;
 };
@@ -91,7 +113,12 @@ export async function fetchPoLineCatalogContext(
         hsn_sac_code,
         base_unit_of_measure,
         custom_fields,
-        category_id
+        category_id,
+        tax_code_id,
+        tax_codes (
+          rate,
+          is_variable
+        )
       )
     `
     )
@@ -108,6 +135,9 @@ export async function fetchPoLineCatalogContext(
   const item = resolveJoin(row.items);
   if (!item) return null;
 
+  const taxCode = resolveJoin(item.tax_codes);
+  const taxRate = taxCode?.rate != null ? Number(taxCode.rate) : 0;
+
   const [attributeLabels, imageUrl] = await Promise.all([
     resolveCatalogAttributeLabels(supabase, tenantId, item.category_id),
     fetchVariantPrimaryImageUrl(supabase, tenantId, row.item_id, row.id).catch(() => null),
@@ -118,6 +148,9 @@ export async function fetchPoLineCatalogContext(
     hsn_sac_code: item.hsn_sac_code?.trim() || null,
     base_unit_of_measure: item.base_unit_of_measure?.trim() || null,
     image_url: imageUrl,
+    tax_code_id: item.tax_code_id,
+    tax_rate: Number.isFinite(taxRate) ? taxRate : 0,
+    tax_is_variable: Boolean(taxCode?.is_variable),
     custom_fields: mapCustomFields(item.custom_fields),
     variant_attributes: mapVariantAttributes(row.variant_attributes),
     attribute_labels: attributeLabels,

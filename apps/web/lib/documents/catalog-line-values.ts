@@ -11,7 +11,10 @@ export type PoLineCatalogContext = {
   hsn_sac_code: string | null;
   base_unit_of_measure: string | null;
   image_url: string | null;
-  /** User-defined item custom fields (reserved keys excluded). */
+  tax_code_id: string | null;
+  tax_rate: number;
+  tax_is_variable: boolean;
+  /** Custom fields (reserved keys excluded). */
   custom_fields: Record<string, string>;
   variant_attributes: Record<string, string>;
   /** Category template label by attribute key (falls back to key). */
@@ -26,6 +29,9 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     hsn_sac_code: null,
     base_unit_of_measure: null,
     image_url: imageUrl,
+    tax_code_id: null,
+    tax_rate: 0,
+    tax_is_variable: false,
     custom_fields: {},
     variant_attributes: {},
     attribute_labels: {},
@@ -55,6 +61,9 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     hsn_sac_code: partial.hsn_sac_code?.trim() || null,
     base_unit_of_measure: partial.base_unit_of_measure?.trim() || null,
     image_url: partial.image_url?.trim() || null,
+    tax_code_id: null,
+    tax_rate: 0,
+    tax_is_variable: false,
     custom_fields: { ...(partial.custom_fields ?? {}) },
     variant_attributes: { ...(partial.variant_attributes ?? {}) },
     attribute_labels: {},

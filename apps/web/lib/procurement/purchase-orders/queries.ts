@@ -72,6 +72,7 @@ function buildPurchaseOrderListSelect(options: {
       currency_code,
       payment_terms_days,
       total_gross_amount,
+      total_tax_amount,
       total_net_amount,
       custom_fields,
       created_by,
@@ -181,6 +182,7 @@ type PoListDbRow = {
   currency_code: string;
   payment_terms_days: number | string | null;
   total_gross_amount: number | string | null;
+  total_tax_amount: number | string | null;
   total_net_amount: number | string;
   custom_fields: Record<string, unknown> | null;
   created_by: string;
@@ -200,6 +202,8 @@ type PoLineDbRow = {
   unit_price_contractual: number | string;
   discount_percentage?: number | string | null;
   discount_amount?: number | string | null;
+  tax_rate_percentage?: number | string | null;
+  line_tax_amount?: number | string | null;
   line_total_gross: number | string;
   items: { name: string; base_unit_of_measure?: string | null } | { name: string; base_unit_of_measure?: string | null }[] | null;
   item_variants: { sku: string } | { sku: string }[] | null;
@@ -280,6 +284,8 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     unit_price_contractual: formatDecimal(row.unit_price_contractual),
     discount_percentage: formatDecimal(row.discount_percentage ?? 0),
     discount_amount: formatDecimal(row.discount_amount ?? 0),
+    tax_rate_percentage: formatDecimal(row.tax_rate_percentage ?? 0),
+    line_tax_amount: formatDecimal(row.line_tax_amount ?? 0),
     line_total_gross: formatDecimal(row.line_total_gross),
     open_quantity: String(openQty),
   };
@@ -304,6 +310,7 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     currency_code: row.currency_code ?? "USD",
     payment_terms_days: Number(row.payment_terms_days) || 0,
     total_gross_amount: formatDecimal(row.total_gross_amount),
+    total_tax_amount: formatDecimal(row.total_tax_amount ?? 0),
     line_count: row.po_lines?.length ?? 0,
     total_net_amount: formatDecimal(row.total_net_amount),
     custom_fields: row.custom_fields ?? {},
@@ -382,6 +389,7 @@ export async function fetchPurchaseOrderById(
       currency_code,
       payment_terms_days,
       total_gross_amount,
+      total_tax_amount,
       total_net_amount,
       custom_fields,
       created_by,
@@ -398,6 +406,8 @@ export async function fetchPurchaseOrderById(
         unit_price_contractual,
         discount_percentage,
         discount_amount,
+        tax_rate_percentage,
+        line_tax_amount,
         line_total_gross,
         items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
@@ -448,6 +458,8 @@ export async function fetchReceivablePurchaseOrders(
         unit_price_contractual,
         discount_percentage,
         discount_amount,
+        tax_rate_percentage,
+        line_tax_amount,
         line_total_gross,
         items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!purchase_order_items_variant_tenant_fk (sku)

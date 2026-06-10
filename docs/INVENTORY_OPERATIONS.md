@@ -202,7 +202,7 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 ### Recently shipped (2026-06-10)
 
 1. **PO Phase 2 complete** — omnibar `purchase-orders`, duplicate/copy, full-page routes, per-location layout overrides, Print/Email layout tabs in settings.
-2. **PO Phase 3 started** — line discounts (`discount_percentage` / `discount_amount`), `PROCUREMENT_SETTINGS.allow_line_item_discounts`, live totals in drawer.
+2. **PO Phase 3 started** — line discounts; line tax via `resolve_line_tax` + live totals rail.
 
 ### Previously shipped (2026-06-09 polish)
 

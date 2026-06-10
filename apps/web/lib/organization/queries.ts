@@ -93,6 +93,7 @@ export async function fetchOrganizationSettingsSnapshot(
 
   let allowLineItemDiscounts = true;
   let allowEditIssuedPurchaseOrders = false;
+  let purchasePricesTaxInclusive = false;
   let accountingPeriodClosingDate: string | null = null;
   let searchFinancialFieldsMode: SearchFinancialFieldsMode = "role_default";
   let themeSettings = DEFAULT_TENANT_THEME_SETTINGS;
@@ -123,6 +124,9 @@ export async function fetchOrganizationSettingsSnapshot(
       }
       if (typeof meta?.allow_line_item_discounts === "boolean") {
         allowLineItemDiscounts = meta.allow_line_item_discounts;
+      }
+      if (typeof meta?.purchase_prices_tax_inclusive === "boolean") {
+        purchasePricesTaxInclusive = meta.purchase_prices_tax_inclusive;
       }
     }
   }
@@ -279,6 +283,7 @@ export async function fetchOrganizationSettingsSnapshot(
     location_governance_config: parsed.location_governance_config,
     allow_line_item_discounts: allowLineItemDiscounts,
     allow_edit_issued_purchase_orders: allowEditIssuedPurchaseOrders,
+    purchase_prices_tax_inclusive: purchasePricesTaxInclusive,
     accounting_period_closing_date: accountingPeriodClosingDate,
     search_financial_fields_mode: searchFinancialFieldsMode,
     theme_settings: themeSettings,

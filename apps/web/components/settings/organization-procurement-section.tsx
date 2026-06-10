@@ -14,30 +14,52 @@ type Props = {
 export function OrganizationProcurementSection({ form, disabled }: Props) {
   const { watch, setValue } = form;
   const allowEditIssued = watch("allow_edit_issued_purchase_orders");
+  const purchasePricesTaxInclusive = watch("purchase_prices_tax_inclusive");
 
   return (
     <OrgSettingsSection
       title="Procurement"
       description="Purchase order editing policies for this workspace."
     >
-      <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-        <div>
-          <Label htmlFor="allow_edit_issued_purchase_orders" className="text-sm font-medium">
-            Allow editing issued purchase orders
-          </Label>
-          <p className="text-xs text-muted-foreground">
-            When enabled, users with purchase order edit permission can change issued orders that
-            have not yet been received.
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+          <div>
+            <Label htmlFor="allow_edit_issued_purchase_orders" className="text-sm font-medium">
+              Allow editing issued purchase orders
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When enabled, users with purchase order edit permission can change issued orders that
+              have not yet been received.
+            </p>
+          </div>
+          <Switch
+            id="allow_edit_issued_purchase_orders"
+            checked={allowEditIssued}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              setValue("allow_edit_issued_purchase_orders", checked, { shouldDirty: true })
+            }
+          />
         </div>
-        <Switch
-          id="allow_edit_issued_purchase_orders"
-          checked={allowEditIssued}
-          disabled={disabled}
-          onCheckedChange={(checked) =>
-            setValue("allow_edit_issued_purchase_orders", checked, { shouldDirty: true })
-          }
-        />
+        <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+          <div>
+            <Label htmlFor="purchase_prices_tax_inclusive" className="text-sm font-medium">
+              Purchase prices include tax
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When enabled, PO unit prices are treated as tax-inclusive. When disabled (default),
+              unit prices are ex-tax and line tax is calculated from each item&apos;s tax code.
+            </p>
+          </div>
+          <Switch
+            id="purchase_prices_tax_inclusive"
+            checked={purchasePricesTaxInclusive}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              setValue("purchase_prices_tax_inclusive", checked, { shouldDirty: true })
+            }
+          />
+        </div>
       </div>
     </OrgSettingsSection>
   );

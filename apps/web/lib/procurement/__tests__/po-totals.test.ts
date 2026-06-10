@@ -53,4 +53,33 @@ describe("purchase order totals", () => {
 
     expect(computeLineGross(line)).toBe(0);
   });
+
+  it("includes line tax in totals when item tax rate is known", () => {
+    const totals = computePurchaseOrderTotals(
+      [
+        {
+          quantity_ordered: "2",
+          unit_price_contractual: "100",
+          catalog_context: {
+            description: null,
+            hsn_sac_code: null,
+            base_unit_of_measure: "PCS",
+            image_url: null,
+            tax_code_id: "tax-1",
+            tax_rate: 18,
+            tax_is_variable: false,
+            custom_fields: {},
+            variant_attributes: {},
+            attribute_labels: {},
+            catalog_snapshot_source: "server",
+          },
+        },
+      ],
+      { purchasePricesTaxInclusive: false }
+    );
+
+    expect(totals.subtotalGross).toBe(200);
+    expect(totals.taxAmount).toBe(36);
+    expect(totals.grandTotal).toBe(236);
+  });
 });

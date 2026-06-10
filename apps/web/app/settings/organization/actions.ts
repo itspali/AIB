@@ -109,6 +109,7 @@ export async function saveOrganizationSettings(raw: unknown) {
       p_metadata_patch: {
         allow_edit_issued_purchase_orders: values.allow_edit_issued_purchase_orders,
         allow_line_item_discounts: values.allow_line_item_discounts,
+        purchase_prices_tax_inclusive: values.purchase_prices_tax_inclusive,
       },
     }),
     supabase.rpc("upsert_tenant_workspace_control", {

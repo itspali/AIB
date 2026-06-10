@@ -59,6 +59,7 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
+  purchasePricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
@@ -100,6 +101,7 @@ export function PoDrawerForm({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
+  purchasePricesTaxInclusive,
   defaultCurrency,
   documentLayout: documentLayoutProp,
   preferredDestinationLocationId = null,
@@ -543,6 +545,7 @@ export function PoDrawerForm({
         defaultCurrency={defaultCurrency}
         documentLayout={documentLayout}
         allowLineItemDiscounts={allowLineItemDiscounts}
+        purchasePricesTaxInclusive={purchasePricesTaxInclusive}
         isPending={isPending}
         layoutOverride={drawerLayoutSnapshot}
         onPatch={patchForm}

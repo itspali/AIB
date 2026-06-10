@@ -1,9 +1,9 @@
+import { emptyPoLineCatalogContext, type PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import {
   emptyPurchaseOrderCustomFields,
   type PurchaseOrderCustomFields,
   parsePurchaseOrderCustomFields,
 } from "@/lib/procurement/purchase-orders/custom-fields";
-import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
@@ -162,6 +162,18 @@ export function supplierPaymentTerms(suppliers: ProcurementSupplierOption[], sup
   return supplier ? String(supplier.payment_terms_days) : "0";
 }
 
+function lineTaxCatalogSnapshot(line: {
+  tax_rate_percentage?: string;
+}): PoLineCatalogContext {
+  const rate = Number(line.tax_rate_percentage ?? 0);
+  return {
+    ...emptyPoLineCatalogContext(),
+    tax_rate: Number.isFinite(rate) ? rate : 0,
+    tax_is_variable: false,
+    catalog_snapshot_source: "server",
+  };
+}
+
 export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormState {
   return {
     destination_location_id: order.destination_location_id,
@@ -183,6 +195,7 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
               unit_price_contractual: line.unit_price_contractual,
               discount_percentage: line.discount_percentage ?? "0",
               discount_amount: line.discount_amount ?? "0",
+              catalog_context: lineTaxCatalogSnapshot(line),
               skuError: null,
             }))
           )
@@ -213,6 +226,7 @@ export function copyPoDraftFromOrder(order: PurchaseOrderRow): PoDraftFormState 
           unit_price_contractual: line.unit_price_contractual,
           discount_percentage: line.discount_percentage ?? "0",
           discount_amount: line.discount_amount ?? "0",
+          catalog_context: lineTaxCatalogSnapshot(line),
           skuError: null,
         }))
     ),

@@ -24,6 +24,7 @@ type Props = {
   showSectionTitle?: boolean;
   /** Keep footer totals visible on large viewports (narrow 40vw drawer). */
   showFooterOnLarge?: boolean;
+  purchasePricesTaxInclusive?: boolean;
 };
 
 function resolveTotalsValue(field: DocumentColumnPref, totals: PurchaseOrderTotalsSnapshot): string {
@@ -124,10 +125,13 @@ export function PoTotalsPanel({
   layoutMode = "rail",
   showSectionTitle = true,
   showFooterOnLarge = false,
+  purchasePricesTaxInclusive = false,
 }: Props) {
   const resolvedLayout = normalizePoLayoutTemplate(layout);
   const visibleTotalsFields = getVisibleTotalsFields(resolvedLayout);
-  const totals = computePurchaseOrderTotals(filterSavablePoLines(lines));
+  const totals = computePurchaseOrderTotals(filterSavablePoLines(lines), {
+    purchasePricesTaxInclusive,
+  });
 
   if (layoutMode === "embedded") {
     return <TotalsCard totals={totals} fields={visibleTotalsFields} className={className} />;

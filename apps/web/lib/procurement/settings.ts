@@ -5,11 +5,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ProcurementSettings = {
   allow_edit_issued_purchase_orders: boolean;
   allow_line_item_discounts: boolean;
+  purchase_prices_tax_inclusive: boolean;
 };
 
 const DEFAULT_PROCUREMENT_SETTINGS: ProcurementSettings = {
   allow_edit_issued_purchase_orders: false,
   allow_line_item_discounts: false,
+  purchase_prices_tax_inclusive: false,
 };
 
 export async function fetchProcurementSettings(
@@ -59,5 +61,9 @@ export async function fetchProcurementSettings(
         ? meta.allow_edit_issued_purchase_orders
         : DEFAULT_PROCUREMENT_SETTINGS.allow_edit_issued_purchase_orders,
     allow_line_item_discounts: allowLineItemDiscounts,
+    purchase_prices_tax_inclusive:
+      typeof meta.purchase_prices_tax_inclusive === "boolean"
+        ? meta.purchase_prices_tax_inclusive
+        : DEFAULT_PROCUREMENT_SETTINGS.purchase_prices_tax_inclusive,
   };
 }
