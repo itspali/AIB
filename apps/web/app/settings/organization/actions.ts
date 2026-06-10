@@ -109,6 +109,7 @@ export async function saveOrganizationSettings(raw: unknown) {
       p_metadata_patch: {
         allow_edit_issued_purchase_orders: values.allow_edit_issued_purchase_orders,
         allow_line_item_discounts: values.allow_line_item_discounts,
+        allow_transaction_discounts: values.allow_transaction_discounts,
         purchase_prices_tax_inclusive: values.purchase_prices_tax_inclusive,
       },
     }),

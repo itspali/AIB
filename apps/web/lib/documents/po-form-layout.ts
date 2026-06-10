@@ -72,8 +72,15 @@ export function getVisiblePoFormHeaderDetailsFields(
   layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
 ): DocumentColumnPref[] {
   return getVisibleHeaderFields(normalizePoLayoutTemplate(layout)).filter(
-    (field) => resolveHeaderFieldSlot(field) === "details"
+    (field) => resolveHeaderFieldSlot(field) === "details" && field.id !== "internal_notes"
   );
+}
+
+export function getVisiblePoFormHeaderNotesField(
+  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
+): DocumentColumnPref | undefined {
+  const field = getPoLayoutColumnPref(normalizePoLayoutTemplate(layout), "internal_notes");
+  return field?.defaultVisible ? field : undefined;
 }
 
 /** Table columns for peek — column-slot line fields only (+ optional received qty). */

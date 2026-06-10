@@ -9,12 +9,17 @@ import { Button } from "@/components/ui/button";
 
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
+import { ProcurementPoliciesPanel } from "@/components/settings/modules/procurement-policies-panel";
 
 type Props = {
   locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
   initialLayout: DocumentLayoutTemplate;
+  procurementSettings: {
+    po_auto_round_off_enabled: boolean;
+    po_auto_round_off_step: number;
+  };
 };
 
 export function ProcurementModuleSettingsTerminal({
@@ -22,6 +27,7 @@ export function ProcurementModuleSettingsTerminal({
   canEdit,
   catalogFieldSuggestions,
   initialLayout,
+  procurementSettings,
 }: Props) {
   return (
     <div className="canvas-scroll-endpad space-y-3">
@@ -41,8 +47,8 @@ export function ProcurementModuleSettingsTerminal({
           <TabsTrigger value="layout" className="h-7 px-3 text-xs">
             Document layout
           </TabsTrigger>
-          <TabsTrigger value="policies" disabled className="h-7 px-3 text-xs">
-            Policies (soon)
+          <TabsTrigger value="policies" className="h-7 px-3 text-xs">
+            Policies
           </TabsTrigger>
         </TabsList>
 
@@ -56,9 +62,13 @@ export function ProcurementModuleSettingsTerminal({
         </TabsContent>
 
         <TabsContent value="policies" className="mt-2">
-          <p className="text-xs text-muted-foreground">
-            Procurement policies will move here from Organization settings.
-          </p>
+          <ProcurementPoliciesPanel
+            canEdit={canEdit}
+            initialSettings={{
+              po_auto_round_off_enabled: procurementSettings.po_auto_round_off_enabled,
+              po_auto_round_off_step: procurementSettings.po_auto_round_off_step,
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>

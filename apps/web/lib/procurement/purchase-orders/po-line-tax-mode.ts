@@ -17,6 +17,27 @@ export function resolvePoUnitPriceColumnLabel(pricesTaxInclusive: boolean): stri
   return pricesTaxInclusive ? "Offer price (inc tax)" : "Offer price (ex tax)";
 }
 
+const UNIT_PRICE_EX_TAX_SUFFIX = /\(ex tax\)/i;
+const UNIT_PRICE_INC_TAX_SUFFIX = /\(inc tax\)/i;
+
+/** Layout-driven unit price header — swaps ex/inc suffix when present; otherwise uses tenant label as-is. */
+export function resolvePoUnitPriceColumnLabelFromLayout(
+  layoutLabel: string,
+  pricesTaxInclusive: boolean
+): string {
+  const trimmed = layoutLabel.trim();
+  if (!trimmed) return resolvePoUnitPriceColumnLabel(pricesTaxInclusive);
+
+  if (UNIT_PRICE_EX_TAX_SUFFIX.test(trimmed) || UNIT_PRICE_INC_TAX_SUFFIX.test(trimmed)) {
+    if (pricesTaxInclusive) {
+      return trimmed.replace(UNIT_PRICE_EX_TAX_SUFFIX, "(inc tax)");
+    }
+    return trimmed.replace(UNIT_PRICE_INC_TAX_SUFFIX, "(ex tax)");
+  }
+
+  return trimmed;
+}
+
 export function resolvePoUnitPriceAriaLabel(pricesTaxInclusive: boolean): string {
   return pricesTaxInclusive ? "Offer unit price inc tax" : "Offer unit price ex tax";
 }

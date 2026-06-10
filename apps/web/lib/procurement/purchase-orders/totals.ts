@@ -1,10 +1,20 @@
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
 import {
+  computePoAutoRoundOff,
+  type PoAutoRoundOffPolicy,
+} from "@/lib/procurement/purchase-orders/po-auto-round-off";
+import {
   emptyPoHeaderCharges,
+  normalizePoHeaderChargesForSave,
   resolvePoHeaderChargesSnapshot,
   type PoHeaderChargesFields,
 } from "@/lib/procurement/purchase-orders/po-header-charges";
+import {
+  apportionTransactionDiscount,
+  normalizeTransactionDiscountForSave,
+  resolveTransactionDiscount,
+} from "@/lib/procurement/purchase-orders/po-transaction-discount";
 import { resolveFlatLineTax } from "@/lib/tax/resolve-line-tax";
 
 export type PoLineTotalsInput = {
@@ -20,6 +30,7 @@ export type PurchaseOrderTotalsSnapshot = {
   lineCount: number;
   filledLineCount: number;
   subtotalGross: number;
+  transactionDiscountAmount: number;
   taxAmount: number;
   shippingAmount: number;
   shippingTaxAmount: number;
@@ -32,6 +43,8 @@ export type PurchaseOrderTotalsOptions = {
   purchasePricesTaxInclusive?: boolean;
   taxMechanism?: GstTaxMechanism;
   headerCharges?: PoHeaderChargesFields;
+  autoRoundOff?: PoAutoRoundOffPolicy;
+  allowTransactionDiscounts?: boolean;
 };
 
 function parseAmount(value: string | undefined): number {
@@ -68,23 +81,14 @@ export function resolveLineDiscount(
   return Math.min(extension, (extension * discountPct) / 100);
 }
 
-/** Ex-tax line net after discount (matches persisted `line_total_gross`). */
-export function computeLineGross(
+function resolvePoLineTaxAmountWithExtraDiscount(
   line: PoLineTotalsInput,
-  options: PurchaseOrderTotalsOptions = {}
-): number {
-  const qty = parseAmount(line.quantity_ordered);
-  if (qty <= 0) return 0;
-  return resolvePoLineTaxAmount(line, options).taxableBase;
-}
-
-export function resolvePoLineTaxAmount(
-  line: PoLineTotalsInput,
+  extraLineDiscount: number,
   options: PurchaseOrderTotalsOptions = {}
 ): { taxableBase: number; taxAmount: number; lineTotal: number } {
   const qty = parseAmount(line.quantity_ordered);
   const unit = parseAmount(line.unit_price_contractual);
-  const lineDiscount = resolveLineDiscount(line);
+  const lineDiscount = resolveLineDiscount(line) + Math.max(extraLineDiscount, 0);
   const catalog = line.catalog_context;
   const pricesTaxInclusive = options.purchasePricesTaxInclusive ?? false;
 
@@ -99,12 +103,34 @@ export function resolvePoLineTaxAmount(
   });
 }
 
+/** Ex-tax line net after discount (matches persisted `line_total_gross`). */
+export function computeLineGross(
+  line: PoLineTotalsInput,
+  options: PurchaseOrderTotalsOptions = {}
+): number {
+  const qty = parseAmount(line.quantity_ordered);
+  if (qty <= 0) return 0;
+  return resolvePoLineTaxAmount(line, options).taxableBase;
+}
+
+export function resolvePoLineTaxAmount(
+  line: PoLineTotalsInput,
+  options: PurchaseOrderTotalsOptions = {}
+): { taxableBase: number; taxAmount: number; lineTotal: number } {
+  return resolvePoLineTaxAmountWithExtraDiscount(line, 0, options);
+}
+
 export function computePurchaseOrderTotals(
   lines: PoLineTotalsInput[],
   options: PurchaseOrderTotalsOptions = {}
 ): PurchaseOrderTotalsSnapshot {
+  const headerCharges = options.headerCharges ?? emptyPoHeaderCharges();
+  const lineStates: Array<{
+    line: PoLineTotalsInput;
+    preTransactionTaxableBase: number;
+  }> = [];
+
   let subtotalGross = 0;
-  let taxAmount = 0;
   let filledLineCount = 0;
 
   for (const line of lines) {
@@ -112,35 +138,107 @@ export function computePurchaseOrderTotals(
     const qty = parseAmount(line.quantity_ordered);
     if (qty > 0) {
       filledLineCount += 1;
-      const resolved = resolvePoLineTaxAmount(line, options);
-      subtotalGross += resolved.taxableBase;
-      taxAmount += resolved.taxAmount;
+      const preTransaction = resolvePoLineTaxAmount(line, options);
+      subtotalGross += preTransaction.taxableBase;
+      lineStates.push({
+        line,
+        preTransactionTaxableBase: preTransaction.taxableBase,
+      });
     } else if (variantReady) {
       filledLineCount += 1;
     }
   }
 
-  const headerCharges = resolvePoHeaderChargesSnapshot(
-    options.headerCharges ?? emptyPoHeaderCharges()
+  const transactionDiscountAmount =
+    options.allowTransactionDiscounts === false
+      ? 0
+      : resolveTransactionDiscount(subtotalGross, headerCharges);
+
+  const apportionedShares = apportionTransactionDiscount(
+    lineStates.map((state) => state.preTransactionTaxableBase),
+    transactionDiscountAmount
   );
+
+  let taxAmount = 0;
+  for (let index = 0; index < lineStates.length; index += 1) {
+    const state = lineStates[index];
+    if (!state) continue;
+    const resolved = resolvePoLineTaxAmountWithExtraDiscount(
+      state.line,
+      apportionedShares[index] ?? 0,
+      options
+    );
+    taxAmount += resolved.taxAmount;
+  }
+
+  const headerSnapshot = resolvePoHeaderChargesSnapshot(headerCharges);
+
+  const preRoundTotal =
+    subtotalGross -
+    transactionDiscountAmount +
+    taxAmount +
+    headerSnapshot.shippingAmount +
+    headerSnapshot.shippingTaxAmount +
+    headerSnapshot.additionalChargesAmount;
+
+  const autoRoundOff = options.autoRoundOff;
+  if (autoRoundOff?.enabled) {
+    const { roundOffAmount, grandTotal } = computePoAutoRoundOff(
+      preRoundTotal,
+      autoRoundOff.step
+    );
+    return {
+      lineCount: lines.length,
+      filledLineCount,
+      subtotalGross,
+      transactionDiscountAmount,
+      taxAmount,
+      shippingAmount: headerSnapshot.shippingAmount,
+      shippingTaxAmount: headerSnapshot.shippingTaxAmount,
+      roundOffAmount,
+      additionalChargesAmount: headerSnapshot.additionalChargesAmount,
+      grandTotal,
+    };
+  }
 
   return {
     lineCount: lines.length,
     filledLineCount,
     subtotalGross,
+    transactionDiscountAmount,
     taxAmount,
-    shippingAmount: headerCharges.shippingAmount,
-    shippingTaxAmount: headerCharges.shippingTaxAmount,
-    roundOffAmount: headerCharges.roundOffAmount,
-    additionalChargesAmount: headerCharges.additionalChargesAmount,
-    grandTotal:
-      subtotalGross +
-      taxAmount +
-      headerCharges.shippingAmount +
-      headerCharges.shippingTaxAmount +
-      headerCharges.additionalChargesAmount +
-      headerCharges.roundOffAmount,
+    shippingAmount: headerSnapshot.shippingAmount,
+    shippingTaxAmount: headerSnapshot.shippingTaxAmount,
+    roundOffAmount: headerSnapshot.roundOffAmount,
+    additionalChargesAmount: headerSnapshot.additionalChargesAmount,
+    grandTotal: preRoundTotal + headerSnapshot.roundOffAmount,
   };
+}
+
+export function resolvePoHeaderChargesForSave(
+  charges: PoHeaderChargesFields,
+  lines: PoLineTotalsInput[],
+  options: PurchaseOrderTotalsOptions = {}
+) {
+  const totals = computePurchaseOrderTotals(lines, options);
+  const transactionDiscount =
+    options.allowTransactionDiscounts === false
+      ? {
+          transaction_discount_percentage: 0,
+          transaction_discount_amount: 0,
+          transaction_discount_type: "percent" as const,
+        }
+      : normalizeTransactionDiscountForSave(charges, totals.subtotalGross);
+
+  return normalizePoHeaderChargesForSave(
+    charges,
+    options.autoRoundOff?.enabled
+      ? {
+          roundOffAmount: totals.roundOffAmount,
+          transactionDiscount,
+        }
+      : { transactionDiscount }
+  );
 }
 
 export function formatPoMoney(value: number, decimalPlaces = 2): string {

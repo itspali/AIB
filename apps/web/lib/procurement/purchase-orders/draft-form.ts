@@ -12,9 +12,10 @@ import {
 } from "@/lib/procurement/purchase-orders/po-line-discount";
 import {
   emptyPoHeaderCharges,
+  normalizePoHeaderChargesFromStorage,
   type PoHeaderChargesFields,
-  type PoShippingTaxType,
 } from "@/lib/procurement/purchase-orders/po-header-charges";
+import { mapPurchaseOrderTransactionDiscount } from "@/lib/procurement/purchase-orders/po-transaction-discount";
 import { computeImpliedMrpMarkdownPct } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
 
@@ -262,16 +263,15 @@ function lineCatalogSnapshot(line: {
 }
 
 export function mapPurchaseOrderHeaderCharges(order: PurchaseOrderRow): PoHeaderChargesFields {
-  const shippingTaxType: PoShippingTaxType =
-    order.shipping_tax_type === "amount" ? "amount" : "percent";
-  return {
+  return normalizePoHeaderChargesFromStorage({
+    ...mapPurchaseOrderTransactionDiscount(order),
     shipping_amount: order.shipping_amount ?? "0",
     shipping_tax_rate_pct: order.shipping_tax_rate_pct ?? "0",
     shipping_tax_amount: order.shipping_tax_amount ?? "0",
-    shipping_tax_type: shippingTaxType,
+    shipping_tax_type: order.shipping_tax_type === "amount" ? "amount" : "percent",
     round_off_amount: order.round_off_amount ?? "0",
     additional_charges_amount: order.additional_charges_amount ?? "0",
-  };
+  });
 }
 
 export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormState {

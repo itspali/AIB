@@ -16,9 +16,11 @@ import {
   mapPurchaseOrderToDraft,
   type PoDraftFormState,
 } from "@/lib/procurement/purchase-orders/draft-form";
-import { normalizePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/po-header-charges";
+import { resolvePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/totals";
 import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
+import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type {
   ProcurementLocationOption,
@@ -38,7 +40,10 @@ type Options = {
   preferredDestinationLocationId?: string | null;
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
+  allowTransactionDiscounts?: boolean;
   defaultPricesTaxInclusive?: boolean;
+  autoRoundOffPolicy?: PoAutoRoundOffPolicy;
+  tenantCountry?: string | null;
   onAfterSave: (purchaseOrderId: string) => void;
   onEditNotAllowed?: (purchaseOrderId: string) => void;
 };
@@ -53,7 +58,10 @@ export function usePoMutateForm({
   preferredDestinationLocationId = null,
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
+  allowTransactionDiscounts = false,
   defaultPricesTaxInclusive = false,
+  autoRoundOffPolicy,
+  tenantCountry = null,
   onAfterSave,
   onEditNotAllowed,
 }: Options) {
@@ -209,7 +217,21 @@ export function usePoMutateForm({
     setError(null);
     setErrorAction(null);
     startTransition(async () => {
-      const headerCharges = normalizePoHeaderChargesForSave(form.header_charges);
+      const savableLines = filterSavablePoLines(form.lines);
+      const taxMechanism = resolvePoGstContextFromForm(
+        suppliers,
+        form.supplier_id,
+        locations,
+        form.destination_location_id,
+        tenantCountry
+      ).taxMechanism;
+      const headerCharges = resolvePoHeaderChargesForSave(form.header_charges, savableLines, {
+        purchasePricesTaxInclusive: form.prices_tax_inclusive,
+        taxMechanism,
+        headerCharges: form.header_charges,
+        autoRoundOff: autoRoundOffPolicy,
+        allowTransactionDiscounts,
+      });
       const payload = {
         purchase_order_id: editOrderId ?? detail?.id ?? null,
         destination_location_id: form.destination_location_id,
@@ -224,7 +246,10 @@ export function usePoMutateForm({
         shipping_tax_type: headerCharges.shipping_tax_type,
         round_off_amount: String(headerCharges.round_off_amount),
         additional_charges_amount: String(headerCharges.additional_charges_amount),
-        lines: filterSavablePoLines(form.lines).map((line) => {
+        transaction_discount_percentage: String(headerCharges.transaction_discount_percentage),
+        transaction_discount_amount: String(headerCharges.transaction_discount_amount),
+        transaction_discount_type: headerCharges.transaction_discount_type,
+        lines: savableLines.map((line) => {
           const discount = normalizePoLineDiscountForSave(line);
           return {
             variant_id: line.variant_id,
@@ -248,7 +273,7 @@ export function usePoMutateForm({
       setIsDirty(false);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [detail?.id, editOrderId, form, onAfterSave]);
+  }, [allowTransactionDiscounts, autoRoundOffPolicy, detail?.id, editOrderId, form, locations, onAfterSave, suppliers, tenantCountry]);
 
   const handleIssue = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;

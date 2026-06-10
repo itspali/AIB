@@ -116,9 +116,15 @@ export function useOrganizationPolicyItems(
       },
       {
         id: "discounts",
-        label: "Discounts",
+        label: "Line discounts",
         value: formValues.allow_line_item_discounts ? "Allowed" : "Blocked",
         tone: policyTone("allowed", formValues.allow_line_item_discounts),
+      },
+      {
+        id: "txn-discounts",
+        label: "Trade discount",
+        value: formValues.allow_transaction_discounts ? "Allowed" : "Blocked",
+        tone: policyTone("allowed", formValues.allow_transaction_discounts),
       },
       {
         id: "transfers",

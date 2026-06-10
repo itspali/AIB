@@ -153,6 +153,15 @@ export function OrganizationAccountingSection({ form, disabled }: Props) {
           setValue("allow_line_item_discounts", checked, { shouldDirty: true })
         }
       />
+      <SwitchRow
+        label="Allow transaction trade discounts"
+        description="Header-level trade discount on purchase orders (reduces taxable value before tax)."
+        checked={watch("allow_transaction_discounts")}
+        disabled={disabled}
+        onCheckedChange={(checked) =>
+          setValue("allow_transaction_discounts", checked, { shouldDirty: true })
+        }
+      />
 
       <div className="space-y-3 border-t border-border pt-4">
         <div>

@@ -32,6 +32,10 @@ Overseas service suppliers resolve to `IMPORT_SERVICES` + `REVERSE_CHARGE`. PO l
 
 Views: `gstr1_outward_supplies`, `gstr2_inward_supplies`, `gstr3b_summary`. Export via `fetch_gstr_export` RPC and `/settings/tax/gstr` UI.
 
+## Purchase order trade discount
+
+Document-level **trade discount** on purchase orders (Summary → Trade discount) reduces the taxable value before tax is calculated. The discount is apportioned across lines proportionally so line `tax_components_json` and GSTR-2 inward views stay consistent. This is not a cash/settlement discount for early payment — those do not reduce GST at supply time.
+
 ## E-invoice readiness
 
 `sales_invoices` stores IRN fields and `einvoice_status`. `validate_sales_invoice_einvoice` checks HSN and export shipping bill; `generate_einvoice_irn` is a stub until NIC API credentials are configured. Enable per tenant with `tenants.einvoice_enabled`.

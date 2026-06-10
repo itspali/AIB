@@ -238,6 +238,9 @@ export async function savePurchaseOrder(raw: unknown) {
     shipping_tax_type: values.shipping_tax_type,
     round_off_amount: values.round_off_amount,
     additional_charges_amount: values.additional_charges_amount,
+    transaction_discount_percentage: values.transaction_discount_percentage,
+    transaction_discount_amount: values.transaction_discount_amount,
+    transaction_discount_type: values.transaction_discount_type,
   });
 
   const { data, error } = await supabase.rpc("save_purchase_order", {
@@ -263,6 +266,9 @@ export async function savePurchaseOrder(raw: unknown) {
     p_shipping_tax_type: headerCharges.shipping_tax_type,
     p_round_off_amount: headerCharges.round_off_amount,
     p_additional_charges_amount: headerCharges.additional_charges_amount,
+    p_transaction_discount_percentage: headerCharges.transaction_discount_percentage,
+    p_transaction_discount_amount: headerCharges.transaction_discount_amount,
+    p_transaction_discount_type: headerCharges.transaction_discount_type,
   });
 
   if (error) {

@@ -2,12 +2,17 @@
 
 import {
   useCallback,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
+import {
+  resolveAddedLineScrollTargetKey,
+  scrollElementWithinOverflowContainer,
+} from "@/lib/documents/scroll-container-into-view";
 import { DocumentLineEntryRow } from "@/components/documents/document-line-entry-row";
 import {
   EMPTY_LINE_ROW_DRAG_STATE,
@@ -51,6 +56,8 @@ type Props<T extends LineRow> = {
   columns: DocumentLineColumn[];
   minTableWidth?: string;
   fillHeight?: boolean;
+  /** Scroll newly inserted rows into view inside the grid panel (spreadsheet entry). */
+  autoScrollAddedLines?: "top" | "bottom";
   showLineNumbers?: boolean;
   showRemoveColumn?: boolean;
   disabled?: boolean;
@@ -92,6 +99,7 @@ export function DocumentLineEntryGrid<T extends LineRow>({
   columns,
   minTableWidth = "min-w-[34rem]",
   fillHeight = false,
+  autoScrollAddedLines,
   showLineNumbers = true,
   showRemoveColumn = true,
   disabled = false,
@@ -107,6 +115,8 @@ export function DocumentLineEntryGrid<T extends LineRow>({
   const actionsColWidth = onDuplicateLine && onRemoveLine ? "4.5rem" : "2.25rem";
   const lineNumberColWidth = onReorderLine ? "3rem" : "2.25rem";
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const previousLineKeysRef = useRef<string[]>([]);
   const [dragState, setDragState] = useState<LineRowDragState>(EMPTY_LINE_ROW_DRAG_STATE);
   const dragStateRef = useRef(dragState);
   dragStateRef.current = dragState;
@@ -116,6 +126,34 @@ export function DocumentLineEntryGrid<T extends LineRow>({
   );
   const lineKeys = lines.map((line) => line.key);
   const reorderEnabled = Boolean(onReorderLine) && !disabled;
+  const scrollAnchor = autoScrollAddedLines ?? (fillHeight ? "bottom" : undefined);
+
+  useLayoutEffect(() => {
+    if (!scrollAnchor) {
+      previousLineKeysRef.current = lineKeys;
+      return;
+    }
+
+    const previousKeys = previousLineKeysRef.current;
+    previousLineKeysRef.current = lineKeys;
+
+    const targetKey = resolveAddedLineScrollTargetKey(previousKeys, lineKeys, scrollAnchor);
+    const scrollContainer = scrollRef.current;
+    const tbody = tbodyRef.current;
+    if (!targetKey || !scrollContainer || !tbody) return;
+
+    const row = tbody.querySelector(`tr[data-line-key="${targetKey}"]`);
+    if (!(row instanceof HTMLElement)) return;
+
+    const scrollToRow = () => {
+      scrollElementWithinOverflowContainer(scrollContainer, row, {
+        edge: scrollAnchor === "top" ? "start" : "end",
+      });
+    };
+
+    scrollToRow();
+    requestAnimationFrame(scrollToRow);
+  }, [lineKeys, scrollAnchor]);
 
   const handleTbodyDragOver = useCallback(
     (event: DragEvent<HTMLTableSectionElement>) => {
@@ -179,6 +217,7 @@ export function DocumentLineEntryGrid<T extends LineRow>({
       )}
     >
       <div
+        ref={scrollRef}
         className={cn(
           "po-line-grid-scroll",
           fillHeight ? "min-h-0 flex-1 overflow-x-auto overflow-y-auto" : "overflow-y-visible"

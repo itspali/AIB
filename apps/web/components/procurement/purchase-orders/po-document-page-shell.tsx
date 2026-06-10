@@ -24,6 +24,7 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 
 type Props = {
   mode: "create" | "edit";
@@ -34,7 +35,9 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
+  allowTransactionDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   defaultPricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
@@ -52,11 +55,14 @@ export function PoDocumentPageShell({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
+  allowTransactionDiscounts = false,
   enableMrpTradeTerms = true,
+  autoRoundOffPolicy,
   defaultPricesTaxInclusive,
   defaultCurrency,
   documentLayout,
   preferredDestinationLocationId = null,
+  organizationBillTo,
   taxCodeOptions,
 }: Props) {
   const router = useRouter();
@@ -81,7 +87,10 @@ export function PoDocumentPageShell({
     preferredDestinationLocationId,
     editAccessGranted,
     allowEditIssuedPurchaseOrders,
+    allowTransactionDiscounts,
     defaultPricesTaxInclusive,
+    autoRoundOffPolicy,
+    tenantCountry: organizationBillTo.country_code ?? null,
     onAfterSave: handleAfterSave,
     onEditNotAllowed: mode === "edit" ? handleEditNotAllowed : undefined,
   });
@@ -204,8 +213,11 @@ export function PoDocumentPageShell({
                 defaultCurrency={defaultCurrency}
                 documentLayout={documentLayout}
                 allowLineItemDiscounts={allowLineItemDiscounts}
+                allowTransactionDiscounts={allowTransactionDiscounts}
                 enableMrpTradeTerms={enableMrpTradeTerms}
+                autoRoundOffPolicy={autoRoundOffPolicy}
                 taxCodeOptions={taxCodeOptions}
+                tenantCountry={organizationBillTo.country_code ?? null}
                 isPending={mutate.isPending}
                 layoutOverride={PO_FULL_PAGE_LAYOUT}
                 onPatch={mutate.patchForm}

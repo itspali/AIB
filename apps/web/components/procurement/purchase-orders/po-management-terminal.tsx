@@ -35,6 +35,7 @@ import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-la
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
@@ -46,7 +47,9 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
+  allowTransactionDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   defaultPricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
@@ -62,7 +65,9 @@ export function PoManagementTerminal({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
+  allowTransactionDiscounts = false,
   enableMrpTradeTerms = true,
+  autoRoundOffPolicy,
   defaultPricesTaxInclusive,
   defaultCurrency,
   documentLayout: initialDocumentLayout,
@@ -277,7 +282,9 @@ export function PoManagementTerminal({
         editAccessGranted={editAccessGranted}
         allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
         allowLineItemDiscounts={allowLineItemDiscounts}
+        allowTransactionDiscounts={allowTransactionDiscounts}
         enableMrpTradeTerms={enableMrpTradeTerms}
+        autoRoundOffPolicy={autoRoundOffPolicy}
         defaultPricesTaxInclusive={defaultPricesTaxInclusive}
         defaultCurrency={defaultCurrency}
         preferredDestinationLocationId={preferredDestinationLocationId}

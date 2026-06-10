@@ -4,17 +4,20 @@ import { fetchDocumentLayoutTemplate } from "@/lib/documents/document-layout-que
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchLocationRows } from "@/lib/locations/queries";
 import { fetchPoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
+import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 
 export default async function ProcurementModuleSettingsPage() {
   const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
     await getModulePageContext();
 
-  const [locations, access, catalogFieldSuggestions, initialLayout] = await Promise.all([
+  const [locations, access, catalogFieldSuggestions, initialLayout, procurementSettings] =
+    await Promise.all([
     fetchLocationRows(supabase, tenantId),
     resolveOrganizationSettingsAccess(supabase, userId, tenantId),
     fetchPoCatalogFieldSuggestions(supabase, tenantId),
     fetchDocumentLayoutTemplate(supabase, tenantId, "PURCHASE_ORDER", "SCREEN_GRID"),
+    fetchProcurementSettings(supabase, tenantId),
   ]);
 
   const locationOptions = locations
@@ -33,6 +36,7 @@ export default async function ProcurementModuleSettingsPage() {
         canEdit={access.granted}
         catalogFieldSuggestions={catalogFieldSuggestions}
         initialLayout={initialLayout}
+        procurementSettings={procurementSettings}
       />
     </DashboardShell>
   );

@@ -130,6 +130,7 @@ export type PoFormHeaderPlaceableFieldId = (typeof PO_FORM_HEADER_PLACEABLE_FIEL
 export const PO_TOTALS_FIELD_IDS = [
   "line_count",
   "subtotal_ex_tax",
+  "transaction_discount",
   "tax_amount",
   "shipping_amount",
   "shipping_tax_amount",
@@ -140,6 +141,7 @@ export const PO_TOTALS_FIELD_IDS = [
 
 /** Totals rows editable on the PO form (not computed from lines). */
 export const PO_EDITABLE_TOTALS_FIELD_IDS = [
+  "transaction_discount",
   "shipping_amount",
   "shipping_tax_amount",
   "round_off_amount",
@@ -148,8 +150,8 @@ export const PO_EDITABLE_TOTALS_FIELD_IDS = [
 
 export type PoEditableTotalsFieldId = (typeof PO_EDITABLE_TOTALS_FIELD_IDS)[number];
 
-/** Internal helper for shipping tax subline — not in layout settings. */
-export const PO_TOTALS_INTERNAL_FIELD_IDS = ["shipping_tax_rate_pct"] as const;
+/** Totals rows omitted from summary and layout settings. */
+export const PO_TOTALS_INTERNAL_FIELD_IDS = ["line_count", "shipping_tax_rate_pct"] as const;
 
 export type PoTotalsFieldId = (typeof PO_TOTALS_FIELD_IDS)[number];
 
@@ -453,11 +455,19 @@ const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
 ];
 
 const PO_TOTALS_COLUMNS: DocumentColumnPref[] = [
-  { id: "line_count", label: "Lines", defaultVisible: true, group: "totals", align: "right" },
+  { id: "line_count", label: "Lines", defaultVisible: false, group: "totals", align: "right" },
   {
     id: "subtotal_ex_tax",
     label: "Subtotal (ex tax)",
     defaultVisible: true,
+    group: "totals",
+    align: "right",
+    decimalPlaces: 2,
+  },
+  {
+    id: "transaction_discount",
+    label: "Trade discount",
+    defaultVisible: false,
     group: "totals",
     align: "right",
     decimalPlaces: 2,
@@ -512,13 +522,43 @@ const PO_TOTALS_COLUMNS: DocumentColumnPref[] = [
   },
   {
     id: "grand_total",
-    label: "Total",
+    label: "Grand total",
     defaultVisible: true,
     group: "totals",
     align: "right",
     decimalPlaces: 2,
   },
 ];
+
+const PO_TOTALS_CHARGE_FIELD_IDS = [
+  "shipping_amount",
+  "shipping_tax_amount",
+  "round_off_amount",
+  "additional_charges_amount",
+] as const satisfies readonly PoTotalsFieldId[];
+
+/** Ensures canonical commercial order and charge rows precede grand total. */
+export function normalizeTotalsFieldOrder(order: readonly PoTotalsFieldId[]): PoTotalsFieldId[] {
+  const chargeSet = new Set<string>(PO_TOTALS_CHARGE_FIELD_IDS);
+  const withoutGrand = order.filter((id) => id !== "grand_total");
+  const charges = PO_TOTALS_CHARGE_FIELD_IDS.filter((id) => withoutGrand.includes(id));
+  const rest = withoutGrand.filter((id) => !chargeSet.has(id));
+
+  const orderedRest: PoTotalsFieldId[] = [];
+  const seen = new Set<string>();
+  for (const id of PO_TOTALS_FIELD_IDS) {
+    if (id === "grand_total" || chargeSet.has(id)) continue;
+    if (rest.includes(id)) {
+      orderedRest.push(id);
+      seen.add(id);
+    }
+  }
+  for (const id of rest) {
+    if (!seen.has(id)) orderedRest.push(id);
+  }
+
+  return [...orderedRest, ...charges, "grand_total"];
+}
 
 export const DEFAULT_PO_LINE_COLUMN_ORDER: PoLineColumnId[] = [...PO_LINE_COLUMN_IDS];
 export const DEFAULT_PO_LINE_SETTINGS_COLUMN_ORDER: PoLineSettingsColumnId[] = [
@@ -648,9 +688,11 @@ export function normalizePoLayoutTemplate(
       "headerFieldOrder" in template ? template.headerFieldOrder : undefined,
       PO_HEADER_FIELD_IDS
     ),
-    totalsFieldOrder: mergeFieldOrder(
-      "totalsFieldOrder" in template ? template.totalsFieldOrder : undefined,
-      PO_TOTALS_FIELD_IDS
+    totalsFieldOrder: normalizeTotalsFieldOrder(
+      mergeFieldOrder(
+        "totalsFieldOrder" in template ? template.totalsFieldOrder : undefined,
+        PO_TOTALS_FIELD_IDS
+      )
     ),
     imageDisplayMode:
       "imageDisplayMode" in template && template.imageDisplayMode
@@ -677,11 +719,15 @@ export function mergePoColumnPrefs(saved: readonly DocumentColumnPref[]): Docume
 
   for (const registryColumn of registry) {
     const savedColumn = savedById.get(registryColumn.id);
-    merged.push(
-      savedColumn
-        ? { ...registryColumn, ...savedColumn, id: registryColumn.id }
-        : registryColumn
-    );
+    if (savedColumn) {
+      const mergedColumn = { ...registryColumn, ...savedColumn, id: registryColumn.id };
+      if (mergedColumn.id === "grand_total" && mergedColumn.label === "Total") {
+        mergedColumn.label = registryColumn.label;
+      }
+      merged.push(mergedColumn);
+      continue;
+    }
+    merged.push(registryColumn);
   }
 
   for (const column of saved) {
@@ -960,7 +1006,13 @@ export function movePoTotalsFieldOrder(
   fromId: PoTotalsFieldId,
   toId: PoTotalsFieldId
 ): DocumentLayoutTemplate {
-  return movePoLayoutFieldOrder(layout, "totalsFieldOrder", fromId, toId);
+  const moved = movePoLayoutFieldOrder(layout, "totalsFieldOrder", fromId, toId, [
+    "grand_total",
+  ]);
+  return {
+    ...moved,
+    totalsFieldOrder: normalizeTotalsFieldOrder(moved.totalsFieldOrder as PoTotalsFieldId[]),
+  };
 }
 
 function movePoLayoutFieldOrder<TId extends string>(

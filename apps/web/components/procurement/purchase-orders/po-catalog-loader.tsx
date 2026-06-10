@@ -6,6 +6,7 @@ import {
   preferredPurchaseOrderDestinationId,
 } from "@/lib/procurement/location-scope";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
+import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
 import { fetchPurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import { mapOrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
@@ -65,7 +66,9 @@ export async function PoCatalogLoader() {
         procurementSettings.allow_edit_issued_purchase_orders
       }
       allowLineItemDiscounts={procurementSettings.allow_line_item_discounts}
+      allowTransactionDiscounts={procurementSettings.allow_transaction_discounts}
       enableMrpTradeTerms={procurementSettings.po_mrp_trade_terms_enabled}
+      autoRoundOffPolicy={resolvePoAutoRoundOffPolicy(procurementSettings)}
       defaultPricesTaxInclusive={procurementSettings.purchase_prices_tax_inclusive}
       defaultCurrency={defaultCurrency}
       documentLayout={documentLayout}

@@ -96,6 +96,23 @@ export const savePurchaseOrderSchema = z.object({
       const parsed = Number(value);
       return Number.isFinite(parsed) && parsed >= 0;
     }, "Additional charges must be zero or greater."),
+  transaction_discount_percentage: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
+    }, "Trade discount percent must be between 0 and 100."),
+  transaction_discount_amount: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0;
+    }, "Trade discount amount must be zero or greater."),
+  transaction_discount_type: z.enum(["percent", "amount"]).default("percent"),
   lines: z.array(purchaseOrderLineSchema).min(1, "Add at least one line."),
 });
 

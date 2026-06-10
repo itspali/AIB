@@ -89,7 +89,10 @@ function buildPoHeaderChargeFields(includeHeaderCharges: boolean): string {
       shipping_tax_amount,
       shipping_tax_type,
       round_off_amount,
-      additional_charges_amount,`;
+      additional_charges_amount,
+      transaction_discount_percentage,
+      transaction_discount_amount,
+      transaction_discount_type,`;
 }
 
 function buildPoHeaderTaxFields(includeTaxColumns: boolean): string {
@@ -336,6 +339,9 @@ type PoListDbRow = {
   shipping_tax_type?: string | null;
   round_off_amount?: number | string | null;
   additional_charges_amount?: number | string | null;
+  transaction_discount_percentage?: number | string | null;
+  transaction_discount_amount?: number | string | null;
+  transaction_discount_type?: string | null;
   prices_tax_inclusive?: boolean | null;
   tax_supply_nature?: string | null;
   tax_mechanism?: string | null;
@@ -523,6 +529,10 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     shipping_tax_type: row.shipping_tax_type === "amount" ? "amount" : "percent",
     round_off_amount: formatDecimal(row.round_off_amount ?? 0),
     additional_charges_amount: formatDecimal(row.additional_charges_amount ?? 0),
+    transaction_discount_percentage: formatDecimal(row.transaction_discount_percentage ?? 0),
+    transaction_discount_amount: formatDecimal(row.transaction_discount_amount ?? 0),
+    transaction_discount_type:
+      row.transaction_discount_type === "amount" ? "amount" : "percent",
     prices_tax_inclusive: row.prices_tax_inclusive === true,
     tax_supply_nature: isPoTaxSupplyNature(String(row.tax_supply_nature ?? ""))
       ? (row.tax_supply_nature as PoTaxSupplyNature)

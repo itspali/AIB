@@ -81,4 +81,22 @@ describe("purchase-order schemas", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("rejects transaction discount percent above 100", () => {
+    const result = savePurchaseOrderSchema.safeParse({
+      destination_location_id: "9952be31-7686-450e-a86c-f7f4253e8b5a",
+      supplier_id: "a052c3a8-9b2d-4c5e-8f1a-2b3c4d5e6f7a",
+      currency_code: "USD",
+      transaction_discount_percentage: "150",
+      lines: [
+        {
+          variant_id: "b162d4b9-0c3e-5d6f-9a2b-3c4d5e6f7a8b",
+          quantity_ordered: "1",
+          unit_price_contractual: "10",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

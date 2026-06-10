@@ -59,6 +59,7 @@ export const organizationSettingsSchema = z.object({
   sku_auto_pattern: z.string().trim().min(1).max(64),
   sku_auto_prefix: z.string().trim().min(1).max(24),
   allow_line_item_discounts: z.boolean(),
+  allow_transaction_discounts: z.boolean(),
   allow_edit_issued_purchase_orders: z.boolean(),
   purchase_prices_tax_inclusive: z.boolean(),
   accounting_period_closing_date: z.string().trim(),

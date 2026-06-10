@@ -36,6 +36,7 @@ import {
   movePoTotalsFieldOrder,
   normalizePoLayoutTemplate,
   patchPoLayoutColumn,
+  PO_TOTALS_INTERNAL_FIELD_IDS,
   type PoHeaderFieldId,
   type PoLineSettingsColumnId,
   type PoTotalsFieldId,
@@ -311,7 +312,9 @@ export function PurchaseOrderDocumentLayoutPanel({
 
           <SectionBlock title="Totals">
             <DocumentLayoutFieldList<PoTotalsFieldId>
-              order={layout.totalsFieldOrder as PoTotalsFieldId[]}
+              order={(layout.totalsFieldOrder as PoTotalsFieldId[]).filter(
+                (id) => !(PO_TOTALS_INTERNAL_FIELD_IDS as readonly string[]).includes(id)
+              )}
               getColumn={(id) => getColumn(id)}
               showAlignColumn
               showDecimalsColumn

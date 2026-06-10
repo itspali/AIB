@@ -26,8 +26,7 @@ import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
 import {
-  resolvePoLineTotalColumnLabel,
-  resolvePoUnitPriceColumnLabel,
+  resolvePoUnitPriceColumnLabelFromLayout,
 } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
 import { PoLineTaxModeToggle } from "@/components/procurement/purchase-orders/po-line-tax-mode-toggle";
@@ -84,6 +83,7 @@ function PoLineEntryGrid({
   excludePurchaseOrderId,
   disabled,
   fillHeight,
+  autoScrollAddedLines,
   layout: layoutProp,
   allowLineItemDiscounts,
   enableMrpTradeTerms,
@@ -99,6 +99,7 @@ function PoLineEntryGrid({
   excludePurchaseOrderId?: string | null;
   disabled: boolean;
   fillHeight: boolean;
+  autoScrollAddedLines?: "top" | "bottom";
   layout: DocumentLayoutTemplate;
   allowLineItemDiscounts: boolean;
   enableMrpTradeTerms: boolean;
@@ -139,9 +140,7 @@ function PoLineEntryGrid({
       visibleColumns.map((column) => {
         let label = column.id === PO_LINE_IMAGE_COLUMN_ID ? "" : column.label;
         if (column.id === "unit_price") {
-          label = resolvePoUnitPriceColumnLabel(pricesTaxInclusive);
-        } else if (column.id === "line_total") {
-          label = resolvePoLineTotalColumnLabel(pricesTaxInclusive);
+          label = resolvePoUnitPriceColumnLabelFromLayout(column.label, pricesTaxInclusive);
         }
 
         return {
@@ -170,6 +169,7 @@ function PoLineEntryGrid({
       columns={columns}
       minTableWidth={minTableWidth}
       fillHeight={fillHeight}
+      autoScrollAddedLines={autoScrollAddedLines}
       disabled={disabled}
       canRemoveLine={(_, __, allLines) => allLines.length > 1}
       onRemoveLine={actions.removeLine}
@@ -287,6 +287,7 @@ export function PoLineEntryTable({
         excludePurchaseOrderId={excludePurchaseOrderId}
         disabled={disabled}
         fillHeight={fillHeight}
+        autoScrollAddedLines={entryAnchor === "top" ? "top" : "bottom"}
         layout={resolvedLayout}
         allowLineItemDiscounts={allowLineItemDiscounts}
         enableMrpTradeTerms={enableMrpTradeTerms}

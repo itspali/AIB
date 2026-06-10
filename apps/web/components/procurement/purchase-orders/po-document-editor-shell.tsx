@@ -1,17 +1,20 @@
 "use client";
 
 import { useMemo } from "react";
-import { PoDetailsPanel } from "@/components/procurement/purchase-orders/po-details-panel";
-import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
-import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
+import { PoDocumentSummaryStack } from "@/components/procurement/purchase-orders/po-document-summary-stack";
+import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
 import { PoLineTaxModeToggle } from "@/components/procurement/purchase-orders/po-line-tax-mode-toggle";
 import { PoLineEntryTable } from "@/components/procurement/purchase-orders/po-line-entry-table";
 import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
-import { PoTotalsPanel } from "@/components/procurement/purchase-orders/po-totals-panel";
 import type { RightDrawerLayoutValue } from "@/components/ui/right-drawer";
 import { usePoDocumentLayout } from "@/lib/documents/use-po-document-layout";
+import { getVisiblePoFormHeaderNotesField } from "@/lib/documents/po-form-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftFormState } from "@/lib/procurement/purchase-orders/draft-form";
+import {
+  poSideRailBreakpointClass,
+  resolvePoSideRailWidthClass,
+} from "@/lib/procurement/purchase-orders/po-drawer-side-rail-layout";
 import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 import type {
   ProcurementLocationOption,
@@ -19,6 +22,7 @@ import type {
 } from "@/lib/procurement/shared/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { cn } from "@/lib/utils";
 
 export const PO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
@@ -26,16 +30,10 @@ export const PO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
   isPartialDrawer: false,
 };
 
-/** Drawer side rail — compact for 60vw partial panel. */
-const PO_DRAWER_SIDE_RAIL_CLASS =
-  "lg:w-[15rem] lg:max-w-[40%]";
+const PO_SIDE_RAIL_SECTION_TITLE_CLASS =
+  "shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 
-/** Full-page side rail — room for summary labels and money values. */
-const PO_FULL_PAGE_SIDE_RAIL_CLASS =
-  "lg:w-[20rem] lg:min-w-[20rem] lg:max-w-[min(24rem,32%)]";
-
-function poLinesTableSlotClass(fillHeight: boolean) {
-  return cn("min-h-0 min-w-0 max-w-full", fillHeight && "flex flex-1 flex-col");
+function poLinesTableSlotClass(fillHeight: boolean) {  return cn("min-h-0 min-w-0 max-w-full", fillHeight && "flex flex-1 flex-col");
 }
 
 export type PoDocumentEditorShellProps = {
@@ -46,7 +44,9 @@ export type PoDocumentEditorShellProps = {
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
+  allowTransactionDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
   isPending: boolean;
@@ -67,7 +67,9 @@ export function PoDocumentEditorShell({
   defaultCurrency,
   documentLayout,
   allowLineItemDiscounts = false,
+  allowTransactionDiscounts = false,
   enableMrpTradeTerms = true,
+  autoRoundOffPolicy,
   taxCodeOptions = [],
   tenantCountry = null,
   isPending,
@@ -76,8 +78,14 @@ export function PoDocumentEditorShell({
   onLinesChange,
 }: PoDocumentEditorShellProps) {
   const resolvedDocumentLayout = usePoDocumentLayout(documentLayout);
-  const { useWidePartialDrawer, useFullPageLayout, lineTableFillHeight } =
-    usePoDrawerFormLayout(true, layoutOverride);
+  const showNotesSection = Boolean(getVisiblePoFormHeaderNotesField(resolvedDocumentLayout));
+  const {
+    drawerWidthVw,
+    useFullPageLayout,
+    useDesktopSideRail,
+    useMobileDocumentStack,
+    lineTableFillHeight,
+  } = usePoDrawerFormLayout(true, layoutOverride);
   const { entryAnchor, handleEntryAnchorChange } = usePoLineEntryAnchor(form.lines, onLinesChange);
   const gstContext = useMemo(
     () =>
@@ -91,9 +99,31 @@ export function PoDocumentEditorShell({
     [suppliers, form.supplier_id, locations, form.destination_location_id, tenantCountry]
   );
 
+  const sideRailWidthClass = resolvePoSideRailWidthClass(useFullPageLayout, drawerWidthVw);
+  const sideRailDesktopShowClass = poSideRailBreakpointClass(
+    drawerWidthVw,
+    useFullPageLayout,
+    "desktopShow"
+  );
+  const sideRailMobileHideClass = poSideRailBreakpointClass(
+    drawerWidthVw,
+    useFullPageLayout,
+    "mobileHide"
+  );
+  const sideRailFlexRowClass = poSideRailBreakpointClass(
+    drawerWidthVw,
+    useFullPageLayout,
+    "flexRow"
+  );
+  const sideRailHeightClass = poSideRailBreakpointClass(
+    drawerWidthVw,
+    useFullPageLayout,
+    "sideRailHeight"
+  );
+
   const linesSectionHeader = (
     <div className="flex shrink-0 items-center justify-between gap-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lines</p>
+      <p className={PO_SIDE_RAIL_SECTION_TITLE_CLASS}>Lines</p>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <PoLineTaxModeToggle
           value={form.prices_tax_inclusive}
@@ -131,84 +161,142 @@ export function PoDocumentEditorShell({
     />
   );
 
-  const stackedSummaryDetails = (
-    <>
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Summary
-        </p>
-        <PoTotalsPanel
-          lines={form.lines}
-          layout={resolvedDocumentLayout}
-          layoutMode="embedded"
-          purchasePricesTaxInclusive={form.prices_tax_inclusive}
-          taxMechanism={gstContext.taxMechanism}
-          headerCharges={form.header_charges}
-          disabled={isPending}
-          onHeaderChargesChange={(patch) =>
-            onPatch({ header_charges: { ...form.header_charges, ...patch } })
-          }
-        />
-      </div>
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Details
-        </p>
-        <PoDetailsPanel
-          form={form}
-          disabled={isPending}
-          layout="stack"
-          documentLayout={resolvedDocumentLayout}
-          suppliers={suppliers}
-          locations={locations}
-          tenantCountry={tenantCountry}
-          onPatch={onPatch}
-        />
-      </div>
-    </>
+  const poFormHeader = (
+    <PoFormHeader
+      form={form}
+      locations={locations}
+      suppliers={suppliers}
+      disabled={isPending}
+      defaultCurrency={defaultCurrency}
+      layout={resolvedDocumentLayout}
+      onPatch={onPatch}
+    />
   );
+
+  const totalsPanelProps = {
+    lines: form.lines,
+    layout: resolvedDocumentLayout,
+    layoutMode: "embedded" as const,
+    density: "compact" as const,
+    purchasePricesTaxInclusive: form.prices_tax_inclusive,
+    taxMechanism: gstContext.taxMechanism,
+    headerCharges: form.header_charges,
+    autoRoundOffPolicy,
+    disabled: isPending,
+    allowTransactionDiscounts,
+    onHeaderChargesChange: (patch: Partial<PoDraftFormState["header_charges"]>) =>
+      onPatch({ header_charges: { ...form.header_charges, ...patch } }),
+  };
+
+  const detailsPanelProps = {
+    form,
+    disabled: isPending,
+    density: "compact" as const,
+    documentLayout: resolvedDocumentLayout,
+    suppliers,
+    locations,
+    tenantCountry,
+    onPatch,
+  };
+
+  const notesPanelProps = {
+    form,
+    disabled: isPending,
+    documentLayout: resolvedDocumentLayout,
+    onPatch,
+  };
+
+  const summaryStackProps = {
+    showNotesSection,
+    totalsPanelProps,
+    detailsPanelProps: {
+      ...detailsPanelProps,
+      layout: "rail" as const,
+    },
+    notesPanelProps,
+  };
 
   const sideRail = (
     <aside
       className={cn(
-        "flex w-full shrink-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:max-h-full lg:shrink-0 lg:overflow-hidden",
-        useFullPageLayout ? PO_FULL_PAGE_SIDE_RAIL_CLASS : PO_DRAWER_SIDE_RAIL_CLASS
+        "flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden",
+        sideRailWidthClass
       )}
     >
-      <div className="shrink-0 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Summary
-        </p>
-        <PoTotalsPanel
-          lines={form.lines}
-          layout={resolvedDocumentLayout}
-          layoutMode="embedded"
-          purchasePricesTaxInclusive={form.prices_tax_inclusive}
-          taxMechanism={gstContext.taxMechanism}
-          headerCharges={form.header_charges}
-          disabled={isPending}
-          onHeaderChargesChange={(patch) =>
-            onPatch({ header_charges: { ...form.header_charges, ...patch } })
-          }
-        />
-      </div>
-      <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-        <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Details
-        </p>
-        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-          <PoDetailsPanel
-            form={form}
-            disabled={isPending}
-            layout="rail"
-            documentLayout={resolvedDocumentLayout}
-            suppliers={suppliers}
-            locations={locations}
-            onPatch={onPatch}
-          />
-        </div>
-      </div>
+      <PoDocumentSummaryStack variant="rail" {...summaryStackProps} />
     </aside>
+  );
+  const leftDocumentColumn = (
+    <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden">
+      <div className="shrink-0 min-w-0">{poFormHeader}</div>
+      {linesSectionHeader}
+      <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
+    </div>
+  );
+
+  const desktopTwoColumnSection = (
+    <section
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden",
+        sideRailFlexRowClass
+      )}
+    >
+      {leftDocumentColumn}
+      <div
+        className={cn(
+          "min-h-0 shrink-0 self-stretch",
+          sideRailDesktopShowClass,
+          sideRailHeightClass
+        )}
+      >
+        {sideRail}
+      </div>
+    </section>
+  );
+
+  const mobileStackedLayout = (
+    <div
+      className={cn(
+        "relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-4 bg-background",
+        useDesktopSideRail && sideRailMobileHideClass
+      )}
+    >
+      <div className="shrink-0 min-w-0">{poFormHeader}</div>
+      <div className="flex min-w-0 flex-col gap-3">
+        {linesSectionHeader}
+        <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
+      </div>
+      <PoDocumentSummaryStack
+        variant="flow"
+        {...summaryStackProps}
+        detailsPanelProps={{
+          ...detailsPanelProps,
+          layout: "stack",
+        }}
+      />
+    </div>
+  );
+
+  const narrowDrawerStackedLayout = (
+    <>
+      <div className="shrink-0 w-full min-w-0">{poFormHeader}</div>
+      <section className="flex w-full min-w-0 max-w-full flex-col gap-4">
+        <div className="flex min-w-0 max-w-full flex-col gap-3">
+          {linesSectionHeader}
+          <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
+        </div>
+      </section>
+      <div className="flex w-full min-w-0 flex-col gap-4 border-t border-border pt-4">
+        <PoDocumentSummaryStack
+        variant="flow"
+        {...summaryStackProps}
+        detailsPanelProps={{
+          ...detailsPanelProps,
+          layout: "stack",
+        }}
+      />
+      </div>
+    </>
   );
 
   return (
@@ -218,73 +306,22 @@ export function PoDocumentEditorShell({
         lineTableFillHeight && "h-full min-h-0 flex-1 overflow-hidden"
       )}
     >
-      <div className="shrink-0 w-full min-w-0">
-        <PoFormHeader
-          form={form}
-          locations={locations}
-          suppliers={suppliers}
-          disabled={isPending}
-          defaultCurrency={defaultCurrency}
-          layout={resolvedDocumentLayout}
-          onPatch={onPatch}
-        />
-      </div>
-
-      {useWidePartialDrawer ? (
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch">
-          <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden lg:min-w-0">
-            {linesSectionHeader}
-            <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
-          </div>
-          {sideRail}
-        </section>
-      ) : useFullPageLayout ? (
+      {useDesktopSideRail ? (
         <>
-          <section
+          <div
             className={cn(
-              "flex w-full min-w-0 max-w-full flex-col gap-3",
-              lineTableFillHeight &&
-                "min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch"
+              "min-h-0 flex-1 flex-col overflow-hidden",
+              sideRailDesktopShowClass
             )}
           >
-            <div
-              className={cn(
-                "flex min-w-0 max-w-full flex-col gap-3",
-                lineTableFillHeight &&
-                  "min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden lg:min-w-0"
-              )}
-            >
-              {linesSectionHeader}
-              <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
-            </div>
-            <div className="hidden shrink-0 lg:flex lg:min-h-0">{sideRail}</div>
-          </section>
-          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-4 bg-background lg:hidden">
-            {stackedSummaryDetails}
+            {desktopTwoColumnSection}
           </div>
+          <div className={sideRailMobileHideClass}>{mobileStackedLayout}</div>
         </>
-      ) : lineTableFillHeight ? (
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(12rem,1fr)_auto] gap-3 overflow-hidden">
-          <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-            {linesSectionHeader}
-            <div className={poLinesTableSlotClass(true)}>{linesTable}</div>
-          </section>
-          <div className="max-h-[min(40vh,16rem)] min-h-0 overflow-y-auto border-t border-border pt-4">
-            {stackedSummaryDetails}
-          </div>
-        </div>
+      ) : useMobileDocumentStack ? (
+        mobileStackedLayout
       ) : (
-        <>
-          <section className="flex w-full min-w-0 max-w-full flex-col gap-4">
-            <div className="flex min-w-0 max-w-full flex-col gap-3">
-              {linesSectionHeader}
-              <div className={poLinesTableSlotClass(false)}>{linesTable}</div>
-            </div>
-          </section>
-          <div className="flex w-full min-w-0 flex-col gap-4 border-t border-border pt-4">
-            {stackedSummaryDetails}
-          </div>
-        </>
+        narrowDrawerStackedLayout
       )}
     </div>
   );

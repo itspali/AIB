@@ -135,7 +135,7 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 **Peek line (registry):** `quantity_received` — decimals default 3
 
-**Totals:** `line_count`, `subtotal_ex_tax`, `tax_amount`, `grand_total` — visible, label, align, decimals, reorder
+**Totals:** `line_count`, `subtotal_ex_tax`, `transaction_discount` (trade discount), `tax_amount`, `grand_total` — visible, label, align, decimals, reorder
 
 **Line images:** `image_display_mode` (`INLINE_CELL` \| `SEPARATE_COLUMN` \| `HIDDEN`) — on-screen drawer and print
 
@@ -150,6 +150,7 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 | Slice | Status | Notes |
 |-------|--------|-------|
 | Line discounts | **Shipped** | `discount_percentage` / `discount_amount` on `purchase_order_items`; `save_purchase_order` totals; `PROCUREMENT_SETTINGS.allow_line_item_discounts`; drawer + layout settings |
+| Transaction trade discount | **Shipped** | Header `transaction_discount_*` on `purchase_orders`; Summary row after subtotal; proportional GST base reduction; `allow_transaction_discounts` policy + layout visibility |
 | Tax mode + line tax | **Shipped** | `purchase_prices_tax_inclusive` policy; `resolve_line_tax` in save RPC; live totals from item `tax_codes` |
 | Layout tax columns | **Shipped** | Totals rail `tax_amount` + `grand_total` use computed tax |
 | Editable line UOM | **Shipped** | Line `uom_code` + `uom_conversion_factor`; validate against `item_uoms` on save; compact select when alternates exist |

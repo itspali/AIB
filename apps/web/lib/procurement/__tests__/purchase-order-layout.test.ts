@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
+  DEFAULT_PO_TOTALS_FIELD_ORDER,
   addPoCatalogField,
   createPoCatalogFieldPref,
   getColumnLineFields,
@@ -22,6 +23,7 @@ import {
 import {
   getPoPeekLineColumns,
   getVisiblePoFormHeaderDetailsFields,
+  getVisiblePoFormHeaderNotesField,
   getVisiblePoFormHeaderPrimaryFields,
   PO_FORM_FIELDS_GRID_CLASS,
   resolvePoFormFieldNarrowSpanClass,
@@ -229,12 +231,12 @@ describe("purchase-order-layout compact columns", () => {
     };
 
     expect(getVisiblePoFormHeaderDetailsFields(reordered).map((field) => field.id)).toEqual([
-      "internal_notes",
       "expected_delivery_date",
       "requisition_number",
       "payment_terms_days",
       "tax_supply_nature",
     ]);
+    expect(getVisiblePoFormHeaderNotesField(reordered)?.id).toBe("internal_notes");
   });
 
   it("routes header fields by headerSlot", () => {
@@ -351,5 +353,50 @@ describe("po form fields grid", () => {
   it("keeps strict two-column rows on narrow layouts (no orphan spanning)", () => {
     const headerFields = [{ id: "supplier" }, { id: "destination" }, { id: "currency" }];
     expect(resolvePoFormFieldNarrowSpanClass(2, headerFields)).toBe("");
+  });
+});
+
+describe("po totals field order", () => {
+  it("pins grand total after charge fields for legacy saved order", () => {
+    const normalized = normalizePoLayoutTemplate({
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      totalsFieldOrder: [
+        "line_count",
+        "subtotal_ex_tax",
+        "transaction_discount",
+        "tax_amount",
+        "grand_total",
+        "shipping_amount",
+        "shipping_tax_amount",
+        "round_off_amount",
+        "additional_charges_amount",
+      ],
+    });
+
+    expect(normalized.totalsFieldOrder).toEqual([
+      "line_count",
+      "subtotal_ex_tax",
+      "transaction_discount",
+      "tax_amount",
+      "shipping_amount",
+      "shipping_tax_amount",
+      "round_off_amount",
+      "additional_charges_amount",
+      "grand_total",
+    ]);
+  });
+
+  it("pins transaction discount between subtotal and tax", () => {
+    expect(DEFAULT_PO_TOTALS_FIELD_ORDER.indexOf("transaction_discount")).toBe(
+      DEFAULT_PO_TOTALS_FIELD_ORDER.indexOf("subtotal_ex_tax") + 1
+    );
+    expect(DEFAULT_PO_TOTALS_FIELD_ORDER.indexOf("tax_amount")).toBe(
+      DEFAULT_PO_TOTALS_FIELD_ORDER.indexOf("transaction_discount") + 1
+    );
+  });
+
+  it("defaults grand total label to Grand total", () => {
+    const grandTotal = DEFAULT_PO_SCREEN_LAYOUT.columns.find((column) => column.id === "grand_total");
+    expect(grandTotal?.label).toBe("Grand total");
   });
 });

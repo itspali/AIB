@@ -92,6 +92,7 @@ export async function fetchOrganizationSettingsSnapshot(
   const entitySettings = parseEntitySettingsMetadata(tenantMetadata);
 
   let allowLineItemDiscounts = true;
+  let allowTransactionDiscounts = false;
   let allowEditIssuedPurchaseOrders = false;
   let purchasePricesTaxInclusive = false;
   let accountingPeriodClosingDate: string | null = null;
@@ -124,6 +125,9 @@ export async function fetchOrganizationSettingsSnapshot(
       }
       if (typeof meta?.allow_line_item_discounts === "boolean") {
         allowLineItemDiscounts = meta.allow_line_item_discounts;
+      }
+      if (typeof meta?.allow_transaction_discounts === "boolean") {
+        allowTransactionDiscounts = meta.allow_transaction_discounts;
       }
       if (typeof meta?.purchase_prices_tax_inclusive === "boolean") {
         purchasePricesTaxInclusive = meta.purchase_prices_tax_inclusive;
@@ -282,6 +286,7 @@ export async function fetchOrganizationSettingsSnapshot(
     accounting_config: parsed.accounting_config,
     location_governance_config: parsed.location_governance_config,
     allow_line_item_discounts: allowLineItemDiscounts,
+    allow_transaction_discounts: allowTransactionDiscounts,
     allow_edit_issued_purchase_orders: allowEditIssuedPurchaseOrders,
     purchase_prices_tax_inclusive: purchasePricesTaxInclusive,
     accounting_period_closing_date: accountingPeriodClosingDate,

@@ -8,6 +8,7 @@ import {
 } from "@/lib/procurement/location-scope";
 import { PO_COPY_FROM_PARAM } from "@/lib/procurement/navigation";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
+import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { mapOrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import {
   fetchProcurementLocations,
@@ -57,7 +58,9 @@ async function loadPoDocumentPageContext() {
     editAccessGranted: editAccess.granted,
     allowEditIssuedPurchaseOrders: procurementSettings.allow_edit_issued_purchase_orders,
     allowLineItemDiscounts: procurementSettings.allow_line_item_discounts,
+    allowTransactionDiscounts: procurementSettings.allow_transaction_discounts,
     enableMrpTradeTerms: procurementSettings.po_mrp_trade_terms_enabled,
+    autoRoundOffPolicy: resolvePoAutoRoundOffPolicy(procurementSettings),
     defaultPricesTaxInclusive: procurementSettings.purchase_prices_tax_inclusive,
     defaultCurrency,
     documentLayout,
@@ -96,7 +99,9 @@ export async function PoDocumentCreateLoader({
       editAccessGranted={context.editAccessGranted}
       allowEditIssuedPurchaseOrders={context.allowEditIssuedPurchaseOrders}
       allowLineItemDiscounts={context.allowLineItemDiscounts}
+      allowTransactionDiscounts={context.allowTransactionDiscounts}
       enableMrpTradeTerms={context.enableMrpTradeTerms}
+      autoRoundOffPolicy={context.autoRoundOffPolicy}
       defaultPricesTaxInclusive={context.defaultPricesTaxInclusive}
       defaultCurrency={context.defaultCurrency}
       documentLayout={context.documentLayout}
@@ -128,7 +133,9 @@ export async function PoDocumentEditLoader({
       editAccessGranted={context.editAccessGranted}
       allowEditIssuedPurchaseOrders={context.allowEditIssuedPurchaseOrders}
       allowLineItemDiscounts={context.allowLineItemDiscounts}
+      allowTransactionDiscounts={context.allowTransactionDiscounts}
       enableMrpTradeTerms={context.enableMrpTradeTerms}
+      autoRoundOffPolicy={context.autoRoundOffPolicy}
       defaultPricesTaxInclusive={context.defaultPricesTaxInclusive}
       defaultCurrency={context.defaultCurrency}
       documentLayout={context.documentLayout}

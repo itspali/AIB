@@ -4,6 +4,7 @@ import {
   computePurchaseOrderTotals,
   resolveLineDiscount,
 } from "@/lib/procurement/purchase-orders/totals";
+import { emptyPoHeaderCharges } from "@/lib/procurement/purchase-orders/po-header-charges";
 
 describe("purchase order totals", () => {
   it("sums line gross amounts for valid qty and price", () => {
@@ -110,15 +111,49 @@ describe("purchase order totals", () => {
     expect(totals.grandTotal).toBe(236);
   });
 
+  it("reduces tax when transaction trade discount is applied", () => {
+    const catalogLine = {
+      quantity_ordered: "2",
+      unit_price_contractual: "100",
+      catalog_context: {
+        description: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: "PCS",
+        image_url: null,
+        tax_code_id: "tax-1",
+        tax_rate: 18,
+        tax_is_variable: false,
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+        catalog_snapshot_source: "server" as const,
+      },
+    };
+
+    const discounted = computePurchaseOrderTotals([catalogLine], {
+      purchasePricesTaxInclusive: false,
+      allowTransactionDiscounts: true,
+      headerCharges: {
+        ...emptyPoHeaderCharges(),
+        transaction_discount_percentage: "10",
+        transaction_discount_type: "percent",
+      },
+    });
+
+    expect(discounted.subtotalGross).toBe(200);
+    expect(discounted.transactionDiscountAmount).toBe(20);
+    expect(discounted.taxAmount).toBe(32.4);
+    expect(discounted.grandTotal).toBe(212.4);
+  });
+
   it("includes document-level charges in grand total", () => {
     const totals = computePurchaseOrderTotals(
       [{ quantity_ordered: "1", unit_price_contractual: "100" }],
       {
         headerCharges: {
+          ...emptyPoHeaderCharges(),
           shipping_amount: "10",
           shipping_tax_rate_pct: "18",
-          shipping_tax_amount: "0",
-          shipping_tax_type: "percent",
           round_off_amount: "0.50",
           additional_charges_amount: "5",
         },
@@ -131,5 +166,21 @@ describe("purchase order totals", () => {
     expect(totals.additionalChargesAmount).toBe(5);
     expect(totals.roundOffAmount).toBe(0.5);
     expect(totals.grandTotal).toBe(117.3);
+  });
+
+  it("computes auto round-off from policy and ignores manual round off", () => {
+    const totals = computePurchaseOrderTotals(
+      [{ quantity_ordered: "1", unit_price_contractual: "1234.56" }],
+      {
+        headerCharges: {
+          ...emptyPoHeaderCharges(),
+          round_off_amount: "9.99",
+        },
+        autoRoundOff: { enabled: true, step: 1 },
+      }
+    );
+
+    expect(totals.roundOffAmount).toBeCloseTo(0.44, 10);
+    expect(totals.grandTotal).toBe(1235);
   });
 });

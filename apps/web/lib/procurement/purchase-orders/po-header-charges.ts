@@ -1,6 +1,8 @@
 export type PoShippingTaxType = "percent" | "amount";
 
-export type PoHeaderChargesFields = {
+import type { PoTransactionDiscountFields } from "@/lib/procurement/purchase-orders/po-transaction-discount";
+
+export type PoHeaderChargesFields = PoTransactionDiscountFields & {
   shipping_amount: string;
   shipping_tax_rate_pct: string;
   shipping_tax_amount: string;
@@ -16,6 +18,9 @@ function parseAmount(value: string | undefined): number {
 
 export function emptyPoHeaderCharges(): PoHeaderChargesFields {
   return {
+    transaction_discount_percentage: "0",
+    transaction_discount_amount: "0",
+    transaction_discount_type: "percent",
     shipping_amount: "0",
     shipping_tax_rate_pct: "0",
     shipping_tax_amount: "0",
@@ -25,35 +30,14 @@ export function emptyPoHeaderCharges(): PoHeaderChargesFields {
   };
 }
 
-export function resolvePoShippingTaxType(
-  charges: PoHeaderChargesFields
-): PoShippingTaxType {
-  if (charges.shipping_tax_type === "percent" || charges.shipping_tax_type === "amount") {
-    return charges.shipping_tax_type;
-  }
-  if (parseAmount(charges.shipping_tax_amount) > 0 && parseAmount(charges.shipping_tax_rate_pct) <= 0) {
-    return "amount";
-  }
-  return "percent";
-}
-
+/** Shipping tax is always entered as a rate (%) applied to the shipping amount. */
 export function resolvePoShippingTaxAmount(charges: PoHeaderChargesFields): number {
   const shipping = parseAmount(charges.shipping_amount);
   if (shipping <= 0) return 0;
 
-  if (resolvePoShippingTaxType(charges) === "amount") {
-    return Math.max(0, parseAmount(charges.shipping_tax_amount));
-  }
-
   const rate = parseAmount(charges.shipping_tax_rate_pct);
   if (rate <= 0) return 0;
   return (shipping * rate) / 100;
-}
-
-export function resolvePoShippingTaxInputValue(charges: PoHeaderChargesFields): string {
-  return resolvePoShippingTaxType(charges) === "amount"
-    ? charges.shipping_tax_amount
-    : charges.shipping_tax_rate_pct;
 }
 
 export type PoHeaderChargesSnapshot = {
@@ -82,8 +66,36 @@ export function resolvePoHeaderChargesSnapshot(
   };
 }
 
-export function normalizePoHeaderChargesForSave(
+/** Coerce legacy amount-mode rows to percent rate when loading from the database. */
+export function normalizePoHeaderChargesFromStorage(
   charges: PoHeaderChargesFields
+): PoHeaderChargesFields {
+  if (charges.shipping_tax_type !== "amount") {
+    return { ...charges, shipping_tax_type: "percent" };
+  }
+
+  const shipping = parseAmount(charges.shipping_amount);
+  const tax = parseAmount(charges.shipping_tax_amount);
+  const inferredRate =
+    shipping > 0 && tax > 0 ? (tax / shipping) * 100 : parseAmount(charges.shipping_tax_rate_pct);
+
+  return {
+    ...charges,
+    shipping_tax_rate_pct: String(inferredRate),
+    shipping_tax_type: "percent",
+  };
+}
+
+export function normalizePoHeaderChargesForSave(
+  charges: PoHeaderChargesFields,
+  options?: {
+    roundOffAmount?: number;
+    transactionDiscount?: {
+      transaction_discount_percentage: number;
+      transaction_discount_amount: number;
+      transaction_discount_type: "percent" | "amount";
+    };
+  }
 ): {
   shipping_amount: number;
   shipping_tax_rate_pct: number;
@@ -91,29 +103,34 @@ export function normalizePoHeaderChargesForSave(
   shipping_tax_type: PoShippingTaxType;
   round_off_amount: number;
   additional_charges_amount: number;
+  transaction_discount_percentage: number;
+  transaction_discount_amount: number;
+  transaction_discount_type: "percent" | "amount";
 } {
-  const type = resolvePoShippingTaxType(charges);
   const shippingAmount = Math.max(0, parseAmount(charges.shipping_amount));
-  const roundOffAmount = parseAmount(charges.round_off_amount);
+  const roundOffAmount =
+    options?.roundOffAmount !== undefined
+      ? options.roundOffAmount
+      : parseAmount(charges.round_off_amount);
   const additionalChargesAmount = Math.max(0, parseAmount(charges.additional_charges_amount));
+  const percentCharges = normalizePoHeaderChargesFromStorage(charges);
 
-  if (type === "amount") {
-    return {
-      shipping_amount: shippingAmount,
-      shipping_tax_rate_pct: 0,
-      shipping_tax_amount: Math.max(0, parseAmount(charges.shipping_tax_amount)),
-      shipping_tax_type: "amount",
-      round_off_amount: roundOffAmount,
-      additional_charges_amount: additionalChargesAmount,
-    };
-  }
+  const transactionDiscount = options?.transactionDiscount ?? {
+    transaction_discount_percentage: Math.max(0, parseAmount(charges.transaction_discount_percentage)),
+    transaction_discount_amount: Math.max(0, parseAmount(charges.transaction_discount_amount)),
+    transaction_discount_type:
+      charges.transaction_discount_type === "amount" ? ("amount" as const) : ("percent" as const),
+  };
 
   return {
     shipping_amount: shippingAmount,
-    shipping_tax_rate_pct: Math.max(0, parseAmount(charges.shipping_tax_rate_pct)),
-    shipping_tax_amount: resolvePoShippingTaxAmount({ ...charges, shipping_tax_type: "percent" }),
+    shipping_tax_rate_pct: Math.max(0, parseAmount(percentCharges.shipping_tax_rate_pct)),
+    shipping_tax_amount: resolvePoShippingTaxAmount(percentCharges),
     shipping_tax_type: "percent",
     round_off_amount: roundOffAmount,
     additional_charges_amount: additionalChargesAmount,
+    transaction_discount_percentage: transactionDiscount.transaction_discount_percentage,
+    transaction_discount_amount: transactionDiscount.transaction_discount_amount,
+    transaction_discount_type: transactionDiscount.transaction_discount_type,
   };
 }

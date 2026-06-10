@@ -249,6 +249,27 @@
     @apply bg-white dark:bg-[hsl(224_47%_14%)];
   }
 
+  /* Compact native date inputs: tighten space before the calendar picker. */
+  .po-date-input {
+    padding-inline-end: 0.125rem;
+  }
+
+  .po-date-input::-webkit-datetime-edit {
+    padding: 0;
+  }
+
+  .po-date-input::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+
+  .po-date-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    margin-inline-start: -0.25rem;
+    margin-inline-end: 0;
+    padding: 0;
+    opacity: 1;
+  }
+
   .po-line-grid-canvas {
     @apply overflow-hidden bg-muted/20 dark:bg-[hsl(224_47%_9%)];
   }

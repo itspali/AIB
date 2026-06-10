@@ -70,6 +70,9 @@ export type PurchaseOrderRow = {
   shipping_tax_type: "percent" | "amount";
   round_off_amount: string;
   additional_charges_amount: string;
+  transaction_discount_percentage: string;
+  transaction_discount_amount: string;
+  transaction_discount_type: "percent" | "amount";
   prices_tax_inclusive: boolean;
   tax_supply_nature: PoTaxSupplyNature;
   tax_mechanism: GstTaxMechanism;

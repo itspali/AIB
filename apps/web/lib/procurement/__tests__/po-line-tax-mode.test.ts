@@ -5,6 +5,7 @@ import {
   poPricesTaxModeToInclusive,
   resolvePoLineTotalPrimaryAmount,
   resolvePoUnitPriceColumnLabel,
+  resolvePoUnitPriceColumnLabelFromLayout,
   shouldShowPoLineTotalExTaxSubline,
 } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 
@@ -24,6 +25,18 @@ describe("po line tax mode", () => {
   it("updates unit price column label for tax mode", () => {
     expect(resolvePoUnitPriceColumnLabel(false)).toBe("Offer price (ex tax)");
     expect(resolvePoUnitPriceColumnLabel(true)).toBe("Offer price (inc tax)");
+  });
+
+  it("uses layout label for unit price and swaps ex/inc suffix when present", () => {
+    expect(
+      resolvePoUnitPriceColumnLabelFromLayout("Offer price (ex tax)", true)
+    ).toBe("Offer price (inc tax)");
+    expect(
+      resolvePoUnitPriceColumnLabelFromLayout("Offer price (inc tax)", false)
+    ).toBe("Offer price (ex tax)");
+    expect(resolvePoUnitPriceColumnLabelFromLayout("Contract rate", true)).toBe(
+      "Contract rate"
+    );
   });
 
   it("shows ex tax subline when line tax is computed", () => {
