@@ -62,6 +62,7 @@ export async function PoCatalogLoader() {
       allowEditIssuedPurchaseOrders={
         procurementSettings.allow_edit_issued_purchase_orders
       }
+      allowLineItemDiscounts={procurementSettings.allow_line_item_discounts}
       defaultCurrency={defaultCurrency}
       documentLayout={documentLayout}
       preferredDestinationLocationId={preferredDestinationLocationId ?? null}

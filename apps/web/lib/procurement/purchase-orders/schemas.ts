@@ -20,6 +20,22 @@ export const purchaseOrderLineSchema = z.object({
       const parsed = Number(value);
       return Number.isFinite(parsed) && parsed >= 0;
     }, "Unit price must be zero or greater."),
+  discount_percentage: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
+    }, "Discount percent must be between 0 and 100."),
+  discount_amount: z
+    .string()
+    .trim()
+    .default("0")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0;
+    }, "Discount amount must be zero or greater."),
 });
 
 export const savePurchaseOrderSchema = z.object({

@@ -121,6 +121,9 @@ export async function fetchOrganizationSettingsSnapshot(
       if (typeof meta?.allow_edit_issued_purchase_orders === "boolean") {
         allowEditIssuedPurchaseOrders = meta.allow_edit_issued_purchase_orders;
       }
+      if (typeof meta?.allow_line_item_discounts === "boolean") {
+        allowLineItemDiscounts = meta.allow_line_item_discounts;
+      }
     }
   }
 

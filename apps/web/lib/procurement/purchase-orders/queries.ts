@@ -198,6 +198,8 @@ type PoLineDbRow = {
   quantity_ordered: number | string;
   quantity_received: number | string;
   unit_price_contractual: number | string;
+  discount_percentage?: number | string | null;
+  discount_amount?: number | string | null;
   line_total_gross: number | string;
   items: { name: string; base_unit_of_measure?: string | null } | { name: string; base_unit_of_measure?: string | null }[] | null;
   item_variants: { sku: string } | { sku: string }[] | null;
@@ -276,6 +278,8 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     quantity_ordered: ordered,
     quantity_received: received,
     unit_price_contractual: formatDecimal(row.unit_price_contractual),
+    discount_percentage: formatDecimal(row.discount_percentage ?? 0),
+    discount_amount: formatDecimal(row.discount_amount ?? 0),
     line_total_gross: formatDecimal(row.line_total_gross),
     open_quantity: String(openQty),
   };
@@ -392,6 +396,8 @@ export async function fetchPurchaseOrderById(
         quantity_ordered,
         quantity_received,
         unit_price_contractual,
+        discount_percentage,
+        discount_amount,
         line_total_gross,
         items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
@@ -440,6 +446,8 @@ export async function fetchReceivablePurchaseOrders(
         quantity_ordered,
         quantity_received,
         unit_price_contractual,
+        discount_percentage,
+        discount_amount,
         line_total_gross,
         items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!purchase_order_items_variant_tenant_fk (sku)

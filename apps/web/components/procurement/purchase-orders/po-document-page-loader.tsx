@@ -54,6 +54,7 @@ async function loadPoDocumentPageContext() {
     suppliers,
     editAccessGranted: editAccess.granted,
     allowEditIssuedPurchaseOrders: procurementSettings.allow_edit_issued_purchase_orders,
+    allowLineItemDiscounts: procurementSettings.allow_line_item_discounts,
     defaultCurrency,
     documentLayout,
     preferredDestinationLocationId: preferredDestinationLocationId ?? null,
@@ -89,6 +90,7 @@ export async function PoDocumentCreateLoader({
       suppliers={context.suppliers}
       editAccessGranted={context.editAccessGranted}
       allowEditIssuedPurchaseOrders={context.allowEditIssuedPurchaseOrders}
+      allowLineItemDiscounts={context.allowLineItemDiscounts}
       defaultCurrency={context.defaultCurrency}
       documentLayout={context.documentLayout}
       preferredDestinationLocationId={context.preferredDestinationLocationId}
@@ -117,6 +119,7 @@ export async function PoDocumentEditLoader({
       suppliers={context.suppliers}
       editAccessGranted={context.editAccessGranted}
       allowEditIssuedPurchaseOrders={context.allowEditIssuedPurchaseOrders}
+      allowLineItemDiscounts={context.allowLineItemDiscounts}
       defaultCurrency={context.defaultCurrency}
       documentLayout={context.documentLayout}
       preferredDestinationLocationId={context.preferredDestinationLocationId}

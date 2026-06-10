@@ -174,8 +174,9 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 
 - **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules with line-entry drawers (§5.4).
 - **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`
-- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 2 **shipped**; Phase 3 = commercial depth (discounts, tax, approval).
-- **Defer:** full PO approval workflow, supplier portal, purchase invoices, omnibar `purchase-orders` scope — unless scope expands.
+- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 2 **shipped**; Phase 3 **in progress** (line discounts first; tax, UOM, approval next).
+- **Shipped (Phase 2):** omnibar `purchase-orders`, duplicate/copy, full-page routes, per-location layout overrides (`20260615100000_document_layout_location_scope.sql`).
+- **Defer:** PO approval workflow UI, supplier portal, purchase invoices — unless scope expands.
 
 ### Tier 2b — Remaining inventory polish
 
@@ -198,7 +199,12 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 
 **Default recommendation:** confirm scope with the user — net-new domains (Sales UI, Financials, RBAC) or remaining inventory deferred items (transfer approval, incidents UI, permissions hardening).
 
-### Recently shipped (2026-06-09 polish)
+### Recently shipped (2026-06-10)
+
+1. **PO Phase 2 complete** — omnibar `purchase-orders`, duplicate/copy, full-page routes, per-location layout overrides, Print/Email layout tabs in settings.
+2. **PO Phase 3 started** — line discounts (`discount_percentage` / `discount_amount`), `PROCUREMENT_SETTINGS.allow_line_item_discounts`, live totals in drawer.
+
+### Previously shipped (2026-06-09 polish)
 
 1. **PO V1 UX** — spreadsheet line entry, supplier intelligence, totals rail, voucher preview ([`PO_UX_PLAN.md`](./PO_UX_PLAN.md)).
 2. **GRN V1** — receive against PO or standalone; shared `DocumentLineEntryGrid`.

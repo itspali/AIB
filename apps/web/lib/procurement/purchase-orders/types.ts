@@ -16,6 +16,8 @@ export type PurchaseOrderLineRow = {
   quantity_ordered: string;
   quantity_received: string;
   unit_price_contractual: string;
+  discount_percentage: string;
+  discount_amount: string;
   line_total_gross: string;
   open_quantity: string;
   /** Item base UOM — read-only display until Phase 3 line `uom_code`. */

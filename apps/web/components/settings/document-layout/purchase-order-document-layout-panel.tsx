@@ -29,7 +29,6 @@ import {
 } from "@/lib/documents/layout-scope";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
-  isPoPhase3LineColumn,
   movePoHeaderFieldOrder,
   movePoLineColumnOrder,
   movePoTotalsFieldOrder,
@@ -268,10 +267,6 @@ export function PurchaseOrderDocumentLayoutPanel({
                 pinned: id === "item",
                 draggable: id !== "item",
                 lockLineSlot: id === "item" ? "column" : undefined,
-                disabled: isPoPhase3LineColumn(id),
-                disabledReason: isPoPhase3LineColumn(id)
-                  ? "Requires Phase 3 discount settings"
-                  : undefined,
                 showAlign: true,
                 showDecimalPlaces: hasDecimalPlaces(id),
               })}

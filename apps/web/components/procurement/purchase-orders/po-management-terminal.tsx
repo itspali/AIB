@@ -44,6 +44,7 @@ type Props = {
   suppliers: ProcurementSupplierOption[];
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
+  allowLineItemDiscounts: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
@@ -56,6 +57,7 @@ export function PoManagementTerminal({
   suppliers,
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
+  allowLineItemDiscounts,
   defaultCurrency,
   documentLayout: initialDocumentLayout,
   preferredDestinationLocationId = null,
@@ -267,6 +269,7 @@ export function PoManagementTerminal({
         onEditNotAllowed={handleEditNotAllowed}
         editAccessGranted={editAccessGranted}
         allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
+        allowLineItemDiscounts={allowLineItemDiscounts}
         defaultCurrency={defaultCurrency}
         preferredDestinationLocationId={preferredDestinationLocationId}
         documentLayout={documentLayout}

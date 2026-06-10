@@ -17,6 +17,8 @@ export type PoDraftLine = {
   variant_sku: string;
   quantity_ordered: string;
   unit_price_contractual: string;
+  discount_percentage: string;
+  discount_amount: string;
   skuError: string | null;
   /** Read-only item/variant catalog snapshot for layout-driven detail fields. */
   catalog_context?: PoLineCatalogContext | null;
@@ -41,6 +43,8 @@ export function createEmptyPoLine(): PoDraftLine {
     variant_sku: "",
     quantity_ordered: "1",
     unit_price_contractual: "0",
+    discount_percentage: "0",
+    discount_amount: "0",
     skuError: null,
   };
 }
@@ -177,6 +181,8 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
               variant_sku: line.variant_sku,
               quantity_ordered: line.quantity_ordered,
               unit_price_contractual: line.unit_price_contractual,
+              discount_percentage: line.discount_percentage ?? "0",
+              discount_amount: line.discount_amount ?? "0",
               skuError: null,
             }))
           )
@@ -205,6 +211,8 @@ export function copyPoDraftFromOrder(order: PurchaseOrderRow): PoDraftFormState 
           variant_sku: line.variant_sku,
           quantity_ordered: line.quantity_ordered,
           unit_price_contractual: line.unit_price_contractual,
+          discount_percentage: line.discount_percentage ?? "0",
+          discount_amount: line.discount_amount ?? "0",
           skuError: null,
         }))
     ),

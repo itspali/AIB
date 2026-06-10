@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeLineGross, computePurchaseOrderTotals } from "@/lib/procurement/purchase-orders/totals";
+import {
+  computeLineGross,
+  computePurchaseOrderTotals,
+  resolveLineDiscount,
+} from "@/lib/procurement/purchase-orders/totals";
 
 describe("purchase order totals", () => {
   it("sums line gross amounts for valid qty and price", () => {
@@ -15,5 +19,38 @@ describe("purchase order totals", () => {
 
   it("returns zero for empty qty", () => {
     expect(computeLineGross({ quantity_ordered: "", unit_price_contractual: "12" })).toBe(0);
+  });
+
+  it("applies percent discount to line gross", () => {
+    const line = {
+      quantity_ordered: "10",
+      unit_price_contractual: "100",
+      discount_percentage: "10",
+      discount_amount: "0",
+    };
+
+    expect(resolveLineDiscount(line)).toBe(100);
+    expect(computeLineGross(line)).toBe(900);
+  });
+
+  it("prefers fixed discount amount over percent", () => {
+    const line = {
+      quantity_ordered: "2",
+      unit_price_contractual: "50",
+      discount_percentage: "50",
+      discount_amount: "25",
+    };
+
+    expect(computeLineGross(line)).toBe(75);
+  });
+
+  it("caps discount at line extension", () => {
+    const line = {
+      quantity_ordered: "1",
+      unit_price_contractual: "10",
+      discount_amount: "99",
+    };
+
+    expect(computeLineGross(line)).toBe(0);
   });
 });

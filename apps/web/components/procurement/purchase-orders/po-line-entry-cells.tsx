@@ -275,7 +275,7 @@ export function PoLineQtyCell({
           qtyRefs.current[line.key] = node;
         }}
         align={column.align}
-        className={documentFieldTypographyClassName(column, undefined)}
+        className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
         value={line.quantity_ordered}
         disabled={disabled}
         inputMode="decimal"
@@ -321,7 +321,7 @@ export function PoLinePriceCell({
         priceRefs.current[line.key] = node;
       }}
       align={column.align}
-      className={documentFieldTypographyClassName(column, undefined)}
+      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
       value={line.unit_price_contractual}
       disabled={disabled}
       inputMode="decimal"
@@ -342,6 +342,77 @@ export function PoLinePriceCell({
         if (!isEnterKey(event.key)) return;
         event.preventDefault();
         advanceFromLine(line.key);
+      }}
+    />
+  );
+}
+
+export function PoLineDiscountPctCell({
+  ctx,
+  column,
+}: {
+  ctx: LineCellContext;
+  column: DocumentColumnPref;
+}) {
+  const { line, disabled, patchLine } = ctx;
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
+
+  return (
+    <DocumentLineCompactInput
+      align={column.align}
+      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      value={line.discount_percentage}
+      disabled={disabled || !line.variant_id}
+      inputMode="decimal"
+      aria-label="Discount percent"
+      onChange={(event) =>
+        patchLine(line.key, {
+          discount_percentage: event.target.value,
+          discount_amount: "0",
+        })
+      }
+      onBlur={() => {
+        const normalized = normalizeDocumentDecimalInput(
+          line.discount_percentage,
+          decimalPlaces
+        );
+        if (normalized !== line.discount_percentage) {
+          patchLine(line.key, { discount_percentage: normalized, discount_amount: "0" });
+        }
+      }}
+    />
+  );
+}
+
+export function PoLineDiscountAmountCell({
+  ctx,
+  column,
+}: {
+  ctx: LineCellContext;
+  column: DocumentColumnPref;
+}) {
+  const { line, disabled, patchLine } = ctx;
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
+
+  return (
+    <DocumentLineCompactInput
+      align={column.align}
+      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      value={line.discount_amount}
+      disabled={disabled || !line.variant_id}
+      inputMode="decimal"
+      aria-label="Discount amount"
+      onChange={(event) =>
+        patchLine(line.key, {
+          discount_amount: event.target.value,
+          discount_percentage: "0",
+        })
+      }
+      onBlur={() => {
+        const normalized = normalizeDocumentDecimalInput(line.discount_amount, decimalPlaces);
+        if (normalized !== line.discount_amount) {
+          patchLine(line.key, { discount_amount: normalized, discount_percentage: "0" });
+        }
       }}
     />
   );
@@ -429,6 +500,12 @@ export function renderPoLineColumnCell(
   }
   if (columnId === "unit_price") {
     return <PoLinePriceCell ctx={ctx} column={column} />;
+  }
+  if (columnId === "discount_pct") {
+    return <PoLineDiscountPctCell ctx={ctx} column={column} />;
+  }
+  if (columnId === "discount_amount") {
+    return <PoLineDiscountAmountCell ctx={ctx} column={column} />;
   }
   if (columnId === "line_total") {
     return <PoLineTotalCell line={ctx.line} column={column} />;

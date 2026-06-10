@@ -239,6 +239,8 @@ export async function savePurchaseOrder(raw: unknown) {
       variant_id: line.variant_id,
       quantity_ordered: Number(line.quantity_ordered),
       unit_price_contractual: Number(line.unit_price_contractual || 0),
+      discount_percentage: Number(line.discount_percentage || 0),
+      discount_amount: Number(line.discount_amount || 0),
     })),
     p_created_by: userId,
     p_payment_terms_days: Number(values.payment_terms_days || 0),

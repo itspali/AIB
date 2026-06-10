@@ -183,5 +183,6 @@ Full catalog (do not re-create):
 - **Non-goals v1:** cross-org inventory, shared catalog, intercompany.
 - **Migrations:** `20260609100000_tenant_groups_foundation.sql`, `20260609200000_tenant_groups_invitations.sql`.
 - **Procurement PO Phase 2:** omnibar `purchase-orders` scope; duplicate/copy lines; full-page routes `/procurement/purchase-orders/new`, `/procurement/purchase-orders/[id]/edit`; per-location document layout overrides (`20260615100000_document_layout_location_scope.sql`).
+- **Procurement PO Phase 3 (started):** line discounts on `purchase_order_items` + `PROCUREMENT_SETTINGS.allow_line_item_discounts` (`20260616100000_purchase_order_line_discounts.sql`). Next: tax, editable UOM, approval workflow.
 - **Lib/UI:** `apps/web/lib/group/`, `apps/web/app/settings/group/`, `apps/web/components/settings/group/`.
 - **Org settings:** read-only parent group on Organization Identity when `tenants.group_id` set.

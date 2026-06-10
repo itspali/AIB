@@ -36,8 +36,9 @@ export function resolveCommercialLineDetailDisplay(
         resolveColumnDecimalPlaces(column)
       );
     case "discount_pct":
+      return formatLineDecimal(line.discount_percentage, column);
     case "discount_amount":
-      return null;
+      return formatLineDecimal(line.discount_amount, column);
     default:
       return null;
   }

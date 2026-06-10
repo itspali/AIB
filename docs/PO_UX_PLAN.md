@@ -1,6 +1,6 @@
 # Purchase Order UX & Document Layout Plan
 
-**Status:** Phase 1 (V1) **shipped** — Phase 2 **shipped** (layout settings, PO polish, full-page routes); Phase 3 commercial depth next  
+**Status:** Phase 1 (V1) **shipped** — Phase 2 **shipped** — Phase 3 **in progress** (line discounts shipped first; tax, UOM, approval deferred within Phase 3)  
 **Related:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §3.7 + §5.4, [`DATA_STANDARDS.md`](./DATA_STANDARDS.md)
 
 ---
@@ -14,7 +14,7 @@ Document and module preferences live under **Administration → Module settings*
 | `/settings/modules` | Hub — Procurement (active), Inventory / Sales / Fulfillment (soon) |
 | `/settings/modules/procurement` | Tabs: **Document layout** (V1 UI) · **Policies** (soon) |
 
-**Scope:** Location dropdown shows **All locations** (disabled in V1). Code uses `DocumentLayoutScope` (`tenant` \| `location`) so per-location overrides can ship without URL changes. Runtime resolver: `resolveEffectiveDocumentLayout()` (tenant row → location override → code default).
+**Scope:** Location dropdown enabled when `LOCATION_LAYOUT_OVERRIDES_ENABLED`. Code uses `DocumentLayoutScope` (`tenant` \| `location`). Runtime resolver: `resolveEffectiveDocumentLayout()` (location override → tenant default → code default).
 
 **V1 vs V2:**
 
@@ -129,7 +129,7 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 **Header fields:** `supplier`, `destination`, `currency`, `voucher_number`, `payment_terms_days`, `requisition_number`, `expected_delivery_date`, `internal_notes`, `document_status`, `updated_at` — each: visible, label, reorder
 
-**Line columns:** `item` (pinned), `quantity_ordered`, `unit`, `unit_price`, `line_total`, `discount_pct` / `discount_amount` (Phase 3, disabled in editor) — each: visible, label, align, decimal places (where numeric), reorder
+**Line columns:** `item` (pinned), `quantity_ordered`, `unit`, `unit_price`, `line_total`, `discount_pct` / `discount_amount` — each: visible, label, align, decimal places (where numeric), reorder. Discount columns require `PROCUREMENT_SETTINGS.allow_line_item_discounts` (mirrors org Accounting toggle).
 
 **Item catalog fields (read-only, from item master):** resolved at line pick from `items` / `item_variants` / category attribute templates — not stored on PO until Issue snapshot (future). Layout ids: `variant_attr:__all__`, `variant_attr:{key}`, `item_col:{key}`, `item_cf:{key}`. Default on: all variant attributes under item cell. Settings section **Item catalog fields** — add HSN, description, base unit, tenant custom field keys, individual category attributes; same Place / Label / Flow prefs as commercial line fields.
 
@@ -145,14 +145,17 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 ---
 
-## Phase 3 — Commercial depth (procurement)
+## Phase 3 — Commercial depth (procurement) [IN PROGRESS]
 
-- Line `discount_percentage` / `discount_amount` on `purchase_order_items` + RPC totals.
-- `PROCUREMENT_SETTINGS.allow_line_item_discounts` (mirror sales gatekeeper).
-- Tax mode (ex-tax / inc-tax) + line tax from `tax_rate_registry` / item HSN.
-- Layout prefs for discount & tax columns.
-- **Editable line UOM** (optional) — when item has `alternate_uoms`, allow ordering in a non-base UOM with conversion to base for inventory; requires line `uom_code` + factor on `purchase_order_items` and RPC validation. Read-only unit display ships in Phase 2.
-- Issue confirmation / approval workflow (`PENDING_APPROVAL`).
+| Slice | Status | Notes |
+|-------|--------|-------|
+| Line discounts | **Shipped** | `discount_percentage` / `discount_amount` on `purchase_order_items`; `save_purchase_order` totals; `PROCUREMENT_SETTINGS.allow_line_item_discounts`; drawer + layout settings |
+| Tax mode + line tax | Pending | ex-tax / inc-tax; resolve from `tax_codes` + item `tax_code_id` / HSN |
+| Layout tax columns | Pending | Enable totals `tax_amount` with live values |
+| Editable line UOM | Pending | `item_uoms` conversion on save; read-only unit in Phase 2 |
+| Approval workflow | Pending | `PENDING_APPROVAL` + `document_approvals`; schema exists, no RPC/UI yet |
+
+**Migration (discounts):** `20260616100000_purchase_order_line_discounts.sql`
 
 ---
 
@@ -255,6 +258,7 @@ apps/web/components/procurement/goods-receipts/
 | 2026-06-08 | Custom fields V1 = fixed keys in `custom_fields`; builder in Phase 5. |
 | 2026-06-09 | Document layout Phase 2 adds per-field `decimalPlaces` (qty 3, money 2 defaults). |
 | 2026-06-09 | Item **unit** column: read-only in Phase 2 (`purchase_uom` → base); editable alternate UOM on lines deferred to Phase 3+. |
-| 2026-06-09 | Phase 1 shipped: shared `DocumentLineEntryGrid`, Tier B list parity, GRN module, cross-module Receive link. |
+| 2026-06-10 | Phase 3 started: PO line discounts + procurement discount policy; approval/tax/UOM remain in Phase 3 backlog. |
+| 2026-06-09 | Phase 2 shipped: document layout settings wired to PO surfaces; full-page PO routes; location layout overrides. |
 | 2026-06-09 | Cross-module drawer polish: `useDocumentLineTableFillHeight`, trailing rows, header-only save (no Cancel), drawer-width header grids for inventory forms. |
 | 2026-06-09 | Document layout settings UI under `/settings/modules/procurement`; location scope + column reorder in template JSON; V2 wires DB + PO surfaces. |

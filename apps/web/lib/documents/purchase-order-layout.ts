@@ -98,8 +98,12 @@ export const PO_TOTALS_FIELD_IDS = [
 
 export type PoTotalsFieldId = (typeof PO_TOTALS_FIELD_IDS)[number];
 
-/** Line columns that require Phase 3 commercial schema before use in the drawer. */
-export const PO_PHASE3_LINE_COLUMN_IDS = ["discount_pct", "discount_amount"] as const;
+/** Line columns introduced in Phase 3 — gated until shipped. */
+export const PO_PHASE3_LINE_COLUMN_IDS = [] as const;
+
+export function isPoPhase3LineColumn(_columnId: string): boolean {
+  return false;
+}
 
 const PO_LINE_COLUMNS: DocumentColumnPref[] = [
   {
@@ -155,9 +159,7 @@ const PO_LINE_COLUMNS: DocumentColumnPref[] = [
     group: "line",
     align: "right",
     decimalPlaces: 2,
-    lineSlot: "item_detail",
-    showLabel: true,
-    itemDetailFlow: "inline_previous",
+    lineSlot: "column",
   },
   {
     id: "discount_amount",
@@ -166,9 +168,7 @@ const PO_LINE_COLUMNS: DocumentColumnPref[] = [
     group: "line",
     align: "right",
     decimalPlaces: 2,
-    lineSlot: "item_detail",
-    showLabel: true,
-    itemDetailFlow: "inline_previous",
+    lineSlot: "column",
   },
   {
     id: "line_total",
@@ -369,10 +369,6 @@ function getColumnPref(
   columnId: string
 ): DocumentColumnPref | undefined {
   return columnMap(layout).get(columnId);
-}
-
-export function isPoPhase3LineColumn(columnId: string): boolean {
-  return (PO_PHASE3_LINE_COLUMN_IDS as readonly string[]).includes(columnId);
 }
 
 export function normalizePoLayoutTemplate(
@@ -603,10 +599,16 @@ export function shouldShowPoLineImageColumn(mode: DocumentImageDisplayMode): boo
 
 /** Drawer line grid columns including optional image column. */
 export function getPoLineEntryTableColumns(
-  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
+  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT,
+  options?: { allowLineItemDiscounts?: boolean }
 ): DocumentColumnPref[] {
   const normalized = normalizePoLayoutTemplate(layout);
-  const commercial = getColumnLineFields(normalized);
+  let commercial = getColumnLineFields(normalized);
+  if (options?.allowLineItemDiscounts === false) {
+    commercial = commercial.filter(
+      (column) => column.id !== "discount_pct" && column.id !== "discount_amount"
+    );
+  }
   if (normalized.imageDisplayMode !== "SEPARATE_COLUMN") {
     return commercial;
   }

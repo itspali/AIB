@@ -33,6 +33,7 @@ export type PoDocumentEditorShellProps = {
   editOrderId: string | null;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
+  allowLineItemDiscounts?: boolean;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
@@ -50,6 +51,7 @@ export function PoDocumentEditorShell({
   editOrderId,
   defaultCurrency,
   documentLayout,
+  allowLineItemDiscounts = false,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -81,6 +83,7 @@ export function PoDocumentEditorShell({
       excludePurchaseOrderId={editOrderId}
       disabled={isPending}
       layout={resolvedDocumentLayout}
+      allowLineItemDiscounts={allowLineItemDiscounts}
       entryAnchor={entryAnchor}
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange}

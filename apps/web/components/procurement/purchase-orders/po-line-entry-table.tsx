@@ -44,6 +44,7 @@ type Props = {
   /** Fill parent height and scroll line rows inside the table panel. */
   fillHeight?: boolean;
   layout?: DocumentLayoutTemplate;
+  allowLineItemDiscounts?: boolean;
   entryAnchor?: PoLineEntryAnchor;
   onEntryAnchorChange?: (anchor: PoLineEntryAnchor) => void;
   onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void;
@@ -53,6 +54,8 @@ const PO_LINE_EDITABLE_COLUMN_IDS = new Set<string>([
   "item",
   "quantity_ordered",
   "unit_price",
+  "discount_pct",
+  "discount_amount",
 ]);
 
 function PoLineEntryGrid({
@@ -63,6 +66,7 @@ function PoLineEntryGrid({
   disabled,
   fillHeight,
   layout: layoutProp,
+  allowLineItemDiscounts,
   actions,
 }: {
   lines: PoDraftLine[];
@@ -72,11 +76,15 @@ function PoLineEntryGrid({
   disabled: boolean;
   fillHeight: boolean;
   layout: DocumentLayoutTemplate;
+  allowLineItemDiscounts: boolean;
   actions: ReturnType<typeof usePoLineEntryActions>;
 }) {
   const layout = useMemo(() => normalizePoLayoutTemplate(layoutProp), [layoutProp]);
   const imageDisplayMode = useMemo(() => resolvePoLineImageDisplayMode(layout), [layout]);
-  const visibleColumns = useMemo(() => getPoLineEntryTableColumns(layout), [layout]);
+  const visibleColumns = useMemo(
+    () => getPoLineEntryTableColumns(layout, { allowLineItemDiscounts }),
+    [layout, allowLineItemDiscounts]
+  );
   const nestedColumns = useMemo(() => getItemDetailLineFields(layout), [layout]);
   const showUnitUnderQty = useMemo(() => shouldShowPoUnitUnderQtyColumn(layout), [layout]);
 
@@ -153,6 +161,7 @@ export function PoLineEntryTable({
   showSectionTitle = true,
   fillHeight = false,
   layout = DEFAULT_PO_SCREEN_LAYOUT,
+  allowLineItemDiscounts = false,
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
   onChange,
@@ -195,6 +204,7 @@ export function PoLineEntryTable({
         disabled={disabled}
         fillHeight={fillHeight}
         layout={resolvedLayout}
+        allowLineItemDiscounts={allowLineItemDiscounts}
         actions={actions}
       />
     </DocumentLineEntrySection>
