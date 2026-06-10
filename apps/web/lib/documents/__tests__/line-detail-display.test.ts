@@ -30,6 +30,32 @@ describe("line-detail-display", () => {
     expect(resolveCommercialLineDetailDisplay(unitPriceColumn, sampleLine)).toBe("12.50");
   });
 
+  it("formats mrp from catalog context", () => {
+    expect(
+      resolveCommercialLineDetailDisplay(
+        { id: "mrp", label: "MRP", defaultVisible: true, group: "line", decimalPlaces: 2 },
+        {
+          ...sampleLine,
+          catalog_context: {
+            description: null,
+            hsn_sac_code: null,
+            base_unit_of_measure: "EA",
+            mrp: "99.5",
+            image_url: null,
+            tax_code_id: null,
+            tax_rate: 0,
+            tax_is_variable: false,
+            default_purchase_uom: null,
+            alternate_uoms: [],
+            custom_fields: {},
+            variant_attributes: {},
+            attribute_labels: {},
+          },
+        }
+      )
+    ).toBe("99.50");
+  });
+
   it("resolves sku from variant_sku", () => {
     expect(
       resolveCommercialLineDetailDisplay(

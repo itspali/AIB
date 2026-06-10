@@ -4,6 +4,11 @@ import {
 } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import {
+  formatPoLineComputedDiscountAmount,
+  resolvePoLineDiscountInputValue,
+  resolvePoLineDiscountType,
+} from "@/lib/procurement/purchase-orders/po-line-discount";
 import { computeLineGross } from "@/lib/procurement/purchase-orders/totals";
 
 function formatLineDecimal(raw: string, column: DocumentColumnPref): string | null {
@@ -30,15 +35,21 @@ export function resolveCommercialLineDetailDisplay(
       return formatLineDecimal(line.quantity_ordered, column);
     case "unit_price":
       return formatLineDecimal(line.unit_price_contractual, column);
+    case "mrp":
+      return formatLineDecimal(line.catalog_context?.mrp ?? "", column);
     case "line_total":
       return formatDocumentDecimal(
         computeLineGross(line),
         resolveColumnDecimalPlaces(column)
       );
-    case "discount_pct":
-      return formatLineDecimal(line.discount_percentage, column);
+    case "discount_pct": {
+      const value = resolvePoLineDiscountInputValue(line);
+      const formatted = formatLineDecimal(value, column);
+      if (!formatted) return null;
+      return resolvePoLineDiscountType(line) === "percent" ? `${formatted}%` : formatted;
+    }
     case "discount_amount":
-      return formatLineDecimal(line.discount_amount, column);
+      return formatPoLineComputedDiscountAmount(line, column);
     default:
       return null;
   }

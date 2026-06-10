@@ -4,7 +4,14 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const PO_LINE_UNIT_ROW_CLASS = "h-4";
-const PO_LINE_UNIT_TEXT_CLASS = "text-xs leading-tight text-foreground/80";
+/** Shared typography for compact line sublines (UOM, MRP trade %, disc type). */
+export const PO_LINE_SUBLINE_TEXT_CLASS = "text-xs leading-tight text-foreground/80";
+
+/** Inset field styling so subline values read as editable, not static text. */
+export const PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS =
+  "h-4 w-[3.25rem] shrink-0 cursor-text rounded-sm border border-border/60 bg-background px-1 py-0 text-xs leading-tight tabular-nums shadow-none transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-accent/30 focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-50";
+
+const PO_LINE_UNIT_TEXT_CLASS = PO_LINE_SUBLINE_TEXT_CLASS;
 
 export type PoLineQtyUnitSlotProps = {
   unitCode: string | null;
@@ -26,12 +33,17 @@ export const PO_LINE_QTY_UNIT_STACK_CLASS = "h-8 shrink-0";
 /** Qty input row height — matches other compact line inputs. */
 export const PO_LINE_QTY_INPUT_ROW_CLASS = "h-8 w-full shrink-0";
 
+/** Divider between the primary value input and stacked sublines (UOM, MRP %, disc type). */
+export const PO_LINE_QTY_VALUE_SUBLINE_SEPARATOR_CLASS =
+  "border-t border-border pt-2 pb-0.5";
+
 type PoLineQtyValueStackProps = {
   showUnitUnderQty: boolean;
   align?: "left" | "right" | "center";
   unitSlot?: ReactNode;
   children: ReactNode;
   className?: string;
+  unitSlotClassName?: string;
 };
 
 /** Top-aligned qty with unit metadata stacked below (grows row height instead of overflowing). */
@@ -41,17 +53,20 @@ export function PoLineQtyValueStack({
   unitSlot,
   children,
   className,
+  unitSlotClassName,
 }: PoLineQtyValueStackProps) {
   if (!showUnitUnderQty) {
     return <>{children}</>;
   }
 
   return (
-    <div className={cn("flex w-full flex-col py-0.5", className)}>
+    <div className={cn("flex w-full flex-col px-1 py-0.5", className)}>
       <div className={PO_LINE_QTY_INPUT_ROW_CLASS}>{children}</div>
       <div
         className={cn(
-          PO_LINE_QTY_UNIT_STACK_CLASS,
+          PO_LINE_QTY_VALUE_SUBLINE_SEPARATOR_CLASS,
+          "w-full min-w-0 max-w-full shrink-0",
+          unitSlotClassName,
           align === "right" && "flex justify-end"
         )}
       >

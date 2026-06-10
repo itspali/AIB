@@ -28,7 +28,12 @@ export function usePoLineEntryAnchor(
   useEffect(() => {
     if (!enabled) return;
     if (!poLinesNeedAnchorNormalization(lines, entryAnchor)) return;
-    onChange(normalizePoLinesForAnchor(lines, entryAnchor));
+    const normalized = normalizePoLinesForAnchor(lines, entryAnchor);
+    const sameLineKeys =
+      normalized.length === lines.length &&
+      normalized.every((line, index) => line.key === lines[index]?.key);
+    if (sameLineKeys) return;
+    onChange(normalized);
   }, [enabled, entryAnchor, lines, onChange]);
 
   const handleEntryAnchorChange = useCallback(

@@ -10,11 +10,13 @@ import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
   getItemDetailLineFields,
+  getPoLayoutColumnPref,
   getVisibleHeaderFields,
   isPoLineColumnVisible,
   normalizePoLayoutTemplate,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { PoPeekLineDisplayOptions } from "@/lib/documents/peek-line-display";
 import { formatDate } from "@/lib/dashboard/format";
 import {
   purchaseOrderStatusBadgeVariant,
@@ -23,6 +25,10 @@ import {
 import { parsePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import type { PurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import type { PurchaseOrderLineRow, PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
+import {
+  PO_PRICES_TAX_MODE_LABEL,
+  poPricesTaxInclusiveToMode,
+} from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 import { formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import {
   formatPoPeekLineUomConversionHint,
@@ -30,6 +36,7 @@ import {
   shouldShowPoUnitUnderQtyColumn,
 } from "@/lib/procurement/purchase-orders/po-line-unit";
 import {
+  PO_LINE_SUBLINE_TEXT_CLASS,
   PoLineQtyUnitSlot,
   PoLineQtyValueStack,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
@@ -37,6 +44,12 @@ import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-add
 import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import { resolvePoAddressBlocksForOrder } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
+import {
+  formatPoLineMrpReference,
+  resolvePeekLineMrp,
+  resolvePeekLineMrpMarkdownPct,
+  shouldShowPeekMrpTradeTermsStack,
+} from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
 
 type Props = {
   order: PurchaseOrderRow;
@@ -121,12 +134,14 @@ function PeekHeaderField({
 function PeekLineNestedDetailFields({
   line,
   nestedColumns,
+  peekDisplayOptions,
 }: {
   line: PurchaseOrderLineRow;
   nestedColumns: DocumentColumnPref[];
+  peekDisplayOptions?: PoPeekLineDisplayOptions;
 }) {
   const columnsToRender = nestedColumns.filter((column) => {
-    const value = resolvePoPeekLineCellDisplay(column, line);
+    const value = resolvePoPeekLineCellDisplay(column, line, peekDisplayOptions);
     return value != null && value !== "" && value !== "—";
   });
   const detailRows = groupItemDetailRows(columnsToRender);
@@ -141,7 +156,7 @@ function PeekLineNestedDetailFields({
             className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0"
           >
             {rowColumns.map((column, columnIndex) => {
-              const displayValue = resolvePoPeekLineCellDisplay(column, line);
+              const displayValue = resolvePoPeekLineCellDisplay(column, line, peekDisplayOptions);
               if (!displayValue || displayValue === "—") return null;
               return (
                 <span
@@ -174,7 +189,7 @@ function PeekLineNestedDetailFields({
         ) : (
           (() => {
             const column = rowColumns[0]!;
-            const displayValue = resolvePoPeekLineCellDisplay(column, line);
+            const displayValue = resolvePoPeekLineCellDisplay(column, line, peekDisplayOptions);
             if (!displayValue || displayValue === "—") return null;
             return (
               <div
@@ -208,10 +223,12 @@ function PeekLineItemCell({
   line,
   skuLineFieldVisible,
   nestedColumns,
+  peekDisplayOptions,
 }: {
   line: PurchaseOrderLineRow;
   skuLineFieldVisible: boolean;
   nestedColumns: DocumentColumnPref[];
+  peekDisplayOptions?: PoPeekLineDisplayOptions;
 }) {
   const showSkuUnderItem = !skuLineFieldVisible && Boolean(line.variant_sku);
 
@@ -221,7 +238,11 @@ function PeekLineItemCell({
       {showSkuUnderItem && line.variant_sku ? (
         <div className="truncate font-mono text-xs text-muted-foreground">{line.variant_sku}</div>
       ) : null}
-      <PeekLineNestedDetailFields line={line} nestedColumns={nestedColumns} />
+      <PeekLineNestedDetailFields
+        line={line}
+        nestedColumns={nestedColumns}
+        peekDisplayOptions={peekDisplayOptions}
+      />
     </td>
   );
 }
@@ -278,11 +299,13 @@ function PeekLineQtyCell({
 function PeekLineValueCell({
   line,
   column,
+  peekDisplayOptions,
 }: {
   line: PurchaseOrderLineRow;
   column: DocumentColumnPref;
+  peekDisplayOptions?: PoPeekLineDisplayOptions;
 }) {
-  const value = resolvePoPeekLineCellDisplay(column, line) ?? "—";
+  const value = resolvePoPeekLineCellDisplay(column, line, peekDisplayOptions) ?? "—";
 
   return (
     <td
@@ -295,6 +318,72 @@ function PeekLineValueCell({
       )}
     >
       {value}
+    </td>
+  );
+}
+
+function PeekLinePriceCell({
+  line,
+  column,
+  enableMrpTradeTerms = true,
+  mrpColumnVisible = false,
+}: {
+  line: PurchaseOrderLineRow;
+  column: DocumentColumnPref;
+  enableMrpTradeTerms?: boolean;
+  mrpColumnVisible?: boolean;
+}) {
+  const value = resolvePoPeekLineCellDisplay(column, line) ?? "—";
+  const markdownPct = resolvePeekLineMrpMarkdownPct(line);
+  const mrp = resolvePeekLineMrp(line);
+  const hasMarkdownDisplay = Boolean(markdownPct && markdownPct !== "0.00");
+  const showMrpStack =
+    shouldShowPeekMrpTradeTermsStack(line, enableMrpTradeTerms) &&
+    (!mrpColumnVisible || hasMarkdownDisplay);
+
+  return (
+    <td
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          "align-top tabular-nums text-muted-foreground",
+          showMrpStack ? "p-0" : "p-2",
+          column.align === "right" ? "text-right" : "text-left"
+        )
+      )}
+    >
+      <PoLineQtyValueStack
+        showUnitUnderQty={showMrpStack}
+        align={column.align}
+        unitSlot={
+          showMrpStack ? (
+            <div
+              className={cn(
+                "flex w-full flex-col gap-0.5 px-2",
+                PO_LINE_SUBLINE_TEXT_CLASS,
+                column.align === "right" && "items-end text-right"
+              )}
+            >
+              {markdownPct && markdownPct !== "0.00" ? (
+                <span className="tabular-nums">{markdownPct}% Off</span>
+              ) : null}
+              {!mrpColumnVisible ? (
+                <span className="tabular-nums">MRP {formatPoLineMrpReference(mrp, 2)}</span>
+              ) : null}
+            </div>
+          ) : null
+        }
+      >
+        <span
+          className={cn(
+            "block h-8 leading-8 tabular-nums",
+            showMrpStack && "px-2",
+            column.align === "right" ? "text-right" : "text-left"
+          )}
+        >
+          {value}
+        </span>
+      </PoLineQtyValueStack>
     </td>
   );
 }
@@ -315,6 +404,16 @@ export function PoPeekView({
   const nestedColumns = useMemo(() => getItemDetailLineFields(resolvedLayout), [resolvedLayout]);
   const skuLineFieldVisible = isPoLineColumnVisible("sku", resolvedLayout);
   const showUnitUnderQty = shouldShowPoUnitUnderQtyColumn(resolvedLayout);
+  const mrpColumnVisible = useMemo(
+    () => lineColumns.some((column) => column.id === "mrp"),
+    [lineColumns]
+  );
+  const peekDisplayOptions = useMemo<PoPeekLineDisplayOptions>(
+    () => ({
+      discountAmountColumn: getPoLayoutColumnPref(resolvedLayout, "discount_amount"),
+    }),
+    [resolvedLayout]
+  );
   const grandTotalField = resolvedLayout.columns.find((column) => column.id === "grand_total");
   const grandTotalDecimals = grandTotalField
     ? resolveColumnDecimalPlaces(grandTotalField)
@@ -357,9 +456,14 @@ export function PoPeekView({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Lines
             </p>
-            <p className="text-sm font-semibold tabular-nums">
-              Total {formatPoMoney(Number(order.total_net_amount) || 0, grandTotalDecimals)}
-            </p>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge variant="administrative" className="text-xs font-normal">
+                {PO_PRICES_TAX_MODE_LABEL[poPricesTaxInclusiveToMode(order.prices_tax_inclusive)]}
+              </Badge>
+              <p className="text-sm font-semibold tabular-nums">
+                Total {formatPoMoney(Number(order.total_net_amount) || 0, grandTotalDecimals)}
+              </p>
+            </div>
           </div>
           <div className="po-peek-lines-table po-line-grid-scroll">
             <table className="w-full min-w-[34rem] table-fixed text-sm">
@@ -397,6 +501,7 @@ export function PoPeekView({
                           line={line}
                           skuLineFieldVisible={skuLineFieldVisible}
                           nestedColumns={nestedColumns}
+                          peekDisplayOptions={peekDisplayOptions}
                         />
                       ) : column.id === "quantity_ordered" ? (
                         <PeekLineQtyCell
@@ -405,8 +510,20 @@ export function PoPeekView({
                           column={column}
                           showUnitUnderQty={showUnitUnderQty}
                         />
+                      ) : column.id === "unit_price" ? (
+                        <PeekLinePriceCell
+                          key={column.id}
+                          line={line}
+                          column={column}
+                          mrpColumnVisible={mrpColumnVisible}
+                        />
                       ) : (
-                        <PeekLineValueCell key={column.id} line={line} column={column} />
+                        <PeekLineValueCell
+                          key={column.id}
+                          line={line}
+                          column={column}
+                          peekDisplayOptions={peekDisplayOptions}
+                        />
                       )
                     )}
                   </tr>

@@ -1,8 +1,21 @@
 "use client";
 
-import type { ReactNode } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 import { DocumentLineEntryRow } from "@/components/documents/document-line-entry-row";
+import {
+  EMPTY_LINE_ROW_DRAG_STATE,
+  measureLineRowHeights,
+  resolveLineRowDropTargetFromLayout,
+  type LineRowDragState,
+  type LineRowDropPosition,
+} from "@/lib/documents/line-row-drag";
 
 export type DocumentLineColumn = {
   id: string;
@@ -39,7 +52,11 @@ type Props<T extends LineRow> = {
   canDuplicateLine?: (line: T, lineIndex: number, lines: T[]) => boolean;
   onDuplicateLine?: (key: string) => void;
   canReorderLine?: (line: T, lineIndex: number, lines: T[]) => boolean;
-  onReorderLine?: (fromKey: string, toKey: string) => void;
+  onReorderLine?: (
+    fromKey: string,
+    toKey: string,
+    position: LineRowDropPosition
+  ) => void;
   renderCell: (column: DocumentLineColumn, line: T, lineIndex: number) => ReactNode;
 };
 
@@ -82,6 +99,70 @@ export function DocumentLineEntryGrid<T extends LineRow>({
   const showActionsColumn = showRemoveColumn || Boolean(onDuplicateLine);
   const actionsColWidth = onDuplicateLine && onRemoveLine ? "4.5rem" : "2.25rem";
   const lineNumberColWidth = onReorderLine ? "3rem" : "2.25rem";
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const [dragState, setDragState] = useState<LineRowDragState>(EMPTY_LINE_ROW_DRAG_STATE);
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
+  const measureRowHeights = useCallback(
+    () => measureLineRowHeights(tbodyRef.current),
+    []
+  );
+  const lineKeys = lines.map((line) => line.key);
+  const reorderEnabled = Boolean(onReorderLine) && !disabled;
+
+  const handleTbodyDragOver = useCallback(
+    (event: DragEvent<HTMLTableSectionElement>) => {
+      const draggingKey = dragStateRef.current.draggingKey;
+      if (!reorderEnabled || !draggingKey) return;
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+
+      const dropTarget = resolveLineRowDropTargetFromLayout(
+        tbodyRef.current,
+        event.clientY,
+        draggingKey
+      );
+      if (!dropTarget) return;
+
+      setDragState((previous) => {
+        if (
+          previous.dropTargetKey === dropTarget.targetKey &&
+          previous.dropPosition === dropTarget.position
+        ) {
+          return previous;
+        }
+        return {
+          ...previous,
+          dropTargetKey: dropTarget.targetKey,
+          dropPosition: dropTarget.position,
+        };
+      });
+    },
+    [reorderEnabled]
+  );
+
+  const handleTbodyDrop = useCallback(
+    (event: DragEvent<HTMLTableSectionElement>) => {
+      if (!reorderEnabled) return;
+
+      event.preventDefault();
+      const current = dragStateRef.current;
+      const fromKey = event.dataTransfer.getData("text/plain") || current.draggingKey;
+      const { dropTargetKey, dropPosition } = current;
+
+      if (fromKey && dropTargetKey && dropPosition && fromKey !== dropTargetKey) {
+        onReorderLine?.(fromKey, dropTargetKey, dropPosition);
+      }
+
+      setDragState(EMPTY_LINE_ROW_DRAG_STATE);
+    },
+    [onReorderLine, reorderEnabled]
+  );
+
+  const clearDragState = useCallback(() => {
+    setDragState(EMPTY_LINE_ROW_DRAG_STATE);
+  }, []);
 
   return (
     <div
@@ -157,7 +238,11 @@ export function DocumentLineEntryGrid<T extends LineRow>({
               ) : null}
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            ref={tbodyRef}
+            onDragOver={reorderEnabled ? handleTbodyDragOver : undefined}
+            onDrop={reorderEnabled ? handleTbodyDrop : undefined}
+          >
             {lines.map((line, lineIndex) => {
               const canRemove = canRemoveLine
                 ? canRemoveLine(line, lineIndex, lines)
@@ -174,7 +259,7 @@ export function DocumentLineEntryGrid<T extends LineRow>({
                   key={line.key}
                   line={line}
                   lineIndex={lineIndex}
-                  lines={lines}
+                  lineKeys={lineKeys}
                   columns={columns}
                   disabled={disabled}
                   showLineNumbers={showLineNumbers}
@@ -183,6 +268,10 @@ export function DocumentLineEntryGrid<T extends LineRow>({
                   canRemove={canRemove}
                   canDuplicate={canDuplicate}
                   canReorder={canReorder}
+                  dragState={reorderEnabled ? dragState : EMPTY_LINE_ROW_DRAG_STATE}
+                  onDragStateChange={reorderEnabled ? setDragState : () => {}}
+                  onDragEnd={reorderEnabled ? clearDragState : undefined}
+                  onMeasureRowHeights={measureRowHeights}
                   onRemoveLine={onRemoveLine}
                   onDuplicateLine={onDuplicateLine}
                   onReorderLine={onReorderLine}

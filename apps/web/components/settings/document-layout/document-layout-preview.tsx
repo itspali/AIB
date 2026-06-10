@@ -37,6 +37,7 @@ const PREVIEW_LINE_RAW: Partial<Record<string, string>> = {
   quantity_ordered: "1",
   unit: "EA",
   unit_price: "10",
+  mrp: "12",
   line_total: "10",
   discount_pct: "0",
   discount_amount: "0",

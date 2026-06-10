@@ -22,11 +22,14 @@ import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "aib-right-drawer-width";
-export const RIGHT_DRAWER_PRESET_WIDTHS = [40, 60, 80] as const;
+export const RIGHT_DRAWER_PRESET_WIDTHS = [40, 60, 80, 100] as const;
 const PRESET_WIDTHS = RIGHT_DRAWER_PRESET_WIDTHS;
+export const RIGHT_DRAWER_FULL_WIDTH_VW =
+  RIGHT_DRAWER_PRESET_WIDTHS[RIGHT_DRAWER_PRESET_WIDTHS.length - 1];
 const DEFAULT_WIDTH_VW = 40;
 const MIN_WIDTH_VW = 28;
-const MAX_WIDTH_VW = 92;
+const MAX_WIDTH_VW = RIGHT_DRAWER_FULL_WIDTH_VW;
+const PRESET_CYCLE_LABEL = RIGHT_DRAWER_PRESET_WIDTHS.map((width) => `${width}%`).join(" / ");
 
 /** Below this width the drawer uses full viewport (phone). Tablet+ uses partial panel. */
 const PARTIAL_DRAWER_MEDIA = "(min-width: 768px)";
@@ -48,6 +51,11 @@ export function isNarrowRightDrawer(layout: RightDrawerLayoutValue | null): bool
     layout?.isPartialDrawer === true &&
     layout.widthVw <= RIGHT_DRAWER_PRESET_WIDTHS[0] + 0.5
   );
+}
+
+/** True when the drawer is at the 100% expansion preset (full workspace width). */
+export function isFullWidthRightDrawer(layout: RightDrawerLayoutValue | null): boolean {
+  return layout != null && layout.widthVw >= RIGHT_DRAWER_FULL_WIDTH_VW - 0.5;
 }
 
 function RightDrawerLayoutProvider({
@@ -236,7 +244,7 @@ function DrawerChrome({
               size="sm"
               className="h-9 w-9 shrink-0 p-0"
               onClick={onCycleWidth}
-              title={`Panel width ${Math.round(widthVw)}% — click to cycle (40 / 60 / 80)`}
+              title={`Panel width ${Math.round(widthVw)}% — click to cycle (${PRESET_CYCLE_LABEL})`}
               aria-label={`Panel width ${Math.round(widthVw)}%, click to cycle presets`}
             >
               <Maximize2 className="h-4 w-4" aria-hidden />

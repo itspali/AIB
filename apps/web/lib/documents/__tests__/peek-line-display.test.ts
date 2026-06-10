@@ -43,6 +43,30 @@ describe("resolvePoPeekLineCellDisplay", () => {
     ).toBe("PCS");
   });
 
+  it("returns discount entry with percent suffix", () => {
+    expect(
+      resolvePoPeekLineCellDisplay(
+        { id: "discount_pct", label: "Discount", defaultVisible: true, decimalPlaces: 2 },
+        { ...sampleLine, discount_percentage: "10", discount_amount: "0" }
+      )
+    ).toBe("10.00%");
+  });
+
+  it("returns computed discount amount for read-only column", () => {
+    expect(
+      resolvePoPeekLineCellDisplay(
+        { id: "discount_amount", label: "Disc amount", defaultVisible: true, decimalPlaces: 2 },
+        {
+          ...sampleLine,
+          quantity_ordered: "12",
+          unit_price_contractual: "1000",
+          discount_percentage: "10",
+          discount_amount: "0",
+        }
+      )
+    ).toBe("1,200.00");
+  });
+
   it("resolves sku from variant_sku", () => {
     expect(
       resolvePoPeekLineCellDisplay(

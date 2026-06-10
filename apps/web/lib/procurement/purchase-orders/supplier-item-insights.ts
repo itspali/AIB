@@ -3,6 +3,7 @@ import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
 
 const VARIANT_ITEM_EMBED = "items!item_variants_item_tenant_fk";
+const PO_HEADER_EMBED = "purchase_orders!purchase_order_items_po_tenant_fk";
 
 export type PoSupplierItemInsights = {
   item_name: string;
@@ -230,7 +231,7 @@ export async function fetchSupplierItemInsights(
         unit_price_contractual,
         quantity_ordered,
         created_at,
-        purchase_orders!inner (
+        ${PO_HEADER_EMBED}!inner (
           id,
           voucher_number,
           supplier_id,
@@ -250,7 +251,7 @@ export async function fetchSupplierItemInsights(
         `
         quantity_ordered,
         quantity_received,
-        purchase_orders!inner (
+        ${PO_HEADER_EMBED}!inner (
           id,
           supplier_id,
           document_status

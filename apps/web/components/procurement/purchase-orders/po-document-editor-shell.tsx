@@ -3,6 +3,7 @@
 import { PoDetailsPanel } from "@/components/procurement/purchase-orders/po-details-panel";
 import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
 import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
+import { PoLineTaxModeToggle } from "@/components/procurement/purchase-orders/po-line-tax-mode-toggle";
 import { PoLineEntryTable } from "@/components/procurement/purchase-orders/po-line-entry-table";
 import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
 import { PoTotalsPanel } from "@/components/procurement/purchase-orders/po-totals-panel";
@@ -22,6 +23,14 @@ export const PO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
   isPartialDrawer: false,
 };
 
+/** Drawer side rail — compact for 60vw partial panel. */
+const PO_DRAWER_SIDE_RAIL_CLASS =
+  "lg:w-[15rem] lg:max-w-[40%]";
+
+/** Full-page side rail — room for summary labels and money values. */
+const PO_FULL_PAGE_SIDE_RAIL_CLASS =
+  "lg:w-[20rem] lg:min-w-[20rem] lg:max-w-[min(24rem,32%)]";
+
 function poLinesTableSlotClass(fillHeight: boolean) {
   return cn("min-h-0 min-w-0 max-w-full", fillHeight && "flex flex-1 flex-col");
 }
@@ -34,7 +43,7 @@ export type PoDocumentEditorShellProps = {
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
-  purchasePricesTaxInclusive?: boolean;
+  enableMrpTradeTerms?: boolean;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
@@ -53,7 +62,7 @@ export function PoDocumentEditorShell({
   defaultCurrency,
   documentLayout,
   allowLineItemDiscounts = false,
-  purchasePricesTaxInclusive = false,
+  enableMrpTradeTerms = true,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -67,11 +76,18 @@ export function PoDocumentEditorShell({
   const linesSectionHeader = (
     <div className="flex shrink-0 items-center justify-between gap-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lines</p>
-      <PoLineEntryAnchorToggle
-        value={entryAnchor}
-        disabled={isPending}
-        onChange={handleEntryAnchorChange}
-      />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <PoLineTaxModeToggle
+          value={form.prices_tax_inclusive}
+          disabled={isPending}
+          onChange={(pricesTaxInclusive) => onPatch({ prices_tax_inclusive: pricesTaxInclusive })}
+        />
+        <PoLineEntryAnchorToggle
+          value={entryAnchor}
+          disabled={isPending}
+          onChange={handleEntryAnchorChange}
+        />
+      </div>
     </div>
   );
 
@@ -86,6 +102,8 @@ export function PoDocumentEditorShell({
       disabled={isPending}
       layout={resolvedDocumentLayout}
       allowLineItemDiscounts={allowLineItemDiscounts}
+      enableMrpTradeTerms={enableMrpTradeTerms}
+      pricesTaxInclusive={form.prices_tax_inclusive}
       entryAnchor={entryAnchor}
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange}
@@ -102,7 +120,7 @@ export function PoDocumentEditorShell({
           lines={form.lines}
           layout={resolvedDocumentLayout}
           layoutMode="embedded"
-          purchasePricesTaxInclusive={purchasePricesTaxInclusive}
+          purchasePricesTaxInclusive={form.prices_tax_inclusive}
         />
       </div>
       <div className="space-y-3">
@@ -121,7 +139,12 @@ export function PoDocumentEditorShell({
   );
 
   const sideRail = (
-    <aside className="flex w-full shrink-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:w-[15rem] lg:max-h-full lg:max-w-[40%] lg:shrink-0 lg:overflow-hidden">
+    <aside
+      className={cn(
+        "flex w-full shrink-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:max-h-full lg:shrink-0 lg:overflow-hidden",
+        useFullPageLayout ? PO_FULL_PAGE_SIDE_RAIL_CLASS : PO_DRAWER_SIDE_RAIL_CLASS
+      )}
+    >
       <div className="shrink-0 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Summary
@@ -130,7 +153,7 @@ export function PoDocumentEditorShell({
           lines={form.lines}
           layout={resolvedDocumentLayout}
           layoutMode="embedded"
-          purchasePricesTaxInclusive={purchasePricesTaxInclusive}
+          purchasePricesTaxInclusive={form.prices_tax_inclusive}
         />
       </div>
       <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
@@ -182,19 +205,21 @@ export function PoDocumentEditorShell({
           <section
             className={cn(
               "flex w-full min-w-0 max-w-full flex-col gap-3",
-              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:flex-row lg:items-stretch lg:gap-4"
+              lineTableFillHeight &&
+                "min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch"
             )}
           >
             <div
               className={cn(
                 "flex min-w-0 max-w-full flex-col gap-3",
-                lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:min-w-0"
+                lineTableFillHeight &&
+                  "min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden lg:min-w-0"
               )}
             >
               {linesSectionHeader}
               <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
             </div>
-            <div className="hidden lg:flex lg:min-h-0">{sideRail}</div>
+            <div className="hidden shrink-0 lg:flex lg:min-h-0">{sideRail}</div>
           </section>
           <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-4 bg-background lg:hidden">
             {stackedSummaryDetails}

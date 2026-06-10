@@ -27,6 +27,7 @@ describe("purchase-order schemas", () => {
       supplier_id: "a052c3a8-9b2d-4c5e-8f1a-2b3c4d5e6f7a",
       currency_code: "USD",
       payment_terms_days: "30",
+      prices_tax_inclusive: true,
       custom_fields: {
         requisition_number: "REQ-1",
         expected_delivery_date: "",

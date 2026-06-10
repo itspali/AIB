@@ -63,7 +63,8 @@ export async function PoCatalogLoader() {
         procurementSettings.allow_edit_issued_purchase_orders
       }
       allowLineItemDiscounts={procurementSettings.allow_line_item_discounts}
-      purchasePricesTaxInclusive={procurementSettings.purchase_prices_tax_inclusive}
+      enableMrpTradeTerms={procurementSettings.po_mrp_trade_terms_enabled}
+      defaultPricesTaxInclusive={procurementSettings.purchase_prices_tax_inclusive}
       defaultCurrency={defaultCurrency}
       documentLayout={documentLayout}
       preferredDestinationLocationId={preferredDestinationLocationId ?? null}

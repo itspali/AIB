@@ -41,15 +41,20 @@ export function DocumentLineDragHandle({
   disabled,
   canDrag,
   label = "Drag to reorder line",
+  onDragStart,
+  onDragEnd,
 }: {
   lineKey: string;
   disabled: boolean;
   canDrag: boolean;
   label?: string;
+  onDragStart?: (event: React.DragEvent<HTMLButtonElement>) => void;
+  onDragEnd?: () => void;
 }) {
   return (
     <button
       type="button"
+      tabIndex={-1}
       draggable={canDrag && !disabled}
       disabled={disabled || !canDrag}
       aria-label={label}
@@ -63,6 +68,10 @@ export function DocumentLineDragHandle({
         if (!canDrag || disabled) return;
         event.dataTransfer.setData("text/plain", lineKey);
         event.dataTransfer.effectAllowed = "move";
+        onDragStart?.(event);
+      }}
+      onDragEnd={() => {
+        onDragEnd?.();
       }}
     >
       <GripVertical className="h-3.5 w-3.5" aria-hidden />

@@ -28,10 +28,21 @@ import {
   movePoDraftLine,
   type PoDraftLine,
 } from "@/lib/procurement/purchase-orders/draft-form";
+import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
 import {
   resolveDefaultPoLineUomCode,
   resolvePoLineUomAfterCatalogUpdate,
 } from "@/lib/procurement/purchase-orders/po-line-uom-options";
+import { syncPoLineMrpMarkdownFromOfferPrice } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import {
+  resolvePoLineOfferUnitPrice,
+  resolvePoLinePickerOfferUnitPrice,
+} from "@/lib/procurement/purchase-orders/supplier-price";
+
+function applyMrpMarkdownSync(line: PoDraftLine): PoDraftLine {
+  const sync = syncPoLineMrpMarkdownFromOfferPrice(line);
+  return sync ? { ...line, ...sync } : line;
+}
 
 function focusInput(input: HTMLInputElement | HTMLTextAreaElement | null | undefined) {
   if (!input) return;
@@ -57,10 +68,12 @@ function resolveVariantBaseUnit(
 
 type ItemChangePatch = Partial<PoDraftLine> & {
   unit_cost?: string;
+  purchase_price?: string | null;
   image_url?: string | null;
   base_unit_of_measure?: string | null;
   description?: string | null;
   hsn_sac_code?: string | null;
+  mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
 };
@@ -74,6 +87,7 @@ function buildOptimisticCatalogContext(
     base_unit_of_measure: resolveVariantBaseUnit(variantId, patch.base_unit_of_measure),
     description: patch.description,
     hsn_sac_code: patch.hsn_sac_code,
+    mrp: patch.mrp,
     variant_attributes: patch.variant_attributes,
     custom_fields: patch.custom_fields,
   });
@@ -171,8 +185,14 @@ export function usePoLineEntryActions(
   );
 
   const reorderLine = useCallback(
-    (fromKey: string, toKey: string) => {
-      onChange((current) => movePoDraftLine(current, fromKey, toKey, entryAnchor));
+    (
+      fromKey: string,
+      toKey: string,
+      position: "before" | "after" = "before"
+    ) => {
+      onChange((current) =>
+        movePoDraftLine(current, fromKey, toKey, entryAnchor, position)
+      );
     },
     [entryAnchor, onChange]
   );
@@ -205,10 +225,18 @@ export function usePoLineEntryActions(
         variant_id: variantId,
       });
       if ("error" in result) return;
-      const nextPrice = result.unit_price ?? fallbackCost;
-      patchLine(lineKey, { unit_price_contractual: nextPrice || "0" });
+      const nextPrice = resolvePoLineOfferUnitPrice(result.unit_price, fallbackCost);
+      onChange((current) =>
+        current.map((line) => {
+          if (line.key !== lineKey) return line;
+          return applyMrpMarkdownSync({
+            ...line,
+            unit_price_contractual: nextPrice || "0",
+          });
+        })
+      );
     },
-    [patchLine, supplierId]
+    [onChange, supplierId]
   );
 
   const applyCatalogContext = useCallback(
@@ -225,11 +253,11 @@ export function usePoLineEntryActions(
               fallbackImageUrl
             );
             const uom_code = resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context);
-            return {
+            return applyMrpMarkdownSync({
               ...line,
               catalog_context,
               uom_code,
-            };
+            });
           })
         );
       };
@@ -274,7 +302,11 @@ export function usePoLineEntryActions(
       const imageUrl = resolveVariantImageUrl(variantId, patchImageUrl ?? patch.image_url);
       const isEntryLine = isPoEntryLineKey(lineKey, nextLines, entryAnchor);
 
-      void applySupplierPrice(lineKey, variantId, updatedLine.unit_price_contractual ?? "0");
+      void applySupplierPrice(
+        lineKey,
+        variantId,
+        updatedLine.unit_price_contractual ?? "0"
+      );
       void applyCatalogContext(lineKey, variantId, imageUrl);
 
       const qtyIsDefaultOne = Number(updatedLine.quantity_ordered) === 1;
@@ -304,13 +336,13 @@ export function usePoLineEntryActions(
           variantChanged && patch.variant_id
             ? buildOptimisticCatalogContext(patch.variant_id, patch)
             : null;
-        return {
+        const draft: PoDraftLine = {
           ...row,
           ...patch,
           item_id: clearingItem ? "" : patch.item_id ?? row.item_id,
           unit_price_contractual: clearingItem
             ? "0"
-            : patch.unit_cost ?? row.unit_price_contractual,
+            : resolvePoLinePickerOfferUnitPrice(patch.purchase_price),
           catalog_context: clearingItem
             ? undefined
             : optimisticContext ?? row.catalog_context,
@@ -320,6 +352,9 @@ export function usePoLineEntryActions(
               ? resolveDefaultPoLineUomCode(optimisticContext)
               : row.uom_code,
         };
+        return variantChanged && patch.variant_id && !clearingItem
+          ? applyMrpMarkdownSync(draft)
+          : draft;
       });
 
       if (variantChanged && patch.variant_id) {

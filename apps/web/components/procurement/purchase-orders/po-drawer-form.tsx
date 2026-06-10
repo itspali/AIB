@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Copy, ExternalLink, Pencil } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
+import { Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   issuePurchaseOrder,
@@ -23,7 +23,7 @@ import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
-import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM, poFullPageCreateHref, poFullPageEditHref } from "@/lib/procurement/navigation";
+import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import {
   defaultPoDraftForm,
@@ -32,6 +32,7 @@ import {
   mapPurchaseOrderToDraft,
   type PoDraftFormState,
 } from "@/lib/procurement/purchase-orders/draft-form";
+import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type {
@@ -60,7 +61,8 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
-  purchasePricesTaxInclusive: boolean;
+  enableMrpTradeTerms?: boolean;
+  defaultPricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
@@ -102,7 +104,8 @@ export function PoDrawerForm({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
-  purchasePricesTaxInclusive,
+  enableMrpTradeTerms = true,
+  defaultPricesTaxInclusive,
   defaultCurrency,
   documentLayout: documentLayoutProp,
   preferredDestinationLocationId = null,
@@ -136,8 +139,16 @@ export function PoDrawerForm({
     if (!open) setDrawerLayoutSnapshot(null);
   }, [open]);
 
+  const entryLineKey = useId();
   const [form, setForm] = useState<PoDraftFormState>(() =>
-    defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+    defaultPoDraftForm(
+      locations,
+      suppliers,
+      defaultCurrency,
+      preferredDestinationLocationId,
+      entryLineKey,
+      defaultPricesTaxInclusive
+    )
   );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
@@ -162,13 +173,27 @@ export function PoDrawerForm({
     if (surface === "create") {
       if (!copyFromId) {
         setForm(
-          defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+          defaultPoDraftForm(
+            locations,
+            suppliers,
+            defaultCurrency,
+            preferredDestinationLocationId,
+            entryLineKey,
+            defaultPricesTaxInclusive
+          )
         );
         setDetail(null);
       }
     } else if (surface !== "peek") {
       setForm(
-        defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+        defaultPoDraftForm(
+          locations,
+          suppliers,
+          defaultCurrency,
+          preferredDestinationLocationId,
+          entryLineKey,
+          defaultPricesTaxInclusive
+        )
       );
       setDetail(peekOrder);
     } else if (peekOrder?.lines?.length) {
@@ -184,6 +209,8 @@ export function PoDrawerForm({
     suppliers,
     defaultCurrency,
     preferredDestinationLocationId,
+    entryLineKey,
+    defaultPricesTaxInclusive,
   ]);
 
   useEffect(() => {
@@ -198,7 +225,14 @@ export function PoDrawerForm({
         toast.error(result.error ?? "Unable to duplicate purchase order.");
         setError(result.error);
         setForm(
-          defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+          defaultPoDraftForm(
+            locations,
+            suppliers,
+            defaultCurrency,
+            preferredDestinationLocationId,
+            entryLineKey,
+            defaultPricesTaxInclusive
+          )
         );
         return;
       }
@@ -310,15 +344,19 @@ export function PoDrawerForm({
         supplier_id: form.supplier_id,
         currency_code: form.currency_code,
         payment_terms_days: form.payment_terms_days,
+        prices_tax_inclusive: form.prices_tax_inclusive,
         custom_fields: form.custom_fields,
-        lines: filterSavablePoLines(form.lines).map((line) => ({
-          variant_id: line.variant_id,
-          quantity_ordered: line.quantity_ordered,
-          unit_price_contractual: line.unit_price_contractual || "0",
-          discount_percentage: line.discount_percentage || "0",
-          discount_amount: line.discount_amount || "0",
-          uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
-        })),
+        lines: filterSavablePoLines(form.lines).map((line) => {
+          const discount = normalizePoLineDiscountForSave(line);
+          return {
+            variant_id: line.variant_id,
+            quantity_ordered: line.quantity_ordered,
+            unit_price_contractual: line.unit_price_contractual || "0",
+            discount_percentage: discount.discount_percentage,
+            discount_amount: discount.discount_amount,
+            uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
+          };
+        }),
       };
 
       const result = await savePurchaseOrder(payload);
@@ -453,32 +491,6 @@ export function PoDrawerForm({
       </>
     ) : isMutating ? (
       <>
-        {surface === "create" || editOrderId || detail?.id ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label="Open full page"
-            title={
-              filterSavablePoLines(form.lines).length >= 15
-                ? "Open full page (recommended for 15+ lines)"
-                : "Open full page"
-            }
-            asChild
-          >
-            <Link
-              href={
-                surface === "create"
-                  ? poFullPageCreateHref({ copyFrom: copyFromId })
-                  : poFullPageEditHref((editOrderId ?? detail?.id)!)
-              }
-              prefetch
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Link>
-          </Button>
-        ) : null}
         <Button
           type="button"
           size="sm"
@@ -549,7 +561,7 @@ export function PoDrawerForm({
         defaultCurrency={defaultCurrency}
         documentLayout={documentLayout}
         allowLineItemDiscounts={allowLineItemDiscounts}
-        purchasePricesTaxInclusive={purchasePricesTaxInclusive}
+        enableMrpTradeTerms={enableMrpTradeTerms}
         isPending={isPending}
         layoutOverride={drawerLayoutSnapshot}
         onPatch={patchForm}

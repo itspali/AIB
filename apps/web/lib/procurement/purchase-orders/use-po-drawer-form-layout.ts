@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  isFullWidthRightDrawer,
   isNarrowRightDrawer,
   RIGHT_DRAWER_PRESET_WIDTHS,
   useRightDrawerLayout,
@@ -118,13 +119,19 @@ export function usePoDrawerFormLayout(
 
   const isBelowWidePreset = isPoDrawerBelowWidePreset(isPartialDrawer, drawerWidthVw);
 
-
+  const effectiveDrawerLayout: RightDrawerLayoutValue = drawerLayout ?? {
+    widthVw: drawerWidthVw,
+    isPartialDrawer,
+  };
+  const isFullWidthDrawer = isFullWidthRightDrawer(effectiveDrawerLayout);
 
   /** Partial drawer at 60vw+ on lg+: lines table and summary rail share a row. */
 
   const useWidePartialDrawer =
 
     isPartialDrawer &&
+
+    !isFullWidthDrawer &&
 
     !stackVertically &&
 
@@ -134,9 +141,9 @@ export function usePoDrawerFormLayout(
 
 
 
-  /** Full-viewport drawer (mobile / expanded): side rail from lg+, stacked below. */
+  /** Full-viewport drawer (mobile / 100% expansion): side rail from lg+, stacked below. */
 
-  const useFullPageLayout = !isPartialDrawer;
+  const useFullPageLayout = !isPartialDrawer || isFullWidthDrawer;
 
 
 

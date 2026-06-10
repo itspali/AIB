@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   issuePurchaseOrder,
@@ -16,6 +16,7 @@ import {
   mapPurchaseOrderToDraft,
   type PoDraftFormState,
 } from "@/lib/procurement/purchase-orders/draft-form";
+import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type {
@@ -36,6 +37,7 @@ type Options = {
   preferredDestinationLocationId?: string | null;
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
+  defaultPricesTaxInclusive?: boolean;
   onAfterSave: (purchaseOrderId: string) => void;
   onEditNotAllowed?: (purchaseOrderId: string) => void;
 };
@@ -50,11 +52,20 @@ export function usePoMutateForm({
   preferredDestinationLocationId = null,
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
+  defaultPricesTaxInclusive = false,
   onAfterSave,
   onEditNotAllowed,
 }: Options) {
+  const entryLineKey = useId();
   const [form, setForm] = useState<PoDraftFormState>(() =>
-    defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+    defaultPoDraftForm(
+      locations,
+      suppliers,
+      defaultCurrency,
+      preferredDestinationLocationId,
+      entryLineKey,
+      defaultPricesTaxInclusive
+    )
   );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
@@ -67,7 +78,14 @@ export function usePoMutateForm({
   useEffect(() => {
     if (mode === "create" && !copyFromId) {
       setForm(
-        defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+        defaultPoDraftForm(
+          locations,
+          suppliers,
+          defaultCurrency,
+          preferredDestinationLocationId,
+          entryLineKey,
+          defaultPricesTaxInclusive
+        )
       );
       setDetail(null);
       setIsDirty(false);
@@ -77,10 +95,12 @@ export function usePoMutateForm({
   }, [
     copyFromId,
     defaultCurrency,
+    entryLineKey,
     locations,
     mode,
     preferredDestinationLocationId,
     suppliers,
+    defaultPricesTaxInclusive,
   ]);
 
   useEffect(() => {
@@ -95,7 +115,14 @@ export function usePoMutateForm({
         toast.error(result.error ?? "Unable to duplicate purchase order.");
         setError(result.error);
         setForm(
-          defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+          defaultPoDraftForm(
+            locations,
+            suppliers,
+            defaultCurrency,
+            preferredDestinationLocationId,
+            entryLineKey,
+            defaultPricesTaxInclusive
+          )
         );
         return;
       }
@@ -109,10 +136,12 @@ export function usePoMutateForm({
   }, [
     copyFromId,
     defaultCurrency,
+    entryLineKey,
     locations,
     mode,
     preferredDestinationLocationId,
     suppliers,
+    defaultPricesTaxInclusive,
   ]);
 
   useEffect(() => {
@@ -185,15 +214,19 @@ export function usePoMutateForm({
         supplier_id: form.supplier_id,
         currency_code: form.currency_code,
         payment_terms_days: form.payment_terms_days,
+        prices_tax_inclusive: form.prices_tax_inclusive,
         custom_fields: form.custom_fields,
-        lines: filterSavablePoLines(form.lines).map((line) => ({
-          variant_id: line.variant_id,
-          quantity_ordered: line.quantity_ordered,
-          unit_price_contractual: line.unit_price_contractual || "0",
-          discount_percentage: line.discount_percentage || "0",
-          discount_amount: line.discount_amount || "0",
-          uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
-        })),
+        lines: filterSavablePoLines(form.lines).map((line) => {
+          const discount = normalizePoLineDiscountForSave(line);
+          return {
+            variant_id: line.variant_id,
+            quantity_ordered: line.quantity_ordered,
+            unit_price_contractual: line.unit_price_contractual || "0",
+            discount_percentage: discount.discount_percentage,
+            discount_amount: discount.discount_amount,
+            uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
+          };
+        }),
       };
 
       const result = await savePurchaseOrder(payload);

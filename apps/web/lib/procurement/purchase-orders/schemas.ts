@@ -57,6 +57,7 @@ export const savePurchaseOrderSchema = z.object({
     expected_delivery_date: "",
     internal_notes: "",
   }),
+  prices_tax_inclusive: z.boolean().default(false),
   lines: z.array(purchaseOrderLineSchema).min(1, "Add at least one line."),
 });
 

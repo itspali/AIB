@@ -65,6 +65,7 @@ function hasDecimalPlaces(columnId: string): boolean {
     "quantity_ordered",
     "quantity_received",
     "unit_price",
+    "mrp",
     "line_total",
     "discount_pct",
     "discount_amount",

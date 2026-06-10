@@ -10,7 +10,26 @@ import {
   getCachedPoLineCatalogContext,
   setCachedPoLineCatalogContext,
 } from "@/lib/documents/po-line-catalog-cache";
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import { syncPoLineMrpMarkdownFromOfferPrice } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { resolvePoLineUomAfterCatalogUpdate } from "@/lib/procurement/purchase-orders/po-line-uom-options";
+
+function withMrpMarkdownSync(line: PoDraftLine): PoDraftLine {
+  const sync = syncPoLineMrpMarkdownFromOfferPrice(line);
+  return sync ? { ...line, ...sync } : line;
+}
+
+function applyCatalogHydration(line: PoDraftLine, context: PoLineCatalogContext): PoDraftLine {
+  const catalog_context = mergePoLineCatalogContext(line.catalog_context, context);
+  if (!catalog_context) return line;
+
+  return withMrpMarkdownSync({
+    ...line,
+    catalog_context,
+    uom_code: resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context),
+  });
+}
 
 /** Loads read-only catalog snapshots for existing lines (e.g. when opening a saved PO). */
 export function usePoLineCatalogHydration(
@@ -39,10 +58,7 @@ export function usePoLineCatalogHydration(
           current.map((line) =>
             line.variant_id === variantId &&
             needsPoLineCatalogHydration(line.catalog_context)
-              ? {
-                  ...line,
-                  catalog_context: mergePoLineCatalogContext(line.catalog_context, cached),
-                }
+              ? applyCatalogHydration(line, cached)
               : line
           )
         );
@@ -62,13 +78,7 @@ export function usePoLineCatalogHydration(
           current.map((line) =>
             line.variant_id === variantId &&
             needsPoLineCatalogHydration(line.catalog_context)
-              ? {
-                  ...line,
-                  catalog_context: mergePoLineCatalogContext(
-                    line.catalog_context,
-                    result.context
-                  ),
-                }
+              ? applyCatalogHydration(line, result.context)
               : line
           )
         );

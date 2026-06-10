@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
   getItemDetailLineFields,
+  getPoLayoutColumnPref,
   getPoLineEntryTableColumns,
   normalizePoLayoutTemplate,
   PO_LINE_IMAGE_COLUMN_ID,
@@ -19,7 +20,12 @@ import {
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
+import {
+  resolvePoLineTotalColumnLabel,
+  resolvePoUnitPriceColumnLabel,
+} from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
+import { PoLineTaxModeToggle } from "@/components/procurement/purchase-orders/po-line-tax-mode-toggle";
 import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
@@ -48,6 +54,9 @@ type Props = {
   fillHeight?: boolean;
   layout?: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
+  enableMrpTradeTerms?: boolean;
+  pricesTaxInclusive?: boolean;
+  onPricesTaxInclusiveChange?: (value: boolean) => void;
   entryAnchor?: PoLineEntryAnchor;
   onEntryAnchorChange?: (anchor: PoLineEntryAnchor) => void;
   onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void;
@@ -58,7 +67,6 @@ const PO_LINE_EDITABLE_COLUMN_IDS = new Set<string>([
   "quantity_ordered",
   "unit_price",
   "discount_pct",
-  "discount_amount",
 ]);
 
 function PoLineEntryGrid({
@@ -70,6 +78,8 @@ function PoLineEntryGrid({
   fillHeight,
   layout: layoutProp,
   allowLineItemDiscounts,
+  enableMrpTradeTerms,
+  pricesTaxInclusive = false,
   actions,
 }: {
   lines: PoDraftLine[];
@@ -80,6 +90,8 @@ function PoLineEntryGrid({
   fillHeight: boolean;
   layout: DocumentLayoutTemplate;
   allowLineItemDiscounts: boolean;
+  enableMrpTradeTerms: boolean;
+  pricesTaxInclusive: boolean;
   actions: ReturnType<typeof usePoLineEntryActions>;
 }) {
   const layout = useMemo(() => normalizePoLayoutTemplate(layoutProp), [layoutProp]);
@@ -90,21 +102,38 @@ function PoLineEntryGrid({
   );
   const nestedColumns = useMemo(() => getItemDetailLineFields(layout), [layout]);
   const showUnitUnderQty = useMemo(() => shouldShowPoUnitUnderQtyColumn(layout), [layout]);
+  const discountAmountColumn = useMemo(
+    () => getPoLayoutColumnPref(layout, "discount_amount"),
+    [layout]
+  );
+  const mrpColumnVisible = useMemo(
+    () => visibleColumns.some((column) => column.id === "mrp"),
+    [visibleColumns]
+  );
 
   const columns: DocumentLineColumn[] = useMemo(
     () =>
-      visibleColumns.map((column) => ({
-        id: column.id,
-        label: column.id === PO_LINE_IMAGE_COLUMN_ID ? "" : column.label,
-        align: column.align,
-        widthClass: getDocumentLineColumnWidthClass(column.id),
-        colWidthRem: getDocumentLineColumnWidthRem(column.id),
-        colMinWidthRem: getDocumentLineColumnMinWidthRem(column.id),
-        editable: PO_LINE_EDITABLE_COLUMN_IDS.has(column.id),
-        headerClassName:
-          column.id === PO_LINE_IMAGE_COLUMN_ID ? "w-[3.25rem] px-0" : undefined,
-      })),
-    [visibleColumns]
+      visibleColumns.map((column) => {
+        let label = column.id === PO_LINE_IMAGE_COLUMN_ID ? "" : column.label;
+        if (column.id === "unit_price") {
+          label = resolvePoUnitPriceColumnLabel(pricesTaxInclusive);
+        } else if (column.id === "line_total") {
+          label = resolvePoLineTotalColumnLabel(pricesTaxInclusive);
+        }
+
+        return {
+          id: column.id,
+          label,
+          align: column.align,
+          widthClass: getDocumentLineColumnWidthClass(column.id),
+          colWidthRem: getDocumentLineColumnWidthRem(column.id),
+          colMinWidthRem: getDocumentLineColumnMinWidthRem(column.id),
+          editable: PO_LINE_EDITABLE_COLUMN_IDS.has(column.id),
+          headerClassName:
+            column.id === PO_LINE_IMAGE_COLUMN_ID ? "w-[3.25rem] px-0" : undefined,
+        };
+      }),
+    [visibleColumns, pricesTaxInclusive]
   );
 
   const minTableWidth = useMemo(
@@ -135,6 +164,9 @@ function PoLineEntryGrid({
           supplierId,
           destinationLocationId,
           excludePurchaseOrderId,
+          enableMrpTradeTerms,
+          mrpColumnVisible,
+          pricesTaxInclusive,
           itemRefs: actions.itemRefs,
           qtyRefs: actions.qtyRefs,
           priceRefs: actions.priceRefs,
@@ -150,7 +182,8 @@ function PoLineEntryGrid({
           ctx,
           nestedColumns,
           imageDisplayMode,
-          showUnitUnderQty
+          showUnitUnderQty,
+          discountAmountColumn
         );
       }}
     />
@@ -167,6 +200,9 @@ export function PoLineEntryTable({
   fillHeight = false,
   layout = DEFAULT_PO_SCREEN_LAYOUT,
   allowLineItemDiscounts = false,
+  enableMrpTradeTerms = true,
+  pricesTaxInclusive = false,
+  onPricesTaxInclusiveChange,
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
   onChange,
@@ -194,12 +230,28 @@ export function PoLineEntryTable({
     />
   );
 
+  const taxModeToggle =
+    onPricesTaxInclusiveChange != null ? (
+      <PoLineTaxModeToggle
+        value={pricesTaxInclusive}
+        disabled={disabled}
+        onChange={onPricesTaxInclusiveChange}
+      />
+    ) : null;
+
+  const headerControls = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {taxModeToggle}
+      {anchorToggle}
+    </div>
+  );
+
   return (
     <DocumentLineEntrySection
       title="Lines"
       fillHeight={fillHeight}
       showSectionTitle={showSectionTitle}
-      headerAction={showSectionTitle ? anchorToggle : null}
+      headerAction={showSectionTitle ? headerControls : null}
     >
       <PoLineEntryGrid
         lines={lines}
@@ -210,6 +262,8 @@ export function PoLineEntryTable({
         fillHeight={fillHeight}
         layout={resolvedLayout}
         allowLineItemDiscounts={allowLineItemDiscounts}
+        enableMrpTradeTerms={enableMrpTradeTerms}
+        pricesTaxInclusive={pricesTaxInclusive}
         actions={actions}
       />
     </DocumentLineEntrySection>

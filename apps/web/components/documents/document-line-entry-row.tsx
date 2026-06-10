@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
   DocumentLineDragHandle,
@@ -12,13 +12,22 @@ import {
   DOCUMENT_LINE_EDITABLE_CELL,
   type DocumentLineColumn,
 } from "@/components/documents/document-line-entry-grid";
+import {
+  computeLineRowVisualShiftPx,
+  lineRowCellShiftStyle,
+  setTableRowDragImage,
+  type LineRowDragState,
+  type LineRowDropPosition,
+} from "@/lib/documents/line-row-drag";
 
 type LineRow = { key: string };
+
+export type { LineRowDragState };
 
 type Props<T extends LineRow> = {
   line: T;
   lineIndex: number;
-  lines: T[];
+  lineKeys: readonly string[];
   columns: DocumentLineColumn[];
   disabled: boolean;
   showLineNumbers: boolean;
@@ -27,9 +36,17 @@ type Props<T extends LineRow> = {
   canRemove: boolean;
   canDuplicate: boolean;
   canReorder: boolean;
+  dragState: LineRowDragState;
+  onDragStateChange: (state: LineRowDragState) => void;
+  onDragEnd?: () => void;
+  onMeasureRowHeights: () => Record<string, number>;
   onRemoveLine?: (key: string) => void;
   onDuplicateLine?: (key: string) => void;
-  onReorderLine?: (fromKey: string, toKey: string) => void;
+  onReorderLine?: (
+    fromKey: string,
+    toKey: string,
+    position: LineRowDropPosition
+  ) => void;
   lineColumnClass: (column: DocumentLineColumn, extra?: string) => string;
   renderCell: (column: DocumentLineColumn, line: T, lineIndex: number) => ReactNode;
 };
@@ -37,7 +54,7 @@ type Props<T extends LineRow> = {
 export function DocumentLineEntryRow<T extends LineRow>({
   line,
   lineIndex,
-  lines,
+  lineKeys,
   columns,
   disabled,
   showLineNumbers,
@@ -46,39 +63,36 @@ export function DocumentLineEntryRow<T extends LineRow>({
   canRemove,
   canDuplicate,
   canReorder,
+  dragState,
+  onDragStateChange,
+  onDragEnd,
+  onMeasureRowHeights,
   onRemoveLine,
   onDuplicateLine,
   onReorderLine,
   lineColumnClass,
   renderCell,
 }: Props<T>) {
-  const [dragOver, setDragOver] = useState(false);
-  const reorderEnabled = canReorder && Boolean(onReorderLine) && !disabled;
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  const isDragging = dragState.draggingKey === line.key;
+  const isReordering = Boolean(dragState.draggingKey);
+  const visualShiftPx = computeLineRowVisualShiftPx(
+    lineIndex,
+    line.key,
+    lineKeys,
+    dragState
+  );
+  const cellShiftStyle = lineRowCellShiftStyle(visualShiftPx, isReordering);
 
   return (
-    <tr
-      onDragOver={(event) => {
-        if (!reorderEnabled) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(event) => {
-        if (!reorderEnabled) return;
-        event.preventDefault();
-        const fromKey = event.dataTransfer.getData("text/plain");
-        if (fromKey && fromKey !== line.key) {
-          onReorderLine?.(fromKey, line.key);
-        }
-        setDragOver(false);
-      }}
-      className={cn(reorderEnabled && dragOver && "bg-accent/50")}
-    >
+    <tr ref={rowRef} data-line-key={line.key}>
       {showLineNumbers ? (
         <td
-          className="border border-border px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground"
-          style={{ width: lineNumberColWidth }}
+          className={cn(
+            "border border-border px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground",
+            isDragging && "opacity-40"
+          )}
+          style={{ width: lineNumberColWidth, ...cellShiftStyle }}
         >
           <div className="flex flex-col items-center justify-center gap-0.5">
             {onReorderLine ? (
@@ -86,6 +100,21 @@ export function DocumentLineEntryRow<T extends LineRow>({
                 lineKey={line.key}
                 disabled={disabled}
                 canDrag={canReorder}
+                onDragStart={(event) => {
+                  onDragStateChange({
+                    draggingKey: line.key,
+                    dropTargetKey: null,
+                    dropPosition: null,
+                    rowHeights: onMeasureRowHeights(),
+                  });
+                  const row = rowRef.current;
+                  if (row) {
+                    setTableRowDragImage(event, row);
+                  }
+                }}
+                onDragEnd={() => {
+                  onDragEnd?.();
+                }}
               />
             ) : null}
             <span>{lineIndex + 1}</span>
@@ -95,16 +124,24 @@ export function DocumentLineEntryRow<T extends LineRow>({
       {columns.map((column) => (
         <td
           key={column.id}
+          style={cellShiftStyle}
           className={cn(
             lineColumnClass(column),
-            column.editable ? DOCUMENT_LINE_EDITABLE_CELL : DOCUMENT_LINE_BODY_CELL
+            column.editable ? DOCUMENT_LINE_EDITABLE_CELL : DOCUMENT_LINE_BODY_CELL,
+            isDragging && "opacity-40"
           )}
         >
           {renderCell(column, line, lineIndex)}
         </td>
       ))}
       {showActionsColumn ? (
-        <td className="border border-border p-0 text-center align-top">
+        <td
+          style={cellShiftStyle}
+          className={cn(
+            "border border-border p-0 text-center align-top",
+            isDragging && "opacity-40"
+          )}
+        >
           <div className="flex items-center justify-center">
             {onDuplicateLine ? (
               <DocumentLineDuplicateButton

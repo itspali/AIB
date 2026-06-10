@@ -14,10 +14,16 @@ import type {
   StockVariantOption,
 } from "@/lib/inventory/stock/types";
 import { resolveStockVariantBlockedReason } from "@/lib/inventory/stock/variant-eligibility";
-import { filterUserCustomFieldEntries } from "@/lib/products/catalog-reserved-fields";
+import {
+  extractDefaultPurchasePriceFromCustomFieldsRecord,
+  extractMrpFromCustomFieldsRecord,
+  filterUserCustomFieldEntries,
+} from "@/lib/products/catalog-reserved-fields";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
+import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
+import { parseDefaultPurchaseUomFromCustomFields } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 
 /** Disambiguate composite tenant FK embeds on item_valuations. */
 const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
@@ -370,9 +376,14 @@ function mapSuggestionCustomFields(
     key,
     value: value == null ? "" : String(value),
   }));
-  return Object.fromEntries(
+  const fields = Object.fromEntries(
     filterUserCustomFieldEntries(entries).map((row) => [row.key, row.value])
   );
+  const purchaseUom = parseDefaultPurchaseUomFromCustomFields(raw);
+  if (purchaseUom) {
+    fields[COMMERCE_DEFAULT_PURCHASE_UOM_KEY] = purchaseUom;
+  }
+  return fields;
 }
 
 function escapeIlikePattern(value: string): string {
@@ -398,12 +409,16 @@ function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
     item_name: item?.name ?? "",
     variant_sku: row.sku,
     standard_cost: extractStandardCost(item?.custom_fields ?? null),
+    purchase_price: extractDefaultPurchasePriceFromCustomFieldsRecord(
+      item?.custom_fields ?? null
+    ) || null,
     adjustable: blockedReason == null,
     blocked_reason: blockedReason,
     image_url: null,
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
     description: item?.description?.trim() || null,
     hsn_sac_code: item?.hsn_sac_code?.trim() || null,
+    mrp: extractMrpFromCustomFieldsRecord(item?.custom_fields) || null,
     variant_attributes: Object.fromEntries(listVariantAttributeEntries(row.variant_attributes)),
     custom_fields: mapSuggestionCustomFields(item?.custom_fields),
   };

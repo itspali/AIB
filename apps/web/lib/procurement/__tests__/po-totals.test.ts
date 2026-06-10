@@ -21,6 +21,19 @@ describe("purchase order totals", () => {
     expect(computeLineGross({ quantity_ordered: "", unit_price_contractual: "12" })).toBe(0);
   });
 
+  it("parses comma-formatted unit prices when applying discount", () => {
+    const line = {
+      quantity_ordered: "10",
+      unit_price_contractual: "1,800.50",
+      discount_percentage: "10",
+      discount_amount: "0",
+      discount_type: "percent" as const,
+    };
+
+    expect(resolveLineDiscount(line)).toBe(1800.5);
+    expect(computeLineGross(line)).toBe(16204.5);
+  });
+
   it("applies percent discount to line gross", () => {
     const line = {
       quantity_ordered: "10",
@@ -33,15 +46,29 @@ describe("purchase order totals", () => {
     expect(computeLineGross(line)).toBe(900);
   });
 
-  it("prefers fixed discount amount over percent", () => {
+  it("prefers fixed discount amount over percent when type is amount", () => {
     const line = {
       quantity_ordered: "2",
       unit_price_contractual: "50",
       discount_percentage: "50",
       discount_amount: "25",
+      discount_type: "amount" as const,
     };
 
     expect(computeLineGross(line)).toBe(75);
+  });
+
+  it("uses percent discount when type is percent even if amount is stored", () => {
+    const line = {
+      quantity_ordered: "2",
+      unit_price_contractual: "50",
+      discount_percentage: "10",
+      discount_amount: "25",
+      discount_type: "percent" as const,
+    };
+
+    expect(resolveLineDiscount(line)).toBe(10);
+    expect(computeLineGross(line)).toBe(90);
   });
 
   it("caps discount at line extension", () => {

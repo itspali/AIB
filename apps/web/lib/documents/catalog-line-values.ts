@@ -2,6 +2,7 @@ import {
   isCatalogFieldId,
   parseCatalogFieldId,
 } from "@/lib/documents/catalog-field-ids";
+import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 import type { DocumentColumnPref } from "@/lib/documents/types";
@@ -20,6 +21,8 @@ export type PoLineCatalogContext = {
   description: string | null;
   hsn_sac_code: string | null;
   base_unit_of_measure: string | null;
+  /** Maximum retail price from item master (reserved custom_fields key). */
+  mrp: string | null;
   image_url: string | null;
   tax_code_id: string | null;
   tax_rate: number;
@@ -42,6 +45,7 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     description: null,
     hsn_sac_code: null,
     base_unit_of_measure: null,
+    mrp: null,
     image_url: imageUrl,
     tax_code_id: null,
     tax_rate: 0,
@@ -69,13 +73,20 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
   base_unit_of_measure?: string | null;
   description?: string | null;
   hsn_sac_code?: string | null;
+  mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
 }): PoLineCatalogContext {
+  const mrp =
+    partial.mrp?.trim() ||
+    extractMrpFromCustomFieldsRecord(partial.custom_fields) ||
+    null;
+
   return {
     description: partial.description?.trim() || null,
     hsn_sac_code: partial.hsn_sac_code?.trim() || null,
     base_unit_of_measure: partial.base_unit_of_measure?.trim() || null,
+    mrp,
     image_url: partial.image_url?.trim() || null,
     tax_code_id: null,
     tax_rate: 0,

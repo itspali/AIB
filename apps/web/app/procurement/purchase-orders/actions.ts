@@ -247,6 +247,7 @@ export async function savePurchaseOrder(raw: unknown) {
     p_payment_terms_days: Number(values.payment_terms_days || 0),
     p_custom_fields: serializePurchaseOrderCustomFields(values.custom_fields),
     p_currency_code: values.currency_code,
+    p_prices_tax_inclusive: values.prices_tax_inclusive,
   });
 
   if (error) {

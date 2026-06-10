@@ -129,7 +129,7 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 **Header fields:** `supplier`, `destination`, `currency`, `voucher_number`, `payment_terms_days`, `requisition_number`, `expected_delivery_date`, `internal_notes`, `document_status`, `updated_at` — each: visible, label, reorder
 
-**Line columns:** `item` (pinned), `quantity_ordered`, `unit`, `unit_price`, `line_total`, `discount_pct` / `discount_amount` — each: visible, label, align, decimal places (where numeric), reorder. Discount columns require `PROCUREMENT_SETTINGS.allow_line_item_discounts` (mirrors org Accounting toggle).
+**Line columns:** `item` (pinned), `quantity_ordered`, `unit`, `unit_price`, `line_total`, `discount_pct` / `discount_amount` — each: visible, label, align, decimal places (where numeric), reorder. Default: **Discount** column with **% | Amt** type stacked under the value (like unit under qty); enable **Disc amount** as a separate column in layout for split percent/amount columns. Discount columns require `PROCUREMENT_SETTINGS.allow_line_item_discounts` (mirrors org Accounting toggle).
 
 **Item catalog fields (read-only, from item master):** resolved at line pick from `items` / `item_variants` / category attribute templates — not stored on PO until Issue snapshot (future). Layout ids: `variant_attr:__all__`, `variant_attr:{key}`, `item_col:{key}`, `item_cf:{key}`. Default on: all variant attributes under item cell. Settings section **Item catalog fields** — add HSN, description, base unit, tenant custom field keys, individual category attributes; same Place / Label / Flow prefs as commercial line fields.
 

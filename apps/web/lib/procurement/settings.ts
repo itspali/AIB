@@ -6,12 +6,15 @@ export type ProcurementSettings = {
   allow_edit_issued_purchase_orders: boolean;
   allow_line_item_discounts: boolean;
   purchase_prices_tax_inclusive: boolean;
+  /** Show MRP + trade markdown stack under offer unit price when item MRP exists. */
+  po_mrp_trade_terms_enabled: boolean;
 };
 
 const DEFAULT_PROCUREMENT_SETTINGS: ProcurementSettings = {
   allow_edit_issued_purchase_orders: false,
   allow_line_item_discounts: false,
   purchase_prices_tax_inclusive: false,
+  po_mrp_trade_terms_enabled: true,
 };
 
 export async function fetchProcurementSettings(
@@ -65,5 +68,9 @@ export async function fetchProcurementSettings(
       typeof meta.purchase_prices_tax_inclusive === "boolean"
         ? meta.purchase_prices_tax_inclusive
         : DEFAULT_PROCUREMENT_SETTINGS.purchase_prices_tax_inclusive,
+    po_mrp_trade_terms_enabled:
+      typeof meta.po_mrp_trade_terms_enabled === "boolean"
+        ? meta.po_mrp_trade_terms_enabled
+        : DEFAULT_PROCUREMENT_SETTINGS.po_mrp_trade_terms_enabled,
   };
 }

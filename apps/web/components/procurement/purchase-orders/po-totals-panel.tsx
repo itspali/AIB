@@ -62,7 +62,10 @@ function TotalsFieldRow({
       <dt
         className={documentFieldTypographyClassName(
           field,
-          isGrandTotal ? "font-semibold text-foreground" : "text-muted-foreground"
+          cn(
+            "min-w-0",
+            isGrandTotal ? "font-semibold text-foreground" : "text-muted-foreground"
+          )
         )}
       >
         {field.label}
@@ -71,7 +74,7 @@ function TotalsFieldRow({
         className={documentFieldTypographyClassName(
           field,
           cn(
-            "tabular-nums",
+            "shrink-0 text-right tabular-nums",
             isGrandTotal
               ? "text-base font-semibold text-foreground"
               : field.id === "tax_amount"

@@ -45,6 +45,7 @@ describe("purchase-order-layout compact columns", () => {
       "quantity_ordered",
       "unit",
       "unit_price",
+      "mrp",
       "discount_pct",
       "discount_amount",
       "line_total",

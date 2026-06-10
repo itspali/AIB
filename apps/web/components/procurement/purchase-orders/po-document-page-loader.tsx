@@ -55,7 +55,8 @@ async function loadPoDocumentPageContext() {
     editAccessGranted: editAccess.granted,
     allowEditIssuedPurchaseOrders: procurementSettings.allow_edit_issued_purchase_orders,
     allowLineItemDiscounts: procurementSettings.allow_line_item_discounts,
-    purchasePricesTaxInclusive: procurementSettings.purchase_prices_tax_inclusive,
+    enableMrpTradeTerms: procurementSettings.po_mrp_trade_terms_enabled,
+    defaultPricesTaxInclusive: procurementSettings.purchase_prices_tax_inclusive,
     defaultCurrency,
     documentLayout,
     preferredDestinationLocationId: preferredDestinationLocationId ?? null,
@@ -92,7 +93,8 @@ export async function PoDocumentCreateLoader({
       editAccessGranted={context.editAccessGranted}
       allowEditIssuedPurchaseOrders={context.allowEditIssuedPurchaseOrders}
       allowLineItemDiscounts={context.allowLineItemDiscounts}
-      purchasePricesTaxInclusive={context.purchasePricesTaxInclusive}
+      enableMrpTradeTerms={context.enableMrpTradeTerms}
+      defaultPricesTaxInclusive={context.defaultPricesTaxInclusive}
       defaultCurrency={context.defaultCurrency}
       documentLayout={context.documentLayout}
       preferredDestinationLocationId={context.preferredDestinationLocationId}
@@ -122,7 +124,8 @@ export async function PoDocumentEditLoader({
       editAccessGranted={context.editAccessGranted}
       allowEditIssuedPurchaseOrders={context.allowEditIssuedPurchaseOrders}
       allowLineItemDiscounts={context.allowLineItemDiscounts}
-      purchasePricesTaxInclusive={context.purchasePricesTaxInclusive}
+      enableMrpTradeTerms={context.enableMrpTradeTerms}
+      defaultPricesTaxInclusive={context.defaultPricesTaxInclusive}
       defaultCurrency={context.defaultCurrency}
       documentLayout={context.documentLayout}
       preferredDestinationLocationId={context.preferredDestinationLocationId}

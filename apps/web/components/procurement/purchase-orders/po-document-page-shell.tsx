@@ -11,8 +11,13 @@ import { Button } from "@/components/ui/button";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import { LIST_MODULE_VIEWPORT_OFFSET } from "@/lib/layout/list-module-chrome";
+import { useListModuleScrollLock } from "@/lib/layout/use-list-module-scroll-lock";
+import { useAvailablePaneHeight } from "@/lib/layout/use-viewport-remaining-height";
 import { poListReturnHref } from "@/lib/procurement/navigation";
+import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 import { usePoMutateForm } from "@/lib/procurement/purchase-orders/use-po-mutate-form";
+import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import type {
   ProcurementLocationOption,
@@ -28,7 +33,8 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
-  purchasePricesTaxInclusive: boolean;
+  enableMrpTradeTerms?: boolean;
+  defaultPricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
@@ -44,7 +50,8 @@ export function PoDocumentPageShell({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
-  purchasePricesTaxInclusive,
+  enableMrpTradeTerms = true,
+  defaultPricesTaxInclusive,
   defaultCurrency,
   documentLayout,
   preferredDestinationLocationId = null,
@@ -71,6 +78,7 @@ export function PoDocumentPageShell({
     preferredDestinationLocationId,
     editAccessGranted,
     allowEditIssuedPurchaseOrders,
+    defaultPricesTaxInclusive,
     onAfterSave: handleAfterSave,
     onEditNotAllowed: mode === "edit" ? handleEditNotAllowed : undefined,
   });
@@ -93,10 +101,28 @@ export function PoDocumentPageShell({
       : mutate.detail?.voucher_number ?? "Edit purchase order";
 
   const showEditor = !mutate.detailLoading;
+  const { lineTableFillHeight } = usePoDrawerFormLayout(true, PO_FULL_PAGE_LAYOUT);
+  const { ref: viewportRef, height: viewportHeight } = useAvailablePaneHeight(
+    lineTableFillHeight,
+    "remaining-viewport"
+  );
+  useListModuleScrollLock(lineTableFillHeight);
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col">
+      <div
+        ref={viewportRef}
+        style={
+          lineTableFillHeight && viewportHeight != null
+            ? { height: viewportHeight, maxHeight: viewportHeight }
+            : undefined
+        }
+        className={cn(
+          "flex min-h-0 flex-col",
+          lineTableFillHeight ? "overflow-hidden" : "h-full",
+          lineTableFillHeight && LIST_MODULE_VIEWPORT_OFFSET
+        )}
+      >
         <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <Button
             type="button"
@@ -145,7 +171,12 @@ export function PoDocumentPageShell({
           </div>
         </div>
 
-        <div className="canvas-scroll-endpad flex min-h-0 flex-1 flex-col overflow-auto p-4">
+        <div
+          className={cn(
+            "canvas-scroll-endpad flex min-h-0 flex-1 flex-col p-4",
+            lineTableFillHeight ? "overflow-hidden" : "overflow-auto"
+          )}
+        >
           {mutate.error ? (
             <UserFacingErrorMessage
               message={mutate.error}
@@ -157,20 +188,26 @@ export function PoDocumentPageShell({
             <p className="text-sm text-muted-foreground">Loading purchase order…</p>
           ) : null}
           {showEditor ? (
-            <PoDocumentEditorShell
-              form={mutate.form}
-              locations={locations}
-              suppliers={suppliers}
-              editOrderId={mutate.purchaseOrderId}
-              defaultCurrency={defaultCurrency}
-              documentLayout={documentLayout}
-              allowLineItemDiscounts={allowLineItemDiscounts}
-              purchasePricesTaxInclusive={purchasePricesTaxInclusive}
-              isPending={mutate.isPending}
-              layoutOverride={PO_FULL_PAGE_LAYOUT}
-              onPatch={mutate.patchForm}
-              onLinesChange={mutate.handleLinesChange}
-            />
+            <div
+              className={cn(
+                lineTableFillHeight && "flex min-h-0 flex-1 flex-col overflow-hidden"
+              )}
+            >
+              <PoDocumentEditorShell
+                form={mutate.form}
+                locations={locations}
+                suppliers={suppliers}
+                editOrderId={mutate.purchaseOrderId}
+                defaultCurrency={defaultCurrency}
+                documentLayout={documentLayout}
+                allowLineItemDiscounts={allowLineItemDiscounts}
+                enableMrpTradeTerms={enableMrpTradeTerms}
+                isPending={mutate.isPending}
+                layoutOverride={PO_FULL_PAGE_LAYOUT}
+                onPatch={mutate.patchForm}
+                onLinesChange={mutate.handleLinesChange}
+              />
+            </div>
           ) : null}
         </div>
       </div>

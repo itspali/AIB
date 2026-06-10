@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 import type {
   PurchaseOrderLineRow,
   PurchaseOrderPartyAddress,
@@ -74,6 +75,7 @@ function buildPurchaseOrderListSelect(options: {
       total_gross_amount,
       total_tax_amount,
       total_net_amount,
+      prices_tax_inclusive,
       custom_fields,
       created_by,
       created_at,
@@ -184,6 +186,7 @@ type PoListDbRow = {
   total_gross_amount: number | string | null;
   total_tax_amount: number | string | null;
   total_net_amount: number | string;
+  prices_tax_inclusive?: boolean | null;
   custom_fields: Record<string, unknown> | null;
   created_by: string;
   created_at: string;
@@ -207,7 +210,18 @@ type PoLineDbRow = {
   tax_rate_percentage?: number | string | null;
   line_tax_amount?: number | string | null;
   line_total_gross: number | string;
-  items: { name: string; base_unit_of_measure?: string | null } | { name: string; base_unit_of_measure?: string | null }[] | null;
+  items:
+    | {
+        name: string;
+        base_unit_of_measure?: string | null;
+        custom_fields?: Record<string, unknown> | null;
+      }
+    | {
+        name: string;
+        base_unit_of_measure?: string | null;
+        custom_fields?: Record<string, unknown> | null;
+      }[]
+    | null;
   item_variants: { sku: string } | { sku: string }[] | null;
 };
 
@@ -283,6 +297,7 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || "PCS",
     uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
+    mrp: extractMrpFromCustomFieldsRecord(item?.custom_fields) || null,
     quantity_ordered: ordered,
     quantity_received: received,
     unit_price_contractual: formatDecimal(row.unit_price_contractual),
@@ -317,6 +332,7 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     total_tax_amount: formatDecimal(row.total_tax_amount ?? 0),
     line_count: row.po_lines?.length ?? 0,
     total_net_amount: formatDecimal(row.total_net_amount),
+    prices_tax_inclusive: row.prices_tax_inclusive === true,
     custom_fields: row.custom_fields ?? {},
     created_by: row.created_by,
     created_by_name: "",
@@ -395,6 +411,7 @@ export async function fetchPurchaseOrderById(
       total_gross_amount,
       total_tax_amount,
       total_net_amount,
+      prices_tax_inclusive,
       custom_fields,
       created_by,
       created_at,
@@ -415,7 +432,7 @@ export async function fetchPurchaseOrderById(
         tax_rate_percentage,
         line_tax_amount,
         line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
       )
     `
@@ -469,7 +486,7 @@ export async function fetchReceivablePurchaseOrders(
         tax_rate_percentage,
         line_tax_amount,
         line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure),
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
       )
     `

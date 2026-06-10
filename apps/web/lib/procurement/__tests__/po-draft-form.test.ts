@@ -9,6 +9,7 @@ import {
   isPoLineComplete,
   movePoDraftLine,
   normalizePoLinesForAnchor,
+  poLinesNeedAnchorNormalization,
   supplierDefaultCurrency,
 } from "@/lib/procurement/purchase-orders/draft-form";
 
@@ -78,6 +79,41 @@ describe("po draft form line helpers", () => {
     expect(reordered.map((line) => line.key)).toEqual(["line-b", "line-a", blank.key]);
   });
 
+  it("can insert after the drop target when requested", () => {
+    const lineA = {
+      ...createEmptyPoLine(),
+      key: "line-a",
+      variant_id: "variant-a",
+      quantity_ordered: "1",
+    };
+    const lineB = {
+      ...createEmptyPoLine(),
+      key: "line-b",
+      variant_id: "variant-b",
+      quantity_ordered: "2",
+    };
+    const lineC = {
+      ...createEmptyPoLine(),
+      key: "line-c",
+      variant_id: "variant-c",
+      quantity_ordered: "3",
+    };
+    const blank = createEmptyPoLine();
+    const reordered = movePoDraftLine(
+      [lineA, lineB, lineC, blank],
+      "line-a",
+      "line-b",
+      "bottom",
+      "after"
+    );
+    expect(reordered.map((line) => line.key)).toEqual([
+      "line-b",
+      "line-a",
+      "line-c",
+      blank.key,
+    ]);
+  });
+
   it("ignores reorder when either row is the blank entry line", () => {
     const complete = {
       ...createEmptyPoLine(),
@@ -88,6 +124,30 @@ describe("po draft form line helpers", () => {
     const lines = [complete, blank];
     expect(movePoDraftLine(lines, blank.key, complete.key, "bottom")).toEqual(lines);
     expect(movePoDraftLine(lines, complete.key, blank.key, "bottom")).toEqual(lines);
+  });
+
+  it("does not require anchor normalization while typing in the entry row", () => {
+    const entry = {
+      ...createEmptyPoLine(),
+      key: "entry-row",
+      sku: "wid",
+    };
+    expect(poLinesNeedAnchorNormalization([entry], "bottom")).toBe(false);
+    expect(poLinesNeedAnchorNormalization([entry], "top")).toBe(false);
+  });
+
+  it("requires anchor normalization when in-progress entry row is not on the anchor edge", () => {
+    const complete = {
+      ...createEmptyPoLine(),
+      variant_id: "variant-a",
+      quantity_ordered: "1",
+    };
+    const inProgress = {
+      ...createEmptyPoLine(),
+      key: "entry-row",
+      sku: "wid",
+    };
+    expect(poLinesNeedAnchorNormalization([inProgress, complete], "bottom")).toBe(true);
   });
 
   it("filters incomplete trailing rows before save", () => {

@@ -27,6 +27,8 @@ export type PurchaseOrderLineRow = {
   uom_conversion_factor: string;
   /** Item base UOM — fallback when line uom is unset. */
   base_unit_of_measure?: string | null;
+  /** Maximum retail price from item master at read time. */
+  mrp?: string | null;
 };
 
 export type PurchaseOrderPartyAddress = {
@@ -57,6 +59,7 @@ export type PurchaseOrderRow = {
   total_tax_amount: string;
   line_count: number;
   total_net_amount: string;
+  prices_tax_inclusive: boolean;
   custom_fields: Record<string, unknown>;
   created_by: string;
   created_by_name: string;

@@ -462,6 +462,7 @@ CREATE TABLE purchase_orders (
     total_gross_amount      NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     total_tax_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     total_net_amount        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    prices_tax_inclusive    BOOLEAN NOT NULL DEFAULT FALSE,
     custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),

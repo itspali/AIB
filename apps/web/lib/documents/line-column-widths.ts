@@ -1,33 +1,53 @@
 /** Minimum width for the item column — grows with remaining table space, no max cap. */
 export const DOCUMENT_LINE_ITEM_COLUMN_MIN_WIDTH_REM = 16;
 
+/**
+ * Qty column — fits grouped values like `9,999.999` (text-sm tabular + cell padding).
+ */
+export const DOCUMENT_LINE_QTY_WIDTH_REM = 7;
+
+/**
+ * Money / rate columns — fits grouped values like `99,999,999.99`
+ * (9 integer digits + 2 decimals) without clipping.
+ */
+export const DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM = 8.5;
+
+/** Discount % column — value + %/Amt subline selector. */
+export const DOCUMENT_LINE_DISCOUNT_PCT_WIDTH_REM = 7;
+
 const LINE_COLUMN_WIDTH_REM: Record<string, number> = {
   line_image: 3.25,
   sku: 5.5,
-  quantity_ordered: 5,
+  quantity_ordered: DOCUMENT_LINE_QTY_WIDTH_REM,
   unit: 3.25,
-  unit_price: 5.5,
-  line_total: 5.5,
-  discount_pct: 4,
-  discount_amount: 5.5,
+  unit_price: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,
+  mrp: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,
+  line_total: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,
+  discount_pct: DOCUMENT_LINE_DISCOUNT_PCT_WIDTH_REM,
+  discount_amount: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,
   quantity_received: 4.5,
 };
 
+function widthClass(rem: number): string {
+  return `w-[${rem}rem]`;
+}
+
 const LINE_COLUMN_WIDTH_CLASS: Record<string, string> = {
-  item: "min-w-[16rem]",
-  line_image: "w-[3.25rem]",
-  sku: "w-[5.5rem]",
-  quantity_ordered: "w-[5rem]",
-  unit: "w-[3.25rem]",
-  unit_price: "w-[5.5rem]",
-  line_total: "w-[5.5rem]",
-  discount_pct: "w-[4rem]",
-  discount_amount: "w-[5.5rem]",
-  quantity_received: "w-[4.5rem]",
+  item: `min-w-[${DOCUMENT_LINE_ITEM_COLUMN_MIN_WIDTH_REM}rem]`,
+  line_image: widthClass(LINE_COLUMN_WIDTH_REM.line_image),
+  sku: widthClass(LINE_COLUMN_WIDTH_REM.sku),
+  quantity_ordered: widthClass(LINE_COLUMN_WIDTH_REM.quantity_ordered),
+  unit: widthClass(LINE_COLUMN_WIDTH_REM.unit),
+  unit_price: widthClass(LINE_COLUMN_WIDTH_REM.unit_price),
+  mrp: widthClass(LINE_COLUMN_WIDTH_REM.mrp),
+  line_total: widthClass(LINE_COLUMN_WIDTH_REM.line_total),
+  discount_pct: widthClass(LINE_COLUMN_WIDTH_REM.discount_pct),
+  discount_amount: widthClass(LINE_COLUMN_WIDTH_REM.discount_amount),
+  quantity_received: widthClass(LINE_COLUMN_WIDTH_REM.quantity_received),
 };
 
 export function getDocumentLineColumnWidthClass(columnId: string): string | undefined {
-  return LINE_COLUMN_WIDTH_CLASS[columnId] ?? "w-[5rem]";
+  return LINE_COLUMN_WIDTH_CLASS[columnId] ?? widthClass(5);
 }
 
 /** Fixed `<col>` width in rem; item uses min width and fills remaining space. */
@@ -61,3 +81,4 @@ export function computeDocumentLineMinTableWidth(
 
   return `min-w-[${Math.ceil(total)}rem]`;
 }
+

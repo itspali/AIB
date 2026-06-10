@@ -47,8 +47,7 @@ export function OrganizationProcurementSection({ form, disabled }: Props) {
               Purchase prices include tax
             </Label>
             <p className="text-xs text-muted-foreground">
-              When enabled, PO unit prices are treated as tax-inclusive. When disabled (default),
-              unit prices are ex-tax and line tax is calculated from each item&apos;s tax code.
+              Default for new purchase orders. Each PO can override this on the line table.
             </p>
           </div>
           <Switch

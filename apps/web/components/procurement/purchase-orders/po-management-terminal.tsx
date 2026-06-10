@@ -45,7 +45,8 @@ type Props = {
   editAccessGranted: boolean;
   allowEditIssuedPurchaseOrders: boolean;
   allowLineItemDiscounts: boolean;
-  purchasePricesTaxInclusive: boolean;
+  enableMrpTradeTerms?: boolean;
+  defaultPricesTaxInclusive: boolean;
   defaultCurrency: string;
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
@@ -59,7 +60,8 @@ export function PoManagementTerminal({
   editAccessGranted,
   allowEditIssuedPurchaseOrders,
   allowLineItemDiscounts,
-  purchasePricesTaxInclusive,
+  enableMrpTradeTerms = true,
+  defaultPricesTaxInclusive,
   defaultCurrency,
   documentLayout: initialDocumentLayout,
   preferredDestinationLocationId = null,
@@ -272,7 +274,8 @@ export function PoManagementTerminal({
         editAccessGranted={editAccessGranted}
         allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
         allowLineItemDiscounts={allowLineItemDiscounts}
-        purchasePricesTaxInclusive={purchasePricesTaxInclusive}
+        enableMrpTradeTerms={enableMrpTradeTerms}
+        defaultPricesTaxInclusive={defaultPricesTaxInclusive}
         defaultCurrency={defaultCurrency}
         preferredDestinationLocationId={preferredDestinationLocationId}
         documentLayout={documentLayout}

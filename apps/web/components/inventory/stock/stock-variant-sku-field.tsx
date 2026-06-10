@@ -48,6 +48,8 @@ export type StockLineSkuSelection = {
   item_name: string;
   variant_sku: string;
   unit_cost: string;
+  /** Item master purchase rate — used by PO lines for offer unit price. */
+  purchase_price?: string | null;
   skuError: string | null;
   /** Optional thumbnail URL from variant search/browse (PO line image hydration). */
   image_url?: string | null;
@@ -55,6 +57,7 @@ export type StockLineSkuSelection = {
   base_unit_of_measure?: string | null;
   description?: string | null;
   hsn_sac_code?: string | null;
+  mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
 };
@@ -127,6 +130,7 @@ function applyVariant(
     item_name: variant.item_name,
     variant_sku: variant.variant_sku,
     unit_cost: variant.standard_cost ?? "0",
+    purchase_price: variant.purchase_price ?? null,
     skuError: null,
     ...(variant.image_url ? { image_url: variant.image_url } : {}),
     ...(variant.base_unit_of_measure
@@ -134,6 +138,7 @@ function applyVariant(
       : {}),
     ...(variant.description ? { description: variant.description } : {}),
     ...(variant.hsn_sac_code ? { hsn_sac_code: variant.hsn_sac_code } : {}),
+    ...(variant.mrp ? { mrp: variant.mrp } : {}),
     ...(variant.variant_attributes && Object.keys(variant.variant_attributes).length > 0
       ? { variant_attributes: variant.variant_attributes }
       : {}),
@@ -215,6 +220,22 @@ export function StockVariantSkuField({
   } | null>(null);
 
   const debounceTimeoutRef = useRef<number | null>(null);
+
+  const cancelBlurClose = useCallback(() => {
+    if (blurTimeoutRef.current) {
+      window.clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+  }, []);
+
+  const cancelPendingSearch = useCallback(() => {
+    if (debounceTimeoutRef.current) {
+      window.clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+    searchRequestIdRef.current += 1;
+    setIsSearching(false);
+  }, []);
 
   useEffect(() => {
     setPortalReady(true);
@@ -419,14 +440,14 @@ export function StockVariantSkuField({
       return;
     }
 
-    searchRequestIdRef.current += 1;
+    cancelPendingSearch();
     skipSearchRef.current = true;
     applyVariant(variant, onChangeRef.current);
     setQuery(resolveVariantDisplayQuery(variant, displayModeRef.current));
     setOpen(false);
     setResults([]);
     setFieldError(null);
-  }, []);
+  }, [cancelPendingSearch]);
 
   const selectVariantRef = useRef(selectVariant);
   selectVariantRef.current = selectVariant;
@@ -464,7 +485,7 @@ export function StockVariantSkuField({
         return;
       }
 
-      searchRequestIdRef.current += 1;
+      cancelPendingSearch();
       skipSearchRef.current = true;
       applyVariant(
         {
@@ -485,25 +506,17 @@ export function StockVariantSkuField({
       setResults([]);
       setFieldError(null);
     });
-  }, [query]);
+  }, [cancelPendingSearch, query]);
 
   const resolveExactSkuRef = useRef(resolveExactSku);
   resolveExactSkuRef.current = resolveExactSku;
 
-  const cancelBlurClose = useCallback(() => {
-    if (blurTimeoutRef.current) {
-      window.clearTimeout(blurTimeoutRef.current);
-      blurTimeoutRef.current = null;
-    }
-  }, []);
-
-  const cancelPendingSearch = useCallback(() => {
-    if (debounceTimeoutRef.current) {
-      window.clearTimeout(debounceTimeoutRef.current);
-      debounceTimeoutRef.current = null;
-    }
-    searchRequestIdRef.current += 1;
-  }, []);
+  useEffect(() => {
+    if (!value.variant_id) return;
+    cancelPendingSearch();
+    setOpen(false);
+    setResults([]);
+  }, [cancelPendingSearch, value.variant_id]);
 
   const setHighlight = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(index, Math.max(resultsRef.current.length - 1, 0)));
@@ -606,7 +619,6 @@ export function StockVariantSkuField({
   const clearSelection = useCallback(() => {
     cancelBlurClose();
     cancelPendingSearch();
-    searchRequestIdRef.current += 1;
     skipSearchRef.current = true;
     onChangeRef.current({
       sku: "",
@@ -899,7 +911,7 @@ export function StockVariantSkuField({
         >
           {secondaryText}
         </p>
-      ) : isSearching ? (
+      ) : isSearching && !value.variant_id ? (
         <p className="text-[11px] text-muted-foreground">Searching…</p>
       ) : null}
     </div>

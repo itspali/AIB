@@ -1,20 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { RIGHT_DRAWER_PRESET_WIDTHS } from "@/components/ui/right-drawer";
+import {
+  RIGHT_DRAWER_FULL_WIDTH_VW,
+  RIGHT_DRAWER_PRESET_WIDTHS,
+} from "@/components/ui/right-drawer";
 import { isPoDrawerBelowWidePreset } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 
 /** Mirrors use-po-drawer-form-layout.ts side-by-side predicate for unit tests. */
 function shouldUseWidePartialDrawer(input: {
   isPartialDrawer: boolean;
+  isFullWidthDrawer: boolean;
   stackVertically: boolean;
   isLargeViewport: boolean;
   drawerWidthVw: number;
 }): boolean {
   return (
     input.isPartialDrawer &&
+    !input.isFullWidthDrawer &&
     !input.stackVertically &&
     input.isLargeViewport &&
     input.drawerWidthVw >= RIGHT_DRAWER_PRESET_WIDTHS[1] - 0.5
   );
+}
+
+/** Mirrors use-po-drawer-form-layout.ts full-page predicate for unit tests. */
+function shouldUseFullPageLayout(input: {
+  isPartialDrawer: boolean;
+  isFullWidthDrawer: boolean;
+}): boolean {
+  return !input.isPartialDrawer || input.isFullWidthDrawer;
 }
 
 /** Mirrors use-po-drawer-form-layout.ts fill-height gate for unit tests. */
@@ -38,6 +51,7 @@ describe("PO drawer layout mode", () => {
     expect(
       shouldUseWidePartialDrawer({
         isPartialDrawer: true,
+        isFullWidthDrawer: false,
         stackVertically: true,
         isLargeViewport: true,
         drawerWidthVw: 40,
@@ -49,6 +63,7 @@ describe("PO drawer layout mode", () => {
     expect(
       shouldUseWidePartialDrawer({
         isPartialDrawer: true,
+        isFullWidthDrawer: false,
         stackVertically: false,
         isLargeViewport: false,
         drawerWidthVw: 60,
@@ -60,6 +75,7 @@ describe("PO drawer layout mode", () => {
     expect(
       shouldUseWidePartialDrawer({
         isPartialDrawer: true,
+        isFullWidthDrawer: false,
         stackVertically: false,
         isLargeViewport: true,
         drawerWidthVw: 60,
@@ -101,6 +117,25 @@ describe("PO drawer layout mode", () => {
         isMediumViewport: true,
       })
     ).toBe(false);
+  });
+
+  it("uses full-page layout at the 100% drawer preset on md+ partial drawer", () => {
+    expect(
+      shouldUseFullPageLayout({
+        isPartialDrawer: true,
+        isFullWidthDrawer: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldUseWidePartialDrawer({
+        isPartialDrawer: true,
+        isFullWidthDrawer: true,
+        stackVertically: false,
+        isLargeViewport: true,
+        drawerWidthVw: RIGHT_DRAWER_FULL_WIDTH_VW,
+      })
+    ).toBe(false);
+    expect(RIGHT_DRAWER_PRESET_WIDTHS).toContain(RIGHT_DRAWER_FULL_WIDTH_VW);
   });
 
   it("enables drawer body scroll only below 60vw partial drawer while editing", () => {

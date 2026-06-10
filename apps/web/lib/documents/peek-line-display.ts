@@ -4,6 +4,10 @@ import {
 } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
+import {
+  formatPoPeekComputedDiscountAmountDisplay,
+  formatPoPeekDiscountEntryDisplay,
+} from "@/lib/procurement/purchase-orders/po-line-discount";
 
 function formatPeekDecimal(raw: string, column: DocumentColumnPref): string {
   const trimmed = raw.trim();
@@ -13,10 +17,15 @@ function formatPeekDecimal(raw: string, column: DocumentColumnPref): string {
   return formatDocumentDecimal(parsed, resolveColumnDecimalPlaces(column));
 }
 
+export type PoPeekLineDisplayOptions = {
+  discountAmountColumn?: DocumentColumnPref | null;
+};
+
 /** Read-only peek line cell value for a saved purchase order line. */
 export function resolvePoPeekLineCellDisplay(
   column: DocumentColumnPref,
-  line: PurchaseOrderLineRow
+  line: PurchaseOrderLineRow,
+  options?: PoPeekLineDisplayOptions
 ): string | null {
   switch (column.id) {
     case "item":
@@ -34,9 +43,12 @@ export function resolvePoPeekLineCellDisplay(
     case "line_total":
       return formatPeekDecimal(line.line_total_gross, column);
     case "discount_pct":
-      return formatPeekDecimal(line.discount_percentage, column);
+      return formatPoPeekDiscountEntryDisplay(line, column);
     case "discount_amount":
-      return formatPeekDecimal(line.discount_amount, column);
+      return formatPoPeekComputedDiscountAmountDisplay(
+        line,
+        options?.discountAmountColumn ?? column
+      );
     default:
       return null;
   }

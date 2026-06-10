@@ -6,6 +6,7 @@ export type PoLineTotalsInput = {
   unit_price_contractual: string;
   discount_percentage?: string;
   discount_amount?: string;
+  discount_type?: "percent" | "amount";
   catalog_context?: PoLineCatalogContext | null;
 };
 
@@ -22,7 +23,7 @@ export type PurchaseOrderTotalsOptions = {
 };
 
 function parseAmount(value: string | undefined): number {
-  const parsed = Number((value ?? "").trim());
+  const parsed = Number((value ?? "").trim().replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -33,22 +34,26 @@ function lineExtension(line: PoLineTotalsInput): number {
   return qty * unit;
 }
 
-/** Discount applied to a line extension (amount takes precedence over percent). */
-export function resolveLineDiscount(line: PoLineTotalsInput): number {
+/** Discount applied to a line extension (respects explicit entry mode when set). */
+export function resolveLineDiscount(
+  line: PoLineTotalsInput & { discount_type?: "percent" | "amount" }
+): number {
   const extension = lineExtension(line);
   if (extension <= 0) return 0;
 
-  const discountAmount = parseAmount(line.discount_amount);
-  if (discountAmount > 0) {
+  const type =
+    line.discount_type ??
+    (parseAmount(line.discount_amount) > 0 ? ("amount" as const) : ("percent" as const));
+
+  if (type === "amount") {
+    const discountAmount = parseAmount(line.discount_amount);
+    if (discountAmount <= 0) return 0;
     return Math.min(discountAmount, extension);
   }
 
   const discountPct = parseAmount(line.discount_percentage);
-  if (discountPct > 0) {
-    return Math.min(extension, (extension * discountPct) / 100);
-  }
-
-  return 0;
+  if (discountPct <= 0) return 0;
+  return Math.min(extension, (extension * discountPct) / 100);
 }
 
 /** Ex-tax line net after discount (matches persisted `line_total_gross`). */

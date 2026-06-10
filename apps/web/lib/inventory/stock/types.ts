@@ -55,6 +55,8 @@ export type StockVariantOption = {
   item_name: string;
   variant_sku: string;
   standard_cost: string | null;
+  /** Item master default purchase rate (`_default_purchase_price`). */
+  purchase_price: string | null;
   adjustable: boolean;
   blocked_reason: string | null;
   image_url: string | null;
@@ -62,6 +64,7 @@ export type StockVariantOption = {
   /** PO line layout fields — available from variant search/browse without extra fetch. */
   description?: string | null;
   hsn_sac_code?: string | null;
+  mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
 };
