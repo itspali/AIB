@@ -16,6 +16,7 @@ const sampleLine: PurchaseOrderLineRow = {
   discount_amount: "0",
   tax_rate_percentage: "0",
   line_tax_amount: "0",
+  tax_components: [],
   line_total_gross: "31.4175",
   open_quantity: "1.5",
   uom_code: "PCS",

@@ -9,7 +9,17 @@ import {
   resolvePoLineDiscountInputValue,
   resolvePoLineDiscountType,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
-import { computeLineGross } from "@/lib/procurement/purchase-orders/totals";
+import {
+  resolvePoDraftLineTaxAmountDisplay,
+  resolvePoDraftLineTaxRateDisplay,
+  type PoLineTaxDisplayOptions,
+} from "@/lib/procurement/purchase-orders/po-line-tax";
+import {
+  resolvePoDraftLineCgstAmountDisplay,
+  resolvePoDraftLineIgstAmountDisplay,
+  resolvePoDraftLineSgstAmountDisplay,
+} from "@/lib/procurement/purchase-orders/po-line-tax-components";
+import { resolvePoLineTaxAmount } from "@/lib/procurement/purchase-orders/totals";
 
 function formatLineDecimal(raw: string, column: DocumentColumnPref): string | null {
   const trimmed = raw.trim();
@@ -22,7 +32,8 @@ function formatLineDecimal(raw: string, column: DocumentColumnPref): string | nu
 /** Read-only display for commercial line columns shown under the item cell. */
 export function resolveCommercialLineDetailDisplay(
   column: DocumentColumnPref,
-  line: PoDraftLine
+  line: PoDraftLine,
+  options: PoLineTaxDisplayOptions = {}
 ): string | null {
   if (!line.variant_id) return null;
 
@@ -39,9 +50,19 @@ export function resolveCommercialLineDetailDisplay(
       return formatLineDecimal(line.catalog_context?.mrp ?? "", column);
     case "line_total":
       return formatDocumentDecimal(
-        computeLineGross(line),
+        resolvePoLineTaxAmount(line, options).taxableBase,
         resolveColumnDecimalPlaces(column)
       );
+    case "tax_rate_pct":
+      return resolvePoDraftLineTaxRateDisplay(line, column);
+    case "line_tax_amount":
+      return resolvePoDraftLineTaxAmountDisplay(line, column, options);
+    case "cgst_amount":
+      return resolvePoDraftLineCgstAmountDisplay(line, column, options);
+    case "sgst_amount":
+      return resolvePoDraftLineSgstAmountDisplay(line, column, options);
+    case "igst_amount":
+      return resolvePoDraftLineIgstAmountDisplay(line, column, options);
     case "discount_pct": {
       const value = resolvePoLineDiscountInputValue(line);
       const formatted = formatLineDecimal(value, column);

@@ -29,6 +29,9 @@ import {
   PO_PRICES_TAX_MODE_LABEL,
   poPricesTaxInclusiveToMode,
 } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
+import {
+  poTaxSupplyNatureLabel,
+} from "@/lib/procurement/purchase-orders/po-tax-supply";
 import { formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import {
   formatPoPeekLineUomConversionHint,
@@ -72,6 +75,10 @@ function resolvePeekHeaderValue(
     case "destination":
       return (
         <p className="truncate text-sm font-medium">{order.destination_location_name}</p>
+      );
+    case "tax_supply_nature":
+      return (
+        <p className="text-sm font-medium">{poTaxSupplyNatureLabel(order.tax_supply_nature)}</p>
       );
     case "currency":
       return <p className="text-sm font-medium">{order.currency_code}</p>;

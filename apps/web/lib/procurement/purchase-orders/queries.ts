@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
+import { parsePoLineTaxComponentsJson } from "@/lib/procurement/purchase-orders/po-line-tax-components";
+import {
+  isPoTaxSupplyNature,
+  type PoTaxSupplyNature,
+} from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type {
   PurchaseOrderLineRow,
   PurchaseOrderPartyAddress,
@@ -76,6 +81,7 @@ function buildPurchaseOrderListSelect(options: {
       total_tax_amount,
       total_net_amount,
       prices_tax_inclusive,
+      tax_supply_nature,
       custom_fields,
       created_by,
       created_at,
@@ -187,6 +193,7 @@ type PoListDbRow = {
   total_tax_amount: number | string | null;
   total_net_amount: number | string;
   prices_tax_inclusive?: boolean | null;
+  tax_supply_nature?: string | null;
   custom_fields: Record<string, unknown> | null;
   created_by: string;
   created_at: string;
@@ -209,6 +216,7 @@ type PoLineDbRow = {
   discount_amount?: number | string | null;
   tax_rate_percentage?: number | string | null;
   line_tax_amount?: number | string | null;
+  tax_components_json?: unknown;
   line_total_gross: number | string;
   items:
     | {
@@ -305,6 +313,7 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     discount_amount: formatDecimal(row.discount_amount ?? 0),
     tax_rate_percentage: formatDecimal(row.tax_rate_percentage ?? 0),
     line_tax_amount: formatDecimal(row.line_tax_amount ?? 0),
+    tax_components: parsePoLineTaxComponentsJson(row.tax_components_json),
     line_total_gross: formatDecimal(row.line_total_gross),
     open_quantity: String(openQty),
   };
@@ -333,6 +342,9 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     line_count: row.po_lines?.length ?? 0,
     total_net_amount: formatDecimal(row.total_net_amount),
     prices_tax_inclusive: row.prices_tax_inclusive === true,
+    tax_supply_nature: isPoTaxSupplyNature(String(row.tax_supply_nature ?? ""))
+      ? (row.tax_supply_nature as PoTaxSupplyNature)
+      : "INTERSTATE",
     custom_fields: row.custom_fields ?? {},
     created_by: row.created_by,
     created_by_name: "",
@@ -412,6 +424,7 @@ export async function fetchPurchaseOrderById(
       total_tax_amount,
       total_net_amount,
       prices_tax_inclusive,
+      tax_supply_nature,
       custom_fields,
       created_by,
       created_at,
@@ -431,6 +444,7 @@ export async function fetchPurchaseOrderById(
         discount_amount,
         tax_rate_percentage,
         line_tax_amount,
+        tax_components_json,
         line_total_gross,
         items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
         item_variants!purchase_order_items_variant_tenant_fk (sku)
@@ -485,6 +499,7 @@ export async function fetchReceivablePurchaseOrders(
         discount_amount,
         tax_rate_percentage,
         line_tax_amount,
+        tax_components_json,
         line_total_gross,
         items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
         item_variants!purchase_order_items_variant_tenant_fk (sku)

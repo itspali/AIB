@@ -25,6 +25,16 @@ import {
 } from "@/lib/documents/purchase-order-layout";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import {
+  resolvePoDraftLineTaxAmountDisplay,
+  resolvePoDraftLineTaxRateDisplay,
+} from "@/lib/procurement/purchase-orders/po-line-tax";
+import {
+  resolvePoDraftLineCgstAmountDisplay,
+  resolvePoDraftLineIgstAmountDisplay,
+  resolvePoDraftLineSgstAmountDisplay,
+} from "@/lib/procurement/purchase-orders/po-line-tax-components";
+import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
+import {
   formatPoMoney,
   resolvePoLineTaxAmount,
 } from "@/lib/procurement/purchase-orders/totals";
@@ -74,6 +84,7 @@ type LineCellContext = {
   excludePurchaseOrderId?: string | null;
   enableMrpTradeTerms?: boolean;
   pricesTaxInclusive?: boolean;
+  taxSupplyNature?: PoTaxSupplyNature;
   /** MRP rendered as its own table column — suppress duplicate reference under offer price. */
   mrpColumnVisible?: boolean;
   itemRefs: React.MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>;
@@ -85,14 +96,27 @@ type LineCellContext = {
   advanceFromLine: (lineKey: string) => void;
 };
 
-function resolveNestedFieldDisplay(column: DocumentColumnPref, line: PoDraftLine): string | null {
-  const commercial = resolveCommercialLineDetailDisplay(column, line);
+function resolveNestedFieldDisplay(
+  column: DocumentColumnPref,
+  line: PoDraftLine,
+  pricesTaxInclusive = false,
+  taxSupplyNature: PoTaxSupplyNature = "INTERSTATE"
+): string | null {
+  const commercial = resolveCommercialLineDetailDisplay(column, line, {
+    purchasePricesTaxInclusive: pricesTaxInclusive,
+    taxSupplyNature,
+  });
   return resolveLineDetailFieldDisplay(column, line.catalog_context, commercial);
 }
 
-function visibleNestedColumns(columns: DocumentColumnPref[], line: PoDraftLine): DocumentColumnPref[] {
+function visibleNestedColumns(
+  columns: DocumentColumnPref[],
+  line: PoDraftLine,
+  pricesTaxInclusive = false,
+  taxSupplyNature: PoTaxSupplyNature = "INTERSTATE"
+): DocumentColumnPref[] {
   return columns.filter((column) => {
-    const value = resolveNestedFieldDisplay(column, line);
+    const value = resolveNestedFieldDisplay(column, line, pricesTaxInclusive, taxSupplyNature);
     return value != null && value !== "";
   });
 }
@@ -108,13 +132,22 @@ function isSkuLineFieldVisible(columns: DocumentColumnPref[]): boolean {
 export function PoLineNestedUnderItemFields({
   line,
   nestedColumns,
+  pricesTaxInclusive = false,
+  taxSupplyNature = "INTERSTATE",
 }: {
   line: PoDraftLine;
   nestedColumns: DocumentColumnPref[];
+  pricesTaxInclusive?: boolean;
+  taxSupplyNature?: PoTaxSupplyNature;
 }) {
   if (!line.variant_id || nestedColumns.length === 0) return null;
 
-  const columnsToRender = visibleNestedColumns(nestedColumns, line);
+  const columnsToRender = visibleNestedColumns(
+    nestedColumns,
+    line,
+    pricesTaxInclusive,
+    taxSupplyNature
+  );
   const detailRows = groupItemDetailRows(columnsToRender);
   const showSku =
     Boolean(line.variant_sku) &&
@@ -137,7 +170,12 @@ export function PoLineNestedUnderItemFields({
             className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0 text-xs leading-snug"
           >
             {rowColumns.map((column, columnIndex) => {
-              const displayValue = resolveNestedFieldDisplay(column, line);
+              const displayValue = resolveNestedFieldDisplay(
+                column,
+                line,
+                pricesTaxInclusive,
+                taxSupplyNature
+              );
               if (!displayValue) return null;
               return (
                 <span
@@ -170,7 +208,12 @@ export function PoLineNestedUnderItemFields({
         ) : (
           (() => {
             const column = rowColumns[0]!;
-            const displayValue = resolveNestedFieldDisplay(column, line);
+            const displayValue = resolveNestedFieldDisplay(
+              column,
+              line,
+              pricesTaxInclusive,
+              taxSupplyNature
+            );
             if (!displayValue) return null;
             return (
               <div
@@ -222,17 +265,22 @@ export function PoLineItemCell({
   const { line, disabled, supplierId, destinationLocationId, excludePurchaseOrderId, itemRefs, bindItemChange, patchLine } =
     ctx;
 
+  const pricesTaxInclusive = ctx.pricesTaxInclusive ?? false;
+  const taxSupplyNature = ctx.taxSupplyNature ?? "INTERSTATE";
+
   const skuLineFieldVisible = isSkuLineFieldVisible(nestedColumns);
   const showSkuFallback =
     Boolean(line.variant_sku) &&
     !skuLineFieldVisible &&
-    !visibleNestedColumns(nestedColumns, line).some((column) => isCatalogFieldId(column.id));
+    !visibleNestedColumns(nestedColumns, line, pricesTaxInclusive, taxSupplyNature).some((column) =>
+      isCatalogFieldId(column.id)
+    );
 
   const hideFieldSecondary =
     nestedColumns.length > 0 &&
     Boolean(line.variant_id) &&
     (skuLineFieldVisible ||
-      visibleNestedColumns(nestedColumns, line).length > 0 ||
+      visibleNestedColumns(nestedColumns, line, pricesTaxInclusive, taxSupplyNature).length > 0 ||
       showSkuFallback);
 
   const showInlineImage = shouldShowPoLineInlineImage(imageDisplayMode);
@@ -288,7 +336,12 @@ export function PoLineItemCell({
           />
         </div>
       </div>
-      <PoLineNestedUnderItemFields line={line} nestedColumns={nestedColumns} />
+      <PoLineNestedUnderItemFields
+        line={line}
+        nestedColumns={nestedColumns}
+        pricesTaxInclusive={pricesTaxInclusive}
+        taxSupplyNature={taxSupplyNature}
+      />
     </div>
   );
 }
@@ -577,6 +630,95 @@ export function PoLineDiscountAmountCell({
   );
 }
 
+export function PoLineTaxRateCell({
+  line,
+  column,
+}: {
+  line: PoDraftLine;
+  column: DocumentColumnPref;
+}) {
+  const value = resolvePoDraftLineTaxRateDisplay(line, column);
+
+  return (
+    <div
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          column.align === "right" ? "text-right" : "text-left"
+        )
+      )}
+    >
+      {value}
+    </div>
+  );
+}
+
+export function PoLineTaxAmountCell({
+  line,
+  column,
+  pricesTaxInclusive = false,
+}: {
+  line: PoDraftLine;
+  column: DocumentColumnPref;
+  pricesTaxInclusive?: boolean;
+}) {
+  const value = resolvePoDraftLineTaxAmountDisplay(line, column, {
+    purchasePricesTaxInclusive: pricesTaxInclusive,
+  });
+
+  return (
+    <div
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          column.align === "right" ? "text-right" : "text-left"
+        )
+      )}
+    >
+      {value}
+    </div>
+  );
+}
+
+export function PoLineTaxComponentAmountCell({
+  line,
+  column,
+  pricesTaxInclusive = false,
+  taxSupplyNature = "INTERSTATE",
+  resolveDisplay,
+}: {
+  line: PoDraftLine;
+  column: DocumentColumnPref;
+  pricesTaxInclusive?: boolean;
+  taxSupplyNature?: PoTaxSupplyNature;
+  resolveDisplay: (
+    line: PoDraftLine,
+    column: DocumentColumnPref,
+    options: { purchasePricesTaxInclusive: boolean; taxSupplyNature: PoTaxSupplyNature }
+  ) => string;
+}) {
+  const value = resolveDisplay(line, column, {
+    purchasePricesTaxInclusive: pricesTaxInclusive,
+    taxSupplyNature,
+  });
+
+  return (
+    <div
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          column.align === "right" ? "text-right" : "text-left"
+        )
+      )}
+    >
+      {value}
+    </div>
+  );
+}
+
 export function PoLineTotalCell({
   line,
   column,
@@ -609,11 +751,16 @@ export function PoLineTotalCell({
 export function PoLineReadOnlyCell({
   line,
   column,
+  pricesTaxInclusive = false,
+  taxSupplyNature = "INTERSTATE",
 }: {
   line: PoDraftLine;
   column: DocumentColumnPref;
+  pricesTaxInclusive?: boolean;
+  taxSupplyNature?: PoTaxSupplyNature;
 }) {
-  const value = resolveNestedFieldDisplay(column, line) ?? "—";
+  const value =
+    resolveNestedFieldDisplay(column, line, pricesTaxInclusive, taxSupplyNature) ?? "—";
 
   return (
     <div
@@ -678,6 +825,51 @@ export function renderPoLineColumnCell(
   if (columnId === "discount_amount") {
     return <PoLineDiscountAmountCell ctx={ctx} column={column} />;
   }
+  if (columnId === "tax_rate_pct") {
+    return <PoLineTaxRateCell line={ctx.line} column={column} />;
+  }
+  if (columnId === "line_tax_amount") {
+    return (
+      <PoLineTaxAmountCell
+        line={ctx.line}
+        column={column}
+        pricesTaxInclusive={ctx.pricesTaxInclusive}
+      />
+    );
+  }
+  if (columnId === "cgst_amount") {
+    return (
+      <PoLineTaxComponentAmountCell
+        line={ctx.line}
+        column={column}
+        pricesTaxInclusive={ctx.pricesTaxInclusive}
+        taxSupplyNature={ctx.taxSupplyNature}
+        resolveDisplay={resolvePoDraftLineCgstAmountDisplay}
+      />
+    );
+  }
+  if (columnId === "sgst_amount") {
+    return (
+      <PoLineTaxComponentAmountCell
+        line={ctx.line}
+        column={column}
+        pricesTaxInclusive={ctx.pricesTaxInclusive}
+        taxSupplyNature={ctx.taxSupplyNature}
+        resolveDisplay={resolvePoDraftLineSgstAmountDisplay}
+      />
+    );
+  }
+  if (columnId === "igst_amount") {
+    return (
+      <PoLineTaxComponentAmountCell
+        line={ctx.line}
+        column={column}
+        pricesTaxInclusive={ctx.pricesTaxInclusive}
+        taxSupplyNature={ctx.taxSupplyNature}
+        resolveDisplay={resolvePoDraftLineIgstAmountDisplay}
+      />
+    );
+  }
   if (columnId === "line_total") {
     return (
       <PoLineTotalCell
@@ -687,7 +879,14 @@ export function renderPoLineColumnCell(
       />
     );
   }
-  return <PoLineReadOnlyCell line={ctx.line} column={column} />;
+  return (
+    <PoLineReadOnlyCell
+      line={ctx.line}
+      column={column}
+      pricesTaxInclusive={ctx.pricesTaxInclusive}
+      taxSupplyNature={ctx.taxSupplyNature}
+    />
+  );
 }
 
 export type { LineCellContext };

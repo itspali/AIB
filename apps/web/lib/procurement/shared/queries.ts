@@ -10,7 +10,7 @@ export async function fetchProcurementLocations(
 ): Promise<ProcurementLocationOption[]> {
   const { data, error } = await supabase
     .from("tenant_locations")
-    .select("id, name, code")
+    .select("id, name, code, state")
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .eq("is_stock_holding", true)
@@ -23,6 +23,7 @@ export async function fetchProcurementLocations(
     id: row.id as string,
     name: row.name as string,
     code: (row.code as string) ?? "",
+    state: (row.state as string | null) ?? null,
   }));
 }
 
@@ -54,7 +55,7 @@ export async function fetchProcurementSuppliers(
 ): Promise<ProcurementSupplierOption[]> {
   const { data, error } = await supabase
     .from("entities")
-    .select("id, name, payment_terms_days, base_currency_override")
+    .select("id, name, payment_terms_days, base_currency_override, billing_state")
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .in("type", ["SUPPLIER", "MUTUAL_PARTNER"])
@@ -67,5 +68,6 @@ export async function fetchProcurementSuppliers(
     name: row.name as string,
     payment_terms_days: Number(row.payment_terms_days) || 0,
     base_currency_override: (row.base_currency_override as string | null) ?? null,
+    billing_state: (row.billing_state as string | null) ?? null,
   }));
 }

@@ -23,6 +23,11 @@ export const PO_LINE_COLUMN_IDS = [
   "mrp",
   "discount_pct",
   "discount_amount",
+  "tax_rate_pct",
+  "line_tax_amount",
+  "cgst_amount",
+  "sgst_amount",
+  "igst_amount",
   "line_total",
 ] as const;
 
@@ -57,6 +62,7 @@ export type PoCompactPrimaryLineColumnId = (typeof PO_COMPACT_PRIMARY_LINE_COLUM
 export const PO_HEADER_FIELD_IDS = [
   "supplier",
   "destination",
+  "tax_supply_nature",
   "currency",
   "voucher_number",
   "payment_terms_days",
@@ -82,6 +88,7 @@ export type PoFormHeaderPrimaryFieldId = (typeof PO_FORM_HEADER_PRIMARY_FIELD_ID
 
 /** Header fields rendered in the details rail / stacked panel. */
 export const PO_FORM_HEADER_DETAILS_FIELD_IDS = [
+  "tax_supply_nature",
   "payment_terms_days",
   "requisition_number",
   "expected_delivery_date",
@@ -183,6 +190,51 @@ const PO_LINE_COLUMNS: DocumentColumnPref[] = [
     lineSlot: "column",
   },
   {
+    id: "tax_rate_pct",
+    label: "Tax %",
+    defaultVisible: false,
+    group: "line",
+    align: "right",
+    decimalPlaces: 2,
+    lineSlot: "column",
+  },
+  {
+    id: "line_tax_amount",
+    label: "Line tax",
+    defaultVisible: false,
+    group: "line",
+    align: "right",
+    decimalPlaces: 2,
+    lineSlot: "column",
+  },
+  {
+    id: "cgst_amount",
+    label: "CGST",
+    defaultVisible: false,
+    group: "line",
+    align: "right",
+    decimalPlaces: 2,
+    lineSlot: "column",
+  },
+  {
+    id: "sgst_amount",
+    label: "SGST",
+    defaultVisible: false,
+    group: "line",
+    align: "right",
+    decimalPlaces: 2,
+    lineSlot: "column",
+  },
+  {
+    id: "igst_amount",
+    label: "IGST",
+    defaultVisible: false,
+    group: "line",
+    align: "right",
+    decimalPlaces: 2,
+    lineSlot: "column",
+  },
+  {
     id: "line_total",
     label: "Line total",
     defaultVisible: true,
@@ -254,6 +306,13 @@ const PO_PEEK_LINE_COLUMNS: DocumentColumnPref[] = [
 const PO_HEADER_COLUMNS: DocumentColumnPref[] = [
   { id: "supplier", label: "Supplier", defaultVisible: true, group: "header", align: "left" },
   { id: "destination", label: "Destination", defaultVisible: true, group: "header", align: "left" },
+  {
+    id: "tax_supply_nature",
+    label: "Supply type",
+    defaultVisible: true,
+    group: "header",
+    align: "left",
+  },
   { id: "currency", label: "Currency", defaultVisible: true, group: "header", align: "left" },
   {
     id: "voucher_number",

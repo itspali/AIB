@@ -51,6 +51,7 @@ const peekLine: PurchaseOrderLineRow = {
   discount_amount: "0",
   tax_rate_percentage: "0",
   line_tax_amount: "0",
+  tax_components: [],
   line_total_gross: "20",
   open_quantity: "2",
   uom_code: "BOX",

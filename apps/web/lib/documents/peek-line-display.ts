@@ -8,6 +8,15 @@ import {
   formatPoPeekComputedDiscountAmountDisplay,
   formatPoPeekDiscountEntryDisplay,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
+import {
+  resolvePoPeekLineTaxAmountDisplay,
+  resolvePoPeekLineTaxRateDisplay,
+} from "@/lib/procurement/purchase-orders/po-line-tax";
+import {
+  resolvePoPeekLineCgstAmountDisplay,
+  resolvePoPeekLineIgstAmountDisplay,
+  resolvePoPeekLineSgstAmountDisplay,
+} from "@/lib/procurement/purchase-orders/po-line-tax-components";
 
 function formatPeekDecimal(raw: string, column: DocumentColumnPref): string {
   const trimmed = raw.trim();
@@ -49,6 +58,16 @@ export function resolvePoPeekLineCellDisplay(
         line,
         options?.discountAmountColumn ?? column
       );
+    case "tax_rate_pct":
+      return resolvePoPeekLineTaxRateDisplay(line, column);
+    case "line_tax_amount":
+      return resolvePoPeekLineTaxAmountDisplay(line, column);
+    case "cgst_amount":
+      return resolvePoPeekLineCgstAmountDisplay(line, column);
+    case "sgst_amount":
+      return resolvePoPeekLineSgstAmountDisplay(line, column);
+    case "igst_amount":
+      return resolvePoPeekLineIgstAmountDisplay(line, column);
     default:
       return null;
   }

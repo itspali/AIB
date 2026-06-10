@@ -48,6 +48,11 @@ describe("purchase-order-layout compact columns", () => {
       "mrp",
       "discount_pct",
       "discount_amount",
+      "tax_rate_pct",
+      "line_tax_amount",
+      "cgst_amount",
+      "sgst_amount",
+      "igst_amount",
       "line_total",
     ]);
   });
@@ -221,6 +226,7 @@ describe("purchase-order-layout compact columns", () => {
       "expected_delivery_date",
       "requisition_number",
       "payment_terms_days",
+      "tax_supply_nature",
     ]);
   });
 

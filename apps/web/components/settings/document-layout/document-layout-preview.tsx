@@ -41,6 +41,11 @@ const PREVIEW_LINE_RAW: Partial<Record<string, string>> = {
   line_total: "10",
   discount_pct: "0",
   discount_amount: "0",
+  tax_rate_pct: "18",
+  line_tax_amount: "1.80",
+  cgst_amount: "0.90",
+  sgst_amount: "0.90",
+  igst_amount: "0.00",
 };
 
 const PREVIEW_TOTALS_RAW: Partial<Record<string, string>> = {
@@ -53,6 +58,7 @@ const PREVIEW_TOTALS_RAW: Partial<Record<string, string>> = {
 const PREVIEW_HEADER_SAMPLE: Partial<Record<string, string>> = {
   supplier: "Acme Supplies",
   destination: "Main warehouse",
+  tax_supply_nature: "Intrastate",
   currency: "USD",
   voucher_number: "PO-00042",
   payment_terms_days: "30",
@@ -62,7 +68,9 @@ function previewLineValue(column: DocumentColumnPref): string {
   const raw = PREVIEW_LINE_RAW[column.id];
   if (raw == null) return "…";
   if (column.id === "unit" || column.id === "sku") return raw;
-  return formatDocumentDecimal(raw, resolveColumnDecimalPlaces(column));
+  const formatted = formatDocumentDecimal(raw, resolveColumnDecimalPlaces(column));
+  if (column.id === "tax_rate_pct") return `${formatted}%`;
+  return formatted;
 }
 
 function previewTotalsValue(field: DocumentColumnPref): string {

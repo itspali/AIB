@@ -10,7 +10,7 @@ import {
   PO_LINE_IMAGE_COLUMN_ID,
   resolvePoLineImageDisplayMode,
 } from "@/lib/documents/purchase-order-layout";
-import { shouldShowPoUnitUnderQtyColumn } from "@/lib/procurement/purchase-orders/po-line-unit";
+import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import {
   computeDocumentLineMinTableWidth,
   getDocumentLineColumnMinWidthRem,
@@ -56,6 +56,7 @@ type Props = {
   allowLineItemDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
   pricesTaxInclusive?: boolean;
+  taxSupplyNature?: PoTaxSupplyNature;
   onPricesTaxInclusiveChange?: (value: boolean) => void;
   entryAnchor?: PoLineEntryAnchor;
   onEntryAnchorChange?: (anchor: PoLineEntryAnchor) => void;
@@ -80,6 +81,7 @@ function PoLineEntryGrid({
   allowLineItemDiscounts,
   enableMrpTradeTerms,
   pricesTaxInclusive = false,
+  taxSupplyNature = "INTERSTATE",
   actions,
 }: {
   lines: PoDraftLine[];
@@ -92,6 +94,7 @@ function PoLineEntryGrid({
   allowLineItemDiscounts: boolean;
   enableMrpTradeTerms: boolean;
   pricesTaxInclusive: boolean;
+  taxSupplyNature: PoTaxSupplyNature;
   actions: ReturnType<typeof usePoLineEntryActions>;
 }) {
   const layout = useMemo(() => normalizePoLayoutTemplate(layoutProp), [layoutProp]);
@@ -167,6 +170,7 @@ function PoLineEntryGrid({
           enableMrpTradeTerms,
           mrpColumnVisible,
           pricesTaxInclusive,
+          taxSupplyNature,
           itemRefs: actions.itemRefs,
           qtyRefs: actions.qtyRefs,
           priceRefs: actions.priceRefs,
@@ -202,6 +206,7 @@ export function PoLineEntryTable({
   allowLineItemDiscounts = false,
   enableMrpTradeTerms = true,
   pricesTaxInclusive = false,
+  taxSupplyNature = "INTERSTATE",
   onPricesTaxInclusiveChange,
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
@@ -264,6 +269,7 @@ export function PoLineEntryTable({
         allowLineItemDiscounts={allowLineItemDiscounts}
         enableMrpTradeTerms={enableMrpTradeTerms}
         pricesTaxInclusive={pricesTaxInclusive}
+        taxSupplyNature={taxSupplyNature}
         actions={actions}
       />
     </DocumentLineEntrySection>

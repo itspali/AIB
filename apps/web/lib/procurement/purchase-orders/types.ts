@@ -1,3 +1,5 @@
+import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
+
 export type PurchaseOrderStatus =
   | "DRAFT"
   | "PENDING_APPROVAL"
@@ -21,6 +23,7 @@ export type PurchaseOrderLineRow = {
   line_total_gross: string;
   line_tax_amount: string;
   tax_rate_percentage: string;
+  tax_components: Array<{ name: string; rate: number; amount: number }>;
   open_quantity: string;
   /** Order UOM persisted on the line (may differ from item base). */
   uom_code: string;
@@ -60,6 +63,7 @@ export type PurchaseOrderRow = {
   line_count: number;
   total_net_amount: string;
   prices_tax_inclusive: boolean;
+  tax_supply_nature: PoTaxSupplyNature;
   custom_fields: Record<string, unknown>;
   created_by: string;
   created_by_name: string;

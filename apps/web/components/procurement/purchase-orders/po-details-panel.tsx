@@ -10,6 +10,14 @@ import {
 import { getVisiblePoFormHeaderDetailsFields, resolvePoFormFieldsGridProps, resolvePoFormFieldNarrowSpanClass } from "@/lib/documents/po-form-layout";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoDraftFormState } from "@/lib/procurement/purchase-orders/draft-form";
+import {
+  poTaxSupplyNatureLabel,
+  resolvePoTaxSupplyNatureFromForm,
+} from "@/lib/procurement/purchase-orders/po-tax-supply";
+import type {
+  ProcurementLocationOption,
+  ProcurementSupplierOption,
+} from "@/lib/procurement/shared/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -19,6 +27,8 @@ type Props = {
   layout?: "rail" | "stack";
   className?: string;
   documentLayout?: DocumentLayoutTemplate;
+  suppliers?: ProcurementSupplierOption[];
+  locations?: ProcurementLocationOption[];
   onPatch: (patch: Partial<PoDraftFormState>) => void;
 };
 
@@ -130,6 +140,25 @@ function renderDetailsField(
           />
         </div>
       );
+    case "tax_supply_nature": {
+      const suppliers = props.suppliers ?? [];
+      const locations = props.locations ?? [];
+      const nature = resolvePoTaxSupplyNatureFromForm(
+        suppliers,
+        form.supplier_id,
+        locations,
+        form.destination_location_id
+      );
+      return (
+        <div key={field.id} className={fieldClassName}>
+          <DocumentLayoutLabel
+            field={getPoLayoutColumnPref(documentLayout, "tax_supply_nature")}
+            fallbackLabel="Supply type"
+          />
+          <p className="text-sm font-medium">{poTaxSupplyNatureLabel(nature)}</p>
+        </div>
+      );
+    }
     default:
       return null;
   }
@@ -141,6 +170,8 @@ export function PoDetailsPanel({
   layout = "stack",
   className,
   documentLayout = DEFAULT_PO_SCREEN_LAYOUT,
+  suppliers = [],
+  locations = [],
   onPatch,
 }: Props) {
   const isRail = layout === "rail";
@@ -160,6 +191,8 @@ export function PoDetailsPanel({
               disabled,
               layout,
               documentLayout,
+              suppliers,
+              locations,
               onPatch,
             }, index, detailFields)
           )}

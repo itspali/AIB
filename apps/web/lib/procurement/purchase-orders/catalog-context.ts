@@ -37,10 +37,16 @@ type VariantCatalogRow = {
           | {
               rate: number | string | null;
               is_variable: boolean | null;
+              tax_code_components:
+                | Array<{ name: string; rate: number | string; sort_order: number | null }>
+                | null;
             }
           | {
               rate: number | string | null;
               is_variable: boolean | null;
+              tax_code_components:
+                | Array<{ name: string; rate: number | string; sort_order: number | null }>
+                | null;
             }[]
           | null;
       }
@@ -55,10 +61,16 @@ type VariantCatalogRow = {
           | {
               rate: number | string | null;
               is_variable: boolean | null;
+              tax_code_components:
+                | Array<{ name: string; rate: number | string; sort_order: number | null }>
+                | null;
             }
           | {
               rate: number | string | null;
               is_variable: boolean | null;
+              tax_code_components:
+                | Array<{ name: string; rate: number | string; sort_order: number | null }>
+                | null;
             }[]
           | null;
       }[]
@@ -121,7 +133,8 @@ export async function fetchPoLineCatalogContext(
         tax_code_id,
         tax_codes (
           rate,
-          is_variable
+          is_variable,
+          tax_code_components ( name, rate, sort_order )
         )
       )
     `
@@ -141,6 +154,17 @@ export async function fetchPoLineCatalogContext(
 
   const taxCode = resolveJoin(item.tax_codes);
   const taxRate = taxCode?.rate != null ? Number(taxCode.rate) : 0;
+  const taxComponents = (taxCode?.tax_code_components ?? [])
+    .map((component) => ({
+      name: String(component.name ?? "").trim(),
+      rate: Number(component.rate),
+      sort_order: Number(component.sort_order ?? 0),
+    }))
+    .filter(
+      (component) =>
+        component.name.length > 0 && Number.isFinite(component.rate) && component.rate >= 0
+    )
+    .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
 
   const [attributeLabels, imageUrl, alternateUomsResult] = await Promise.all([
     resolveCatalogAttributeLabels(supabase, tenantId, item.category_id),
@@ -177,6 +201,7 @@ export async function fetchPoLineCatalogContext(
     tax_code_id: item.tax_code_id,
     tax_rate: Number.isFinite(taxRate) ? taxRate : 0,
     tax_is_variable: Boolean(taxCode?.is_variable),
+    tax_components: taxComponents,
     default_purchase_uom,
     alternate_uoms,
     custom_fields: mapCustomFields(item.custom_fields),

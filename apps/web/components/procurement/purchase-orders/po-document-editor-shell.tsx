@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { PoDetailsPanel } from "@/components/procurement/purchase-orders/po-details-panel";
 import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
 import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
@@ -16,6 +17,7 @@ import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
+import { resolvePoTaxSupplyNatureFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import { cn } from "@/lib/utils";
 
 export const PO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
@@ -72,6 +74,16 @@ export function PoDocumentEditorShell({
   const { useWidePartialDrawer, useFullPageLayout, lineTableFillHeight } =
     usePoDrawerFormLayout(true, layoutOverride);
   const { entryAnchor, handleEntryAnchorChange } = usePoLineEntryAnchor(form.lines, onLinesChange);
+  const taxSupplyNature = useMemo(
+    () =>
+      resolvePoTaxSupplyNatureFromForm(
+        suppliers,
+        form.supplier_id,
+        locations,
+        form.destination_location_id
+      ),
+    [suppliers, form.supplier_id, locations, form.destination_location_id]
+  );
 
   const linesSectionHeader = (
     <div className="flex shrink-0 items-center justify-between gap-3">
@@ -104,6 +116,7 @@ export function PoDocumentEditorShell({
       allowLineItemDiscounts={allowLineItemDiscounts}
       enableMrpTradeTerms={enableMrpTradeTerms}
       pricesTaxInclusive={form.prices_tax_inclusive}
+      taxSupplyNature={taxSupplyNature}
       entryAnchor={entryAnchor}
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange}
@@ -132,6 +145,8 @@ export function PoDocumentEditorShell({
           disabled={isPending}
           layout="stack"
           documentLayout={resolvedDocumentLayout}
+          suppliers={suppliers}
+          locations={locations}
           onPatch={onPatch}
         />
       </div>
@@ -166,6 +181,8 @@ export function PoDocumentEditorShell({
             disabled={isPending}
             layout="rail"
             documentLayout={resolvedDocumentLayout}
+            suppliers={suppliers}
+            locations={locations}
             onPatch={onPatch}
           />
         </div>
