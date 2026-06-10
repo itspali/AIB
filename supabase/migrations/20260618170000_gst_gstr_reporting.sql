@@ -9,7 +9,7 @@ SELECT
     si.id AS document_id,
     si.invoice_number,
     si.document_type,
-    si.invoice_date,
+    si.created_at AS invoice_date,
     si.customer_id,
     e.tax_registration_number AS customer_gstin,
     e.tax_treatment AS customer_tax_treatment,
