@@ -16,6 +16,7 @@ import {
   mapPurchaseOrderToDraft,
   type PoDraftFormState,
 } from "@/lib/procurement/purchase-orders/draft-form";
+import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type {
   ProcurementLocationOption,
@@ -189,6 +190,9 @@ export function usePoMutateForm({
           variant_id: line.variant_id,
           quantity_ordered: line.quantity_ordered,
           unit_price_contractual: line.unit_price_contractual || "0",
+          discount_percentage: line.discount_percentage || "0",
+          discount_amount: line.discount_amount || "0",
+          uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
         })),
       };
 

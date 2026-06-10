@@ -2,8 +2,18 @@ import {
   isCatalogFieldId,
   parseCatalogFieldId,
 } from "@/lib/documents/catalog-field-ids";
+import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 import type { DocumentColumnPref } from "@/lib/documents/types";
+
+function parseDefaultPurchaseUomFromPickerCustomFields(
+  customFields: Record<string, string> | undefined
+): string | null {
+  const raw = customFields?.[COMMERCE_DEFAULT_PURCHASE_UOM_KEY];
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
+}
 
 /** Read-only catalog snapshot attached to a PO draft line after item pick. */
 export type PoLineCatalogContext = {
@@ -14,6 +24,10 @@ export type PoLineCatalogContext = {
   tax_code_id: string | null;
   tax_rate: number;
   tax_is_variable: boolean;
+  /** Default purchase UOM from item commerce settings (may differ from base). */
+  default_purchase_uom: string | null;
+  /** Alternate UOM rows from item master (excludes base; base is always factor 1). */
+  alternate_uoms: Array<{ uom_code: string; conversion_factor: number }>;
   /** Custom fields (reserved keys excluded). */
   custom_fields: Record<string, string>;
   variant_attributes: Record<string, string>;
@@ -32,6 +46,8 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     tax_code_id: null,
     tax_rate: 0,
     tax_is_variable: false,
+    default_purchase_uom: null,
+    alternate_uoms: [],
     custom_fields: {},
     variant_attributes: {},
     attribute_labels: {},
@@ -64,6 +80,8 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     tax_code_id: null,
     tax_rate: 0,
     tax_is_variable: false,
+    default_purchase_uom: parseDefaultPurchaseUomFromPickerCustomFields(partial.custom_fields),
+    alternate_uoms: [],
     custom_fields: { ...(partial.custom_fields ?? {}) },
     variant_attributes: { ...(partial.variant_attributes ?? {}) },
     attribute_labels: {},
@@ -184,6 +202,13 @@ export function mergePoLineCatalogContext(
     ...incoming,
     image_url,
     base_unit_of_measure,
+    alternate_uoms: incoming.alternate_uoms?.length
+      ? [...incoming.alternate_uoms]
+      : current?.alternate_uoms ?? [],
+    default_purchase_uom:
+      incoming.default_purchase_uom?.trim() ||
+      current?.default_purchase_uom?.trim() ||
+      null,
     custom_fields: { ...incoming.custom_fields },
     variant_attributes: { ...incoming.variant_attributes },
     attribute_labels: { ...incoming.attribute_labels },

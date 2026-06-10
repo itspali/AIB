@@ -28,7 +28,7 @@ export function resolvePoPeekLineCellDisplay(
     case "quantity_received":
       return formatPeekDecimal(line.quantity_received, column);
     case "unit":
-      return null;
+      return line.uom_code?.trim() || line.base_unit_of_measure?.trim() || null;
     case "unit_price":
       return formatPeekDecimal(line.unit_price_contractual, column);
     case "line_total":

@@ -197,6 +197,8 @@ type PoLineDbRow = {
   id: string;
   item_id: string;
   variant_id: string;
+  uom_code: string;
+  uom_conversion_factor?: number | string | null;
   quantity_ordered: number | string;
   quantity_received: number | string;
   unit_price_contractual: number | string;
@@ -278,6 +280,8 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     item_name: item?.name ?? "",
     variant_id: row.variant_id,
     variant_sku: variant?.sku ?? "",
+    uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || "PCS",
+    uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
     quantity_ordered: ordered,
     quantity_received: received,
@@ -401,6 +405,8 @@ export async function fetchPurchaseOrderById(
         id,
         item_id,
         variant_id,
+        uom_code,
+        uom_conversion_factor,
         quantity_ordered,
         quantity_received,
         unit_price_contractual,
@@ -453,6 +459,8 @@ export async function fetchReceivablePurchaseOrders(
         id,
         item_id,
         variant_id,
+        uom_code,
+        uom_conversion_factor,
         quantity_ordered,
         quantity_received,
         unit_price_contractual,

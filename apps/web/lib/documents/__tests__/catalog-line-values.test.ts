@@ -8,6 +8,7 @@ import {
   type PoLineCatalogContext,
 } from "@/lib/documents/catalog-line-values";
 import { createPoCatalogFieldPref } from "@/lib/documents/purchase-order-layout";
+import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
 
 const sampleContext: PoLineCatalogContext = {
   description: "Widget assembly",
@@ -84,6 +85,15 @@ describe("createOptimisticPoLineCatalogContextFromPicker", () => {
         context
       )
     ).toBe("Red");
+  });
+
+  it("parses default purchase UOM from picker custom fields", () => {
+    const context = createOptimisticPoLineCatalogContextFromPicker({
+      base_unit_of_measure: "PCS",
+      custom_fields: { [COMMERCE_DEFAULT_PURCHASE_UOM_KEY]: "BOX" },
+    });
+
+    expect(context.default_purchase_uom).toBe("BOX");
   });
 });
 

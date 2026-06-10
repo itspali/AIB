@@ -22,7 +22,10 @@ import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-e
 import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
 import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
-import { usePoLineEntryActions } from "@/components/procurement/purchase-orders/po-line-entry-actions";
+import {
+  canReorderPoDraftLine,
+  usePoLineEntryActions,
+} from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { usePoLineCatalogHydration } from "@/components/procurement/purchase-orders/use-po-line-catalog-hydration";
 import {
   type LineCellContext,
@@ -120,6 +123,8 @@ function PoLineEntryGrid({
       onRemoveLine={actions.removeLine}
       canDuplicateLine={(line) => Boolean(line.variant_id)}
       onDuplicateLine={actions.duplicateLine}
+      canReorderLine={(line) => canReorderPoDraftLine(line)}
+      onReorderLine={actions.reorderLine}
       renderCell={(column, line) => {
         const layoutColumn = visibleColumns.find((entry) => entry.id === column.id);
         if (!layoutColumn) return null;

@@ -19,6 +19,8 @@ export type PoDraftLine = {
   unit_price_contractual: string;
   discount_percentage: string;
   discount_amount: string;
+  /** Selected order UOM; defaults from item purchase/base UOM after catalog load. */
+  uom_code?: string;
   skuError: string | null;
   /** Read-only item/variant catalog snapshot for layout-driven detail fields. */
   catalog_context?: PoLineCatalogContext | null;
@@ -123,6 +125,32 @@ export function filterSavablePoLines(lines: PoDraftLine[]): PoDraftLine[] {
   return lines.filter(isPoLineComplete);
 }
 
+/** Move a filled line before the drop target; keeps the blank entry row on its anchor edge. */
+export function movePoDraftLine(
+  lines: PoDraftLine[],
+  fromKey: string,
+  toKey: string,
+  anchor: PoLineEntryAnchor = "bottom"
+): PoDraftLine[] {
+  if (fromKey === toKey) return lines;
+
+  const fromIndex = lines.findIndex((line) => line.key === fromKey);
+  const toIndex = lines.findIndex((line) => line.key === toKey);
+  if (fromIndex < 0 || toIndex < 0) return lines;
+
+  const fromLine = lines[fromIndex]!;
+  const toLine = lines[toIndex]!;
+  if (isPoLineBlank(fromLine) || isPoLineBlank(toLine)) return lines;
+
+  const next = [...lines];
+  next.splice(fromIndex, 1);
+  const adjustedToIndex = next.findIndex((line) => line.key === toKey);
+  if (adjustedToIndex < 0) return lines;
+  next.splice(adjustedToIndex, 0, fromLine);
+
+  return ensureEntryPoLine(next, anchor);
+}
+
 export function supplierDefaultCurrency(
   suppliers: ProcurementSupplierOption[],
   supplierId: string,
@@ -162,12 +190,15 @@ export function supplierPaymentTerms(suppliers: ProcurementSupplierOption[], sup
   return supplier ? String(supplier.payment_terms_days) : "0";
 }
 
-function lineTaxCatalogSnapshot(line: {
+function lineCatalogSnapshot(line: {
   tax_rate_percentage?: string;
+  base_unit_of_measure?: string | null;
+  uom_code?: string;
 }): PoLineCatalogContext {
   const rate = Number(line.tax_rate_percentage ?? 0);
   return {
     ...emptyPoLineCatalogContext(),
+    base_unit_of_measure: line.base_unit_of_measure?.trim() || null,
     tax_rate: Number.isFinite(rate) ? rate : 0,
     tax_is_variable: false,
     catalog_snapshot_source: "server",
@@ -195,7 +226,12 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
               unit_price_contractual: line.unit_price_contractual,
               discount_percentage: line.discount_percentage ?? "0",
               discount_amount: line.discount_amount ?? "0",
-              catalog_context: lineTaxCatalogSnapshot(line),
+              uom_code: line.uom_code,
+              catalog_context: lineCatalogSnapshot({
+                tax_rate_percentage: line.tax_rate_percentage,
+                base_unit_of_measure: line.base_unit_of_measure,
+                uom_code: line.uom_code,
+              }),
               skuError: null,
             }))
           )
@@ -226,7 +262,12 @@ export function copyPoDraftFromOrder(order: PurchaseOrderRow): PoDraftFormState 
           unit_price_contractual: line.unit_price_contractual,
           discount_percentage: line.discount_percentage ?? "0",
           discount_amount: line.discount_amount ?? "0",
-          catalog_context: lineTaxCatalogSnapshot(line),
+          uom_code: line.uom_code,
+          catalog_context: lineCatalogSnapshot({
+            tax_rate_percentage: line.tax_rate_percentage,
+            base_unit_of_measure: line.base_unit_of_measure,
+            uom_code: line.uom_code,
+          }),
           skuError: null,
         }))
     ),

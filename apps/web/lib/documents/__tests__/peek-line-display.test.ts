@@ -12,8 +12,14 @@ const sampleLine: PurchaseOrderLineRow = {
   quantity_ordered: "2.5",
   quantity_received: "1",
   unit_price_contractual: "12.567",
+  discount_percentage: "0",
+  discount_amount: "0",
+  tax_rate_percentage: "0",
+  line_tax_amount: "0",
   line_total_gross: "31.4175",
   open_quantity: "1.5",
+  uom_code: "PCS",
+  uom_conversion_factor: "1",
 };
 
 describe("resolvePoPeekLineCellDisplay", () => {
@@ -28,13 +34,13 @@ describe("resolvePoPeekLineCellDisplay", () => {
     expect(resolvePoPeekLineCellDisplay(unitPriceColumn, sampleLine)).toBe("12.57");
   });
 
-  it("returns null for unit column without persisted line data", () => {
+  it("returns saved line uom for unit column", () => {
     expect(
       resolvePoPeekLineCellDisplay(
         { id: "unit", label: "Unit", defaultVisible: true },
         sampleLine
       )
-    ).toBeNull();
+    ).toBe("PCS");
   });
 
   it("resolves sku from variant_sku", () => {

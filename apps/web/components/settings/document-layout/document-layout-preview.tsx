@@ -14,7 +14,10 @@ import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import { resolvePoFormFieldsGridProps } from "@/lib/documents/po-form-layout";
 import { documentTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
-import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import {
+  PoLineQtyUnitSlot,
+  PoLineQtyValueStack,
+} from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
 import { PREVIEW_PO_ADDRESS_BLOCKS } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
@@ -205,7 +208,9 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
                   <td
                     key={column.id}
                     className={cn(
-                      "border-r border-border px-1.5 py-2 align-top last:border-r-0",
+                      "border-r border-border last:border-r-0",
+                      "px-1.5 py-2 align-top",
+                      column.id === "quantity_ordered" && showUnitUnderQty && "p-0",
                       previewCellClass(column)
                     )}
                   >
@@ -228,21 +233,26 @@ export function DocumentLayoutPreview({ layout, previewMode, onPreviewModeChange
                         </div>
                       </div>
                     ) : column.id === "quantity_ordered" ? (
-                      <div
-                        className={cn(
-                          "flex flex-col",
-                          column.align === "right" && "items-end"
-                        )}
-                      >
-                        <span>{previewLineValue(column)}</span>
-                        {showUnitUnderQty ? (
+                      <PoLineQtyValueStack
+                        showUnitUnderQty={showUnitUnderQty}
+                        align={column.align}
+                        unitSlot={
                           <PoLineQtyUnitSlot
                             unitCode={PREVIEW_LINE_RAW.unit ?? "EA"}
                             align={column.align}
-                            className="px-0"
+                            className="w-full px-0"
                           />
-                        ) : null}
-                      </div>
+                        }
+                      >
+                        <span
+                          className={cn(
+                            "block h-8 leading-8 tabular-nums",
+                            column.align === "right" ? "text-right" : "text-left"
+                          )}
+                        >
+                          {previewLineValue(column)}
+                        </span>
+                      </PoLineQtyValueStack>
                     ) : (
                       <span>{previewLineValue(column)}</span>
                     )}

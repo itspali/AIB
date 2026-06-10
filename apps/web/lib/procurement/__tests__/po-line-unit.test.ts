@@ -18,12 +18,19 @@ const draftLine: PoDraftLine = {
   variant_sku: "SKU-1",
   quantity_ordered: "2",
   unit_price_contractual: "10",
+  discount_percentage: "0",
+  discount_amount: "0",
   skuError: null,
   catalog_context: {
     description: null,
     hsn_sac_code: null,
     base_unit_of_measure: "EA",
     image_url: null,
+    tax_code_id: null,
+    tax_rate: 0,
+    tax_is_variable: false,
+    default_purchase_uom: null,
+    alternate_uoms: [],
     custom_fields: {},
     variant_attributes: {},
     attribute_labels: {},
@@ -40,8 +47,14 @@ const peekLine: PurchaseOrderLineRow = {
   quantity_ordered: "2",
   quantity_received: "0",
   unit_price_contractual: "10",
+  discount_percentage: "0",
+  discount_amount: "0",
+  tax_rate_percentage: "0",
+  line_tax_amount: "0",
   line_total_gross: "20",
   open_quantity: "2",
+  uom_code: "BOX",
+  uom_conversion_factor: "12",
   base_unit_of_measure: "KG",
 };
 
@@ -69,7 +82,7 @@ describe("po-line-unit resolution", () => {
     expect(resolvePoDraftLineUnitCode(draftLine)).toBe("EA");
   });
 
-  it("resolves peek unit from item base unit", () => {
-    expect(resolvePoPeekLineUnitCode(peekLine)).toBe("KG");
+  it("resolves peek unit from saved line uom", () => {
+    expect(resolvePoPeekLineUnitCode(peekLine)).toBe("BOX");
   });
 });

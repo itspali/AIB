@@ -1263,19 +1263,30 @@ export function ProductEditorShell({
   const [showPurchasableAdvanced, setShowPurchasableAdvanced] = useState(() =>
     Boolean(
       initialValues?.purchase_uom?.trim() &&
-        initialValues.purchase_uom !== initialValues?.base_unit_of_measure &&
-        !conversionFactorForAlternate(
-          initialValues?.alternate_uoms ?? [],
-          initialValues.purchase_uom
-        )
+        initialValues.purchase_uom !== initialValues?.base_unit_of_measure
     )
   );
+
+  useEffect(() => {
+    if (purchaseUom.trim() && purchaseUom !== baseUom) {
+      setShowPurchasableAdvanced(true);
+    }
+  }, [purchaseUom, baseUom]);
 
   useEffect(() => {
     if (showPurchaseConversionField) {
       setShowPurchasableAdvanced(true);
     }
   }, [showPurchaseConversionField]);
+
+  const purchaseUnitConversionHint = useMemo(() => {
+    if (!purchaseConversionFromCatalog || purchaseUom === baseUom) return undefined;
+    return ITEM_EDITOR_FIELD_HELP.purchaseUnitFromAlternates(
+      purchaseConversionFromCatalog,
+      baseUom,
+      purchaseUom
+    );
+  }, [baseUom, purchaseConversionFromCatalog, purchaseUom]);
 
   useEffect(() => {
     if (!purchaseConversionFromCatalog) return;
@@ -2906,28 +2917,44 @@ export function ProductEditorShell({
                     </div>
                   )}
                 </div>
-                {showPurchaseConversionField ? (
+                {showPurchaseUnitField || showPurchaseConversionField ? (
                   <EditorSectionAdvanced
                     open={showPurchasableAdvanced}
                     onToggle={() => setShowPurchasableAdvanced((open) => !open)}
                     panel={isPanelLayout}
                   >
-                    <div className={editorGridClass(isPanelLayout)}>
-                      <Field
-                        label="Purchase conversion factor"
-                        htmlFor="purchase_uom_conversion"
-                        error={errors.purchase_uom_conversion?.message}
-                        hint={ITEM_EDITOR_FIELD_HELP.purchaseConversionFactor(baseUom, purchaseUom)}
-                      >
-                        <Input
-                          id="purchase_uom_conversion"
-                          disabled={disableInput("purchase_uom_conversion")}
-                          className="text-right font-mono"
-                          inputMode="decimal"
-                          {...register("purchase_uom_conversion")}
-                        />
-                      </Field>
-                    </div>
+                    {showPurchaseUnitField ? (
+                      <CommerceUnitField
+                        label="Default purchase unit"
+                        stockUom={baseUom}
+                        value={purchaseUom}
+                        options={purchaseCommerceUomOptions}
+                        fieldDisabled={disableInput("purchase_uom")}
+                        onUnitChange={(code) =>
+                          setValue("purchase_uom", code, { shouldDirty: true })
+                        }
+                        conversionHint={purchaseUnitConversionHint}
+                        info={ITEM_EDITOR_FIELD_HELP.purchaseUnit}
+                      />
+                    ) : null}
+                    {showPurchaseConversionField ? (
+                      <div className={editorGridClass(isPanelLayout)}>
+                        <Field
+                          label="Purchase conversion factor"
+                          htmlFor="purchase_uom_conversion"
+                          error={errors.purchase_uom_conversion?.message}
+                          hint={ITEM_EDITOR_FIELD_HELP.purchaseConversionFactor(baseUom, purchaseUom)}
+                        >
+                          <Input
+                            id="purchase_uom_conversion"
+                            disabled={disableInput("purchase_uom_conversion")}
+                            className="text-right font-mono"
+                            inputMode="decimal"
+                            {...register("purchase_uom_conversion")}
+                          />
+                        </Field>
+                      </div>
+                    ) : null}
                   </EditorSectionAdvanced>
                 ) : null}
               </>

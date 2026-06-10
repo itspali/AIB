@@ -23,10 +23,15 @@ import {
   createEmptyPoLine,
   ensureEntryPoLine,
   isPoEntryLineKey,
+  isPoLineBlank,
   isPoLineComplete,
+  movePoDraftLine,
   type PoDraftLine,
 } from "@/lib/procurement/purchase-orders/draft-form";
-import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
+import {
+  resolveDefaultPoLineUomCode,
+  resolvePoLineUomAfterCatalogUpdate,
+} from "@/lib/procurement/purchase-orders/po-line-uom-options";
 
 function focusInput(input: HTMLInputElement | HTMLTextAreaElement | null | undefined) {
   if (!input) return;
@@ -165,6 +170,13 @@ export function usePoLineEntryActions(
     [entryAnchor, onChange]
   );
 
+  const reorderLine = useCallback(
+    (fromKey: string, toKey: string) => {
+      onChange((current) => movePoDraftLine(current, fromKey, toKey, entryAnchor));
+    },
+    [entryAnchor, onChange]
+  );
+
   const duplicateLine = useCallback(
     (key: string) => {
       onChange((current) => {
@@ -207,13 +219,16 @@ export function usePoLineEntryActions(
         onChange((current) =>
           current.map((line) => {
             if (line.key !== lineKey) return line;
+            const catalog_context = mergePoLineCatalogContext(
+              line.catalog_context,
+              context,
+              fallbackImageUrl
+            );
+            const uom_code = resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context);
             return {
               ...line,
-              catalog_context: mergePoLineCatalogContext(
-                line.catalog_context,
-                context,
-                fallbackImageUrl
-              ),
+              catalog_context,
+              uom_code,
             };
           })
         );
@@ -285,6 +300,10 @@ export function usePoLineEntryActions(
 
       const nextLines = lines.map((row) => {
         if (row.key !== lineKey) return row;
+        const optimisticContext =
+          variantChanged && patch.variant_id
+            ? buildOptimisticCatalogContext(patch.variant_id, patch)
+            : null;
         return {
           ...row,
           ...patch,
@@ -294,9 +313,12 @@ export function usePoLineEntryActions(
             : patch.unit_cost ?? row.unit_price_contractual,
           catalog_context: clearingItem
             ? undefined
-            : variantChanged && patch.variant_id
-              ? buildOptimisticCatalogContext(patch.variant_id, patch)
-              : row.catalog_context,
+            : optimisticContext ?? row.catalog_context,
+          uom_code: clearingItem
+            ? undefined
+            : variantChanged
+              ? resolveDefaultPoLineUomCode(optimisticContext)
+              : row.uom_code,
         };
       });
 
@@ -323,9 +345,14 @@ export function usePoLineEntryActions(
     focusPrice,
     advanceFromLine,
     removeLine,
+    reorderLine,
     duplicateLine,
     bindItemChange,
   };
+}
+
+export function canReorderPoDraftLine(line: PoDraftLine): boolean {
+  return !isPoLineBlank(line);
 }
 
 export function isEnterKey(key: string): boolean {

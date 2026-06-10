@@ -1,6 +1,6 @@
 # Purchase Order UX & Document Layout Plan
 
-**Status:** Phase 1 (V1) **shipped** — Phase 2 **shipped** — Phase 3 **in progress** (line discounts shipped first; tax, UOM, approval deferred within Phase 3)  
+**Status:** Phase 1 (V1) **shipped** — Phase 2 **shipped** — Phase 3 **in progress** (discounts, tax, and line UOM shipped; approval deferred)  
 **Related:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §3.7 + §5.4, [`DATA_STANDARDS.md`](./DATA_STANDARDS.md)
 
 ---
@@ -152,10 +152,10 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 | Line discounts | **Shipped** | `discount_percentage` / `discount_amount` on `purchase_order_items`; `save_purchase_order` totals; `PROCUREMENT_SETTINGS.allow_line_item_discounts`; drawer + layout settings |
 | Tax mode + line tax | **Shipped** | `purchase_prices_tax_inclusive` policy; `resolve_line_tax` in save RPC; live totals from item `tax_codes` |
 | Layout tax columns | **Shipped** | Totals rail `tax_amount` + `grand_total` use computed tax |
-| Editable line UOM | Pending | `item_uoms` conversion on save; read-only unit in Phase 2 |
+| Editable line UOM | **Shipped** | Line `uom_code` + `uom_conversion_factor`; validate against `item_uoms` on save; compact select when alternates exist |
 | Approval workflow | Pending | `PENDING_APPROVAL` + `document_approvals`; schema exists, no RPC/UI yet |
 
-**Migrations (Phase 3):** `20260616100000_purchase_order_line_discounts.sql`, `20260616200000_purchase_order_line_tax.sql`
+**Migrations (Phase 3):** `20260616100000_purchase_order_line_discounts.sql`, `20260616200000_purchase_order_line_tax.sql`, `20260616300000_purchase_order_line_uom.sql`
 
 ---
 

@@ -204,6 +204,28 @@ function pickAlternatePurchaseUom(
   return rows.find((row) => row.uom_code !== baseUom) ?? null;
 }
 
+async function fetchItemUomsForProduct(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string
+): Promise<ItemUomRow[]> {
+  const { data, error } = await supabase
+    .from("item_uoms")
+    .select("uom_code, conversion_factor")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+
+  if (error || !data) return [];
+  return data as ItemUomRow[];
+}
+
+function mapItemAlternateUoms(itemUoms: ItemUomRow[] | null | undefined) {
+  return (itemUoms ?? []).map((entry) => ({
+    uom_code: entry.uom_code,
+    conversion_factor: formatDecimal(entry.conversion_factor, "1"),
+  }));
+}
+
 function pickPreferredSupplier(
   rows: SupplierItemRow[] | null | undefined
 ): SupplierItemRow | null {
@@ -914,7 +936,8 @@ function assemblePeekEssentialsSnapshot(
   row: ItemRow,
   focusVariantRows: VariantRow[],
   variant: VariantRow,
-  variant_count_summary: ProductVariantCountSummary
+  variant_count_summary: ProductVariantCountSummary,
+  itemUoms: ItemUomRow[] = []
 ): ProductDetailSnapshot {
   const taxCategory = normalizeTaxCategory(row.default_tax_category);
   const sortedVariants = [...focusVariantRows].sort(
@@ -934,6 +957,12 @@ function assemblePeekEssentialsSnapshot(
     pickMasterVariant(sortedVariants) ?? sortedVariants[0] ?? variant;
 
   const focusedVariant = sortedVariants.find((entry) => entry.id === variant.id) ?? variant;
+  const alternateUoms = mapItemAlternateUoms(itemUoms);
+  const purchaseUomRow = pickAlternatePurchaseUom(
+    itemUoms,
+    row.base_unit_of_measure,
+    parsedCustomFields.defaultPurchaseUom
+  );
 
   return {
     id: row.id,
@@ -992,8 +1021,10 @@ function assemblePeekEssentialsSnapshot(
     mrp: extractMrpFromCustomFieldsRecord(rawCustomFields),
     reorder_point: extractReorderPointFromCustomFieldsRecord(rawCustomFields),
     selling_uom: parsedCustomFields.defaultSellingUom ?? row.base_unit_of_measure,
-    purchase_uom: parsedCustomFields.defaultPurchaseUom ?? row.base_unit_of_measure,
-    purchase_uom_conversion: "1",
+    purchase_uom: purchaseUomRow?.uom_code ?? row.base_unit_of_measure,
+    purchase_uom_conversion: purchaseUomRow
+      ? formatDecimal(purchaseUomRow.conversion_factor, "1")
+      : "1",
     purchase_price: extractDefaultPurchasePriceFromCustomFieldsRecord(rawCustomFields),
     supplier_id: null,
     supplier_name: null,
@@ -1002,7 +1033,7 @@ function assemblePeekEssentialsSnapshot(
     media: [],
     sku_mask: parsedCustomFields.sku_mask,
     custom_fields: parsedCustomFields.entries,
-    alternate_uoms: [],
+    alternate_uoms: alternateUoms,
     tags: [],
     storefront_visibility: [],
     detail_scope: "peek",
@@ -1066,21 +1097,23 @@ async function fetchProductPeekEssentials(
   const preferred = preferredVariantId?.trim();
 
   if (preferred) {
-    const [{ data, error }, { data: variantRows, error: variantError }] = await Promise.all([
-      supabase
-        .from("items")
-        .select(PEEK_ITEM_DETAIL_SELECT)
-        .eq("tenant_id", tenantId)
-        .eq("id", itemId)
-        .maybeSingle(),
-      supabase
-        .from("item_variants")
-        .select(VARIANT_DETAIL_SELECT)
-        .eq("tenant_id", tenantId)
-        .eq("item_id", itemId)
-        .or(`id.eq.${preferred},is_master.eq.true`)
-        .order("created_at"),
-    ]);
+    const [{ data, error }, { data: variantRows, error: variantError }, itemUoms] =
+      await Promise.all([
+        supabase
+          .from("items")
+          .select(PEEK_ITEM_DETAIL_SELECT)
+          .eq("tenant_id", tenantId)
+          .eq("id", itemId)
+          .maybeSingle(),
+        supabase
+          .from("item_variants")
+          .select(VARIANT_DETAIL_SELECT)
+          .eq("tenant_id", tenantId)
+          .eq("item_id", itemId)
+          .or(`id.eq.${preferred},is_master.eq.true`)
+          .order("created_at"),
+        fetchItemUomsForProduct(supabase, tenantId, itemId),
+      ]);
 
     if (error || !data || variantError || !variantRows?.length) return null;
 
@@ -1095,13 +1128,19 @@ async function fetchProductPeekEssentials(
       (entry) => !entry.is_master && entry.is_sellable !== false
     ).length;
 
-    return assemblePeekEssentialsSnapshot(row, focusVariantRows, variant, {
-      total: row.has_variants ? Math.max(peekSellable + 1, focusVariantRows.length) : 1,
-      sellable: peekSellable,
-    });
+    return assemblePeekEssentialsSnapshot(
+      row,
+      focusVariantRows,
+      variant,
+      {
+        total: row.has_variants ? Math.max(peekSellable + 1, focusVariantRows.length) : 1,
+        sellable: peekSellable,
+      },
+      itemUoms
+    );
   }
 
-  const [{ data, error }, variantIndex] = await Promise.all([
+  const [{ data, error }, variantIndex, itemUoms] = await Promise.all([
     supabase
       .from("items")
       .select(PEEK_ITEM_DETAIL_SELECT)
@@ -1109,6 +1148,7 @@ async function fetchProductPeekEssentials(
       .eq("id", itemId)
       .maybeSingle(),
     fetchVariantPeekIndex(supabase, tenantId, itemId),
+    fetchItemUomsForProduct(supabase, tenantId, itemId),
   ]);
 
   if (error || !data) return null;
@@ -1141,7 +1181,8 @@ async function fetchProductPeekEssentials(
     row,
     focusVariantRows,
     variant,
-    variant_count_summary
+    variant_count_summary,
+    itemUoms
   );
 }
 
@@ -1320,10 +1361,7 @@ export async function fetchProductDetail(
       ? (row.custom_fields as Record<string, unknown>)
       : {};
   const parsedCustomFields = parseCustomFields(rawCustomFields);
-  const alternateUoms = (itemUoms as ItemUomRow[] | null ?? []).map((entry) => ({
-    uom_code: entry.uom_code,
-    conversion_factor: formatDecimal(entry.conversion_factor, "1"),
-  }));
+  const alternateUoms = mapItemAlternateUoms(itemUoms as ItemUomRow[] | null);
 
   const purchaseUom = pickAlternatePurchaseUom(
     itemUoms as ItemUomRow[] | null,

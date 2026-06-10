@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import { Copy, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,40 @@ export const DocumentLineCompactInput = forwardRef<
     </div>
   );
 });
+
+export function DocumentLineDragHandle({
+  lineKey,
+  disabled,
+  canDrag,
+  label = "Drag to reorder line",
+}: {
+  lineKey: string;
+  disabled: boolean;
+  canDrag: boolean;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      draggable={canDrag && !disabled}
+      disabled={disabled || !canDrag}
+      aria-label={label}
+      className={cn(
+        "rounded p-0.5 text-muted-foreground",
+        canDrag && !disabled
+          ? "cursor-grab hover:bg-muted/60 active:cursor-grabbing"
+          : "cursor-not-allowed opacity-40"
+      )}
+      onDragStart={(event) => {
+        if (!canDrag || disabled) return;
+        event.dataTransfer.setData("text/plain", lineKey);
+        event.dataTransfer.effectAllowed = "move";
+      }}
+    >
+      <GripVertical className="h-3.5 w-3.5" aria-hidden />
+    </button>
+  );
+}
 
 export function DocumentLineRemoveButton({
   lineKey,

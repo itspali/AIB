@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
-import { saveProductMasterProfile } from "@/app/items/actions";
+import { saveProductMasterProfile, getProductDetail } from "@/app/items/actions";
 import { parentSelectOptions, resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
 import {
@@ -238,6 +238,12 @@ export function useProductForm({
         const result = await saveProductMasterProfile(payload);
 
         if ("error" in result) {
+          if (result.conflict && values.item_id) {
+            const refreshed = await getProductDetail(values.item_id);
+            if (!("error" in refreshed) && refreshed.detail) {
+              setValue("updated_at", refreshed.detail.updated_at, { shouldDirty: false });
+            }
+          }
           if (notifyOnSave) {
             toast.error(result.error ?? "Unable to save product profile.");
           }
@@ -289,6 +295,7 @@ export function useProductForm({
       refreshOnSave,
       router,
       catalogContext.storefronts,
+      setValue,
     ]
   );
 
@@ -301,6 +308,14 @@ export function useProductForm({
   }, [isPending, onPendingChange]);
 
   const valuesSeedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const nextUpdatedAt = initialValues?.updated_at;
+    if (!itemId || !nextUpdatedAt) return;
+    const currentUpdatedAt = form.getValues("updated_at");
+    if (currentUpdatedAt === nextUpdatedAt) return;
+    setValue("updated_at", nextUpdatedAt, { shouldDirty: false });
+  }, [form, initialValues?.updated_at, itemId, setValue]);
 
   useEffect(() => {
     const nextValues = buildDefaultValues();

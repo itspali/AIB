@@ -1416,9 +1416,9 @@ export function ProductCatalogTerminal({
     const currentDetail = detailRef.current;
 
     if (
+      fetchScope === "peek" &&
       currentDetail?.id === drawer.recordId &&
-      detailMatchesDrawerVariant(currentDetail, drawerVariant) &&
-      (drawer.surface !== "edit" || currentDetail.detail_scope === "full")
+      detailMatchesDrawerVariant(currentDetail, drawerVariant)
     ) {
       drawerFetchTargetRef.current = fetchTargetKey;
       return;
@@ -1458,6 +1458,7 @@ export function ProductCatalogTerminal({
     const fullRequestKey = `${detailCacheKey(itemId, variant)}:full`;
     drawerDetailInflight.delete(fullRequestKey);
     drawerDetailSnapshotCache.delete(fullRequestKey);
+    detailCacheRef.current.delete(detailCacheKey(itemId, variant));
     loadDrawerData(itemId, drawer.variantId, { scope: "full" });
   }, [detail?.detail_scope, detail?.id, detail?.variant_id, drawer.recordId, drawer.variantId, loadDrawerData]);
 
@@ -1513,9 +1514,12 @@ export function ProductCatalogTerminal({
         detailCacheKey(itemId, savedDetail.variant_id),
         savedDetail
       );
-      if ((savedDetail.detail_scope ?? "full") === "peek") {
-        detailCacheRef.current.set(peekItemCacheKey(itemId), savedDetail);
-      }
+      // Keep the item-level peek cache aligned after full saves so reopen/peek
+      // shows current alternates and the optimistic-lock token stays fresh.
+      detailCacheRef.current.set(peekItemCacheKey(itemId), {
+        ...savedDetail,
+        detail_scope: "peek",
+      });
       const mergeSavedRow = (current: ProductListRow[]) => {
         const nextRow = redactProductListRow(
           detailToListRow(savedDetail),

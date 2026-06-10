@@ -7,6 +7,7 @@ import {
   ensureTrailingPoLine,
   filterSavablePoLines,
   isPoLineComplete,
+  movePoDraftLine,
   normalizePoLinesForAnchor,
   supplierDefaultCurrency,
 } from "@/lib/procurement/purchase-orders/draft-form";
@@ -55,6 +56,38 @@ describe("po draft form line helpers", () => {
     expect(normalized).toHaveLength(2);
     expect(isPoLineComplete(normalized[0]!)).toBe(false);
     expect(normalized[1]?.variant_id).toBe(complete.variant_id);
+  });
+
+  it("reorders filled lines and keeps the trailing blank entry row", () => {
+    const lineA = {
+      ...createEmptyPoLine(),
+      key: "line-a",
+      variant_id: "variant-a",
+      item_name: "Alpha",
+      quantity_ordered: "1",
+    };
+    const lineB = {
+      ...createEmptyPoLine(),
+      key: "line-b",
+      variant_id: "variant-b",
+      item_name: "Beta",
+      quantity_ordered: "2",
+    };
+    const blank = createEmptyPoLine();
+    const reordered = movePoDraftLine([lineA, lineB, blank], "line-b", "line-a", "bottom");
+    expect(reordered.map((line) => line.key)).toEqual(["line-b", "line-a", blank.key]);
+  });
+
+  it("ignores reorder when either row is the blank entry line", () => {
+    const complete = {
+      ...createEmptyPoLine(),
+      variant_id: "variant-a",
+      quantity_ordered: "1",
+    };
+    const blank = createEmptyPoLine();
+    const lines = [complete, blank];
+    expect(movePoDraftLine(lines, blank.key, complete.key, "bottom")).toEqual(lines);
+    expect(movePoDraftLine(lines, complete.key, blank.key, "bottom")).toEqual(lines);
   });
 
   it("filters incomplete trailing rows before save", () => {

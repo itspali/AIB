@@ -27,8 +27,16 @@ import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { computeLineGross, formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import { isEnterKey } from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { PoLineSupplierInsightsButton } from "@/components/procurement/purchase-orders/po-line-supplier-insights";
-import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
-import { resolvePoDraftLineUnitCode } from "@/lib/procurement/purchase-orders/po-line-unit";
+import {
+  PoLineQtyUnitSlot,
+  PoLineQtyValueStack,
+} from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import {
+  canEditPoLineUom,
+  formatPoLineUomConversionHint,
+  resolvePoDraftLineUnitCode,
+  resolvePoLineUomOptions,
+} from "@/lib/procurement/purchase-orders/po-line-unit";
 
 export const PO_LINE_COMPACT_INPUT_CLASS = DOCUMENT_LINE_COMPACT_INPUT_CLASS;
 export const PO_LINE_ITEM_CELL_INPUT_CLASS = DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS;
@@ -249,6 +257,39 @@ export function PoLineItemCell({
   );
 }
 
+export function PoLineUnitCell({
+  ctx,
+  column,
+}: {
+  ctx: LineCellContext;
+  column: DocumentColumnPref;
+}) {
+  const { line, disabled, patchLine } = ctx;
+  const unitCode = line.variant_id ? resolvePoDraftLineUnitCode(line) : null;
+  const uomOptions = resolvePoLineUomOptions(line).map((option) => option.uom_code);
+  const conversionHint = line.variant_id ? formatPoLineUomConversionHint(line) : null;
+
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col py-0.5",
+        column.align === "right" && "items-end"
+      )}
+    >
+      <PoLineQtyUnitSlot
+        unitCode={unitCode}
+        align={column.align}
+        editable={line.variant_id ? canEditPoLineUom(line) : false}
+        disabled={disabled}
+        unitOptions={uomOptions}
+        onUnitChange={(code) => patchLine(line.key, { uom_code: code })}
+        conversionHint={conversionHint}
+        className="w-full text-sm leading-snug"
+      />
+    </div>
+  );
+}
+
 export function PoLineQtyCell({
   ctx,
   column,
@@ -262,46 +303,62 @@ export function PoLineQtyCell({
   const decimalPlaces = resolveColumnDecimalPlaces(column);
   const unitCode =
     showUnitUnderQty && line.variant_id ? resolvePoDraftLineUnitCode(line) : null;
+  const uomOptions = resolvePoLineUomOptions(line).map((option) => option.uom_code);
+  const editableUom = line.variant_id && canEditPoLineUom(line);
+  const conversionHint =
+    showUnitUnderQty && line.variant_id ? formatPoLineUomConversionHint(line) : null;
+  const showQtyStack = showUnitUnderQty && Boolean(line.variant_id);
+
+  const qtyInput = (
+    <DocumentLineCompactInput
+      ref={(node) => {
+        qtyRefs.current[line.key] = node;
+      }}
+      align={column.align}
+      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      value={line.quantity_ordered}
+      disabled={disabled}
+      inputMode="decimal"
+      aria-label="Quantity ordered"
+      onChange={(event) => patchLine(line.key, { quantity_ordered: event.target.value })}
+      onBlur={() => {
+        const normalized = normalizeDocumentDecimalInput(
+          line.quantity_ordered,
+          decimalPlaces
+        );
+        if (normalized !== line.quantity_ordered) {
+          patchLine(line.key, { quantity_ordered: normalized });
+        }
+      }}
+      onKeyDown={(event) => {
+        if (!isEnterKey(event.key)) return;
+        event.preventDefault();
+        if (line.variant_id && Number(line.quantity_ordered) > 0) {
+          focusPrice(line.key);
+        }
+      }}
+    />
+  );
 
   return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-col justify-center py-0.5",
-        column.align === "right" && "items-end"
-      )}
+    <PoLineQtyValueStack
+      showUnitUnderQty={showQtyStack}
+      align={column.align}
+      unitSlot={
+        <PoLineQtyUnitSlot
+          unitCode={unitCode}
+          align={column.align}
+          editable={editableUom}
+          disabled={disabled}
+          unitOptions={uomOptions}
+          onUnitChange={(code) => patchLine(line.key, { uom_code: code })}
+          conversionHint={conversionHint}
+          className="w-full"
+        />
+      }
     >
-      <DocumentLineCompactInput
-        ref={(node) => {
-          qtyRefs.current[line.key] = node;
-        }}
-        align={column.align}
-        className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
-        value={line.quantity_ordered}
-        disabled={disabled}
-        inputMode="decimal"
-        aria-label="Quantity ordered"
-        onChange={(event) => patchLine(line.key, { quantity_ordered: event.target.value })}
-        onBlur={() => {
-          const normalized = normalizeDocumentDecimalInput(
-            line.quantity_ordered,
-            decimalPlaces
-          );
-          if (normalized !== line.quantity_ordered) {
-            patchLine(line.key, { quantity_ordered: normalized });
-          }
-        }}
-        onKeyDown={(event) => {
-          if (!isEnterKey(event.key)) return;
-          event.preventDefault();
-          if (line.variant_id && Number(line.quantity_ordered) > 0) {
-            focusPrice(line.key);
-          }
-        }}
-      />
-      {showUnitUnderQty ? (
-        <PoLineQtyUnitSlot unitCode={unitCode} align={column.align} />
-      ) : null}
-    </div>
+      {qtyInput}
+    </PoLineQtyValueStack>
   );
 }
 
@@ -497,6 +554,9 @@ export function renderPoLineColumnCell(
     return (
       <PoLineQtyCell ctx={ctx} column={column} showUnitUnderQty={showUnitUnderQty} />
     );
+  }
+  if (columnId === "unit") {
+    return <PoLineUnitCell ctx={ctx} column={column} />;
   }
   if (columnId === "unit_price") {
     return <PoLinePriceCell ctx={ctx} column={column} />;

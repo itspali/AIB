@@ -36,6 +36,7 @@ export const purchaseOrderLineSchema = z.object({
       const parsed = Number(value);
       return Number.isFinite(parsed) && parsed >= 0;
     }, "Discount amount must be zero or greater."),
+  uom_code: z.string().trim().min(1).max(32).optional(),
 });
 
 export const savePurchaseOrderSchema = z.object({

@@ -398,9 +398,16 @@ export function ProductPanelScope({
   }, [detail, handleSaved, onVariantsReload]);
 
   const needsCatalogForBody = mode !== "view";
+  const awaitingFullDetailForEdit =
+    mode === "edit" &&
+    detail != null &&
+    !isVariantCatalogEditMode(mode, detail) &&
+    detail.detail_scope === "peek";
 
   const body =
     isLoading ||
+    isDetailRefreshing ||
+    awaitingFullDetailForEdit ||
     (needsCatalogForBody && !catalogContext) ||
     (mode === "view" && !detail) ? (
       <ProductEditorSkeleton />

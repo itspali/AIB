@@ -6,6 +6,7 @@ import { resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import { fetchVariantPrimaryImageUrl } from "@/lib/procurement/purchase-orders/variant-image";
 import { filterUserCustomFieldEntries } from "@/lib/products/catalog-reserved-fields";
+import { parseDefaultPurchaseUomFromCustomFields } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 
 export type { PoLineCatalogContext };
@@ -138,10 +139,29 @@ export async function fetchPoLineCatalogContext(
   const taxCode = resolveJoin(item.tax_codes);
   const taxRate = taxCode?.rate != null ? Number(taxCode.rate) : 0;
 
-  const [attributeLabels, imageUrl] = await Promise.all([
+  const [attributeLabels, imageUrl, alternateUomsResult] = await Promise.all([
     resolveCatalogAttributeLabels(supabase, tenantId, item.category_id),
     fetchVariantPrimaryImageUrl(supabase, tenantId, row.item_id, row.id).catch(() => null),
+    supabase
+      .from("item_uoms")
+      .select("uom_code, conversion_factor")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", row.item_id),
   ]);
+
+  const alternate_uoms = (alternateUomsResult.data ?? [])
+    .map((entry) => ({
+      uom_code: String(entry.uom_code ?? "").trim(),
+      conversion_factor: Number(entry.conversion_factor),
+    }))
+    .filter(
+      (entry) =>
+        entry.uom_code.length > 0 &&
+        Number.isFinite(entry.conversion_factor) &&
+        entry.conversion_factor > 0
+    );
+
+  const default_purchase_uom = parseDefaultPurchaseUomFromCustomFields(item.custom_fields);
 
   return {
     description: item.description?.trim() || null,
@@ -151,6 +171,8 @@ export async function fetchPoLineCatalogContext(
     tax_code_id: item.tax_code_id,
     tax_rate: Number.isFinite(taxRate) ? taxRate : 0,
     tax_is_variable: Boolean(taxCode?.is_variable),
+    default_purchase_uom,
+    alternate_uoms,
     custom_fields: mapCustomFields(item.custom_fields),
     variant_attributes: mapVariantAttributes(row.variant_attributes),
     attribute_labels: attributeLabels,

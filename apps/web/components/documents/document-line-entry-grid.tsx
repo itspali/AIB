@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { DocumentLineDuplicateButton, DocumentLineRemoveButton } from "@/components/documents/document-line-entry-cells";
+import { DocumentLineEntryRow } from "@/components/documents/document-line-entry-row";
 
 export type DocumentLineColumn = {
   id: string;
@@ -38,6 +38,8 @@ type Props<T extends LineRow> = {
   onRemoveLine?: (key: string) => void;
   canDuplicateLine?: (line: T, lineIndex: number, lines: T[]) => boolean;
   onDuplicateLine?: (key: string) => void;
+  canReorderLine?: (line: T, lineIndex: number, lines: T[]) => boolean;
+  onReorderLine?: (fromKey: string, toKey: string) => void;
   renderCell: (column: DocumentLineColumn, line: T, lineIndex: number) => ReactNode;
 };
 
@@ -46,11 +48,11 @@ function lineColumnClass(
   extra?: string
 ) {
   return cn(
-    column.id === "item" || column.id === "line_image"
-      ? column.id === "line_image"
-        ? "p-0 align-middle"
-        : "min-w-0 p-0 align-top whitespace-normal"
-      : "p-0 align-middle",
+    column.id === "line_image"
+      ? "p-0 align-middle"
+      : column.id === "item"
+        ? "min-w-0 p-0 align-top whitespace-normal"
+        : "p-0 align-top",
     column.align === "right"
       ? "text-right"
       : column.align === "center"
@@ -73,10 +75,13 @@ export function DocumentLineEntryGrid<T extends LineRow>({
   onRemoveLine,
   canDuplicateLine,
   onDuplicateLine,
+  canReorderLine,
+  onReorderLine,
   renderCell,
 }: Props<T>) {
   const showActionsColumn = showRemoveColumn || Boolean(onDuplicateLine);
   const actionsColWidth = onDuplicateLine && onRemoveLine ? "4.5rem" : "2.25rem";
+  const lineNumberColWidth = onReorderLine ? "3rem" : "2.25rem";
 
   return (
     <div
@@ -99,7 +104,7 @@ export function DocumentLineEntryGrid<T extends LineRow>({
           )}
         >
           <colgroup>
-            {showLineNumbers ? <col style={{ width: "2.25rem" }} /> : null}
+            {showLineNumbers ? <col style={{ width: lineNumberColWidth }} /> : null}
             {columns.map((column) => (
               <col
                 key={column.id}
@@ -120,9 +125,10 @@ export function DocumentLineEntryGrid<T extends LineRow>({
                 <th
                   scope="col"
                   className={cn(
-                    "w-9 px-0 py-1.5 text-center text-xs font-medium",
+                    "px-0 py-1.5 text-center text-xs font-medium",
                     DOCUMENT_LINE_HEADER_CELL
                   )}
+                  style={{ width: lineNumberColWidth }}
                   aria-label="Line number"
                 >
                   #
@@ -159,48 +165,30 @@ export function DocumentLineEntryGrid<T extends LineRow>({
               const canDuplicate = canDuplicateLine
                 ? canDuplicateLine(line, lineIndex, lines)
                 : Boolean((line as { variant_id?: string }).variant_id);
+              const canReorder = canReorderLine
+                ? canReorderLine(line, lineIndex, lines)
+                : false;
 
               return (
-                <tr key={line.key}>
-                  {showLineNumbers ? (
-                    <td className="w-9 border border-border px-0 py-1 text-center align-middle text-xs tabular-nums text-muted-foreground">
-                      {lineIndex + 1}
-                    </td>
-                  ) : null}
-                  {columns.map((column) => (
-                    <td
-                      key={column.id}
-                      className={cn(
-                        lineColumnClass(column),
-                        column.editable ? DOCUMENT_LINE_EDITABLE_CELL : DOCUMENT_LINE_BODY_CELL
-                      )}
-                    >
-                      {renderCell(column, line, lineIndex)}
-                    </td>
-                  ))}
-                  {showActionsColumn ? (
-                    <td className="border border-border p-0 text-center align-middle">
-                      <div className="flex items-center justify-center">
-                        {onDuplicateLine ? (
-                          <DocumentLineDuplicateButton
-                            lineKey={line.key}
-                            disabled={disabled}
-                            canDuplicate={canDuplicate}
-                            onDuplicate={onDuplicateLine}
-                          />
-                        ) : null}
-                        {onRemoveLine ? (
-                          <DocumentLineRemoveButton
-                            lineKey={line.key}
-                            disabled={disabled}
-                            canRemove={canRemove}
-                            onRemove={onRemoveLine}
-                          />
-                        ) : null}
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
+                <DocumentLineEntryRow
+                  key={line.key}
+                  line={line}
+                  lineIndex={lineIndex}
+                  lines={lines}
+                  columns={columns}
+                  disabled={disabled}
+                  showLineNumbers={showLineNumbers}
+                  showActionsColumn={showActionsColumn}
+                  lineNumberColWidth={lineNumberColWidth}
+                  canRemove={canRemove}
+                  canDuplicate={canDuplicate}
+                  canReorder={canReorder}
+                  onRemoveLine={onRemoveLine}
+                  onDuplicateLine={onDuplicateLine}
+                  onReorderLine={onReorderLine}
+                  lineColumnClass={lineColumnClass}
+                  renderCell={renderCell}
+                />
               );
             })}
           </tbody>

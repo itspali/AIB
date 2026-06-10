@@ -22,7 +22,10 @@ export type PurchaseOrderLineRow = {
   line_tax_amount: string;
   tax_rate_percentage: string;
   open_quantity: string;
-  /** Item base UOM — read-only display until Phase 3 line `uom_code`. */
+  /** Order UOM persisted on the line (may differ from item base). */
+  uom_code: string;
+  uom_conversion_factor: string;
+  /** Item base UOM — fallback when line uom is unset. */
   base_unit_of_measure?: string | null;
 };
 

@@ -25,10 +25,14 @@ import type { PurchaseOrderCustomFields } from "@/lib/procurement/purchase-order
 import type { PurchaseOrderLineRow, PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import {
+  formatPoPeekLineUomConversionHint,
   resolvePoPeekLineUnitCode,
   shouldShowPoUnitUnderQtyColumn,
 } from "@/lib/procurement/purchase-orders/po-line-unit";
-import { PoLineQtyUnitSlot } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import {
+  PoLineQtyUnitSlot,
+  PoLineQtyValueStack,
+} from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
 import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
@@ -233,28 +237,40 @@ function PeekLineQtyCell({
 }) {
   const value = resolvePoPeekLineCellDisplay(column, line) ?? "—";
   const unitCode = showUnitUnderQty ? resolvePoPeekLineUnitCode(line) : null;
+  const conversionHint = showUnitUnderQty ? formatPoPeekLineUomConversionHint(line) : null;
 
   return (
     <td
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "p-2 tabular-nums text-muted-foreground",
+          "align-top tabular-nums text-muted-foreground",
+          showUnitUnderQty ? "p-0" : "p-2",
           column.align === "right" ? "text-right" : "text-left"
         )
       )}
     >
-      <div
-        className={cn(
-          "flex flex-col",
-          column.align === "right" && "items-end"
-        )}
+      <PoLineQtyValueStack
+        showUnitUnderQty={showUnitUnderQty}
+        align={column.align}
+        unitSlot={
+          <PoLineQtyUnitSlot
+            unitCode={unitCode}
+            align={column.align}
+            className="w-full px-0"
+            conversionHint={conversionHint}
+          />
+        }
       >
-        <span>{value}</span>
-        {showUnitUnderQty ? (
-          <PoLineQtyUnitSlot unitCode={unitCode} align={column.align} className="px-0" />
-        ) : null}
-      </div>
+        <span
+          className={cn(
+            "block h-8 leading-8 tabular-nums",
+            column.align === "right" ? "text-right" : "text-left"
+          )}
+        >
+          {value}
+        </span>
+      </PoLineQtyValueStack>
     </td>
   );
 }
