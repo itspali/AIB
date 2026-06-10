@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyPoLine,
+  copyPoDraftFromOrder,
   defaultPoDraftForm,
   ensureLeadingPoLine,
   ensureTrailingPoLine,
@@ -99,5 +100,54 @@ describe("supplier default currency", () => {
     );
     expect(draft.currency_code).toBe("EUR");
     expect(draft.supplier_id).toBe("supplier-a");
+  });
+});
+
+describe("copyPoDraftFromOrder", () => {
+  it("copies header and lines with fresh keys and clears requisition number", () => {
+    const source = {
+      id: "po-1",
+      voucher_number: "PO-2026-0001",
+      destination_location_id: "loc-1",
+      destination_location_name: "Main",
+      destination_location_code: "MAIN",
+      supplier_id: "supplier-a",
+      supplier_name: "Acme",
+      supplier_address: null,
+      destination_address: null,
+      document_status: "ISSUED_ACTIVE" as const,
+      currency_code: "EUR",
+      payment_terms_days: 30,
+      total_gross_amount: "100",
+      line_count: 1,
+      total_net_amount: "100",
+      custom_fields: { requisition_number: "REQ-9", internal_notes: "Keep" },
+      created_by: "u1",
+      created_by_name: "Alex",
+      created_at: "2026-06-01T00:00:00.000Z",
+      updated_at: "2026-06-01T00:00:00.000Z",
+      lines: [
+        {
+          id: "line-db-id",
+          item_id: "item-1",
+          item_name: "Widget",
+          variant_id: "var-1",
+          variant_sku: "W-1",
+          quantity_ordered: "2",
+          quantity_received: "0",
+          unit_price_contractual: "10",
+          line_total_gross: "20",
+          open_quantity: "2",
+        },
+      ],
+    };
+
+    const draft = copyPoDraftFromOrder(source);
+    expect(draft.supplier_id).toBe("supplier-a");
+    expect(draft.custom_fields.requisition_number).toBe("");
+    expect(draft.custom_fields.internal_notes).toBe("Keep");
+    expect(draft.lines[0]?.key).not.toBe("line-db-id");
+    expect(draft.lines[0]?.variant_id).toBe("var-1");
+    expect(filterSavablePoLines(draft.lines)).toHaveLength(1);
   });
 });

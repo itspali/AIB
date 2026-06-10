@@ -14,8 +14,13 @@ export type SavePurchaseOrderDocumentLayoutInput = {
   layout: DocumentLayoutTemplate;
 };
 
+function resolveScopeLocationId(scope: DocumentLayoutScope): string | null {
+  return scope.mode === "location" ? scope.locationId : null;
+}
+
 export async function loadPurchaseOrderDocumentLayout(input: {
   viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
 }): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
   try {
     const { supabase, tenantId } = await requireTenantId();
@@ -23,7 +28,8 @@ export async function loadPurchaseOrderDocumentLayout(input: {
       supabase,
       tenantId,
       "PURCHASE_ORDER",
-      input.viewContext
+      input.viewContext,
+      { locationId: input.scope ? resolveScopeLocationId(input.scope) : null }
     );
     return { layout };
   } catch (error) {
@@ -43,10 +49,6 @@ export async function savePurchaseOrderDocumentLayout(
       return { error: "You do not have permission to edit document layout." };
     }
 
-    if (input.scope.mode === "location") {
-      return { error: "Per-location layout overrides are not enabled yet." };
-    }
-
     const layout = normalizePoLayoutTemplate({
       ...input.layout,
       moduleKey: "PURCHASE_ORDER",
@@ -59,7 +61,9 @@ export async function savePurchaseOrderDocumentLayout(
 
     void layoutScopeKey(input.scope);
 
-    await upsertDocumentLayoutTemplate(supabase, tenantId, layout);
+    await upsertDocumentLayoutTemplate(supabase, tenantId, layout, {
+      locationId: resolveScopeLocationId(input.scope),
+    });
 
     revalidatePath("/settings/modules/procurement");
     revalidatePath("/procurement/purchase-orders");

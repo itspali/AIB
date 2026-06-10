@@ -110,6 +110,8 @@ function PoLineEntryGrid({
       disabled={disabled}
       canRemoveLine={(_, __, allLines) => allLines.length > 1}
       onRemoveLine={actions.removeLine}
+      canDuplicateLine={(line) => Boolean(line.variant_id)}
+      onDuplicateLine={actions.duplicateLine}
       renderCell={(column, line) => {
         const layoutColumn = visibleColumns.find((entry) => entry.id === column.id);
         if (!layoutColumn) return null;

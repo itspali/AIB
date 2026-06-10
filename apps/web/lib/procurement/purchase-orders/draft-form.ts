@@ -183,3 +183,30 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
         : [createEmptyPoLine()],
   };
 }
+
+/** Seed a new draft from an existing PO (duplicate flow). */
+export function copyPoDraftFromOrder(order: PurchaseOrderRow): PoDraftFormState {
+  const draft = mapPurchaseOrderToDraft(order);
+  return {
+    ...draft,
+    custom_fields: {
+      ...draft.custom_fields,
+      requisition_number: "",
+    },
+    lines: ensureTrailingPoLine(
+      (order.lines ?? [])
+        .filter((line) => Boolean(line.variant_id))
+        .map((line) => ({
+          key: crypto.randomUUID(),
+          sku: line.variant_sku,
+          variant_id: line.variant_id,
+          item_id: line.item_id,
+          item_name: line.item_name,
+          variant_sku: line.variant_sku,
+          quantity_ordered: line.quantity_ordered,
+          unit_price_contractual: line.unit_price_contractual,
+          skuError: null,
+        }))
+    ),
+  };
+}

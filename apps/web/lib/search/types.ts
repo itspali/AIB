@@ -7,6 +7,7 @@ export type FilterScope =
   | "suppliers"
   | "stock"
   | "transfers"
+  | "purchase-orders"
   | "settings";
 
 export type FilterOperator =

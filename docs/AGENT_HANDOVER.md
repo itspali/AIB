@@ -182,5 +182,6 @@ Full catalog (do not re-create):
 - **Public codes:** `20260610100000_workspace_public_codes.sql` — `tenants.organization_code`, `tenant_groups.group_code`, RPC `invite_standalone_organization_to_group`.
 - **Non-goals v1:** cross-org inventory, shared catalog, intercompany.
 - **Migrations:** `20260609100000_tenant_groups_foundation.sql`, `20260609200000_tenant_groups_invitations.sql`.
+- **Procurement PO Phase 2:** omnibar `purchase-orders` scope; duplicate/copy lines; full-page routes `/procurement/purchase-orders/new`, `/procurement/purchase-orders/[id]/edit`; per-location document layout overrides (`20260615100000_document_layout_location_scope.sql`).
 - **Lib/UI:** `apps/web/lib/group/`, `apps/web/app/settings/group/`, `apps/web/components/settings/group/`.
 - **Org settings:** read-only parent group on Organization Identity when `tenants.group_id` set.

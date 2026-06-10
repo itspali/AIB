@@ -10,6 +10,8 @@ import type { LocationRow } from "@/lib/locations/types";
 import type { StockAdjustmentRow, StockBalanceRow } from "@/lib/inventory/stock/types";
 import type { StockTransferRow } from "@/lib/inventory/transfers/types";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
+import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
+import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
 
 type ClientFilterScope = "categories" | "locations" | "entities";
 
@@ -133,10 +135,14 @@ function transferStatusHaystack(status: StockTransferRow["current_status"]): str
   return [status, stockTransferStatusLabel(status)].join(" ").toLowerCase();
 }
 
+function purchaseOrderStatusHaystack(status: PurchaseOrderRow["document_status"]): string {
+  return [status, purchaseOrderStatusLabel(status)].join(" ").toLowerCase();
+}
+
 function filterRowsByAst<T extends Record<string, unknown>>(
   rows: T[],
   ast: AstClause[],
-  scope: "stock" | "transfers",
+  scope: "stock" | "transfers" | "purchase-orders",
   textHaystack: (row: T) => string
 ): T[] {
   const structural = ast.filter((clause) => clause.kind === "predicate");
@@ -150,6 +156,24 @@ function filterRowsByAst<T extends Record<string, unknown>>(
         const needle = String(clause.value).toLowerCase();
         const haystack = transferStatusHaystack(
           row.current_status as StockTransferRow["current_status"]
+        );
+        switch (clause.operator) {
+          case "EQ":
+            return haystack.includes(needle);
+          case "NEQ":
+            return !haystack.includes(needle);
+          case "ILIKE":
+            return haystack.includes(needle.replace(/^\^/, ""));
+          case "NOT_ILIKE":
+            return !haystack.includes(needle.replace(/^\^/, ""));
+          default:
+            return matchPredicate(row, clause, "categories");
+        }
+      }
+      if (scope === "purchase-orders" && clause.field === "document_status") {
+        const needle = String(clause.value).toLowerCase();
+        const haystack = purchaseOrderStatusHaystack(
+          row.document_status as PurchaseOrderRow["document_status"]
         );
         switch (clause.operator) {
           case "EQ":
@@ -256,6 +280,41 @@ export function filterStockAdjustmentsByResidual(
 export function filterTransfersByResidual(rows: StockTransferRow[], residualText: string): StockTransferRow[] {
   if (!residualText.trim()) return rows;
   return filterTransfersByAst(rows, [{ kind: "text", value: residualText }]);
+}
+
+function purchaseOrderHaystack(row: PurchaseOrderRow): string {
+  return [
+    row.voucher_number,
+    row.supplier_name,
+    row.destination_location_name,
+    row.destination_location_code,
+    purchaseOrderStatusLabel(row.document_status),
+    row.document_status,
+    row.currency_code,
+    row.created_by_name,
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+export function filterPurchaseOrdersByAst(
+  rows: PurchaseOrderRow[],
+  ast: AstClause[]
+): PurchaseOrderRow[] {
+  return filterRowsByAst(
+    rows as unknown as Record<string, unknown>[],
+    ast,
+    "purchase-orders",
+    (row) => purchaseOrderHaystack(row as unknown as PurchaseOrderRow)
+  ) as PurchaseOrderRow[];
+}
+
+export function filterPurchaseOrdersByResidual(
+  rows: PurchaseOrderRow[],
+  residualText: string
+): PurchaseOrderRow[] {
+  if (!residualText.trim()) return rows;
+  return filterPurchaseOrdersByAst(rows, [{ kind: "text", value: residualText }]);
 }
 
 function entityHaystack(row: EntityListRow): string {

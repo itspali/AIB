@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { CategoryRow } from "@/lib/categories/types";
 import type { EntityListRow } from "@/lib/entities/types";
 import type { StockTransferRow } from "@/lib/inventory/transfers/types";
+import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import {
   filterCategoriesByAst,
   filterEntitiesByAst,
+  filterPurchaseOrdersByAst,
+  filterPurchaseOrdersByResidual,
   filterTransfersByAst,
   filterTransfersByResidual,
 } from "@/lib/search/executor/client-scopes";
@@ -212,5 +215,87 @@ describe("filterTransfersByResidual", () => {
   it("searches across document and location fields", () => {
     const filtered = filterTransfersByResidual(TRANSFER_ROWS, "delhi");
     expect(filtered.map((row) => row.id).sort()).toEqual(["t1", "t2"]);
+  });
+});
+
+const PO_ROWS: PurchaseOrderRow[] = [
+  {
+    id: "po1",
+    voucher_number: "PO-2026-0001",
+    destination_location_id: "loc-a",
+    destination_location_name: "Mumbai WH",
+    destination_location_code: "MUM",
+    supplier_id: "sup-1",
+    supplier_name: "Acme Supplies",
+    supplier_address: null,
+    destination_address: null,
+    document_status: "DRAFT",
+    currency_code: "INR",
+    payment_terms_days: 30,
+    total_gross_amount: "100",
+    line_count: 1,
+    total_net_amount: "100",
+    custom_fields: {},
+    created_by: "u1",
+    created_by_name: "Alex Operator",
+    created_at: "2026-06-01T00:00:00.000Z",
+    updated_at: "2026-06-01T00:00:00.000Z",
+  },
+  {
+    id: "po2",
+    voucher_number: "PO-2026-0002",
+    destination_location_id: "loc-b",
+    destination_location_name: "Delhi WH",
+    destination_location_code: "DEL",
+    supplier_id: "sup-2",
+    supplier_name: "Beta Vendor",
+    supplier_address: null,
+    destination_address: null,
+    document_status: "ISSUED_ACTIVE",
+    currency_code: "INR",
+    payment_terms_days: 15,
+    total_gross_amount: "250",
+    line_count: 2,
+    total_net_amount: "250",
+    custom_fields: {},
+    created_by: "u2",
+    created_by_name: "Sam Buyer",
+    created_at: "2026-06-02T00:00:00.000Z",
+    updated_at: "2026-06-02T00:00:00.000Z",
+  },
+];
+
+describe("filterPurchaseOrdersByAst", () => {
+  it("matches voucher_number predicates", () => {
+    const filtered = filterPurchaseOrdersByAst(PO_ROWS, [
+      {
+        kind: "predicate",
+        field: "voucher_number",
+        operator: "EQ",
+        value: "PO-2026-0001",
+      },
+    ]);
+
+    expect(filtered.map((row) => row.voucher_number)).toEqual(["PO-2026-0001"]);
+  });
+
+  it("matches document_status using labels and enum tokens", () => {
+    const filtered = filterPurchaseOrdersByAst(PO_ROWS, [
+      {
+        kind: "predicate",
+        field: "document_status",
+        operator: "ILIKE",
+        value: "issued",
+      },
+    ]);
+
+    expect(filtered.map((row) => row.id)).toEqual(["po2"]);
+  });
+});
+
+describe("filterPurchaseOrdersByResidual", () => {
+  it("searches across PO, supplier, and location fields", () => {
+    const filtered = filterPurchaseOrdersByResidual(PO_ROWS, "acme");
+    expect(filtered.map((row) => row.id)).toEqual(["po1"]);
   });
 });

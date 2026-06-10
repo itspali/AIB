@@ -165,6 +165,26 @@ export function usePoLineEntryActions(
     [entryAnchor, onChange]
   );
 
+  const duplicateLine = useCallback(
+    (key: string) => {
+      onChange((current) => {
+        const index = current.findIndex((line) => line.key === key);
+        if (index === -1) return current;
+        const source = current[index]!;
+        if (!source.variant_id) return current;
+
+        const clone: PoDraftLine = {
+          ...source,
+          key: crypto.randomUUID(),
+          skuError: null,
+        };
+        const next = [...current.slice(0, index + 1), clone, ...current.slice(index + 1)];
+        return ensureEntryPoLine(next, entryAnchor);
+      });
+    },
+    [entryAnchor, onChange]
+  );
+
   const applySupplierPrice = useCallback(
     async (lineKey: string, variantId: string, fallbackCost: string) => {
       if (!supplierId || !variantId) return;
@@ -303,6 +323,7 @@ export function usePoLineEntryActions(
     focusPrice,
     advanceFromLine,
     removeLine,
+    duplicateLine,
     bindItemChange,
   };
 }

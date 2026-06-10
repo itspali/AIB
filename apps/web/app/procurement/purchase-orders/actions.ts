@@ -5,6 +5,8 @@ import {
   fetchPurchaseOrderById,
   fetchPurchaseOrders,
 } from "@/lib/procurement/purchase-orders/queries";
+import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
 import {
@@ -65,6 +67,26 @@ export async function loadProcurementLocations(): Promise<ProcurementLocationOpt
 export async function loadProcurementSuppliers(): Promise<ProcurementSupplierOption[]> {
   const { supabase, tenantId } = await requireTenantId();
   return fetchProcurementSuppliers(supabase, tenantId);
+}
+
+export async function loadEffectivePoDocumentLayout(
+  documentLocationId?: string | null
+): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const layout = await resolveEffectiveDocumentLayout({
+      supabase,
+      tenantId,
+      moduleKey: "PURCHASE_ORDER",
+      viewContext: "SCREEN_GRID",
+      documentLocationId,
+    });
+    return { layout };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load document layout.",
+    };
+  }
 }
 
 export async function loadPurchaseOrders(): Promise<PurchaseOrderRow[]> {

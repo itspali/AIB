@@ -174,7 +174,7 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 
 - **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules with line-entry drawers (§5.4).
 - **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`
-- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 1 shipped; Phase 2 = document layout settings.
+- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 2 **shipped**; Phase 3 = commercial depth (discounts, tax, approval).
 - **Defer:** full PO approval workflow, supplier portal, purchase invoices, omnibar `purchase-orders` scope — unless scope expands.
 
 ### Tier 2b — Remaining inventory polish

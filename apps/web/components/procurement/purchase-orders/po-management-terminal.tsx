@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { loadPurchaseOrders } from "@/app/procurement/purchase-orders/actions";
 import { PoDrawerForm } from "@/components/procurement/purchase-orders/po-drawer-form";
@@ -21,7 +22,7 @@ import {
   type PurchaseOrderListSortDirection,
   type PurchaseOrderListSortField,
 } from "@/lib/procurement/purchase-orders/list-sort";
-import { PROCUREMENT_PO_HREF } from "@/lib/procurement/navigation";
+import { PROCUREMENT_PO_HREF, PO_COPY_FROM_PARAM } from "@/lib/procurement/navigation";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { useFilteredPurchaseOrders } from "@/lib/procurement/purchase-orders/use-filtered-purchase-orders";
@@ -60,7 +61,14 @@ export function PoManagementTerminal({
   preferredDestinationLocationId = null,
   organizationBillTo,
 }: Props) {
-  const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF);
+  const searchParams = useSearchParams();
+  const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF, {
+    clearParamsOnClose: [PO_COPY_FROM_PARAM],
+  });
+  const copyFromId = useMemo(() => {
+    if (drawer.surface !== "create") return null;
+    return searchParams.get(PO_COPY_FROM_PARAM)?.trim() || null;
+  }, [drawer.surface, searchParams]);
   const documentLayout = useLivePoDocumentLayout(initialDocumentLayout, {
     refreshWhen: drawer.isOpen,
   });
@@ -140,6 +148,15 @@ export function PoManagementTerminal({
   const handleEditNotAllowed = useCallback(
     (purchaseOrderId: string) => {
       drawer.openPeek(purchaseOrderId);
+    },
+    [drawer]
+  );
+
+  const handleDuplicate = useCallback(
+    (purchaseOrderId: string) => {
+      drawer.openCreate({
+        extraParams: { [PO_COPY_FROM_PARAM]: purchaseOrderId },
+      });
     },
     [drawer]
   );
@@ -254,6 +271,8 @@ export function PoManagementTerminal({
         preferredDestinationLocationId={preferredDestinationLocationId}
         documentLayout={documentLayout}
         organizationBillTo={organizationBillTo}
+        copyFromId={copyFromId}
+        onDuplicate={editAccessGranted ? handleDuplicate : undefined}
       />
     </>
   );

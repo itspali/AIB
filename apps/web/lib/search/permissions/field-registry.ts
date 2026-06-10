@@ -147,7 +147,25 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     key: "destination_location_name",
     synonyms: ["destination", "to location", "to", "destination location"],
     sensitivity: "standard",
-    scopes: ["transfers"],
+    scopes: ["transfers", "purchase-orders"],
+  },
+  {
+    key: "voucher_number",
+    synonyms: ["po number", "voucher number", "purchase order number", "document number"],
+    sensitivity: "standard",
+    scopes: ["purchase-orders"],
+  },
+  {
+    key: "document_status",
+    synonyms: ["status", "draft", "issued", "pending approval", "fulfilled", "cancelled"],
+    sensitivity: "standard",
+    scopes: ["purchase-orders"],
+  },
+  {
+    key: "supplier_name",
+    synonyms: ["supplier", "vendor", "supplier name"],
+    sensitivity: "standard",
+    scopes: ["purchase-orders"],
   },
   {
     key: "party_nature",

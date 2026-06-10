@@ -1,6 +1,6 @@
 # Purchase Order UX & Document Layout Plan
 
-**Status:** Phase 1 (V1) **shipped** — Phase 2 UI **in progress** (module settings layout editor); V2 wiring to PO surfaces next  
+**Status:** Phase 1 (V1) **shipped** — Phase 2 **shipped** (layout settings, PO polish, full-page routes); Phase 3 commercial depth next  
 **Related:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §3.7 + §5.4, [`DATA_STANDARDS.md`](./DATA_STANDARDS.md)
 
 ---
@@ -20,9 +20,9 @@ Document and module preferences live under **Administration → Module settings*
 
 | V1 (UI) | V2 (wire) |
 |---------|-----------|
-| Layout editor + preview + drag reorder | Persist `document_layout_templates` (+ nullable `location_id`) |
-| Mock save (`savePurchaseOrderDocumentLayout` validates only) | PO drawer / peek consume `resolveEffectiveDocumentLayout` |
-| On-screen tab only | Print / Email tabs when `DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED` |
+| Layout editor + preview + drag reorder | Persist `document_layout_templates` (+ nullable `location_id`) **shipped** |
+| Mock save (`savePurchaseOrderDocumentLayout` validates only) | PO drawer / peek consume `resolveEffectiveDocumentLayout` **shipped** |
+| On-screen tab only | Print / Email tabs enabled in settings (runtime renderer = Phase 4) |
 
 ---
 
@@ -109,7 +109,7 @@ Shared formatter: `formatDocumentField(value, columnPref, tenantCurrency)` consu
 
 ---
 
-## Phase 2 — Document layout settings + PO polish
+## Phase 2 — Document layout settings + PO polish [SHIPPED]
 
 - **Module settings** → Procurement → **Document layout** (`/settings/modules/procurement`).
 - Wire PO form/peek/print preview to `document_layout_templates` (seed defaults migration; add nullable `location_id`).

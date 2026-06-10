@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  DEFAULT_PO_SCREEN_LAYOUT,
-  normalizePoLayoutTemplate,
-} from "@/lib/documents/purchase-order-layout";
+import { mergePoScreenLayoutLocalOverrides } from "@/lib/documents/po-layout-local-overrides";
+import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 
-/** Resolved PO document layout for drawer surfaces. */
+/** Resolved PO document layout for drawer surfaces (tenant + optional local screen overrides). */
 export function usePoDocumentLayout(
-  layout: DocumentLayoutTemplate = DEFAULT_PO_SCREEN_LAYOUT
+  layout: DocumentLayoutTemplate
 ): DocumentLayoutTemplate {
-  return useMemo(() => normalizePoLayoutTemplate(layout), [layout]);
+  return useMemo(
+    () => mergePoScreenLayoutLocalOverrides(normalizePoLayoutTemplate(layout)),
+    [layout]
+  );
 }

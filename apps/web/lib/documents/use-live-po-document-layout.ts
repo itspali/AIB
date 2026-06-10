@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadPurchaseOrderDocumentLayout } from "@/app/settings/modules/procurement/actions";
+import { loadEffectivePoDocumentLayout } from "@/app/procurement/purchase-orders/actions";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
   normalizePoLayoutTemplate,
@@ -11,6 +11,8 @@ import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 type Options = {
   /** Refetch saved layout from the server when this becomes true (e.g. drawer open). */
   refreshWhen?: boolean;
+  /** PO destination location — resolves location override when set. */
+  documentLocationId?: string | null;
 };
 
 /**
@@ -23,6 +25,7 @@ export function useLivePoDocumentLayout(
 ): DocumentLayoutTemplate {
   const [layout, setLayout] = useState(() => normalizePoLayoutTemplate(initialLayout));
   const refreshWhen = options?.refreshWhen ?? false;
+  const documentLocationId = options?.documentLocationId?.trim() || null;
   const inflightRef = useRef(false);
 
   useEffect(() => {
@@ -33,18 +36,23 @@ export function useLivePoDocumentLayout(
     if (inflightRef.current) return;
     inflightRef.current = true;
     try {
-      const result = await loadPurchaseOrderDocumentLayout({ viewContext: "SCREEN_GRID" });
+      const result = await loadEffectivePoDocumentLayout(documentLocationId);
       if ("error" in result) return;
       setLayout(normalizePoLayoutTemplate(result.layout));
     } finally {
       inflightRef.current = false;
     }
-  }, []);
+  }, [documentLocationId]);
 
   useEffect(() => {
     if (!refreshWhen) return;
     void refresh();
   }, [refresh, refreshWhen]);
+
+  useEffect(() => {
+    if (!refreshWhen || !documentLocationId) return;
+    void refresh();
+  }, [documentLocationId, refresh, refreshWhen]);
 
   return layout;
 }

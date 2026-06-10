@@ -63,4 +63,4 @@ export type DocumentLayoutTemplate = DocumentLayoutDefaults & {
 };
 
 /** When true, Print and Email view tabs are editable in module layout settings. */
-export const DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED = false;
+export const DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED = true;

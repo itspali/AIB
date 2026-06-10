@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import { Trash2 } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,32 @@ export function DocumentLineRemoveButton({
       aria-label="Remove line"
     >
       <Trash2 className="h-4 w-4" />
+    </Button>
+  );
+}
+
+export function DocumentLineDuplicateButton({
+  lineKey,
+  disabled,
+  canDuplicate,
+  onDuplicate,
+}: {
+  lineKey: string;
+  disabled: boolean;
+  canDuplicate: boolean;
+  onDuplicate: (key: string) => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-8 w-8 p-0 text-muted-foreground"
+      disabled={disabled || !canDuplicate}
+      onClick={() => onDuplicate(lineKey)}
+      aria-label="Duplicate line"
+    >
+      <Copy className="h-4 w-4" />
     </Button>
   );
 }

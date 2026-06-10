@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { DocumentLineRemoveButton } from "@/components/documents/document-line-entry-cells";
+import { DocumentLineDuplicateButton, DocumentLineRemoveButton } from "@/components/documents/document-line-entry-cells";
 
 export type DocumentLineColumn = {
   id: string;
@@ -36,6 +36,8 @@ type Props<T extends LineRow> = {
   disabled?: boolean;
   canRemoveLine?: (line: T, lineIndex: number, lines: T[]) => boolean;
   onRemoveLine?: (key: string) => void;
+  canDuplicateLine?: (line: T, lineIndex: number, lines: T[]) => boolean;
+  onDuplicateLine?: (key: string) => void;
   renderCell: (column: DocumentLineColumn, line: T, lineIndex: number) => ReactNode;
 };
 
@@ -69,8 +71,13 @@ export function DocumentLineEntryGrid<T extends LineRow>({
   disabled = false,
   canRemoveLine,
   onRemoveLine,
+  canDuplicateLine,
+  onDuplicateLine,
   renderCell,
 }: Props<T>) {
+  const showActionsColumn = showRemoveColumn || Boolean(onDuplicateLine);
+  const actionsColWidth = onDuplicateLine && onRemoveLine ? "4.5rem" : "2.25rem";
+
   return (
     <div
       className={cn(
@@ -105,7 +112,7 @@ export function DocumentLineEntryGrid<T extends LineRow>({
                 }
               />
             ))}
-            {showRemoveColumn ? <col style={{ width: "2.25rem" }} /> : null}
+            {showActionsColumn ? <col style={{ width: actionsColWidth }} /> : null}
           </colgroup>
           <thead className="text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -134,11 +141,12 @@ export function DocumentLineEntryGrid<T extends LineRow>({
                   {column.label}
                 </th>
               ))}
-              {showRemoveColumn ? (
+              {showActionsColumn ? (
                 <th
-                  className={cn("w-9 px-0 py-1.5", DOCUMENT_LINE_HEADER_CELL)}
+                  className={cn("px-0 py-1.5", DOCUMENT_LINE_HEADER_CELL)}
+                  style={{ width: actionsColWidth }}
                   scope="col"
-                  aria-label="Remove line"
+                  aria-label="Line actions"
                 />
               ) : null}
             </tr>
@@ -148,6 +156,9 @@ export function DocumentLineEntryGrid<T extends LineRow>({
               const canRemove = canRemoveLine
                 ? canRemoveLine(line, lineIndex, lines)
                 : lines.length > 1;
+              const canDuplicate = canDuplicateLine
+                ? canDuplicateLine(line, lineIndex, lines)
+                : Boolean((line as { variant_id?: string }).variant_id);
 
               return (
                 <tr key={line.key}>
@@ -167,16 +178,26 @@ export function DocumentLineEntryGrid<T extends LineRow>({
                       {renderCell(column, line, lineIndex)}
                     </td>
                   ))}
-                  {showRemoveColumn ? (
-                    <td className="w-9 border border-border p-0 text-center align-middle">
-                      {onRemoveLine ? (
-                        <DocumentLineRemoveButton
-                          lineKey={line.key}
-                          disabled={disabled}
-                          canRemove={canRemove}
-                          onRemove={onRemoveLine}
-                        />
-                      ) : null}
+                  {showActionsColumn ? (
+                    <td className="border border-border p-0 text-center align-middle">
+                      <div className="flex items-center justify-center">
+                        {onDuplicateLine ? (
+                          <DocumentLineDuplicateButton
+                            lineKey={line.key}
+                            disabled={disabled}
+                            canDuplicate={canDuplicate}
+                            onDuplicate={onDuplicateLine}
+                          />
+                        ) : null}
+                        {onRemoveLine ? (
+                          <DocumentLineRemoveButton
+                            lineKey={line.key}
+                            disabled={disabled}
+                            canRemove={canRemove}
+                            onRemove={onRemoveLine}
+                          />
+                        ) : null}
+                      </div>
                     </td>
                   ) : null}
                 </tr>

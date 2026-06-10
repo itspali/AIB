@@ -42,6 +42,10 @@ import {
 import type { DocumentImageDisplayMode, DocumentLayoutTemplate, DocumentViewContext } from "@/lib/documents/types";
 import { DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
+import {
+  clearPoScreenLayoutLocalOverrides,
+  hasPoScreenLayoutLocalOverrides,
+} from "@/lib/documents/po-layout-local-overrides";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -109,30 +113,31 @@ export function PurchaseOrderDocumentLayoutPanel({
   const [previewMode, setPreviewMode] = useState<"drawer" | "peek">("drawer");
   const [isPending, startTransition] = useTransition();
   const [isLoadingLayout, setIsLoadingLayout] = useState(false);
+  const hydratedScopeKey = useRef(layoutScopeKey(TENANT_LAYOUT_SCOPE));
   const hydratedViewContext = useRef(initialLayout.viewContext ?? "SCREEN_GRID");
 
   useEffect(() => {
-    const defaultView = initialLayout.viewContext ?? "SCREEN_GRID";
+    const scopeKey = layoutScopeKey(scope);
+    const isInitialHydration =
+      scopeKey === hydratedScopeKey.current &&
+      viewContext === hydratedViewContext.current &&
+      viewContext === (initialLayout.viewContext ?? "SCREEN_GRID");
 
-    if (viewContext === defaultView && viewContext === hydratedViewContext.current) {
-      return;
-    }
-
-    if (viewContext === defaultView) {
-      setLayout(normalizePoLayoutTemplate({ ...initialLayout, viewContext }));
-      hydratedViewContext.current = viewContext;
+    if (isInitialHydration) {
+      setLayout(normalizePoLayoutTemplate(initialLayout));
       return;
     }
 
     let cancelled = false;
     setIsLoadingLayout(true);
-    void loadPurchaseOrderDocumentLayout({ viewContext }).then((result) => {
+    void loadPurchaseOrderDocumentLayout({ viewContext, scope }).then((result) => {
       if (cancelled) return;
       setIsLoadingLayout(false);
       if ("error" in result) {
         toast.error(result.error ?? "Unable to load document layout.");
         return;
       }
+      hydratedScopeKey.current = scopeKey;
       hydratedViewContext.current = viewContext;
       setLayout(normalizePoLayoutTemplate(result.layout));
     });
@@ -141,7 +146,7 @@ export function PurchaseOrderDocumentLayoutPanel({
       cancelled = true;
       setIsLoadingLayout(false);
     };
-  }, [viewContext, initialLayout]);
+  }, [scope, viewContext, initialLayout]);
 
   const columnById = useMemo(() => new Map(layout.columns.map((column) => [column.id, column])), [layout.columns]);
 
@@ -160,6 +165,13 @@ export function PurchaseOrderDocumentLayoutPanel({
     );
     toast.message("Layout reset to defaults.");
   };
+
+  const handleResetLocalOverrides = () => {
+    clearPoScreenLayoutLocalOverrides();
+    toast.success("Your on-screen layout overrides were cleared.");
+  };
+
+  const hasLocalOverrides = hasPoScreenLayoutLocalOverrides();
 
   const handleSave = () => {
     startTransition(async () => {
@@ -209,6 +221,18 @@ export function PurchaseOrderDocumentLayoutPanel({
           </Tabs>
         </div>
         <div className="flex items-center gap-1.5">
+          {viewContext === "SCREEN_GRID" && hasLocalOverrides ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={controlsDisabled}
+              onClick={handleResetLocalOverrides}
+            >
+              Reset my screen overrides
+            </Button>
+          ) : null}
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={controlsDisabled} onClick={handleReset}>
             Reset
           </Button>

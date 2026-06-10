@@ -5,7 +5,7 @@ export type DocumentLayoutScope =
 export const TENANT_LAYOUT_SCOPE: DocumentLayoutScope = { mode: "tenant" };
 
 /** When true, location dropdown on document layout settings is editable. */
-export const LOCATION_LAYOUT_OVERRIDES_ENABLED = false;
+export const LOCATION_LAYOUT_OVERRIDES_ENABLED = true;
 
 export function layoutScopeKey(scope: DocumentLayoutScope): string {
   return scope.mode === "tenant" ? "tenant" : scope.locationId;

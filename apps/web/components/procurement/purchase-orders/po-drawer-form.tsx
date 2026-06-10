@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Pencil } from "lucide-react";
+import { Copy, ExternalLink, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   issuePurchaseOrder,
@@ -10,14 +10,9 @@ import {
   savePurchaseOrder,
   updatePurchaseOrderVoucherNumber,
 } from "@/app/procurement/purchase-orders/actions";
-import { PoDetailsPanel } from "@/components/procurement/purchase-orders/po-details-panel";
-import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
-import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
-import { PoLineEntryTable } from "@/components/procurement/purchase-orders/po-line-entry-table";
-import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
+import { PoDocumentEditorShell } from "@/components/procurement/purchase-orders/po-document-editor-shell";
 import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
-import { PoTotalsPanel } from "@/components/procurement/purchase-orders/po-totals-panel";
 import {
   RightDrawer,
   useRightDrawerLayout,
@@ -28,11 +23,12 @@ import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
-import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
+import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM, poFullPageCreateHref, poFullPageEditHref } from "@/lib/procurement/navigation";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import {
   defaultPoDraftForm,
   filterSavablePoLines,
+  copyPoDraftFromOrder,
   mapPurchaseOrderToDraft,
   type PoDraftFormState,
 } from "@/lib/procurement/purchase-orders/draft-form";
@@ -41,11 +37,11 @@ import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
-import { cn } from "@/lib/utils";
-import { usePoDocumentLayout } from "@/lib/documents/use-po-document-layout";
+import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-layout";
 import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -66,19 +62,13 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   preferredDestinationLocationId?: string | null;
   organizationBillTo: OrganizationBillToSnapshot;
+  copyFromId?: string | null;
+  onDuplicate?: (purchaseOrderId: string) => void;
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
   if (surface === "create") return "New purchase order";
   return order?.voucher_number ?? "Purchase order";
-}
-
-/** Flex column shell so the line grid can claim height and scroll internally. */
-function poLinesTableSlotClass(fillHeight: boolean) {
-  return cn(
-    "min-h-0 min-w-0 max-w-full",
-    fillHeight && "flex flex-1 flex-col"
-  );
 }
 
 /** Syncs drawer width from inside RightDrawerLayoutProvider to PoDrawerForm (parent of RightDrawer). */
@@ -92,191 +82,6 @@ function PoDrawerLayoutBridge({
     if (layout) onLayout(layout);
   }, [layout, onLayout]);
   return null;
-}
-
-type PoMutatingFormContentProps = {
-  form: PoDraftFormState;
-  locations: ProcurementLocationOption[];
-  suppliers: ProcurementSupplierOption[];
-  editOrderId: string | null;
-  defaultCurrency: string;
-  documentLayout: DocumentLayoutTemplate;
-  isPending: boolean;
-  onPatch: (patch: Partial<PoDraftFormState>) => void;
-  onLinesChange: (
-    linesOrUpdater: PoDraftFormState["lines"] | ((current: PoDraftFormState["lines"]) => PoDraftFormState["lines"])
-  ) => void;
-};
-
-function PoMutatingFormContent({
-  form,
-  locations,
-  suppliers,
-  editOrderId,
-  defaultCurrency,
-  documentLayout,
-  isPending,
-  onPatch,
-  onLinesChange,
-}: PoMutatingFormContentProps) {
-  const resolvedDocumentLayout = usePoDocumentLayout(documentLayout);
-  const {
-    useWidePartialDrawer,
-    useFullPageLayout,
-    lineTableFillHeight,
-  } = usePoDrawerFormLayout(true);
-  const { entryAnchor, handleEntryAnchorChange } = usePoLineEntryAnchor(form.lines, onLinesChange);
-
-  const linesSectionHeader = (
-    <div className="flex shrink-0 items-center justify-between gap-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lines</p>
-      <PoLineEntryAnchorToggle
-        value={entryAnchor}
-        disabled={isPending}
-        onChange={handleEntryAnchorChange}
-      />
-    </div>
-  );
-
-  const linesTable = (
-    <PoLineEntryTable
-      fillHeight={lineTableFillHeight}
-      showSectionTitle={false}
-      lines={form.lines}
-      supplierId={form.supplier_id}
-      destinationLocationId={form.destination_location_id}
-      excludePurchaseOrderId={editOrderId}
-      disabled={isPending}
-      layout={resolvedDocumentLayout}
-      entryAnchor={entryAnchor}
-      onEntryAnchorChange={handleEntryAnchorChange}
-      onChange={onLinesChange}
-    />
-  );
-
-  const stackedSummaryDetails = (
-    <>
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Summary
-        </p>
-        <PoTotalsPanel lines={form.lines} layout={resolvedDocumentLayout} layoutMode="embedded" />
-      </div>
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Details
-        </p>
-        <PoDetailsPanel
-          form={form}
-          disabled={isPending}
-          layout="stack"
-          documentLayout={resolvedDocumentLayout}
-          onPatch={onPatch}
-        />
-      </div>
-    </>
-  );
-
-  const sideRail = (
-    <aside className="flex w-full shrink-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:w-[15rem] lg:max-h-full lg:max-w-[40%] lg:shrink-0 lg:overflow-hidden">
-      <div className="shrink-0 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Summary
-        </p>
-        <PoTotalsPanel lines={form.lines} layout={resolvedDocumentLayout} layoutMode="embedded" />
-      </div>
-      <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-        <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Details
-        </p>
-        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-          <PoDetailsPanel
-            form={form}
-            disabled={isPending}
-            layout="rail"
-            documentLayout={resolvedDocumentLayout}
-            onPatch={onPatch}
-          />
-        </div>
-      </div>
-    </aside>
-  );
-
-  return (
-    <div
-      className={cn(
-        "flex w-full flex-col gap-3",
-        lineTableFillHeight && "h-full min-h-0 flex-1 overflow-hidden"
-      )}
-    >
-      <div className="shrink-0 w-full min-w-0">
-        <PoFormHeader
-          form={form}
-          locations={locations}
-          suppliers={suppliers}
-          disabled={isPending}
-          defaultCurrency={defaultCurrency}
-          layout={resolvedDocumentLayout}
-          onPatch={onPatch}
-        />
-      </div>
-
-      {useWidePartialDrawer ? (
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch">
-          <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden lg:min-w-0">
-            {linesSectionHeader}
-            <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
-          </div>
-          {sideRail}
-        </section>
-      ) : useFullPageLayout ? (
-        <>
-          <section
-            className={cn(
-              "flex w-full min-w-0 max-w-full flex-col gap-3",
-              lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:flex-row lg:items-stretch lg:gap-4"
-            )}
-          >
-            <div
-              className={cn(
-                "flex min-w-0 max-w-full flex-col gap-3",
-                lineTableFillHeight && "min-h-0 flex-1 overflow-hidden lg:min-w-0"
-              )}
-            >
-              {linesSectionHeader}
-              <div className={poLinesTableSlotClass(lineTableFillHeight)}>{linesTable}</div>
-            </div>
-            <div className="hidden lg:flex lg:min-h-0">{sideRail}</div>
-          </section>
-          <div className="relative z-0 flex w-full min-w-0 shrink-0 flex-col gap-4 bg-background lg:hidden">
-            {stackedSummaryDetails}
-          </div>
-        </>
-      ) : lineTableFillHeight ? (
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(12rem,1fr)_auto] gap-3 overflow-hidden">
-          <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-            {linesSectionHeader}
-            <div className={poLinesTableSlotClass(true)}>{linesTable}</div>
-          </section>
-          <div className="max-h-[min(40vh,16rem)] min-h-0 overflow-y-auto border-t border-border pt-4">
-            {stackedSummaryDetails}
-          </div>
-        </div>
-      ) : (
-        <>
-          <section className="flex w-full min-w-0 max-w-full flex-col gap-4">
-            <div className="flex min-w-0 max-w-full flex-col gap-3">
-              {linesSectionHeader}
-              <div className={poLinesTableSlotClass(false)}>{linesTable}</div>
-            </div>
-          </section>
-          <div className="flex w-full min-w-0 flex-col gap-4 border-t border-border pt-4">
-            {stackedSummaryDetails}
-          </div>
-        </>
-      )}
-    </div>
-  );
 }
 
 export function PoDrawerForm({
@@ -297,10 +102,11 @@ export function PoDrawerForm({
   documentLayout: documentLayoutProp,
   preferredDestinationLocationId = null,
   organizationBillTo,
+  copyFromId = null,
+  onDuplicate,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
-  const documentLayout = usePoDocumentLayout(documentLayoutProp);
   const [drawerLayoutSnapshot, setDrawerLayoutSnapshot] =
     useState<RightDrawerLayoutValue | null>(null);
   const handleDrawerLayout = useCallback((layout: RightDrawerLayoutValue) => {
@@ -336,18 +142,77 @@ export function PoDrawerForm({
   const [detailLoading, setDetailLoading] = useState(false);
   const submitRef = useRef<() => void>(() => {});
 
+  const documentLayout = useLivePoDocumentLayout(documentLayoutProp, {
+    refreshWhen: open,
+    documentLocationId: isMutating
+      ? form.destination_location_id
+      : detail?.destination_location_id ?? peekOrder?.destination_location_id ?? null,
+  });
+
   useEffect(() => {
     if (!open) return;
     setError(null);
     setErrorAction(null);
     setIsDirty(false);
-    if (surface !== "peek") {
-      setForm(defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId));
+    if (surface === "create") {
+      if (!copyFromId) {
+        setForm(
+          defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+        );
+        setDetail(null);
+      }
+    } else if (surface !== "peek") {
+      setForm(
+        defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+      );
       setDetail(peekOrder);
     } else if (peekOrder?.lines?.length) {
       setDetail(peekOrder);
     }
-  }, [open, surface, peekOrder?.id, peekOrder?.lines?.length, locations, suppliers, defaultCurrency, preferredDestinationLocationId]);
+  }, [
+    copyFromId,
+    open,
+    surface,
+    peekOrder?.id,
+    peekOrder?.lines?.length,
+    locations,
+    suppliers,
+    defaultCurrency,
+    preferredDestinationLocationId,
+  ]);
+
+  useEffect(() => {
+    if (!open || surface !== "create" || !copyFromId) return;
+
+    let cancelled = false;
+    setDetailLoading(true);
+    void loadPurchaseOrderDetail(copyFromId).then((result) => {
+      if (cancelled) return;
+      setDetailLoading(false);
+      if ("error" in result) {
+        toast.error(result.error ?? "Unable to duplicate purchase order.");
+        setError(result.error);
+        setForm(
+          defaultPoDraftForm(locations, suppliers, defaultCurrency, preferredDestinationLocationId)
+        );
+        return;
+      }
+      setForm(copyPoDraftFromOrder(result.purchaseOrder));
+      setIsDirty(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    copyFromId,
+    defaultCurrency,
+    locations,
+    open,
+    preferredDestinationLocationId,
+    suppliers,
+    surface,
+  ]);
 
   useEffect(() => {
     if (!open || surface !== "peek" || !resolvedPeekRecordId) return;
@@ -566,9 +431,46 @@ export function PoDrawerForm({
             </Link>
           </Button>
         ) : null}
+        {editAccessGranted && onDuplicate ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onDuplicate(detail.id)}
+          >
+            <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Duplicate
+          </Button>
+        ) : null}
       </>
     ) : isMutating ? (
       <>
+        {surface === "create" || editOrderId || detail?.id ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            aria-label="Open full page"
+            title={
+              filterSavablePoLines(form.lines).length >= 15
+                ? "Open full page (recommended for 15+ lines)"
+                : "Open full page"
+            }
+            asChild
+          >
+            <Link
+              href={
+                surface === "create"
+                  ? poFullPageCreateHref({ copyFrom: copyFromId })
+                  : poFullPageEditHref((editOrderId ?? detail?.id)!)
+              }
+              prefetch
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
@@ -631,7 +533,7 @@ export function PoDrawerForm({
 
   const mutatingForm =
     isMutating && !showLoadingPeek && !showLoadingEdit ? (
-      <PoMutatingFormContent
+      <PoDocumentEditorShell
         form={form}
         locations={locations}
         suppliers={suppliers}
@@ -639,6 +541,7 @@ export function PoDrawerForm({
         defaultCurrency={defaultCurrency}
         documentLayout={documentLayout}
         isPending={isPending}
+        layoutOverride={drawerLayoutSnapshot}
         onPatch={patchForm}
         onLinesChange={(linesOrUpdater) => {
           setForm((current) => ({
