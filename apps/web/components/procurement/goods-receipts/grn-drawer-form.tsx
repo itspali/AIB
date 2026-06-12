@@ -17,6 +17,7 @@ import {
   DocumentLinePeekTable,
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
+import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -31,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatDate } from "@/lib/dashboard/format";
+import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
@@ -146,6 +148,10 @@ export function GrnDrawerForm({
   const [isPending, startTransition] = useTransition();
   const [detail, setDetail] = useState<GoodsReceiptRow | null>(peekReceipt);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [postSuccessSummary, setPostSuccessSummary] = useState<{
+    steps: PostingStepResult[];
+    goodsReceiptId: string;
+  } | null>(null);
   const submitRef = useRef<() => void>(() => {});
 
   const filteredReceivableOrders = useMemo(() => {
@@ -172,6 +178,7 @@ export function GrnDrawerForm({
     setErrorAction(null);
     setIsDirty(false);
     setDetail(peekReceipt);
+    setPostSuccessSummary(null);
   }, [open, surface, peekReceipt?.id, locations, prefillSignature, prefillPurchaseOrderId, receivableOrders]);
 
   useEffect(() => {
@@ -281,10 +288,13 @@ export function GrnDrawerForm({
       }
 
       toast.success("Goods receipt posted");
-      closeForm();
+      setPostSuccessSummary({
+        goodsReceiptId: result.goodsReceiptId,
+        steps: result.steps ?? [],
+      });
       onAfterSave(result.goodsReceiptId);
     });
-  }, [closeForm, form, onAfterSave, openQtyByPoItemId]);
+  }, [form, onAfterSave, openQtyByPoItemId]);
 
   submitRef.current = handleSubmit;
 
@@ -301,15 +311,21 @@ export function GrnDrawerForm({
   }, [isMutating, open]);
 
   const headerActions = isMutating ? (
-    <Button
-      type="button"
-      size="sm"
-      disabled={isPending || locations.length === 0}
-      onClick={handleSubmit}
-      title="Post receipt (Ctrl+Enter)"
-    >
-      {isPending ? "Posting…" : "Post receipt"}
-    </Button>
+    postSuccessSummary ? (
+      <Button type="button" size="sm" onClick={closeForm}>
+        Close
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        size="sm"
+        disabled={isPending || locations.length === 0}
+        onClick={handleSubmit}
+        title="Post receipt (Ctrl+Enter)"
+      >
+        {isPending ? "Posting…" : "Post receipt"}
+      </Button>
+    )
   ) : null;
 
   if (!open || surface === "closed") return discardDialog;
@@ -397,8 +413,22 @@ export function GrnDrawerForm({
                 }}
               />
             </div>
+
+            {detail.posting_steps?.length ? (
+              <DocumentPostingSummaryPanel
+                steps={detail.posting_steps}
+                overall="success"
+                postedAt={detail.posting_at ? formatDate(detail.posting_at) : null}
+              />
+            ) : null}
           </div>
         ) : isMutating ? (
+          postSuccessSummary ? (
+            <DocumentPostingSummaryPanel
+              steps={postSuccessSummary.steps}
+              overall="success"
+            />
+          ) : (
           <div
             className={cn(
               "flex flex-col gap-5",
@@ -550,6 +580,7 @@ export function GrnDrawerForm({
               />
             </div>
           </div>
+          )
         ) : null}
         </div>
       </RightDrawer>

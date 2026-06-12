@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { fetchLatestDocumentPostingRun } from "@/lib/documents/posting-queries";
 import { fetchPurchaseBills } from "@/lib/procurement/bills/queries";
 import { savePurchaseBillSchema } from "@/lib/procurement/bills/schemas";
 import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
+import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -42,6 +44,10 @@ export async function savePurchaseBill(raw: unknown) {
     p_bill_of_entry_date: values.bill_of_entry_date || null,
     p_port_code: values.port_code ?? null,
     p_custom_fields: {},
+    p_goods_receipt_ids:
+      values.goods_receipt_ids && values.goods_receipt_ids.length > 0
+        ? values.goods_receipt_ids
+        : null,
   });
 
   if (error) {
@@ -51,8 +57,15 @@ export async function savePurchaseBill(raw: unknown) {
     return { error: error.message };
   }
 
+  const invoiceId = data as string;
+  const postingRun = await fetchLatestDocumentPostingRun(supabase, "BILL", invoiceId);
+
   for (const path of BILL_PATHS) revalidatePath(path);
-  return { success: true as const, purchaseInvoiceId: data as string };
+  return {
+    success: true as const,
+    purchaseInvoiceId: invoiceId,
+    steps: postingRun?.steps ?? ([] as PostingStepResult[]),
+  };
 }
 
 export async function exportGstrReport(

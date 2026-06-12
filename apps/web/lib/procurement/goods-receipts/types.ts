@@ -1,3 +1,4 @@
+import type { PostingStepResult } from "@/lib/documents/posting-types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
 
 export type GoodsReceiptLineRow = {
@@ -27,6 +28,8 @@ export type GoodsReceiptRow = {
   received_at: string;
   created_at: string;
   lines?: GoodsReceiptLineRow[];
+  posting_steps?: PostingStepResult[];
+  posting_at?: string | null;
 };
 
 export type GrnDrawerCreatePrefill = {

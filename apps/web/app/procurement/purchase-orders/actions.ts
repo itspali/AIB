@@ -45,6 +45,9 @@ import {
   lookupStockVariantBySku,
   searchStockVariantsForAdjustment,
 } from "@/app/inventory/stock/actions";
+import { assignPromoGroups, validatePoPromoLines } from "@/lib/procurement/purchase-orders/po-promo";
+import { parseIssuePurchaseOrderRpcResult } from "@/lib/documents/posting-queries";
+import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -254,6 +257,14 @@ export async function savePurchaseOrder(raw: unknown) {
       discount_percentage: Number(line.discount_percentage || 0),
       discount_amount: Number(line.discount_amount || 0),
       ...(line.uom_code ? { uom_code: line.uom_code } : {}),
+      ...(line.is_promotional || Number(line.unit_price_contractual) === 0
+        ? {
+            is_promotional: true,
+            linked_parent_line_id: line.linked_parent_line_id ?? null,
+            promo_group_id: line.promo_group_id ?? null,
+            promotional_category: line.promotional_category ?? null,
+          }
+        : {}),
     })),
     p_created_by: userId,
     p_payment_terms_days: Number(values.payment_terms_days || 0),
@@ -353,5 +364,13 @@ export async function issuePurchaseOrder(raw: unknown) {
   }
 
   revalidatePurchaseOrderPaths();
-  return { success: true as const, purchaseOrderId: data as string };
+  const parsedResult = parseIssuePurchaseOrderRpcResult(data);
+  if (!parsedResult) {
+    return { error: "Purchase order issued but the response was invalid." };
+  }
+  return {
+    success: true as const,
+    purchaseOrderId: parsedResult.purchaseOrderId,
+    steps: parsedResult.steps,
+  };
 }

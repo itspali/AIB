@@ -19,7 +19,7 @@ export async function fetchPurchaseBills(
     .select(
       `id, invoice_number_vendor, system_voucher_number, supplier_id, purchase_order_id,
        tax_treatment, tax_supply_nature, tax_mechanism, rcm_applicable,
-       total_gross_amount, total_tax_amount, total_liability_amount, is_paid, created_at,
+       total_gross_amount, total_tax_amount, total_liability_amount, match_status, is_paid, created_at,
        supplier:entities!purchase_invoices_supplier_tenant_fk (name)`
     )
     .eq("tenant_id", tenantId)
@@ -48,6 +48,7 @@ export async function fetchPurchaseBills(
       total_gross_amount: formatDecimal(row.total_gross_amount),
       total_tax_amount: formatDecimal(row.total_tax_amount),
       total_liability_amount: formatDecimal(row.total_liability_amount),
+      match_status: (row.match_status as string | null) ?? "MATCHED",
       is_paid: row.is_paid === true,
       created_at: row.created_at as string,
     };

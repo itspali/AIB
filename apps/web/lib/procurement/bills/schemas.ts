@@ -19,4 +19,5 @@ export const savePurchaseBillSchema = z.object({
   bill_of_entry_date: z.string().trim().optional().nullable(),
   port_code: z.string().trim().optional().nullable(),
   lines: z.array(purchaseBillLineSchema).min(1),
+  goods_receipt_ids: z.array(z.string().uuid()).optional().default([]),
 });

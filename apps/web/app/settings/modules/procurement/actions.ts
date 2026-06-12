@@ -89,6 +89,13 @@ const saveProcurementPoliciesSchema = z.object({
     .refine((value) => PO_AUTO_ROUND_OFF_STEP_PRESETS.includes(value as (typeof PO_AUTO_ROUND_OFF_STEP_PRESETS)[number]), {
       message: "Invalid round-off step.",
     }),
+  is_po_mandatory_for_grn: z.boolean(),
+  is_qc_required_before_stocking: z.boolean(),
+  allow_zero_cost_receipts: z.boolean(),
+  promo_default_category: z.string().trim().min(1).max(64),
+  landed_cost_allocation_method: z.enum(["BY_QUANTITY", "BY_VALUE", "BY_WEIGHT"]),
+  absorb_sunk_logistics_overhead: z.boolean(),
+  matching_tolerance_percentage: z.number().min(0).max(100),
 });
 
 export async function saveProcurementPolicies(raw: unknown) {
@@ -109,6 +116,13 @@ export async function saveProcurementPolicies(raw: unknown) {
       p_metadata_patch: {
         po_auto_round_off_enabled: parsed.data.po_auto_round_off_enabled,
         po_auto_round_off_step: resolvePoAutoRoundOffStep(parsed.data.po_auto_round_off_step),
+        is_po_mandatory_for_grn: parsed.data.is_po_mandatory_for_grn,
+        is_qc_required_before_stocking: parsed.data.is_qc_required_before_stocking,
+        allow_zero_cost_receipts: parsed.data.allow_zero_cost_receipts,
+        promo_default_category: parsed.data.promo_default_category,
+        landed_cost_allocation_method: parsed.data.landed_cost_allocation_method,
+        absorb_sunk_logistics_overhead: parsed.data.absorb_sunk_logistics_overhead,
+        matching_tolerance_percentage: parsed.data.matching_tolerance_percentage,
       },
     });
 

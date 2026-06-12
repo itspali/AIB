@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { saveProcurementPolicies } from "@/app/settings/modules/procurement/actions";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,12 +19,21 @@ import {
   PO_AUTO_ROUND_OFF_STEP_PRESETS,
   type PoAutoRoundOffStepPreset,
 } from "@/lib/procurement/purchase-orders/po-auto-round-off";
+import type { LandedCostAllocationMethod, ProcurementSettings } from "@/lib/procurement/settings";
 
 type Props = {
-  initialSettings: {
-    po_auto_round_off_enabled: boolean;
-    po_auto_round_off_step: number;
-  };
+  initialSettings: Pick<
+    ProcurementSettings,
+    | "po_auto_round_off_enabled"
+    | "po_auto_round_off_step"
+    | "is_po_mandatory_for_grn"
+    | "is_qc_required_before_stocking"
+    | "allow_zero_cost_receipts"
+    | "promo_default_category"
+    | "landed_cost_allocation_method"
+    | "absorb_sunk_logistics_overhead"
+    | "matching_tolerance_percentage"
+  >;
   canEdit: boolean;
 };
 
@@ -32,27 +42,43 @@ function formatStepLabel(step: PoAutoRoundOffStepPreset): string {
   return step.toFixed(2);
 }
 
-export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
-  const [enabled, setEnabled] = useState(initialSettings.po_auto_round_off_enabled);
-  const [step, setStep] = useState<PoAutoRoundOffStepPreset>(
-    PO_AUTO_ROUND_OFF_STEP_PRESETS.includes(
-      initialSettings.po_auto_round_off_step as PoAutoRoundOffStepPreset
-    )
-      ? (initialSettings.po_auto_round_off_step as PoAutoRoundOffStepPreset)
-      : 1
+function SwitchRow({
+  label,
+  description,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
+    </div>
   );
+}
+
+export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
+  const [settings, setSettings] = useState(initialSettings);
   const [isPending, startTransition] = useTransition();
 
-  const isDirty =
-    enabled !== initialSettings.po_auto_round_off_enabled ||
-    step !== initialSettings.po_auto_round_off_step;
+  const isDirty = JSON.stringify(settings) !== JSON.stringify(initialSettings);
+
+  const patch = (partial: Partial<typeof settings>) => {
+    setSettings((current) => ({ ...current, ...partial }));
+  };
 
   const handleSave = () => {
     startTransition(async () => {
-      const result = await saveProcurementPolicies({
-        po_auto_round_off_enabled: enabled,
-        po_auto_round_off_step: step,
-      });
+      const result = await saveProcurementPolicies(settings);
       if ("error" in result) {
         toast.error(result.error);
         return;
@@ -68,38 +94,26 @@ export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
         description="Control how purchase order grand totals are rounded before issue."
       >
         <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <div>
-              <Label htmlFor="po_auto_round_off_enabled" className="text-sm font-medium">
-                Auto round-off on purchase order totals
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                When enabled, round-off is computed automatically and grand total is adjusted to
-                the nearest configured step.
-              </p>
-            </div>
-            <Switch
-              id="po_auto_round_off_enabled"
-              checked={enabled}
-              disabled={!canEdit || isPending}
-              onCheckedChange={setEnabled}
-            />
-          </div>
+          <SwitchRow
+            label="Auto round-off on purchase order totals"
+            description="When enabled, round-off is computed automatically and grand total is adjusted to the nearest configured step."
+            checked={settings.po_auto_round_off_enabled}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ po_auto_round_off_enabled: checked })}
+          />
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
             <div>
               <Label htmlFor="po_auto_round_off_step" className="text-sm font-medium">
                 Round to nearest
               </Label>
-              <p className="text-xs text-muted-foreground">
-                Applies when auto round-off is enabled.
-              </p>
+              <p className="text-xs text-muted-foreground">Applies when auto round-off is enabled.</p>
             </div>
             <Select
-              value={String(step)}
-              disabled={!canEdit || isPending || !enabled}
+              value={String(settings.po_auto_round_off_step)}
+              disabled={!canEdit || isPending || !settings.po_auto_round_off_enabled}
               onValueChange={(value) =>
-                setStep(Number(value) as PoAutoRoundOffStepPreset)
+                patch({ po_auto_round_off_step: Number(value) as PoAutoRoundOffStepPreset })
               }
             >
               <SelectTrigger id="po_auto_round_off_step" className="h-8 w-[10rem] text-xs">
@@ -113,6 +127,105 @@ export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+      </OrgSettingsSection>
+
+      <OrgSettingsSection
+        title="Receiving & promotions"
+        description="Goods receipt rules and promotional stock defaults."
+      >
+        <div className="space-y-3">
+          <SwitchRow
+            label="Purchase order required for receipts"
+            description="When enabled, every goods receipt must reference an issued purchase order."
+            checked={settings.is_po_mandatory_for_grn}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ is_po_mandatory_for_grn: checked })}
+          />
+          <SwitchRow
+            label="Quality check before stocking"
+            description="Received stock is held in quarantine until inspection is complete."
+            checked={settings.is_qc_required_before_stocking}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ is_qc_required_before_stocking: checked })}
+          />
+          <SwitchRow
+            label="Allow zero-cost receipt lines"
+            description="Permit promotional or free goods on goods receipts when unit cost is zero."
+            checked={settings.allow_zero_cost_receipts}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ allow_zero_cost_receipts: checked })}
+          />
+          <div className="rounded-lg border border-border px-4 py-3">
+            <Label htmlFor="promo_default_category" className="text-sm font-medium">
+              Default promotional category
+            </Label>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Applied when a purchase order line has a zero rate.
+            </p>
+            <Input
+              id="promo_default_category"
+              value={settings.promo_default_category}
+              disabled={!canEdit || isPending}
+              onChange={(event) => patch({ promo_default_category: event.target.value })}
+            />
+          </div>
+        </div>
+      </OrgSettingsSection>
+
+      <OrgSettingsSection
+        title="Landed cost & matching"
+        description="Freight allocation defaults and invoice matching tolerance."
+      >
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
+            <div>
+              <Label className="text-sm font-medium">Landed cost allocation</Label>
+              <p className="text-xs text-muted-foreground">
+                Default method for spreading freight and import charges across receipt lines.
+              </p>
+            </div>
+            <Select
+              value={settings.landed_cost_allocation_method}
+              disabled={!canEdit || isPending}
+              onValueChange={(value) =>
+                patch({ landed_cost_allocation_method: value as LandedCostAllocationMethod })
+              }
+            >
+              <SelectTrigger className="h-8 w-[10rem] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="BY_QUANTITY">By quantity</SelectItem>
+                <SelectItem value="BY_VALUE">By value</SelectItem>
+                <SelectItem value="BY_WEIGHT">By weight</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <SwitchRow
+            label="Absorb sunk logistics on rejected qty"
+            description="Rejected quantities still absorb allocated freight when this policy is on."
+            checked={settings.absorb_sunk_logistics_overhead}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ absorb_sunk_logistics_overhead: checked })}
+          />
+          <div className="rounded-lg border border-border px-4 py-3">
+            <Label htmlFor="matching_tolerance_percentage" className="text-sm font-medium">
+              Three-way match tolerance (%)
+            </Label>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Allowed variance between order, receipt, and invoice rates before placing a hold.
+            </p>
+            <Input
+              id="matching_tolerance_percentage"
+              inputMode="decimal"
+              value={String(settings.matching_tolerance_percentage)}
+              disabled={!canEdit || isPending}
+              onChange={(event) =>
+                patch({ matching_tolerance_percentage: Number(event.target.value) || 0 })
+              }
+            />
           </div>
         </div>
       </OrgSettingsSection>

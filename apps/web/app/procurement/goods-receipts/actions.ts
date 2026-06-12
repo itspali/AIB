@@ -15,6 +15,11 @@ import {
   lookupStockVariantBySku,
   searchStockVariantsForAdjustment,
 } from "@/app/inventory/stock/actions";
+import {
+  fetchLatestDocumentPostingRun,
+  parsePostGoodsReceiptRpcResult,
+} from "@/lib/documents/posting-queries";
+import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -84,6 +89,7 @@ export async function postGoodsReceipt(
       po_item_id: line.po_item_id ?? null,
       quantity_received: Number(line.quantity_received),
       raw_unit_cost: Number(line.raw_unit_cost),
+      is_promotional: line.is_promotional ?? false,
     })),
     p_created_by: userId,
     p_bill_of_entry_number: values.bill_of_entry_number ?? null,
@@ -93,6 +99,11 @@ export async function postGoodsReceipt(
     p_assessable_value: values.assessable_value ? Number(values.assessable_value) : null,
     p_customs_duty_amount: values.customs_duty_amount ? Number(values.customs_duty_amount) : null,
     p_import_igst_amount: values.import_igst_amount ? Number(values.import_igst_amount) : null,
+    p_landed_charges: (values.landed_charges ?? []).map((charge) => ({
+      charge_type: charge.charge_type,
+      amount: Number(charge.amount),
+      allocation_method: charge.allocation_method ?? null,
+    })),
   });
 
   if (error) {
@@ -118,6 +129,26 @@ export async function postGoodsReceipt(
     };
   }
 
+  const parsedResult = parsePostGoodsReceiptRpcResult(data);
+  if (!parsedResult) {
+    return { error: "Goods receipt posted but the response was invalid." };
+  }
+
   revalidateGoodsReceiptPaths();
-  return { success: true as const, goodsReceiptId: data as string };
+  return {
+    success: true as const,
+    goodsReceiptId: parsedResult.goodsReceiptId,
+    steps: parsedResult.steps,
+  };
+}
+
+export async function loadGoodsReceiptPostingRun(goodsReceiptId: string): Promise<{
+  steps: PostingStepResult[];
+  postedAt: string | null;
+} | null> {
+  if (!goodsReceiptId.trim()) return null;
+  const { supabase } = await requireTenantId();
+  const run = await fetchLatestDocumentPostingRun(supabase, "GRN", goodsReceiptId);
+  if (!run) return null;
+  return { steps: run.steps, postedAt: run.posted_at || null };
 }

@@ -75,6 +75,8 @@ import {
   resolvePoLineDiscountType,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { PoLineMrpMarkdownSlot } from "@/components/procurement/purchase-orders/po-line-mrp-markdown-slot";
+import { PoLinePromoSlot } from "@/components/procurement/purchase-orders/po-line-promo-slot";
+import { isPromotionalPoLine } from "@/lib/procurement/purchase-orders/po-promo";
 import {
   patchPoLineMrpMarkdownPercentage,
   patchPoLineMrpMarkdownPercentageDraft,
@@ -89,6 +91,8 @@ export const PO_LINE_ITEM_CELL_INPUT_CLASS = DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS
 
 type LineCellContext = {
   line: PoDraftLine;
+  lines: PoDraftLine[];
+  promoDefaultCategory: string;
   disabled: boolean;
   supplierId: string;
   destinationLocationId: string;
@@ -518,7 +522,20 @@ export function PoLinePriceCell({
   );
 
   if (!showMrpStack) {
-    return priceInput;
+    return (
+      <div className="space-y-0">
+        {priceInput}
+        {isPromotionalPoLine(line) ? (
+          <PoLinePromoSlot
+            line={line}
+            lines={ctx.lines}
+            defaultCategory={ctx.promoDefaultCategory}
+            disabled={disabled}
+            onPatch={(patch) => patchLine(line.key, patch)}
+          />
+        ) : null}
+      </div>
+    );
   }
 
   return (

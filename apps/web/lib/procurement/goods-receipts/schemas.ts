@@ -1,25 +1,37 @@
 import { z } from "zod";
 
-export const goodsReceiptLineSchema = z.object({
-  variant_id: z.string().uuid("Select a valid variant."),
-  po_item_id: z.string().uuid().optional().nullable(),
-  quantity_received: z
-    .string()
-    .trim()
-    .min(1, "Quantity is required.")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed > 0;
-    }, "Quantity must be greater than zero."),
-  raw_unit_cost: z
-    .string()
-    .trim()
-    .min(1, "Unit cost is required.")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed > 0;
-    }, "Unit cost must be greater than zero."),
-});
+export const goodsReceiptLineSchema = z
+  .object({
+    variant_id: z.string().uuid("Select a valid variant."),
+    po_item_id: z.string().uuid().optional().nullable(),
+    quantity_received: z
+      .string()
+      .trim()
+      .min(1, "Quantity is required.")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0;
+      }, "Quantity must be greater than zero."),
+    raw_unit_cost: z
+      .string()
+      .trim()
+      .min(1, "Unit cost is required.")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0;
+      }, "Unit cost must be zero or greater."),
+    is_promotional: z.boolean().optional().default(false),
+  })
+  .superRefine((line, ctx) => {
+    const cost = Number(line.raw_unit_cost);
+    if (cost <= 0 && !line.is_promotional) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Unit cost must be greater than zero unless the line is promotional.",
+        path: ["raw_unit_cost"],
+      });
+    }
+  });
 
 export const postGoodsReceiptSchema = z.object({
   destination_location_id: z.string().uuid("Select a destination location."),
@@ -32,6 +44,16 @@ export const postGoodsReceiptSchema = z.object({
   customs_duty_amount: z.string().trim().optional().nullable(),
   import_igst_amount: z.string().trim().optional().nullable(),
   lines: z.array(goodsReceiptLineSchema).min(1, "Add at least one line."),
+  landed_charges: z
+    .array(
+      z.object({
+        charge_type: z.string().trim().min(1),
+        amount: z.string().trim().min(1),
+        allocation_method: z.enum(["BY_QUANTITY", "BY_VALUE", "BY_WEIGHT"]).optional().nullable(),
+      })
+    )
+    .optional()
+    .default([]),
 });
 
 export type PostGoodsReceiptInput = z.infer<typeof postGoodsReceiptSchema>;

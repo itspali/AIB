@@ -46,6 +46,7 @@ export type PoDocumentEditorShellProps = {
   allowLineItemDiscounts?: boolean;
   allowTransactionDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  promoDefaultCategory?: string;
   autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
@@ -69,6 +70,7 @@ export function PoDocumentEditorShell({
   allowLineItemDiscounts = false,
   allowTransactionDiscounts = false,
   enableMrpTradeTerms = true,
+  promoDefaultCategory = "FREE_GOODS",
   autoRoundOffPolicy,
   taxCodeOptions = [],
   tenantCountry = null,
@@ -151,6 +153,7 @@ export function PoDocumentEditorShell({
       layout={resolvedDocumentLayout}
       allowLineItemDiscounts={allowLineItemDiscounts}
       enableMrpTradeTerms={enableMrpTradeTerms}
+      promoDefaultCategory={promoDefaultCategory}
       pricesTaxInclusive={form.prices_tax_inclusive}
       taxSupplyNature={gstContext.supplyNature}
       taxMechanism={gstContext.taxMechanism}

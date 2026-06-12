@@ -38,7 +38,8 @@ import {
   useFilteredStockAdjustments,
   useFilteredStockBalances,
 } from "@/lib/inventory/stock/use-filtered-stock";
-import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { StockPromoPoolSummary } from "@/components/inventory/stock/stock-promo-pool-summary";
+import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
 
 const STOCK_PAGE_DESCRIPTION =
   "Review on-hand balances by location and post location-scoped stock adjustments.";
@@ -46,12 +47,14 @@ const STOCK_PAGE_DESCRIPTION =
 type Props = {
   initialBalances: StockBalanceRow[];
   initialAdjustments: StockAdjustmentRow[];
+  initialPromoBalances?: PromoInventoryBalanceRow[];
   locations: StockLocationOption[];
 };
 
 export function StockManagementTerminal({
   initialBalances,
   initialAdjustments,
+  initialPromoBalances = [],
   locations,
 }: Props) {
   const searchParams = useSearchParams();
@@ -270,6 +273,7 @@ export function StockManagementTerminal({
         }
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+          <StockPromoPoolSummary balances={initialPromoBalances} />
           {listPrimary}
         </div>
       </ListModuleShell>

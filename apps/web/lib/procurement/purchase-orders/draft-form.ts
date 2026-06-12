@@ -39,6 +39,11 @@ export type PoDraftLine = {
   catalog_context?: PoLineCatalogContext | null;
   /** Trade markdown % off item MRP (tier 1 — derives offer unit price). */
   mrp_markdown_percentage?: string;
+  is_promotional?: boolean;
+  linked_parent_line_key?: string | null;
+  linked_parent_line_id?: string | null;
+  promo_group_id?: string | null;
+  promotional_category?: string | null;
 };
 
 export type PoDraftFormState = {

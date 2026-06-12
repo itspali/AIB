@@ -49,6 +49,7 @@ type Props = {
   allowLineItemDiscounts: boolean;
   allowTransactionDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  promoDefaultCategory?: string;
   autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   defaultPricesTaxInclusive: boolean;
   defaultCurrency: string;
@@ -67,6 +68,7 @@ export function PoManagementTerminal({
   allowLineItemDiscounts,
   allowTransactionDiscounts = false,
   enableMrpTradeTerms = true,
+  promoDefaultCategory = "FREE_GOODS",
   autoRoundOffPolicy,
   defaultPricesTaxInclusive,
   defaultCurrency,
@@ -284,6 +286,7 @@ export function PoManagementTerminal({
         allowLineItemDiscounts={allowLineItemDiscounts}
         allowTransactionDiscounts={allowTransactionDiscounts}
         enableMrpTradeTerms={enableMrpTradeTerms}
+        promoDefaultCategory={promoDefaultCategory}
         autoRoundOffPolicy={autoRoundOffPolicy}
         defaultPricesTaxInclusive={defaultPricesTaxInclusive}
         defaultCurrency={defaultCurrency}

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchLatestDocumentPostingRun } from "@/lib/documents/posting-queries";
 import type { GoodsReceiptLineRow, GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 
 const DESTINATION_LOCATION_EMBED =
@@ -167,5 +168,12 @@ export async function fetchGoodsReceiptById(
   const row = data as GrnListDbRow & { grn_lines?: GrnLineDbRow[] | null };
   const mapped = mapGrnListRow(row);
   mapped.lines = (row.grn_lines ?? []).map(mapGrnLine);
+
+  const postingRun = await fetchLatestDocumentPostingRun(supabase, "GRN", goodsReceiptId);
+  if (postingRun) {
+    mapped.posting_steps = postingRun.steps;
+    mapped.posting_at = postingRun.posted_at;
+  }
+
   return mapped;
 }

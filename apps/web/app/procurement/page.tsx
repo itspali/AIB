@@ -29,9 +29,8 @@ export default function ProcurementPage() {
         {
           href: "/procurement/bills",
           label: "Bills",
-          description: "Supplier invoices and accounts payable matching.",
+          description: "Supplier invoices, three-way match, and accounts payable posting.",
           icon: ScrollText,
-          comingSoon: true,
         },
       ]}
     />

@@ -26,6 +26,7 @@ export type PurchaseBillRow = {
   total_gross_amount: string;
   total_tax_amount: string;
   total_liability_amount: string;
+  match_status?: string;
   is_paid: boolean;
   created_at: string;
   lines?: PurchaseBillLineRow[];

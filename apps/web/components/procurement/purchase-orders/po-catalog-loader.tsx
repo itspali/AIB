@@ -68,6 +68,7 @@ export async function PoCatalogLoader() {
       allowLineItemDiscounts={procurementSettings.allow_line_item_discounts}
       allowTransactionDiscounts={procurementSettings.allow_transaction_discounts}
       enableMrpTradeTerms={procurementSettings.po_mrp_trade_terms_enabled}
+      promoDefaultCategory={procurementSettings.promo_default_category}
       autoRoundOffPolicy={resolvePoAutoRoundOffPolicy(procurementSettings)}
       defaultPricesTaxInclusive={procurementSettings.purchase_prices_tax_inclusive}
       defaultCurrency={defaultCurrency}

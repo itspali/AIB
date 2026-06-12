@@ -59,6 +59,7 @@ type Props = {
   layout?: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
   enableMrpTradeTerms?: boolean;
+  promoDefaultCategory?: string;
   pricesTaxInclusive?: boolean;
   taxSupplyNature?: PoTaxSupplyNature;
   taxMechanism?: GstTaxMechanism;
@@ -87,6 +88,7 @@ function PoLineEntryGrid({
   layout: layoutProp,
   allowLineItemDiscounts,
   enableMrpTradeTerms,
+  promoDefaultCategory,
   pricesTaxInclusive = false,
   taxSupplyNature = "INTERSTATE",
   taxMechanism = "FORWARD",
@@ -103,6 +105,7 @@ function PoLineEntryGrid({
   layout: DocumentLayoutTemplate;
   allowLineItemDiscounts: boolean;
   enableMrpTradeTerms: boolean;
+  promoDefaultCategory: string;
   pricesTaxInclusive: boolean;
   taxSupplyNature: PoTaxSupplyNature;
   taxMechanism: GstTaxMechanism;
@@ -183,6 +186,8 @@ function PoLineEntryGrid({
 
         const ctx: LineCellContext = {
           line,
+          lines,
+          promoDefaultCategory,
           disabled,
           supplierId,
           destinationLocationId,
@@ -225,6 +230,7 @@ export function PoLineEntryTable({
   layout = DEFAULT_PO_SCREEN_LAYOUT,
   allowLineItemDiscounts = false,
   enableMrpTradeTerms = true,
+  promoDefaultCategory = "FREE_GOODS",
   pricesTaxInclusive = false,
   taxSupplyNature = "INTERSTATE",
   taxMechanism = "FORWARD",
@@ -291,6 +297,7 @@ export function PoLineEntryTable({
         layout={resolvedLayout}
         allowLineItemDiscounts={allowLineItemDiscounts}
         enableMrpTradeTerms={enableMrpTradeTerms}
+        promoDefaultCategory={promoDefaultCategory}
         pricesTaxInclusive={pricesTaxInclusive}
         taxSupplyNature={taxSupplyNature}
         taxMechanism={taxMechanism}
