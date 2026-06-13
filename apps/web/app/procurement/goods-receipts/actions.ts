@@ -202,3 +202,29 @@ export async function loadGoodsReceiptPostingRun(goodsReceiptId: string): Promis
   if (!run) return null;
   return { steps: run.steps, postedAt: run.posted_at || null };
 }
+
+export async function releaseGoodsReceiptFromQc(goodsReceiptId: string) {
+  if (!goodsReceiptId.trim()) return { error: "Goods receipt id is required." };
+
+  const { supabase, userId } = await requireTenantId();
+  const { data, error } = await supabase.rpc("release_goods_receipt_from_qc", {
+    p_goods_receipt_id: goodsReceiptId,
+    p_released_by: userId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("release_goods_receipt_from_qc") };
+    }
+    return { error: error.message };
+  }
+
+  const postingRun = await fetchLatestDocumentPostingRun(supabase, "GRN", goodsReceiptId);
+  revalidateGoodsReceiptPaths();
+
+  return {
+    success: true as const,
+    steps: postingRun?.steps ?? [],
+    detail: data,
+  };
+}

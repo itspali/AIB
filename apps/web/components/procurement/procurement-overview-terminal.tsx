@@ -43,11 +43,10 @@ const CARDS: ModuleOverviewCard[] = [
     icon: Building2,
   },
   {
-    href: "/procurement/suppliers",
+    href: "/entities/suppliers",
     label: "Suppliers",
     description: "Vendor master profiles, contacts, and purchasing terms.",
     icon: Building2,
-    comingSoon: true,
   },
   {
     href: "/procurement/bills",

@@ -86,6 +86,12 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     description: "Stock is held for inspection and is not available for sale until quality checks pass.",
     documents: ["GRN"],
   },
+  grn_qc_released: {
+    id: "grn_qc_released",
+    label: "Quality inspection passed",
+    description: "Inspection is complete and received stock is released for normal use.",
+    documents: ["GRN"],
+  },
   grn_promo_bundle_cost_adjusted: {
     id: "grn_promo_bundle_cost_adjusted",
     label: "Bundle cost adjusted",

@@ -20,6 +20,7 @@ import {
 } from "@/components/procurement/goods-receipts/grn-line-entry-table";
 import { GrnGitLinkPanel } from "@/components/procurement/goods-receipts/grn-git-link-panel";
 import { GrnImportTaxPeekPanel } from "@/components/procurement/goods-receipts/grn-import-tax-peek-panel";
+import { GrnQcReleasePanel } from "@/components/procurement/goods-receipts/grn-qc-release-panel";
 import {
   DocumentLinePeekItemCell,
   DocumentLinePeekTable,
@@ -188,6 +189,17 @@ export function GrnDrawerForm({
     setDetail(peekReceipt);
     setPostSuccessSummary(null);
   }, [open, surface, peekReceipt?.id, locations, prefillSignature, prefillPurchaseOrderId, receivableOrders]);
+
+  const reloadDetail = useCallback(() => {
+    if (!detail?.id) return;
+    void loadGoodsReceiptDetail(detail.id).then((result) => {
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setDetail(result.goodsReceipt);
+    });
+  }, [detail?.id]);
 
   useEffect(() => {
     if (!open || surface !== "peek" || !peekReceipt?.id) return;
@@ -394,6 +406,12 @@ export function GrnDrawerForm({
             </div>
 
             <GrnImportTaxPeekPanel receipt={detail} />
+
+            <GrnQcReleasePanel
+              goodsReceiptId={detail.id}
+              isQcPending={detail.is_qc_pending}
+              onReleased={reloadDetail}
+            />
 
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

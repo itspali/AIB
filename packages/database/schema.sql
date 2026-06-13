@@ -526,7 +526,8 @@ CREATE TABLE purchase_invoices (
 --   supabase/migrations/20260612200000_wave5_tax_recoverable_promo_reclass.sql
 --   supabase/migrations/20260612210000_wave6_git_subcontract.sql
 --   supabase/migrations/20260612230000_vendor_advance_application.sql
--- RPCs: save_vendor_advance_payment, apply_vendor_advance_to_invoice
+--   supabase/migrations/20260612240000_grn_qc_release.sql
+-- RPCs: save_vendor_advance_payment, apply_vendor_advance_to_invoice, release_goods_receipt_from_qc
 -- ====================================================================
 
 CREATE TYPE promo_entitlement_status AS ENUM ('OPEN', 'PARTIAL', 'CLOSED', 'WRITTEN_OFF');

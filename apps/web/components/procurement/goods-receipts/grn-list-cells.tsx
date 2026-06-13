@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/dashboard/format";
 import type { GoodsReceiptListColumnId } from "@/lib/procurement/goods-receipts/list-columns";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
@@ -11,7 +12,16 @@ export function renderGoodsReceiptListCell(
 ): ReactNode {
   switch (columnId) {
     case "grn_number":
-      return <div className="font-mono text-xs font-medium">{row.voucher_number}</div>;
+      return (
+        <div className="inline-flex items-center gap-2">
+          <span className="font-mono text-xs font-medium">{row.voucher_number}</span>
+          {row.is_qc_pending ? (
+            <Badge variant="action_required" className="text-[10px]">
+              QC
+            </Badge>
+          ) : null}
+        </div>
+      );
     case "location":
       return (
         <>
