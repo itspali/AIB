@@ -4,6 +4,7 @@ import {
   canEditPoLineUom,
   resolveDefaultPoLineUomCode,
   resolvePoDraftLineUomCode,
+  resolvePoDraftLineUomCodeForSave,
   formatPoLineUomConversionHint,
   formatPoPeekLineUomConversionHint,
   resolvePoLineUomAfterCatalogUpdate,
@@ -56,6 +57,22 @@ describe("buildPoLineUomOptions", () => {
       })
     ).toBe("BOX");
   });
+
+  it("ignores default purchase UOM when it is not registered in item_uoms", () => {
+    const options = buildPoLineUomOptions({
+      base_unit_of_measure: "PCS",
+      default_purchase_uom: "KG",
+      alternate_uoms: [],
+    });
+    expect(options.map((row) => row.uom_code)).toEqual(["PCS"]);
+    expect(
+      resolveDefaultPoLineUomCode({
+        base_unit_of_measure: "PCS",
+        default_purchase_uom: "KG",
+        alternate_uoms: [],
+      })
+    ).toBe("PCS");
+  });
 });
 
 describe("draft line UOM resolution", () => {
@@ -101,6 +118,49 @@ describe("draft line UOM resolution", () => {
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("BOX");
     expect(canEditPoLineUom(line)).toBe(true);
+  });
+
+  it("omits unregistered alternates from save payload", () => {
+    const line = draftLine({
+      uom_code: "KG",
+      catalog_context: {
+        description: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: "PCS",
+        image_url: null,
+        tax_code_id: null,
+        tax_rate: 0,
+        tax_is_variable: false,
+        default_purchase_uom: "KG",
+        alternate_uoms: [],
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+      },
+    });
+    expect(resolvePoDraftLineUomCode(line)).toBe("PCS");
+    expect(resolvePoDraftLineUomCodeForSave(line)).toBeUndefined();
+  });
+
+  it("includes registered alternates in save payload", () => {
+    const line = draftLine({
+      uom_code: "BOX",
+      catalog_context: {
+        description: null,
+        hsn_sac_code: null,
+        base_unit_of_measure: "PCS",
+        image_url: null,
+        tax_code_id: null,
+        tax_rate: 0,
+        tax_is_variable: false,
+        default_purchase_uom: "BOX",
+        alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
+        custom_fields: {},
+        variant_attributes: {},
+        attribute_labels: {},
+      },
+    });
+    expect(resolvePoDraftLineUomCodeForSave(line)).toBe("BOX");
   });
 });
 

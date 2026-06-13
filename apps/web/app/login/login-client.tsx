@@ -25,7 +25,11 @@ export default function LoginPage() {
       ? "Email confirmation failed. Request a new link and try again."
       : null
   );
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(
+    searchParams.get("password_updated") === "1"
+      ? "Password updated. Sign in with your new password."
+      : null
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -63,7 +67,7 @@ export default function LoginPage() {
     setInfo(null);
     const supabase = createClient();
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/auth/callback?next=/settings/profile`,
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
     });
     setLoading(false);
     if (resetError) {

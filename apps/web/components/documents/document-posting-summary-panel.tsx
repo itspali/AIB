@@ -1,7 +1,13 @@
 "use client";
 
-import { CheckCircle2, Circle, MinusCircle, XCircle } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, ChevronDown, ChevronUp, Circle, MinusCircle, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { resolvePostingStepDefinition } from "@/lib/documents/posting-step-catalog";
+import {
+  countNotApplicablePostingSteps,
+  resolveVisiblePostingSteps,
+} from "@/lib/documents/posting-step-visibility";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { cn } from "@/lib/utils";
 
@@ -38,8 +44,20 @@ function statusLabel(status: PostingStepResult["status"]): string {
   }
 }
 
+function notApplicableToggleLabel(count: number, expanded: boolean): string {
+  const noun = count === 1 ? "step" : "steps";
+  return expanded
+    ? "Hide not applicable steps"
+    : `Show ${count} not applicable ${noun}`;
+}
+
 export function DocumentPostingSummaryPanel({ steps, overall, postedAt, className }: Props) {
+  const [showNotApplicable, setShowNotApplicable] = useState(false);
+
   if (steps.length === 0) return null;
+
+  const notApplicableCount = countNotApplicablePostingSteps(steps);
+  const visibleSteps = resolveVisiblePostingSteps(steps, showNotApplicable);
 
   const subtitle =
     overall === "failure"
@@ -60,7 +78,7 @@ export function DocumentPostingSummaryPanel({ steps, overall, postedAt, classNam
       </div>
 
       <ol className="space-y-3">
-        {steps.map((step) => {
+        {visibleSteps.map((step) => {
           const definition = resolvePostingStepDefinition(step.id);
           return (
             <li key={step.id} className="flex gap-3">
@@ -79,6 +97,24 @@ export function DocumentPostingSummaryPanel({ steps, overall, postedAt, classNam
           );
         })}
       </ol>
+
+      {notApplicableCount > 0 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mt-3 h-auto px-0 py-1 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
+          aria-expanded={showNotApplicable}
+          onClick={() => setShowNotApplicable((current) => !current)}
+        >
+          {showNotApplicable ? (
+            <ChevronUp className="size-3.5 shrink-0" aria-hidden />
+          ) : (
+            <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+          )}
+          {notApplicableToggleLabel(notApplicableCount, showNotApplicable)}
+        </Button>
+      ) : null}
     </section>
   );
 }

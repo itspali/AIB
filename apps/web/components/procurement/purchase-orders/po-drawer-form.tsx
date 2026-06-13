@@ -9,8 +9,10 @@ import {
   loadPurchaseOrderDetail,
   savePurchaseOrder,
   updatePurchaseOrderVoucherNumber,
+  applyPoCatalogWriteback,
 } from "@/app/procurement/purchase-orders/actions";
 import { PoDocumentEditorShell } from "@/components/procurement/purchase-orders/po-document-editor-shell";
+import { PoCatalogWritebackDialog } from "@/components/procurement/purchase-orders/po-catalog-writeback-dialog";
 import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
 import {
@@ -34,7 +36,7 @@ import {
 } from "@/lib/procurement/purchase-orders/draft-form";
 import { resolvePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/totals";
 import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-orders/po-line-discount";
-import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
+import { resolvePoDraftLineUomCodeForSave } from "@/lib/procurement/purchase-orders/po-line-unit";
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
@@ -47,7 +49,14 @@ import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
-import { assignPromoGroups, validatePoPromoLines } from "@/lib/procurement/purchase-orders/po-promo";
+import {
+  assignPromoGroups,
+  resolvePromoParentForSave,
+  validatePoPromoLines,
+} from "@/lib/procurement/purchase-orders/po-promo";
+import { buildPoCatalogWritebackRows } from "@/lib/procurement/purchase-orders/po-catalog-writeback";
+import type { PoCatalogWritebackRow } from "@/lib/procurement/purchase-orders/po-catalog-writeback";
+import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { cn } from "@/lib/utils";
@@ -174,6 +183,9 @@ export function PoDrawerForm({
   const [issuePostingSummary, setIssuePostingSummary] = useState<PostingStepResult[] | null>(
     null
   );
+  const [writebackOpen, setWritebackOpen] = useState(false);
+  const [writebackLines, setWritebackLines] = useState<PoDraftLine[]>([]);
+  const [writebackPendingOrderId, setWritebackPendingOrderId] = useState<string | null>(null);
   const submitRef = useRef<() => void>(() => {});
 
   const documentLayout = useLivePoDocumentLayout(documentLayoutProp, {
@@ -337,6 +349,63 @@ export function PoDrawerForm({
     setIsDirty(true);
   }, []);
 
+  const finishSaveFlow = useCallback(
+    (purchaseOrderId: string) => {
+      onAfterSave(purchaseOrderId);
+    },
+    [onAfterSave]
+  );
+
+  const maybePromptCatalogWriteback = useCallback(
+    (lines: PoDraftLine[], purchaseOrderId: string) => {
+      if (buildPoCatalogWritebackRows(lines).length === 0) {
+        finishSaveFlow(purchaseOrderId);
+        return;
+      }
+      setWritebackLines(lines);
+      setWritebackPendingOrderId(purchaseOrderId);
+      setWritebackOpen(true);
+    },
+    [finishSaveFlow]
+  );
+
+  const handleWritebackSkip = useCallback(() => {
+    setWritebackOpen(false);
+    const orderId = writebackPendingOrderId;
+    setWritebackPendingOrderId(null);
+    if (orderId) finishSaveFlow(orderId);
+  }, [finishSaveFlow, writebackPendingOrderId]);
+
+  const handleWritebackApply = useCallback(
+    (selectedRows: PoCatalogWritebackRow[]) => {
+      startTransition(async () => {
+        const result = await applyPoCatalogWriteback({
+          supplier_id: form.supplier_id,
+          updates: selectedRows.map((row) => ({
+            item_id: row.itemId,
+            variant_id: row.variantId,
+            field: row.field,
+            value: row.proposedValue,
+          })),
+        });
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(
+          result.updatedCount > 0
+            ? `Updated ${result.updatedCount} catalog record(s).`
+            : "Catalog update completed."
+        );
+        setWritebackOpen(false);
+        const orderId = writebackPendingOrderId;
+        setWritebackPendingOrderId(null);
+        if (orderId) finishSaveFlow(orderId);
+      });
+    },
+    [finishSaveFlow, form.supplier_id, writebackPendingOrderId]
+  );
+
   const closeForm = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -363,6 +432,7 @@ export function PoDrawerForm({
         return;
       }
       const lineKeyToVariant = new Map(savableLines.map((line) => [line.key, line]));
+      const persistedPoItemIds = new Set((detail?.lines ?? []).map((line) => line.id));
       const taxMechanism = resolvePoGstContextFromForm(
         suppliers,
         form.supplier_id,
@@ -398,20 +468,20 @@ export function PoDrawerForm({
           const discount = normalizePoLineDiscountForSave(line);
           const parentKey = line.linked_parent_line_key;
           const parent = parentKey ? lineKeyToVariant.get(parentKey) : null;
+          const promoParent = resolvePromoParentForSave(line, parent, persistedPoItemIds);
           return {
             variant_id: line.variant_id,
             quantity_ordered: line.quantity_ordered,
             unit_price_contractual: line.unit_price_contractual || "0",
             discount_percentage: discount.discount_percentage,
             discount_amount: discount.discount_amount,
-            uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
+            uom_code: resolvePoDraftLineUomCodeForSave(line),
             ...(Number(line.unit_price_contractual) === 0 || line.is_promotional
               ? {
                   is_promotional: true,
                   promo_group_id: line.promo_group_id ?? undefined,
                   promotional_category: line.promotional_category ?? promoDefaultCategory,
-                  linked_parent_line_id: line.linked_parent_line_id ?? undefined,
-                  linked_parent_variant_id: parent?.variant_id ?? undefined,
+                  ...promoParent,
                 }
               : {}),
           };
@@ -427,9 +497,9 @@ export function PoDrawerForm({
 
       toast.success("Purchase order saved");
       setIsDirty(false);
-      onAfterSave(result.purchaseOrderId);
+      maybePromptCatalogWriteback(savableLines, result.purchaseOrderId);
     });
-  }, [autoRoundOffPolicy, detail?.id, editOrderId, form, locations, onAfterSave, organizationBillTo?.country_code, promoDefaultCategory, suppliers]);
+  }, [autoRoundOffPolicy, detail?.id, detail?.lines, editOrderId, form, locations, maybePromptCatalogWriteback, organizationBillTo?.country_code, promoDefaultCategory, suppliers]);
 
   const handleIssue = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -664,6 +734,17 @@ export function PoDrawerForm({
 
   return (
     <>
+      <PoCatalogWritebackDialog
+        open={writebackOpen}
+        lines={writebackLines}
+        isPending={isPending}
+        onOpenChange={(next) => {
+          if (!next) handleWritebackSkip();
+          else setWritebackOpen(true);
+        }}
+        onApply={handleWritebackApply}
+        onSkip={handleWritebackSkip}
+      />
       <RightDrawer
         open={open}
         onOpenChange={(next) => {

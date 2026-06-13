@@ -26,6 +26,7 @@ import { useFilteredGoodsReceipts } from "@/lib/procurement/goods-receipts/use-f
 import { GRN_DRAWER_PO_PARAM, PROCUREMENT_GRN_HREF } from "@/lib/procurement/navigation";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
+import type { LandedCostAllocationMethod } from "@/lib/procurement/settings";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 
 const GRN_PAGE_DESCRIPTION =
@@ -35,12 +36,14 @@ type Props = {
   initialGoodsReceipts: GoodsReceiptRow[];
   initialReceivableOrders: ReceivablePurchaseOrderOption[];
   locations: ProcurementLocationOption[];
+  defaultLandedCostAllocationMethod?: LandedCostAllocationMethod;
 };
 
 export function GrnManagementTerminal({
   initialGoodsReceipts,
   initialReceivableOrders,
   locations,
+  defaultLandedCostAllocationMethod = "BY_VALUE",
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(PROCUREMENT_GRN_HREF, {
@@ -176,6 +179,7 @@ export function GrnManagementTerminal({
         receivableOrders={receivableOrders}
         peekReceipt={peekReceipt}
         prefillPurchaseOrderId={createPrefillPoId}
+        defaultLandedCostAllocationMethod={defaultLandedCostAllocationMethod}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
       />

@@ -2,15 +2,18 @@ import { GrnManagementTerminal } from "@/components/procurement/goods-receipts/g
 import { fetchGoodsReceipts } from "@/lib/procurement/goods-receipts/queries";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import { fetchProcurementLocations } from "@/lib/procurement/shared/queries";
+import { fetchProcurementSettings } from "@/lib/procurement/settings";
+import type { LandedCostAllocationMethod } from "@/lib/procurement/settings";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
 export async function GrnCatalogLoader() {
   const { supabase, tenantId } = await getModulePageContext();
 
-  const [locations, goodsReceipts, receivableOrders] = await Promise.all([
+  const [locations, goodsReceipts, receivableOrders, procurementSettings] = await Promise.all([
     fetchProcurementLocations(supabase, tenantId),
     fetchGoodsReceipts(supabase, tenantId),
     fetchReceivablePurchaseOrders(supabase, tenantId),
+    fetchProcurementSettings(supabase, tenantId),
   ]);
 
   return (
@@ -18,6 +21,9 @@ export async function GrnCatalogLoader() {
       initialGoodsReceipts={goodsReceipts}
       initialReceivableOrders={receivableOrders}
       locations={locations}
+      defaultLandedCostAllocationMethod={
+        procurementSettings.landed_cost_allocation_method as LandedCostAllocationMethod
+      }
     />
   );
 }

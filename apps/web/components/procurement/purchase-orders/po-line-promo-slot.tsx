@@ -1,14 +1,15 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
+  PO_LINE_SUBLINE_SELECT_CLASS,
+  PO_LINE_SUBLINE_TEXT_CLASS,
+  PoLineSublineRow,
+  PoLineSublineZone,
+} from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import { cn } from "@/lib/utils";
+import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import {
   isPromotionalPoLine,
@@ -20,61 +21,81 @@ type Props = {
   lines: PoDraftLine[];
   defaultCategory: string;
   disabled?: boolean;
+  align?: DocumentColumnPref["align"];
   onPatch: (patch: Partial<PoDraftLine>) => void;
 };
 
+function resolvePaidLineLabel(line: PoDraftLine): string {
+  const name = line.item_name?.trim() || line.variant_sku?.trim() || "Item";
+  const qty = line.quantity_ordered?.trim();
+  return qty ? `${name} · ${qty}` : name;
+}
+
+/** Compact free-goods controls stacked under unit price (narrow column). */
 export function PoLinePromoSlot({
   line,
   lines,
   defaultCategory,
   disabled,
+  align = "right",
   onPatch,
 }: Props) {
   if (!isPromotionalPoLine(line) || !line.variant_id) return null;
 
   const paidLines = paidPoLinesForPromoLink(lines, line.key);
+  const linkedParentKey = line.linked_parent_line_key ?? "";
+  const categoryPlaceholder = defaultCategory.replace(/_/g, " ");
 
   return (
-    <div className="mt-2 space-y-2 rounded-md border border-dashed border-border/80 bg-muted/20 p-2">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Free goods
-      </p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Linked paid line</Label>
-          <Select
-            value={line.linked_parent_line_key ?? "none"}
-            disabled={disabled || paidLines.length === 0}
-            onValueChange={(value) =>
-              onPatch({
-                linked_parent_line_key: value === "none" ? null : value,
-                promotional_category: line.promotional_category || defaultCategory,
-              })
-            }
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Select paid line" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Select paid line</SelectItem>
-              {paidLines.map((paidLine) => (
-                <SelectItem key={paidLine.key} value={paidLine.key}>
-                  {paidLine.item_name || paidLine.variant_sku} · qty {paidLine.quantity_ordered}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Promotional category</Label>
-          <Input
-            className="h-8 text-xs"
-            value={line.promotional_category ?? defaultCategory}
-            disabled={disabled}
-            onChange={(event) => onPatch({ promotional_category: event.target.value })}
-          />
-        </div>
-      </div>
-    </div>
+    <PoLineSublineZone align={align} className="max-w-full overflow-hidden">
+      <PoLineSublineRow align={align}>
+        <select
+          id={`po-promo-parent-${line.key}`}
+          value={linkedParentKey || "none"}
+          disabled={disabled || paidLines.length === 0}
+          aria-label="Linked paid line for free goods"
+          title="Link to paid PO line"
+          onChange={(event) => {
+            const value = event.target.value;
+            onPatch({
+              linked_parent_line_key: value === "none" ? null : value,
+              promotional_category: line.promotional_category || defaultCategory,
+            });
+          }}
+          className={cn(
+            "h-4 w-full min-w-0 max-w-full cursor-pointer truncate px-2",
+            PO_LINE_SUBLINE_SELECT_CLASS,
+            PO_LINE_SUBLINE_TEXT_CLASS,
+            align === "right" && "text-right",
+            align === "center" && "text-center"
+          )}
+        >
+          <option value="none">Link paid…</option>
+          {paidLines.map((paidLine) => (
+            <option key={paidLine.key} value={paidLine.key}>
+              {resolvePaidLineLabel(paidLine)}
+            </option>
+          ))}
+        </select>
+      </PoLineSublineRow>
+      <PoLineSublineRow align={align}>
+        <Input
+          id={`po-promo-category-${line.key}`}
+          className={cn(
+            PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
+            "w-full min-w-0 max-w-full px-2",
+            PO_LINE_SUBLINE_TEXT_CLASS,
+            align === "right" && "text-right",
+            align === "center" && "text-center"
+          )}
+          value={line.promotional_category ?? defaultCategory}
+          disabled={disabled}
+          aria-label="Promotional category"
+          title="Promotional category"
+          placeholder={categoryPlaceholder}
+          onChange={(event) => onPatch({ promotional_category: event.target.value })}
+        />
+      </PoLineSublineRow>
+    </PoLineSublineZone>
   );
 }

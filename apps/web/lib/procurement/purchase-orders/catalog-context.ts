@@ -6,6 +6,7 @@ import { resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import { fetchVariantPrimaryImageUrl } from "@/lib/procurement/purchase-orders/variant-image";
 import {
+  extractDefaultPurchasePriceFromCustomFieldsRecord,
   extractMrpFromCustomFieldsRecord,
   filterUserCustomFieldEntries,
 } from "@/lib/products/catalog-reserved-fields";
@@ -191,12 +192,14 @@ export async function fetchPoLineCatalogContext(
   const default_purchase_uom = parseDefaultPurchaseUomFromCustomFields(item.custom_fields);
 
   const mrp = extractMrpFromCustomFieldsRecord(item.custom_fields);
+  const purchase_price = extractDefaultPurchasePriceFromCustomFieldsRecord(item.custom_fields);
 
   return {
     description: item.description?.trim() || null,
     hsn_sac_code: item.hsn_sac_code?.trim() || null,
     base_unit_of_measure: item.base_unit_of_measure?.trim() || null,
     mrp: mrp || null,
+    purchase_price: purchase_price || null,
     image_url: imageUrl,
     tax_code_id: item.tax_code_id,
     tax_rate: Number.isFinite(taxRate) ? taxRate : 0,

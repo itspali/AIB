@@ -39,17 +39,6 @@ export function buildPoLineUomOptions(input: {
     });
   }
 
-  const purchaseUom = trimCode(input.default_purchase_uom);
-  if (purchaseUom && purchaseUom !== base && !byCode.has(purchaseUom)) {
-    const fromAlternates = input.alternate_uoms?.find((row) => trimCode(row.uom_code) === purchaseUom);
-    byCode.set(purchaseUom, {
-      uom_code: purchaseUom,
-      conversion_factor: fromAlternates
-        ? parseFactor(fromAlternates.conversion_factor)
-        : 1,
-    });
-  }
-
   const options = [...byCode.values()];
   options.sort((a, b) => {
     if (a.uom_code === base) return -1;
@@ -120,14 +109,40 @@ export function canEditPoLineUom(line: PoDraftLine): boolean {
 }
 
 export function resolvePoDraftLineUomCode(line: PoDraftLine): string | null {
-  const trimmed = trimCode(line.uom_code);
   const options = resolvePoLineUomOptions(line);
+  const base =
+    trimCode(line.catalog_context?.base_unit_of_measure) ?? options[0]?.uom_code ?? null;
+  const trimmed = trimCode(line.uom_code);
+
   if (trimmed && options.some((option) => option.uom_code === trimmed)) {
     return trimmed;
   }
-  if (trimmed && !options.length) return trimmed;
+
+  if (!options.length) {
+    return base ?? trimmed;
+  }
+
   const fallback = resolveDefaultPoLineUomCode(line.catalog_context);
-  return fallback || null;
+  return fallback || base || null;
+}
+
+/**
+ * UOM sent to save_purchase_order — only registered alternates (item_uoms), never
+ * catalog-only purchase defaults that the RPC would reject.
+ */
+export function resolvePoDraftLineUomCodeForSave(line: PoDraftLine): string | undefined {
+  const code = resolvePoDraftLineUomCode(line);
+  if (!code) return undefined;
+
+  const base = trimCode(line.catalog_context?.base_unit_of_measure);
+  if (base && code === base) return undefined;
+
+  const alternates = line.catalog_context?.alternate_uoms ?? [];
+  if (alternates.some((row) => trimCode(row.uom_code) === code)) {
+    return code;
+  }
+
+  return undefined;
 }
 
 export function resolvePoLineUomConversionFactor(line: PoDraftLine): number {

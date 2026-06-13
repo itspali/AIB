@@ -34,6 +34,10 @@ export type PurchaseOrderLineRow = {
   base_unit_of_measure?: string | null;
   /** Maximum retail price from item master at read time. */
   mrp?: string | null;
+  is_promotional?: boolean;
+  linked_parent_line_id?: string | null;
+  promo_group_id?: string | null;
+  promotional_category?: string | null;
 };
 
 export type PurchaseOrderPartyAddress = {

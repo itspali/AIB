@@ -12,6 +12,16 @@ export const goodsReceiptLineSchema = z
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed > 0;
       }, "Quantity must be greater than zero."),
+    quantity_accepted: z
+      .string()
+      .trim()
+      .optional()
+      .default(""),
+    quantity_rejected: z
+      .string()
+      .trim()
+      .optional()
+      .default("0"),
     raw_unit_cost: z
       .string()
       .trim()
@@ -29,6 +39,28 @@ export const goodsReceiptLineSchema = z
         code: z.ZodIssueCode.custom,
         message: "Unit cost must be greater than zero unless the line is promotional.",
         path: ["raw_unit_cost"],
+      });
+    }
+
+    const received = Number(line.quantity_received);
+    const acceptedRaw = line.quantity_accepted?.trim();
+    const accepted = acceptedRaw ? Number(acceptedRaw) : received;
+    const rejected = Number(line.quantity_rejected ?? "0");
+
+    if (!Number.isFinite(accepted) || accepted < 0 || !Number.isFinite(rejected) || rejected < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Accepted and rejected quantities must be zero or greater.",
+        path: ["quantity_accepted"],
+      });
+      return;
+    }
+
+    if (Math.abs(accepted + rejected - received) > 0.0001) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Accepted plus rejected must equal quantity received.",
+        path: ["quantity_accepted"],
       });
     }
   });

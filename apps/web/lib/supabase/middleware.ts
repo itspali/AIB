@@ -38,9 +38,11 @@ export async function updateSession(request: NextRequest) {
   const isLogin = pathname.startsWith("/login");
   const isSignup = pathname.startsWith("/signup");
   const isAuthCallback = pathname.startsWith("/auth/callback");
+  const isPasswordReset = pathname.startsWith("/auth/reset-password");
   const isLegal = pathname.startsWith("/legal");
   const isSignupApi = pathname.startsWith("/api/signup");
-  const isPublicAuth = isLogin || isSignup || isSignupApi || isAuthCallback || isLegal;
+  const isPublicAuth =
+    isLogin || isSignup || isSignupApi || isAuthCallback || isPasswordReset || isLegal;
   const isServerAction = request.method === "POST" && request.headers.has("next-action");
 
   if (isSignupApi) {
@@ -69,7 +71,8 @@ export async function updateSession(request: NextRequest) {
     // common case (an onboarded user navigating normal routes) needs no DB
     // round-trip here. The onboarding-decision routes still revalidate.
     const onboardedCookie = request.cookies.get("aib-onboarded")?.value === "1";
-    const needsRouteDecision = isOnboarding || isLogin || isSignup || !onboardedCookie;
+    const needsRouteDecision =
+      isOnboarding || isLogin || isSignup || isPasswordReset || !onboardedCookie;
 
     if (!needsRouteDecision) {
       return supabaseResponse;

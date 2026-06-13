@@ -35,8 +35,19 @@ function parseSignedDraftDecimal(raw: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** MRP reference for the line (from hydrated catalog snapshot). */
-export function resolvePoLineMrp(line: Pick<PoDraftLine, "catalog_context">): number {
+/** MRP reference for the line (PO entry when catalog blank, else catalog snapshot). */
+export function resolvePoLineMrp(line: Pick<PoDraftLine, "catalog_context" | "mrp_reference">): number {
+  if (line.mrp_reference != null && line.mrp_reference.trim() !== "") {
+    const draft = parseDraftDecimal(line.mrp_reference);
+    if (draft != null && draft > 0) return draft;
+    const reference = parsePositiveAmount(line.mrp_reference);
+    if (reference > 0) return reference;
+  }
+  return parsePositiveAmount(line.catalog_context?.mrp ?? null);
+}
+
+/** @deprecated use resolvePoLineMrp — kept for call-site clarity in catalog-only reads */
+export function resolvePoLineMrpFromCatalog(line: Pick<PoDraftLine, "catalog_context">): number {
   return parsePositiveAmount(line.catalog_context?.mrp ?? null);
 }
 
@@ -45,14 +56,15 @@ export function resolvePoLineMrpVarianceDirection(
   mrp: number,
   unitPrice: number
 ): PoLineMrpVarianceDirection | null {
-  if (mrp <= 0 || unitPrice <= 0) return null;
+  if (mrp <= 0) return null;
+  if (unitPrice <= 0) return "below";
   if (unitPrice > mrp) return "above";
   if (unitPrice < mrp) return "below";
   return null;
 }
 
 export function shouldShowPoMrpTradeTermsStack(
-  line: Pick<PoDraftLine, "variant_id" | "catalog_context">,
+  line: Pick<PoDraftLine, "variant_id" | "catalog_context" | "mrp_reference">,
   enabled = true
 ): boolean {
   if (!enabled || !line.variant_id) return false;
@@ -74,8 +86,7 @@ export function computeOfferUnitFromMrpMarkdown(
 export function computeImpliedMrpMarkdownPct(mrp: number, unitPrice: number): string {
   if (mrp <= 0) return "0";
   const unit = Math.max(unitPrice, 0);
-  // Unset/zero offer is not "100% off MRP" — treat as no trade markdown entered yet.
-  if (unit <= 0) return "0";
+  if (unit <= 0) return formatDocumentDecimal(100, 2);
   const pct = ((mrp - unit) / mrp) * 100;
   return formatDocumentDecimal(pct, 2);
 }
@@ -85,8 +96,12 @@ export function resolvePoLineMrpMarkdownPercentage(line: PoDraftLine): string {
   const unit = parseNonNegativeAmount(line.unit_price_contractual);
   if (mrp <= 0) return "0";
 
+  if (unit <= 0) {
+    return computeImpliedMrpMarkdownPct(mrp, unit);
+  }
+
   const explicit = line.mrp_markdown_percentage?.trim();
-  if (explicit && (unit > 0 || parseSignedAmount(explicit) !== 0)) {
+  if (explicit) {
     return explicit;
   }
 
@@ -130,7 +145,7 @@ export function patchPoLineOfferUnitPriceDraft(
     unit_price_contractual: unitPriceRaw,
     mrp_markdown_percentage:
       mrp > 0
-        ? parsed != null && parsed > 0
+        ? parsed != null
           ? computeImpliedMrpMarkdownPct(mrp, parsed)
           : "0"
         : line.mrp_markdown_percentage ?? "0",
@@ -190,6 +205,30 @@ export function syncPoLineMrpMarkdownFromOfferPrice(
 
 export function formatPoLineMrpReference(mrp: number, decimalPlaces = 2): string {
   return formatDocumentDecimal(mrp, decimalPlaces);
+}
+
+/** Value shown in the PO MRP input — raw override while editing, else catalog default. */
+export function resolvePoLineMrpReferenceDisplay(
+  line: Pick<PoDraftLine, "mrp_reference" | "catalog_context">,
+  decimalPlaces = 2
+): string {
+  if (line.mrp_reference != null) return line.mrp_reference;
+  const catalogMrp = resolvePoLineMrpFromCatalog(line);
+  if (catalogMrp > 0) return formatPoLineMrpReference(catalogMrp, decimalPlaces);
+  return "";
+}
+
+/** True when the line uses a PO MRP override different from catalog. */
+export function hasPoLineMrpOverride(
+  line: Pick<PoDraftLine, "mrp_reference" | "catalog_context">
+): boolean {
+  const explicit = line.mrp_reference?.trim();
+  if (!explicit) return false;
+  const catalogMrp = resolvePoLineMrpFromCatalog(line);
+  if (catalogMrp <= 0) return true;
+  const parsed = Number(explicit.replace(/,/g, ""));
+  if (!Number.isFinite(parsed)) return true;
+  return Math.abs(parsed - catalogMrp) > 0.0001;
 }
 
 export function resolvePeekLineMrp(

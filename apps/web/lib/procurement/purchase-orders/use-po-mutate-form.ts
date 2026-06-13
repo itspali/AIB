@@ -18,7 +18,7 @@ import {
 } from "@/lib/procurement/purchase-orders/draft-form";
 import { resolvePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/totals";
 import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-orders/po-line-discount";
-import { resolvePoDraftLineUomCode } from "@/lib/procurement/purchase-orders/po-line-unit";
+import { resolvePoDraftLineUomCodeForSave } from "@/lib/procurement/purchase-orders/po-line-unit";
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
@@ -257,7 +257,7 @@ export function usePoMutateForm({
             unit_price_contractual: line.unit_price_contractual || "0",
             discount_percentage: discount.discount_percentage,
             discount_amount: discount.discount_amount,
-            uom_code: resolvePoDraftLineUomCode(line) ?? undefined,
+            uom_code: resolvePoDraftLineUomCodeForSave(line),
           };
         }),
       };

@@ -17,6 +17,10 @@ import {
   isDocumentLineItemSelected,
 } from "@/lib/documents/line-entry";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
+import {
+  defaultGrnAcceptRejectForReceived,
+  syncGrnAcceptRejectOnReceivedChange,
+} from "@/lib/procurement/goods-receipts/grn-line-validation";
 
 export type GrnDraftLine = {
   key: string;
@@ -26,10 +30,40 @@ export type GrnDraftLine = {
   variant_sku: string;
   po_item_id: string | null;
   quantity_received: string;
+  quantity_accepted: string;
+  quantity_rejected: string;
   raw_unit_cost: string;
   open_quantity: string | null;
+  is_promotional?: boolean;
   skuError: string | null;
 };
+
+export function mapReceivablePoLineToGrnDraft(line: {
+  id: string;
+  variant_id: string;
+  variant_sku: string;
+  item_name: string;
+  open_quantity: string;
+  unit_price_contractual: string;
+  is_promotional?: boolean;
+}): GrnDraftLine {
+  const unitPrice = line.unit_price_contractual;
+  const received = line.open_quantity;
+  return {
+    key: line.id,
+    sku: line.variant_sku,
+    variant_id: line.variant_id,
+    item_name: line.item_name,
+    variant_sku: line.variant_sku,
+    po_item_id: line.id,
+    quantity_received: received,
+    ...defaultGrnAcceptRejectForReceived(received),
+    raw_unit_cost: unitPrice,
+    open_quantity: line.open_quantity,
+    is_promotional: line.is_promotional ?? Number(unitPrice) === 0,
+    skuError: null,
+  };
+}
 
 type Props = {
   lines: GrnDraftLine[];
@@ -49,6 +83,8 @@ export function createEmptyGrnLine(): GrnDraftLine {
     variant_sku: "",
     po_item_id: null,
     quantity_received: "",
+    quantity_accepted: "",
+    quantity_rejected: "0",
     raw_unit_cost: "0",
     open_quantity: null,
     skuError: null,
@@ -69,16 +105,30 @@ const GRN_COLUMNS: DocumentLineColumn[] = [
   },
   {
     id: "quantity_received",
-    label: "Qty received",
+    label: "Received",
     align: "right",
-    widthClass: "w-[5.5rem]",
+    widthClass: "w-[4.5rem]",
+    editable: true,
+  },
+  {
+    id: "quantity_accepted",
+    label: "Accepted",
+    align: "right",
+    widthClass: "w-[4.5rem]",
+    editable: true,
+  },
+  {
+    id: "quantity_rejected",
+    label: "Rejected",
+    align: "right",
+    widthClass: "w-[4.5rem]",
     editable: true,
   },
   {
     id: "raw_unit_cost",
     label: "Unit cost",
     align: "right",
-    widthClass: "w-[5.5rem]",
+    widthClass: "w-[5rem]",
     editable: true,
   },
 ];
@@ -167,9 +217,13 @@ export function GrnLineEntryTable({
       fillHeight={fillHeight}
       showSectionTitle={showSectionTitle}
     >
+      <p className="-mt-1 text-xs text-muted-foreground">
+        Accepted plus rejected must equal received quantity on each line.
+      </p>
       <DocumentLineEntryGrid
         lines={lines}
         columns={columns}
+        minTableWidth="min-w-[44rem]"
         fillHeight={fillHeight}
         disabled={disabled}
         showRemoveColumn={!poLocked}
@@ -220,7 +274,40 @@ export function GrnLineEntryTable({
                 inputMode="decimal"
                 aria-label="Quantity received"
                 onChange={(event) =>
-                  actions.patchLine(line.key, { quantity_received: event.target.value })
+                  actions.patchLine(
+                    line.key,
+                    syncGrnAcceptRejectOnReceivedChange(line, event.target.value)
+                  )
+                }
+              />
+            );
+          }
+
+          if (column.id === "quantity_accepted") {
+            return (
+              <DocumentLineCompactInput
+                align="right"
+                value={line.quantity_accepted}
+                disabled={disabled}
+                inputMode="decimal"
+                aria-label="Quantity accepted"
+                onChange={(event) =>
+                  actions.patchLine(line.key, { quantity_accepted: event.target.value })
+                }
+              />
+            );
+          }
+
+          if (column.id === "quantity_rejected") {
+            return (
+              <DocumentLineCompactInput
+                align="right"
+                value={line.quantity_rejected}
+                disabled={disabled}
+                inputMode="decimal"
+                aria-label="Quantity rejected"
+                onChange={(event) =>
+                  actions.patchLine(line.key, { quantity_rejected: event.target.value })
                 }
               />
             );

@@ -7,12 +7,12 @@ import { normalizeDocumentDecimalInput } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import {
-  formatPoLineMrpReference,
   resolvePoLineMrp,
   resolvePoLineMrpMarkdownPercentage,
   resolvePoLineMrpVarianceDirection,
   type PoLineMrpVarianceDirection,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { PoLineMrpReferenceSlot } from "@/components/procurement/purchase-orders/po-line-mrp-reference-slot";
 import {
   PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
   PO_LINE_SUBLINE_TEXT_CLASS,
@@ -25,8 +25,13 @@ type Props = {
   line: PoDraftLine;
   column: DocumentColumnPref;
   disabled?: boolean;
-  /** When MRP is already a table column, hide the duplicate reference line here. */
-  showMrpReference?: boolean;
+  /**
+   * hidden — MRP lives in its own column (or not shown here).
+   * editable — PO MRP input (defaults from catalog; override for this order).
+   */
+  mrpDisplayMode?: "hidden" | "editable";
+  onMrpReferenceChange?: (mrpReference: string) => void;
+  onMrpReferenceBlur?: (mrpReference: string) => void;
   onMarkdownChange: (markdownPct: string) => void;
   onMarkdownBlur?: (markdownPct: string) => void;
 };
@@ -70,18 +75,23 @@ export function PoLineMrpMarkdownSlot({
   line,
   column,
   disabled = false,
-  showMrpReference = true,
+  mrpDisplayMode = "editable",
+  onMrpReferenceChange,
+  onMrpReferenceBlur,
   onMarkdownChange,
   onMarkdownBlur,
 }: Props) {
   const mrp = resolvePoLineMrp(line);
-  if (mrp <= 0) return null;
+  if (mrp <= 0 && mrpDisplayMode !== "editable") return null;
 
-  const markdownValue = resolvePoLineMrpMarkdownPercentage(line);
-  const varianceDirection = resolvePoLineMrpVarianceDirection(
-    mrp,
-    parseUnitPrice(line.unit_price_contractual)
-  );
+  const markdownValue =
+    mrp > 0 ? resolvePoLineMrpMarkdownPercentage(line) : "0";
+  const markdownDisabled = disabled || mrp <= 0;
+  const varianceDirection =
+    mrp > 0
+      ? resolvePoLineMrpVarianceDirection(mrp, parseUnitPrice(line.unit_price_contractual))
+      : null;
+  const showMrpRow = mrpDisplayMode !== "hidden";
 
   return (
     <PoLineSublineZone align={column.align}>
@@ -104,9 +114,9 @@ export function PoLineMrpMarkdownSlot({
               column.align === "right" && "text-right"
             )}
             value={markdownValue}
-            disabled={disabled}
+            disabled={markdownDisabled}
             inputMode="decimal"
-            title="Edit percent variance from MRP"
+            title={mrp > 0 ? "Edit percent variance from MRP" : "Enter MRP first"}
             onChange={(event) => onMarkdownChange(event.target.value)}
             onBlur={(event) => {
               if (onMarkdownBlur) {
@@ -123,18 +133,26 @@ export function PoLineMrpMarkdownSlot({
           <PoLineMrpVarianceArrow direction={varianceDirection} />
         </div>
       </PoLineSublineRow>
-      <PoLineSublineRow align={column.align} reserve={!showMrpReference}>
-        {showMrpReference ? (
-          <span
+      <PoLineSublineRow align={column.align} reserve={!showMrpRow}>
+        {mrpDisplayMode === "editable" && onMrpReferenceChange ? (
+          <div
             className={cn(
-              "w-full truncate px-2 tabular-nums",
+              "flex w-full min-w-0 items-center gap-1 px-2",
               PO_LINE_SUBLINE_TEXT_CLASS,
-              column.align === "right" && "text-right",
-              column.align === "center" && "text-center"
+              column.align === "right" && "justify-end text-right",
+              column.align === "center" && "justify-center text-center"
             )}
           >
-            MRP {formatPoLineMrpReference(mrp, 2)}
-          </span>
+            <span className="shrink-0 text-muted-foreground">MRP</span>
+            <PoLineMrpReferenceSlot
+              line={line}
+              column={column}
+              disabled={disabled}
+              layout="inline"
+              onChange={onMrpReferenceChange}
+              onBlur={onMrpReferenceBlur}
+            />
+          </div>
         ) : null}
       </PoLineSublineRow>
     </PoLineSublineZone>

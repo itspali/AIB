@@ -9,6 +9,14 @@ import { cn } from "@/lib/utils";
 export const DOCUMENT_LINE_COMPACT_INPUT_CLASS =
   "h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-2 text-sm shadow-none focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
 
+/** Read-only primary line amount — same foreground as compact editable inputs. */
+export const DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS =
+  "px-2 py-1.5 text-sm tabular-nums";
+
+/** Primary amount row inside PoLineQtyValueStack (matches h-8 input row). */
+export const DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS =
+  "block h-8 px-2 text-sm leading-8 tabular-nums";
+
 /** Spreadsheet cell embed — square corners, no inner border box. */
 export const DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS =
   "h-9 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:border-transparent focus-visible:outline-none focus-visible:shadow-none focus-visible:ring-0 focus-visible:ring-offset-0";
@@ -165,7 +173,7 @@ export function DocumentLineReadOnlyValueCell({
   return (
     <div
       className={cn(
-        "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+        DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
       )}
     >

@@ -3,6 +3,8 @@
 import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
 import {
   DOCUMENT_LINE_COMPACT_INPUT_CLASS,
+  DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
+  DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
   DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS,
   DocumentLineCompactInput,
   DocumentLineRemoveButton,
@@ -76,8 +78,16 @@ import {
 } from "@/lib/procurement/purchase-orders/po-line-discount";
 import { PoLineMrpMarkdownSlot } from "@/components/procurement/purchase-orders/po-line-mrp-markdown-slot";
 import { PoLinePromoSlot } from "@/components/procurement/purchase-orders/po-line-promo-slot";
+import {
+  patchPoLineMrpReference,
+  patchPoLineMrpReferenceDraft,
+  PoLineMrpReferenceSlot,
+} from "@/components/procurement/purchase-orders/po-line-mrp-reference-slot";
 import { isPromotionalPoLine } from "@/lib/procurement/purchase-orders/po-promo";
 import {
+  formatPoLineMrpReference,
+  hasPoLineMrpOverride,
+  resolvePoLineMrpFromCatalog,
   patchPoLineMrpMarkdownPercentage,
   patchPoLineMrpMarkdownPercentageDraft,
   patchPoLineOfferUnitPrice,
@@ -484,7 +494,49 @@ export function PoLinePriceCell({
     mrpColumnVisible = false,
     pricesTaxInclusive = false,
   } = ctx;
-  const showMrpStack = shouldShowPoMrpTradeTermsStack(line, enableMrpTradeTerms);
+  const isPromoLine = isPromotionalPoLine(line) && Boolean(line.variant_id);
+  const mrpDisplayMode = mrpColumnVisible ? "hidden" : "editable";
+  const showMrpStack =
+    !isPromoLine &&
+    (shouldShowPoMrpTradeTermsStack(line, enableMrpTradeTerms) ||
+      (enableMrpTradeTerms && mrpDisplayMode === "editable" && Boolean(line.variant_id)));
+
+  const patchMrpReferenceDraft = (value: string) =>
+    patchLine(line.key, patchPoLineMrpReferenceDraft(line, value));
+
+  const patchMrpReference = (value: string) =>
+    patchLine(line.key, patchPoLineMrpReference(line, value, column));
+
+  const promoSubline = isPromoLine ? (
+    <PoLinePromoSlot
+      line={line}
+      lines={ctx.lines}
+      defaultCategory={ctx.promoDefaultCategory}
+      disabled={disabled}
+      align={column.align}
+      onPatch={(patch) => patchLine(line.key, patch)}
+    />
+  ) : null;
+
+  const mrpSubline = showMrpStack ? (
+    <PoLineMrpMarkdownSlot
+      line={line}
+      column={column}
+      disabled={disabled}
+      mrpDisplayMode={mrpDisplayMode}
+      onMrpReferenceChange={patchMrpReferenceDraft}
+      onMrpReferenceBlur={patchMrpReference}
+      onMarkdownChange={(markdownPct) =>
+        patchLine(line.key, patchPoLineMrpMarkdownPercentageDraft(line, markdownPct, column))
+      }
+      onMarkdownBlur={(markdownPct) =>
+        patchLine(line.key, patchPoLineMrpMarkdownPercentage(line, markdownPct, column))
+      }
+    />
+  ) : null;
+
+  const sublineSlot = promoSubline ?? mrpSubline;
+  const showSublineStack = Boolean(sublineSlot);
 
   const priceInput = (
     <DocumentLineCompactInput
@@ -521,47 +573,63 @@ export function PoLinePriceCell({
     />
   );
 
-  if (!showMrpStack) {
-    return (
-      <div className="space-y-0">
-        {priceInput}
-        {isPromotionalPoLine(line) ? (
-          <PoLinePromoSlot
-            line={line}
-            lines={ctx.lines}
-            defaultCategory={ctx.promoDefaultCategory}
-            disabled={disabled}
-            onPatch={(patch) => patchLine(line.key, patch)}
-          />
-        ) : null}
-      </div>
-    );
+  if (!showSublineStack) {
+    return priceInput;
   }
 
   return (
-    <PoLineQtyValueStack
-      showUnitUnderQty
-      align={column.align}
-      unitSlot={
-        <PoLineMrpMarkdownSlot
-          line={line}
-          column={column}
-          disabled={disabled}
-          showMrpReference={!mrpColumnVisible}
-          onMarkdownChange={(markdownPct) =>
-            patchLine(
-              line.key,
-              patchPoLineMrpMarkdownPercentageDraft(line, markdownPct, column)
-            )
-          }
-          onMarkdownBlur={(markdownPct) =>
-            patchLine(line.key, patchPoLineMrpMarkdownPercentage(line, markdownPct, column))
-          }
-        />
-      }
-    >
-      {priceInput}
-    </PoLineQtyValueStack>
+    <div className={cn(isPromoLine && "min-w-0 max-w-full overflow-hidden")}>
+      <PoLineQtyValueStack
+        showUnitUnderQty
+        align={column.align}
+        unitSlot={sublineSlot}
+        unitSlotClassName={isPromoLine ? "min-w-0 max-w-full overflow-hidden" : undefined}
+      >
+        {priceInput}
+      </PoLineQtyValueStack>
+    </div>
+  );
+}
+
+export function PoLineMrpCell({
+  ctx,
+  column,
+}: {
+  ctx: LineCellContext;
+  column: DocumentColumnPref;
+}) {
+  const { line, disabled, patchLine, enableMrpTradeTerms = true } = ctx;
+
+  if (!line.variant_id || !enableMrpTradeTerms) {
+    return (
+      <PoLineReadOnlyCell
+        line={line}
+        column={column}
+        pricesTaxInclusive={ctx.pricesTaxInclusive}
+        taxSupplyNature={ctx.taxSupplyNature}
+      />
+    );
+  }
+
+  const catalogMrp = resolvePoLineMrpFromCatalog(line);
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
+
+  return (
+    <div className="min-w-0 px-2 py-1">
+      {catalogMrp > 0 && hasPoLineMrpOverride(line) ? (
+        <div className="mb-0.5 truncate text-[10px] leading-tight text-muted-foreground">
+          Cat. {formatPoLineMrpReference(catalogMrp, decimalPlaces)}
+        </div>
+      ) : null}
+      <PoLineMrpReferenceSlot
+        line={line}
+        column={column}
+        layout="column"
+        disabled={disabled}
+        onChange={(value) => patchLine(line.key, patchPoLineMrpReferenceDraft(line, value))}
+        onBlur={(value) => patchLine(line.key, patchPoLineMrpReference(line, value, column))}
+      />
+    </div>
   );
 }
 
@@ -700,7 +768,7 @@ export function PoLineDiscountAmountCell({
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
           column.align === "right" ? "text-right" : "text-left"
         )
       )}
@@ -809,7 +877,7 @@ export function PoLineTaxAmountCell({
         className={documentFieldTypographyClassName(
           column,
           cn(
-            "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+            DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
             column.align === "right" ? "text-right" : "text-left"
           )
         )}
@@ -840,7 +908,7 @@ export function PoLineTaxAmountCell({
         className={documentFieldTypographyClassName(
           column,
           cn(
-            "block h-8 px-2 text-sm leading-8 tabular-nums text-muted-foreground",
+            DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
             column.align === "right" ? "text-right" : "text-left"
           )
         )}
@@ -878,7 +946,7 @@ export function PoLineTaxComponentAmountCell({
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
           column.align === "right" ? "text-right" : "text-left"
         )
       )}
@@ -915,7 +983,7 @@ export function PoLineTotalCell({
         className={documentFieldTypographyClassName(
           column,
           cn(
-            "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+            DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
             column.align === "right" ? "text-right" : "text-left"
           )
         )}
@@ -960,7 +1028,7 @@ export function PoLineTotalCell({
         className={documentFieldTypographyClassName(
           column,
           cn(
-            "block h-8 px-2 text-sm leading-8 tabular-nums text-muted-foreground",
+            DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
             column.align === "right" ? "text-right" : "text-left"
           )
         )}
@@ -990,7 +1058,7 @@ export function PoLineReadOnlyCell({
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "px-2 py-1.5 text-sm tabular-nums text-muted-foreground",
+          DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
           column.id === "sku" && "font-mono tabular-nums",
           column.align === "right" ? "text-right" : "text-left"
         )
@@ -1051,6 +1119,9 @@ export function renderPoLineColumnCell(
   }
   if (columnId === "unit_price") {
     return <PoLinePriceCell ctx={ctx} column={column} />;
+  }
+  if (columnId === "mrp") {
+    return <PoLineMrpCell ctx={ctx} column={layoutColumn} />;
   }
   if (columnId === "discount_pct") {
     return (

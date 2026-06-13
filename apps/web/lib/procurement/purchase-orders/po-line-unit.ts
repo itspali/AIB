@@ -14,6 +14,7 @@ import {
 export {
   canEditPoLineUom,
   resolvePoDraftLineUomCode,
+  resolvePoDraftLineUomCodeForSave,
   resolvePoLineUnitCodeFromCatalog,
   resolvePoPeekLineUomCode,
   resolvePoLineUomOptions,

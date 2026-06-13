@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke:org-settings": "node scripts/smoke-org-settings.mjs"
+    "smoke:org-settings": "node scripts/smoke-org-settings.mjs",
+    "smoke:procurement": "node scripts/smoke-procurement.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

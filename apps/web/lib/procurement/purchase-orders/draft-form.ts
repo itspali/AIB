@@ -4,7 +4,7 @@ import {
   type PurchaseOrderCustomFields,
   parsePurchaseOrderCustomFields,
 } from "@/lib/procurement/purchase-orders/custom-fields";
-import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
+import type { PurchaseOrderLineRow, PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-entry-anchor";
 import {
   inferPoLineDiscountTypeFromSaved,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/procurement/purchase-orders/po-header-charges";
 import { mapPurchaseOrderTransactionDiscount } from "@/lib/procurement/purchase-orders/po-transaction-discount";
 import { computeImpliedMrpMarkdownPct } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import type { PoLineWritebackSnapshot } from "@/lib/procurement/purchase-orders/po-line-writeback-snapshot";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
 
 export type PoDraftLine = {
@@ -39,6 +40,10 @@ export type PoDraftLine = {
   catalog_context?: PoLineCatalogContext | null;
   /** Trade markdown % off item MRP (tier 1 — derives offer unit price). */
   mrp_markdown_percentage?: string;
+  /** PO-entered reference MRP when catalog MRP is blank. */
+  mrp_reference?: string | null;
+  /** Baseline catalog values for optional master-data write-back after save. */
+  writeback_snapshot?: PoLineWritebackSnapshot;
   is_promotional?: boolean;
   linked_parent_line_key?: string | null;
   linked_parent_line_id?: string | null;
@@ -279,6 +284,48 @@ export function mapPurchaseOrderHeaderCharges(order: PurchaseOrderRow): PoHeader
   });
 }
 
+function lineCatalogSnapshotFromSavedLine(line: PurchaseOrderLineRow): PoLineCatalogContext {
+  return lineCatalogSnapshot({
+    tax_rate_percentage: line.tax_rate_percentage,
+    base_unit_of_measure: line.base_unit_of_measure,
+    uom_code: line.uom_code,
+    mrp: line.mrp,
+  });
+}
+
+/** Map a persisted PO line into draft form shape (promo linkage uses saved line ids as keys). */
+export function mapSavedPoLineToDraftLine(
+  line: PurchaseOrderLineRow,
+  key: string = line.id
+): PoDraftLine {
+  const parentLineId = line.linked_parent_line_id?.trim() || null;
+  return {
+    key,
+    sku: line.variant_sku,
+    variant_id: line.variant_id,
+    item_id: line.item_id,
+    item_name: line.item_name,
+    variant_sku: line.variant_sku,
+    quantity_ordered: line.quantity_ordered,
+    unit_price_contractual: line.unit_price_contractual,
+    mrp_markdown_percentage: inferMrpMarkdownFromSavedLine({
+      unit_price_contractual: line.unit_price_contractual,
+      mrp: line.mrp,
+    }),
+    discount_percentage: line.discount_percentage ?? "0",
+    discount_amount: line.discount_amount ?? "0",
+    discount_type: inferPoLineDiscountTypeFromSaved(line),
+    uom_code: line.uom_code,
+    catalog_context: lineCatalogSnapshotFromSavedLine(line),
+    skuError: null,
+    is_promotional: line.is_promotional,
+    linked_parent_line_key: parentLineId,
+    linked_parent_line_id: parentLineId,
+    promo_group_id: line.promo_group_id ?? null,
+    promotional_category: line.promotional_category ?? null,
+  };
+}
+
 export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormState {
   return {
     destination_location_id: order.destination_location_id,
@@ -290,36 +337,7 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
     header_charges: mapPurchaseOrderHeaderCharges(order),
     lines:
       order.lines?.length
-        ? ensureTrailingPoLine(
-            order.lines.map((line) => {
-              const catalog_context = lineCatalogSnapshot({
-                tax_rate_percentage: line.tax_rate_percentage,
-                base_unit_of_measure: line.base_unit_of_measure,
-                uom_code: line.uom_code,
-                mrp: line.mrp,
-              });
-              return {
-                key: line.id,
-                sku: line.variant_sku,
-                variant_id: line.variant_id,
-                item_id: line.item_id,
-                item_name: line.item_name,
-                variant_sku: line.variant_sku,
-                quantity_ordered: line.quantity_ordered,
-                unit_price_contractual: line.unit_price_contractual,
-                mrp_markdown_percentage: inferMrpMarkdownFromSavedLine({
-                  unit_price_contractual: line.unit_price_contractual,
-                  mrp: line.mrp,
-                }),
-                discount_percentage: line.discount_percentage ?? "0",
-                discount_amount: line.discount_amount ?? "0",
-                discount_type: inferPoLineDiscountTypeFromSaved(line),
-                uom_code: line.uom_code,
-                catalog_context,
-                skuError: null,
-              };
-            })
-          )
+        ? ensureTrailingPoLine(order.lines.map((line) => mapSavedPoLineToDraftLine(line)))
         : [createEmptyPoLine()],
   };
 }
@@ -327,43 +345,34 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
 /** Seed a new draft from an existing PO (duplicate flow). */
 export function copyPoDraftFromOrder(order: PurchaseOrderRow): PoDraftFormState {
   const draft = mapPurchaseOrderToDraft(order);
+  const sourceLines = (order.lines ?? []).filter((line) => Boolean(line.variant_id));
+  const idToKey = new Map<string, string>();
+
+  const remappedLines = sourceLines.map((line) => {
+    const key = crypto.randomUUID();
+    idToKey.set(line.id, key);
+    return mapSavedPoLineToDraftLine(line, key);
+  });
+
+  const linesWithPromoLinks = remappedLines.map((line) => {
+    const parentId = line.linked_parent_line_id ?? line.linked_parent_line_key;
+    if (!parentId) {
+      return { ...line, linked_parent_line_id: null };
+    }
+    const parentKey = idToKey.get(parentId) ?? null;
+    return {
+      ...line,
+      linked_parent_line_key: parentKey,
+      linked_parent_line_id: null,
+    };
+  });
+
   return {
     ...draft,
     custom_fields: {
       ...draft.custom_fields,
       requisition_number: "",
     },
-    lines: ensureTrailingPoLine(
-      (order.lines ?? [])
-        .filter((line) => Boolean(line.variant_id))
-        .map((line) => {
-          const catalog_context = lineCatalogSnapshot({
-            tax_rate_percentage: line.tax_rate_percentage,
-            base_unit_of_measure: line.base_unit_of_measure,
-            uom_code: line.uom_code,
-            mrp: line.mrp,
-          });
-          return {
-            key: crypto.randomUUID(),
-            sku: line.variant_sku,
-            variant_id: line.variant_id,
-            item_id: line.item_id,
-            item_name: line.item_name,
-            variant_sku: line.variant_sku,
-            quantity_ordered: line.quantity_ordered,
-            unit_price_contractual: line.unit_price_contractual,
-            mrp_markdown_percentage: inferMrpMarkdownFromSavedLine({
-              unit_price_contractual: line.unit_price_contractual,
-              mrp: line.mrp,
-            }),
-            discount_percentage: line.discount_percentage ?? "0",
-            discount_amount: line.discount_amount ?? "0",
-            discount_type: inferPoLineDiscountTypeFromSaved(line),
-            uom_code: line.uom_code,
-            catalog_context,
-            skuError: null,
-          };
-        })
-    ),
+    lines: ensureTrailingPoLine(linesWithPromoLinks),
   };
 }

@@ -50,6 +50,12 @@ import { parseIssuePurchaseOrderRpcResult } from "@/lib/documents/posting-querie
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { fetchPoPromoEntitlements } from "@/lib/procurement/promo/entitlements";
+import { z } from "zod";
+import {
+  loadItemWritebackProfile,
+  mergeWritebackCustomFields,
+} from "@/lib/procurement/purchase-orders/po-catalog-writeback-server";
 
 const PO_PATHS = [
   "/procurement/purchase-orders",
@@ -261,6 +267,7 @@ export async function savePurchaseOrder(raw: unknown) {
         ? {
             is_promotional: true,
             linked_parent_line_id: line.linked_parent_line_id ?? null,
+            linked_parent_variant_id: line.linked_parent_variant_id ?? null,
             promo_group_id: line.promo_group_id ?? null,
             promotional_category: line.promotional_category ?? null,
           }
@@ -373,4 +380,225 @@ export async function issuePurchaseOrder(raw: unknown) {
     purchaseOrderId: parsedResult.purchaseOrderId,
     steps: parsedResult.steps,
   };
+}
+
+const applyPoCatalogWritebackSchema = z.object({
+  supplier_id: z.string().uuid(),
+  updates: z.array(
+    z.object({
+      item_id: z.string().uuid(),
+      variant_id: z.string().uuid(),
+      field: z.enum(["mrp", "purchase_price", "supplier_price", "purchase_uom"]),
+      value: z.string().trim().min(1),
+    })
+  ),
+});
+
+export async function applyPoCatalogWriteback(raw: unknown) {
+  const parsed = applyPoCatalogWritebackSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid catalog write-back request." };
+  }
+
+  const { supplier_id, updates } = parsed.data;
+  if (updates.length === 0) {
+    return { success: true as const, updatedCount: 0 };
+  }
+
+  const { supabase, tenantId } = await requireTenantId();
+
+  const grouped = new Map<
+    string,
+    {
+      item_id: string;
+      variant_id: string;
+      mrp?: string;
+      purchase_price?: string;
+      supplier_price?: string;
+      purchase_uom?: string;
+    }
+  >();
+
+  for (const update of updates) {
+    const key = `${update.item_id}:${update.variant_id}`;
+    const row = grouped.get(key) ?? {
+      item_id: update.item_id,
+      variant_id: update.variant_id,
+    };
+    if (update.field === "mrp") row.mrp = update.value;
+    if (update.field === "purchase_price") row.purchase_price = update.value;
+    if (update.field === "supplier_price") row.supplier_price = update.value;
+    if (update.field === "purchase_uom") row.purchase_uom = update.value;
+    grouped.set(key, row);
+  }
+
+  let updatedCount = 0;
+
+  for (const row of grouped.values()) {
+    const profile = await loadItemWritebackProfile(
+      supabase,
+      tenantId,
+      row.item_id,
+      row.variant_id
+    );
+    if (!profile) {
+      return { error: "One or more items could not be loaded for catalog update." };
+    }
+
+    if (row.purchase_uom) {
+      const allowedBase = profile.base_unit_of_measure.trim();
+      const allowedCodes = new Set([allowedBase]);
+      const { data: alternateRows, error: alternateError } = await supabase
+        .from("item_uoms")
+        .select("uom_code")
+        .eq("tenant_id", tenantId)
+        .eq("item_id", row.item_id);
+
+      if (alternateError) {
+        return { error: alternateError.message };
+      }
+
+      for (const alternate of alternateRows ?? []) {
+        const code = String(alternate.uom_code ?? "").trim();
+        if (code) allowedCodes.add(code);
+      }
+
+      const nextUom = row.purchase_uom.trim();
+      if (!allowedCodes.has(nextUom)) {
+        return {
+          error: `Purchase unit "${nextUom}" is not configured for ${profile.name}.`,
+        };
+      }
+    }
+
+    if (row.mrp || row.purchase_price || row.purchase_uom) {
+      const custom_fields = mergeWritebackCustomFields(
+        profile,
+        row.mrp,
+        row.purchase_price,
+        row.purchase_uom
+      );
+
+      const { error } = await supabase.rpc("save_product_master_profile", {
+        p_item_id: profile.item_id,
+        p_name: profile.name,
+        p_classification: profile.classification,
+        p_base_uom: profile.base_unit_of_measure,
+        p_category_id: profile.category_id,
+        p_sku: profile.sku,
+        p_description: profile.description,
+        p_is_purchasable: profile.is_purchasable,
+        p_is_salable: profile.is_salable,
+        p_is_returnable: profile.is_returnable,
+        p_default_tax_category: profile.default_tax_category,
+        p_has_variants: false,
+        p_custom_fields: custom_fields,
+        p_item_type: profile.item_type,
+        p_track_inventory: profile.track_inventory,
+        p_costing_method: profile.costing_method,
+        p_standard_cost: profile.standard_cost,
+        p_tracking_mode: profile.tracking_mode,
+        p_is_bundle: profile.is_bundle,
+        p_tax_code_id: profile.tax_code_id,
+        p_purchase_price: row.purchase_price ? Number(row.purchase_price) : null,
+        p_variant_strategy: profile.variant_strategy,
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+      updatedCount += 1;
+    }
+
+    if (row.supplier_price) {
+      const { data: existing, error: existingError } = await supabase
+        .from("supplier_items")
+        .select("supplier_part_number, minimum_order_quantity, lead_time_days, is_preferred")
+        .eq("tenant_id", tenantId)
+        .eq("supplier_id", supplier_id)
+        .eq("item_id", row.item_id)
+        .or(`variant_id.eq.${row.variant_id},variant_id.is.null`)
+        .order("variant_id", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) {
+        return { error: existingError.message };
+      }
+
+      const { error: supplierError } = await supabase.rpc("save_supplier_catalog_entries", {
+        p_item_id: row.item_id,
+        p_rows: [
+          {
+            variant_id: row.variant_id,
+            supplier_id,
+            supplier_price: Number(row.supplier_price),
+            supplier_part_number: existing?.supplier_part_number ?? null,
+            minimum_order_quantity: existing?.minimum_order_quantity ?? 1,
+            lead_time_days: existing?.lead_time_days ?? null,
+            is_preferred: existing?.is_preferred ?? false,
+          },
+        ],
+      });
+
+      if (supplierError) {
+        if (isMissingRpcError(supplierError)) {
+          return { error: formatRpcDeployError("save_supplier_catalog_entries") };
+        }
+        return { error: supplierError.message };
+      }
+      updatedCount += 1;
+    }
+  }
+
+  revalidatePurchaseOrderPaths();
+  revalidatePath("/items");
+  return { success: true as const, updatedCount };
+}
+
+const writeOffPromoEntitlementSchema = z.object({
+  entitlement_id: z.string().uuid(),
+  reason: z.string().trim().min(1, "A reason is required to write off free goods."),
+});
+
+export async function loadPoPromoEntitlements(purchaseOrderId: string) {
+  const parsed = z.string().uuid().safeParse(purchaseOrderId);
+  if (!parsed.success) {
+    return { error: "Invalid purchase order." as const };
+  }
+
+  const { supabase, tenantId } = await requireTenantId();
+
+  try {
+    const entitlements = await fetchPoPromoEntitlements(supabase, tenantId, parsed.data);
+    return { entitlements };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to load promotional entitlements.";
+    return { error: message };
+  }
+}
+
+export async function writeOffPromotionalEntitlement(raw: unknown) {
+  const parsed = writeOffPromoEntitlementSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid write-off request." };
+  }
+
+  const { supabase } = await requireTenantId();
+  const { entitlement_id, reason } = parsed.data;
+
+  const { error } = await supabase.rpc("write_off_promotional_entitlement", {
+    p_entitlement_id: entitlement_id,
+    p_reason: reason,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("write_off_promotional_entitlement") };
+    }
+    return { error: formatPurchaseOrderRpcError(error.message) };
+  }
+
+  revalidatePurchaseOrderPaths();
+  return { success: true as const };
 }

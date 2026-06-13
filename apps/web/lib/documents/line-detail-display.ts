@@ -4,6 +4,7 @@ import {
 } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import { resolvePoLineMrp } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
 import {
   formatPoLineComputedDiscountAmount,
   resolvePoLineDiscountInputValue,
@@ -46,8 +47,10 @@ export function resolveCommercialLineDetailDisplay(
       return formatLineDecimal(line.quantity_ordered, column);
     case "unit_price":
       return formatLineDecimal(line.unit_price_contractual, column);
-    case "mrp":
-      return formatLineDecimal(line.catalog_context?.mrp ?? "", column);
+    case "mrp": {
+      const mrp = resolvePoLineMrp(line);
+      return mrp > 0 ? formatLineDecimal(String(mrp), column) : null;
+    }
     case "line_total":
       return formatDocumentDecimal(
         resolvePoLineTaxAmount(line, options).taxableBase,

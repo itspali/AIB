@@ -38,6 +38,10 @@ import {
   resolvePoLineOfferUnitPrice,
   resolvePoLinePickerOfferUnitPrice,
 } from "@/lib/procurement/purchase-orders/supplier-price";
+import {
+  attachSupplierPriceSnapshot,
+  attachWritebackSnapshotFromCatalog,
+} from "@/lib/procurement/purchase-orders/po-line-writeback-snapshot";
 
 function applyMrpMarkdownSync(line: PoDraftLine): PoDraftLine {
   const sync = syncPoLineMrpMarkdownFromOfferPrice(line);
@@ -229,10 +233,15 @@ export function usePoLineEntryActions(
       onChange((current) =>
         current.map((line) => {
           if (line.key !== lineKey) return line;
-          return applyMrpMarkdownSync({
-            ...line,
-            unit_price_contractual: nextPrice || "0",
-          });
+          return applyMrpMarkdownSync(
+            attachSupplierPriceSnapshot(
+              {
+                ...line,
+                unit_price_contractual: nextPrice || "0",
+              },
+              result.unit_price
+            )
+          );
         })
       );
     },
@@ -253,11 +262,16 @@ export function usePoLineEntryActions(
               fallbackImageUrl
             );
             const uom_code = resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context);
-            return applyMrpMarkdownSync({
-              ...line,
-              catalog_context,
-              uom_code,
-            });
+            return applyMrpMarkdownSync(
+              attachWritebackSnapshotFromCatalog(
+                {
+                  ...line,
+                  catalog_context,
+                  uom_code,
+                },
+                catalog_context
+              )
+            );
           })
         );
       };

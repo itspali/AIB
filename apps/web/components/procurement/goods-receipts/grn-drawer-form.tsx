@@ -7,9 +7,15 @@ import {
   postGoodsReceipt,
 } from "@/app/procurement/goods-receipts/actions";
 import {
+  filterSavableGrnLandedCharges,
+  GrnLandedChargesPanel,
+  type GrnLandedChargeDraft,
+} from "@/components/procurement/goods-receipts/grn-landed-charges-panel";
+import {
   createEmptyGrnLine,
   filterSavableGrnLines,
   GrnLineEntryTable,
+  mapReceivablePoLineToGrnDraft,
   type GrnDraftLine,
 } from "@/components/procurement/goods-receipts/grn-line-entry-table";
 import {
@@ -18,6 +24,7 @@ import {
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
+import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -38,6 +45,7 @@ import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawe
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
+import type { LandedCostAllocationMethod } from "@/lib/procurement/settings";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
 import { cn } from "@/lib/utils";
@@ -53,6 +61,7 @@ type CreateFormState = {
   customs_duty_amount: string;
   import_igst_amount: string;
   lines: GrnDraftLine[];
+  landed_charges: GrnLandedChargeDraft[];
 };
 
 type Props = {
@@ -62,6 +71,7 @@ type Props = {
   receivableOrders: ReceivablePurchaseOrderOption[];
   peekReceipt: GoodsReceiptRow | null;
   prefillPurchaseOrderId?: string | null;
+  defaultLandedCostAllocationMethod?: LandedCostAllocationMethod;
   onClose: () => void;
   onAfterSave: (goodsReceiptId: string) => void;
 };
@@ -86,18 +96,8 @@ function defaultCreateForm(
       assessable_value: "",
       customs_duty_amount: "",
       import_igst_amount: "",
-      lines: selectedPo.lines.map((line) => ({
-        key: line.id,
-        sku: line.variant_sku,
-        variant_id: line.variant_id,
-        item_name: line.item_name,
-        variant_sku: line.variant_sku,
-        po_item_id: line.id,
-        quantity_received: line.open_quantity,
-        raw_unit_cost: line.unit_price_contractual,
-        open_quantity: line.open_quantity,
-        skuError: null,
-      })),
+      lines: selectedPo.lines.map(mapReceivablePoLineToGrnDraft),
+      landed_charges: [],
     };
   }
 
@@ -112,6 +112,7 @@ function defaultCreateForm(
     customs_duty_amount: "",
     import_igst_amount: "",
     lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
+    landed_charges: [],
   };
 }
 
@@ -127,6 +128,7 @@ export function GrnDrawerForm({
   receivableOrders,
   peekReceipt,
   prefillPurchaseOrderId = null,
+  defaultLandedCostAllocationMethod = "BY_VALUE",
   onClose,
   onAfterSave,
 }: Props) {
@@ -240,18 +242,7 @@ export function GrnDrawerForm({
     patchForm({
       destination_location_id: selectedPo.destination_location_id,
       purchase_order_id: selectedPo.id,
-      lines: selectedPo.lines.map((line) => ({
-        key: line.id,
-        sku: line.variant_sku,
-        variant_id: line.variant_id,
-        item_name: line.item_name,
-        variant_sku: line.variant_sku,
-        po_item_id: line.id,
-        quantity_received: line.open_quantity,
-        raw_unit_cost: line.unit_price_contractual,
-        open_quantity: line.open_quantity,
-        skuError: null,
-      })),
+      lines: selectedPo.lines.map(mapReceivablePoLineToGrnDraft),
     });
   };
 
@@ -273,8 +264,12 @@ export function GrnDrawerForm({
           variant_id: line.variant_id,
           po_item_id: line.po_item_id,
           quantity_received: line.quantity_received,
+          quantity_accepted: line.quantity_accepted || line.quantity_received,
+          quantity_rejected: line.quantity_rejected || "0",
           raw_unit_cost: line.raw_unit_cost,
+          is_promotional: line.is_promotional ?? Number(line.raw_unit_cost) === 0,
         })),
+        landed_charges: filterSavableGrnLandedCharges(form.landed_charges),
       };
 
       const result = await postGoodsReceipt(
@@ -394,7 +389,9 @@ export function GrnDrawerForm({
                 getRowKey={(line) => line.id}
                 columns={[
                   { id: "item", label: "Item", align: "left" },
-                  { id: "quantity_received", label: "Received", align: "right", widthClass: "w-[5.5rem]" },
+                  { id: "quantity_received", label: "Received", align: "right", widthClass: "w-[5rem]" },
+                  { id: "quantity_accepted", label: "Accepted", align: "right", widthClass: "w-[5rem]" },
+                  { id: "quantity_rejected", label: "Rejected", align: "right", widthClass: "w-[5rem]" },
                   { id: "raw_unit_cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
                 ]}
                 renderCell={(column, line) => {
@@ -408,6 +405,12 @@ export function GrnDrawerForm({
                   }
                   if (column.id === "quantity_received") {
                     return <DocumentLinePeekValueCell value={line.quantity_received} />;
+                  }
+                  if (column.id === "quantity_accepted") {
+                    return <DocumentLinePeekValueCell value={line.quantity_accepted} />;
+                  }
+                  if (column.id === "quantity_rejected") {
+                    return <DocumentLinePeekValueCell value={line.quantity_rejected} />;
                   }
                   return <DocumentLinePeekValueCell value={line.raw_unit_cost} />;
                 }}
@@ -487,6 +490,14 @@ export function GrnDrawerForm({
               </div>
             </div>
 
+            {form.purchase_order_id ? (
+              <PoPromoEntitlementsPanel
+                purchaseOrderId={form.purchase_order_id}
+                variant="banner"
+                className="shrink-0"
+              />
+            ) : null}
+
             {isImportGoodsPo ? (
               <div className="surface-inset grid shrink-0 grid-cols-1 gap-4 p-4 sm:grid-cols-2">
                 <p className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -555,6 +566,14 @@ export function GrnDrawerForm({
                 </div>
               </div>
             ) : null}
+
+            <GrnLandedChargesPanel
+              charges={form.landed_charges}
+              defaultAllocationMethod={defaultLandedCostAllocationMethod}
+              disabled={isPending}
+              className="shrink-0"
+              onChange={(landed_charges) => patchForm({ landed_charges })}
+            />
 
             <div
               className={cn(

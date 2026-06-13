@@ -45,7 +45,7 @@ import {
   PoLineSublineRow,
   PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
-import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
+import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import { resolvePoAddressBlocksForOrder } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
@@ -280,7 +280,7 @@ function PeekLineQtyCell({
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "align-top tabular-nums text-muted-foreground",
+          "align-top tabular-nums",
           showUnitUnderQty ? "p-0" : "p-2",
           column.align === "right" ? "text-right" : "text-left",
           DOCUMENT_LINE_ROW_CELL_HOVER
@@ -328,7 +328,7 @@ function PeekLineValueCell({
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "p-2 tabular-nums text-muted-foreground",
+          "p-2 tabular-nums",
           column.align === "right" ? "text-right" : "text-left",
           DOCUMENT_LINE_ROW_CELL_HOVER
         )
@@ -366,7 +366,7 @@ function PeekLinePriceCell({
       className={documentFieldTypographyClassName(
         column,
         cn(
-          "align-top tabular-nums text-muted-foreground",
+          "align-top tabular-nums",
           showMrpStack ? "p-0" : "p-2",
           column.align === "right" ? "text-right" : "text-left",
           DOCUMENT_LINE_ROW_CELL_HOVER
@@ -457,6 +457,8 @@ export function PoPeekView({
   const grandTotalDecimals = grandTotalField
     ? resolveColumnDecimalPlaces(grandTotalField)
     : 2;
+  const showPromoEntitlements =
+    order.document_status !== "DRAFT" && order.document_status !== "CANCELLED";
 
   const gridFields = headerFields.filter((field) => field.id !== "internal_notes");
   const internalNotesField = headerFields.find((field) => field.id === "internal_notes");
@@ -486,6 +488,14 @@ export function PoPeekView({
           field={internalNotesField}
           order={order}
           customFields={customFields}
+        />
+      ) : null}
+
+      {showPromoEntitlements ? (
+        <PoPromoEntitlementsPanel
+          purchaseOrderId={order.id}
+          allowWriteOff
+          variant="full"
         />
       ) : null}
 

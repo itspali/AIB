@@ -23,6 +23,8 @@ export type PoLineCatalogContext = {
   base_unit_of_measure: string | null;
   /** Maximum retail price from item master (reserved custom_fields key). */
   mrp: string | null;
+  /** Default purchase rate from item master commerce settings. */
+  purchase_price: string | null;
   image_url: string | null;
   tax_code_id: string | null;
   tax_rate: number;
@@ -48,6 +50,7 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     hsn_sac_code: null,
     base_unit_of_measure: null,
     mrp: null,
+    purchase_price: null,
     image_url: imageUrl,
     tax_code_id: null,
     tax_rate: 0,

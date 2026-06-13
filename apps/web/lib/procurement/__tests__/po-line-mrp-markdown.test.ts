@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   computeImpliedMrpMarkdownPct,
   computeOfferUnitFromMrpMarkdown,
+  hasPoLineMrpOverride,
   patchPoLineMrpMarkdownPercentage,
   patchPoLineOfferUnitPrice,
   patchPoLineOfferUnitPriceDraft,
   resolvePoLineMrpMarkdownPercentage,
+  resolvePoLineMrpReferenceDisplay,
   resolvePoLineMrpVarianceDirection,
   shouldShowPoMrpTradeTermsStack,
   syncPoLineMrpMarkdownFromOfferPrice,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { patchPoLineMrpReference, patchPoLineMrpReferenceDraft } from "@/components/procurement/purchase-orders/po-line-mrp-reference-slot";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 
 const priceColumn = {
@@ -151,16 +154,58 @@ describe("po-line-mrp-markdown", () => {
     expect(resolvePoLineMrpVarianceDirection(120, 108)).toBe("below");
     expect(resolvePoLineMrpVarianceDirection(120, 125)).toBe("above");
     expect(resolvePoLineMrpVarianceDirection(120, 120)).toBeNull();
-    expect(resolvePoLineMrpVarianceDirection(120, 0)).toBeNull();
+    expect(resolvePoLineMrpVarianceDirection(120, 0)).toBe("below");
   });
 
-  it("treats zero offer price as unset markdown, not 100% off MRP", () => {
-    expect(computeImpliedMrpMarkdownPct(2000, 0)).toBe("0");
+  it("treats zero offer price as 100% off MRP", () => {
+    expect(computeImpliedMrpMarkdownPct(2000, 0)).toBe("100.00");
     expect(resolvePoLineMrpMarkdownPercentage(sampleLine({ unit_price_contractual: "0" }))).toBe(
-      "0"
+      "100.00"
     );
+    expect(
+      patchPoLineOfferUnitPrice(sampleLine(), "0", priceColumn)
+    ).toEqual({
+      unit_price_contractual: "0.00",
+      mrp_markdown_percentage: "100.00",
+    });
     expect(syncPoLineMrpMarkdownFromOfferPrice(sampleLine({ unit_price_contractual: "0" }))).toEqual({
-      mrp_markdown_percentage: "0",
+      mrp_markdown_percentage: "100.00",
+    });
+  });
+
+  it("shows catalog MRP in the PO reference field until overridden", () => {
+    expect(resolvePoLineMrpReferenceDisplay(sampleLine())).toBe("120.00");
+    expect(hasPoLineMrpOverride(sampleLine())).toBe(false);
+    expect(
+      hasPoLineMrpOverride(sampleLine({ mrp_reference: "125" }))
+    ).toBe(true);
+  });
+
+  it("clears PO MRP override when value matches catalog on blur", () => {
+    expect(
+      patchPoLineMrpReference(sampleLine(), "120", priceColumn)
+    ).toEqual({
+      mrp_reference: null,
+      mrp_markdown_percentage: "10.00",
+    });
+    expect(
+      patchPoLineMrpReference(sampleLine(), "125", priceColumn)
+    ).toEqual({
+      mrp_reference: "125.00",
+      mrp_markdown_percentage: "13.60",
+    });
+  });
+
+  it("keeps raw MRP input while typing without normalizing to catalog", () => {
+    expect(patchPoLineMrpReferenceDraft(sampleLine(), "120.")).toEqual({
+      mrp_reference: "120.",
+      mrp_markdown_percentage: "10.00",
+    });
+    expect(
+      patchPoLineMrpReferenceDraft(sampleLine({ mrp_reference: "120." }), "125")
+    ).toEqual({
+      mrp_reference: "125",
+      mrp_markdown_percentage: "13.60",
     });
   });
 });

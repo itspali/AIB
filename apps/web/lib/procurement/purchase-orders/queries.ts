@@ -176,6 +176,10 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
         quantity_ordered,
         quantity_received,
         unit_price_contractual,
+        is_promotional,
+        linked_parent_line_id,
+        promo_group_id,
+        promotional_category,
         discount_percentage,
         discount_amount,
         tax_rate_percentage,
@@ -204,6 +208,10 @@ function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string 
         quantity_ordered,
         quantity_received,
         unit_price_contractual,
+        is_promotional,
+        linked_parent_line_id,
+        promo_group_id,
+        promotional_category,
         discount_percentage,
         discount_amount,
         tax_rate_percentage,
@@ -367,6 +375,10 @@ type PoLineDbRow = {
   quantity_ordered: number | string;
   quantity_received: number | string;
   unit_price_contractual: number | string;
+  is_promotional?: boolean | null;
+  linked_parent_line_id?: string | null;
+  promo_group_id?: string | null;
+  promotional_category?: string | null;
   discount_percentage?: number | string | null;
   discount_amount?: number | string | null;
   tax_rate_percentage?: number | string | null;
@@ -461,6 +473,8 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
   const received = formatDecimal(row.quantity_received);
   const openQty = Math.max(0, Number(ordered) - Number(received));
 
+  const unitPrice = formatDecimal(row.unit_price_contractual);
+
   return {
     id: row.id,
     item_id: row.item_id,
@@ -473,7 +487,11 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     mrp: extractMrpFromCustomFieldsRecord(item?.custom_fields) || null,
     quantity_ordered: ordered,
     quantity_received: received,
-    unit_price_contractual: formatDecimal(row.unit_price_contractual),
+    unit_price_contractual: unitPrice,
+    is_promotional: Boolean(row.is_promotional) || Number(unitPrice) === 0,
+    linked_parent_line_id: row.linked_parent_line_id ?? null,
+    promo_group_id: row.promo_group_id ?? null,
+    promotional_category: row.promotional_category?.trim() || null,
     discount_percentage: formatDecimal(row.discount_percentage ?? 0),
     discount_amount: formatDecimal(row.discount_amount ?? 0),
     tax_rate_percentage: formatDecimal(row.tax_rate_percentage ?? 0),

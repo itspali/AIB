@@ -3,10 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { fetchGoodsReceiptById, fetchGoodsReceipts } from "@/lib/procurement/goods-receipts/queries";
 import { formatGoodsReceiptRpcError } from "@/lib/procurement/goods-receipts/rpc-errors";
-import {
-  postGoodsReceiptSchema,
-  validateGrnLinesAgainstOpenQty,
-} from "@/lib/procurement/goods-receipts/schemas";
+import { validateGrnLinesAgainstOpenQty } from "@/lib/procurement/goods-receipts/schemas";
+import { validateGrnAcceptRejectLines } from "@/lib/procurement/goods-receipts/grn-line-validation";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
@@ -79,18 +77,36 @@ export async function postGoodsReceipt(
     if (qtyError) return { error: qtyError };
   }
 
+  const acceptRejectError = validateGrnAcceptRejectLines(
+    values.lines.map((line) => ({
+      variant_sku: line.variant_id,
+      quantity_received: line.quantity_received,
+      quantity_accepted: line.quantity_accepted?.trim() || line.quantity_received,
+      quantity_rejected: line.quantity_rejected?.trim() || "0",
+    }))
+  );
+  if (acceptRejectError) return { error: acceptRejectError };
+
   const { supabase, tenantId, userId } = await requireTenantId();
 
   const { data, error } = await supabase.rpc("post_goods_receipt", {
     p_destination_location_id: values.destination_location_id,
     p_purchase_order_id: values.purchase_order_id ?? null,
-    p_lines: values.lines.map((line) => ({
-      variant_id: line.variant_id,
-      po_item_id: line.po_item_id ?? null,
-      quantity_received: Number(line.quantity_received),
-      raw_unit_cost: Number(line.raw_unit_cost),
-      is_promotional: line.is_promotional ?? false,
-    })),
+    p_lines: values.lines.map((line) => {
+      const received = Number(line.quantity_received);
+      const acceptedRaw = line.quantity_accepted?.trim();
+      const accepted = acceptedRaw ? Number(acceptedRaw) : received;
+      const rejected = Number(line.quantity_rejected?.trim() || "0");
+      return {
+        variant_id: line.variant_id,
+        po_item_id: line.po_item_id ?? null,
+        quantity_received: received,
+        quantity_accepted: accepted,
+        quantity_rejected: rejected,
+        raw_unit_cost: Number(line.raw_unit_cost),
+        is_promotional: line.is_promotional ?? false,
+      };
+    }),
     p_created_by: userId,
     p_bill_of_entry_number: values.bill_of_entry_number ?? null,
     p_bill_of_entry_date: values.bill_of_entry_date || null,

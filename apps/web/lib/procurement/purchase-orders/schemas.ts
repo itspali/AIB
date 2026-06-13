@@ -39,6 +39,7 @@ export const purchaseOrderLineSchema = z.object({
   uom_code: z.string().trim().min(1).max(32).optional(),
   is_promotional: z.boolean().optional(),
   linked_parent_line_id: z.string().uuid().optional().nullable(),
+  linked_parent_variant_id: z.string().uuid().optional().nullable(),
   promo_group_id: z.string().uuid().optional().nullable(),
   promotional_category: z.string().trim().max(64).optional().nullable(),
 });

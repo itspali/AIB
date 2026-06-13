@@ -43,7 +43,28 @@ export function assignPromoGroups(lines: PoDraftLine[]): PoDraftLine[] {
       ...line,
       is_promotional: true,
       promo_group_id: promoGroupId,
-      linked_parent_line_id: parent?.key ?? line.linked_parent_line_id ?? null,
     };
   });
+}
+
+/** Resolve promo parent linkage for save — never send draft line keys as linked_parent_line_id. */
+export function resolvePromoParentForSave(
+  line: PoDraftLine,
+  parent: PoDraftLine | null | undefined,
+  persistedPoItemIds: ReadonlySet<string>
+): {
+  linked_parent_line_id?: string;
+  linked_parent_variant_id?: string;
+} {
+  if (!parent?.variant_id) {
+    if (line.linked_parent_line_id && persistedPoItemIds.has(line.linked_parent_line_id)) {
+      return { linked_parent_line_id: line.linked_parent_line_id };
+    }
+    return {};
+  }
+
+  return {
+    ...(persistedPoItemIds.has(parent.key) ? { linked_parent_line_id: parent.key } : {}),
+    linked_parent_variant_id: parent.variant_id,
+  };
 }
