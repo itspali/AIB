@@ -8,6 +8,7 @@ import {
   loadPurchaseBillDetail,
   savePurchaseBill,
 } from "@/app/procurement/bills/actions";
+import { BillAdvanceApplicationPanel } from "@/components/procurement/bills/bill-advance-application-panel";
 import { BillGrnLinkPanel } from "@/components/procurement/bills/bill-grn-link-panel";
 import { BillLineEntryTable } from "@/components/procurement/bills/bill-line-entry-table";
 import { BillPeekView } from "@/components/procurement/bills/bill-peek-view";
@@ -115,6 +116,18 @@ export function BillDrawerForm({
   const patchForm = useCallback((patch: Partial<CreateFormState>) => {
     setForm((current) => ({ ...current, ...patch }));
   }, []);
+
+  const reloadDetail = useCallback(() => {
+    if (!detail?.id) return;
+    void loadPurchaseBillDetail(detail.id).then((result) => {
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setDetail(result.bill);
+      onAfterSave();
+    });
+  }, [detail?.id, onAfterSave]);
 
   useEffect(() => {
     if (!open) return;
@@ -333,7 +346,15 @@ export function BillDrawerForm({
         detailLoading && !detail?.lines?.length ? (
           <p className="text-sm text-muted-foreground">Loading bill…</p>
         ) : detail ? (
-          <BillPeekView bill={detail} matchingTolerancePct={matchingTolerancePct} />
+          <div className="space-y-4">
+            <BillPeekView bill={detail} matchingTolerancePct={matchingTolerancePct} />
+            <BillAdvanceApplicationPanel
+              purchaseInvoiceId={detail.id}
+              supplierId={detail.supplier_id}
+              invoiceLiability={detail.total_liability_amount}
+              onApplied={reloadDetail}
+            />
+          </div>
         ) : null
       ) : postingSummary ? null : (
         <div

@@ -3,6 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { fetchLatestDocumentPostingRun } from "@/lib/documents/posting-queries";
 import {
+  fetchBillAdvanceApplications,
+  fetchVendorAdvancePayments,
+} from "@/lib/procurement/advances/queries";
+import {
+  applyVendorAdvanceSchema,
+  saveVendorAdvanceSchema,
+} from "@/lib/procurement/advances/schemas";
+import type { BillAdvanceApplicationRow, VendorAdvancePaymentRow } from "@/lib/procurement/advances/types";
+import {
   fetchPurchaseBillById,
   fetchPurchaseBills,
 } from "@/lib/procurement/bills/queries";
@@ -177,4 +186,106 @@ export async function exportGstrReport(
     return { error: error.message };
   }
   return { data };
+}
+
+export async function loadVendorAdvancesForSupplier(
+  supplierId: string
+): Promise<{ advances: VendorAdvancePaymentRow[] } | { error: string }> {
+  const parsed = z.string().uuid().safeParse(supplierId);
+  if (!parsed.success) return { error: "Invalid supplier." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  try {
+    const advances = await fetchVendorAdvancePayments(supabase, tenantId, {
+      supplierId: parsed.data,
+      withBalanceOnly: true,
+    });
+    return { advances };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load vendor advances.",
+    };
+  }
+}
+
+export async function loadBillAdvanceApplications(
+  purchaseInvoiceId: string
+): Promise<{ applications: BillAdvanceApplicationRow[] } | { error: string }> {
+  const parsed = z.string().uuid().safeParse(purchaseInvoiceId);
+  if (!parsed.success) return { error: "Invalid bill id." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  try {
+    const applications = await fetchBillAdvanceApplications(supabase, tenantId, parsed.data);
+    return { applications };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load advance applications.",
+    };
+  }
+}
+
+export async function saveVendorAdvance(raw: unknown) {
+  const parsed = saveVendorAdvanceSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid vendor advance." };
+  }
+
+  const { supabase, userId } = await requireTenantId();
+  const { data, error } = await supabase.rpc("save_vendor_advance_payment", {
+    p_advance_id: parsed.data.advance_id ?? null,
+    p_supplier_id: parsed.data.supplier_id,
+    p_payment_reference: parsed.data.payment_reference,
+    p_amount: parsed.data.amount,
+    p_currency_code: parsed.data.currency_code ?? "USD",
+    p_payment_date: parsed.data.payment_date || null,
+    p_notes: parsed.data.notes ?? null,
+    p_created_by: userId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("save_vendor_advance_payment") };
+    }
+    return { error: error.message };
+  }
+
+  revalidateBillPaths();
+  return { success: true as const, advanceId: data as string };
+}
+
+export async function applyVendorAdvanceToBill(raw: unknown) {
+  const parsed = applyVendorAdvanceSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid advance application." };
+  }
+
+  const { supabase, userId } = await requireTenantId();
+  const { data, error } = await supabase.rpc("apply_vendor_advance_to_invoice", {
+    p_invoice_id: parsed.data.purchase_invoice_id,
+    p_advance_payment_id: parsed.data.advance_payment_id,
+    p_amount: parsed.data.amount,
+    p_applied_by: userId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("apply_vendor_advance_to_invoice") };
+    }
+    return { error: error.message };
+  }
+
+  const postingRun = await fetchLatestDocumentPostingRun(
+    supabase,
+    "BILL",
+    parsed.data.purchase_invoice_id
+  );
+
+  revalidateBillPaths();
+  return {
+    success: true as const,
+    steps: postingRun?.steps ?? [],
+    overall: postingRun?.overall_status ?? "success",
+    detail: data,
+  };
 }
