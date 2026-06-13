@@ -1,6 +1,4 @@
--- GRN quality inspection release: clear is_qc_pending on the receipt header.
--- inventory_ledger is append-only; quarantine tag rows keep |QC-QUARANTINE reference.
--- See 20260612240100_fix_grn_qc_release_append_only.sql for the corrected RPC.
+-- Fix QC release: inventory_ledger is append-only; clear GRN header flag only.
 
 CREATE OR REPLACE FUNCTION public.release_goods_receipt_from_qc(
     p_goods_receipt_id UUID,
@@ -14,9 +12,7 @@ AS $$
 DECLARE
     v_tenant_id UUID;
     v_gr public.goods_receipts%ROWTYPE;
-    v_quarantine_ref TEXT;
     v_steps JSONB := '[]'::jsonb;
-    v_updated_ledger INTEGER := 0;
 BEGIN
     v_tenant_id := private.current_tenant_id();
     IF v_tenant_id IS NULL THEN RAISE EXCEPTION 'tenant context missing from session'; END IF;
@@ -33,34 +29,12 @@ BEGIN
         RAISE EXCEPTION 'goods receipt is not awaiting quality inspection';
     END IF;
 
-    v_quarantine_ref := v_gr.voucher_number || '|QC-QUARANTINE';
-
-    UPDATE public.inventory_ledger il
-    SET reference_document = v_gr.voucher_number
-    WHERE il.tenant_id = v_tenant_id
-      AND il.reference_document = v_quarantine_ref
-      AND EXISTS (
-          SELECT 1
-          FROM public.goods_receipt_items gri
-          WHERE gri.goods_receipt_id = p_goods_receipt_id
-            AND gri.tenant_id = v_tenant_id
-            AND gri.item_id = il.item_id
-            AND gri.variant_id IS NOT DISTINCT FROM il.variant_id
-      );
-
-    GET DIAGNOSTICS v_updated_ledger = ROW_COUNT;
-
     UPDATE public.goods_receipts
     SET is_qc_pending = FALSE,
         updated_at = NOW()
     WHERE id = p_goods_receipt_id;
 
-    v_steps := private.append_posting_step(
-        v_steps,
-        'grn_qc_released',
-        'success',
-        CASE WHEN v_updated_ledger > 0 THEN v_updated_ledger::TEXT ELSE NULL END
-    );
+    v_steps := private.append_posting_step(v_steps, 'grn_qc_released', 'success', NULL);
 
     INSERT INTO public.document_posting_runs (
         tenant_id, document_type, document_id, overall_status, steps, posted_by
@@ -76,7 +50,6 @@ BEGIN
 
     RETURN jsonb_build_object(
         'goods_receipt_id', p_goods_receipt_id,
-        'ledger_rows_updated', v_updated_ledger,
         'steps', v_steps
     );
 END;

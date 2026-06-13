@@ -45,11 +45,7 @@ export function GitManagementTerminal({
           />
         }
       >
-        <GitVoucherList
-          vouchers={vouchers}
-          onCreate={() => setDrawerOpen(true)}
-          onRefresh={refresh}
-        />
+        <GitVoucherList vouchers={vouchers} onRefresh={refresh} />
       </ListModuleShell>
 
       <GitDrawerForm

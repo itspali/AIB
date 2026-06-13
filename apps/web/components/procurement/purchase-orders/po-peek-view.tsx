@@ -45,6 +45,7 @@ import {
   PoLineSublineRow,
   PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
 import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";

@@ -227,22 +227,12 @@ export function GitDrawerForm({
 
 type ListProps = {
   vouchers: GoodsInTransitRow[];
-  onCreate: () => void;
   onRefresh: () => void;
 };
 
-export function GitVoucherList({ vouchers, onCreate, onRefresh }: ListProps) {
+export function GitVoucherList({ vouchers, onRefresh }: ListProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          Track inventory moved to in-transit holding locations before warehouse receipt.
-        </p>
-        <Button type="button" size="sm" onClick={onCreate}>
-          Post GIT
-        </Button>
-      </div>
-
       {vouchers.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
           No goods-in-transit vouchers yet. Flag a virtual location as GIT holding under Settings →

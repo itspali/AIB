@@ -41,8 +41,8 @@ export function GrnQcReleasePanel({ goodsReceiptId, isQcPending, onReleased }: P
         <div>
           <h3 className="text-sm font-semibold">Quality inspection</h3>
           <p className="text-xs text-muted-foreground">
-            This receipt is on hold until inspection passes. Release it when stock is approved for
-            use.
+            This receipt is on hold until inspection passes. Release clears the QC pending flag on
+            the receipt; inventory ledger rows remain append-only with their original references.
           </p>
         </div>
         <Badge variant="action_required" className="shrink-0 text-xs font-normal">

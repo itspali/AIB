@@ -89,7 +89,7 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
   grn_qc_released: {
     id: "grn_qc_released",
     label: "Quality inspection passed",
-    description: "Inspection is complete and received stock is released for normal use.",
+    description: "Inspection is complete and the receipt is cleared for normal use. Stock was already posted; this updates the receipt status only.",
     documents: ["GRN"],
   },
   grn_promo_bundle_cost_adjusted: {
