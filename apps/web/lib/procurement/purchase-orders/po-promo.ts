@@ -47,24 +47,20 @@ export function assignPromoGroups(lines: PoDraftLine[]): PoDraftLine[] {
   });
 }
 
-/** Resolve promo parent linkage for save — never send draft line keys as linked_parent_line_id. */
+/**
+ * Resolve promo parent linkage for save.
+ * save_purchase_order replaces all PO lines, so parent line ids from a prior save are stale —
+ * only linked_parent_variant_id is sent; the RPC resolves the new parent row after insert.
+ */
 export function resolvePromoParentForSave(
   line: PoDraftLine,
-  parent: PoDraftLine | null | undefined,
-  persistedPoItemIds: ReadonlySet<string>
+  parent: PoDraftLine | null | undefined
 ): {
-  linked_parent_line_id?: string;
   linked_parent_variant_id?: string;
 } {
   if (!parent?.variant_id) {
-    if (line.linked_parent_line_id && persistedPoItemIds.has(line.linked_parent_line_id)) {
-      return { linked_parent_line_id: line.linked_parent_line_id };
-    }
     return {};
   }
 
-  return {
-    ...(persistedPoItemIds.has(parent.key) ? { linked_parent_line_id: parent.key } : {}),
-    linked_parent_variant_id: parent.variant_id,
-  };
+  return { linked_parent_variant_id: parent.variant_id };
 }

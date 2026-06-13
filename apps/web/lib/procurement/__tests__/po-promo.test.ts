@@ -44,7 +44,7 @@ describe("assignPromoGroups", () => {
 });
 
 describe("resolvePromoParentForSave", () => {
-  it("uses linked_parent_variant_id for new draft parents", () => {
+  it("uses linked_parent_variant_id for draft and persisted parents", () => {
     const parent = line({
       key: "new-draft-key-1111-1111-111111111111",
       variant_id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
@@ -55,18 +55,22 @@ describe("resolvePromoParentForSave", () => {
       linked_parent_line_key: parent.key,
     });
 
-    expect(resolvePromoParentForSave(promo, parent, new Set())).toEqual({
+    expect(resolvePromoParentForSave(promo, parent)).toEqual({
       linked_parent_variant_id: parent.variant_id,
     });
   });
 
-  it("includes linked_parent_line_id when parent is a persisted PO line", () => {
+  it("does not send stale persisted line ids as linked_parent_line_id", () => {
     const persistedId = "ffffffff-ffff-ffff-ffff-ffffffffffff";
     const parent = line({ key: persistedId, variant_id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee" });
-    const promo = line({ key: "promo-key", unit_price_contractual: "0" });
-
-    expect(resolvePromoParentForSave(promo, parent, new Set([persistedId]))).toEqual({
+    const promo = line({
+      key: "promo-key",
+      unit_price_contractual: "0",
       linked_parent_line_id: persistedId,
+      linked_parent_line_key: persistedId,
+    });
+
+    expect(resolvePromoParentForSave(promo, parent)).toEqual({
       linked_parent_variant_id: parent.variant_id,
     });
   });

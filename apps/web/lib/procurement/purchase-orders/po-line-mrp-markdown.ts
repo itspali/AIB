@@ -115,10 +115,23 @@ export function patchPoLineMrpMarkdownPercentage(
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const decimalPlaces = resolveColumnDecimalPlaces(priceColumn);
   const markdownPct = parseSignedAmount(normalizeDocumentDecimalInput(markdownPctRaw, 2));
+  const formattedMarkdown = formatDocumentDecimal(markdownPct, 2);
   const mrp = resolvePoLineMrp(line);
+  const currentUnit = parseNonNegativeAmount(line.unit_price_contractual);
+
+  // Tab-through on unchanged implied markdown must not round-trip unit price via 2-decimal %.
+  if (mrp > 0 && currentUnit > 0) {
+    const impliedMarkdown = computeImpliedMrpMarkdownPct(mrp, currentUnit);
+    if (formattedMarkdown === impliedMarkdown) {
+      return {
+        mrp_markdown_percentage: formattedMarkdown,
+        unit_price_contractual: line.unit_price_contractual,
+      };
+    }
+  }
 
   return {
-    mrp_markdown_percentage: formatDocumentDecimal(markdownPct, 2),
+    mrp_markdown_percentage: formattedMarkdown,
     unit_price_contractual:
       mrp > 0
         ? computeOfferUnitFromMrpMarkdown(mrp, markdownPct, decimalPlaces)

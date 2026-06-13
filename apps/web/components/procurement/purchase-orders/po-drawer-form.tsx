@@ -432,7 +432,6 @@ export function PoDrawerForm({
         return;
       }
       const lineKeyToVariant = new Map(savableLines.map((line) => [line.key, line]));
-      const persistedPoItemIds = new Set((detail?.lines ?? []).map((line) => line.id));
       const taxMechanism = resolvePoGstContextFromForm(
         suppliers,
         form.supplier_id,
@@ -468,7 +467,7 @@ export function PoDrawerForm({
           const discount = normalizePoLineDiscountForSave(line);
           const parentKey = line.linked_parent_line_key;
           const parent = parentKey ? lineKeyToVariant.get(parentKey) : null;
-          const promoParent = resolvePromoParentForSave(line, parent, persistedPoItemIds);
+          const promoParent = resolvePromoParentForSave(line, parent);
           return {
             variant_id: line.variant_id,
             quantity_ordered: line.quantity_ordered,

@@ -266,8 +266,9 @@ export async function savePurchaseOrder(raw: unknown) {
       ...(line.is_promotional || Number(line.unit_price_contractual) === 0
         ? {
             is_promotional: true,
-            linked_parent_line_id: line.linked_parent_line_id ?? null,
-            linked_parent_variant_id: line.linked_parent_variant_id ?? null,
+            ...(line.linked_parent_variant_id
+              ? { linked_parent_variant_id: line.linked_parent_variant_id }
+              : {}),
             promo_group_id: line.promo_group_id ?? null,
             promotional_category: line.promotional_category ?? null,
           }

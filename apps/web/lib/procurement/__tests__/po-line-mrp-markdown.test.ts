@@ -83,6 +83,38 @@ describe("po-line-mrp-markdown", () => {
     });
   });
 
+  it("preserves unit price when markdown blur matches implied percent (tab-through)", () => {
+    const line = sampleLine({
+      catalog_context: {
+        ...sampleLine().catalog_context!,
+        mrp: "3500",
+      },
+      unit_price_contractual: "3000.00",
+      mrp_markdown_percentage: "14.29",
+    });
+    expect(computeImpliedMrpMarkdownPct(3500, 3000)).toBe("14.29");
+    expect(computeOfferUnitFromMrpMarkdown(3500, 14.29)).toBe("2999.85");
+    expect(patchPoLineMrpMarkdownPercentage(line, "14.29", priceColumn)).toEqual({
+      mrp_markdown_percentage: "14.29",
+      unit_price_contractual: "3000.00",
+    });
+  });
+
+  it("recalculates unit price when markdown percent is explicitly changed", () => {
+    const line = sampleLine({
+      catalog_context: {
+        ...sampleLine().catalog_context!,
+        mrp: "3500",
+      },
+      unit_price_contractual: "3000.00",
+      mrp_markdown_percentage: "14.29",
+    });
+    expect(patchPoLineMrpMarkdownPercentage(line, "15", priceColumn)).toEqual({
+      mrp_markdown_percentage: "15.00",
+      unit_price_contractual: "2975.00",
+    });
+  });
+
   it("updates markdown when offer unit changes", () => {
     expect(
       patchPoLineOfferUnitPrice(sampleLine({ unit_price_contractual: "96" }), "96", priceColumn)
