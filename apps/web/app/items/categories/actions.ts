@@ -89,6 +89,7 @@ export async function saveSystemCategory(
     p_category_id: values.category_id ?? null,
     p_default_variant_strategy: values.default_variant_strategy,
     p_inherit_parent_attributes: values.parent_id ? values.inherit_parent_attributes : true,
+    p_qc_receipt_policy: values.qc_receipt_policy,
   });
 
   if (error) return { error: error.message };

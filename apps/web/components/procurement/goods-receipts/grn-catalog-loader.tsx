@@ -21,6 +21,7 @@ export async function GrnCatalogLoader() {
       initialGoodsReceipts={goodsReceipts}
       initialReceivableOrders={receivableOrders}
       locations={locations}
+      procurementSettings={procurementSettings}
       defaultLandedCostAllocationMethod={
         procurementSettings.landed_cost_allocation_method as LandedCostAllocationMethod
       }

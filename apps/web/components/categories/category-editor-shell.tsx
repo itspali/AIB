@@ -32,6 +32,7 @@ import {
 } from "@/lib/categories/category-stage-status";
 import type { useCategoryForm } from "@/lib/categories/use-category-form";
 import { CATEGORY_EDITOR_FIELD_HELP } from "@/lib/categories/category-editor-field-help";
+import { QC_RECEIPT_POLICIES, qcReceiptPolicyLabel } from "@/lib/procurement/qc-receipt-policy";
 import {
   CATEGORY_EDITOR_FORM_CLASS,
   editorPanelWizardBleedLgClass,
@@ -259,6 +260,34 @@ export function CategoryEditorShell({
                           {"—".repeat(opt.depth)}
                           {opt.depth > 0 ? " " : ""}
                           {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="min-w-0 space-y-1.5">
+                  <CategoryFieldLabel
+                    label="QC on receipt"
+                    help="Default quality-inspection routing for items in this category."
+                  />
+                  <Select
+                    value={form.qc_receipt_policy}
+                    disabled={fieldsDisabled}
+                    onValueChange={(value) =>
+                      setForm((f) => ({
+                        ...f,
+                        qc_receipt_policy: value as typeof form.qc_receipt_policy,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {QC_RECEIPT_POLICIES.map((policy) => (
+                        <SelectItem key={policy} value={policy}>
+                          {qcReceiptPolicyLabel(policy)}
                         </SelectItem>
                       ))}
                     </SelectContent>

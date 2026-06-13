@@ -28,6 +28,7 @@ type Props = {
     | "po_auto_round_off_step"
     | "is_po_mandatory_for_grn"
     | "is_qc_required_before_stocking"
+    | "allow_qc_line_override"
     | "allow_zero_cost_receipts"
     | "promo_default_category"
     | "landed_cost_allocation_method"
@@ -197,6 +198,13 @@ export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
             checked={settings.is_qc_required_before_stocking}
             disabled={!canEdit || isPending}
             onCheckedChange={(checked) => patch({ is_qc_required_before_stocking: checked })}
+          />
+          <SwitchRow
+            label="Allow per-line QC override on receipts"
+            description="When enabled, receivers can toggle QC hold per line on a goods receipt."
+            checked={settings.allow_qc_line_override}
+            disabled={!canEdit || isPending || !settings.is_qc_required_before_stocking}
+            onCheckedChange={(checked) => patch({ allow_qc_line_override: checked })}
           />
           <SwitchRow
             label="Allow zero-cost receipt lines"

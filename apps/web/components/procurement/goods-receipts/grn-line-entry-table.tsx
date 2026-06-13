@@ -18,46 +18,71 @@ import {
 } from "@/lib/documents/line-entry";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
-  defaultGrnAcceptRejectForReceived,
-  syncGrnAcceptRejectOnReceivedChange,
+  defaultGrnExceptionForReceived,
+  isGrnExceptionInvalid,
+  syncGrnQuantitiesOnExceptionChange,
+  syncGrnQuantitiesOnReceivedChange,
 } from "@/lib/procurement/goods-receipts/grn-line-validation";
+import {
+  grnStockColumnLabel,
+  resolveDefaultRouteToQc,
+  type QcPolicyContext,
+  type VariantQcPolicyHint,
+} from "@/lib/procurement/qc-receipt-policy";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export type GrnDraftLine = {
   key: string;
   sku: string;
   variant_id: string;
+  item_id: string;
   item_name: string;
   variant_sku: string;
   po_item_id: string | null;
   quantity_received: string;
+  exception_quantity: string;
   quantity_accepted: string;
   quantity_rejected: string;
+  route_to_qc: boolean;
   raw_unit_cost: string;
   open_quantity: string | null;
   is_promotional?: boolean;
   skuError: string | null;
 };
 
-export function mapReceivablePoLineToGrnDraft(line: {
-  id: string;
-  variant_id: string;
-  variant_sku: string;
-  item_name: string;
-  open_quantity: string;
-  unit_price_contractual: string;
-  is_promotional?: boolean;
-}): GrnDraftLine {
+export function mapReceivablePoLineToGrnDraft(
+  line: {
+    id: string;
+    variant_id: string;
+    variant_sku: string;
+    item_name: string;
+    open_quantity: string;
+    unit_price_contractual: string;
+    is_promotional?: boolean;
+    item_id?: string;
+  },
+  options?: {
+    routeToQc?: boolean;
+  }
+): GrnDraftLine {
   const unitPrice = line.unit_price_contractual;
   const received = line.open_quantity;
+  const quantities = defaultGrnExceptionForReceived(received);
   return {
     key: line.id,
     sku: line.variant_sku,
     variant_id: line.variant_id,
+    item_id: line.item_id ?? "",
     item_name: line.item_name,
     variant_sku: line.variant_sku,
     po_item_id: line.id,
     quantity_received: received,
-    ...defaultGrnAcceptRejectForReceived(received),
+    exception_quantity: quantities.exception_quantity,
+    quantity_accepted: quantities.quantity_accepted,
+    quantity_rejected: quantities.quantity_rejected,
+    route_to_qc: options?.routeToQc ?? false,
     raw_unit_cost: unitPrice,
     open_quantity: line.open_quantity,
     is_promotional: line.is_promotional ?? Number(unitPrice) === 0,
@@ -71,6 +96,8 @@ type Props = {
   disabled?: boolean;
   showSectionTitle?: boolean;
   fillHeight?: boolean;
+  qcContext: QcPolicyContext;
+  policyHints: Record<string, VariantQcPolicyHint>;
   onChange: (lines: GrnDraftLine[] | ((current: GrnDraftLine[]) => GrnDraftLine[])) => void;
 };
 
@@ -79,12 +106,15 @@ export function createEmptyGrnLine(): GrnDraftLine {
     key: crypto.randomUUID(),
     sku: "",
     variant_id: "",
+    item_id: "",
     item_name: "",
     variant_sku: "",
     po_item_id: null,
     quantity_received: "",
+    exception_quantity: "0",
     quantity_accepted: "",
     quantity_rejected: "0",
+    route_to_qc: false,
     raw_unit_cost: "0",
     open_quantity: null,
     skuError: null,
@@ -95,47 +125,11 @@ function isGrnLineComplete(line: GrnDraftLine): boolean {
   return Boolean(line.variant_id) && Number(line.quantity_received) > 0;
 }
 
-const GRN_COLUMNS: DocumentLineColumn[] = [
-  {
-    id: "item",
-    label: "Item",
-    align: "left",
-    widthClass: "min-w-[12rem] w-auto sm:min-w-[16rem]",
-    editable: true,
-  },
-  {
-    id: "quantity_received",
-    label: "Received",
-    align: "right",
-    widthClass: "w-[4.5rem]",
-    editable: true,
-  },
-  {
-    id: "quantity_accepted",
-    label: "Accepted",
-    align: "right",
-    widthClass: "w-[4.5rem]",
-    editable: true,
-  },
-  {
-    id: "quantity_rejected",
-    label: "Rejected",
-    align: "right",
-    widthClass: "w-[4.5rem]",
-    editable: true,
-  },
-  {
-    id: "raw_unit_cost",
-    label: "Unit cost",
-    align: "right",
-    widthClass: "w-[5rem]",
-    editable: true,
-  },
-];
-
 function useGrnLineEntryActions(
   lines: GrnDraftLine[],
   poLocked: boolean,
+  qcContext: QcPolicyContext,
+  policyHints: Record<string, VariantQcPolicyHint>,
   onChange: (lines: GrnDraftLine[] | ((current: GrnDraftLine[]) => GrnDraftLine[])) => void
 ) {
   const itemRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -165,24 +159,45 @@ function useGrnLineEntryActions(
     [onChange, poLocked]
   );
 
-  const bindItemChange = useCallback(
-    (lineKey: string) => (patch: Partial<GrnDraftLine> & { unit_cost?: string }) => {
-      onChange((current) => {
-        const next = current.map((line) => {
-          if (line.key !== lineKey) return line;
-          return {
-            ...line,
-            ...patch,
-            raw_unit_cost: patch.unit_cost ?? line.raw_unit_cost,
-          };
-        });
-        if (!poLocked) {
-          return ensureTrailingEmptyLine(next, isDocumentLineItemSelected, createEmptyGrnLine);
-        }
-        return next;
-      });
+  const applyVariantPolicy = useCallback(
+    (line: GrnDraftLine, variantId: string, itemId: string) => {
+      const hint = policyHints[variantId];
+      const routeToQc = hint
+        ? resolveDefaultRouteToQc(qcContext, hint)
+        : qcContext.orgDefaultRouteToQc;
+      return {
+        variant_id: variantId,
+        item_id: itemId || hint?.item_id || line.item_id,
+        route_to_qc: routeToQc,
+      };
     },
-    [onChange, poLocked]
+    [policyHints, qcContext]
+  );
+
+  const bindItemChange = useCallback(
+    (lineKey: string) =>
+      (patch: Partial<GrnDraftLine> & { unit_cost?: string; item_id?: string }) => {
+        onChange((current) => {
+          const next = current.map((line) => {
+            if (line.key !== lineKey) return line;
+            const merged = {
+              ...line,
+              ...patch,
+              raw_unit_cost: patch.unit_cost ?? line.raw_unit_cost,
+              item_id: patch.item_id ?? line.item_id,
+            };
+            if (patch.variant_id && patch.variant_id !== line.variant_id) {
+              Object.assign(merged, applyVariantPolicy(line, patch.variant_id, merged.item_id));
+            }
+            return merged;
+          });
+          if (!poLocked) {
+            return ensureTrailingEmptyLine(next, isDocumentLineItemSelected, createEmptyGrnLine);
+          }
+          return next;
+        });
+      },
+    [applyVariantPolicy, onChange, poLocked]
   );
 
   return { itemRefs, patchLine, removeLine, bindItemChange };
@@ -194,21 +209,56 @@ export function GrnLineEntryTable({
   disabled = false,
   showSectionTitle = true,
   fillHeight = false,
+  qcContext,
+  policyHints,
   onChange,
 }: Props) {
-  const actions = useGrnLineEntryActions(lines, poLocked, onChange);
+  const actions = useGrnLineEntryActions(lines, poLocked, qcContext, policyHints, onChange);
+  const stockLabel = grnStockColumnLabel(qcContext.qcModuleEnabled);
 
   useEffect(() => {
     if (!poLocked) prefetchBrowseVariants();
   }, [poLocked]);
 
-  const columns = useMemo(
-    () =>
-      GRN_COLUMNS.map((column) => ({
-        ...column,
-        editable: column.id === "item" ? !poLocked : true,
-      })),
-    [poLocked]
+  const columns = useMemo<DocumentLineColumn[]>(
+    () => [
+      {
+        id: "item",
+        label: "Item",
+        align: "left",
+        widthClass: "min-w-[12rem] w-auto sm:min-w-[16rem]",
+        editable: !poLocked,
+      },
+      {
+        id: "quantity_received",
+        label: "Received",
+        align: "right",
+        widthClass: "w-[4.5rem]",
+        editable: true,
+      },
+      {
+        id: "exception_quantity",
+        label: "Exceptions",
+        align: "right",
+        widthClass: "w-[4.5rem]",
+        editable: true,
+      },
+      {
+        id: "quantity_accepted",
+        label: stockLabel,
+        align: "right",
+        widthClass: "w-[5rem]",
+        editable: false,
+      },
+      {
+        id: "raw_unit_cost",
+        label: "Unit cost",
+        align: "right",
+        widthClass: "w-[5rem]",
+        editable: true,
+      },
+    ],
+    [poLocked, stockLabel]
   );
 
   return (
@@ -218,7 +268,10 @@ export function GrnLineEntryTable({
       showSectionTitle={showSectionTitle}
     >
       <p className="-mt-1 text-xs text-muted-foreground">
-        Accepted plus rejected must equal received quantity on each line.
+        Enter received quantity and any dock exceptions. {stockLabel} is calculated automatically.
+        {qcContext.qcModuleEnabled
+          ? " Use the QC row under each item to route accepted stock into the inspection hold pool."
+          : null}
       </p>
       <DocumentLineEntryGrid
         lines={lines}
@@ -233,11 +286,24 @@ export function GrnLineEntryTable({
           if (column.id === "item") {
             if (poLocked) {
               return (
-                <DocumentLineReadOnlyItemCell
-                  itemName={line.item_name}
-                  variantSku={line.variant_sku}
-                  hint={line.open_quantity ? `Open: ${line.open_quantity}` : null}
-                />
+                <div className="space-y-2 px-2 py-2">
+                  <DocumentLineReadOnlyItemCell
+                    itemName={line.item_name}
+                    variantSku={line.variant_sku}
+                    hint={line.open_quantity ? `Open: ${line.open_quantity}` : null}
+                  />
+                  {qcContext.qcModuleEnabled && line.variant_id ? (
+                    <GrnLineQcSubRow
+                      line={line}
+                      disabled={disabled}
+                      qcContext={qcContext}
+                      policyHint={policyHints[line.variant_id] ?? null}
+                      onRouteChange={(routeToQc) =>
+                        actions.patchLine(line.key, { route_to_qc: routeToQc })
+                      }
+                    />
+                  ) : null}
+                </div>
               );
             }
 
@@ -261,6 +327,17 @@ export function GrnLineEntryTable({
                   }}
                   onChange={actions.bindItemChange(line.key)}
                 />
+                {qcContext.qcModuleEnabled && line.variant_id ? (
+                  <GrnLineQcSubRow
+                    line={line}
+                    disabled={disabled}
+                    qcContext={qcContext}
+                    policyHint={policyHints[line.variant_id] ?? null}
+                    onRouteChange={(routeToQc) =>
+                      actions.patchLine(line.key, { route_to_qc: routeToQc })
+                    }
+                  />
+                ) : null}
               </div>
             );
           }
@@ -276,7 +353,27 @@ export function GrnLineEntryTable({
                 onChange={(event) =>
                   actions.patchLine(
                     line.key,
-                    syncGrnAcceptRejectOnReceivedChange(line, event.target.value)
+                    syncGrnQuantitiesOnReceivedChange(line, event.target.value)
+                  )
+                }
+              />
+            );
+          }
+
+          if (column.id === "exception_quantity") {
+            const invalid = isGrnExceptionInvalid(line.quantity_received, line.exception_quantity);
+            return (
+              <DocumentLineCompactInput
+                align="right"
+                value={line.exception_quantity}
+                disabled={disabled}
+                inputMode="decimal"
+                aria-label="Exception quantity"
+                className={cn(invalid && "border-destructive focus-visible:ring-destructive/30")}
+                onChange={(event) =>
+                  actions.patchLine(
+                    line.key,
+                    syncGrnQuantitiesOnExceptionChange(line.quantity_received, event.target.value)
                   )
                 }
               />
@@ -288,27 +385,11 @@ export function GrnLineEntryTable({
               <DocumentLineCompactInput
                 align="right"
                 value={line.quantity_accepted}
-                disabled={disabled}
-                inputMode="decimal"
-                aria-label="Quantity accepted"
-                onChange={(event) =>
-                  actions.patchLine(line.key, { quantity_accepted: event.target.value })
-                }
-              />
-            );
-          }
-
-          if (column.id === "quantity_rejected") {
-            return (
-              <DocumentLineCompactInput
-                align="right"
-                value={line.quantity_rejected}
-                disabled={disabled}
-                inputMode="decimal"
-                aria-label="Quantity rejected"
-                onChange={(event) =>
-                  actions.patchLine(line.key, { quantity_rejected: event.target.value })
-                }
+                disabled
+                readOnly
+                tabIndex={-1}
+                aria-label={stockLabel}
+                className="bg-muted/40 text-muted-foreground"
               />
             );
           }
@@ -335,6 +416,58 @@ export function GrnLineEntryTable({
   );
 }
 
+function GrnLineQcSubRow({
+  line,
+  disabled,
+  qcContext,
+  policyHint,
+  onRouteChange,
+}: {
+  line: GrnDraftLine;
+  disabled?: boolean;
+  qcContext: QcPolicyContext;
+  policyHint: VariantQcPolicyHint | null;
+  onRouteChange: (routeToQc: boolean) => void;
+}) {
+  const defaultRoute = policyHint
+    ? resolveDefaultRouteToQc(qcContext, policyHint)
+    : qcContext.orgDefaultRouteToQc;
+  const canEdit = qcContext.allowLineOverride && !disabled && Number(line.quantity_accepted) > 0;
+  const checked = line.route_to_qc;
+
+  return (
+    <div className="mt-2 rounded-md border border-border/80 bg-muted/20 px-2 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor={`grn-qc-${line.key}`} className="text-[11px] font-normal text-muted-foreground">
+          Route to QC hold
+        </Label>
+        <Switch
+          id={`grn-qc-${line.key}`}
+          checked={checked}
+          disabled={!canEdit}
+          onCheckedChange={onRouteChange}
+        />
+      </div>
+      {!qcContext.allowLineOverride ? (
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Per-line overrides are disabled in procurement settings.
+        </p>
+      ) : null}
+      {policyHint ? (
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Catalog default: {defaultRoute ? "QC hold" : "direct to stock"}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function filterSavableGrnLines(lines: GrnDraftLine[]): GrnDraftLine[] {
   return lines.filter(isGrnLineComplete);
+}
+
+export function grnFormHasInvalidExceptions(lines: GrnDraftLine[]): boolean {
+  return lines.some((line) =>
+    isGrnExceptionInvalid(line.quantity_received, line.exception_quantity)
+  );
 }

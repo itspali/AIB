@@ -5,6 +5,7 @@ import type { CategoryRow } from "@/lib/categories/types";
 import { parseAttributeTemplates } from "@/lib/categories/tree";
 import { isItemType } from "@/lib/products/item-model";
 import { isProductVariantStrategy } from "@/lib/products/variant-strategy";
+import { isQcReceiptPolicy, type QcReceiptPolicy } from "@/lib/procurement/qc-receipt-policy";
 
 export async function fetchCategoryRows(
   supabase: SupabaseClient,
@@ -13,7 +14,7 @@ export async function fetchCategoryRows(
   const { data, error } = await supabase
     .from("item_categories")
     .select(
-      "id, name, parent_id, is_active, attribute_templates, inherit_parent_attributes, default_variant_strategy, default_item_type, created_at, updated_at"
+      "id, name, parent_id, is_active, attribute_templates, inherit_parent_attributes, default_variant_strategy, default_item_type, qc_receipt_policy, created_at, updated_at"
     )
     .eq("tenant_id", tenantId)
     .order("name");
@@ -32,6 +33,7 @@ function mapCategoryRow(row: {
   inherit_parent_attributes: boolean | null;
   default_variant_strategy: string | null;
   default_item_type?: string | null;
+  qc_receipt_policy?: string | null;
   created_at: string;
   updated_at: string;
 }): CategoryRow {
@@ -45,6 +47,9 @@ function mapCategoryRow(row: {
     default_variant_strategy: isProductVariantStrategy(row.default_variant_strategy ?? "")
       ? row.default_variant_strategy
       : "SINGLE_SKU",
+    qc_receipt_policy: isQcReceiptPolicy(String(row.qc_receipt_policy ?? "INHERIT"))
+      ? (row.qc_receipt_policy as QcReceiptPolicy)
+      : "INHERIT",
     default_item_type: isItemType(row.default_item_type ?? "")
       ? row.default_item_type
       : "PHYSICAL",
@@ -61,7 +66,7 @@ export async function fetchCategoryRowById(
   const { data, error } = await supabase
     .from("item_categories")
     .select(
-      "id, name, parent_id, is_active, attribute_templates, inherit_parent_attributes, default_variant_strategy, default_item_type, created_at, updated_at"
+      "id, name, parent_id, is_active, attribute_templates, inherit_parent_attributes, default_variant_strategy, default_item_type, qc_receipt_policy, created_at, updated_at"
     )
     .eq("tenant_id", tenantId)
     .eq("id", categoryId)

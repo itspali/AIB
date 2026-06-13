@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { fetchGoodsReceiptById, fetchGoodsReceipts } from "@/lib/procurement/goods-receipts/queries";
 import { formatGoodsReceiptRpcError } from "@/lib/procurement/goods-receipts/rpc-errors";
 import { validateGrnLinesAgainstOpenQty } from "@/lib/procurement/goods-receipts/schemas";
-import { validateGrnAcceptRejectLines } from "@/lib/procurement/goods-receipts/grn-line-validation";
+import { computeGrnLineQuantities } from "@/lib/procurement/goods-receipts/grn-line-validation";
+import { fetchVariantQcPolicyHints } from "@/lib/procurement/goods-receipts/qc-policy-queries";
 import { postGoodsReceiptSchema } from "@/lib/procurement/goods-receipts/schemas";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
@@ -62,6 +63,15 @@ export async function loadReceivablePurchaseOrders(
 
 export { searchStockVariantsForAdjustment, lookupStockVariantBySku };
 
+export async function loadGrnVariantQcPolicies(
+  variantIds: string[]
+): Promise<Record<string, VariantQcPolicyHint>> {
+  const unique = [...new Set(variantIds.filter(Boolean))];
+  if (!unique.length) return {};
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchVariantQcPolicyHints(supabase, tenantId, unique);
+}
+
 export async function postGoodsReceipt(
   raw: unknown,
   openQtyByPoItemId?: Record<string, string>
@@ -78,29 +88,34 @@ export async function postGoodsReceipt(
     if (qtyError) return { error: qtyError };
   }
 
-  const acceptRejectError = validateGrnAcceptRejectLines(
+  const exceptionError = validateGrnExceptionLines(
     values.lines.map((line) => ({
       variant_sku: line.variant_id,
       quantity_received: line.quantity_received,
-      quantity_accepted: line.quantity_accepted?.trim() || line.quantity_received,
-      quantity_rejected: line.quantity_rejected?.trim() || "0",
+      exception_quantity: line.exception_quantity ?? line.quantity_rejected ?? "0",
     }))
   );
-  if (acceptRejectError) return { error: acceptRejectError };
+  if (exceptionError) return { error: exceptionError };
 
   const { supabase, tenantId, userId } = await requireTenantId();
 
   const rpcLines = values.lines.map((line) => {
     const received = Number(line.quantity_received);
-    const acceptedRaw = line.quantity_accepted?.trim();
-    const accepted = acceptedRaw ? Number(acceptedRaw) : received;
-    const rejected = Number(line.quantity_rejected?.trim() || "0");
+    const exceptionQty = line.exception_quantity ?? line.quantity_rejected ?? "0";
+    const computed = computeGrnLineQuantities(line.quantity_received, exceptionQty);
+    const accepted = line.quantity_accepted?.trim()
+      ? Number(line.quantity_accepted)
+      : Number(computed.quantity_accepted);
+    const rejected = line.quantity_rejected?.trim()
+      ? Number(line.quantity_rejected)
+      : Number(computed.quantity_rejected);
     return {
       variant_id: line.variant_id,
       po_item_id: line.po_item_id ?? null,
       quantity_received: received,
       quantity_accepted: accepted,
       quantity_rejected: rejected,
+      route_to_qc: line.route_to_qc ?? false,
       raw_unit_cost: Number(line.raw_unit_cost),
       is_promotional: line.is_promotional ?? false,
     };

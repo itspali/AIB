@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { computeGrnLineQuantities } from "@/lib/procurement/goods-receipts/grn-line-validation";
 
 export const goodsReceiptLineSchema = z
   .object({
@@ -12,16 +13,10 @@ export const goodsReceiptLineSchema = z
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed > 0;
       }, "Quantity must be greater than zero."),
-    quantity_accepted: z
-      .string()
-      .trim()
-      .optional()
-      .default(""),
-    quantity_rejected: z
-      .string()
-      .trim()
-      .optional()
-      .default("0"),
+    quantity_accepted: z.string().trim().optional().default(""),
+    quantity_rejected: z.string().trim().optional().default("0"),
+    exception_quantity: z.string().trim().optional(),
+    route_to_qc: z.boolean().optional().default(false),
     raw_unit_cost: z
       .string()
       .trim()
@@ -43,23 +38,41 @@ export const goodsReceiptLineSchema = z
     }
 
     const received = Number(line.quantity_received);
-    const acceptedRaw = line.quantity_accepted?.trim();
-    const accepted = acceptedRaw ? Number(acceptedRaw) : received;
-    const rejected = Number(line.quantity_rejected ?? "0");
+    const exceptionRaw = line.exception_quantity?.trim();
+    const rejectedRaw = line.quantity_rejected?.trim();
+    const exception = exceptionRaw
+      ? Number(exceptionRaw)
+      : rejectedRaw
+        ? Number(rejectedRaw)
+        : 0;
 
-    if (!Number.isFinite(accepted) || accepted < 0 || !Number.isFinite(rejected) || rejected < 0) {
+    if (!Number.isFinite(exception) || exception < 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Accepted and rejected quantities must be zero or greater.",
-        path: ["quantity_accepted"],
+        message: "Exception quantity must be zero or greater.",
+        path: ["quantity_rejected"],
       });
       return;
     }
 
-    if (Math.abs(accepted + rejected - received) > 0.0001) {
+    if (exception > received + 0.0001) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Accepted plus rejected must equal quantity received.",
+        message: "Exception quantity cannot exceed received quantity.",
+        path: ["quantity_rejected"],
+      });
+      return;
+    }
+
+    const computed = computeGrnLineQuantities(line.quantity_received, String(exception));
+    const accepted = line.quantity_accepted?.trim()
+      ? Number(line.quantity_accepted)
+      : Number(computed.quantity_accepted);
+
+    if (!Number.isFinite(accepted) || accepted < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Into-stock quantity is invalid.",
         path: ["quantity_accepted"],
       });
     }

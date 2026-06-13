@@ -23,6 +23,7 @@ type Props = {
     | "po_auto_round_off_step"
     | "is_po_mandatory_for_grn"
     | "is_qc_required_before_stocking"
+    | "allow_qc_line_override"
     | "allow_zero_cost_receipts"
     | "promo_default_category"
     | "landed_cost_allocation_method"
@@ -86,6 +87,7 @@ export function ProcurementModuleSettingsTerminal({
               po_auto_round_off_step: procurementSettings.po_auto_round_off_step,
               is_po_mandatory_for_grn: procurementSettings.is_po_mandatory_for_grn,
               is_qc_required_before_stocking: procurementSettings.is_qc_required_before_stocking,
+              allow_qc_line_override: procurementSettings.allow_qc_line_override,
               allow_zero_cost_receipts: procurementSettings.allow_zero_cost_receipts,
               promo_default_category: procurementSettings.promo_default_category,
               landed_cost_allocation_method: procurementSettings.landed_cost_allocation_method,

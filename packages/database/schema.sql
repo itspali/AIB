@@ -325,6 +325,7 @@ CREATE TABLE item_categories (
     parent_id                   UUID REFERENCES item_categories (id) ON DELETE CASCADE,
     attribute_templates         JSONB NOT NULL DEFAULT '[]'::jsonb,
     inherit_parent_attributes   BOOLEAN NOT NULL DEFAULT TRUE,
+    qc_receipt_policy           qc_receipt_policy NOT NULL DEFAULT 'INHERIT',
     is_active                   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -344,6 +345,7 @@ CREATE TABLE items (
     is_returnable           BOOLEAN NOT NULL DEFAULT TRUE,
     has_variants            BOOLEAN NOT NULL DEFAULT FALSE,
     default_tax_category    TEXT NOT NULL DEFAULT 'STANDARD',
+    qc_receipt_policy       qc_receipt_policy NOT NULL DEFAULT 'INHERIT',
     custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_active               BOOLEAN NOT NULL DEFAULT TRUE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -529,9 +531,11 @@ CREATE TABLE purchase_invoices (
 --   supabase/migrations/20260612240000_grn_qc_release.sql
 --   supabase/migrations/20260612240100_fix_grn_qc_release_append_only.sql
 --   supabase/migrations/20260612250000_qc_hold_subpool.sql
+--   supabase/migrations/20260612260000_grn_exception_workflow_qc_policy.sql
 -- RPCs: save_vendor_advance_payment, apply_vendor_advance_to_invoice, release_goods_receipt_from_qc
 -- ====================================================================
 
+CREATE TYPE qc_receipt_policy AS ENUM ('INHERIT', 'REQUIRED', 'EXEMPT');
 CREATE TYPE promo_entitlement_status AS ENUM ('OPEN', 'PARTIAL', 'CLOSED', 'WRITTEN_OFF');
 CREATE TYPE promo_quarantine_type AS ENUM ('NOT_FOR_RESALE_SAMPLE', 'PROMOTIONAL_HOLD');
 CREATE TYPE purchase_invoice_match_status AS ENUM ('MATCHED', 'PPV_HOLD', 'VARIANCE');
@@ -577,6 +581,7 @@ CREATE TABLE goods_receipt_items (
     linked_parent_line_id   UUID,
     entitlement_id          UUID,
     is_promotional          BOOLEAN NOT NULL DEFAULT FALSE,
+    route_to_qc             BOOLEAN NOT NULL DEFAULT FALSE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

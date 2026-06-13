@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { toast } from "sonner";
 import {
   loadGoodsReceiptDetail,
+  loadGrnVariantQcPolicies,
   postGoodsReceipt,
 } from "@/app/procurement/goods-receipts/actions";
 import {
@@ -14,6 +15,7 @@ import {
 import {
   createEmptyGrnLine,
   filterSavableGrnLines,
+  grnFormHasInvalidExceptions,
   GrnLineEntryTable,
   mapReceivablePoLineToGrnDraft,
   type GrnDraftLine,
@@ -49,7 +51,13 @@ import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawe
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
-import type { LandedCostAllocationMethod } from "@/lib/procurement/settings";
+import type { LandedCostAllocationMethod, ProcurementSettings } from "@/lib/procurement/settings";
+import {
+  grnStockColumnLabel,
+  resolveDefaultRouteToQc,
+  type QcPolicyContext,
+  type VariantQcPolicyHint,
+} from "@/lib/procurement/qc-receipt-policy";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
 import { cn } from "@/lib/utils";
@@ -77,6 +85,10 @@ type Props = {
   peekReceipt: GoodsReceiptRow | null;
   prefillPurchaseOrderId?: string | null;
   defaultLandedCostAllocationMethod?: LandedCostAllocationMethod;
+  procurementSettings: Pick<
+    ProcurementSettings,
+    "is_qc_required_before_stocking" | "allow_qc_line_override"
+  >;
   onClose: () => void;
   onAfterSave: (goodsReceiptId: string) => void;
 };
@@ -136,6 +148,7 @@ export function GrnDrawerForm({
   peekReceipt,
   prefillPurchaseOrderId = null,
   defaultLandedCostAllocationMethod = "BY_VALUE",
+  procurementSettings,
   onClose,
   onAfterSave,
 }: Props) {
@@ -162,6 +175,49 @@ export function GrnDrawerForm({
     goodsReceiptId: string;
   } | null>(null);
   const submitRef = useRef<() => void>(() => {});
+
+  const qcContext = useMemo<QcPolicyContext>(
+    () => ({
+      qcModuleEnabled: procurementSettings.is_qc_required_before_stocking,
+      allowLineOverride: procurementSettings.allow_qc_line_override,
+      orgDefaultRouteToQc: procurementSettings.is_qc_required_before_stocking,
+    }),
+    [procurementSettings]
+  );
+
+  const [policyHints, setPolicyHints] = useState<Record<string, VariantQcPolicyHint>>({});
+
+  const applyPolicyHintsToLines = useCallback(
+    (lines: GrnDraftLine[], hints: Record<string, VariantQcPolicyHint>) =>
+      lines.map((line) => {
+        if (!line.variant_id) return line;
+        const hint = hints[line.variant_id];
+        if (!hint) return line;
+        return {
+          ...line,
+          item_id: hint.item_id,
+          route_to_qc: resolveDefaultRouteToQc(qcContext, hint),
+        };
+      }),
+    [qcContext]
+  );
+
+  const refreshPolicyHints = useCallback(
+    async (lines: GrnDraftLine[]) => {
+      const variantIds = lines.map((line) => line.variant_id).filter(Boolean);
+      if (!variantIds.length) {
+        setPolicyHints({});
+        return;
+      }
+      const hints = await loadGrnVariantQcPolicies(variantIds);
+      setPolicyHints(hints);
+      setForm((current) => ({
+        ...current,
+        lines: applyPolicyHintsToLines(current.lines, hints),
+      }));
+    },
+    [applyPolicyHintsToLines]
+  );
 
   const filteredReceivableOrders = useMemo(() => {
     if (!form.destination_location_id) return receivableOrders;
@@ -252,21 +308,39 @@ export function GrnDrawerForm({
         git_voucher_id: null,
         lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
       });
+      setPolicyHints({});
       return;
     }
 
     const selectedPo = receivableOrders.find((order) => order.id === purchaseOrderId);
     if (!selectedPo) return;
 
+    const nextLines = selectedPo.lines.map((line) =>
+      mapReceivablePoLineToGrnDraft({
+        ...line,
+        item_id: line.item_id,
+      })
+    );
+
     patchForm({
       destination_location_id: selectedPo.destination_location_id,
       purchase_order_id: selectedPo.id,
       git_voucher_id: null,
-      lines: selectedPo.lines.map(mapReceivablePoLineToGrnDraft),
+      lines: nextLines,
     });
+    void refreshPolicyHints(nextLines);
   };
 
+  const hasInvalidExceptions = useMemo(
+    () => grnFormHasInvalidExceptions(form.lines),
+    [form.lines]
+  );
+
   const handleSubmit = useCallback(() => {
+    if (hasInvalidExceptions) {
+      setError("Fix exception quantities before posting this receipt.");
+      return;
+    }
     setError(null);
     setErrorAction(null);
     startTransition(async () => {
@@ -284,8 +358,10 @@ export function GrnDrawerForm({
           variant_id: line.variant_id,
           po_item_id: line.po_item_id,
           quantity_received: line.quantity_received,
-          quantity_accepted: line.quantity_accepted || line.quantity_received,
-          quantity_rejected: line.quantity_rejected || "0",
+          quantity_accepted: line.quantity_accepted,
+          quantity_rejected: line.quantity_rejected,
+          exception_quantity: line.exception_quantity,
+          route_to_qc: line.route_to_qc,
           raw_unit_cost: line.raw_unit_cost,
           is_promotional: line.is_promotional ?? Number(line.raw_unit_cost) === 0,
         })),
@@ -310,7 +386,7 @@ export function GrnDrawerForm({
       });
       onAfterSave(result.goodsReceiptId);
     });
-  }, [form, onAfterSave, openQtyByPoItemId]);
+  }, [form, hasInvalidExceptions, onAfterSave, openQtyByPoItemId]);
 
   submitRef.current = handleSubmit;
 
@@ -335,7 +411,7 @@ export function GrnDrawerForm({
       <Button
         type="button"
         size="sm"
-        disabled={isPending || locations.length === 0}
+        disabled={isPending || locations.length === 0 || hasInvalidExceptions}
         onClick={handleSubmit}
         title="Post receipt (Ctrl+Enter)"
       >
@@ -423,8 +499,13 @@ export function GrnDrawerForm({
                 columns={[
                   { id: "item", label: "Item", align: "left" },
                   { id: "quantity_received", label: "Received", align: "right", widthClass: "w-[5rem]" },
-                  { id: "quantity_accepted", label: "Accepted", align: "right", widthClass: "w-[5rem]" },
-                  { id: "quantity_rejected", label: "Rejected", align: "right", widthClass: "w-[5rem]" },
+                  { id: "quantity_rejected", label: "Exceptions", align: "right", widthClass: "w-[5rem]" },
+                  {
+                    id: "quantity_accepted",
+                    label: grnStockColumnLabel(qcContext.qcModuleEnabled),
+                    align: "right",
+                    widthClass: "w-[5.5rem]",
+                  },
                   { id: "raw_unit_cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
                   ...(showLineImportTax
                     ? [
@@ -652,14 +733,16 @@ export function GrnDrawerForm({
                 lines={form.lines}
                 poLocked={poLocked}
                 disabled={isPending}
+                qcContext={qcContext}
+                policyHints={policyHints}
                 onChange={(linesOrUpdater) => {
-                  setForm((current) => ({
-                    ...current,
-                    lines:
+                  setForm((current) => {
+                    const nextLines =
                       typeof linesOrUpdater === "function"
                         ? linesOrUpdater(current.lines)
-                        : linesOrUpdater,
-                  }));
+                        : linesOrUpdater;
+                    return { ...current, lines: nextLines };
+                  });
                   setIsDirty(true);
                 }}
               />

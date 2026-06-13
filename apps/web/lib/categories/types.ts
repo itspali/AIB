@@ -1,6 +1,7 @@
 import type { AttributeFieldType } from "@/lib/categories/attribute-types";
 import type { ItemType } from "@/lib/products/item-model";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import type { QcReceiptPolicy } from "@/lib/procurement/qc-receipt-policy";
 
 /** Whether a category attribute defines variants (axis) or just describes the item. */
 export type AttributeRole = "axis" | "descriptive";
@@ -28,6 +29,7 @@ export type CategoryRow = {
   /** When true (default), merge ancestor templates then own; child keys override. */
   inherit_parent_attributes: boolean;
   default_variant_strategy: ProductVariantStrategy;
+  qc_receipt_policy: QcReceiptPolicy;
   default_item_type?: ItemType;
   created_at: string;
   updated_at: string;
@@ -46,4 +48,5 @@ export type SystemCategoryFormValues = {
   attribute_templates: AttributeTemplateEntry[];
   inherit_parent_attributes: boolean;
   default_variant_strategy: ProductVariantStrategy;
+  qc_receipt_policy: QcReceiptPolicy;
 };

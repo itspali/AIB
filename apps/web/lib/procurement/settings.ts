@@ -15,6 +15,7 @@ export type ProcurementSettings = {
   po_auto_round_off_step: number;
   is_po_mandatory_for_grn: boolean;
   is_qc_required_before_stocking: boolean;
+  allow_qc_line_override: boolean;
   allow_zero_cost_receipts: boolean;
   promo_default_category: string;
   landed_cost_allocation_method: LandedCostAllocationMethod;
@@ -39,6 +40,7 @@ const DEFAULT_PROCUREMENT_SETTINGS: ProcurementSettings = {
   po_auto_round_off_step: 1,
   is_po_mandatory_for_grn: false,
   is_qc_required_before_stocking: false,
+  allow_qc_line_override: true,
   allow_zero_cost_receipts: true,
   promo_default_category: "FREE_GOODS",
   landed_cost_allocation_method: "BY_VALUE",
@@ -163,6 +165,11 @@ export async function fetchProcurementSettings(
       meta,
       "is_qc_required_before_stocking",
       DEFAULT_PROCUREMENT_SETTINGS.is_qc_required_before_stocking
+    ),
+    allow_qc_line_override: readBoolean(
+      meta,
+      "allow_qc_line_override",
+      DEFAULT_PROCUREMENT_SETTINGS.allow_qc_line_override
     ),
     allow_zero_cost_receipts: readBoolean(
       meta,

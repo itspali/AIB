@@ -13,6 +13,7 @@ import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types
 import { parentSelectOptions, resolveInheritedAttributeTemplates } from "@/lib/categories/tree";
 import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import type { QcReceiptPolicy } from "@/lib/procurement/qc-receipt-policy";
 
 export type CategoryFormState = {
   name: string;
@@ -21,6 +22,7 @@ export type CategoryFormState = {
   attribute_templates: AttributeTemplateEntry[];
   inherit_parent_attributes: boolean;
   default_variant_strategy: ProductVariantStrategy;
+  qc_receipt_policy: QcReceiptPolicy;
 };
 
 export const defaultCategoryFormState: CategoryFormState = {
@@ -30,6 +32,7 @@ export const defaultCategoryFormState: CategoryFormState = {
   attribute_templates: [],
   inherit_parent_attributes: true,
   default_variant_strategy: "SINGLE_SKU",
+  qc_receipt_policy: "INHERIT",
 };
 
 function formFromCategory(category: CategoryRow): CategoryFormState {
@@ -40,6 +43,7 @@ function formFromCategory(category: CategoryRow): CategoryFormState {
     attribute_templates: category.attribute_templates.map((entry) => ({ ...entry })),
     inherit_parent_attributes: category.inherit_parent_attributes,
     default_variant_strategy: category.default_variant_strategy,
+    qc_receipt_policy: category.qc_receipt_policy,
   };
 }
 
@@ -178,6 +182,7 @@ export function useCategoryForm({
         attribute_templates: templates,
         inherit_parent_attributes: form.parent_id ? form.inherit_parent_attributes : true,
         default_variant_strategy: form.default_variant_strategy,
+        qc_receipt_policy: form.qc_receipt_policy,
       });
 
       if ("error" in result) {
