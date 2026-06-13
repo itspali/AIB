@@ -11,6 +11,7 @@ export const STOCK_BALANCE_COLUMN_IDS = [
   "item",
   "sku",
   "on_hand",
+  "promo_on_hand",
   "avg_cost",
   "reorder",
 ] as const;
@@ -62,7 +63,16 @@ export const STOCK_BALANCE_LIST_COLUMNS: ListColumnDef<StockBalanceColumnId>[] =
   },
   {
     id: "on_hand",
-    label: "On hand",
+    label: "Sellable",
+    defaultVisible: true,
+    align: "right",
+    group: "Inventory",
+    valueKind: "number",
+    widths: W_NUMBER,
+  },
+  {
+    id: "promo_on_hand",
+    label: "Promo / sample",
     defaultVisible: true,
     align: "right",
     group: "Inventory",

@@ -11,3 +11,10 @@ export type PromoFulfillmentShipmentStub = {
 export function isPromoFulfillmentShipmentReady(): boolean {
   return false;
 }
+
+export function describePromoFulfillmentShipmentStatus(): string {
+  if (isPromoFulfillmentShipmentReady()) {
+    return "Sales shipments can consume promotional stock from the promo sub-pool.";
+  }
+  return "Promo fulfillment shipments are not wired yet — stock remains in the promotional sub-pool until sales outbound is connected.";
+}

@@ -1,50 +1,22 @@
-import { ClipboardList, PackageCheck, ScrollText, Building2, Ship } from "lucide-react";
-import { ModuleOverview } from "@/components/layout/module-overview";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { ProcurementOverviewTerminal } from "@/components/procurement/procurement-overview-terminal";
+import { getModulePageContext } from "@/lib/layout/module-page";
+import { fetchProcurementSettings } from "@/lib/procurement/settings";
 
-export default function ProcurementPage() {
+export default async function ProcurementPage() {
+  const { supabase, tenantId, orgName, approvalAlertCount, operatorProfile } =
+    await getModulePageContext();
+
+  const procurementSettings = await fetchProcurementSettings(supabase, tenantId);
+
   return (
-    <ModuleOverview
-      title="Procurement"
-      description="Purchase inbound workflows — raise orders, receive stock, and match supplier bills."
-      cards={[
-        {
-          href: "/procurement/purchase-orders",
-          label: "Purchase Orders",
-          description: "Create draft POs, issue to suppliers, and track fulfillment status.",
-          icon: ClipboardList,
-        },
-        {
-          href: "/procurement/goods-receipts",
-          label: "Goods Receipts",
-          description: "Post GRNs against purchase orders or receive stock directly at a location.",
-          icon: PackageCheck,
-        },
-        {
-          href: "/procurement/goods-in-transit",
-          label: "Goods in Transit",
-          description: "Move stock to GIT holding nodes and clear them when import receipts land.",
-          icon: Ship,
-        },
-        {
-          href: "/procurement/subcontract",
-          label: "Subcontracting",
-          description: "Vendor job work locations and BOM backflush for finished goods receipts.",
-          icon: Building2,
-        },
-        {
-          href: "/procurement/suppliers",
-          label: "Suppliers",
-          description: "Vendor master profiles, contacts, and purchasing terms.",
-          icon: Building2,
-          comingSoon: true,
-        },
-        {
-          href: "/procurement/bills",
-          label: "Bills",
-          description: "Supplier invoices, three-way match, and accounts payable posting.",
-          icon: ScrollText,
-        },
-      ]}
-    />
+    <DashboardShell
+      orgName={orgName}
+      approvalAlertCount={approvalAlertCount}
+      operatorProfile={operatorProfile}
+      tenantId={tenantId}
+    >
+      <ProcurementOverviewTerminal procurementSettings={procurementSettings} />
+    </DashboardShell>
   );
 }

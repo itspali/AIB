@@ -94,6 +94,12 @@ function renderBalanceCell(columnId: StockBalanceColumnId, row: StockBalanceRow)
           ) : null}
         </div>
       );
+    case "promo_on_hand":
+      return (
+        <span className="tabular-nums text-muted-foreground">
+          {row.promo_quantity_on_hand ?? "—"}
+        </span>
+      );
     case "avg_cost":
       return <span className="tabular-nums">{row.current_average_cost}</span>;
     case "reorder":
@@ -141,7 +147,7 @@ export function StockBalancesTable({
         measure: {
           ...measureHintsFromValueKind(column),
           mono: columnId === "sku",
-          tabular: columnId === "on_hand" || columnId === "avg_cost" || columnId === "reorder",
+          tabular: columnId === "on_hand" || columnId === "promo_on_hand" || columnId === "avg_cost" || columnId === "reorder",
           statusBadgeExtraPx: columnId === "on_hand" ? 20 : 0,
         },
       });

@@ -27,6 +27,8 @@ export function getStockBalanceCellDisplayTexts(
       return row.below_reorder
         ? [String(row.total_quantity_on_hand), "Low"]
         : [String(row.total_quantity_on_hand)];
+    case "promo_on_hand":
+      return [row.promo_quantity_on_hand ?? "—"];
     case "avg_cost":
       return [row.current_average_cost];
     case "reorder":

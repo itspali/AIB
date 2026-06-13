@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { PurchaseOrderDocumentLayoutPanel } from "@/components/settings/document-layout/purchase-order-document-layout-panel";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
@@ -27,6 +28,11 @@ type Props = {
     | "landed_cost_allocation_method"
     | "absorb_sunk_logistics_overhead"
     | "matching_tolerance_percentage"
+    | "po_mrp_trade_terms_enabled"
+    | "allow_edit_issued_purchase_orders"
+    | "allow_line_item_discounts"
+    | "allow_transaction_discounts"
+    | "purchase_prices_tax_inclusive"
   >;
 };
 
@@ -37,6 +43,9 @@ export function ProcurementModuleSettingsTerminal({
   initialLayout,
   procurementSettings,
 }: Props) {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "policies" ? "policies" : "layout";
+
   return (
     <div className="canvas-scroll-endpad space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -50,7 +59,7 @@ export function ProcurementModuleSettingsTerminal({
         <h1 className="text-lg font-semibold tracking-tight">Procurement</h1>
       </div>
 
-      <Tabs defaultValue="layout">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="h-8">
           <TabsTrigger value="layout" className="h-7 px-3 text-xs">
             Document layout
@@ -82,6 +91,12 @@ export function ProcurementModuleSettingsTerminal({
               landed_cost_allocation_method: procurementSettings.landed_cost_allocation_method,
               absorb_sunk_logistics_overhead: procurementSettings.absorb_sunk_logistics_overhead,
               matching_tolerance_percentage: procurementSettings.matching_tolerance_percentage,
+              po_mrp_trade_terms_enabled: procurementSettings.po_mrp_trade_terms_enabled,
+              allow_edit_issued_purchase_orders:
+                procurementSettings.allow_edit_issued_purchase_orders,
+              allow_line_item_discounts: procurementSettings.allow_line_item_discounts,
+              allow_transaction_discounts: procurementSettings.allow_transaction_discounts,
+              purchase_prices_tax_inclusive: procurementSettings.purchase_prices_tax_inclusive,
             }}
           />
         </TabsContent>

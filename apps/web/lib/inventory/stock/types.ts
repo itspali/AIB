@@ -14,6 +14,8 @@ export type StockBalanceRow = {
   current_average_cost: string;
   reorder_point: string | null;
   below_reorder: boolean;
+  /** Promotional / sample sub-pool quantity at this location (display-only). */
+  promo_quantity_on_hand?: string | null;
 };
 
 export type StockAdjustmentLineRow = {

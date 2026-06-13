@@ -33,6 +33,11 @@ type Props = {
     | "landed_cost_allocation_method"
     | "absorb_sunk_logistics_overhead"
     | "matching_tolerance_percentage"
+    | "po_mrp_trade_terms_enabled"
+    | "allow_edit_issued_purchase_orders"
+    | "allow_line_item_discounts"
+    | "allow_transaction_discounts"
+    | "purchase_prices_tax_inclusive"
   >;
   canEdit: boolean;
 };
@@ -128,6 +133,49 @@ export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
               </SelectContent>
             </Select>
           </div>
+        </div>
+      </OrgSettingsSection>
+
+      <OrgSettingsSection
+        title="Purchase order document"
+        description="Line layout, pricing defaults, and editing rules for purchase orders."
+      >
+        <div className="space-y-3">
+          <SwitchRow
+            label="MRP and trade terms columns"
+            description="Show MRP and trade-term fields on purchase order lines when catalog data supports them."
+            checked={settings.po_mrp_trade_terms_enabled}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ po_mrp_trade_terms_enabled: checked })}
+          />
+          <SwitchRow
+            label="Allow editing issued purchase orders"
+            description="Users with edit permission can change issued orders that have not yet been received."
+            checked={settings.allow_edit_issued_purchase_orders}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ allow_edit_issued_purchase_orders: checked })}
+          />
+          <SwitchRow
+            label="Purchase prices include tax"
+            description="Default tax-inclusive pricing for new purchase orders. Each PO can override on the line table."
+            checked={settings.purchase_prices_tax_inclusive}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ purchase_prices_tax_inclusive: checked })}
+          />
+          <SwitchRow
+            label="Line item discounts"
+            description="Allow discount percentage or amount on individual purchase order lines."
+            checked={settings.allow_line_item_discounts}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ allow_line_item_discounts: checked })}
+          />
+          <SwitchRow
+            label="Transaction-level discounts"
+            description="Allow a document-level discount on purchase order totals."
+            checked={settings.allow_transaction_discounts}
+            disabled={!canEdit || isPending}
+            onCheckedChange={(checked) => patch({ allow_transaction_discounts: checked })}
+          />
         </div>
       </OrgSettingsSection>
 

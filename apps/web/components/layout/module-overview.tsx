@@ -15,14 +15,22 @@ type Props = {
   title: string;
   description: string;
   cards: ModuleOverviewCard[];
+  /** When nested inside another module page, render a section heading instead of a page title. */
+  headingLevel?: 1 | 2;
 };
 
 /** Shared module landing layout: section shortcut cards under the module header. */
-export function ModuleOverview({ title, description, cards }: Props) {
+export function ModuleOverview({ title, description, cards, headingLevel = 1 }: Props) {
+  const Heading = headingLevel === 2 ? "h2" : "h1";
+  const headingClass =
+    headingLevel === 2
+      ? "text-base font-semibold tracking-tight"
+      : "text-2xl font-bold tracking-tight";
+
   return (
-    <div className="canvas-scroll-endpad">
+    <div className={headingLevel === 2 ? undefined : "canvas-scroll-endpad"}>
       <header className="mb-5">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <Heading className={headingClass}>{title}</Heading>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </header>
 

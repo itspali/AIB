@@ -96,6 +96,11 @@ const saveProcurementPoliciesSchema = z.object({
   landed_cost_allocation_method: z.enum(["BY_QUANTITY", "BY_VALUE", "BY_WEIGHT"]),
   absorb_sunk_logistics_overhead: z.boolean(),
   matching_tolerance_percentage: z.number().min(0).max(100),
+  po_mrp_trade_terms_enabled: z.boolean(),
+  allow_edit_issued_purchase_orders: z.boolean(),
+  allow_line_item_discounts: z.boolean(),
+  allow_transaction_discounts: z.boolean(),
+  purchase_prices_tax_inclusive: z.boolean(),
 });
 
 export async function saveProcurementPolicies(raw: unknown) {
@@ -123,6 +128,11 @@ export async function saveProcurementPolicies(raw: unknown) {
         landed_cost_allocation_method: parsed.data.landed_cost_allocation_method,
         absorb_sunk_logistics_overhead: parsed.data.absorb_sunk_logistics_overhead,
         matching_tolerance_percentage: parsed.data.matching_tolerance_percentage,
+        po_mrp_trade_terms_enabled: parsed.data.po_mrp_trade_terms_enabled,
+        allow_edit_issued_purchase_orders: parsed.data.allow_edit_issued_purchase_orders,
+        allow_line_item_discounts: parsed.data.allow_line_item_discounts,
+        allow_transaction_discounts: parsed.data.allow_transaction_discounts,
+        purchase_prices_tax_inclusive: parsed.data.purchase_prices_tax_inclusive,
       },
     });
 
@@ -135,6 +145,7 @@ export async function saveProcurementPolicies(raw: unknown) {
 
     revalidatePath("/settings/modules/procurement");
     revalidatePath("/procurement/purchase-orders");
+    revalidatePath("/procurement");
 
     return { success: true as const };
   } catch (error) {

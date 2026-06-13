@@ -40,10 +40,16 @@ import {
   useFilteredStockAdjustments,
   useFilteredStockBalances,
 } from "@/lib/inventory/stock/use-filtered-stock";
-import { StockPromoPoolSummary } from "@/components/inventory/stock/stock-promo-pool-summary";
+import { StockPoolSplitSummary } from "@/components/inventory/stock/stock-pool-split-summary";
+import { PromoFulfillmentShipmentNotice } from "@/components/inventory/stock/promo-fulfillment-shipment-notice";
 import { PromoReclassificationPanel } from "@/components/inventory/stock/promo-reclassification-panel";
 import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
+import {
+  attachPromoQuantitiesToBalances,
+  buildPromoQtyMap,
+} from "@/lib/inventory/stock/promo-pool-helpers";
 import type { PromotionalBatchRow } from "@/lib/procurement/promo/reclassification-helpers";
+import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 
 const STOCK_PAGE_DESCRIPTION =
   "Review on-hand balances by location and post location-scoped stock adjustments.";
@@ -183,14 +189,16 @@ export function StockManagementTerminal({
 
   const hasAnyData = balances.length > 0 || adjustments.length > 0;
 
+  const promoQtyMap = useMemo(() => buildPromoQtyMap(promoBalances), [promoBalances]);
+
   const sortedBalanceRows = useMemo(
     () =>
       sortStockBalanceRows(
-        balancesView.filteredRows,
+        attachPromoQuantitiesToBalances(balancesView.filteredRows, promoQtyMap),
         prefs.balanceSortField,
         prefs.balanceSortDirection
       ),
-    [balancesView.filteredRows, prefs.balanceSortField, prefs.balanceSortDirection]
+    [balancesView.filteredRows, promoQtyMap, prefs.balanceSortField, prefs.balanceSortDirection]
   );
 
   const sortedAdjustmentRows = useMemo(
@@ -297,7 +305,8 @@ export function StockManagementTerminal({
         }
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          <StockPromoPoolSummary balances={promoBalances} />
+          <StockPoolSplitSummary sellableRows={balances} promoBalances={promoBalances} />
+          <PromoFulfillmentShipmentNotice visible={promoBalances.length > 0} />
           <PromoReclassificationPanel
             balances={promoBalances}
             draftBatches={draftBatches}
