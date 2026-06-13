@@ -309,7 +309,8 @@ CREATE TYPE storefront_channel_type AS ENUM (
 
 CREATE TYPE inventory_transaction_type AS ENUM (
     'PURCHASE_RECEIPT', 'SALES_SHIPMENT', 'PRODUCTION_CONSUMPTION',
-    'PRODUCTION_YIELD', 'STOCK_TRANSFER', 'INVENTORY_ADJUSTMENT', 'CYCLE_COUNT_CORRECTION'
+    'PRODUCTION_YIELD', 'STOCK_TRANSFER', 'INVENTORY_ADJUSTMENT', 'CYCLE_COUNT_CORRECTION',
+    'COST_RESTATEMENT', 'COST_CORRECTION'
 );
 
 -- tenant_locations (M3 compliance columns)
@@ -506,12 +507,279 @@ CREATE TABLE purchase_invoices (
     total_liability_amount  NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
     billing_location_id     UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE RESTRICT,
     is_paid                 BOOLEAN NOT NULL DEFAULT FALSE,
+    match_status            purchase_invoice_match_status NOT NULL DEFAULT 'MATCHED',
     custom_fields           JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_by              UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, system_voucher_number)
 );
+
+-- ====================================================================
+-- PROCUREMENT LINE ITEMS & EXTENSIONS (Waves 0–7)
+-- RPCs, triggers, RLS, and posting orchestration live in:
+--   supabase/migrations/20260620100000_procurement_posting_foundation.sql
+--   supabase/migrations/20260620110000_post_goods_receipt_posting_json.sql
+--   supabase/migrations/20260620120000_procurement_zero_cost_receipts.sql
+--   supabase/migrations/20260620200000_procurement_promo_engine.sql
+--   supabase/migrations/20260612180000_grn_accept_reject_lines.sql
+--   supabase/migrations/20260612200000_wave5_tax_recoverable_promo_reclass.sql
+--   supabase/migrations/20260612210000_wave6_git_subcontract.sql
+-- ====================================================================
+
+CREATE TYPE promo_entitlement_status AS ENUM ('OPEN', 'PARTIAL', 'CLOSED', 'WRITTEN_OFF');
+CREATE TYPE promo_quarantine_type AS ENUM ('NOT_FOR_RESALE_SAMPLE', 'PROMOTIONAL_HOLD');
+CREATE TYPE purchase_invoice_match_status AS ENUM ('MATCHED', 'PPV_HOLD', 'VARIANCE');
+CREATE TYPE document_posting_document_type AS ENUM ('PO', 'GRN', 'BILL');
+
+CREATE TABLE purchase_order_items (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    purchase_order_id           UUID NOT NULL REFERENCES purchase_orders (id) ON DELETE CASCADE,
+    item_id                     UUID NOT NULL REFERENCES items (id) ON DELETE RESTRICT,
+    variant_id                  UUID REFERENCES item_variants (id) ON DELETE RESTRICT,
+    uom_code                    TEXT NOT NULL,
+    quantity_ordered            NUMERIC(15, 4) NOT NULL,
+    quantity_received           NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    quantity_invoiced           NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    unit_price_contractual      NUMERIC(15, 4) NOT NULL,
+    tax_rate_percentage         NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    line_tax_amount             NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    line_total_gross            NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    is_promotional              BOOLEAN NOT NULL DEFAULT FALSE,
+    linked_parent_line_id       UUID,
+    promo_group_id              UUID,
+    cost_allocation_method      TEXT NOT NULL DEFAULT 'LANDED_MARKET_RATIO',
+    promotional_category        TEXT,
+    custom_fields               JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE goods_receipt_items (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE RESTRICT,
+    goods_receipt_id        UUID NOT NULL REFERENCES goods_receipts (id) ON DELETE CASCADE,
+    po_item_id              UUID REFERENCES purchase_order_items (id) ON DELETE SET NULL,
+    item_id                 UUID NOT NULL REFERENCES items (id) ON DELETE RESTRICT,
+    variant_id              UUID REFERENCES item_variants (id) ON DELETE RESTRICT,
+    quantity_received       NUMERIC(15, 4) NOT NULL,
+    quantity_accepted       NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    quantity_rejected       NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    raw_unit_cost           NUMERIC(15, 4) NOT NULL,
+    allocated_landed_cost   NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    total_final_landed_cost NUMERIC(15, 4) NOT NULL,
+    linked_parent_line_id   UUID,
+    entitlement_id          UUID,
+    is_promotional          BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE document_posting_runs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    document_type   document_posting_document_type NOT NULL,
+    document_id     UUID NOT NULL,
+    overall_status  TEXT NOT NULL,
+    steps           JSONB NOT NULL DEFAULT '[]'::jsonb,
+    posted_by       UUID,
+    posted_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE inventory_valuation_audit_log (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    location_id         UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    item_id             UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    variant_id          UUID REFERENCES item_variants (id) ON DELETE SET NULL,
+    step_id             TEXT,
+    transaction_type    inventory_transaction_type,
+    quantity_before     NUMERIC(15, 4),
+    quantity_after      NUMERIC(15, 4),
+    cost_before         NUMERIC(15, 4),
+    cost_after          NUMERIC(15, 4),
+    reference_document  TEXT,
+    document_type       document_posting_document_type,
+    document_id         UUID,
+    created_by          UUID,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE promotional_batches (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    batch_number            TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'DRAFT',
+    source_quarantine_type  promo_quarantine_type NOT NULL DEFAULT 'PROMOTIONAL_HOLD',
+    location_id             UUID REFERENCES tenant_locations (id) ON DELETE SET NULL,
+    quantity_total          NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    notes                   TEXT,
+    posted_at               TIMESTAMPTZ,
+    created_by              UUID REFERENCES users (id) ON DELETE SET NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, batch_number)
+);
+
+CREATE TABLE promo_fulfillment_entitlements (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    purchase_order_id   UUID NOT NULL REFERENCES purchase_orders (id) ON DELETE CASCADE,
+    paid_line_id        UUID NOT NULL REFERENCES purchase_order_items (id) ON DELETE CASCADE,
+    promo_line_id       UUID NOT NULL REFERENCES purchase_order_items (id) ON DELETE CASCADE,
+    promo_group_id      UUID NOT NULL,
+    expected_qty        NUMERIC(15, 4) NOT NULL,
+    received_qty        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    status              promo_entitlement_status NOT NULL DEFAULT 'OPEN',
+    written_off_at      TIMESTAMPTZ,
+    written_off_reason  TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, promo_line_id)
+);
+
+CREATE TABLE promo_entitlement_receipt_links (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    entitlement_id          UUID NOT NULL REFERENCES promo_fulfillment_entitlements (id) ON DELETE CASCADE,
+    goods_receipt_id        UUID NOT NULL REFERENCES goods_receipts (id) ON DELETE CASCADE,
+    goods_receipt_item_id   UUID NOT NULL REFERENCES goods_receipt_items (id) ON DELETE CASCADE,
+    quantity_linked         NUMERIC(15, 4) NOT NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, goods_receipt_item_id)
+);
+
+CREATE TABLE promo_inventory_balances (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    location_id             UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    item_id                 UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    variant_id              UUID REFERENCES item_variants (id) ON DELETE SET NULL,
+    quarantine_type         promo_quarantine_type NOT NULL,
+    quantity_on_hand        NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    entitlement_id          UUID REFERENCES promo_fulfillment_entitlements (id) ON DELETE SET NULL,
+    promotional_batch_id    UUID REFERENCES promotional_batches (id) ON DELETE SET NULL,
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE promo_entitlement_events (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    entitlement_id          UUID NOT NULL REFERENCES promo_fulfillment_entitlements (id) ON DELETE CASCADE,
+    event_type              TEXT NOT NULL,
+    quantity_delta          NUMERIC(15, 4),
+    goods_receipt_id        UUID REFERENCES goods_receipts (id) ON DELETE SET NULL,
+    goods_receipt_item_id   UUID REFERENCES goods_receipt_items (id) ON DELETE SET NULL,
+    prior_status            promo_entitlement_status,
+    new_status              promo_entitlement_status,
+    detail                  JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by              UUID REFERENCES users (id) ON DELETE SET NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE goods_receipt_landed_charges (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    goods_receipt_id    UUID NOT NULL REFERENCES goods_receipts (id) ON DELETE CASCADE,
+    charge_type         TEXT NOT NULL,
+    description         TEXT,
+    amount              NUMERIC(15, 4) NOT NULL,
+    allocation_method   TEXT NOT NULL DEFAULT 'BY_VALUE',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE purchase_invoice_receipts (
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    purchase_invoice_id     UUID NOT NULL REFERENCES purchase_invoices (id) ON DELETE CASCADE,
+    goods_receipt_id        UUID NOT NULL REFERENCES goods_receipts (id) ON DELETE CASCADE,
+    linked_by               UUID REFERENCES users (id) ON DELETE SET NULL,
+    linked_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, purchase_invoice_id, goods_receipt_id)
+);
+
+CREATE TABLE vendor_advance_payments (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    supplier_id         UUID NOT NULL REFERENCES entities (id) ON DELETE RESTRICT,
+    payment_reference   TEXT NOT NULL,
+    amount              NUMERIC(15, 4) NOT NULL,
+    unapplied_balance   NUMERIC(15, 4) NOT NULL,
+    currency_code       VARCHAR(3) NOT NULL DEFAULT 'USD',
+    payment_date        DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes               TEXT,
+    created_by          UUID REFERENCES users (id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, payment_reference)
+);
+
+CREATE TABLE purchase_invoice_advance_applications (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    purchase_invoice_id         UUID NOT NULL REFERENCES purchase_invoices (id) ON DELETE CASCADE,
+    vendor_advance_payment_id   UUID NOT NULL REFERENCES vendor_advance_payments (id) ON DELETE RESTRICT,
+    amount_applied              NUMERIC(15, 4) NOT NULL,
+    applied_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    applied_by                  UUID REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE TABLE goods_in_transit_vouchers (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    voucher_number              TEXT NOT NULL,
+    purchase_order_id           UUID REFERENCES purchase_orders (id) ON DELETE SET NULL,
+    source_location_id          UUID REFERENCES tenant_locations (id) ON DELETE SET NULL,
+    destination_location_id     UUID REFERENCES tenant_locations (id) ON DELETE SET NULL,
+    git_holding_location_id     UUID REFERENCES tenant_locations (id) ON DELETE SET NULL,
+    goods_receipt_id            UUID REFERENCES goods_receipts (id) ON DELETE SET NULL,
+    status                      TEXT NOT NULL DEFAULT 'DRAFT',
+    notes                       TEXT,
+    created_by                  UUID REFERENCES users (id) ON DELETE SET NULL,
+    posted_at                   TIMESTAMPTZ,
+    cleared_at                  TIMESTAMPTZ,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, voucher_number)
+);
+
+CREATE TABLE goods_in_transit_voucher_items (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    goods_in_transit_voucher_id UUID NOT NULL REFERENCES goods_in_transit_vouchers (id) ON DELETE CASCADE,
+    item_id                     UUID NOT NULL REFERENCES items (id) ON DELETE RESTRICT,
+    variant_id                  UUID REFERENCES item_variants (id) ON DELETE SET NULL,
+    po_item_id                  UUID REFERENCES purchase_order_items (id) ON DELETE SET NULL,
+    quantity                    NUMERIC(15, 4) NOT NULL,
+    unit_cost                   NUMERIC(15, 4) NOT NULL DEFAULT 0.0000,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE vendor_job_work_locations (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    supplier_id     UUID NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
+    location_id     UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, supplier_id, location_id)
+);
+
+CREATE TABLE subcontract_bom_lines (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    parent_item_id      UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    component_item_id   UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    quantity_per        NUMERIC(15, 4) NOT NULL DEFAULT 1.0000,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- tenant_locations logistics extensions (see 20260620200000 / 20260612210000):
+--   location_subtype TEXT
+--   is_git_holding BOOLEAN NOT NULL DEFAULT FALSE
+--   is_subcontract_wip BOOLEAN NOT NULL DEFAULT FALSE
+-- tax_codes extension: is_recoverable BOOLEAN NOT NULL DEFAULT TRUE
 
 -- ====================================================================
 -- INVENTORY TRANSFERS & VALUATION (Milestone 5)
