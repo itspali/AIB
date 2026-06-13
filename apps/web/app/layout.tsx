@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import Script from "next/script";
 import { cookies } from "next/headers";
 import { Toaster } from "sonner";
@@ -10,8 +9,6 @@ import { getSessionClaims, getSessionTenantId } from "@/lib/supabase/auth";
 import { fetchThemePolicyForSession } from "@/lib/theme/queries";
 import { buildThemeInitScript, normalizeStoredTheme, themeToHtmlClass } from "@/lib/theme/themes";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 const themeInitScript = buildThemeInitScript();
 
@@ -57,7 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${themeClass}`}
+      className={themeClass}
       suppressHydrationWarning
     >
       <body className="min-h-screen font-sans antialiased" suppressHydrationWarning>
