@@ -5,6 +5,7 @@ import { fetchGoodsReceiptById, fetchGoodsReceipts } from "@/lib/procurement/goo
 import { formatGoodsReceiptRpcError } from "@/lib/procurement/goods-receipts/rpc-errors";
 import { validateGrnLinesAgainstOpenQty } from "@/lib/procurement/goods-receipts/schemas";
 import { validateGrnAcceptRejectLines } from "@/lib/procurement/goods-receipts/grn-line-validation";
+import { postGoodsReceiptSchema } from "@/lib/procurement/goods-receipts/schemas";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
@@ -89,24 +90,46 @@ export async function postGoodsReceipt(
 
   const { supabase, tenantId, userId } = await requireTenantId();
 
+  const rpcLines = values.lines.map((line) => {
+    const received = Number(line.quantity_received);
+    const acceptedRaw = line.quantity_accepted?.trim();
+    const accepted = acceptedRaw ? Number(acceptedRaw) : received;
+    const rejected = Number(line.quantity_rejected?.trim() || "0");
+    return {
+      variant_id: line.variant_id,
+      po_item_id: line.po_item_id ?? null,
+      quantity_received: received,
+      quantity_accepted: accepted,
+      quantity_rejected: rejected,
+      raw_unit_cost: Number(line.raw_unit_cost),
+      is_promotional: line.is_promotional ?? false,
+    };
+  });
+
+  if (values.git_voucher_id) {
+    const { error: gitError } = await supabase.rpc("clear_goods_in_transit_for_grn", {
+      p_git_voucher_id: values.git_voucher_id,
+      p_destination_location_id: values.destination_location_id,
+      p_lines: rpcLines.map((line) => ({
+        variant_id: line.variant_id,
+        quantity_received: line.quantity_received,
+        quantity_accepted: line.quantity_accepted,
+      })),
+      p_created_by: userId,
+    });
+
+    if (gitError) {
+      if (isMissingRpcError(gitError)) {
+        return { error: formatRpcDeployError("clear_goods_in_transit_for_grn") };
+      }
+      return { error: gitError.message };
+    }
+  }
+
   const { data, error } = await supabase.rpc("post_goods_receipt", {
     p_destination_location_id: values.destination_location_id,
     p_purchase_order_id: values.purchase_order_id ?? null,
-    p_lines: values.lines.map((line) => {
-      const received = Number(line.quantity_received);
-      const acceptedRaw = line.quantity_accepted?.trim();
-      const accepted = acceptedRaw ? Number(acceptedRaw) : received;
-      const rejected = Number(line.quantity_rejected?.trim() || "0");
-      return {
-        variant_id: line.variant_id,
-        po_item_id: line.po_item_id ?? null,
-        quantity_received: received,
-        quantity_accepted: accepted,
-        quantity_rejected: rejected,
-        raw_unit_cost: Number(line.raw_unit_cost),
-        is_promotional: line.is_promotional ?? false,
-      };
-    }),
+    p_lines: rpcLines,
     p_created_by: userId,
     p_bill_of_entry_number: values.bill_of_entry_number ?? null,
     p_bill_of_entry_date: values.bill_of_entry_date || null,
@@ -148,6 +171,17 @@ export async function postGoodsReceipt(
   const parsedResult = parsePostGoodsReceiptRpcResult(data);
   if (!parsedResult) {
     return { error: "Goods receipt posted but the response was invalid." };
+  }
+
+  if (values.purchase_order_id) {
+    const { error: backflushError } = await supabase.rpc("apply_subcontract_backflush_for_grn", {
+      p_goods_receipt_id: parsedResult.goodsReceiptId,
+    });
+    if (backflushError && !isMissingRpcError(backflushError)) {
+      return {
+        error: `Receipt posted but subcontract backflush failed: ${backflushError.message}`,
+      };
+    }
   }
 
   revalidateGoodsReceiptPaths();

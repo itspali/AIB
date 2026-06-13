@@ -76,6 +76,7 @@ export const postGoodsReceiptSchema = z.object({
   customs_duty_amount: z.string().trim().optional().nullable(),
   import_igst_amount: z.string().trim().optional().nullable(),
   lines: z.array(goodsReceiptLineSchema).min(1, "Add at least one line."),
+  git_voucher_id: z.string().uuid().optional().nullable(),
   landed_charges: z
     .array(
       z.object({

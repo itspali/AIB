@@ -84,6 +84,8 @@ const defaultForm: LocationFormValues = {
   is_commercial_storefront: false,
   is_manufacturing_floor: false,
   is_stock_holding: false,
+  is_git_holding: false,
+  is_subcontract_wip: false,
   pos_terminal_count: 0,
   valuation_calculation_rule: null,
   location_tax_identifier: "",
@@ -147,6 +149,8 @@ export function LocationDrawerForm({
           is_commercial_storefront: editingLocation.is_commercial_storefront,
           is_manufacturing_floor: editingLocation.is_manufacturing_floor,
           is_stock_holding: editingLocation.is_stock_holding,
+          is_git_holding: editingLocation.is_git_holding,
+          is_subcontract_wip: editingLocation.is_subcontract_wip,
           pos_terminal_count: editingLocation.pos_terminal_count,
           valuation_calculation_rule: editingLocation.valuation_calculation_rule,
           location_tax_identifier: editingLocation.location_tax_identifier ?? "",
@@ -218,7 +222,10 @@ export function LocationDrawerForm({
     });
   };
 
-  const stockToggleDisabled = form.presence_type === "VIRTUAL";
+  const stockToggleDisabled =
+    form.presence_type === "VIRTUAL" &&
+    !form.is_git_holding &&
+    !form.is_subcontract_wip;
 
   return (
     <>
@@ -322,6 +329,20 @@ export function LocationDrawerForm({
             disabled={stockToggleDisabled}
             onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
           />
+          {form.is_stock_holding ? (
+            <>
+              <SwitchRow
+                label="GIT holding node (in-transit inventory)"
+                checked={form.is_git_holding}
+                onCheckedChange={(checked) => updateField("is_git_holding", checked)}
+              />
+              <SwitchRow
+                label="Subcontract WIP (vendor job work)"
+                checked={form.is_subcontract_wip}
+                onCheckedChange={(checked) => updateField("is_subcontract_wip", checked)}
+              />
+            </>
+          ) : null}
           {form.is_commercial_storefront && (
             <div className="space-y-2">
               <Label>{posCountFieldLabel(form.presence_type)}</Label>

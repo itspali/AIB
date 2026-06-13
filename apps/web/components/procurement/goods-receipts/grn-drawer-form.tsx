@@ -18,6 +18,7 @@ import {
   mapReceivablePoLineToGrnDraft,
   type GrnDraftLine,
 } from "@/components/procurement/goods-receipts/grn-line-entry-table";
+import { GrnGitLinkPanel } from "@/components/procurement/goods-receipts/grn-git-link-panel";
 import { GrnImportTaxPeekPanel } from "@/components/procurement/goods-receipts/grn-import-tax-peek-panel";
 import {
   DocumentLinePeekItemCell,
@@ -64,6 +65,7 @@ type CreateFormState = {
   import_igst_amount: string;
   lines: GrnDraftLine[];
   landed_charges: GrnLandedChargeDraft[];
+  git_voucher_id: string | null;
 };
 
 type Props = {
@@ -100,6 +102,7 @@ function defaultCreateForm(
       import_igst_amount: "",
       lines: selectedPo.lines.map(mapReceivablePoLineToGrnDraft),
       landed_charges: [],
+      git_voucher_id: null,
     };
   }
 
@@ -115,6 +118,7 @@ function defaultCreateForm(
     import_igst_amount: "",
     lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
     landed_charges: [],
+    git_voucher_id: null,
   };
 }
 
@@ -233,6 +237,7 @@ export function GrnDrawerForm({
     if (purchaseOrderId === "none") {
       patchForm({
         purchase_order_id: null,
+        git_voucher_id: null,
         lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
       });
       return;
@@ -244,6 +249,7 @@ export function GrnDrawerForm({
     patchForm({
       destination_location_id: selectedPo.destination_location_id,
       purchase_order_id: selectedPo.id,
+      git_voucher_id: null,
       lines: selectedPo.lines.map(mapReceivablePoLineToGrnDraft),
     });
   };
@@ -272,6 +278,7 @@ export function GrnDrawerForm({
           is_promotional: line.is_promotional ?? Number(line.raw_unit_cost) === 0,
         })),
         landed_charges: filterSavableGrnLandedCharges(form.landed_charges),
+        git_voucher_id: form.git_voucher_id,
       };
 
       const result = await postGoodsReceipt(
@@ -526,6 +533,15 @@ export function GrnDrawerForm({
               <PoPromoEntitlementsPanel
                 purchaseOrderId={form.purchase_order_id}
                 variant="banner"
+                className="shrink-0"
+              />
+            ) : null}
+
+            {form.purchase_order_id && isImportGoodsPo ? (
+              <GrnGitLinkPanel
+                purchaseOrderId={form.purchase_order_id}
+                value={form.git_voucher_id}
+                onChange={(git_voucher_id) => patchForm({ git_voucher_id })}
                 className="shrink-0"
               />
             ) : null}

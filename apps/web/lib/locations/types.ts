@@ -26,6 +26,8 @@ export type LocationRow = {
   is_commercial_storefront: boolean;
   is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
+  is_git_holding: boolean;
+  is_subcontract_wip: boolean;
   pos_terminal_count: number;
   valuation_calculation_rule: ValuationMethodOption | null;
   address_line1: string;
@@ -55,6 +57,8 @@ export type LocationTopologyRow = {
   is_commercial_storefront: boolean;
   is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
+  is_git_holding: boolean;
+  is_subcontract_wip: boolean;
   pos_terminal_count: number;
   valuation_calculation_rule: ValuationMethodOption | null;
   is_active: boolean;
@@ -107,6 +111,8 @@ export type LocationFormValues = {
   is_commercial_storefront: boolean;
   is_manufacturing_floor: boolean;
   is_stock_holding: boolean;
+  is_git_holding: boolean;
+  is_subcontract_wip: boolean;
   pos_terminal_count: number;
   valuation_calculation_rule: ValuationMethodOption | null;
   location_tax_identifier: string;

@@ -90,11 +90,26 @@ export async function saveLocation(raw: unknown) {
     return { error: error.message };
   }
 
+  const locationId = data as string;
+
+  const { error: flagsError } = await supabase.rpc("update_location_logistics_flags", {
+    p_location_id: locationId,
+    p_is_git_holding: values.is_git_holding ?? false,
+    p_is_subcontract_wip: values.is_subcontract_wip ?? false,
+  });
+
+  if (flagsError) {
+    if (isMissingRpcError(flagsError)) {
+      return { error: formatRpcDeployError("update_location_logistics_flags") };
+    }
+    return { error: flagsError.message };
+  }
+
   for (const path of LOCATION_PATHS) {
     revalidatePath(path);
   }
 
-  return { success: true as const, locationId: data as string };
+  return { success: true as const, locationId };
 }
 
 export async function suggestLocationCode(input: LocationCodeSuggestInput) {

@@ -45,6 +45,8 @@ export const locationFormSchema = z
     is_commercial_storefront: z.boolean(),
     is_manufacturing_floor: z.boolean(),
     is_stock_holding: z.boolean(),
+    is_git_holding: z.boolean().optional().default(false),
+    is_subcontract_wip: z.boolean().optional().default(false),
     pos_terminal_count: z.number().int().min(0, "POS terminal count cannot be negative"),
     valuation_calculation_rule: z.enum(VALUATION_METHOD_OPTIONS).nullable(),
     location_tax_identifier: z.string().trim().max(50),

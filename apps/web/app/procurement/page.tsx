@@ -1,4 +1,4 @@
-import { ClipboardList, PackageCheck, ScrollText, Building2 } from "lucide-react";
+import { ClipboardList, PackageCheck, ScrollText, Building2, Ship } from "lucide-react";
 import { ModuleOverview } from "@/components/layout/module-overview";
 
 export default function ProcurementPage() {
@@ -18,6 +18,18 @@ export default function ProcurementPage() {
           label: "Goods Receipts",
           description: "Post GRNs against purchase orders or receive stock directly at a location.",
           icon: PackageCheck,
+        },
+        {
+          href: "/procurement/goods-in-transit",
+          label: "Goods in Transit",
+          description: "Move stock to GIT holding nodes and clear them when import receipts land.",
+          icon: Ship,
+        },
+        {
+          href: "/procurement/subcontract",
+          label: "Subcontracting",
+          description: "Vendor job work locations and BOM backflush for finished goods receipts.",
+          icon: Building2,
         },
         {
           href: "/procurement/suppliers",
