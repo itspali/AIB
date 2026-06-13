@@ -24,9 +24,11 @@ import {
   isScanIdentifierPolicy,
 } from "@/lib/products/catalog-item-settings";
 import { fetchPromoInventoryBalances } from "@/lib/inventory/stock/promo-balances";
+import { fetchQcInventoryBalances } from "@/lib/inventory/stock/qc-balances";
 import { fetchPromotionalReclassificationBatches } from "@/lib/procurement/promo/reclassification";
 import type { PromotionalBatchRow } from "@/lib/procurement/promo/reclassification-helpers";
 import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
+import type { QcInventoryBalanceRow } from "@/lib/inventory/stock/qc-balances";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -176,6 +178,11 @@ export async function postStockAdjustment(raw: unknown) {
 export async function loadPromoInventoryBalances(): Promise<PromoInventoryBalanceRow[]> {
   const { supabase, tenantId } = await requireTenantId();
   return fetchPromoInventoryBalances(supabase, tenantId);
+}
+
+export async function loadQcInventoryBalances(): Promise<QcInventoryBalanceRow[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchQcInventoryBalances(supabase, tenantId);
 }
 
 export async function loadPromotionalReclassificationBatches(): Promise<PromotionalBatchRow[]> {

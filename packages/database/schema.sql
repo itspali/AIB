@@ -527,6 +527,8 @@ CREATE TABLE purchase_invoices (
 --   supabase/migrations/20260612210000_wave6_git_subcontract.sql
 --   supabase/migrations/20260612230000_vendor_advance_application.sql
 --   supabase/migrations/20260612240000_grn_qc_release.sql
+--   supabase/migrations/20260612240100_fix_grn_qc_release_append_only.sql
+--   supabase/migrations/20260612250000_qc_hold_subpool.sql
 -- RPCs: save_vendor_advance_payment, apply_vendor_advance_to_invoice, release_goods_receipt_from_qc
 -- ====================================================================
 
@@ -665,6 +667,21 @@ CREATE TABLE promo_inventory_balances (
     entitlement_id          UUID REFERENCES promo_fulfillment_entitlements (id) ON DELETE SET NULL,
     promotional_batch_id    UUID REFERENCES promotional_batches (id) ON DELETE SET NULL,
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE qc_inventory_balances (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    location_id             UUID NOT NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    item_id                 UUID NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    variant_id              UUID REFERENCES item_variants (id) ON DELETE SET NULL,
+    goods_receipt_id        UUID NOT NULL REFERENCES goods_receipts (id) ON DELETE CASCADE,
+    goods_receipt_item_id   UUID NOT NULL REFERENCES goods_receipt_items (id) ON DELETE CASCADE,
+    quantity_on_hand        NUMERIC(15, 4) NOT NULL CHECK (quantity_on_hand > 0),
+    unit_cost               NUMERIC(15, 4) NOT NULL CHECK (unit_cost >= 0),
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, goods_receipt_item_id)
 );
 
 CREATE TABLE promo_entitlement_events (

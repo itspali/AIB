@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   loadPromoInventoryBalances,
   loadPromotionalReclassificationBatches,
+  loadQcInventoryBalances,
   loadStockAdjustments,
   loadStockBalances,
 } from "@/app/inventory/stock/actions";
@@ -44,6 +45,7 @@ import { StockPoolSplitSummary } from "@/components/inventory/stock/stock-pool-s
 import { PromoFulfillmentShipmentNotice } from "@/components/inventory/stock/promo-fulfillment-shipment-notice";
 import { PromoReclassificationPanel } from "@/components/inventory/stock/promo-reclassification-panel";
 import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
+import type { QcInventoryBalanceRow } from "@/lib/inventory/stock/qc-balances";
 import {
   attachPromoQuantitiesToBalances,
   buildPromoQtyMap,
@@ -58,6 +60,7 @@ type Props = {
   initialBalances: StockBalanceRow[];
   initialAdjustments: StockAdjustmentRow[];
   initialPromoBalances?: PromoInventoryBalanceRow[];
+  initialQcBalances?: QcInventoryBalanceRow[];
   initialDraftBatches?: PromotionalBatchRow[];
   locations: StockLocationOption[];
 };
@@ -66,6 +69,7 @@ export function StockManagementTerminal({
   initialBalances,
   initialAdjustments,
   initialPromoBalances = [],
+  initialQcBalances = [],
   initialDraftBatches = [],
   locations,
 }: Props) {
@@ -76,6 +80,7 @@ export function StockManagementTerminal({
   const [balances, setBalances] = useState(initialBalances);
   const [adjustments, setAdjustments] = useState(initialAdjustments);
   const [promoBalances, setPromoBalances] = useState(initialPromoBalances);
+  const [qcBalances, setQcBalances] = useState(initialQcBalances);
   const [draftBatches, setDraftBatches] = useState(initialDraftBatches);
   const [prefs, setPrefs] = useState<StockListPrefs>(getDefaultStockListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
@@ -104,16 +109,18 @@ export function StockManagementTerminal({
 
   const refreshPromoData = useCallback(() => {
     startRefreshTransition(async () => {
-      const [nextBalances, nextAdjustments, nextPromoBalances, nextDraftBatches] =
+      const [nextBalances, nextAdjustments, nextPromoBalances, nextQcBalances, nextDraftBatches] =
         await Promise.all([
           loadStockBalances(),
           loadStockAdjustments(),
           loadPromoInventoryBalances(),
+          loadQcInventoryBalances(),
           loadPromotionalReclassificationBatches(),
         ]);
       setBalances(nextBalances);
       setAdjustments(nextAdjustments);
       setPromoBalances(nextPromoBalances);
+      setQcBalances(nextQcBalances);
       setDraftBatches(nextDraftBatches);
     });
   }, []);
@@ -305,7 +312,11 @@ export function StockManagementTerminal({
         }
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          <StockPoolSplitSummary sellableRows={balances} promoBalances={promoBalances} />
+          <StockPoolSplitSummary
+            sellableRows={balances}
+            promoBalances={promoBalances}
+            qcBalances={qcBalances}
+          />
           <PromoFulfillmentShipmentNotice visible={promoBalances.length > 0} />
           <PromoReclassificationPanel
             balances={promoBalances}

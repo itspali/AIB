@@ -83,13 +83,15 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
   grn_qc_quarantine_applied: {
     id: "grn_qc_quarantine_applied",
     label: "Quality hold applied",
-    description: "Stock is held for inspection and is not available for sale until quality checks pass.",
+    description:
+      "Paid stock was placed in the QC sub-pool and is excluded from sellable moving average cost until inspection release.",
     documents: ["GRN"],
   },
   grn_qc_released: {
     id: "grn_qc_released",
     label: "Quality inspection passed",
-    description: "Inspection is complete and the receipt is cleared for normal use. Stock was already posted; this updates the receipt status only.",
+    description:
+      "Inspection is complete. Held quantities were posted to inventory as purchase receipts and the receipt is cleared for normal use.",
     documents: ["GRN"],
   },
   grn_promo_bundle_cost_adjusted: {

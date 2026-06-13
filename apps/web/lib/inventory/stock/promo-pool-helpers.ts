@@ -31,6 +31,12 @@ export function sumPromoQuantities(balances: PromoInventoryBalanceRow[]): number
   return sumNumericStrings(balances.map((row) => row.quantity_on_hand));
 }
 
+export function sumQcQuantities(
+  balances: Array<{ quantity_on_hand: string }>
+): number {
+  return sumNumericStrings(balances.map((row) => row.quantity_on_hand));
+}
+
 export function sumSellableQuantities(rows: StockBalanceRow[]): number {
   return sumNumericStrings(rows.map((row) => row.total_quantity_on_hand));
 }

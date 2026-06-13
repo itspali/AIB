@@ -193,7 +193,7 @@ export function ProcurementPoliciesPanel({ initialSettings, canEdit }: Props) {
           />
           <SwitchRow
             label="Quality check before stocking"
-            description="Received stock is held in quarantine until inspection is complete."
+            description="Paid stock is held in a QC sub-pool until inspection release posts it to sellable inventory."
             checked={settings.is_qc_required_before_stocking}
             disabled={!canEdit || isPending}
             onCheckedChange={(checked) => patch({ is_qc_required_before_stocking: checked })}

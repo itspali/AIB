@@ -5,6 +5,7 @@ import {
   formatQuantity,
   quarantineTypeLabel,
   sumPromoQuantities,
+  sumQcQuantities,
   sumSellableQuantities,
 } from "@/lib/inventory/stock/promo-pool-helpers";
 import {
@@ -69,6 +70,7 @@ describe("promo pool helpers", () => {
     expect(sumPromoQuantities([promoRow({ quantity_on_hand: "1" }), promoRow({ quantity_on_hand: "2" })])).toBe(
       3
     );
+    expect(sumQcQuantities([{ quantity_on_hand: "4" }, { quantity_on_hand: "1.5" }])).toBe(5.5);
   });
 
   it("attaches promo quantities to matching balance rows", () => {
