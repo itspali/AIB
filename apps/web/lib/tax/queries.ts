@@ -36,6 +36,7 @@ type RawTaxCode = {
   effective_from: string | null;
   effective_to: string | null;
   is_active: boolean;
+  is_recoverable: boolean;
   created_at: string;
   updated_at: string;
   tax_code_components: RawComponent[] | null;
@@ -129,7 +130,7 @@ export async function fetchTaxCodeRows(
   const { data, error } = await supabase
     .from("tax_codes")
     .select(
-      "id, code, name, kind, rate, is_inclusive_default, is_variable, effective_from, effective_to, is_active, created_at, updated_at, tax_code_components ( name, rate, sort_order ), tax_rate_rules ( id, basis, threshold_min, threshold_max, rate, effective_from, effective_to )"
+      "id, code, name, kind, rate, is_inclusive_default, is_variable, effective_from, effective_to, is_active, is_recoverable, created_at, updated_at, tax_code_components ( name, rate, sort_order ), tax_rate_rules ( id, basis, threshold_min, threshold_max, rate, effective_from, effective_to )"
     )
     .eq("tenant_id", tenantId)
     .order("code");
@@ -147,6 +148,7 @@ export async function fetchTaxCodeRows(
     effective_from: row.effective_from,
     effective_to: row.effective_to,
     is_active: row.is_active,
+    is_recoverable: row.is_recoverable ?? true,
     components: mapComponents(row.tax_code_components),
     rules: mapRules(row.tax_rate_rules),
     created_at: row.created_at,

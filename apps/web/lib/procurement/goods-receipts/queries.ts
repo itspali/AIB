@@ -34,6 +34,13 @@ type GrnListDbRow = {
   is_qc_pending: boolean;
   received_at: string;
   created_at: string;
+  bill_of_entry_number: string | null;
+  bill_of_entry_date: string | null;
+  port_code: string | null;
+  exchange_rate: number | string | null;
+  assessable_value: number | string | null;
+  customs_duty_amount: number | string | null;
+  import_igst_amount: number | string | null;
   destination_location: LocationEmbed;
   purchase_order: PoEmbed;
   grn_lines: Array<{ id: string }> | null;
@@ -49,6 +56,8 @@ type GrnLineDbRow = {
   quantity_rejected: number | string;
   raw_unit_cost: number | string;
   total_final_landed_cost: number | string;
+  import_igst_amount: number | string | null;
+  customs_duty_amount: number | string | null;
   items: { name: string } | { name: string }[] | null;
   item_variants: { sku: string } | { sku: string }[] | null;
 };
@@ -69,6 +78,8 @@ function mapGrnLine(row: GrnLineDbRow): GoodsReceiptLineRow {
     quantity_rejected: formatDecimal(row.quantity_rejected),
     raw_unit_cost: formatDecimal(row.raw_unit_cost),
     total_final_landed_cost: formatDecimal(row.total_final_landed_cost),
+    import_igst_amount: formatDecimal(row.import_igst_amount),
+    customs_duty_amount: formatDecimal(row.customs_duty_amount),
   };
 }
 
@@ -88,6 +99,15 @@ function mapGrnListRow(row: GrnListDbRow): GoodsReceiptRow {
     line_count: row.grn_lines?.length ?? 0,
     received_at: row.received_at,
     created_at: row.created_at,
+    bill_of_entry_number: row.bill_of_entry_number ?? null,
+    bill_of_entry_date: row.bill_of_entry_date ?? null,
+    port_code: row.port_code ?? null,
+    exchange_rate: row.exchange_rate != null ? formatDecimal(row.exchange_rate) : null,
+    assessable_value: row.assessable_value != null ? formatDecimal(row.assessable_value) : null,
+    customs_duty_amount:
+      row.customs_duty_amount != null ? formatDecimal(row.customs_duty_amount) : null,
+    import_igst_amount:
+      row.import_igst_amount != null ? formatDecimal(row.import_igst_amount) : null,
   };
 }
 
@@ -107,6 +127,13 @@ export async function fetchGoodsReceipts(
       is_qc_pending,
       received_at,
       created_at,
+      bill_of_entry_number,
+      bill_of_entry_date,
+      port_code,
+      exchange_rate,
+      assessable_value,
+      customs_duty_amount,
+      import_igst_amount,
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${PO_EMBED} (voucher_number),
       ${GRN_ITEMS_EMBED} (id)
@@ -141,6 +168,13 @@ export async function fetchGoodsReceiptById(
       is_qc_pending,
       received_at,
       created_at,
+      bill_of_entry_number,
+      bill_of_entry_date,
+      port_code,
+      exchange_rate,
+      assessable_value,
+      customs_duty_amount,
+      import_igst_amount,
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${PO_EMBED} (voucher_number),
       ${GRN_ITEMS_EMBED} (
@@ -153,6 +187,8 @@ export async function fetchGoodsReceiptById(
         quantity_rejected,
         raw_unit_cost,
         total_final_landed_cost,
+        import_igst_amount,
+        customs_duty_amount,
         items!goods_receipt_items_item_tenant_fk (name),
         item_variants!goods_receipt_items_variant_tenant_fk (sku)
       )
@@ -176,4 +212,60 @@ export async function fetchGoodsReceiptById(
   }
 
   return mapped;
+}
+
+export async function fetchGoodsReceiptsForPurchaseOrder(
+  supabase: SupabaseClient,
+  tenantId: string,
+  purchaseOrderId: string
+): Promise<GoodsReceiptRow[]> {
+  const { data, error } = await supabase
+    .from("goods_receipts")
+    .select(
+      `
+      id,
+      voucher_number,
+      destination_location_id,
+      purchase_order_id,
+      is_qc_pending,
+      received_at,
+      created_at,
+      bill_of_entry_number,
+      bill_of_entry_date,
+      port_code,
+      exchange_rate,
+      assessable_value,
+      customs_duty_amount,
+      import_igst_amount,
+      ${DESTINATION_LOCATION_EMBED} (name, code),
+      ${PO_EMBED} (voucher_number),
+      ${GRN_ITEMS_EMBED} (
+        id,
+        item_id,
+        variant_id,
+        po_item_id,
+        quantity_received,
+        quantity_accepted,
+        quantity_rejected,
+        raw_unit_cost,
+        total_final_landed_cost,
+        import_igst_amount,
+        customs_duty_amount,
+        items!goods_receipt_items_item_tenant_fk (name),
+        item_variants!goods_receipt_items_variant_tenant_fk (sku)
+      )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("purchase_order_id", purchaseOrderId)
+    .order("received_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => {
+    const typed = row as GrnListDbRow & { grn_lines?: GrnLineDbRow[] | null };
+    const mapped = mapGrnListRow(typed);
+    mapped.lines = (typed.grn_lines ?? []).map(mapGrnLine);
+    return mapped;
+  });
 }

@@ -73,7 +73,7 @@ export const moduleNavItems: ModuleNavItem[] = [
         icon: PackageCheck,
       },
       { href: "/entities/suppliers", label: "Suppliers", icon: Building2 },
-      { href: "/procurement/bills", label: "Bills", icon: ScrollText, comingSoon: true },
+      { href: "/procurement/bills", label: "Bills", icon: ScrollText },
     ],
   },
   {

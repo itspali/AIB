@@ -50,6 +50,7 @@ function toFormValues(row: TaxCodeRow | null): TaxCodeFormValues {
     effective_from: row.effective_from,
     effective_to: row.effective_to,
     is_active: row.is_active,
+    is_recoverable: row.is_recoverable,
     components: row.components.map((component) => ({
       name: component.name,
       rate: String(component.rate),
@@ -336,6 +337,23 @@ export function TaxCodeDrawerForm({ open, onOpenChange, editing = null, onSaved 
               checked={form.is_inclusive_default}
               disabled={isPending}
               onCheckedChange={(checked) => patch({ is_inclusive_default: checked })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 border-black/[0.06] p-3 dark:border-white/10">
+            <div>
+              <Label htmlFor="tax-recoverable" className="text-sm font-medium">
+                Input tax recoverable
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When off, purchase tax on this code is treated as a cost rather than a credit.
+              </p>
+            </div>
+            <Switch
+              id="tax-recoverable"
+              checked={form.is_recoverable}
+              disabled={isPending}
+              onCheckedChange={(checked) => patch({ is_recoverable: checked })}
             />
           </div>
 

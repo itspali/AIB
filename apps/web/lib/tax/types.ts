@@ -79,6 +79,7 @@ export type TaxCodeRow = {
   effective_from: string | null;
   effective_to: string | null;
   is_active: boolean;
+  is_recoverable: boolean;
   components: TaxComponentRow[];
   rules: TaxRuleRow[];
   created_at: string;
@@ -112,6 +113,7 @@ export type TaxCodeFormValues = {
   effective_from: string | null;
   effective_to: string | null;
   is_active: boolean;
+  is_recoverable: boolean;
   components: TaxComponentFormEntry[];
   rules: TaxRuleFormEntry[];
 };
@@ -127,6 +129,7 @@ export const defaultTaxCodeFormValues: TaxCodeFormValues = {
   effective_from: null,
   effective_to: null,
   is_active: true,
+  is_recoverable: true,
   components: [],
   rules: [],
 };

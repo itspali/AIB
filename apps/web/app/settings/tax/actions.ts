@@ -52,6 +52,7 @@ export async function saveTaxCode(values: TaxCodeFormValues) {
     p_components: components,
     p_rules: rules,
     p_tax_code_id: data.tax_code_id ?? null,
+    p_is_recoverable: data.is_recoverable,
   });
 
   if (error) return { error: error.message };

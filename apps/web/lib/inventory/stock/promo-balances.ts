@@ -10,6 +10,7 @@ export type PromoInventoryBalanceRow = {
   variant_sku: string;
   quantity_on_hand: string;
   quarantine_type: string;
+  promotional_batch_id: string | null;
 };
 
 export async function fetchPromoInventoryBalances(
@@ -27,6 +28,7 @@ export async function fetchPromoInventoryBalances(
       variant_id,
       quantity_on_hand,
       quarantine_type,
+      promotional_batch_id,
       tenant_locations!promo_inventory_balances_location_tenant_fk (name),
       items!promo_inventory_balances_item_tenant_fk (name),
       item_variants!promo_inventory_balances_variant_tenant_fk (sku)
@@ -58,6 +60,7 @@ export async function fetchPromoInventoryBalances(
       variant_sku: (variant?.sku as string) ?? "",
       quantity_on_hand: String(row.quantity_on_hand ?? "0"),
       quarantine_type: String(row.quarantine_type ?? "PROMOTIONAL_HOLD"),
+      promotional_batch_id: (row.promotional_batch_id as string | null) ?? null,
     };
   });
 }

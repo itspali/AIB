@@ -148,6 +148,9 @@ export function TaxSettingsTerminal({ initialRows, canEdit }: Props) {
                     <Badge variant={row.is_active ? "completed" : "locked"}>
                       {row.is_active ? "Active" : "Inactive"}
                     </Badge>
+                    {!row.is_recoverable && (
+                      <Badge variant="locked">Non-recoverable</Badge>
+                    )}
                   </div>
                   <p className="mt-1 truncate text-sm text-muted-foreground">{row.name}</p>
                 </div>

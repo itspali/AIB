@@ -13,6 +13,7 @@ import type {
   PurchaseOrderRow,
   PurchaseOrderStatus,
   ReceivablePurchaseOrderOption,
+  BillablePurchaseOrderOption,
 } from "@/lib/procurement/purchase-orders/types";
 
 const DESTINATION_LOCATION_EMBED =
@@ -686,4 +687,102 @@ export async function fetchReceivablePurchaseOrders(
       } satisfies ReceivablePurchaseOrderOption;
     })
     .filter((row): row is ReceivablePurchaseOrderOption => row !== null);
+}
+
+export async function fetchBillablePurchaseOrders(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { locationId?: string | null; supplierId?: string | null }
+): Promise<BillablePurchaseOrderOption[]> {
+  const billableShapes: PoSelectShape[] = [
+    { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
+    { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
+  ];
+
+  const { data, error } = await runPoSelectWithFallback<ReceivablePoDbRow[]>(
+    billableShapes,
+    (shape) => {
+      let query = supabase
+        .from("purchase_orders")
+        .select(
+          `
+          id,
+          voucher_number,
+          supplier_id,
+          destination_location_id,
+          currency_code,
+          document_status,
+          tax_supply_nature,
+          ${DESTINATION_LOCATION_EMBED} (name, code),
+          ${SUPPLIER_EMBED} (name),
+          ${PO_ITEMS_EMBED} (
+            id,
+            item_id,
+            variant_id,
+            uom_code,
+            uom_conversion_factor,
+            quantity_ordered,
+            quantity_received,
+            unit_price_contractual,
+            is_promotional,
+            linked_parent_line_id,
+            promo_group_id,
+            promotional_category,
+            discount_percentage,
+            discount_amount,
+            tax_rate_percentage,
+            line_tax_amount,${buildPoLineTaxFields(shape.includeTaxColumns)}
+            line_total_gross,
+            items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
+            item_variants!purchase_order_items_variant_tenant_fk (sku)
+          )
+        `
+        )
+        .eq("tenant_id", tenantId)
+        .in("document_status", ["ISSUED_ACTIVE", "PARTIALLY_FULFILLED", "FULLY_COMPLETED"])
+        .order("voucher_number");
+
+      if (options?.locationId) {
+        query = query.eq("destination_location_id", options.locationId);
+      }
+      if (options?.supplierId) {
+        query = query.eq("supplier_id", options.supplierId);
+      }
+
+      return query;
+    }
+  );
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .map((row) => {
+      const typed = row as ReceivablePoDbRow & {
+        supplier_id: string;
+        currency_code: string;
+      };
+      const destination = resolveJoin(typed.destination_location);
+      const supplier = resolveJoin(typed.supplier);
+      const lines = (typed.po_lines ?? []).map(mapPoLine);
+      const billableLines = lines.filter(
+        (line) => !line.is_promotional && Number(line.quantity_received) > 0
+      );
+      if (billableLines.length === 0) return null;
+
+      return {
+        id: typed.id,
+        voucher_number: typed.voucher_number,
+        supplier_id: typed.supplier_id,
+        destination_location_id: typed.destination_location_id,
+        destination_location_name: destination?.name ?? "",
+        destination_location_code: destination?.code ?? "",
+        supplier_name: supplier?.name ?? "",
+        tax_supply_nature: isPoTaxSupplyNature(String(typed.tax_supply_nature ?? ""))
+          ? (typed.tax_supply_nature as PoTaxSupplyNature)
+          : "INTERSTATE",
+        currency_code: typed.currency_code?.trim() || "INR",
+        lines: billableLines,
+      } satisfies BillablePurchaseOrderOption;
+    })
+    .filter((row): row is BillablePurchaseOrderOption => row !== null);
 }

@@ -18,6 +18,7 @@ import {
   mapReceivablePoLineToGrnDraft,
   type GrnDraftLine,
 } from "@/components/procurement/goods-receipts/grn-line-entry-table";
+import { GrnImportTaxPeekPanel } from "@/components/procurement/goods-receipts/grn-import-tax-peek-panel";
 import {
   DocumentLinePeekItemCell,
   DocumentLinePeekTable,
@@ -27,6 +28,7 @@ import { DocumentPostingSummaryPanel } from "@/components/documents/document-pos
 import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
+import { grnLineHasImportTax } from "@/lib/procurement/goods-receipts/grn-import-tax";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -364,6 +366,10 @@ export function GrnDrawerForm({
           {showLoadingPeek ? (
           <p className="text-sm text-muted-foreground">Loading goods receipt…</p>
         ) : readOnly && detail ? (
+          (() => {
+            const peekLines = detail.lines ?? [];
+            const showLineImportTax = peekLines.some(grnLineHasImportTax);
+            return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -380,12 +386,14 @@ export function GrnDrawerForm({
               </div>
             </div>
 
+            <GrnImportTaxPeekPanel receipt={detail} />
+
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Lines
               </p>
               <DocumentLinePeekTable
-                lines={detail.lines ?? []}
+                lines={peekLines}
                 getRowKey={(line) => line.id}
                 columns={[
                   { id: "item", label: "Item", align: "left" },
@@ -393,6 +401,22 @@ export function GrnDrawerForm({
                   { id: "quantity_accepted", label: "Accepted", align: "right", widthClass: "w-[5rem]" },
                   { id: "quantity_rejected", label: "Rejected", align: "right", widthClass: "w-[5rem]" },
                   { id: "raw_unit_cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
+                  ...(showLineImportTax
+                    ? [
+                        {
+                          id: "customs_duty_amount",
+                          label: "Customs",
+                          align: "right" as const,
+                          widthClass: "w-[5rem]",
+                        },
+                        {
+                          id: "import_igst_amount",
+                          label: "Import IGST",
+                          align: "right" as const,
+                          widthClass: "w-[5.5rem]",
+                        },
+                      ]
+                    : []),
                 ]}
                 renderCell={(column, line) => {
                   if (column.id === "item") {
@@ -412,6 +436,12 @@ export function GrnDrawerForm({
                   if (column.id === "quantity_rejected") {
                     return <DocumentLinePeekValueCell value={line.quantity_rejected} />;
                   }
+                  if (column.id === "customs_duty_amount") {
+                    return <DocumentLinePeekValueCell value={line.customs_duty_amount} />;
+                  }
+                  if (column.id === "import_igst_amount") {
+                    return <DocumentLinePeekValueCell value={line.import_igst_amount} />;
+                  }
                   return <DocumentLinePeekValueCell value={line.raw_unit_cost} />;
                 }}
               />
@@ -425,6 +455,8 @@ export function GrnDrawerForm({
               />
             ) : null}
           </div>
+            );
+          })()
         ) : isMutating ? (
           postSuccessSummary ? (
             <DocumentPostingSummaryPanel

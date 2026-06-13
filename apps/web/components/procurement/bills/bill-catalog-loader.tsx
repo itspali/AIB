@@ -1,7 +1,7 @@
 import { BillManagementTerminal } from "@/components/procurement/bills/bill-management-terminal";
-import { fetchGoodsReceipts } from "@/lib/procurement/goods-receipts/queries";
 import { fetchPurchaseBills } from "@/lib/procurement/bills/queries";
-import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
+import { fetchBillablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
+import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import {
   fetchProcurementLocations,
   fetchProcurementSuppliers,
@@ -11,21 +11,24 @@ import { getModulePageContext } from "@/lib/layout/module-page";
 export async function BillCatalogLoader() {
   const { supabase, tenantId } = await getModulePageContext();
 
-  const [bills, suppliers, locations, receivableOrders, goodsReceipts] = await Promise.all([
+  const [bills, suppliers, locations, billableOrders, procurementSettings] = await Promise.all([
     fetchPurchaseBills(supabase, tenantId),
     fetchProcurementSuppliers(supabase, tenantId),
     fetchProcurementLocations(supabase, tenantId),
-    fetchReceivablePurchaseOrders(supabase, tenantId),
-    fetchGoodsReceipts(supabase, tenantId),
+    fetchBillablePurchaseOrders(supabase, tenantId),
+    fetchProcurementSettings(supabase, tenantId),
   ]);
+
+  const matchingTolerancePct = Number(procurementSettings.matching_tolerance_percentage);
+  const tolerance = Number.isFinite(matchingTolerancePct) ? matchingTolerancePct : 2;
 
   return (
     <BillManagementTerminal
       initialBills={bills}
       suppliers={suppliers}
       locations={locations}
-      receivableOrders={receivableOrders}
-      initialGoodsReceipts={goodsReceipts}
+      billableOrders={billableOrders}
+      matchingTolerancePct={tolerance}
     />
   );
 }

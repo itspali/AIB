@@ -23,6 +23,10 @@ import {
   DEFAULT_CATALOG_ITEM_SETTINGS,
   isScanIdentifierPolicy,
 } from "@/lib/products/catalog-item-settings";
+import { fetchPromoInventoryBalances } from "@/lib/inventory/stock/promo-balances";
+import { fetchPromotionalReclassificationBatches } from "@/lib/procurement/promo/reclassification";
+import type { PromotionalBatchRow } from "@/lib/procurement/promo/reclassification-helpers";
+import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -167,4 +171,70 @@ export async function postStockAdjustment(raw: unknown) {
 
   revalidateStockPaths();
   return { success: true as const, adjustmentId: data as string };
+}
+
+export async function loadPromoInventoryBalances(): Promise<PromoInventoryBalanceRow[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchPromoInventoryBalances(supabase, tenantId);
+}
+
+export async function loadPromotionalReclassificationBatches(): Promise<PromotionalBatchRow[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchPromotionalReclassificationBatches(supabase, tenantId, { status: "DRAFT" });
+}
+
+export async function createPromoReclassificationBatch(
+  balanceIds: string[],
+  notes: string | null
+) {
+  if (!balanceIds.length) {
+    return { error: "Select at least one promotional balance." };
+  }
+
+  const { supabase, userId } = await requireTenantId();
+
+  const { data, error } = await supabase.rpc("create_promotional_reclassification_batch", {
+    p_balance_ids: balanceIds,
+    p_created_by: userId,
+    p_notes: notes,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("create_promotional_reclassification_batch") };
+    }
+    return { error: error.message };
+  }
+
+  revalidateStockPaths();
+  const payload = data as { batch_id?: string; batch_number?: string };
+  return {
+    success: true as const,
+    batchId: payload.batch_id ?? "",
+    batchNumber: payload.batch_number ?? "",
+  };
+}
+
+export async function postPromoReclassificationBatch(batchId: string) {
+  if (!batchId.trim()) return { error: "Batch id is required." };
+
+  const { supabase } = await requireTenantId();
+
+  const { data, error } = await supabase.rpc("post_promotional_reclassification", {
+    p_batch_id: batchId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("post_promotional_reclassification") };
+    }
+    return { error: error.message };
+  }
+
+  revalidateStockPaths();
+  const payload = data as { quantity_reclassified?: number | string };
+  return {
+    success: true as const,
+    quantityReclassified: payload.quantity_reclassified ?? 0,
+  };
 }

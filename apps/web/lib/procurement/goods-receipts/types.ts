@@ -13,6 +13,8 @@ export type GoodsReceiptLineRow = {
   quantity_rejected: string;
   raw_unit_cost: string;
   total_final_landed_cost: string;
+  import_igst_amount: string;
+  customs_duty_amount: string;
 };
 
 export type GoodsReceiptRow = {
@@ -27,6 +29,13 @@ export type GoodsReceiptRow = {
   line_count: number;
   received_at: string;
   created_at: string;
+  bill_of_entry_number: string | null;
+  bill_of_entry_date: string | null;
+  port_code: string | null;
+  exchange_rate: string | null;
+  assessable_value: string | null;
+  customs_duty_amount: string | null;
+  import_igst_amount: string | null;
   lines?: GoodsReceiptLineRow[];
   posting_steps?: PostingStepResult[];
   posting_at?: string | null;

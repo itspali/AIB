@@ -33,6 +33,7 @@ export const taxCodeSchema = z
     effective_from: z.string().nullable(),
     effective_to: z.string().nullable(),
     is_active: z.boolean(),
+    is_recoverable: z.boolean(),
     components: z.array(componentSchema),
     rules: z.array(ruleSchema),
   })

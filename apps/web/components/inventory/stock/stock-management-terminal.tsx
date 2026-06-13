@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  loadPromoInventoryBalances,
+  loadPromotionalReclassificationBatches,
   loadStockAdjustments,
   loadStockBalances,
 } from "@/app/inventory/stock/actions";
@@ -39,7 +41,9 @@ import {
   useFilteredStockBalances,
 } from "@/lib/inventory/stock/use-filtered-stock";
 import { StockPromoPoolSummary } from "@/components/inventory/stock/stock-promo-pool-summary";
+import { PromoReclassificationPanel } from "@/components/inventory/stock/promo-reclassification-panel";
 import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
+import type { PromotionalBatchRow } from "@/lib/procurement/promo/reclassification-helpers";
 
 const STOCK_PAGE_DESCRIPTION =
   "Review on-hand balances by location and post location-scoped stock adjustments.";
@@ -48,6 +52,7 @@ type Props = {
   initialBalances: StockBalanceRow[];
   initialAdjustments: StockAdjustmentRow[];
   initialPromoBalances?: PromoInventoryBalanceRow[];
+  initialDraftBatches?: PromotionalBatchRow[];
   locations: StockLocationOption[];
 };
 
@@ -55,6 +60,7 @@ export function StockManagementTerminal({
   initialBalances,
   initialAdjustments,
   initialPromoBalances = [],
+  initialDraftBatches = [],
   locations,
 }: Props) {
   const searchParams = useSearchParams();
@@ -63,6 +69,8 @@ export function StockManagementTerminal({
   });
   const [balances, setBalances] = useState(initialBalances);
   const [adjustments, setAdjustments] = useState(initialAdjustments);
+  const [promoBalances, setPromoBalances] = useState(initialPromoBalances);
+  const [draftBatches, setDraftBatches] = useState(initialDraftBatches);
   const [prefs, setPrefs] = useState<StockListPrefs>(getDefaultStockListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [, startRefreshTransition] = useTransition();
@@ -85,6 +93,22 @@ export function StockManagementTerminal({
       ]);
       setBalances(nextBalances);
       setAdjustments(nextAdjustments);
+    });
+  }, []);
+
+  const refreshPromoData = useCallback(() => {
+    startRefreshTransition(async () => {
+      const [nextBalances, nextAdjustments, nextPromoBalances, nextDraftBatches] =
+        await Promise.all([
+          loadStockBalances(),
+          loadStockAdjustments(),
+          loadPromoInventoryBalances(),
+          loadPromotionalReclassificationBatches(),
+        ]);
+      setBalances(nextBalances);
+      setAdjustments(nextAdjustments);
+      setPromoBalances(nextPromoBalances);
+      setDraftBatches(nextDraftBatches);
     });
   }, []);
 
@@ -273,7 +297,12 @@ export function StockManagementTerminal({
         }
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          <StockPromoPoolSummary balances={initialPromoBalances} />
+          <StockPromoPoolSummary balances={promoBalances} />
+          <PromoReclassificationPanel
+            balances={promoBalances}
+            draftBatches={draftBatches}
+            onChanged={refreshPromoData}
+          />
           {listPrimary}
         </div>
       </ListModuleShell>

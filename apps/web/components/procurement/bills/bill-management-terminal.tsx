@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { loadGoodsReceipts } from "@/app/procurement/goods-receipts/actions";
 import { loadPurchaseBills } from "@/app/procurement/bills/actions";
 import { BillDrawerForm } from "@/components/procurement/bills/bill-drawer-form";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/dashboard/format";
+import { billMatchStatusLabel } from "@/lib/procurement/bills/three-way-match";
 import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
-import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
-import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
+import type { BillablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
@@ -19,28 +19,26 @@ type Props = {
   initialBills: PurchaseBillRow[];
   suppliers: ProcurementSupplierOption[];
   locations: ProcurementLocationOption[];
-  receivableOrders: ReceivablePurchaseOrderOption[];
-  initialGoodsReceipts: GoodsReceiptRow[];
+  billableOrders: BillablePurchaseOrderOption[];
+  matchingTolerancePct: number;
 };
 
 export function BillManagementTerminal({
   initialBills,
   suppliers,
   locations,
-  receivableOrders,
-  initialGoodsReceipts,
+  billableOrders,
+  matchingTolerancePct,
 }: Props) {
   const [bills, setBills] = useState(initialBills);
-  const [goodsReceipts, setGoodsReceipts] = useState(initialGoodsReceipts);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [peekBill, setPeekBill] = useState<PurchaseBillRow | null>(null);
   const [, startRefresh] = useTransition();
 
   const refresh = useCallback(() => {
     startRefresh(async () => {
-      const [nextBills, nextGrns] = await Promise.all([loadPurchaseBills(), loadGoodsReceipts()]);
+      const nextBills = await loadPurchaseBills();
       setBills(nextBills);
-      setGoodsReceipts(nextGrns);
     });
   }, []);
 
@@ -82,8 +80,13 @@ export function BillManagementTerminal({
                     <p className="font-medium">{bill.invoice_number_vendor}</p>
                     <p className="text-xs text-muted-foreground">{bill.supplier_name}</p>
                   </div>
-                  <div className="text-right text-xs">
-                    <p>{bill.match_status ?? "MATCHED"}</p>
+                  <div className="flex flex-col items-end gap-1 text-xs">
+                    <Badge
+                      variant={bill.match_status === "PPV_HOLD" ? "action_required" : "administrative"}
+                      className="font-normal"
+                    >
+                      {billMatchStatusLabel(bill.match_status)}
+                    </Badge>
                     <p className="font-medium">{bill.total_liability_amount}</p>
                     <p className="text-muted-foreground">{formatDate(bill.created_at)}</p>
                   </div>
@@ -98,8 +101,8 @@ export function BillManagementTerminal({
         open={drawerOpen}
         suppliers={suppliers}
         locations={locations}
-        receivableOrders={receivableOrders}
-        goodsReceipts={goodsReceipts}
+        billableOrders={billableOrders}
+        matchingTolerancePct={matchingTolerancePct}
         peekBill={peekBill}
         onClose={() => setDrawerOpen(false)}
         onAfterSave={refresh}

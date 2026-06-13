@@ -102,3 +102,16 @@ export type ReceivablePurchaseOrderOption = {
   tax_supply_nature: PoTaxSupplyNature;
   lines: PurchaseOrderLineRow[];
 };
+
+export type BillablePurchaseOrderOption = {
+  id: string;
+  voucher_number: string;
+  supplier_id: string;
+  destination_location_id: string;
+  destination_location_name: string;
+  destination_location_code: string;
+  supplier_name: string;
+  tax_supply_nature: PoTaxSupplyNature;
+  currency_code: string;
+  lines: PurchaseOrderLineRow[];
+};
