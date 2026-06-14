@@ -615,22 +615,29 @@ function backfillHeaderSlots(columns: DocumentColumnPref[]): DocumentColumnPref[
 function foldLegacyLineColumnVisibility(columns: DocumentColumnPref[]): DocumentColumnPref[] {
   const discAmountVisible =
     columns.find((column) => column.id === "discount_amount")?.defaultVisible === true;
+  const discPctVisible =
+    columns.find((column) => column.id === "discount_pct")?.defaultVisible === true;
   const taxRateVisible =
     columns.find((column) => column.id === "tax_rate_pct")?.defaultVisible === true;
+  const lineTaxVisible =
+    columns.find((column) => column.id === "line_tax_amount")?.defaultVisible === true;
 
-  if (!discAmountVisible && !taxRateVisible) return columns;
+  const foldDiscAmount = discAmountVisible && !discPctVisible;
+  const foldTaxRate = taxRateVisible && !lineTaxVisible;
+
+  if (!foldDiscAmount && !foldTaxRate) return columns;
 
   return columns.map((column) => {
-    if (discAmountVisible && column.id === "discount_amount") {
+    if (foldDiscAmount && column.id === "discount_amount") {
       return { ...column, defaultVisible: false };
     }
-    if (discAmountVisible && column.id === "discount_pct") {
+    if (foldDiscAmount && column.id === "discount_pct") {
       return { ...column, defaultVisible: true };
     }
-    if (taxRateVisible && column.id === "tax_rate_pct") {
+    if (foldTaxRate && column.id === "tax_rate_pct") {
       return { ...column, defaultVisible: false };
     }
-    if (taxRateVisible && column.id === "line_tax_amount") {
+    if (foldTaxRate && column.id === "line_tax_amount") {
       return { ...column, defaultVisible: true };
     }
     return column;
