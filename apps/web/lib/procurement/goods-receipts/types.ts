@@ -14,6 +14,7 @@ export type GoodsReceiptLineRow = {
   /** Remaining units in the QC hold pool (when receipt is QC pending). */
   quantity_on_qc_hold?: string;
   route_to_qc?: boolean;
+  is_promotional?: boolean;
   raw_unit_cost: string;
   total_final_landed_cost: string;
   import_igst_amount: string;

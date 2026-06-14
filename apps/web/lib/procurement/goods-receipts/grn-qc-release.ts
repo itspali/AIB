@@ -13,8 +13,11 @@ export function grnLineQcHoldQuantity(line: GoodsReceiptLineRow): number {
 export function grnLinesAwaitingQcRelease(lines: GoodsReceiptLineRow[]): GoodsReceiptLineRow[] {
   return lines.filter((line) => {
     if (!line.id) return false;
-    if (line.route_to_qc === false) return false;
-    return grnLineQcHoldQuantity(line) > 0;
+    if (grnLineQcHoldQuantity(line) <= 0) return false;
+    if (line.route_to_qc === false) {
+      return line.is_promotional === true;
+    }
+    return true;
   });
 }
 

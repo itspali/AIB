@@ -54,6 +54,21 @@ describe("grnLinesAwaitingQcRelease", () => {
       ])
     ).toHaveLength(1);
   });
+
+  it("includes promotional free-goods lines even when route_to_qc was false", () => {
+    expect(
+      grnLinesAwaitingQcRelease([
+        line({
+          id: "line-promo",
+          quantity_accepted: "1",
+          raw_unit_cost: "0",
+          route_to_qc: false,
+          is_promotional: true,
+        }),
+        line({ id: "line-paid", quantity_accepted: "3", route_to_qc: true }),
+      ])
+    ).toHaveLength(2);
+  });
 });
 
 describe("parseGrnQcReleaseQuantities", () => {

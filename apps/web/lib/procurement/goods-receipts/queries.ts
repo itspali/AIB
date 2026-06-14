@@ -59,6 +59,7 @@ type GrnLineDbRow = {
   quantity_accepted: number | string;
   quantity_rejected: number | string;
   route_to_qc?: boolean | null;
+  is_promotional?: boolean | null;
   raw_unit_cost: number | string;
   total_final_landed_cost: number | string;
   import_igst_amount: number | string | null;
@@ -82,6 +83,9 @@ function mapGrnLine(row: GrnLineDbRow): GoodsReceiptLineRow {
     quantity_accepted: formatDecimal(row.quantity_accepted),
     quantity_rejected: formatDecimal(row.quantity_rejected),
     route_to_qc: row.route_to_qc === true,
+    is_promotional:
+      row.is_promotional === true ||
+      (Number(formatDecimal(row.raw_unit_cost)) === 0 && row.po_item_id != null),
     raw_unit_cost: formatDecimal(row.raw_unit_cost),
     total_final_landed_cost: formatDecimal(row.total_final_landed_cost),
     import_igst_amount: formatDecimal(row.import_igst_amount),
@@ -238,6 +242,7 @@ export async function fetchGoodsReceiptById(
         quantity_accepted,
         quantity_rejected,
         route_to_qc,
+        is_promotional,
         raw_unit_cost,
         total_final_landed_cost,
         import_igst_amount,
@@ -334,6 +339,7 @@ const GRN_PO_DETAIL_SELECT = `
         quantity_accepted,
         quantity_rejected,
         route_to_qc,
+        is_promotional,
         raw_unit_cost,
         total_final_landed_cost,
         import_igst_amount,
