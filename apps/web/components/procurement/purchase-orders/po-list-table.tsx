@@ -1,9 +1,10 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { renderPurchaseOrderListCell } from "@/components/procurement/purchase-orders/po-list-cells";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { getOrderedVisibleColumns } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
@@ -15,6 +16,8 @@ import {
 import { useResizableListColumns } from "@/lib/list-columns/use-resizable-list-columns";
 import {
   isAutoFrozenColumnPref,
+  LIST_SELECTION_COLUMN_Z_BODY,
+  LIST_SELECTION_COLUMN_Z_HEADER,
   LIST_TABLE_HEADER_Z,
   resolveListFrozenColumnCount,
   useFrozenListColumns,
@@ -33,13 +36,17 @@ import {
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import {
   LIST_TABLE_BODY_CELL,
+  LIST_TABLE_CHECKBOX_CLASS,
+  LIST_TABLE_FROZEN_EDGE_SHADOW,
   LIST_TABLE_HEADER_CELL,
+  LIST_TABLE_HEADER_CELL_BG,
   LIST_TABLE_HEADER_SORTABLE,
   LIST_TABLE_ROOT,
   LIST_TABLE_SCROLL,
   LIST_TABLE_SURFACE,
   listTableElementClass,
   listTableHeaderCornerClass,
+  listTableLeadingCellInteractionClass,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
@@ -55,6 +62,13 @@ type Props = {
   onColumnWidthChange?: (columnId: PurchaseOrderListColumnId, width: number | null) => void;
   selectedId: string | null;
   onSelect: (purchaseOrderId: string) => void;
+  bulkSelectionEnabled?: boolean;
+  bulkSelectedIds?: Set<string>;
+  pageAllSelected?: boolean;
+  pageSomeSelected?: boolean;
+  isRowBulkSelectable?: (row: PurchaseOrderRow) => boolean;
+  onBulkRowToggle?: (purchaseOrderId: string, checked: boolean) => void;
+  onBulkPageToggle?: (checked: boolean) => void;
 };
 
 export function PoListTable({
@@ -67,7 +81,15 @@ export function PoListTable({
   onColumnWidthChange,
   selectedId,
   onSelect,
+  bulkSelectionEnabled = false,
+  bulkSelectedIds = new Set<string>(),
+  pageAllSelected = false,
+  pageSomeSelected = false,
+  isRowBulkSelectable = () => false,
+  onBulkRowToggle,
+  onBulkPageToggle,
 }: Props) {
+  const selectionColumnRef = useRef<HTMLTableCellElement | null>(null);
   const { deviceClass } = useDeviceClass();
   const columns = useMemo(() => getOrderedVisibleColumns(columnPrefs), [columnPrefs]);
   const widthRemeasureKey = useMemo(
@@ -79,6 +101,7 @@ export function PoListTable({
     columnCount: columns.length,
     frozenColumnCount: resolvedFrozenCount,
     freezeColumnsAuto: isAutoFrozenColumnPref(frozenColumnCount),
+    leadingColumnRef: bulkSelectionEnabled ? selectionColumnRef : undefined,
     remeasureKey: `${rows.length}:${widthRemeasureKey}`,
   });
   const resolveAutoWidth = useCallback(
@@ -112,6 +135,22 @@ export function PoListTable({
     onSortChange(next.field, next.direction);
   };
 
+  const selectionColumnShowsEdge =
+    bulkSelectionEnabled && frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
+
+  const selectionHeaderClass = cn(
+    "w-10 p-0 font-medium text-muted-foreground",
+    LIST_TABLE_HEADER_CELL_BG,
+    selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
+  );
+
+  const selectionBodyClass = (selected: boolean) =>
+    cn(
+      "w-10 p-0 text-center",
+      selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW,
+      listTableLeadingCellInteractionClass(selected)
+    );
+
   return (
     <div className={LIST_TABLE_ROOT}>
       <div className={LIST_TABLE_SURFACE}>
@@ -119,6 +158,25 @@ export function PoListTable({
           <table className={listTableElementClass("wide")}>
             <thead>
               <tr className="text-left">
+                {bulkSelectionEnabled ? (
+                  <th
+                    ref={selectionColumnRef}
+                    className={cn(
+                      "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
+                      selectionHeaderClass
+                    )}
+                    style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
+                  >
+                    <div className="flex items-center justify-center p-2.5">
+                      <Checkbox
+                        className={LIST_TABLE_CHECKBOX_CLASS}
+                        checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                        onCheckedChange={(checked) => onBulkPageToggle?.(checked === true)}
+                        aria-label="Select all approvable purchase orders on this page"
+                      />
+                    </div>
+                  </th>
+                ) : null}
                 {columns.map((columnId, index) => {
                   const column = getPurchaseOrderColumnDef(columnId);
                   const active = sortField === columnId;
@@ -142,7 +200,10 @@ export function PoListTable({
                         frozen.headerCellClass(index),
                         column.align === "right" && "text-right",
                         active && "text-foreground",
-                        listTableHeaderCornerClass(index, columns.length - 1)
+                        listTableHeaderCornerClass(
+                          bulkSelectionEnabled ? index + 1 : index,
+                          bulkSelectionEnabled ? columns.length : columns.length - 1
+                        )
                       )}
                       style={{
                         ...mergeColumnCellStyles(sticky.style, widthStyles),
@@ -198,12 +259,42 @@ export function PoListTable({
             <tbody>
               {rows.map((row) => {
                 const selected = selectedId === row.id;
+                const bulkSelected = bulkSelectedIds.has(row.id);
+                const bulkSelectable = isRowBulkSelectable(row);
+
                 return (
                   <tr
                     key={row.id}
                     className={listTableRowClass(selected)}
                     onClick={() => onSelect(row.id)}
                   >
+                    {bulkSelectionEnabled ? (
+                      <td
+                        className={cn(
+                          "sticky left-0 isolate",
+                          LIST_TABLE_BODY_CELL,
+                          selectionBodyClass(selected)
+                        )}
+                        style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
+                      >
+                        {bulkSelectable ? (
+                          <div
+                            className="flex items-center justify-center p-2.5"
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                          >
+                            <Checkbox
+                              className={LIST_TABLE_CHECKBOX_CLASS}
+                              checked={bulkSelected}
+                              onCheckedChange={(checked) =>
+                                onBulkRowToggle?.(row.id, checked === true)
+                              }
+                              aria-label={`Select ${row.voucher_number}`}
+                            />
+                          </div>
+                        ) : null}
+                      </td>
+                    ) : null}
                     {columns.map((columnId, index) => {
                       const column = getPurchaseOrderColumnDef(columnId);
                       const sticky = frozen.getStickyCellProps(index, "body");

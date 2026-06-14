@@ -37,8 +37,9 @@ type Props = {
   className?: string;
   /** Compact banner-only mode for GRN create form. */
   variant?: "banner" | "full";
-  /** Peek surfaces: wait for load before mounting so empty POs do not shift layout. */
-  hideUntilLoaded?: boolean;
+  /** Prefetched rows from peek drawer — skips mount-time fetch when provided. */
+  initialEntitlements?: PoPromoEntitlementRow[];
+  initialLoadError?: string | null;
 };
 
 function formatQtyDisplay(value: string): string {
@@ -52,11 +53,19 @@ export function PoPromoEntitlementsPanel({
   allowWriteOff = false,
   className,
   variant = "full",
-  hideUntilLoaded = false,
+  initialEntitlements,
+  initialLoadError = null,
 }: Props) {
-  const [entitlements, setEntitlements] = useState<PoPromoEntitlementRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const usesPrefetchedData = initialEntitlements !== undefined;
+  const [entitlements, setEntitlements] = useState<PoPromoEntitlementRow[]>(
+    () => initialEntitlements ?? []
+  );
+  const [loading, setLoading] = useState(
+    () => Boolean(purchaseOrderId) && !usesPrefetchedData
+  );
+  const [loadError, setLoadError] = useState<string | null>(
+    () => initialLoadError ?? null
+  );
   const [writeOffTarget, setWriteOffTarget] = useState<PoPromoEntitlementRow | null>(null);
   const [writeOffReason, setWriteOffReason] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -78,10 +87,17 @@ export function PoPromoEntitlementsPanel({
     if (!purchaseOrderId) {
       setEntitlements([]);
       setLoadError(null);
+      setLoading(false);
+      return;
+    }
+    if (usesPrefetchedData) {
+      setEntitlements(initialEntitlements ?? []);
+      setLoadError(initialLoadError ?? null);
+      setLoading(false);
       return;
     }
     void reload(purchaseOrderId);
-  }, [purchaseOrderId, reload]);
+  }, [initialEntitlements, initialLoadError, purchaseOrderId, reload, usesPrefetchedData]);
 
   const openEntitlements = useMemo(
     () => entitlements.filter(isOpenPromoEntitlement),
@@ -111,10 +127,6 @@ export function PoPromoEntitlementsPanel({
   };
 
   if (!purchaseOrderId || !showPanel) return null;
-
-  if (hideUntilLoaded && loading && entitlements.length === 0 && !loadError) {
-    return null;
-  }
 
   if (variant === "banner" && !showOpenBanner && !loading) {
     return null;

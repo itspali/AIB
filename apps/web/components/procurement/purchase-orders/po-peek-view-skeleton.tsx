@@ -54,7 +54,33 @@ function LinesTableSkeleton() {
   );
 }
 
-export function PoPeekViewSkeleton({ className }: { className?: string }) {
+function PromoPanelSkeleton() {
+  return (
+    <div className="surface-inset rounded-lg border border-border/60 p-4">
+      <div className="flex items-start gap-3">
+        <Skeleton className="mt-0.5 h-4 w-4 shrink-0 shimmer" />
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-44 shimmer" />
+            <Skeleton className="h-3 w-full max-w-md shimmer" />
+          </div>
+          <div className="overflow-hidden rounded-md border border-border/60">
+            <Skeleton className="h-9 w-full rounded-none shimmer" />
+            <Skeleton className="h-12 w-full rounded-none shimmer" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PoPeekViewSkeleton({
+  className,
+  includePromoSection = false,
+}: {
+  className?: string;
+  includePromoSection?: boolean;
+}) {
   return (
     <div
       className={cn("space-y-6", className)}
@@ -71,6 +97,8 @@ export function PoPeekViewSkeleton({ className }: { className?: string }) {
           <HeaderFieldSkeleton key={index} />
         ))}
       </div>
+
+      {includePromoSection ? <PromoPanelSkeleton /> : null}
 
       <div>
         <div className="mb-2 flex items-center justify-between gap-2">

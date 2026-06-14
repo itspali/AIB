@@ -295,6 +295,35 @@ type SupplierEmbed =
     }>
   | null;
 
+async function hydratePurchaseOrderApprovalSubmitters(
+  supabase: SupabaseClient,
+  tenantId: string,
+  rows: PurchaseOrderRow[]
+): Promise<void> {
+  const pendingIds = rows
+    .filter((row) => row.document_status === "PENDING_APPROVAL")
+    .map((row) => row.id);
+  if (pendingIds.length === 0) return;
+
+  const { data, error } = await supabase
+    .from("document_approval_requests")
+    .select("document_id, submitted_by")
+    .eq("tenant_id", tenantId)
+    .eq("document_type", "PURCHASE_ORDER")
+    .eq("status", "PENDING")
+    .in("document_id", pendingIds);
+
+  if (error || !data?.length) return;
+
+  const submitterByPoId = new Map(
+    data.map((row) => [row.document_id as string, (row.submitted_by as string | null) ?? null])
+  );
+
+  for (const row of rows) {
+    row.approval_submitted_by = submitterByPoId.get(row.id) ?? null;
+  }
+}
+
 async function hydratePurchaseOrderCreatorNames(
   supabase: SupabaseClient,
   rows: PurchaseOrderRow[]
@@ -569,6 +598,7 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     custom_fields: row.custom_fields ?? {},
     created_by: row.created_by,
     created_by_name: "",
+    approval_submitted_by: null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -609,7 +639,10 @@ export async function fetchPurchaseOrders(
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []).map((row) => mapPoListRow(row as PoListDbRow));
-  await hydratePurchaseOrderCreatorNames(supabase, rows);
+  await Promise.all([
+    hydratePurchaseOrderCreatorNames(supabase, rows),
+    hydratePurchaseOrderApprovalSubmitters(supabase, tenantId, rows),
+  ]);
   return rows;
 }
 
@@ -635,7 +668,10 @@ export async function fetchPurchaseOrderById(
   const row = data as PoListDbRow & { po_lines?: PoLineDbRow[] | null };
   const mapped = mapPoListRow(row);
   mapped.lines = (row.po_lines ?? []).map(mapPoLine);
-  await hydratePurchaseOrderCreatorNames(supabase, [mapped]);
+  await Promise.all([
+    hydratePurchaseOrderCreatorNames(supabase, [mapped]),
+    hydratePurchaseOrderApprovalSubmitters(supabase, tenantId, [mapped]),
+  ]);
   return mapped;
 }
 

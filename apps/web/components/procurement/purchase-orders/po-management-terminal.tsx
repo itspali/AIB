@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { loadPurchaseOrders } from "@/app/procurement/purchase-orders/actions";
+import { bulkApprovePurchaseOrders, loadPurchaseOrders } from "@/app/procurement/purchase-orders/actions";
+import { PoBulkActionToolbar } from "@/components/procurement/purchase-orders/po-bulk-action-toolbar";
 import { PoDrawerForm } from "@/components/procurement/purchase-orders/po-drawer-form";
 import { PoEmptyState } from "@/components/procurement/purchase-orders/po-empty-state";
 import { PoListTable } from "@/components/procurement/purchase-orders/po-list-table";
@@ -37,9 +38,22 @@ import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orde
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
+import {
+  canUserApprovePurchaseOrders,
+  isPurchaseOrderApprovableByUser,
+} from "@/lib/procurement/approval-settings";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
+
+function resolveBulkPurchaseOrderIds(
+  bulkSelectAllMatching: boolean,
+  bulkSelectedIds: Set<string>,
+  matchingIds: string[]
+): string[] {
+  if (bulkSelectAllMatching) return matchingIds;
+  return [...bulkSelectedIds];
+}
 
 type Props = {
   initialPurchaseOrders: PurchaseOrderRow[];
@@ -60,7 +74,6 @@ type Props = {
   taxCodeOptions: readonly PoLineTaxCodeOption[];
   approvalSettings: ProcurementApprovalSettings;
   currentUserId: string;
-  canApprovePurchaseOrders: boolean;
   isOwner: boolean;
 };
 
@@ -83,7 +96,6 @@ export function PoManagementTerminal({
   taxCodeOptions,
   approvalSettings,
   currentUserId,
-  canApprovePurchaseOrders,
   isOwner,
 }: Props) {
   const searchParams = useSearchParams();
@@ -98,6 +110,21 @@ export function PoManagementTerminal({
   const [prefs, setPrefs] = useState<PurchaseOrderListPrefs>(getDefaultPurchaseOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [, startRefreshTransition] = useTransition();
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
+  const [isBulkPending, startBulkTransition] = useTransition();
+
+  const canBulkApprove = canUserApprovePurchaseOrders(currentUserId, approvalSettings, {
+    isOwner,
+  });
+
+  const isRowBulkApprovable = useCallback(
+    (row: PurchaseOrderRow) => {
+      if (isOwner) return row.document_status === "PENDING_APPROVAL";
+      return isPurchaseOrderApprovableByUser(row, currentUserId, approvalSettings, { isOwner });
+    },
+    [approvalSettings, currentUserId, isOwner]
+  );
 
   useEffect(() => {
     setPrefs(loadPurchaseOrderListPrefs());
@@ -217,6 +244,91 @@ export function PoManagementTerminal({
     [filteredRows, prefs.sortDirection, prefs.sortField]
   );
 
+  const approvableMatchingIds = useMemo(
+    () => filteredRows.filter(isRowBulkApprovable).map((row) => row.id),
+    [filteredRows, isRowBulkApprovable]
+  );
+
+  const approvableVisibleIds = useMemo(
+    () => sortedRows.filter(isRowBulkApprovable).map((row) => row.id),
+    [isRowBulkApprovable, sortedRows]
+  );
+
+  const pageAllSelected =
+    approvableVisibleIds.length > 0 &&
+    approvableVisibleIds.every((id) => bulkSelectedIds.has(id));
+  const pageSomeSelected =
+    approvableVisibleIds.some((id) => bulkSelectedIds.has(id)) && !pageAllSelected;
+
+  const bulkSelectionCount = bulkSelectAllMatching
+    ? approvableMatchingIds.length
+    : bulkSelectedIds.size;
+
+  const clearBulkSelection = useCallback(() => {
+    setBulkSelectedIds(new Set());
+    setBulkSelectAllMatching(false);
+  }, []);
+
+  const resolveSelectedIds = useCallback(
+    () => resolveBulkPurchaseOrderIds(bulkSelectAllMatching, bulkSelectedIds, approvableMatchingIds),
+    [approvableMatchingIds, bulkSelectAllMatching, bulkSelectedIds]
+  );
+
+  const handleBulkRowToggle = useCallback((purchaseOrderId: string, checked: boolean) => {
+    setBulkSelectAllMatching(false);
+    setBulkSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(purchaseOrderId);
+      else next.delete(purchaseOrderId);
+      return next;
+    });
+  }, []);
+
+  const handleBulkPageToggle = useCallback(
+    (checked: boolean) => {
+      setBulkSelectAllMatching(false);
+      setBulkSelectedIds((current) => {
+        const next = new Set(current);
+        for (const id of approvableVisibleIds) {
+          if (checked) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    },
+    [approvableVisibleIds]
+  );
+
+  const handleBulkApprove = useCallback(() => {
+    const ids = resolveSelectedIds();
+    if (ids.length === 0) {
+      toast.error("Select at least one purchase order pending your approval.");
+      return;
+    }
+
+    startBulkTransition(async () => {
+      const result = await bulkApprovePurchaseOrders({ purchase_order_ids: ids });
+      if (result.success !== true) {
+        toast.error(result.error ?? "Unable to approve the selected purchase orders.");
+        return;
+      }
+
+      const approvedCount = result.approvedIds.length;
+      const failedCount = result.failures.length;
+      if (failedCount > 0) {
+        toast.success(
+          `${approvedCount} purchase ${approvedCount === 1 ? "order" : "orders"} approved; ${failedCount} could not be approved.`
+        );
+      } else {
+        toast.success(
+          `${approvedCount} purchase ${approvedCount === 1 ? "order" : "orders"} approved and issued`
+        );
+      }
+      clearBulkSelection();
+      refreshList();
+    });
+  }, [clearBulkSelection, refreshList, resolveSelectedIds]);
+
   const handleSortChange = useCallback(
     (field: PurchaseOrderListSortField, direction: PurchaseOrderListSortDirection) => {
       setPrefs((current) => ({ ...current, sortField: field, sortDirection: direction }));
@@ -251,8 +363,35 @@ export function PoManagementTerminal({
       }
       selectedId={selectedId}
       onSelect={handleSelect}
+      bulkSelectionEnabled={canBulkApprove}
+      bulkSelectedIds={bulkSelectedIds}
+      pageAllSelected={pageAllSelected}
+      pageSomeSelected={pageSomeSelected}
+      isRowBulkSelectable={isRowBulkApprovable}
+      onBulkRowToggle={handleBulkRowToggle}
+      onBulkPageToggle={handleBulkPageToggle}
     />
   );
+
+  const bulkToolbar =
+    hasAnyData && canBulkApprove && bulkSelectionCount > 0 ? (
+      <PoBulkActionToolbar
+        selectedCount={bulkSelectedIds.size}
+        totalMatchingCount={approvableMatchingIds.length}
+        selectAllMatching={bulkSelectAllMatching}
+        pageAllSelected={pageAllSelected}
+        visibleCount={approvableVisibleIds.length}
+        isPending={isBulkPending}
+        onClearSelection={clearBulkSelection}
+        onSelectPage={() => handleBulkPageToggle(true)}
+        onSelectAllMatching={() => {
+          setBulkSelectAllMatching(true);
+          setBulkSelectedIds(new Set(approvableMatchingIds));
+        }}
+        onApprove={handleBulkApprove}
+        embedded
+      />
+    ) : null;
 
   return (
     <>
@@ -279,6 +418,7 @@ export function PoManagementTerminal({
             />
           ) : null
         }
+        bulkToolbar={bulkToolbar}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}
@@ -314,7 +454,6 @@ export function PoManagementTerminal({
         taxCodeOptions={taxCodeOptions}
         approvalSettings={approvalSettings}
         currentUserId={currentUserId}
-        canApprovePurchaseOrders={canApprovePurchaseOrders}
         isOwner={isOwner}
       />
     </>

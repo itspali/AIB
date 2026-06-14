@@ -136,6 +136,13 @@ export const approvePurchaseOrderSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
+export const bulkApprovePurchaseOrdersSchema = z.object({
+  purchase_order_ids: z
+    .array(z.string().uuid("Purchase order id is required."))
+    .min(1, "Select at least one purchase order.")
+    .max(100, "Approve at most 100 purchase orders at once."),
+});
+
 export const rejectPurchaseOrderSchema = z.object({
   purchase_order_id: z.string().uuid("Purchase order id is required."),
   notes: z.string().trim().min(1, "A rejection reason is required.").max(2000),

@@ -88,6 +88,8 @@ export type PurchaseOrderRow = {
   custom_fields: Record<string, unknown>;
   created_by: string;
   created_by_name: string;
+  /** Pending approval request submitter, when status is PENDING_APPROVAL. */
+  approval_submitted_by?: string | null;
   created_at: string;
   updated_at: string;
   lines?: PurchaseOrderLineRow[];

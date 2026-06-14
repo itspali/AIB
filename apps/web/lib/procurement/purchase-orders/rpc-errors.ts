@@ -113,6 +113,15 @@ export function formatPurchaseOrderRpcError(
     };
   }
 
+  if (
+    message.toLowerCase().includes("purchase order approver permission required for this amount")
+  ) {
+    return {
+      message:
+        "This purchase order exceeds the approval threshold. Only a workspace owner can approve or reject it.",
+    };
+  }
+
   if (message.toLowerCase().includes("purchase order approver permission required")) {
     return {
       message: "You do not have permission to approve or reject purchase orders.",
@@ -121,7 +130,8 @@ export function formatPurchaseOrderRpcError(
 
   if (message.toLowerCase().includes("submitter cannot self-approve this purchase order")) {
     return {
-      message: "You cannot approve your own submission unless self-approve below threshold is enabled.",
+      message:
+        "You cannot approve your own submission when the PO exceeds the approval threshold. Another approver or a workspace owner must approve it.",
     };
   }
 

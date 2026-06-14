@@ -93,6 +93,8 @@ export function ProcurementApprovalsPanel({
             />
             <p className="text-xs text-muted-foreground">
               POs at or below this net amount may skip approval when self-approve is enabled.
+              Named approvers can approve only up to this amount; workspace owners may approve above
+              it.
             </p>
           </div>
 

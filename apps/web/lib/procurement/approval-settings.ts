@@ -14,6 +14,92 @@ export function canUserApprovePurchaseOrders(
   return settings.po_approver_user_ids.includes(userId);
 }
 
+/** Workspace owners may approve any amount; named approvers only at or below threshold. */
+export function canUserApprovePurchaseOrderAmount(
+  userId: string,
+  settings: ProcurementApprovalSettings,
+  totalNetAmount: number,
+  options: { isOwner: boolean }
+): boolean {
+  if (options.isOwner) return true;
+
+  if (!settings.po_approver_user_ids.includes(userId)) return false;
+
+  const threshold = settings.po_approval_threshold_amount;
+  if (threshold == null || !Number.isFinite(threshold)) return true;
+
+  return Number.isFinite(totalNetAmount) && totalNetAmount <= threshold;
+}
+
+/** Mirrors `private.po_self_approve_allowed` — only below threshold when enabled. */
+export function poSelfApproveAllowed(
+  settings: ProcurementApprovalSettings,
+  totalNetAmount: number,
+  userId: string,
+  options: { isOwner: boolean }
+): boolean {
+  if (options.isOwner) return true;
+  if (!settings.allow_submitter_self_approve_below_threshold) return false;
+  if (!canUserApprovePurchaseOrders(userId, settings, options)) return false;
+
+  const threshold = settings.po_approval_threshold_amount;
+  if (threshold == null || !Number.isFinite(threshold)) return false;
+
+  return Number.isFinite(totalNetAmount) && totalNetAmount <= threshold;
+}
+
+export function describePurchaseOrderSelfApprovalBlocker(
+  settings: ProcurementApprovalSettings,
+  totalNetAmount: number,
+  userId: string,
+  options: { isOwner: boolean }
+): string | null {
+  if (options.isOwner || poSelfApproveAllowed(settings, totalNetAmount, userId, options)) {
+    return null;
+  }
+
+  if (!settings.allow_submitter_self_approve_below_threshold) {
+    return "You cannot approve your own submission. Another approver must approve this order.";
+  }
+
+  const threshold = settings.po_approval_threshold_amount;
+  if (threshold == null || !Number.isFinite(threshold)) {
+    return "You cannot approve your own submission without an approval threshold configured.";
+  }
+
+  if (Number.isFinite(totalNetAmount) && totalNetAmount > threshold) {
+    return "You cannot approve your own submission when the PO exceeds the approval threshold. Another approver or a workspace owner must approve it.";
+  }
+
+  return "You cannot approve your own submission.";
+}
+
+export function isPurchaseOrderApprovableByUser(
+  order: {
+    document_status: string;
+    total_net_amount: string | number;
+    approval_submitted_by?: string | null;
+  },
+  userId: string,
+  settings: ProcurementApprovalSettings,
+  options: { isOwner: boolean }
+): boolean {
+  if (order.document_status !== "PENDING_APPROVAL") return false;
+
+  // Workspace owners are super-approvers: any pending PO, any amount, including own submissions.
+  if (options.isOwner) return true;
+
+  const amount = Number(order.total_net_amount);
+  if (!canUserApprovePurchaseOrderAmount(userId, settings, amount, options)) return false;
+
+  const submitterId = order.approval_submitted_by ?? null;
+  if (submitterId === userId) {
+    return poSelfApproveAllowed(settings, amount, userId, options);
+  }
+
+  return true;
+}
+
 export function isPoApprovalRequiredBeforeIssue(
   settings: ProcurementApprovalSettings,
   totalNetAmount: number,

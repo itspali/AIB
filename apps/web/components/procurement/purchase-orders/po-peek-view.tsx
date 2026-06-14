@@ -50,6 +50,8 @@ import {
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
 import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
+import { poPeekShowsPromoEntitlements } from "@/lib/procurement/purchase-orders/po-peek-promo";
+import type { PoPromoEntitlementRow } from "@/lib/procurement/promo/entitlements";
 import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import { resolvePoAddressBlocksForOrder } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
@@ -67,6 +69,8 @@ type Props = {
   layout?: DocumentLayoutTemplate;
   organizationBillTo: OrganizationBillToSnapshot;
   enableMrpTradeTerms?: boolean;
+  promoEntitlements?: PoPromoEntitlementRow[];
+  promoLoadError?: string | null;
 };
 
 function peekLineCellClass(column: DocumentColumnPref, extra?: string) {
@@ -498,6 +502,8 @@ export function PoPeekView({
   layout = DEFAULT_PO_SCREEN_LAYOUT,
   organizationBillTo,
   enableMrpTradeTerms = true,
+  promoEntitlements = [],
+  promoLoadError = null,
 }: Props) {
   const customFields = parsePurchaseOrderCustomFields(order.custom_fields);
   const resolvedLayout = useMemo(() => normalizePoLayoutTemplate(layout), [layout]);
@@ -535,8 +541,7 @@ export function PoPeekView({
   const grandTotalDecimals = grandTotalField
     ? resolveColumnDecimalPlaces(grandTotalField)
     : 2;
-  const showPromoEntitlements =
-    order.document_status !== "DRAFT" && order.document_status !== "CANCELLED";
+  const showPromoEntitlements = poPeekShowsPromoEntitlements(order.document_status);
 
   const gridFields = headerFields.filter((field) => field.id !== "internal_notes");
   const internalNotesField = headerFields.find((field) => field.id === "internal_notes");
@@ -574,7 +579,8 @@ export function PoPeekView({
           purchaseOrderId={order.id}
           allowWriteOff
           variant="full"
-          hideUntilLoaded
+          initialEntitlements={promoEntitlements}
+          initialLoadError={promoLoadError}
         />
       ) : null}
 

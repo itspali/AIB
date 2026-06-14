@@ -18,6 +18,7 @@ import { serializePurchaseOrderCustomFields } from "@/lib/procurement/purchase-o
 import { normalizePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/po-header-charges";
 import {
   approvePurchaseOrderSchema,
+  bulkApprovePurchaseOrdersSchema,
   issuePurchaseOrderSchema,
   peekPurchaseOrderNumberSchema,
   rejectPurchaseOrderSchema,
@@ -54,8 +55,16 @@ import { parseIssuePurchaseOrderRpcResult } from "@/lib/documents/posting-querie
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
-import { fetchPoPromoEntitlements } from "@/lib/procurement/promo/entitlements";
+import { fetchPoPromoEntitlements, type PoPromoEntitlementRow } from "@/lib/procurement/promo/entitlements";
+import { poPeekShowsPromoEntitlements } from "@/lib/procurement/purchase-orders/po-peek-promo";
+import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
 import { z } from "zod";
+import {
+  canUserApprovePurchaseOrders,
+  describePurchaseOrderSelfApprovalBlocker,
+  isPurchaseOrderApprovableByUser,
+} from "@/lib/procurement/approval-settings";
+import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
 import {
   loadItemWritebackProfile,
   mergeWritebackCustomFields,
@@ -129,6 +138,50 @@ export async function loadPurchaseOrderDetail(
     return { error: "Purchase order not found." };
   }
   return { purchaseOrder };
+}
+
+export type PurchaseOrderPeekPayload = {
+  purchaseOrder: PurchaseOrderRow;
+  promoEntitlements: PoPromoEntitlementRow[];
+  documentLayout: DocumentLayoutTemplate;
+};
+
+/** Single round-trip payload for the PO peek drawer (detail, promos, location layout). */
+export async function loadPurchaseOrderPeek(
+  purchaseOrderId: string
+): Promise<PurchaseOrderPeekPayload | { error: string }> {
+  if (!purchaseOrderId.trim()) return { error: "Purchase order id is required." };
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [purchaseOrder, access] = await Promise.all([
+    fetchPurchaseOrderById(supabase, tenantId, purchaseOrderId),
+    resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
+  ]);
+
+  if (!purchaseOrder) return { error: "Purchase order not found." };
+  if (!canAccessPurchaseOrderDestination(purchaseOrder.destination_location_id, access)) {
+    return { error: "Purchase order not found." };
+  }
+
+  const needsPromoEntitlements = poPeekShowsPromoEntitlements(purchaseOrder.document_status);
+  const [promoEntitlements, documentLayout] = await Promise.all([
+    needsPromoEntitlements
+      ? fetchPoPromoEntitlements(supabase, tenantId, purchaseOrderId)
+      : Promise.resolve([] as PoPromoEntitlementRow[]),
+    resolveEffectiveDocumentLayout({
+      supabase,
+      tenantId,
+      moduleKey: "PURCHASE_ORDER",
+      viewContext: "SCREEN_GRID",
+      documentLocationId: purchaseOrder.destination_location_id,
+    }),
+  ]);
+
+  return {
+    purchaseOrder,
+    promoEntitlements,
+    documentLayout: normalizePoLayoutTemplate(documentLayout),
+  };
 }
 
 export async function peekPurchaseOrderNumber(raw: unknown) {
@@ -392,7 +445,8 @@ async function runPurchaseOrderWorkflowRpc(
     | "submit_purchase_order_for_approval"
     | "approve_purchase_order"
     | "reject_purchase_order",
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  options?: { revalidate?: boolean }
 ): Promise<
   | { success: true; purchaseOrderId: string; steps: PostingStepResult[] }
   | { error: string; errorAction?: UserFacingErrorAction }
@@ -411,8 +465,10 @@ async function runPurchaseOrderWorkflowRpc(
     };
   }
 
-  revalidatePurchaseOrderPaths();
-  revalidatePath("/dashboard");
+  if (options?.revalidate !== false) {
+    revalidatePurchaseOrderPaths();
+    revalidatePath("/dashboard");
+  }
   const parsedResult = parseIssuePurchaseOrderRpcResult(data);
   if (!parsedResult) {
     return { error: "Action completed but the response was invalid." };
@@ -445,6 +501,157 @@ export async function approvePurchaseOrder(raw: unknown) {
     p_purchase_order_id: parsed.data.purchase_order_id,
     p_notes: parsed.data.notes ?? null,
   });
+}
+
+export async function bulkApprovePurchaseOrders(raw: unknown) {
+  const parsed = bulkApprovePurchaseOrdersSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid bulk approval request." };
+  }
+
+  const uniqueIds = [...new Set(parsed.data.purchase_order_ids)];
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [access, approvalSettings] = await Promise.all([
+    resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
+    fetchProcurementApprovalSettings(supabase, tenantId),
+  ]);
+
+  if (
+    !canUserApprovePurchaseOrders(userId, approvalSettings, { isOwner: access.isOwner })
+  ) {
+    return { error: "You do not have permission to approve purchase orders." };
+  }
+
+  const { data: orders, error: fetchError } = await supabase
+    .from("purchase_orders")
+    .select("id, document_status, total_net_amount, destination_location_id")
+    .eq("tenant_id", tenantId)
+    .in("id", uniqueIds);
+
+  if (fetchError) {
+    return { error: "Unable to load purchase orders for approval." };
+  }
+
+  const orderById = new Map((orders ?? []).map((row) => [row.id as string, row]));
+  const pendingIds = uniqueIds.filter(
+    (id) => orderById.get(id)?.document_status === "PENDING_APPROVAL"
+  );
+
+  const submitterByPoId = new Map<string, string | null>();
+  if (pendingIds.length > 0) {
+    const { data: approvalRequests } = await supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "PURCHASE_ORDER")
+      .eq("status", "PENDING")
+      .in("document_id", pendingIds);
+
+    for (const request of approvalRequests ?? []) {
+      submitterByPoId.set(
+        request.document_id as string,
+        (request.submitted_by as string | null) ?? null
+      );
+    }
+  }
+
+  const approvedIds: string[] = [];
+  const failures: Array<{ id: string; error: string }> = [];
+
+  for (const purchaseOrderId of uniqueIds) {
+    const order = orderById.get(purchaseOrderId);
+    if (!order) {
+      failures.push({ id: purchaseOrderId, error: "Purchase order not found." });
+      continue;
+    }
+
+    if (
+      !canAccessPurchaseOrderDestination(order.destination_location_id as string, {
+        locationScope: access.locationScope,
+      })
+    ) {
+      failures.push({ id: purchaseOrderId, error: "You do not have access to this purchase order." });
+      continue;
+    }
+
+    if (order.document_status !== "PENDING_APPROVAL") {
+      failures.push({
+        id: purchaseOrderId,
+        error: "Only pending-approval purchase orders can be approved.",
+      });
+      continue;
+    }
+
+    if (!access.isOwner) {
+      const approvalSubmittedBy = submitterByPoId.get(purchaseOrderId) ?? null;
+      const amount = Number(order.total_net_amount);
+      const orderPayload = {
+        document_status: order.document_status as string,
+        total_net_amount: order.total_net_amount as string | number,
+        approval_submitted_by: approvalSubmittedBy,
+      };
+
+      if (
+        !isPurchaseOrderApprovableByUser(
+          orderPayload,
+          userId,
+          approvalSettings,
+          { isOwner: false }
+        )
+      ) {
+        const selfApprovalBlocker =
+          approvalSubmittedBy === userId
+            ? describePurchaseOrderSelfApprovalBlocker(
+                approvalSettings,
+                amount,
+                userId,
+                { isOwner: false }
+              )
+            : null;
+
+        failures.push({
+          id: purchaseOrderId,
+          error:
+            selfApprovalBlocker ??
+            "This purchase order cannot be approved by you.",
+        });
+        continue;
+      }
+    }
+
+    const result = await runPurchaseOrderWorkflowRpc(
+      "approve_purchase_order",
+      {
+        p_purchase_order_id: purchaseOrderId,
+        p_notes: null,
+      },
+      { revalidate: false }
+    );
+
+    if ("error" in result) {
+      failures.push({ id: purchaseOrderId, error: result.error });
+      continue;
+    }
+
+    approvedIds.push(result.purchaseOrderId);
+  }
+
+  if (approvedIds.length > 0) {
+    revalidatePurchaseOrderPaths();
+    revalidatePath("/dashboard");
+  }
+
+  if (approvedIds.length === 0) {
+    return {
+      error: failures[0]?.error ?? "Unable to approve the selected purchase orders.",
+    };
+  }
+
+  return {
+    success: true as const,
+    approvedIds,
+    failures,
+  };
 }
 
 export async function rejectPurchaseOrder(raw: unknown) {

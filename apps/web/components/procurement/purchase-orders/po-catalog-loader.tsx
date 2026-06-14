@@ -5,7 +5,6 @@ import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
 } from "@/lib/procurement/location-scope";
-import { canUserApprovePurchaseOrders } from "@/lib/procurement/approval-settings";
 import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
@@ -58,9 +57,6 @@ export async function PoCatalogLoader() {
     scopedLocations,
     editAccess.locationScope
   );
-  const canApprovePurchaseOrders = canUserApprovePurchaseOrders(userId, approvalSettings, {
-    isOwner: editAccess.isOwner,
-  });
 
   return (
     <PoManagementTerminal
@@ -84,7 +80,6 @@ export async function PoCatalogLoader() {
       taxCodeOptions={taxCodeOptions}
       approvalSettings={approvalSettings}
       currentUserId={userId}
-      canApprovePurchaseOrders={canApprovePurchaseOrders}
       isOwner={editAccess.isOwner}
     />
   );

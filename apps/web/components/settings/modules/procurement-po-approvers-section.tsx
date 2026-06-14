@@ -60,8 +60,8 @@ export function ProcurementPoApproversSection({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Workspace owners can always approve. Add named approvers below to delegate approval without
-        owner access.
+        Workspace owners can always approve, including purchase orders above the approval threshold.
+        Add named approvers below to delegate approval for orders at or below the threshold.
       </p>
 
       {canEdit ? (

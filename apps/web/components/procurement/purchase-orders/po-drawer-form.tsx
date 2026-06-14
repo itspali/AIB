@@ -18,6 +18,9 @@ import { PoDocumentEditorShell } from "@/components/procurement/purchase-orders/
 import { PoCatalogWritebackDialog } from "@/components/procurement/purchase-orders/po-catalog-writeback-dialog";
 import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
 import { PoPeekViewSkeleton } from "@/components/procurement/purchase-orders/po-peek-view-skeleton";
+import { poPeekShowsPromoEntitlements } from "@/lib/procurement/purchase-orders/po-peek-promo";
+import { fetchPurchaseOrderPeek } from "@/lib/procurement/purchase-orders/fetch-purchase-order-peek";
+import type { PoPromoEntitlementRow } from "@/lib/procurement/promo/entitlements";
 import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
 import {
@@ -59,6 +62,7 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-layout";
+import { setCachedPoDocumentLayout } from "@/lib/documents/po-document-layout-cache";
 import { usePoDrawerFormLayout } from "@/lib/procurement/purchase-orders/use-po-drawer-form-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
@@ -79,6 +83,7 @@ import { DocumentPostingSummaryPanel } from "@/components/documents/document-pos
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import {
   isPoApprovalRequiredBeforeIssue,
+  isPurchaseOrderApprovableByUser,
   type ProcurementApprovalSettings,
 } from "@/lib/procurement/approval-settings";
 import { cn } from "@/lib/utils";
@@ -114,7 +119,6 @@ type Props = {
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   approvalSettings: ProcurementApprovalSettings;
   currentUserId: string;
-  canApprovePurchaseOrders: boolean;
   isOwner: boolean;
 };
 
@@ -165,7 +169,6 @@ export function PoDrawerForm({
   taxCodeOptions = [],
   approvalSettings,
   currentUserId,
-  canApprovePurchaseOrders,
   isOwner,
 }: Props) {
   const readOnly = surface === "peek";
@@ -219,6 +222,13 @@ export function PoDrawerForm({
   const [writebackPendingOrderId, setWritebackPendingOrderId] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectNotes, setRejectNotes] = useState("");
+  const [peekPromoEntitlements, setPeekPromoEntitlements] = useState<
+    PoPromoEntitlementRow[] | null
+  >(null);
+  const [peekPromoLoadError, setPeekPromoLoadError] = useState<string | null>(null);
+  const [peekDocumentLayout, setPeekDocumentLayout] = useState<DocumentLayoutTemplate | null>(
+    null
+  );
   const submitRef = useRef<() => void>(() => {});
 
   const resolvedDocumentLocationId = isMutating
@@ -231,13 +241,15 @@ export function PoDrawerForm({
     !resolvedDocumentLocationId &&
     Boolean(resolvedPeekRecordId ?? editOrderId);
 
-  const { layout: documentLayout, isResolvingLocationLayout } = useLivePoDocumentLayout(
+  const { layout: liveDocumentLayout } = useLivePoDocumentLayout(
     documentLayoutProp,
     {
-      refreshWhen: open && !awaitingDocumentLocation,
+      refreshWhen: open && !awaitingDocumentLocation && surface !== "peek",
       documentLocationId: resolvedDocumentLocationId,
     }
   );
+  const documentLayout =
+    surface === "peek" && peekDocumentLayout ? peekDocumentLayout : liveDocumentLayout;
 
   useEffect(() => {
     if (!open) return;
@@ -337,14 +349,24 @@ export function PoDrawerForm({
 
     let cancelled = false;
     setDetailLoading(true);
-    void loadPurchaseOrderDetail(resolvedPeekRecordId).then((result) => {
+    setPeekDocumentLayout(null);
+    setPeekPromoEntitlements(null);
+    setPeekPromoLoadError(null);
+    void fetchPurchaseOrderPeek(resolvedPeekRecordId).then((result) => {
       if (cancelled) return;
       setDetailLoading(false);
       if ("error" in result) {
         setError(result.error);
         return;
       }
+      setCachedPoDocumentLayout(
+        result.purchaseOrder.destination_location_id,
+        result.documentLayout
+      );
+      setPeekDocumentLayout(result.documentLayout);
       setDetail(result.purchaseOrder);
+      setPeekPromoEntitlements(result.promoEntitlements);
+      setPeekPromoLoadError(null);
     });
 
     return () => {
@@ -375,6 +397,9 @@ export function PoDrawerForm({
       cancelled = true;
     };
   }, [open, surface, editOrderId, taxCodeOptions]);
+
+  const peekPromoStatus = detail?.document_status ?? peekOrder?.document_status;
+  const peekNeedsPromoEntitlements = poPeekShowsPromoEntitlements(peekPromoStatus);
 
   const canEditThisOrder =
     detail != null
@@ -697,7 +722,10 @@ export function PoDrawerForm({
     !approvalRequiredBeforeIssue &&
     purchaseOrderId != null;
   const showApproveReject =
-    isPendingApprovalOrder && canApprovePurchaseOrders && purchaseOrderId != null;
+    isPendingApprovalOrder &&
+    detail != null &&
+    isPurchaseOrderApprovableByUser(detail, currentUserId, approvalSettings, { isOwner }) &&
+    purchaseOrderId != null;
   const saveActionLabel = isDraftOrder ? "Save draft" : "Save";
   const canEditVoucherNumber =
     isDraftOrder && canEditThisOrder && purchaseOrderId != null;
@@ -849,12 +877,13 @@ export function PoDrawerForm({
       </>
     ) : null;
 
-  const detailReadyForPeek = detail?.id === resolvedPeekRecordId;
+  const detailReadyForPeek =
+    detail?.id === resolvedPeekRecordId && (surface !== "peek" || peekDocumentLayout != null);
   const showLoadingPeek =
     open &&
     surface === "peek" &&
     resolvedPeekRecordId != null &&
-    (detailLoading || !detailReadyForPeek || isResolvingLocationLayout);
+    (detailLoading || !detailReadyForPeek);
   const showLoadingPeekSkeleton = useDelayedVisible(showLoadingPeek);
   const showLoadingEdit = open && surface === "edit" && detailLoading;
 
@@ -890,7 +919,9 @@ export function PoDrawerForm({
     ) : null;
 
   const peekLoadingSkeleton =
-    showLoadingPeek && showLoadingPeekSkeleton ? <PoPeekViewSkeleton /> : null;
+    showLoadingPeek && showLoadingPeekSkeleton ? (
+      <PoPeekViewSkeleton includePromoSection={peekNeedsPromoEntitlements} />
+    ) : null;
 
   const mutatingForm =
     isMutating && !showLoadingPeek && !showLoadingEdit ? (
@@ -936,6 +967,8 @@ export function PoDrawerForm({
           layout={documentLayout}
           organizationBillTo={organizationBillTo}
           enableMrpTradeTerms={enableMrpTradeTerms}
+          promoEntitlements={peekPromoEntitlements ?? []}
+          promoLoadError={peekPromoLoadError}
         />
       ) : null}
       {mutatingForm}
