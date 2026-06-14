@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   loadGoodsReceiptDetail,
@@ -99,7 +99,8 @@ type Props = {
 function defaultCreateForm(
   locations: ProcurementLocationOption[],
   prefillPoId?: string | null,
-  receivableOrders: ReceivablePurchaseOrderOption[] = []
+  receivableOrders: ReceivablePurchaseOrderOption[] = [],
+  entryLineKey?: string
 ): CreateFormState {
   const selectedPo = prefillPoId
     ? receivableOrders.find((order) => order.id === prefillPoId)
@@ -132,7 +133,11 @@ function defaultCreateForm(
     assessable_value: "",
     customs_duty_amount: "",
     import_igst_amount: "",
-    lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
+    lines: ensureTrailingEmptyLine(
+      [createEmptyGrnLine(entryLineKey)],
+      () => false,
+      createEmptyGrnLine
+    ),
     landed_charges: [],
     git_voucher_id: null,
   };
@@ -164,9 +169,10 @@ export function GrnDrawerForm({
   });
 
   const prefillSignature = prefillPurchaseOrderId ?? "";
+  const entryLineKey = useId();
 
   const [form, setForm] = useState<CreateFormState>(() =>
-    defaultCreateForm(locations, prefillPurchaseOrderId, receivableOrders)
+    defaultCreateForm(locations, prefillPurchaseOrderId, receivableOrders, entryLineKey)
   );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
@@ -248,10 +254,20 @@ export function GrnDrawerForm({
     setPostSuccessSummary(null);
 
     if (surface === "create") {
-      setForm(defaultCreateForm(locations, prefillPurchaseOrderId, receivableOrders));
+      setForm(
+        defaultCreateForm(locations, prefillPurchaseOrderId, receivableOrders, entryLineKey)
+      );
       setDetail(null);
     }
-  }, [open, surface, locations, prefillSignature, prefillPurchaseOrderId, receivableOrders]);
+  }, [
+    entryLineKey,
+    open,
+    surface,
+    locations,
+    prefillSignature,
+    prefillPurchaseOrderId,
+    receivableOrders,
+  ]);
 
   const reloadDetail = useCallback(async (goodsReceiptId?: string) => {
     const id = goodsReceiptId ?? detail?.id ?? peekReceipt?.id;
@@ -318,7 +334,11 @@ export function GrnDrawerForm({
       patchForm({
         purchase_order_id: null,
         git_voucher_id: null,
-        lines: ensureTrailingEmptyLine([createEmptyGrnLine()], () => false, createEmptyGrnLine),
+        lines: ensureTrailingEmptyLine(
+          [createEmptyGrnLine(entryLineKey)],
+          () => false,
+          createEmptyGrnLine
+        ),
       });
       setPolicyHints({});
       return;
@@ -637,7 +657,7 @@ export function GrnDrawerForm({
                       destination_location_id: value,
                       purchase_order_id: null,
                       lines: ensureTrailingEmptyLine(
-                        [createEmptyGrnLine()],
+                        [createEmptyGrnLine(entryLineKey)],
                         () => false,
                         createEmptyGrnLine
                       ),

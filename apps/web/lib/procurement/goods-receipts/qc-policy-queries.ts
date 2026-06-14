@@ -5,6 +5,8 @@ import {
   type VariantQcPolicyHint,
 } from "@/lib/procurement/qc-receipt-policy";
 
+const VARIANT_ITEM_EMBED = "items!item_variants_item_tenant_fk";
+
 type VariantRow = {
   id: string;
   item_id: string;
@@ -49,10 +51,10 @@ export async function fetchVariantQcPolicyHints(
       `
       id,
       item_id,
-      items!inner (
+      ${VARIANT_ITEM_EMBED}!inner (
         qc_receipt_policy,
         category_id,
-        item_categories ( qc_receipt_policy )
+        item_categories!items_category_tenant_fk ( qc_receipt_policy )
       )
     `
     )
@@ -65,13 +67,14 @@ export async function fetchVariantQcPolicyHints(
     supabase,
     tenantId,
     (data ?? [])
-      .map((row) => resolveItemEmbed(row as VariantRow["items"])?.category_id)
+      .map((row) => resolveItemEmbed((row as VariantRow).items)?.category_id)
       .filter((id): id is string => Boolean(id))
   );
 
   const result: Record<string, VariantQcPolicyHint> = {};
   for (const row of data ?? []) {
-    const item = resolveItemEmbed(row as VariantRow["items"]);
+    const typed = row as VariantRow;
+    const item = resolveItemEmbed(typed.items);
     if (!item) continue;
     const directCategoryPolicy = resolveCategoryEmbed(item.item_categories);
     const categoryPolicy =

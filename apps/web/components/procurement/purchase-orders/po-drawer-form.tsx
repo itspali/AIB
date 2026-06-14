@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
+import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import {
@@ -628,6 +629,7 @@ export function PoDrawerForm({
       setIsDirty(false);
       await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
+      notifyApprovalAlertChanged();
     });
   }, [detail?.id, editOrderId, onAfterSave, reloadDetail]);
 
@@ -650,6 +652,7 @@ export function PoDrawerForm({
       setIsDirty(false);
       await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
+      notifyApprovalAlertChanged();
     });
   }, [detail?.id, editOrderId, onAfterSave, reloadDetail]);
 
@@ -683,6 +686,7 @@ export function PoDrawerForm({
       setIsDirty(false);
       await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
+      notifyApprovalAlertChanged();
     });
   }, [detail?.id, editOrderId, onAfterSave, rejectNotes, reloadDetail]);
 

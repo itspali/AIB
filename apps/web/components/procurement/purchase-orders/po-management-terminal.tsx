@@ -11,6 +11,7 @@ import { PoListTable } from "@/components/procurement/purchase-orders/po-list-ta
 import { PoListToolbar } from "@/components/procurement/purchase-orders/po-list-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultPurchaseOrderListPrefs,
   loadPurchaseOrderListPrefs,
@@ -32,6 +33,7 @@ import type {
   ProcurementLocationOption,
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
+import { buildModuleHref } from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
@@ -45,6 +47,11 @@ import {
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
+
+function liveSearchParams(fallback: ReturnType<typeof useSearchParams>): URLSearchParams {
+  if (typeof window === "undefined") return new URLSearchParams(fallback.toString());
+  return new URLSearchParams(window.location.search);
+}
 
 function resolveBulkPurchaseOrderIds(
   bulkSelectAllMatching: boolean,
@@ -326,6 +333,7 @@ export function PoManagementTerminal({
       }
       clearBulkSelection();
       refreshList();
+      notifyApprovalAlertChanged();
     });
   }, [clearBulkSelection, refreshList, resolveSelectedIds]);
 
@@ -334,6 +342,38 @@ export function PoManagementTerminal({
       setPrefs((current) => ({ ...current, sortField: field, sortDirection: direction }));
     },
     []
+  );
+
+  const handlePrefsChange = useCallback(
+    (nextPrefs: PurchaseOrderListPrefs) => {
+      const statusChanged = nextPrefs.status !== prefs.status;
+      setPrefs(nextPrefs);
+      if (!statusChanged) return;
+
+      const params = liveSearchParams(searchParams);
+      if (nextPrefs.status === "all") {
+        params.delete(PO_STATUS_FILTER_PARAM);
+      } else {
+        params.set(PO_STATUS_FILTER_PARAM, nextPrefs.status);
+      }
+
+      drawer.replaceDrawerHref(
+        buildModuleHref(PROCUREMENT_PO_HREF, {
+          recordId: drawer.recordId,
+          variantId: drawer.variantId,
+          action: drawer.action,
+          preserveParams: params,
+        })
+      );
+    },
+    [
+      drawer.action,
+      drawer.recordId,
+      drawer.replaceDrawerHref,
+      drawer.variantId,
+      prefs.status,
+      searchParams,
+    ]
   );
 
   const listPrimary = !hasAnyData ? (
@@ -409,7 +449,7 @@ export function PoManagementTerminal({
           hasAnyData ? (
             <PoListToolbar
               prefs={prefs}
-              onPrefsChange={setPrefs}
+              onPrefsChange={handlePrefsChange}
               locations={locations}
               resultCount={ordersView.resultCount}
               totalCount={ordersView.totalCount}

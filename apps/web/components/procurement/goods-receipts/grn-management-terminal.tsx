@@ -61,9 +61,24 @@ export function GrnManagementTerminal({
   const [, startRefreshTransition] = useTransition();
 
   useEffect(() => {
-    setPrefs(loadGoodsReceiptListPrefs());
+    const loaded = loadGoodsReceiptListPrefs();
+    if (
+      loaded.locationId &&
+      !locations.some((location) => location.id === loaded.locationId)
+    ) {
+      loaded.locationId = null;
+    }
+    setPrefs(loaded);
     setPrefsHydrated(true);
-  }, []);
+  }, [locations]);
+
+  useEffect(() => {
+    setGoodsReceipts(initialGoodsReceipts);
+  }, [initialGoodsReceipts]);
+
+  useEffect(() => {
+    setReceivableOrders(initialReceivableOrders);
+  }, [initialReceivableOrders]);
 
   useEffect(() => {
     if (!prefsHydrated) return;

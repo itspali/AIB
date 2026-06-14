@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchApprovalAlertCountAction } from "@/lib/layout/shell-actions";
+import { APPROVAL_ALERT_CHANGED_EVENT } from "@/lib/layout/approval-alert-events";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
@@ -32,6 +33,10 @@ export function DashboardShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [liveApprovalAlertCount, setLiveApprovalAlertCount] = useState(approvalAlertCount);
 
+  const refreshApprovalAlertCount = useCallback(() => {
+    void fetchApprovalAlertCountAction().then(setLiveApprovalAlertCount);
+  }, []);
+
   // Only the locked first-run onboarding canvas hides module navigation.
   const isOnboardingLayout = onboardingMode;
   const showModuleNav = !onboardingMode;
@@ -46,6 +51,13 @@ export function DashboardShell({
       cancelled = true;
     };
   }, [showModuleNav]);
+
+  useEffect(() => {
+    if (!showModuleNav) return;
+    const onApprovalAlertChanged = () => refreshApprovalAlertCount();
+    window.addEventListener(APPROVAL_ALERT_CHANGED_EVENT, onApprovalAlertChanged);
+    return () => window.removeEventListener(APPROVAL_ALERT_CHANGED_EVENT, onApprovalAlertChanged);
+  }, [refreshApprovalAlertCount, showModuleNav]);
 
   return (
     <OmnibarProvider operatorProfile={operatorProfile} tenantId={tenantId}>

@@ -117,9 +117,9 @@ type Props = {
   onChange: (lines: GrnDraftLine[] | ((current: GrnDraftLine[]) => GrnDraftLine[])) => void;
 };
 
-export function createEmptyGrnLine(): GrnDraftLine {
+export function createEmptyGrnLine(key?: string): GrnDraftLine {
   return {
-    key: crypto.randomUUID(),
+    key: key ?? crypto.randomUUID(),
     sku: "",
     variant_id: "",
     item_id: "",

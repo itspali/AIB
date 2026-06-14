@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchLatestDocumentPostingRun } from "@/lib/documents/posting-queries";
 import type { GoodsReceiptLineRow, GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
+import {
+  fetchAllSupabaseRows,
+  SUPABASE_MAX_ROWS_PER_PAGE,
+} from "@/lib/supabase/fetch-all-rows";
 
 const DESTINATION_LOCATION_EMBED =
   "destination_location:tenant_locations!goods_receipts_location_tenant_fk";
@@ -85,7 +89,7 @@ function mapGrnLine(row: GrnLineDbRow): GoodsReceiptLineRow {
   };
 }
 
-function mapGrnListRow(row: GrnListDbRow): GoodsReceiptRow {
+function mapGrnListRow(row: GrnListDbRow, lineCount?: number): GoodsReceiptRow {
   const destination = resolveJoin(row.destination_location);
   const po = resolveJoin(row.purchase_order);
 
@@ -98,7 +102,7 @@ function mapGrnListRow(row: GrnListDbRow): GoodsReceiptRow {
     purchase_order_id: row.purchase_order_id,
     purchase_order_number: po?.voucher_number ?? null,
     is_qc_pending: row.is_qc_pending,
-    line_count: row.grn_lines?.length ?? 0,
+    line_count: lineCount ?? row.grn_lines?.length ?? 0,
     received_at: row.received_at,
     created_at: row.created_at,
     bill_of_entry_number: row.bill_of_entry_number ?? null,
@@ -113,15 +117,7 @@ function mapGrnListRow(row: GrnListDbRow): GoodsReceiptRow {
   };
 }
 
-export async function fetchGoodsReceipts(
-  supabase: SupabaseClient,
-  tenantId: string,
-  options?: { locationId?: string | null }
-): Promise<GoodsReceiptRow[]> {
-  let query = supabase
-    .from("goods_receipts")
-    .select(
-      `
+const GRN_LIST_HEADER_SELECT = `
       id,
       voucher_number,
       destination_location_id,
@@ -137,21 +133,72 @@ export async function fetchGoodsReceipts(
       customs_duty_amount,
       import_igst_amount,
       ${DESTINATION_LOCATION_EMBED} (name, code),
-      ${PO_EMBED} (voucher_number),
-      ${GRN_ITEMS_EMBED} (id)
-    `
-    )
-    .eq("tenant_id", tenantId)
-    .order("received_at", { ascending: false });
+      ${PO_EMBED} (voucher_number)
+    `;
 
-  if (options?.locationId) {
-    query = query.eq("destination_location_id", options.locationId);
+function chunkIds<T>(values: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function hydrateGrnLineCounts(
+  supabase: SupabaseClient,
+  tenantId: string,
+  goodsReceiptIds: readonly string[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const uniqueIds = [...new Set(goodsReceiptIds.filter(Boolean))];
+  if (!uniqueIds.length) return counts;
+
+  for (const idChunk of chunkIds(uniqueIds, SUPABASE_MAX_ROWS_PER_PAGE)) {
+    const lineRows = await fetchAllSupabaseRows<{ goods_receipt_id: string }>(async (from, to) =>
+      supabase
+        .from("goods_receipt_items")
+        .select("goods_receipt_id")
+        .eq("tenant_id", tenantId)
+        .in("goods_receipt_id", idChunk)
+        .range(from, to)
+    );
+
+    for (const row of lineRows) {
+      const goodsReceiptId = row.goods_receipt_id;
+      counts.set(goodsReceiptId, (counts.get(goodsReceiptId) ?? 0) + 1);
+    }
   }
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  return counts;
+}
 
-  return (data ?? []).map((row) => mapGrnListRow(row as GrnListDbRow));
+export async function fetchGoodsReceipts(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { locationId?: string | null }
+): Promise<GoodsReceiptRow[]> {
+  const rows = await fetchAllSupabaseRows<GrnListDbRow>(async (from, to) => {
+    let query = supabase
+      .from("goods_receipts")
+      .select(GRN_LIST_HEADER_SELECT)
+      .eq("tenant_id", tenantId)
+      .order("received_at", { ascending: false })
+      .range(from, to);
+
+    if (options?.locationId) {
+      query = query.eq("destination_location_id", options.locationId);
+    }
+
+    return query;
+  });
+
+  const lineCounts = await hydrateGrnLineCounts(
+    supabase,
+    tenantId,
+    rows.map((row) => row.id)
+  );
+
+  return rows.map((row) => mapGrnListRow(row, lineCounts.get(row.id) ?? 0));
 }
 
 export async function fetchGoodsReceiptById(
@@ -258,15 +305,7 @@ async function hydrateGrnLineQcHoldQuantities(
   });
 }
 
-export async function fetchGoodsReceiptsForPurchaseOrder(
-  supabase: SupabaseClient,
-  tenantId: string,
-  purchaseOrderId: string
-): Promise<GoodsReceiptRow[]> {
-  const { data, error } = await supabase
-    .from("goods_receipts")
-    .select(
-      `
+const GRN_PO_DETAIL_SELECT = `
       id,
       voucher_number,
       destination_location_id,
@@ -299,18 +338,60 @@ export async function fetchGoodsReceiptsForPurchaseOrder(
         items!goods_receipt_items_item_tenant_fk (name),
         item_variants!goods_receipt_items_variant_tenant_fk (sku)
       )
-    `
-    )
-    .eq("tenant_id", tenantId)
-    .eq("purchase_order_id", purchaseOrderId)
-    .order("received_at", { ascending: false });
+    `;
 
-  if (error) throw new Error(error.message);
+async function resolveMappedGoodsReceiptIdsForPurchaseOrder(
+  supabase: SupabaseClient,
+  tenantId: string,
+  purchaseOrderId: string
+): Promise<string[]> {
+  const mappingRows = await fetchAllSupabaseRows<{ goods_receipt_id: string }>(async (from, to) =>
+    supabase
+      .from("purchase_order_grn_mappings")
+      .select("goods_receipt_id")
+      .eq("tenant_id", tenantId)
+      .eq("purchase_order_id", purchaseOrderId)
+      .range(from, to)
+  );
 
-  return (data ?? []).map((row) => {
-    const typed = row as GrnListDbRow & { grn_lines?: GrnLineDbRow[] | null };
-    const mapped = mapGrnListRow(typed);
-    mapped.lines = (typed.grn_lines ?? []).map(mapGrnLine);
+  return [...new Set(mappingRows.map((row) => row.goods_receipt_id))];
+}
+
+export async function fetchGoodsReceiptsForPurchaseOrder(
+  supabase: SupabaseClient,
+  tenantId: string,
+  purchaseOrderId: string
+): Promise<GoodsReceiptRow[]> {
+  const mappedIds = await resolveMappedGoodsReceiptIdsForPurchaseOrder(
+    supabase,
+    tenantId,
+    purchaseOrderId
+  );
+
+  const rows = await fetchAllSupabaseRows<GrnListDbRow & { grn_lines?: GrnLineDbRow[] | null }>(
+    async (from, to) => {
+      let query = supabase
+        .from("goods_receipts")
+        .select(GRN_PO_DETAIL_SELECT)
+        .eq("tenant_id", tenantId)
+        .order("received_at", { ascending: false })
+        .range(from, to);
+
+      if (mappedIds.length > 0) {
+        query = query.or(
+          `purchase_order_id.eq.${purchaseOrderId},id.in.(${mappedIds.join(",")})`
+        );
+      } else {
+        query = query.eq("purchase_order_id", purchaseOrderId);
+      }
+
+      return query;
+    }
+  );
+
+  return rows.map((row) => {
+    const mapped = mapGrnListRow(row);
+    mapped.lines = (row.grn_lines ?? []).map(mapGrnLine);
     return mapped;
   });
 }

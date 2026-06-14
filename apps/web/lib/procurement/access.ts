@@ -4,6 +4,7 @@ import {
   resolvePurchaseOrderLocationScope,
   type PurchaseOrderLocationScope,
 } from "@/lib/procurement/location-scope";
+import { resolveIsWorkspaceOwner } from "@/lib/procurement/workspace-owner";
 import type { UserRole } from "@/lib/user/types";
 import type { PurchaseOrderStatus } from "@/lib/procurement/purchase-orders/types";
 
@@ -45,9 +46,12 @@ export async function resolvePurchaseOrderEditAccess(
     .eq("is_active", true)
     .maybeSingle();
 
+  const [{ isOwner }, assignedLocationId] = await Promise.all([
+    resolveIsWorkspaceOwner(supabase, userId, tenantId),
+    Promise.resolve((membership?.assigned_location_id as string | null) ?? null),
+  ]);
+
   const role = (membership?.role as UserRole | undefined) ?? null;
-  const assignedLocationId = (membership?.assigned_location_id as string | null) ?? null;
-  const isOwner = role === "OWNER";
   const isAdmin = role === "ADMIN";
 
   if (isOwner) {
