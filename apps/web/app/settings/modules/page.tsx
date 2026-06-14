@@ -36,7 +36,6 @@ export default async function ModuleSettingsPage() {
             label: "Sales",
             description: "Quotations, orders, invoices — layout and commercial presentation.",
             icon: FileText,
-            comingSoon: true,
           },
           {
             href: "/settings/modules/logistics",

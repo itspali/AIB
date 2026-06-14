@@ -6,7 +6,7 @@ export type PostingStepResult = {
   detail?: string | null;
 };
 
-export type DocumentPostingDocumentType = "PO" | "GRN" | "BILL";
+export type DocumentPostingDocumentType = "PO" | "GRN" | "BILL" | "SO" | "QUOTE" | "INVOICE";
 
 export type DocumentPostingRun = {
   id: string;

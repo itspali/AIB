@@ -237,6 +237,9 @@ const approvalPolicyBandSchema = z.object({
             label: z.string().min(1),
             quorum: z.enum(["ANY", "ALL"]),
             pool: z.string().min(1),
+            assignee: z
+              .enum(["POOL", "SUBMITTER_MANAGER", "SUBMITTER_SKIP_MANAGER"])
+              .optional(),
           })
         ),
       })
@@ -261,6 +264,8 @@ const saveProcurementApprovalSettingsSchema = z.object({
   po_approver_user_ids: z.array(z.string().uuid()),
   po_approver_roles: z.array(z.enum(["ADMIN", "MANAGER"])).optional(),
   po_approval_rules: z.array(poApprovalRuleSchema).optional(),
+  po_workflow_template: z.enum(["standard", "manager_chain_finance", "custom"]).optional(),
+  po_finance_approver_user_ids: z.array(z.string().uuid()).optional(),
   po_approval_bands: z.array(approvalPolicyBandSchema).optional(),
   po_approver_pools: z
     .record(
@@ -271,6 +276,9 @@ const saveProcurementApprovalSettingsSchema = z.object({
       })
     )
     .optional(),
+  po_approval_respect_destination_location: z.boolean().optional(),
+  po_approval_reminder_hours: z.number().int().min(0).nullable().optional(),
+  po_approval_escalation_hours: z.number().int().min(0).nullable().optional(),
 });
 
 export async function fetchPendingPoApprovalRunCount(): Promise<number> {
@@ -316,10 +324,16 @@ export async function saveProcurementApprovalSettings(
         po_approver_user_ids: parsed.data.po_approver_user_ids,
         po_approver_roles: approverRoles,
         po_approval_rules: parsed.data.po_approval_rules ?? [],
+        po_workflow_template: parsed.data.po_workflow_template ?? "standard",
+        po_finance_approver_user_ids: parsed.data.po_finance_approver_user_ids ?? [],
         po_approval_bands: parsed.data.po_approval_bands ?? [],
         po_approver_pools: parsed.data.po_approver_pools ?? {
           default: defaultPool,
         },
+        po_approval_respect_destination_location:
+          parsed.data.po_approval_respect_destination_location ?? true,
+        po_approval_reminder_hours: parsed.data.po_approval_reminder_hours ?? 24,
+        po_approval_escalation_hours: parsed.data.po_approval_escalation_hours ?? 72,
       },
     });
 
@@ -360,6 +374,41 @@ export async function saveProcurementApprovalSettings(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Unable to save approval settings.",
+    };
+  }
+}
+
+export async function runPoApprovalSlaReminders(): Promise<
+  | { reminders_sent: number; escalations_sent: number }
+  | { error: string }
+> {
+  try {
+    const { supabase, tenantId, userId } = await requireTenantId();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.isOwner) {
+      return { error: "Only workspace owners can run approval SLA reminders." };
+    }
+
+    const { data, error } = await supabase.rpc("run_po_approval_sla_reminders");
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return { error: formatRpcDeployError("run_po_approval_sla_reminders") };
+      }
+      return { error: error.message };
+    }
+
+    const payload =
+      data && typeof data === "object"
+        ? (data as { reminders_sent?: number; escalations_sent?: number })
+        : {};
+
+    return {
+      reminders_sent: Number(payload.reminders_sent ?? 0),
+      escalations_sent: Number(payload.escalations_sent ?? 0),
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to run approval SLA reminders.",
     };
   }
 }

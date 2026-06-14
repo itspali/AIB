@@ -14,6 +14,7 @@ export default defineConfig({
       "lib/locations/__tests__/**/*.test.ts",
       "lib/inventory/__tests__/**/*.test.ts",
       "lib/procurement/__tests__/**/*.test.ts",
+      "lib/sales/__tests__/**/*.test.ts",
       "lib/documents/__tests__/**/*.test.ts",
       "lib/activity/__tests__/**/*.test.ts",
       "lib/group/__tests__/**/*.test.ts",

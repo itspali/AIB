@@ -11,6 +11,7 @@ import { fetchTenantEntitySettingsMetadata } from "@/lib/entities/custom-field-q
 import type { EntityWorkspace } from "@/lib/entities/types";
 import {
   grantDelegateSchema,
+  grantPoApprovalDelegateSchema,
   organizationSettingsSchema,
 } from "@/lib/organization/schemas";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
@@ -276,6 +277,62 @@ export async function revokePurchaseOrderEditDelegate(userId: string) {
   return { success: true as const };
 }
 
+export async function grantPoApprovalDelegate(raw: unknown) {
+  const parsed = grantPoApprovalDelegateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid approval delegate selection" };
+  }
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+  if (!access.canGrantDelegates) {
+    return { error: "Only workspace owners can manage approval delegates." };
+  }
+
+  const { error } = await supabase.rpc("grant_po_approval_delegate", {
+    p_delegate_user_id: parsed.data.delegate_user_id,
+    p_delegator_user_id: parsed.data.delegator_user_id,
+    p_valid_until: parsed.data.valid_until ?? null,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("grant_po_approval_delegate") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/approvals");
+  revalidatePath("/procurement/purchase-orders");
+  return { success: true as const };
+}
+
+export async function revokePoApprovalDelegate(delegatorUserId: string) {
+  const { supabase, tenantId, userId: actorId } = await requireTenantId();
+
+  const access = await resolveOrganizationSettingsAccess(supabase, actorId, tenantId);
+  if (!access.canGrantDelegates) {
+    return { error: "Only workspace owners can revoke approval delegates." };
+  }
+
+  const { error } = await supabase.rpc("revoke_po_approval_delegate", {
+    p_delegator_user_id: delegatorUserId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("revoke_po_approval_delegate") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/approvals");
+  revalidatePath("/procurement/purchase-orders");
+  return { success: true as const };
+}
+
 const PRODUCT_FIELD_ROLES: UserRole[] = ["OWNER", "ADMIN", "MANAGER", "STAFF"];
 
 function sanitizeProductFieldsAccess(raw: unknown): TenantProductFieldsAccess {
@@ -377,4 +434,35 @@ export async function saveOrganizationEntityCustomFields(
   }
 
   return { success: true as const };
+}
+
+export async function saveTenantReportingLines(
+  lines: Array<{ user_id: string; reports_to_user_id: string | null }>
+): Promise<{ success: true } | { error: string }> {
+  try {
+    const { supabase, tenantId, userId } = await requireTenantId();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.granted) {
+      return { error: "You do not have permission to edit reporting lines." };
+    }
+
+    const { error } = await supabase.rpc("save_tenant_reporting_lines", {
+      p_lines: lines,
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return { error: formatRpcDeployError("save_tenant_reporting_lines") };
+      }
+      return { error: error.message };
+    }
+
+    revalidatePath("/settings/organization");
+    revalidatePath("/settings/modules/procurement");
+    return { success: true as const };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to save reporting lines.",
+    };
+  }
 }

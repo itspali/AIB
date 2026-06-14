@@ -5,10 +5,21 @@ import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { ApprovalExtraStepsEditor } from "@/components/settings/approvals/approval-extra-steps-editor";
+import {
+  ApprovalWorkflowTemplatePicker,
+  type WorkflowChoice,
+} from "@/components/settings/approvals/approval-workflow-template-picker";
 import { ApprovalRulesEditor } from "@/components/settings/approvals/approval-rules-editor";
 import { ApprovalSettingsSaveDialog } from "@/components/settings/approvals/approval-settings-save-dialog";
-import { fetchPendingPoApprovalRunCount } from "@/app/settings/modules/procurement/actions";
+import {
+  fetchPendingPoApprovalRunCount,
+  runPoApprovalSlaReminders,
+} from "@/app/settings/modules/procurement/actions";
 import { defaultPoApprovalRules, hasEnabledPoApprovalRules } from "@/lib/approvals/approval-rules";
+import {
+  buildManagerChainFinanceLevels,
+  resolveWorkflowChoice,
+} from "@/lib/approvals/workflow-templates";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { ProcurementPoApproversSection } from "@/components/settings/modules/procurement-po-approvers-section";
 import { Button } from "@/components/ui/button";
@@ -17,7 +28,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   buildApprovalPlainSummary,
-  hasCustomWorkflow,
   resolveApprovalScopeMode,
   workflowBandsFromSettings,
   type ApprovalScopeMode,
@@ -95,12 +105,19 @@ export function ProcurementApprovalsPanel({
     ...initialSettings,
     po_approver_roles: initialSettings.po_approver_roles ?? [],
     po_approval_rules: initialSettings.po_approval_rules ?? defaultPoApprovalRules(),
+    po_finance_approver_user_ids: initialSettings.po_finance_approver_user_ids ?? [],
+    po_approval_respect_destination_location:
+      initialSettings.po_approval_respect_destination_location ?? true,
+    po_approval_reminder_hours: initialSettings.po_approval_reminder_hours ?? 24,
+    po_approval_escalation_hours: initialSettings.po_approval_escalation_hours ?? 72,
   }));
   const [isPending, startTransition] = useTransition();
   const [scopeMode, setScopeMode] = useState<ApprovalScopeMode>(() =>
     resolveApprovalScopeMode(initialSettings)
   );
-  const [multiStepOpen, setMultiStepOpen] = useState(hasCustomWorkflow(initialSettings));
+  const [workflowChoice, setWorkflowChoice] = useState<WorkflowChoice>(() =>
+    resolveWorkflowChoice(initialSettings)
+  );
   const [workflowBands, setWorkflowBands] = useState(() =>
     workflowBandsFromSettings(initialSettings)
   );
@@ -119,11 +136,18 @@ export function ProcurementApprovalsPanel({
   const isDirty = useMemo(() => {
     const settingsChanged = JSON.stringify(settings) !== JSON.stringify(initialSettings);
     const scopeChanged = scopeMode !== resolveApprovalScopeMode(initialSettings);
-    const multiChanged = multiStepOpen !== hasCustomWorkflow(initialSettings);
-    const workflowChanged =
+    const workflowChanged = workflowChoice !== resolveWorkflowChoice(initialSettings);
+    const workflowBandsChanged =
       JSON.stringify(workflowBands) !== JSON.stringify(initialWorkflowBands);
-    return settingsChanged || scopeChanged || multiChanged || workflowChanged;
-  }, [initialSettings, initialWorkflowBands, multiStepOpen, scopeMode, settings, workflowBands]);
+    return settingsChanged || scopeChanged || workflowChanged || workflowBandsChanged;
+  }, [
+    initialSettings,
+    initialWorkflowBands,
+    scopeMode,
+    settings,
+    workflowBands,
+    workflowChoice,
+  ]);
 
   const patch = (partial: Partial<ProcurementApprovalSettings>) => {
     setSettings((prev) => ({ ...prev, ...partial }));
@@ -142,10 +166,19 @@ export function ProcurementApprovalsPanel({
         allowSelfApproveSmall: settings.allow_submitter_self_approve_below_threshold,
         approverCount:
           settings.po_approver_user_ids.length + (settings.po_approver_roles?.length ?? 0),
-        extraStepCount: multiStepOpen ? (workflowBands[0]?.levels?.length ?? 1) : 1,
+        extraStepCount:
+          workflowChoice === "manager_chain_finance"
+            ? 2
+            : workflowChoice === "custom"
+              ? (workflowBands[0]?.levels?.length ?? 1)
+              : 1,
         enabledRules: settings.po_approval_rules ?? defaultPoApprovalRules(),
+        workflowChoice,
+        respectDestinationLocation: settings.po_approval_respect_destination_location,
+        reminderHours: settings.po_approval_reminder_hours,
+        escalationHours: settings.po_approval_escalation_hours,
       }),
-    [multiStepOpen, scopeMode, settings, workflowBands]
+    [scopeMode, settings, workflowBands, workflowChoice]
   );
 
   const handleScopeChange = (mode: ApprovalScopeMode) => {
@@ -170,60 +203,63 @@ export function ProcurementApprovalsPanel({
         scopeMode === "all" ? null : settings.po_approval_threshold_amount,
       po_approver_roles: settings.po_approver_roles ?? [],
       po_approval_rules: settings.po_approval_rules ?? defaultPoApprovalRules(),
+      po_finance_approver_user_ids: settings.po_finance_approver_user_ids ?? [],
     };
 
     const defaultLevel = {
-      steps: [{ label: "Approvers", quorum: "ANY" as const, pool: "default" }],
+      steps: [{ label: "Approvers", quorum: "ANY" as const, pool: "default", assignee: "POOL" as const }],
     };
     const defaultPool = {
       user_ids: nextSettings.po_approver_user_ids,
       roles: nextSettings.po_approver_roles ?? [],
     };
+    const financePool = {
+      user_ids: nextSettings.po_finance_approver_user_ids ?? [],
+      roles: [] as Array<"ADMIN" | "MANAGER">,
+    };
 
-    if (multiStepOpen) {
-      const threshold = nextSettings.po_approval_threshold_amount;
-      const skipBand =
-        scopeMode === "small_orders_exempt" && threshold != null
-          ? [
-              {
-                min_amount: 0,
-                max_amount: threshold,
-                skip: true as const,
-                self_approve: nextSettings.allow_submitter_self_approve_below_threshold,
-              },
-            ]
-          : [];
+    const threshold = nextSettings.po_approval_threshold_amount;
+    const skipBand =
+      scopeMode === "small_orders_exempt" && threshold != null
+        ? [
+            {
+              min_amount: 0,
+              max_amount: threshold,
+              skip: true as const,
+              self_approve: nextSettings.allow_submitter_self_approve_below_threshold,
+            },
+          ]
+        : [];
+    const approvalMin = scopeMode === "small_orders_exempt" && threshold != null ? threshold : 0;
 
-      const approvalMin = scopeMode === "small_orders_exempt" && threshold != null ? threshold : 0;
-      const bands = workflowBands.map((band, index) =>
-        index === 0 ? { ...band, min_amount: approvalMin } : band
-      );
-
-      nextSettings.po_approval_bands = [...skipBand, ...bands];
-      nextSettings.po_approver_pools = { default: defaultPool };
-    } else if (
-      scopeMode === "small_orders_exempt" &&
-      nextSettings.po_approval_threshold_amount != null
-    ) {
-      const threshold = nextSettings.po_approval_threshold_amount;
-      nextSettings.po_approval_bands = [
-        {
-          min_amount: 0,
-          max_amount: threshold,
-          skip: true,
-          self_approve: nextSettings.allow_submitter_self_approve_below_threshold,
-        },
-        {
-          min_amount: threshold,
-          max_amount: null,
-          levels: [defaultLevel],
-        },
-      ];
-      nextSettings.po_approver_pools = { default: defaultPool };
+    let workflowBand;
+    if (workflowChoice === "manager_chain_finance") {
+      nextSettings.po_workflow_template = "manager_chain_finance";
+      workflowBand = {
+        min_amount: approvalMin,
+        max_amount: null,
+        levels: buildManagerChainFinanceLevels(),
+      };
+    } else if (workflowChoice === "custom") {
+      nextSettings.po_workflow_template = "custom";
+      workflowBand = {
+        ...(workflowBands[0] ?? { min_amount: approvalMin, max_amount: null, levels: [defaultLevel] }),
+        min_amount: approvalMin,
+      };
     } else {
-      nextSettings.po_approval_bands = undefined;
-      nextSettings.po_approver_pools = { default: defaultPool };
+      nextSettings.po_workflow_template = "standard";
+      workflowBand = {
+        min_amount: approvalMin,
+        max_amount: null,
+        levels: [defaultLevel],
+      };
     }
+
+    nextSettings.po_approval_bands = [...skipBand, workflowBand];
+    nextSettings.po_approver_pools = {
+      default: defaultPool,
+      ...(workflowChoice === "manager_chain_finance" ? { finance: financePool } : {}),
+    };
 
     return nextSettings;
   };
@@ -267,6 +303,26 @@ export function ProcurementApprovalsPanel({
     }
 
     commitSave(false);
+  };
+
+  const handleRunSlaCheck = () => {
+    startTransition(async () => {
+      const result = await runPoApprovalSlaReminders();
+      if ("error" in result && result.error) {
+        toast.error(result.error);
+        return;
+      }
+      if ("error" in result) return;
+      const reminders = result.reminders_sent ?? 0;
+      const escalations = result.escalations_sent ?? 0;
+      if (reminders === 0 && escalations === 0) {
+        toast.message("No overdue approval steps needed reminders.");
+        return;
+      }
+      toast.success(
+        `Sent ${reminders} reminder(s) and ${escalations} escalation(s).`
+      );
+    });
   };
 
   return (
@@ -377,26 +433,28 @@ export function ProcurementApprovalsPanel({
               </div>
 
               <div className="rounded-lg border border-border px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <StepHeader step={4} title="Need more than one person to sign off?" />
-                  <Switch
-                    checked={multiStepOpen}
+                <StepHeader step={4} title="Approval workflow" />
+                <div className="mt-3 pl-8">
+                  <ApprovalWorkflowTemplatePicker
+                    value={workflowChoice}
+                    financeApproverUserIds={settings.po_finance_approver_user_ids ?? []}
+                    eligibleUsers={eligibleUsers}
                     disabled={!canEdit}
-                    onCheckedChange={setMultiStepOpen}
+                    onChange={setWorkflowChoice}
+                    onFinanceApproversChange={(po_finance_approver_user_ids) =>
+                      patch({ po_finance_approver_user_ids })
+                    }
                   />
+                  {workflowChoice === "custom" ? (
+                    <div className="mt-3">
+                      <ApprovalExtraStepsEditor
+                        bands={workflowBands}
+                        disabled={!canEdit}
+                        onChange={setWorkflowBands}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-                <p className="mt-1 pl-8 text-xs text-muted-foreground">
-                  Leave off for most teams — one approver is enough.
-                </p>
-                {multiStepOpen ? (
-                  <div className="mt-3 pl-8">
-                    <ApprovalExtraStepsEditor
-                      bands={workflowBands}
-                      disabled={!canEdit}
-                      onChange={setWorkflowBands}
-                    />
-                  </div>
-                ) : null}
               </div>
 
               <div className="rounded-lg border border-border px-4 py-3">
@@ -429,6 +487,84 @@ export function ProcurementApprovalsPanel({
                     />
                   </div>
                 ) : null}
+              </div>
+
+              <div className="rounded-lg border border-border px-4 py-3">
+                <StepHeader step={6} title="Location scope, reminders & escalation" />
+                <div className="mt-3 space-y-4 pl-8">
+                  <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                    <div>
+                      <p className="text-sm">Match approvers to PO destination</p>
+                      <p className="text-xs text-muted-foreground">
+                        Named approvers and role pools only apply when they can access the
+                        destination location. Owners and admins stay global.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.po_approval_respect_destination_location ?? true}
+                      disabled={!canEdit}
+                      onCheckedChange={(checked) =>
+                        patch({ po_approval_respect_destination_location: checked })
+                      }
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="po-reminder-hours">Reminder every (hours)</Label>
+                      <Input
+                        id="po-reminder-hours"
+                        type="number"
+                        min={0}
+                        step={1}
+                        disabled={!canEdit}
+                        value={settings.po_approval_reminder_hours ?? ""}
+                        onChange={(event) => {
+                          const raw = event.target.value.trim();
+                          patch({
+                            po_approval_reminder_hours: raw === "" ? null : Number(raw),
+                          });
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">Set 0 to disable reminders.</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="po-escalation-hours">Escalate to owners after (hours)</Label>
+                      <Input
+                        id="po-escalation-hours"
+                        type="number"
+                        min={0}
+                        step={1}
+                        disabled={!canEdit}
+                        value={settings.po_approval_escalation_hours ?? ""}
+                        onChange={(event) => {
+                          const raw = event.target.value.trim();
+                          patch({
+                            po_approval_escalation_hours: raw === "" ? null : Number(raw),
+                          });
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">Leave empty to disable escalation.</p>
+                    </div>
+                  </div>
+
+                  {canEdit ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={handleRunSlaCheck}
+                      >
+                        Run reminder check now
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Schedule this via pg_cron or an external job in production.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </>
           ) : null}

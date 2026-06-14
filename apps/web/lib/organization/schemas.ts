@@ -79,3 +79,11 @@ export const grantDelegateSchema = z.object({
 });
 
 export type GrantDelegateInput = z.infer<typeof grantDelegateSchema>;
+
+export const grantPoApprovalDelegateSchema = z.object({
+  delegator_user_id: z.string().uuid("Select an approver"),
+  delegate_user_id: z.string().uuid("Select a delegate user"),
+  valid_until: z.string().datetime().nullable().optional(),
+});
+
+export type GrantPoApprovalDelegateInput = z.infer<typeof grantPoApprovalDelegateSchema>;

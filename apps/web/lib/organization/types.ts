@@ -52,6 +52,19 @@ export type OrganizationDelegateRow = {
   granted_at: string;
 };
 
+export type PoApprovalDelegateRow = {
+  delegator_user_id: string;
+  delegator_first_name: string;
+  delegator_last_name: string;
+  delegator_email: string;
+  delegate_user_id: string;
+  delegate_first_name: string;
+  delegate_last_name: string;
+  delegate_email: string;
+  valid_until: string | null;
+  granted_at: string;
+};
+
 export type TenantLocationOption = {
   id: string;
   name: string;
@@ -106,9 +119,22 @@ export type OrganizationSettingsSnapshot = {
   group_entity_settings: EntitySettingsMetadata | null;
   delegates: OrganizationDelegateRow[];
   po_edit_delegates: OrganizationDelegateRow[];
+  po_approval_delegates: PoApprovalDelegateRow[];
   locations: TenantLocationOption[];
   eligible_delegate_users: Array<{ id: string; first_name: string; last_name: string; email: string }>;
   po_edit_eligible_delegate_users: Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  }>;
+  po_approval_eligible_delegator_users: Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  }>;
+  po_approval_eligible_delegate_users: Array<{
     id: string;
     first_name: string;
     last_name: string;

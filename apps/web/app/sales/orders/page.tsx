@@ -1,25 +1,12 @@
-import { ClipboardList } from "lucide-react";
-import { ComingSoonModule } from "@/components/layout/coming-soon-module";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { getModulePageContext } from "@/lib/layout/module-page";
+import { Suspense } from "react";
+import { SoCatalogLoader } from "@/components/sales/orders/so-catalog-loader";
+import { SoCatalogPageSkeleton } from "@/components/sales/orders/so-catalog-page-skeleton";
 
-export default async function SalesOrdersPage() {
-  const { orgName, approvalAlertCount, operatorProfile, tenantId } =
-    await getModulePageContext();
-
+/** Drawer `id` is client-only (history.pushState) — omit from searchParams so row clicks do not refetch this RSC. */
+export default function SalesOrdersPage() {
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
-      <ComingSoonModule
-        title="Orders"
-        description="Capture and fulfil sales orders across channels and locations."
-        icon={ClipboardList}
-        plannedSections={["Order intake", "Allocation", "Fulfilment status"]}
-      />
-    </DashboardShell>
+    <Suspense fallback={<SoCatalogPageSkeleton />}>
+      <SoCatalogLoader />
+    </Suspense>
   );
 }

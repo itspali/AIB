@@ -7,6 +7,11 @@ import {
   normalizePoApprovalRules,
   normalizePoApproverRoles,
 } from "@/lib/approvals/approval-rules";
+import {
+  detectPoWorkflowTemplate,
+  extractFinanceApproverUserIds,
+  type PoWorkflowTemplate,
+} from "@/lib/approvals/workflow-templates";
 
 const DEFAULT_APPROVAL_SETTINGS: ProcurementApprovalSettings = {
   require_po_approval_before_issue: false,
@@ -15,9 +20,24 @@ const DEFAULT_APPROVAL_SETTINGS: ProcurementApprovalSettings = {
   po_approver_user_ids: [],
   po_approver_roles: [],
   po_approval_rules: normalizePoApprovalRules(undefined),
+  po_workflow_template: "standard",
+  po_finance_approver_user_ids: [],
   po_approval_bands: undefined,
   po_approver_pools: undefined,
+  po_approval_respect_destination_location: true,
+  po_approval_reminder_hours: 24,
+  po_approval_escalation_hours: 72,
 };
+
+function parseOptionalHours(raw: unknown, fallback: number | null): number | null {
+  if (raw === null || raw === undefined || raw === "") return fallback;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
 
 function parseApprovalBands(raw: unknown): ApprovalPolicyBand[] | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined;
@@ -61,6 +81,22 @@ export async function fetchProcurementApprovalSettings(
     ? approverIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
     : [];
 
+  const bands = parseApprovalBands(meta.po_approval_bands);
+  const pools = parseApproverPools(meta.po_approver_pools);
+  const storedTemplate = meta.po_workflow_template;
+  const workflowTemplate: PoWorkflowTemplate =
+    storedTemplate === "manager_chain_finance" ||
+    storedTemplate === "custom" ||
+    storedTemplate === "standard"
+      ? storedTemplate
+      : detectPoWorkflowTemplate(bands);
+
+  const financeIds = Array.isArray(meta.po_finance_approver_user_ids)
+    ? meta.po_finance_approver_user_ids.filter(
+        (id): id is string => typeof id === "string" && id.trim().length > 0
+      )
+    : extractFinanceApproverUserIds(pools);
+
   return {
     require_po_approval_before_issue:
       typeof meta.require_po_approval_before_issue === "boolean"
@@ -74,7 +110,21 @@ export async function fetchProcurementApprovalSettings(
     po_approver_user_ids: poApproverUserIds,
     po_approver_roles: normalizePoApproverRoles(meta.po_approver_roles),
     po_approval_rules: normalizePoApprovalRules(meta.po_approval_rules),
-    po_approval_bands: parseApprovalBands(meta.po_approval_bands),
-    po_approver_pools: parseApproverPools(meta.po_approver_pools),
+    po_workflow_template: workflowTemplate,
+    po_finance_approver_user_ids: financeIds,
+    po_approval_bands: bands,
+    po_approver_pools: pools,
+    po_approval_respect_destination_location:
+      typeof meta.po_approval_respect_destination_location === "boolean"
+        ? meta.po_approval_respect_destination_location
+        : DEFAULT_APPROVAL_SETTINGS.po_approval_respect_destination_location,
+    po_approval_reminder_hours: parseOptionalHours(
+      meta.po_approval_reminder_hours,
+      DEFAULT_APPROVAL_SETTINGS.po_approval_reminder_hours ?? 24
+    ),
+    po_approval_escalation_hours: parseOptionalHours(
+      meta.po_approval_escalation_hours,
+      DEFAULT_APPROVAL_SETTINGS.po_approval_escalation_hours ?? 72
+    ),
   };
 }

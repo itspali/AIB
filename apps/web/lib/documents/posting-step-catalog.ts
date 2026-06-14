@@ -196,6 +196,132 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     description: "Invoiced quantities were reversed and the bill was cancelled or removed.",
     documents: ["BILL"],
   },
+  so_header_saved: {
+    id: "so_header_saved",
+    label: "Order details saved",
+    description: "Customer, dates, and fulfillment location were stored on this sales order.",
+    documents: ["SO"],
+  },
+  so_lines_saved: {
+    id: "so_lines_saved",
+    label: "Line items saved",
+    description: "Quantities, rates, and items on this sales order were updated.",
+    documents: ["SO"],
+  },
+  so_totals_calculated: {
+    id: "so_totals_calculated",
+    label: "Order totals calculated",
+    description: "Subtotal, tax, and grand total were recalculated from the lines.",
+    documents: ["SO"],
+  },
+  so_submitted_for_approval: {
+    id: "so_submitted_for_approval",
+    label: "Submitted for approval",
+    description: "This sales order was sent to an approver before it can be confirmed.",
+    documents: ["SO"],
+  },
+  so_approved: {
+    id: "so_approved",
+    label: "Approval granted",
+    description: "An approver cleared this sales order for confirmation.",
+    documents: ["SO"],
+  },
+  so_rejected: {
+    id: "so_rejected",
+    label: "Approval rejected",
+    description: "An approver returned this sales order to draft with a reason.",
+    documents: ["SO"],
+  },
+  so_status_confirmed: {
+    id: "so_status_confirmed",
+    label: "Sales order confirmed",
+    description: "This order is now confirmed and ready for fulfillment or invoicing.",
+    documents: ["SO"],
+  },
+  quote_header_saved: {
+    id: "quote_header_saved",
+    label: "Quotation details saved",
+    description: "Customer, dates, and commercial terms were stored on this quotation.",
+    documents: ["QUOTE"],
+  },
+  quote_lines_saved: {
+    id: "quote_lines_saved",
+    label: "Line items saved",
+    description: "Quantities, rates, and items on this quotation were updated.",
+    documents: ["QUOTE"],
+  },
+  quote_totals_calculated: {
+    id: "quote_totals_calculated",
+    label: "Quotation totals calculated",
+    description: "Subtotal, tax, and grand total were recalculated from the lines.",
+    documents: ["QUOTE"],
+  },
+  quote_submitted_for_approval: {
+    id: "quote_submitted_for_approval",
+    label: "Submitted for approval",
+    description: "This quotation was sent to an approver before it can be sent to the customer.",
+    documents: ["QUOTE"],
+  },
+  quote_approved: {
+    id: "quote_approved",
+    label: "Approval granted",
+    description: "An approver cleared this quotation for customer delivery.",
+    documents: ["QUOTE"],
+  },
+  quote_rejected: {
+    id: "quote_rejected",
+    label: "Approval rejected",
+    description: "An approver returned this quotation to draft with a reason.",
+    documents: ["QUOTE"],
+  },
+  quote_status_sent: {
+    id: "quote_status_sent",
+    label: "Quotation sent",
+    description: "This quotation was shared with the customer.",
+    documents: ["QUOTE"],
+  },
+  invoice_header_saved: {
+    id: "invoice_header_saved",
+    label: "Invoice details saved",
+    description: "Customer, dates, and billing details were stored on this sales invoice.",
+    documents: ["INVOICE"],
+  },
+  invoice_lines_saved: {
+    id: "invoice_lines_saved",
+    label: "Line items saved",
+    description: "Quantities, rates, and items on this invoice were updated.",
+    documents: ["INVOICE"],
+  },
+  invoice_totals_calculated: {
+    id: "invoice_totals_calculated",
+    label: "Invoice totals calculated",
+    description: "Subtotal, tax, and grand total were recalculated from the lines.",
+    documents: ["INVOICE"],
+  },
+  invoice_submitted_for_approval: {
+    id: "invoice_submitted_for_approval",
+    label: "Submitted for approval",
+    description: "This invoice was sent to an approver before it can be posted.",
+    documents: ["INVOICE"],
+  },
+  invoice_approved: {
+    id: "invoice_approved",
+    label: "Approval granted",
+    description: "An approver cleared this invoice for posting.",
+    documents: ["INVOICE"],
+  },
+  invoice_rejected: {
+    id: "invoice_rejected",
+    label: "Approval rejected",
+    description: "An approver returned this invoice to draft with a reason.",
+    documents: ["INVOICE"],
+  },
+  invoice_posted: {
+    id: "invoice_posted",
+    label: "Invoice posted",
+    description: "Receivables and revenue were updated for this sales invoice.",
+    documents: ["INVOICE"],
+  },
 };
 
 export function resolvePostingStepDefinition(stepId: string): PostingStepDefinition {
@@ -204,7 +330,7 @@ export function resolvePostingStepDefinition(stepId: string): PostingStepDefinit
       id: stepId,
       label: stepId.replace(/_/g, " "),
       description: "A system update was applied for this document.",
-      documents: ["PO", "GRN", "BILL"],
+      documents: ["PO", "GRN", "BILL", "SO", "QUOTE", "INVOICE"],
     }
   );
 }

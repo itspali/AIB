@@ -1,9 +1,15 @@
 export type ApprovalQuorum = "ANY" | "ALL";
 
+export type ApprovalAssigneeMode =
+  | "POOL"
+  | "SUBMITTER_MANAGER"
+  | "SUBMITTER_SKIP_MANAGER";
+
 export type ApprovalPolicyStep = {
   label: string;
   quorum: ApprovalQuorum;
   pool: string;
+  assignee?: ApprovalAssigneeMode;
 };
 
 export type ApprovalPolicyLevel = {

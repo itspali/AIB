@@ -80,6 +80,37 @@ export function parsePostGoodsReceiptRpcResult(raw: unknown): {
   };
 }
 
+export function parseSalesOrderWorkflowRpcResult(raw: unknown): {
+  salesOrderId: string;
+  steps: PostingStepResult[];
+  confirmed?: boolean;
+  pendingNextStep?: boolean;
+} | null {
+  if (!raw || typeof raw !== "object") {
+    if (typeof raw === "string") {
+      return { salesOrderId: raw, steps: [] };
+    }
+    return null;
+  }
+
+  const payload = raw as Record<string, unknown>;
+  const salesOrderId =
+    typeof payload.sales_order_id === "string"
+      ? payload.sales_order_id
+      : typeof payload.salesOrderId === "string"
+        ? payload.salesOrderId
+        : null;
+
+  if (!salesOrderId) return null;
+
+  return {
+    salesOrderId,
+    steps: parsePostingSteps(payload.steps),
+    confirmed: payload.confirmed === true,
+    pendingNextStep: payload.pending_next_step === true,
+  };
+}
+
 export function parseIssuePurchaseOrderRpcResult(raw: unknown): {
   purchaseOrderId: string;
   steps: PostingStepResult[];

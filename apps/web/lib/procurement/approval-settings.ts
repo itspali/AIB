@@ -1,5 +1,6 @@
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
 import type { PoApprovalRule, PoApproverRole } from "@/lib/approvals/approval-rules";
+import type { PoWorkflowTemplate } from "@/lib/approvals/workflow-templates";
 
 export type ProcurementApprovalSettings = {
   require_po_approval_before_issue: boolean;
@@ -8,9 +9,17 @@ export type ProcurementApprovalSettings = {
   po_approver_user_ids: string[];
   po_approver_roles?: PoApproverRole[];
   po_approval_rules?: PoApprovalRule[];
+  po_workflow_template?: PoWorkflowTemplate;
+  po_finance_approver_user_ids?: string[];
   /** Multi-threshold bands with levels/steps; when set, overrides legacy threshold synthesis. */
   po_approval_bands?: ApprovalPolicyBand[];
   po_approver_pools?: Record<string, ApprovalApproverPool>;
+  /** When true, pool/role approvers must access the PO destination location. Owners/admins stay global. */
+  po_approval_respect_destination_location?: boolean;
+  /** Hours after a step opens before in-app reminders repeat (default 24). Set 0 to disable. */
+  po_approval_reminder_hours?: number | null;
+  /** Hours before owners are notified; null disables escalation. */
+  po_approval_escalation_hours?: number | null;
 };
 
 export function canUserApprovePurchaseOrders(

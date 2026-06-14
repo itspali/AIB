@@ -50,6 +50,11 @@ import {
   type PoLineSettingsColumnId,
   type PoTotalsFieldId,
 } from "@/lib/documents/purchase-order-layout";
+import {
+  SALES_INVOICE_LAYOUT_STUB,
+  SALES_ORDER_LAYOUT_STUB,
+  SALES_QUOTATION_LAYOUT_STUB,
+} from "@/lib/documents/sales-layout-stub";
 import type { DocumentCatalogFieldSource, DocumentModuleKey } from "@/lib/documents/types";
 
 export type DocumentLayoutModuleAdapter = {
@@ -163,11 +168,62 @@ export const PURCHASE_INVOICE_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   },
 };
 
+export const SALES_QUOTATION_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
+  moduleKey: "SALES_QUOTATION",
+  label: "Quotation",
+  defaultLayout: SALES_QUOTATION_LAYOUT_STUB.normalize({}),
+  normalize: SALES_QUOTATION_LAYOUT_STUB.normalize,
+  patchColumn: SALES_QUOTATION_LAYOUT_STUB.patchColumn,
+  getLineSettingsColumnOrder: SALES_QUOTATION_LAYOUT_STUB.getLineSettingsColumnOrder,
+  isFormHeaderPlaceableField: SALES_QUOTATION_LAYOUT_STUB.isFormHeaderPlaceableField,
+  moveHeaderFieldOrder: SALES_QUOTATION_LAYOUT_STUB.moveHeaderFieldOrder,
+  moveLineColumnOrder: SALES_QUOTATION_LAYOUT_STUB.moveLineColumnOrder,
+  totalsInternalFieldIds: [],
+  showTotalsSection: true,
+  showImageSection: false,
+  catalog: SALES_QUOTATION_LAYOUT_STUB.catalog,
+};
+
+export const SALES_ORDER_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
+  moduleKey: "SALES_ORDER",
+  label: "Sales order",
+  defaultLayout: SALES_ORDER_LAYOUT_STUB.normalize({}),
+  normalize: SALES_ORDER_LAYOUT_STUB.normalize,
+  patchColumn: SALES_ORDER_LAYOUT_STUB.patchColumn,
+  getLineSettingsColumnOrder: SALES_ORDER_LAYOUT_STUB.getLineSettingsColumnOrder,
+  isFormHeaderPlaceableField: SALES_ORDER_LAYOUT_STUB.isFormHeaderPlaceableField,
+  moveHeaderFieldOrder: SALES_ORDER_LAYOUT_STUB.moveHeaderFieldOrder,
+  moveLineColumnOrder: SALES_ORDER_LAYOUT_STUB.moveLineColumnOrder,
+  totalsInternalFieldIds: [],
+  showTotalsSection: true,
+  showImageSection: false,
+  catalog: SALES_ORDER_LAYOUT_STUB.catalog,
+};
+
+export const SALES_INVOICE_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
+  moduleKey: "SALES_INVOICE",
+  label: "Sales invoice",
+  defaultLayout: SALES_INVOICE_LAYOUT_STUB.normalize({}),
+  normalize: SALES_INVOICE_LAYOUT_STUB.normalize,
+  patchColumn: SALES_INVOICE_LAYOUT_STUB.patchColumn,
+  getLineSettingsColumnOrder: SALES_INVOICE_LAYOUT_STUB.getLineSettingsColumnOrder,
+  isFormHeaderPlaceableField: SALES_INVOICE_LAYOUT_STUB.isFormHeaderPlaceableField,
+  moveHeaderFieldOrder: SALES_INVOICE_LAYOUT_STUB.moveHeaderFieldOrder,
+  moveLineColumnOrder: SALES_INVOICE_LAYOUT_STUB.moveLineColumnOrder,
+  totalsInternalFieldIds: [],
+  showTotalsSection: true,
+  showImageSection: false,
+  catalog: SALES_INVOICE_LAYOUT_STUB.catalog,
+};
+
 export const DOCUMENT_LAYOUT_MODULE_ADAPTERS: Record<
-  "PURCHASE_ORDER" | "GOODS_RECEIPT_NOTE" | "PURCHASE_INVOICE",
+  DocumentModuleKey,
   DocumentLayoutModuleAdapter
 > = {
   PURCHASE_ORDER: PURCHASE_ORDER_LAYOUT_ADAPTER,
   GOODS_RECEIPT_NOTE: GOODS_RECEIPT_LAYOUT_ADAPTER,
   PURCHASE_INVOICE: PURCHASE_INVOICE_LAYOUT_ADAPTER,
+  SALES_QUOTATION: SALES_QUOTATION_LAYOUT_ADAPTER,
+  SALES_ORDER: SALES_ORDER_LAYOUT_ADAPTER,
+  SALES_INVOICE: SALES_INVOICE_LAYOUT_ADAPTER,
 };

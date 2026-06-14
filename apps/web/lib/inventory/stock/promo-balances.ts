@@ -29,9 +29,9 @@ export async function fetchPromoInventoryBalances(
       quantity_on_hand,
       quarantine_type,
       promotional_batch_id,
-      tenant_locations!promo_inventory_balances_location_tenant_fk (name),
-      items!promo_inventory_balances_item_tenant_fk (name),
-      item_variants!promo_inventory_balances_variant_tenant_fk (sku)
+      tenant_locations (name),
+      items (name),
+      item_variants (sku)
     `
     )
     .eq("tenant_id", tenantId)

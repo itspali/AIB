@@ -2,17 +2,28 @@ import type { ApprovalPolicyBand } from "@/lib/approvals/policy-types";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 import { describePoApprovalRule, hasEnabledPoApprovalRules } from "@/lib/approvals/approval-rules";
 import type { PoApprovalRule } from "@/lib/approvals/approval-rules";
+import type { WorkflowChoice } from "@/lib/approvals/workflow-templates";
 
 export type ApprovalScopeMode = "all" | "small_orders_exempt";
+
+export function resolveApprovalScopeModeFromBands(
+  thresholdAmount: number | null,
+  bands?: ApprovalPolicyBand[]
+): ApprovalScopeMode {
+  const hasSkipBand = bands?.some((band) => band.skip);
+  if (hasSkipBand || thresholdAmount != null) {
+    return "small_orders_exempt";
+  }
+  return "all";
+}
 
 export function resolveApprovalScopeMode(
   settings: ProcurementApprovalSettings
 ): ApprovalScopeMode {
-  const hasSkipBand = settings.po_approval_bands?.some((band) => band.skip);
-  if (hasSkipBand || settings.po_approval_threshold_amount != null) {
-    return "small_orders_exempt";
-  }
-  return "all";
+  return resolveApprovalScopeModeFromBands(
+    settings.po_approval_threshold_amount,
+    settings.po_approval_bands
+  );
 }
 
 export function countExtraApprovalSteps(bands: ApprovalPolicyBand[]): number {
@@ -20,6 +31,12 @@ export function countExtraApprovalSteps(bands: ApprovalPolicyBand[]): number {
   if (!band?.levels?.length) return 1;
   return band.levels.length;
 }
+
+type ApprovalPlainSummaryWording = {
+  draftNoun?: string;
+  finalAction?: string;
+  submitterNoun?: string;
+};
 
 export function buildApprovalPlainSummary(options: {
   enabled: boolean;
@@ -29,16 +46,27 @@ export function buildApprovalPlainSummary(options: {
   approverCount: number;
   extraStepCount: number;
   enabledRules?: PoApprovalRule[];
+  workflowChoice?: WorkflowChoice;
+  respectDestinationLocation?: boolean;
+  reminderHours?: number | null;
+  escalationHours?: number | null;
+  wording?: ApprovalPlainSummaryWording;
+  disabledSummary?: string;
 }): string[] {
+  const draftNoun = options.wording?.draftNoun ?? "purchase order";
+  const finalAction = options.wording?.finalAction ?? "issued to the supplier";
+  const submitterNoun = options.wording?.submitterNoun ?? "buyer";
+
   if (!options.enabled) {
     return [
-      "Draft purchase orders can be issued to suppliers immediately.",
+      options.disabledSummary ??
+        `Draft purchase orders can be issued to suppliers immediately.`,
       "No approval step is required.",
     ];
   }
 
   const lines: string[] = [
-    "Someone creates a draft purchase order and submits it for approval.",
+    `Someone creates a draft ${draftNoun} and submits it for approval.`,
   ];
 
   if (options.extraStepCount <= 1) {
@@ -47,19 +75,22 @@ export function buildApprovalPlainSummary(options: {
         ? "One of your listed approvers (or a workspace owner) approves it."
         : "A workspace owner approves it."
     );
+  } else if (options.workflowChoice === "manager_chain_finance") {
+    lines.push(`Step 1: the ${submitterNoun}'s reporting manager approves.`);
+    lines.push("Step 2: skip-level manager and finance approve in parallel.");
   } else {
     lines.push(`${options.extraStepCount} approval steps must be completed, in order.`);
   }
 
-  lines.push("The purchase order is then issued to the supplier.");
+  lines.push(`The ${draftNoun} is then ${finalAction}.`);
 
   if (options.scopeMode === "small_orders_exempt" && options.thresholdAmount != null) {
     lines.push(
-      `Orders under ${formatAmount(options.thresholdAmount)} do not need approval unless a rule below applies.`
+      `Documents under ${formatAmount(options.thresholdAmount)} do not need approval unless a rule below applies.`
     );
     if (options.allowSelfApproveSmall && options.approverCount > 0) {
       lines.push(
-        `Buyers who are approvers may approve their own orders under ${formatAmount(options.thresholdAmount)}.`
+        `${submitterNoun.charAt(0).toUpperCase()}${submitterNoun.slice(1)}s who are approvers may approve their own documents under ${formatAmount(options.thresholdAmount)}.`
       );
     }
   }
@@ -69,6 +100,24 @@ export function buildApprovalPlainSummary(options: {
       const description = describePoApprovalRule(rule);
       if (description) lines.push(description);
     }
+  }
+
+  if (options.respectDestinationLocation !== false) {
+    lines.push(
+      "Only approvers who can access the PO destination location are assigned (owners and admins stay global)."
+    );
+  }
+
+  if (options.reminderHours != null && options.reminderHours > 0) {
+    lines.push(
+      `Approvers receive in-app reminders every ${options.reminderHours} hour(s) while a step is waiting.`
+    );
+  }
+
+  if (options.escalationHours != null && options.escalationHours > 0) {
+    lines.push(
+      `Workspace owners are notified after ${options.escalationHours} hour(s) if a step is still pending.`
+    );
   }
 
   return lines;
@@ -92,18 +141,28 @@ export function hasCustomWorkflow(settings: ProcurementApprovalSettings): boolea
   });
 }
 
-export function workflowBandsFromSettings(
-  settings: ProcurementApprovalSettings
+export function workflowBandsFromThreshold(
+  thresholdAmount: number | null,
+  bands?: ApprovalPolicyBand[]
 ): ApprovalPolicyBand[] {
-  if (settings.po_approval_bands?.length) {
-    return settings.po_approval_bands.filter((band) => !band.skip);
+  if (bands?.length) {
+    return bands.filter((band) => !band.skip);
   }
 
   return [
     {
-      min_amount: settings.po_approval_threshold_amount ?? 0,
+      min_amount: thresholdAmount ?? 0,
       max_amount: null,
       levels: [{ steps: [{ label: "Approvers", quorum: "ANY", pool: "default" }] }],
     },
   ];
+}
+
+export function workflowBandsFromSettings(
+  settings: ProcurementApprovalSettings
+): ApprovalPolicyBand[] {
+  return workflowBandsFromThreshold(
+    settings.po_approval_threshold_amount,
+    settings.po_approval_bands
+  );
 }

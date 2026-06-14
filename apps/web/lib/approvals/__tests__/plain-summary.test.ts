@@ -108,3 +108,23 @@ describe("workflowBandsFromSettings", () => {
     expect(bands[0]?.skip).toBeUndefined();
   });
 });
+
+describe("buildApprovalPlainSummary advanced options", () => {
+  it("mentions location scope and SLA settings", () => {
+    const lines = buildApprovalPlainSummary({
+      enabled: true,
+      scopeMode: "all",
+      thresholdAmount: null,
+      allowSelfApproveSmall: false,
+      approverCount: 2,
+      extraStepCount: 1,
+      respectDestinationLocation: true,
+      reminderHours: 24,
+      escalationHours: 72,
+    });
+
+    expect(lines.some((line) => line.includes("destination location"))).toBe(true);
+    expect(lines.some((line) => line.includes("24 hour"))).toBe(true);
+    expect(lines.some((line) => line.includes("72 hour"))).toBe(true);
+  });
+});

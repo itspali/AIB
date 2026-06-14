@@ -45,6 +45,7 @@ import {
   type OrgSettingsTabId,
 } from "@/lib/organization/section-nav";
 import type { GroupInvitationRow } from "@/lib/group/types";
+import type { TenantReportingLine } from "@/lib/organization/reporting-lines";
 import {
   snapshotToFormValues,
   type OrganizationSettingsFormValues,
@@ -59,6 +60,7 @@ type Props = {
   tenantId: string;
   logoPreviewUrl?: string | null;
   groupInvitations?: GroupInvitationRow[];
+  reportingLines?: TenantReportingLine[];
 };
 
 function SectionAnchor({
@@ -88,6 +90,7 @@ export function OrganizationSettingsTerminal({
   tenantId,
   logoPreviewUrl,
   groupInvitations = [],
+  reportingLines = [],
 }: Props) {
   const router = useRouter();
   const omnibar = useOptionalOmnibarContext();
@@ -444,6 +447,7 @@ export function OrganizationSettingsTerminal({
               form={form}
               snapshot={snapshot}
               access={access}
+              reportingLines={reportingLines}
               disabled={fieldsDisabled}
             />
           </SectionAnchor>

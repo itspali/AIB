@@ -5,20 +5,33 @@ import { ClipboardCheck } from "lucide-react";
 import { HubPanel, HubSectionHeading } from "@/components/dashboard/hub-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ApprovalTaskRow } from "@/lib/approvals/types";
+import type { ApprovalTaskRow, ApprovalDocumentType } from "@/lib/approvals/types";
 import { formatDate } from "@/lib/dashboard/format";
 import { formatMoneyDetail } from "@/lib/procurement/math";
 import { poListReturnHref } from "@/lib/procurement/navigation";
+import {
+  invoiceListReturnHref,
+  quoteListReturnHref,
+  soListReturnHref,
+} from "@/lib/sales/navigation";
 
 type Props = {
   tasks: ApprovalTaskRow[];
 };
 
 function resolveDocumentHref(task: ApprovalTaskRow): string {
-  if (task.document_type === "PURCHASE_ORDER") {
-    return poListReturnHref(task.document_id);
+  switch (task.document_type as ApprovalDocumentType) {
+    case "PURCHASE_ORDER":
+      return poListReturnHref(task.document_id);
+    case "SALES_ORDER":
+      return soListReturnHref(task.document_id);
+    case "SALES_QUOTATION":
+      return quoteListReturnHref(task.document_id);
+    case "SALES_INVOICE":
+      return invoiceListReturnHref(task.document_id);
+    default:
+      return "/approvals";
   }
-  return "/approvals";
 }
 
 export function ApprovalTaskCard({ task }: { task: ApprovalTaskRow }) {
@@ -90,6 +103,10 @@ export function ApprovalCommandCenter({ tasks }: Props) {
         Configure bands, levels, and approver pools under{" "}
         <Link href="/settings/modules/procurement?tab=approvals" className="text-primary hover:underline">
           Procurement › Approvals
+        </Link>{" "}
+        or{" "}
+        <Link href="/settings/modules/sales?tab=approvals" className="text-primary hover:underline">
+          Sales › Approvals
         </Link>
         . Notification templates live under{" "}
         <Link href="/settings/notifications" className="text-primary hover:underline">

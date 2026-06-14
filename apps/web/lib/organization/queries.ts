@@ -6,6 +6,7 @@ import {
   mapTenantRowToSnapshotParts,
   type OrganizationDelegateRow,
   type OrganizationSettingsSnapshot,
+  type PoApprovalDelegateRow,
   type SearchFinancialFieldsMode,
   type TenantLocationOption,
 } from "@/lib/organization/types";
@@ -20,6 +21,7 @@ import {
 
 const DELEGATE_REGISTRY_KEY = "allow_organization_settings_modification";
 const PO_EDIT_DELEGATE_REGISTRY_KEY = "allow_purchase_order_modification";
+const PO_APPROVAL_DELEGATE_REGISTRY_KEY = "allow_po_approval_delegation";
 
 function toDateOnly(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -35,6 +37,7 @@ export async function fetchOrganizationSettingsSnapshot(
     { data: registryRows },
     { data: delegateRows },
     { data: poEditDelegateRows },
+    { data: poApprovalDelegateRows },
     { data: locations },
     { data: eligibleUsers },
     inventoryLedgerProbe,
@@ -65,6 +68,12 @@ export async function fetchOrganizationSettingsSnapshot(
       .select("target_reference_id, created_at, configuration_metadata")
       .eq("tenant_id", tenantId)
       .eq("registry_key", PO_EDIT_DELEGATE_REGISTRY_KEY)
+      .not("target_reference_id", "is", null),
+    supabase
+      .from("workspace_control_registry")
+      .select("target_reference_id, created_at, configuration_metadata")
+      .eq("tenant_id", tenantId)
+      .eq("registry_key", PO_APPROVAL_DELEGATE_REGISTRY_KEY)
       .not("target_reference_id", "is", null),
     supabase
       .from("tenant_locations")
@@ -143,7 +152,25 @@ export async function fetchOrganizationSettingsSnapshot(
     .map((row) => row.target_reference_id)
     .filter((id): id is string => Boolean(id));
 
-  const allDelegateUserIds = [...new Set([...delegateUserIds, ...poEditDelegateUserIds])];
+  const poApprovalDelegatorIds = (poApprovalDelegateRows ?? [])
+    .map((row) => row.target_reference_id)
+    .filter((id): id is string => Boolean(id));
+
+  const poApprovalDelegateUserIds = (poApprovalDelegateRows ?? [])
+    .map((row) => {
+      const meta = row.configuration_metadata as Record<string, unknown> | null;
+      return typeof meta?.delegate_user_id === "string" ? meta.delegate_user_id : null;
+    })
+    .filter((id): id is string => Boolean(id));
+
+  const allDelegateUserIds = [
+    ...new Set([
+      ...delegateUserIds,
+      ...poEditDelegateUserIds,
+      ...poApprovalDelegatorIds,
+      ...poApprovalDelegateUserIds,
+    ]),
+  ];
 
   const delegateUsersById = new Map<
     string,
@@ -185,6 +212,37 @@ export async function fetchOrganizationSettingsSnapshot(
   const delegates = buildDelegateList(delegateRows);
   const po_edit_delegates = buildDelegateList(poEditDelegateRows);
 
+  const po_approval_delegates: PoApprovalDelegateRow[] = (poApprovalDelegateRows ?? [])
+    .map((row) => {
+      if (!row.target_reference_id) return null;
+      const delegator = delegateUsersById.get(row.target_reference_id);
+      const meta = row.configuration_metadata as Record<string, unknown> | null;
+      const delegateUserId =
+        typeof meta?.delegate_user_id === "string" ? meta.delegate_user_id : null;
+      if (!delegator || !delegateUserId) return null;
+      const delegate = delegateUsersById.get(delegateUserId);
+      if (!delegate) return null;
+      const grantedAt =
+        typeof meta?.granted_at === "string" ? meta.granted_at : row.created_at;
+      const validUntil =
+        typeof meta?.valid_until === "string" && meta.valid_until.trim()
+          ? meta.valid_until
+          : null;
+      return {
+        delegator_user_id: row.target_reference_id,
+        delegator_first_name: delegator.first_name,
+        delegator_last_name: delegator.last_name,
+        delegator_email: delegator.email,
+        delegate_user_id: delegateUserId,
+        delegate_first_name: delegate.first_name,
+        delegate_last_name: delegate.last_name,
+        delegate_email: delegate.email,
+        valid_until: validUntil,
+        granted_at: grantedAt,
+      };
+    })
+    .filter((row): row is PoApprovalDelegateRow => row !== null);
+
   let createdByName: string | null = null;
   if (tenant.created_by_user_id) {
     const { data: creator } = await supabase
@@ -200,6 +258,7 @@ export async function fetchOrganizationSettingsSnapshot(
   const baseCurrency = (tenant.base_currency ?? "USD") as OrganizationCurrency;
   const delegateIdSet = new Set(delegateUserIds);
   const poEditDelegateIdSet = new Set(poEditDelegateUserIds);
+  const poApprovalDelegatorIdSet = new Set(poApprovalDelegatorIds);
 
   const eligibleMemberships = eligibleUsers ?? [];
   const eligibleUserIds = eligibleMemberships.map((row) => row.user_id as string);
@@ -297,6 +356,7 @@ export async function fetchOrganizationSettingsSnapshot(
     group_entity_settings: groupEntitySettings,
     delegates,
     po_edit_delegates,
+    po_approval_delegates,
     locations: (locations ?? []) as TenantLocationOption[],
     group_id: groupId,
     parent_group_name: parentGroupName,
@@ -304,6 +364,10 @@ export async function fetchOrganizationSettingsSnapshot(
     po_edit_eligible_delegate_users: eligibleDelegateUsers.filter(
       (user) => !poEditDelegateIdSet.has(user.id)
     ),
+    po_approval_eligible_delegator_users: eligibleDelegateUsers.filter(
+      (user) => !poApprovalDelegatorIdSet.has(user.id)
+    ),
+    po_approval_eligible_delegate_users: eligibleDelegateUsers,
   };
 }
 

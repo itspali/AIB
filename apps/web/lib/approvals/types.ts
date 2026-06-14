@@ -1,3 +1,9 @@
+export type ApprovalDocumentType =
+  | "PURCHASE_ORDER"
+  | "SALES_ORDER"
+  | "SALES_QUOTATION"
+  | "SALES_INVOICE";
+
 export type ApprovalRunStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 export type ApprovalStepStatus = "LOCKED" | "PENDING" | "SATISFIED" | "REJECTED" | "SKIPPED";
@@ -36,7 +42,7 @@ export type DocumentApprovalRun = {
 
 export type ApprovalTaskRow = {
   run_id: string;
-  document_type: string;
+  document_type: ApprovalDocumentType | string;
   document_id: string;
   step_id: string;
   step_label: string;

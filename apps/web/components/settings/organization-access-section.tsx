@@ -4,6 +4,8 @@ import type { UseFormReturn } from "react-hook-form";
 import { GrantDelegateModalSection } from "@/components/settings/grant-delegate-modal";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { PurchaseOrderEditDelegateSection } from "@/components/settings/purchase-order-edit-delegate-section";
+import { PoApprovalDelegateSection } from "@/components/settings/po-approval-delegate-section";
+import { OrganizationReportingLinesSection } from "@/components/settings/organization-reporting-lines-section";
 import { ProductFieldAccessMatrix } from "@/components/settings/product-field-access-matrix";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,15 +20,23 @@ import type {
   OrganizationSettingsFormValues,
   OrganizationSettingsSnapshot,
 } from "@/lib/organization/types";
+import type { TenantReportingLine } from "@/lib/organization/reporting-lines";
 
 type Props = {
   form: UseFormReturn<OrganizationSettingsFormValues>;
   snapshot: OrganizationSettingsSnapshot;
   access: OrganizationSettingsAccess;
+  reportingLines: TenantReportingLine[];
   disabled?: boolean;
 };
 
-export function OrganizationAccessSection({ form, snapshot, access, disabled }: Props) {
+export function OrganizationAccessSection({
+  form,
+  snapshot,
+  access,
+  reportingLines,
+  disabled,
+}: Props) {
   const formValues = form.watch();
 
   return (
@@ -87,6 +97,23 @@ export function OrganizationAccessSection({ form, snapshot, access, disabled }: 
           canGrantDelegates={access.canGrantDelegates}
         />
       </OrgSettingsSection>
+
+      <OrgSettingsSection
+        title="PO Approval Delegates"
+        description="Let approvers assign a backup who can approve on their behalf while they are away."
+      >
+        <PoApprovalDelegateSection
+          delegates={snapshot.po_approval_delegates}
+          eligibleDelegators={snapshot.po_approval_eligible_delegator_users}
+          eligibleDelegates={snapshot.po_approval_eligible_delegate_users}
+          canGrantDelegates={access.canGrantDelegates}
+        />
+      </OrgSettingsSection>
+
+      <OrganizationReportingLinesSection
+        initialLines={reportingLines}
+        canEdit={access.granted && !disabled}
+      />
 
       {access.isOwner ? (
         <ProductFieldAccessMatrix

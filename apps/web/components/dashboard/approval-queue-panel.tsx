@@ -18,7 +18,7 @@ export function ApprovalQueuePanel({ pendingPurchaseOrders }: Props) {
       <HubSectionHeading
         step="!"
         title="Approval queue"
-        description="Purchase orders awaiting approval before issue."
+        description="Purchase orders awaiting approval. Quotations, sales orders, and invoices appear on Approvals."
       />
       <HubPanel accent="amber" icon={ClipboardCheck} className="p-5 md:p-6">
         <div className="surface-inset table-chrome-frame overflow-x-auto">
