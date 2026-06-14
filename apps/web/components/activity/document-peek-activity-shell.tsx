@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { FileText, History } from "lucide-react";
+import { ClipboardCheck, FileText, History } from "lucide-react";
 import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
 import { Button } from "@/components/ui/button";
 import { useRightDrawerLayout } from "@/components/ui/right-drawer";
@@ -10,7 +10,7 @@ import { resolveDocumentPeekActivityLayoutMode } from "@/lib/activity/document-p
 import type { ActivityEntityType } from "@/lib/activity/types";
 import { cn } from "@/lib/utils";
 
-export type DocumentPeekPane = "document" | "activity";
+export type DocumentPeekPane = "document" | "approval" | "activity";
 
 type Props = {
   entityType: ActivityEntityType;
@@ -18,15 +18,19 @@ type Props = {
   refreshKey?: number | string;
   children: ReactNode;
   className?: string;
+  showApprovalPane?: boolean;
+  approvalPane?: ReactNode;
 };
 
 function PeekIconRail({
   activePane,
   onSelect,
+  showApprovalPane,
   className,
 }: {
   activePane: DocumentPeekPane;
   onSelect: (pane: DocumentPeekPane) => void;
+  showApprovalPane?: boolean;
   className?: string;
 }) {
   return (
@@ -49,6 +53,20 @@ function PeekIconRail({
       >
         <FileText className="size-4" aria-hidden />
       </Button>
+      {showApprovalPane ? (
+        <Button
+          type="button"
+          variant={activePane === "approval" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-9 w-9 px-0"
+          aria-pressed={activePane === "approval"}
+          aria-label="Approval workflow"
+          title="Approval workflow"
+          onClick={() => onSelect("approval")}
+        >
+          <ClipboardCheck className="size-4" aria-hidden />
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant={activePane === "activity" ? "secondary" : "ghost"}
@@ -71,6 +89,8 @@ export function DocumentPeekActivityShell({
   refreshKey,
   children,
   className,
+  showApprovalPane = false,
+  approvalPane = null,
 }: Props) {
   const drawerLayout = useRightDrawerLayout();
   const { isMobile } = useDeviceClass();
@@ -91,6 +111,9 @@ export function DocumentPeekActivityShell({
     return (
       <div className={cn("space-y-4", className)}>
         {children}
+        {showApprovalPane && approvalPane ? (
+          <section className="rounded-lg border border-border bg-muted/10 p-4">{approvalPane}</section>
+        ) : null}
         {timeline}
       </div>
     );
@@ -106,7 +129,7 @@ export function DocumentPeekActivityShell({
       >
         <div className="min-h-0 min-w-0 flex-1 overflow-auto lg:pr-4">{children}</div>
         <div className="min-h-0 w-full shrink-0 overflow-auto border-border lg:w-[min(22rem,34%)] lg:border-l lg:pl-4">
-          {timeline}
+          {showApprovalPane && approvalPane ? approvalPane : timeline}
         </div>
       </div>
     );
@@ -114,10 +137,16 @@ export function DocumentPeekActivityShell({
 
   return (
     <div className={cn("flex min-h-0 flex-1 gap-3", className)}>
-      <PeekIconRail activePane={activePane} onSelect={setActivePane} />
+      <PeekIconRail
+        activePane={activePane}
+        onSelect={setActivePane}
+        showApprovalPane={showApprovalPane}
+      />
       <div className="min-h-0 min-w-0 flex-1 overflow-auto">
         {activePane === "document" ? (
           children
+        ) : activePane === "approval" && showApprovalPane && approvalPane ? (
+          approvalPane
         ) : (
           <DocumentActivityTimelinePanel
             entityType={entityType}

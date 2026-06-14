@@ -83,6 +83,7 @@ import type { PoCatalogWritebackRow } from "@/lib/procurement/purchase-orders/po
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
+import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import {
   isPoApprovalRequiredBeforeIssue,
@@ -973,6 +974,26 @@ export function PoDrawerForm({
             entityType="PURCHASE_ORDER"
             entityId={detail.id}
             refreshKey={`${detail.id}:${detail.updated_at}:${issuePostingSummary?.length ?? 0}`}
+            showApprovalPane={Boolean(detail.id)}
+            approvalPane={
+              <DocumentPeekApprovalPane
+                documentType="PURCHASE_ORDER"
+                documentId={detail.id}
+                documentStatus={detail.document_status}
+                voucherNumber={detail.voucher_number}
+                totalNetAmount={Number(detail.total_net_amount ?? 0)}
+                currencyCode={detail.currency_code}
+                approvalSubmittedBy={detail.approval_submitted_by}
+                currentUserId={currentUserId}
+                isOwner={isOwner}
+                approvalSettings={approvalSettings}
+                refreshKey={`${detail.id}:${detail.updated_at}:${issuePostingSummary?.length ?? 0}`}
+                onActionComplete={async () => {
+                  await reloadDetail(detail.id);
+                  onAfterSave(detail.id);
+                }}
+              />
+            }
           >
             <PoPeekView
               order={detail}

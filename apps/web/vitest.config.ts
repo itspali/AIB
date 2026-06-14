@@ -20,6 +20,7 @@ export default defineConfig({
       "lib/entity-categories/__tests__/**/*.test.ts",
       "lib/entities/__tests__/**/*.test.ts",
       "lib/notifications/__tests__/**/*.test.ts",
+      "lib/approvals/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

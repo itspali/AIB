@@ -448,7 +448,13 @@ async function runPurchaseOrderWorkflowRpc(
   args: Record<string, unknown>,
   options?: { revalidate?: boolean }
 ): Promise<
-  | { success: true; purchaseOrderId: string; steps: PostingStepResult[] }
+  | {
+      success: true;
+      purchaseOrderId: string;
+      steps: PostingStepResult[];
+      issued?: boolean;
+      pendingNextStep?: boolean;
+    }
   | { error: string; errorAction?: UserFacingErrorAction }
 > {
   const { supabase } = await requireTenantId();
@@ -477,6 +483,8 @@ async function runPurchaseOrderWorkflowRpc(
     success: true as const,
     purchaseOrderId: parsedResult.purchaseOrderId,
     steps: parsedResult.steps,
+    issued: parsedResult.issued,
+    pendingNextStep: parsedResult.pendingNextStep,
   };
 }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
+import { NotificationInboxSheet } from "@/components/layout/notification-inbox-sheet";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { GlobalCreateMenu } from "@/components/layout/global-create-menu";
 import { OrgNavMenuTrigger } from "@/components/layout/org-nav-menu-trigger";
@@ -13,7 +14,6 @@ import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { OperatorProfile } from "@/lib/user/types";
-import { poPendingApprovalListHref } from "@/lib/procurement/navigation";
 import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +96,7 @@ export function TopUtilityStrip({
         <div className={headerActionSlotClass}>
           {approvalAlertCount > 0 ? (
             <Link
-              href={poPendingApprovalListHref()}
+              href="/approvals"
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-800 shadow-sm transition-colors duration-200 hover:bg-amber-500/25 dark:text-amber-300"
               title={`${approvalAlertCount} items need managerial approval`}
             >
@@ -109,6 +109,12 @@ export function TopUtilityStrip({
               All clear
             </Badge>
           )}
+        </div>
+      ) : null}
+
+      {!hideWorkspaceTools ? (
+        <div className={headerActionSlotClass}>
+          <NotificationInboxSheet />
         </div>
       ) : null}
 

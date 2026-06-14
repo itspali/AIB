@@ -1,8 +1,13 @@
+import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
+
 export type ProcurementApprovalSettings = {
   require_po_approval_before_issue: boolean;
   po_approval_threshold_amount: number | null;
   allow_submitter_self_approve_below_threshold: boolean;
   po_approver_user_ids: string[];
+  /** Multi-threshold bands with levels/steps; when set, overrides legacy threshold synthesis. */
+  po_approval_bands?: ApprovalPolicyBand[];
+  po_approver_pools?: Record<string, ApprovalApproverPool>;
 };
 
 export function canUserApprovePurchaseOrders(

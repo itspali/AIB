@@ -224,6 +224,26 @@ export async function saveProcurementPolicies(raw: unknown) {
   }
 }
 
+const approvalPolicyBandSchema = z.object({
+  min_amount: z.number().nonnegative(),
+  max_amount: z.number().nonnegative().nullable(),
+  skip: z.boolean().optional(),
+  self_approve: z.boolean().optional(),
+  levels: z
+    .array(
+      z.object({
+        steps: z.array(
+          z.object({
+            label: z.string().min(1),
+            quorum: z.enum(["ANY", "ALL"]),
+            pool: z.string().min(1),
+          })
+        ),
+      })
+    )
+    .optional(),
+});
+
 const saveProcurementApprovalSettingsSchema = z.object({
   require_po_approval_before_issue: z.boolean(),
   po_approval_threshold_amount: z
@@ -232,6 +252,10 @@ const saveProcurementApprovalSettingsSchema = z.object({
     .nullable(),
   allow_submitter_self_approve_below_threshold: z.boolean(),
   po_approver_user_ids: z.array(z.string().uuid()),
+  po_approval_bands: z.array(approvalPolicyBandSchema).optional(),
+  po_approver_pools: z
+    .record(z.string(), z.object({ user_ids: z.array(z.string().uuid()) }))
+    .optional(),
 });
 
 export async function saveProcurementApprovalSettings(
@@ -257,6 +281,10 @@ export async function saveProcurementApprovalSettings(
         allow_submitter_self_approve_below_threshold:
           parsed.data.allow_submitter_self_approve_below_threshold,
         po_approver_user_ids: parsed.data.po_approver_user_ids,
+        po_approval_bands: parsed.data.po_approval_bands ?? [],
+        po_approver_pools: parsed.data.po_approver_pools ?? {
+          default: { user_ids: parsed.data.po_approver_user_ids },
+        },
       },
     });
 

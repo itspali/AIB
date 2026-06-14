@@ -10,6 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import {
   ProcurementPoApproversSection,
 } from "@/components/settings/modules/procurement-po-approvers-section";
+import { ApprovalPolicyBandEditor } from "@/components/settings/approvals/approval-policy-band-editor";
+import { synthesizePoPolicyFromLegacySettings } from "@/lib/approvals/normalize-policy";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 import type { WorkspaceEligibleUser } from "@/lib/organization/queries";
 
@@ -30,6 +32,10 @@ export function ProcurementApprovalsPanel({
 }: Props) {
   const [settings, setSettings] = useState(initialSettings);
   const [isPending, startTransition] = useTransition();
+
+  const [showAdvancedBands, setShowAdvancedBands] = useState(
+    Boolean(initialSettings.po_approval_bands?.length)
+  );
 
   const isDirty = JSON.stringify(settings) !== JSON.stringify(initialSettings);
 
@@ -127,20 +133,73 @@ export function ProcurementApprovalsPanel({
             (user) => !settings.po_approver_user_ids.includes(user.id)
           )}
           canEdit={canEdit}
-          onChange={(po_approver_user_ids) => patch({ po_approver_user_ids })}
+          onChange={(po_approver_user_ids) =>
+            patch({
+              po_approver_user_ids,
+              po_approver_pools: {
+                ...(settings.po_approver_pools ?? {}),
+                default: { user_ids: po_approver_user_ids },
+              },
+            })
+          }
         />
       </OrgSettingsSection>
 
       <OrgSettingsSection
+        title="Multi-level approval bands"
+        description="Optional amount bands with sequential levels and parallel steps (ANY / ALL quorum)."
+      >
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-border px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Use advanced band editor</p>
+            <p className="text-xs text-muted-foreground">
+              When off, legacy threshold + single approver rules apply.
+            </p>
+          </div>
+          <Switch
+            checked={showAdvancedBands}
+            disabled={!canEdit || !settings.require_po_approval_before_issue}
+            onCheckedChange={(checked) => {
+              setShowAdvancedBands(checked);
+              if (checked && !settings.po_approval_bands?.length) {
+                patch({
+                  po_approval_bands: synthesizePoPolicyFromLegacySettings(settings).bands,
+                  po_approver_pools: synthesizePoPolicyFromLegacySettings(settings).pools,
+                });
+              }
+            }}
+          />
+        </div>
+
+        {showAdvancedBands && settings.require_po_approval_before_issue ? (
+          <ApprovalPolicyBandEditor
+            bands={settings.po_approval_bands ?? synthesizePoPolicyFromLegacySettings(settings).bands}
+            defaultApproverUserIds={settings.po_approver_user_ids}
+            eligibleUsers={eligibleUsers}
+            disabled={!canEdit}
+            onChange={(po_approval_bands) =>
+              patch({
+                po_approval_bands,
+                po_approver_pools: {
+                  default: { user_ids: settings.po_approver_user_ids },
+                  ...(settings.po_approver_pools ?? {}),
+                },
+              })
+            }
+          />
+        ) : null}
+      </OrgSettingsSection>
+
+      <OrgSettingsSection
         title="Workflow preview"
-        description="States and transitions for v1 (single approver)."
+        description="States and transitions for purchase order approval."
       >
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 font-mono text-xs text-muted-foreground">
-          Draft → Submit for approval → Pending approval → Approved → Issued active
+          Draft → Submit → Pending approval → Level/step approvals → Issued active
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Rejection returns the order to Draft with a reason. Pending orders appear on the dashboard
-          approval queue.
+          Rejection returns the order to Draft. Your queue lives at /approvals; message templates at
+          /settings/notifications.
         </p>
       </OrgSettingsSection>
 

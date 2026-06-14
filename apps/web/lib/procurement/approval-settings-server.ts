@@ -2,13 +2,26 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
+import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
 
 const DEFAULT_APPROVAL_SETTINGS: ProcurementApprovalSettings = {
   require_po_approval_before_issue: false,
   po_approval_threshold_amount: null,
   allow_submitter_self_approve_below_threshold: false,
   po_approver_user_ids: [],
+  po_approval_bands: undefined,
+  po_approver_pools: undefined,
 };
+
+function parseApprovalBands(raw: unknown): ApprovalPolicyBand[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  return raw as ApprovalPolicyBand[];
+}
+
+function parseApproverPools(raw: unknown): Record<string, ApprovalApproverPool> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  return raw as Record<string, ApprovalApproverPool>;
+}
 
 export async function fetchProcurementApprovalSettings(
   supabase: SupabaseClient,
@@ -53,5 +66,7 @@ export async function fetchProcurementApprovalSettings(
         ? meta.allow_submitter_self_approve_below_threshold
         : DEFAULT_APPROVAL_SETTINGS.allow_submitter_self_approve_below_threshold,
     po_approver_user_ids: poApproverUserIds,
+    po_approval_bands: parseApprovalBands(meta.po_approval_bands),
+    po_approver_pools: parseApproverPools(meta.po_approver_pools),
   };
 }
