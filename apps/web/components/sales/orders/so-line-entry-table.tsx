@@ -62,11 +62,11 @@ export function SoLineEntryTable({
       }
 
       updateLine(line.key, {
-        sku: result.variant.sku,
+        sku: result.variant.variant_sku,
         variant_id: result.variant.variant_id,
         item_id: result.variant.item_id,
         item_name: result.variant.item_name,
-        variant_sku: result.variant.sku,
+        variant_sku: result.variant.variant_sku,
         skuError: null,
       });
     },

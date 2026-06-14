@@ -5,6 +5,7 @@ import { lookupStockVariantBySku } from "@/app/inventory/stock/actions";
 import { fetchSalesOrderById } from "@/lib/sales/orders/queries";
 import { mapSalesOrderToInvoiceDraft } from "@/lib/sales/invoices/draft-form";
 import {
+  fetchInvoicePaymentApplications,
   fetchSalesInvoiceById,
   fetchSalesInvoices,
 } from "@/lib/sales/invoices/queries";
@@ -18,7 +19,7 @@ import {
   saveSalesInvoiceSchema,
   submitSalesInvoiceForApprovalSchema,
 } from "@/lib/sales/invoices/schemas";
-import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
+import type { InvoicePaymentApplicationRow, SalesInvoiceRow } from "@/lib/sales/invoices/types";
 import { SALES_INVOICES_HREF, SALES_PAYMENTS_HREF, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import { fetchSalesLocationLabel } from "@/lib/sales/shared/queries";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
@@ -58,6 +59,28 @@ export async function loadSalesInvoiceDetail(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Unable to load invoice detail.",
+    };
+  }
+}
+
+export async function loadInvoicePaymentApplications(
+  salesInvoiceId: string
+): Promise<{ applications: InvoicePaymentApplicationRow[] } | { error: string }> {
+  const parsed = z.string().uuid().safeParse(salesInvoiceId);
+  if (!parsed.success) return { error: "Invalid invoice id." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  try {
+    const applications = await fetchInvoicePaymentApplications(
+      supabase,
+      tenantId,
+      parsed.data
+    );
+    return { applications };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Unable to load payment applications.",
     };
   }
 }

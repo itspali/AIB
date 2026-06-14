@@ -49,6 +49,15 @@ export type SalesInvoiceRow = {
   lines?: SalesInvoiceLineRow[];
 };
 
+export type InvoicePaymentApplicationRow = {
+  id: string;
+  amount_applied: string;
+  applied_at: string;
+  payment_number: string;
+  payment_method: string;
+  reference_number: string | null;
+};
+
 export type OpenSalesInvoiceOption = {
   id: string;
   invoice_number: string;

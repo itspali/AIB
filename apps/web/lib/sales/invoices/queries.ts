@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TaxTreatmentType } from "@/lib/entities/types";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesPaymentStatus } from "@/lib/sales/orders/types";
-import type { OpenSalesInvoiceOption, SalesInvoiceLineRow, SalesInvoiceRow } from "@/lib/sales/invoices/types";
+import type {
+  InvoicePaymentApplicationRow,
+  OpenSalesInvoiceOption,
+  SalesInvoiceLineRow,
+  SalesInvoiceRow,
+} from "@/lib/sales/invoices/types";
 
 const ORIGIN_LOCATION_EMBED =
   "origin_location:tenant_locations!sales_invoices_origin_location_tenant_fk";
@@ -335,4 +340,41 @@ export async function fetchOpenSalesInvoicesForCustomer(
       };
     })
     .filter((row): row is OpenSalesInvoiceOption => row !== null);
+}
+
+export async function fetchInvoicePaymentApplications(
+  supabase: SupabaseClient,
+  tenantId: string,
+  salesInvoiceId: string
+): Promise<InvoicePaymentApplicationRow[]> {
+  const { data, error } = await supabase
+    .from("payment_applications")
+    .select(
+      `id, amount_applied, created_at,
+       customer_payment:customer_payments!payment_applications_payment_tenant_fk (
+         payment_number, payment_method, reference_number
+       )`
+    )
+    .eq("tenant_id", tenantId)
+    .eq("sales_invoice_id", salesInvoiceId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => {
+    const payment = resolveJoin(
+      row.customer_payment as
+        | { payment_number: string; payment_method: string; reference_number: string | null }
+        | Array<{ payment_number: string; payment_method: string; reference_number: string | null }>
+        | null
+    );
+    return {
+      id: row.id as string,
+      amount_applied: formatDecimal(row.amount_applied),
+      applied_at: row.created_at as string,
+      payment_number: payment?.payment_number ?? "",
+      payment_method: payment?.payment_method ?? "",
+      reference_number: payment?.reference_number ?? null,
+    };
+  });
 }

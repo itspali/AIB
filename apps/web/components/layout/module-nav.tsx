@@ -131,9 +131,10 @@ export const moduleNavItems: ModuleNavItem[] = [
     mobilePrimary: true,
     children: [
       { href: "/entities/customers", label: "Customers", icon: Users },
-      { href: "/sales/quotes", label: "Quotes", icon: FileText, comingSoon: true },
-      { href: "/sales/orders", label: "Orders", icon: ClipboardList, comingSoon: true },
-      { href: "/sales/invoices", label: "Invoices", icon: Receipt, comingSoon: true },
+      { href: "/sales/quotes", label: "Quotes", icon: FileText },
+      { href: "/sales/orders", label: "Orders", icon: ClipboardList },
+      { href: "/sales/invoices", label: "Invoices", icon: Receipt },
+      { href: "/sales/payments", label: "Payments", icon: CreditCard },
     ],
   },
   {

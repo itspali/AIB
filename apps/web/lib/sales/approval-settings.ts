@@ -185,6 +185,54 @@ export function isSalesOrderApprovableByUser(
   return true;
 }
 
+export function isSalesQuoteApprovableByUser(
+  quote: {
+    commercial_status: string;
+    total_net_amount: string | number;
+    approval_submitted_by?: string | null;
+  },
+  userId: string,
+  settings: SalesApprovalSettings,
+  options: SalesApproverOptions
+): boolean {
+  if (quote.commercial_status !== "PENDING_APPROVAL") return false;
+  if (options.isOwner) return true;
+
+  const amount = Number(quote.total_net_amount);
+  if (!canUserApproveSalesQuoteAmount(userId, settings, amount, options)) return false;
+
+  const submitterId = quote.approval_submitted_by ?? null;
+  if (submitterId === userId) {
+    return soSelfApproveAllowed(settings, amount, userId, options);
+  }
+
+  return true;
+}
+
+export function isSalesInvoiceApprovableByUser(
+  invoice: {
+    commercial_status: string;
+    total_net_amount: string | number;
+    approval_submitted_by?: string | null;
+  },
+  userId: string,
+  settings: SalesApprovalSettings,
+  options: SalesApproverOptions
+): boolean {
+  if (invoice.commercial_status !== "PENDING_APPROVAL") return false;
+  if (options.isOwner) return true;
+
+  const amount = Number(invoice.total_net_amount);
+  if (!canUserApproveSalesInvoiceAmount(userId, settings, amount, options)) return false;
+
+  const submitterId = invoice.approval_submitted_by ?? null;
+  if (submitterId === userId) {
+    return soSelfApproveAllowed(settings, amount, userId, options);
+  }
+
+  return true;
+}
+
 export function isSoApprovalRequiredBeforeConfirm(
   settings: SalesApprovalSettings,
   totalNetAmount: number,

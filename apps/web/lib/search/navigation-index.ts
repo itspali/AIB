@@ -122,6 +122,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["invoices", "billing", "accounts receivable", "sales"],
   },
   {
+    label: "Customer Payments",
+    href: "/sales/payments",
+    keywords: ["payments", "receipts", "customer payments", "sales"],
+  },
+  {
     label: "Fulfillment & Shipping",
     href: "/fulfillment/shipping",
     keywords: ["fulfillment", "shipping", "shipments", "delivery", "carrier"],

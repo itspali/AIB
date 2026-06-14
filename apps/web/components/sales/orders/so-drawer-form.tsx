@@ -22,6 +22,7 @@ import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -546,9 +547,12 @@ export function SoDrawerForm({
       {detailLoading ? (
         <p className="text-sm text-muted-foreground">Loading sales order…</p>
       ) : readOnly && detail ? (
-        <div className="space-y-6">
-          <SoPeekView order={detail} />
-          {detail.commercial_status === "PENDING_APPROVAL" ? (
+        <DocumentPeekActivityShell
+          entityType="SALES_ORDER"
+          entityId={detail.id}
+          refreshKey={`${detail.id}:${detail.updated_at}`}
+          showApprovalPane={detail.commercial_status === "PENDING_APPROVAL"}
+          approvalPane={
             <DocumentPeekApprovalPane
               documentType="SALES_ORDER"
               documentId={detail.id}
@@ -577,9 +581,10 @@ export function SoDrawerForm({
                 onAfterSave(result.salesOrderId);
               }}
             />
-          ) : null}
-          <DocumentPeekActivityShell documentType="SALES_ORDER" documentId={detail.id} />
-        </div>
+          }
+        >
+          <SoPeekView order={detail} />
+        </DocumentPeekActivityShell>
       ) : isMutating ? (
         <SoDocumentEditorShell
           form={form}
@@ -604,7 +609,7 @@ export function SoDrawerForm({
 
       {surface === "edit" && salesOrderId ? (
         <div className="mt-4">
-          <Button type="button" variant="link" size="sm" className="h-auto p-0" asChild>
+          <Button type="button" variant="ghost" size="sm" className="h-auto px-0 text-primary" asChild>
             <Link href={soFullPageEditHref(salesOrderId)}>Open full-page editor</Link>
           </Button>
         </div>

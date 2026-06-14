@@ -123,7 +123,7 @@ export function SoCustomerCombobox({
           >
             <p className="text-muted-foreground">No customers match your search.</p>
             <Link
-              href={entityCreateHref("CUSTOMER")}
+              href={entityCreateHref("customer")}
               className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden />

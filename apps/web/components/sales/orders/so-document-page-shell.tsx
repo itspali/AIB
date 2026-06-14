@@ -2,10 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import {
-  SO_FULL_PAGE_LAYOUT,
-  SoDocumentEditorShell,
-} from "@/components/sales/orders/so-document-editor-shell";
+import { SoDocumentEditorShell } from "@/components/sales/orders/so-document-editor-shell";
 import { Button } from "@/components/ui/button";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
