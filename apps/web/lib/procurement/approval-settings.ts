@@ -1,10 +1,13 @@
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
+import type { PoApprovalRule, PoApproverRole } from "@/lib/approvals/approval-rules";
 
 export type ProcurementApprovalSettings = {
   require_po_approval_before_issue: boolean;
   po_approval_threshold_amount: number | null;
   allow_submitter_self_approve_below_threshold: boolean;
   po_approver_user_ids: string[];
+  po_approver_roles?: PoApproverRole[];
+  po_approval_rules?: PoApprovalRule[];
   /** Multi-threshold bands with levels/steps; when set, overrides legacy threshold synthesis. */
   po_approval_bands?: ApprovalPolicyBand[];
   po_approver_pools?: Record<string, ApprovalApproverPool>;
@@ -13,9 +16,15 @@ export type ProcurementApprovalSettings = {
 export function canUserApprovePurchaseOrders(
   userId: string,
   settings: ProcurementApprovalSettings,
-  options: { isOwner: boolean }
+  options: { isOwner: boolean; userRole?: PoApproverRole | "OWNER" | "STAFF" | null }
 ): boolean {
   if (options.isOwner) return true;
+  if (
+    options.userRole &&
+    settings.po_approver_roles?.includes(options.userRole as PoApproverRole)
+  ) {
+    return true;
+  }
   return settings.po_approver_user_ids.includes(userId);
 }
 
@@ -24,11 +33,15 @@ export function canUserApprovePurchaseOrderAmount(
   userId: string,
   settings: ProcurementApprovalSettings,
   totalNetAmount: number,
-  options: { isOwner: boolean }
+  options: { isOwner: boolean; userRole?: PoApproverRole | "OWNER" | "STAFF" | null }
 ): boolean {
   if (options.isOwner) return true;
 
-  if (!settings.po_approver_user_ids.includes(userId)) return false;
+  const isRoleApprover =
+    options.userRole != null &&
+    settings.po_approver_roles?.includes(options.userRole as PoApproverRole);
+
+  if (!settings.po_approver_user_ids.includes(userId) && !isRoleApprover) return false;
 
   const threshold = settings.po_approval_threshold_amount;
   if (threshold == null || !Number.isFinite(threshold)) return true;

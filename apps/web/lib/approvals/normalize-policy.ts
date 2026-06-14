@@ -12,7 +12,10 @@ export function synthesizePoPolicyFromLegacySettings(
     return {
       bands: settings.po_approval_bands,
       pools: settings.po_approver_pools ?? {
-        default: { user_ids: settings.po_approver_user_ids },
+        default: {
+          user_ids: settings.po_approver_user_ids,
+          roles: settings.po_approver_roles ?? [],
+        },
       },
     };
   }
@@ -53,7 +56,10 @@ export function synthesizePoPolicyFromLegacySettings(
   return {
     bands,
     pools: {
-      default: { user_ids: settings.po_approver_user_ids },
+      default: {
+        user_ids: settings.po_approver_user_ids,
+        roles: settings.po_approver_roles ?? [],
+      },
     },
   };
 }

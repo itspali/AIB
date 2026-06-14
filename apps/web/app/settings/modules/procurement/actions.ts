@@ -244,6 +244,13 @@ const approvalPolicyBandSchema = z.object({
     .optional(),
 });
 
+const poApprovalRuleSchema = z.object({
+  type: z.enum(["LINE_QTY_ABOVE", "LINE_PRICE_ABOVE_SUPPLIER", "LINE_PRICE_ABOVE_CATALOG"]),
+  enabled: z.boolean(),
+  threshold: z.number().nonnegative().nullable().optional(),
+  tolerance_percent: z.number().nonnegative().nullable().optional(),
+});
+
 const saveProcurementApprovalSettingsSchema = z.object({
   require_po_approval_before_issue: z.boolean(),
   po_approval_threshold_amount: z
@@ -252,15 +259,35 @@ const saveProcurementApprovalSettingsSchema = z.object({
     .nullable(),
   allow_submitter_self_approve_below_threshold: z.boolean(),
   po_approver_user_ids: z.array(z.string().uuid()),
+  po_approver_roles: z.array(z.enum(["ADMIN", "MANAGER"])).optional(),
+  po_approval_rules: z.array(poApprovalRuleSchema).optional(),
   po_approval_bands: z.array(approvalPolicyBandSchema).optional(),
   po_approver_pools: z
-    .record(z.string(), z.object({ user_ids: z.array(z.string().uuid()) }))
+    .record(
+      z.string(),
+      z.object({
+        user_ids: z.array(z.string().uuid()),
+        roles: z.array(z.enum(["ADMIN", "MANAGER"])).optional(),
+      })
+    )
     .optional(),
 });
 
+export async function fetchPendingPoApprovalRunCount(): Promise<number> {
+  try {
+    const { supabase } = await requireTenantId();
+    const { data, error } = await supabase.rpc("count_pending_po_approval_runs");
+    if (error) return 0;
+    return typeof data === "number" ? data : Number(data ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
 export async function saveProcurementApprovalSettings(
-  raw: ProcurementApprovalSettings
-): Promise<{ success: true } | { error: string }> {
+  raw: ProcurementApprovalSettings,
+  options?: { reroutePending?: boolean }
+): Promise<{ success: true; rerouted?: number; releasedToDraft?: number } | { error: string }> {
   try {
     const parsed = saveProcurementApprovalSettingsSchema.safeParse(raw);
     if (!parsed.success) {
@@ -273,6 +300,12 @@ export async function saveProcurementApprovalSettings(
       return { error: "You do not have permission to edit approval settings." };
     }
 
+    const approverRoles = parsed.data.po_approver_roles ?? [];
+    const defaultPool = {
+      user_ids: parsed.data.po_approver_user_ids,
+      roles: approverRoles,
+    };
+
     const { error } = await supabase.rpc("upsert_tenant_workspace_control", {
       p_registry_key: "APPROVAL_SETTINGS",
       p_metadata_patch: {
@@ -281,9 +314,11 @@ export async function saveProcurementApprovalSettings(
         allow_submitter_self_approve_below_threshold:
           parsed.data.allow_submitter_self_approve_below_threshold,
         po_approver_user_ids: parsed.data.po_approver_user_ids,
+        po_approver_roles: approverRoles,
+        po_approval_rules: parsed.data.po_approval_rules ?? [],
         po_approval_bands: parsed.data.po_approval_bands ?? [],
         po_approver_pools: parsed.data.po_approver_pools ?? {
-          default: { user_ids: parsed.data.po_approver_user_ids },
+          default: defaultPool,
         },
       },
     });
@@ -295,12 +330,33 @@ export async function saveProcurementApprovalSettings(
       return { error: error.message };
     }
 
+    let rerouted = 0;
+    let releasedToDraft = 0;
+
+    if (options?.reroutePending) {
+      const { data: rerouteResult, error: rerouteError } = await supabase.rpc(
+        "reroute_pending_po_approval_runs"
+      );
+      if (rerouteError) {
+        if (isMissingRpcError(rerouteError)) {
+          return { error: formatRpcDeployError("reroute_pending_po_approval_runs") };
+        }
+        return { error: rerouteError.message };
+      }
+      if (rerouteResult && typeof rerouteResult === "object") {
+        const payload = rerouteResult as { rerouted?: number; released_to_draft?: number };
+        rerouted = Number(payload.rerouted ?? 0);
+        releasedToDraft = Number(payload.released_to_draft ?? 0);
+      }
+    }
+
     revalidatePath("/settings/modules/procurement");
     revalidatePath("/procurement/purchase-orders");
     revalidatePath("/procurement");
     revalidatePath("/dashboard");
+    revalidatePath("/approvals");
 
-    return { success: true as const };
+    return { success: true as const, rerouted, releasedToDraft };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Unable to save approval settings.",

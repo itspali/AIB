@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { fetchDocumentApprovalRunClient } from "@/lib/approvals/client-queries";
-import { resolveActiveApprovalStep } from "@/lib/approvals/queries";
+import { resolveActiveApprovalStep } from "@/lib/approvals/utils";
 import type { DocumentApprovalRun } from "@/lib/approvals/types";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import { notifyNotificationInboxChanged } from "@/lib/notifications/inbox-events";

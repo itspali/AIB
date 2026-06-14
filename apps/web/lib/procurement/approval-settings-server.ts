@@ -3,12 +3,18 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
+import {
+  normalizePoApprovalRules,
+  normalizePoApproverRoles,
+} from "@/lib/approvals/approval-rules";
 
 const DEFAULT_APPROVAL_SETTINGS: ProcurementApprovalSettings = {
   require_po_approval_before_issue: false,
   po_approval_threshold_amount: null,
   allow_submitter_self_approve_below_threshold: false,
   po_approver_user_ids: [],
+  po_approver_roles: [],
+  po_approval_rules: normalizePoApprovalRules(undefined),
   po_approval_bands: undefined,
   po_approver_pools: undefined,
 };
@@ -66,6 +72,8 @@ export async function fetchProcurementApprovalSettings(
         ? meta.allow_submitter_self_approve_below_threshold
         : DEFAULT_APPROVAL_SETTINGS.allow_submitter_self_approve_below_threshold,
     po_approver_user_ids: poApproverUserIds,
+    po_approver_roles: normalizePoApproverRoles(meta.po_approver_roles),
+    po_approval_rules: normalizePoApprovalRules(meta.po_approval_rules),
     po_approval_bands: parseApprovalBands(meta.po_approval_bands),
     po_approver_pools: parseApproverPools(meta.po_approver_pools),
   };

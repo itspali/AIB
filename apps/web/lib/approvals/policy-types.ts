@@ -20,6 +20,7 @@ export type ApprovalPolicyBand = {
 
 export type ApprovalApproverPool = {
   user_ids: string[];
+  roles?: Array<"ADMIN" | "MANAGER">;
 };
 
 export type PoApprovalPolicyConfig = {

@@ -16,6 +16,19 @@ const baseSettings: ProcurementApprovalSettings = {
 };
 
 describe("approval-settings", () => {
+  it("allows configured role approvers", () => {
+    const settings: ProcurementApprovalSettings = {
+      ...baseSettings,
+      po_approver_roles: ["MANAGER"],
+    };
+    expect(
+      canUserApprovePurchaseOrders("manager-1", settings, {
+        isOwner: false,
+        userRole: "MANAGER",
+      })
+    ).toBe(true);
+  });
+
   it("treats workspace owners as super approvers for any amount", () => {
     expect(
       canUserApprovePurchaseOrderAmount("owner-1", baseSettings, 50_000, { isOwner: true })
