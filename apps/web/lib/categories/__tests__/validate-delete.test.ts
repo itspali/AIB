@@ -14,6 +14,7 @@ const baseRow = (id: string, parent_id: string | null = null): CategoryRow => ({
   attribute_templates: [],
   inherit_parent_attributes: true,
   default_variant_strategy: "SINGLE_SKU",
+  qc_receipt_policy: "INHERIT",
   created_at: "",
   updated_at: "",
 });

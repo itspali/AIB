@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergePoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import { mergePoLineCatalogContext, emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import { resolveCommercialLineDetailDisplay } from "@/lib/documents/line-detail-display";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
@@ -22,6 +22,8 @@ const sampleLine: PoDraftLine = {
   variant_sku: "SKU-1",
   quantity_ordered: "2",
   unit_price_contractual: "12.5",
+  discount_percentage: "0",
+  discount_amount: "0",
   skuError: null,
 };
 
@@ -37,19 +39,8 @@ describe("line-detail-display", () => {
         {
           ...sampleLine,
           catalog_context: {
-            description: null,
-            hsn_sac_code: null,
-            base_unit_of_measure: "EA",
+            ...emptyPoLineCatalogContext(),
             mrp: "99.5",
-            image_url: null,
-            tax_code_id: null,
-            tax_rate: 0,
-            tax_is_variable: false,
-            default_purchase_uom: null,
-            alternate_uoms: [],
-            custom_fields: {},
-            variant_attributes: {},
-            attribute_labels: {},
           },
         }
       )
@@ -94,13 +85,8 @@ describe("mergePoLineCatalogContext", () => {
     const merged = mergePoLineCatalogContext(
       { image_url: "https://cdn.example/client.jpg" } as never,
       {
+        ...emptyPoLineCatalogContext(),
         description: "Test",
-        hsn_sac_code: null,
-        base_unit_of_measure: "EA",
-        image_url: null,
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
         catalog_snapshot_source: "server",
       },
       "https://cdn.example/client.jpg"

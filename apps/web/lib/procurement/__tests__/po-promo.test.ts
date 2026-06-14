@@ -7,7 +7,6 @@ import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 
 function line(overrides: Partial<PoDraftLine> & Pick<PoDraftLine, "key">): PoDraftLine {
   return {
-    key: overrides.key,
     sku: "",
     variant_id: overrides.variant_id ?? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     item_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",

@@ -73,7 +73,7 @@ function useTransferLineActions(
     lines: TransferDraftLine[] | ((current: TransferDraftLine[]) => TransferDraftLine[])
   ) => void
 ) {
-  const itemRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
 
   const patchLine = useCallback(
     (key: string, patch: Partial<TransferDraftLine>) => {

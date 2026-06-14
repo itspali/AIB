@@ -47,7 +47,7 @@ type GrnListDbRow = {
   import_igst_amount: number | string | null;
   destination_location: LocationEmbed;
   purchase_order: PoEmbed;
-  grn_lines: Array<{ id: string }> | null;
+  grn_lines?: Array<{ id: string }> | null;
 };
 
 type GrnLineDbRow = {
@@ -189,7 +189,10 @@ export async function fetchGoodsReceipts(
       query = query.eq("destination_location_id", options.locationId);
     }
 
-    return query;
+    return query as unknown as Promise<{
+      data: GrnListDbRow[] | null;
+      error: import("@supabase/supabase-js").PostgrestError | null;
+    }>;
   });
 
   const lineCounts = await hydrateGrnLineCounts(

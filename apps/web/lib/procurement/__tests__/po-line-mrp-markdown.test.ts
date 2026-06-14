@@ -41,6 +41,7 @@ function sampleLine(partial: Partial<PoDraftLine> = {}): PoDraftLine {
       hsn_sac_code: null,
       base_unit_of_measure: "EA",
       mrp: "120",
+      purchase_price: null,
       image_url: null,
       tax_code_id: null,
       tax_rate: 0,

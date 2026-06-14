@@ -45,9 +45,19 @@ export async function fetchVariantPrimaryImageUrl(
   if (variantError) throw new Error(variantError.message);
 
   const storagePath = pickPrimaryImageStoragePath(
-    (mediaRows ?? []) as MediaRow[],
+    (mediaRows ?? []).map((row) => ({
+      item_id: row.item_id,
+      variant_id: row.variant_id,
+      storage_url: row.storage_url,
+      sort_order: row.sort_order ?? 0,
+      is_primary: row.is_primary,
+    })),
     variantId,
-    (variantRows ?? []) as VariantMasterRow[]
+    (variantRows ?? []).map((variant) => ({
+      id: variant.id,
+      item_id: variant.item_id,
+      is_master: variant.is_master ?? undefined,
+    }))
   );
   if (!storagePath) return null;
 

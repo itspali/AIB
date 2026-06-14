@@ -159,9 +159,9 @@ export function resolveColumnWidthStyles<TId extends string>(
 
 export function mergeColumnCellStyles(
   base: CSSProperties | undefined,
-  columnStyles: CSSProperties
+  ...rest: Array<CSSProperties | undefined>
 ): CSSProperties {
-  return { ...base, ...columnStyles };
+  return Object.assign({}, base, ...rest);
 }
 
 /** Last data column absorbs remaining table width when not user-resized. */

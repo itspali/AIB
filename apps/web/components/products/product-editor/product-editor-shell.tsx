@@ -2017,7 +2017,7 @@ export function ProductEditorShell({
                 ) : null}
               </div>
             </div>
-            {mode !== "create" ? (
+            {(
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
                 {itemId ? (
@@ -2028,7 +2028,7 @@ export function ProductEditorShell({
                 <Badge variant="default">{variantStrategyLabel(variantStrategy)}</Badge>
                 {needsReview ? <Badge variant="action_required">Needs review</Badge> : null}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       ) : null}

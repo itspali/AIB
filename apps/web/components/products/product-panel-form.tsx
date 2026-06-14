@@ -435,7 +435,7 @@ export function ProductPanelScope({
           onMediaChanged={onExtensionsChanged}
         />
       </div>
-    ) : (
+    ) : catalogContext ? (
       <ProductEditorShell
         key={`${detail?.id ?? "new"}-${mode}`}
         layout="panel"
@@ -459,6 +459,8 @@ export function ProductPanelScope({
         onMutationHeaderChange={setMutationHeader}
         onDirtyChange={setHasUnsavedChanges}
       />
+    ) : (
+      <ProductEditorSkeleton />
     );
 
   return (

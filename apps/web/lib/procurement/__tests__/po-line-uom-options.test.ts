@@ -12,6 +12,7 @@ import {
   resolvePoPeekLineUomCode,
 } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
 
@@ -80,18 +81,8 @@ describe("draft line UOM resolution", () => {
     const line = draftLine({
       uom_code: "BOX",
       catalog_context: {
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "PCS",
-        image_url: null,
-        tax_code_id: null,
-        tax_rate: 0,
-        tax_is_variable: false,
-        default_purchase_uom: null,
+        ...emptyPoLineCatalogContext(),
         alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
       },
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("BOX");
@@ -102,18 +93,9 @@ describe("draft line UOM resolution", () => {
   it("falls back to default purchase UOM when line uom unset", () => {
     const line = draftLine({
       catalog_context: {
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "PCS",
-        image_url: null,
-        tax_code_id: null,
-        tax_rate: 0,
-        tax_is_variable: false,
+        ...emptyPoLineCatalogContext(),
         default_purchase_uom: "BOX",
         alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
       },
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("BOX");
@@ -124,18 +106,8 @@ describe("draft line UOM resolution", () => {
     const line = draftLine({
       uom_code: "KG",
       catalog_context: {
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "PCS",
-        image_url: null,
-        tax_code_id: null,
-        tax_rate: 0,
-        tax_is_variable: false,
+        ...emptyPoLineCatalogContext(),
         default_purchase_uom: "KG",
-        alternate_uoms: [],
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
       },
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("PCS");
@@ -146,18 +118,9 @@ describe("draft line UOM resolution", () => {
     const line = draftLine({
       uom_code: "BOX",
       catalog_context: {
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "PCS",
-        image_url: null,
-        tax_code_id: null,
-        tax_rate: 0,
-        tax_is_variable: false,
+        ...emptyPoLineCatalogContext(),
         default_purchase_uom: "BOX",
         alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
       },
     });
     expect(resolvePoDraftLineUomCodeForSave(line)).toBe("BOX");
@@ -169,18 +132,10 @@ function catalogContext(
     Pick<PoLineCatalogContext, "base_unit_of_measure">
 ): PoLineCatalogContext {
   return {
-    description: null,
-    hsn_sac_code: null,
-    image_url: null,
-    tax_code_id: null,
-    tax_rate: 0,
-    tax_is_variable: false,
-    default_purchase_uom: null,
-    alternate_uoms: [],
-    custom_fields: {},
-    variant_attributes: {},
-    attribute_labels: {},
+    ...emptyPoLineCatalogContext(),
     ...partial,
+    mrp: partial.mrp ?? null,
+    purchase_price: partial.purchase_price ?? null,
   };
 }
 

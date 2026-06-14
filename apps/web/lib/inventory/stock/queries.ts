@@ -483,7 +483,10 @@ async function attachStockVariantSuggestionImages(
     const storagePath = pickPrimaryImageStoragePath(
       mediaByItem.get(option.item_id) ?? [],
       option.variant_id,
-      variantsByItem.get(option.item_id) ?? undefined
+      variantsByItem.get(option.item_id)?.map((variant) => ({
+        id: variant.id,
+        is_master: variant.is_master ?? undefined,
+      }))
     );
     if (storagePath) {
       pathByVariantId.set(option.variant_id, storagePath);

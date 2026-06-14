@@ -494,9 +494,10 @@ export function StockVariantSkuField({
           item_name: result.variant.item_name,
           variant_sku: result.variant.variant_sku,
           standard_cost: result.variant.standard_cost,
+          purchase_price: null,
           adjustable: true,
           blocked_reason: null,
-          image_url: result.variant.image_url ?? null,
+          image_url: null,
           base_unit_of_measure: result.variant.base_unit_of_measure ?? null,
         },
         onChangeRef.current
@@ -638,7 +639,7 @@ export function StockVariantSkuField({
     });
   }, [cancelBlurClose, cancelPendingSearch]);
 
-  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const related = event.relatedTarget as Node | null;
     if (related && listboxRef.current?.contains(related)) return;
 

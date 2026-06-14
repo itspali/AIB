@@ -58,6 +58,10 @@ export function loadTransferListPrefs(): TransferListPrefs {
     }
 
     const parsed = JSON.parse(raw) as Partial<TransferListPrefs> & { prefsVersion?: number };
+    const prefsVersion =
+      typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
+        ? parsed.prefsVersion
+        : 0;
     const sortField =
       typeof parsed.sortField === "string" && isTransferSortField(parsed.sortField)
         ? parsed.sortField
@@ -65,7 +69,7 @@ export function loadTransferListPrefs(): TransferListPrefs {
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
     const columnPrefs =
-      parsed.prefsVersion >= PREFS_VERSION && parsed.columnPrefs
+      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
         ? normalizeListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
         : loadListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY);
 

@@ -57,6 +57,10 @@ export function loadGoodsReceiptListPrefs(): GoodsReceiptListPrefs {
     }
 
     const parsed = JSON.parse(raw) as Partial<GoodsReceiptListPrefs> & { prefsVersion?: number };
+    const prefsVersion =
+      typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
+        ? parsed.prefsVersion
+        : 0;
     const sortField =
       typeof parsed.sortField === "string" && isGoodsReceiptSortField(parsed.sortField)
         ? parsed.sortField
@@ -64,7 +68,7 @@ export function loadGoodsReceiptListPrefs(): GoodsReceiptListPrefs {
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
     const columnPrefs =
-      parsed.prefsVersion >= PREFS_VERSION && parsed.columnPrefs
+      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
         ? normalizeListColumnPrefs(GRN_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
         : loadListColumnPrefs(GRN_LIST_COLUMN_REGISTRY);
 

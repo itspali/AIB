@@ -5,6 +5,7 @@ import {
   resolveLineDiscount,
 } from "@/lib/procurement/purchase-orders/totals";
 import { emptyPoHeaderCharges } from "@/lib/procurement/purchase-orders/po-header-charges";
+import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 
 describe("purchase order totals", () => {
   it("sums line gross amounts for valid qty and price", () => {
@@ -89,16 +90,9 @@ describe("purchase order totals", () => {
           quantity_ordered: "2",
           unit_price_contractual: "100",
           catalog_context: {
-            description: null,
-            hsn_sac_code: null,
-            base_unit_of_measure: "PCS",
-            image_url: null,
+            ...emptyPoLineCatalogContext(),
             tax_code_id: "tax-1",
             tax_rate: 18,
-            tax_is_variable: false,
-            custom_fields: {},
-            variant_attributes: {},
-            attribute_labels: {},
             catalog_snapshot_source: "server",
           },
         },
@@ -116,16 +110,9 @@ describe("purchase order totals", () => {
       quantity_ordered: "2",
       unit_price_contractual: "100",
       catalog_context: {
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "PCS",
-        image_url: null,
+        ...emptyPoLineCatalogContext(),
         tax_code_id: "tax-1",
         tax_rate: 18,
-        tax_is_variable: false,
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
         catalog_snapshot_source: "server" as const,
       },
     };

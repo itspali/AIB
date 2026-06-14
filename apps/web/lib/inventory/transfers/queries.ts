@@ -42,7 +42,7 @@ type TransferListDbRow = {
   created_at: string;
   source_location: LocationEmbed;
   destination_location: LocationEmbed;
-  transfer_lines: Array<{ id: string }> | null;
+  transfer_lines: TransferLineDbRow[] | null;
 };
 
 type TransferLineDbRow = {

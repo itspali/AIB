@@ -69,7 +69,7 @@ export function PoLineMrpReferenceSlot({
           : cn(
               PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
               "!w-[5.5rem]",
-              documentFieldTypographyClassName(column),
+              documentFieldTypographyClassName(column, ""),
               column.align === "right" && "text-right"
             )
       )}

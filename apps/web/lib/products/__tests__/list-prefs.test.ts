@@ -394,11 +394,11 @@ describe("resolveCardGridColumns", () => {
       visibleColumns: ["name", "classification"],
     };
 
-    prefs = setColumnPrefsSlice(prefs, "card", "desktop", shopSlice, {
+    prefs = setColumnPrefsSlice(prefs, "card", "desktop", shopSlice as Parameters<typeof setColumnPrefsSlice>[3], {
       cardLayout: "shop",
       cardOrientation: "vertical",
     });
-    prefs = setColumnPrefsSlice(prefs, "card", "desktop", detailSlice, {
+    prefs = setColumnPrefsSlice(prefs, "card", "desktop", detailSlice as Parameters<typeof setColumnPrefsSlice>[3], {
       cardLayout: "v2",
       cardOrientation: "vertical",
     });

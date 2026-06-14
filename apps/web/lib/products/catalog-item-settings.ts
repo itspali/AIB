@@ -26,9 +26,10 @@ export function isScanIdentifierPolicy(value: string): value is ScanIdentifierPo
 export function parseCatalogItemSettings(raw: unknown): CatalogItemSettings {
   const config = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const policy = config.scan_identifier_policy;
+  const policyStr = String(policy ?? "");
   return {
-    scan_identifier_policy: isScanIdentifierPolicy(String(policy ?? ""))
-      ? policy
+    scan_identifier_policy: isScanIdentifierPolicy(policyStr)
+      ? policyStr
       : DEFAULT_CATALOG_ITEM_SETTINGS.scan_identifier_policy,
     sku_auto_generation_enabled: Boolean(config.sku_auto_generation_enabled),
     sku_auto_pattern:

@@ -12,7 +12,7 @@ export const productListCardHoverClass =
 export function productListCardSurfaceClass(
   presentation: ProductListRowPresentation,
   selected: boolean
-): string {
+): string | undefined {
   if (selected) {
     return cn(
       "border-primary ring-2 ring-primary/35",

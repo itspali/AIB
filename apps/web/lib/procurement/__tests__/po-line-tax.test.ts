@@ -92,7 +92,7 @@ describe("po line tax display", () => {
       },
     ] as const;
 
-    expect(patchPoLineTaxCodeSelection(baseLine, "tax-12", taxOptions)).toEqual({
+    expect(patchPoLineTaxCodeSelection(baseLine, "tax-12", taxOptions as unknown as import("@/lib/procurement/purchase-orders/po-line-tax-codes").PoLineTaxCodeOption[])).toEqual({
       catalog_context: {
         ...baseLine.catalog_context,
         tax_code_id: "tax-12",

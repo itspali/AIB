@@ -137,6 +137,7 @@ export function useCategoryForm({
             attribute_templates: [],
             inherit_parent_attributes: form.inherit_parent_attributes,
             default_variant_strategy: form.default_variant_strategy,
+            qc_receipt_policy: "INHERIT",
             created_at: "",
             updated_at: "",
           },

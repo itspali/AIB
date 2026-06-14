@@ -29,7 +29,7 @@ describe("mergeProductPeekSection", () => {
       variants: [{ id: "m", is_master: true } as ProductDetailSnapshot["variants"][number]],
       variant_count_summary: { total: 3, sellable: 2 },
       peek_loaded_sections: [],
-    } as ProductDetailSnapshot;
+    } as unknown as ProductDetailSnapshot;
 
     const merged = mergeProductPeekSection(detail, "variants", {
       variants: [
@@ -49,7 +49,7 @@ describe("resolveSellableVariantCount", () => {
     const detail = {
       variant_count_summary: { total: 5, sellable: 4 },
       variants: [],
-    } as ProductDetailSnapshot;
+    } as unknown as ProductDetailSnapshot;
 
     expect(resolveSellableVariantCount(detail)).toBe(4);
   });

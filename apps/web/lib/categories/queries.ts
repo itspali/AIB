@@ -45,13 +45,13 @@ function mapCategoryRow(row: {
     attribute_templates: parseAttributeTemplates(row.attribute_templates),
     inherit_parent_attributes: row.inherit_parent_attributes ?? true,
     default_variant_strategy: isProductVariantStrategy(row.default_variant_strategy ?? "")
-      ? row.default_variant_strategy
+      ? (row.default_variant_strategy as CategoryRow["default_variant_strategy"])
       : "SINGLE_SKU",
     qc_receipt_policy: isQcReceiptPolicy(String(row.qc_receipt_policy ?? "INHERIT"))
       ? (row.qc_receipt_policy as QcReceiptPolicy)
       : "INHERIT",
     default_item_type: isItemType(row.default_item_type ?? "")
-      ? row.default_item_type
+      ? (row.default_item_type as CategoryRow["default_item_type"])
       : "PHYSICAL",
     created_at: row.created_at,
     updated_at: row.updated_at,

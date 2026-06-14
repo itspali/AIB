@@ -3,7 +3,6 @@ import {
   normalizeListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
-import type { LocationListColumnId } from "@/lib/locations/list-columns";
 import {
   LOCATION_LIST_COLUMN_REGISTRY,
   type LocationListColumnId,

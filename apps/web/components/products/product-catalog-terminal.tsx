@@ -1170,7 +1170,8 @@ export function ProductCatalogTerminal({
 
       beginLoadingUi();
 
-      const fetchPromise = (async (): Promise<DrawerFetchResult> => {
+      let fetchPromise!: Promise<DrawerFetchResult>;
+      fetchPromise = (async (): Promise<DrawerFetchResult> => {
         try {
           const result = await loadProductDrawer(itemId, {
             variantId: variant,

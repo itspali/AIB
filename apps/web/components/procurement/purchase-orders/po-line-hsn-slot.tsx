@@ -33,7 +33,7 @@ export function PoLineHsnSacSlot({ line, column, disabled = false, onPatch }: Pr
         className={cn(
           PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
           "!w-[5.5rem] font-mono",
-          documentFieldTypographyClassName(column),
+          documentFieldTypographyClassName(column, ""),
           "text-foreground"
         )}
         value={value}

@@ -10,11 +10,14 @@ import {
 } from "@/components/ui/menu-item-classes";
 
 /** `modal={false}` avoids Radix blocking pointer events on the portaled item drawer. */
-const Select = ({
-  modal = false,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) => (
-  <SelectPrimitive.Root modal={modal} {...props} />
+type SelectProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root> & {
+  modal?: boolean;
+};
+
+const SelectRoot = SelectPrimitive.Root as React.ComponentType<SelectProps>;
+
+const Select = ({ modal = false, ...props }: SelectProps) => (
+  <SelectRoot {...props} modal={modal} />
 );
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;

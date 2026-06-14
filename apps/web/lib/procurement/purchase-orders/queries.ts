@@ -244,56 +244,31 @@ async function runPoSelectWithFallback<T>(
   return lastResult;
 }
 
-type LocationEmbed =
-  | {
-      name: string;
-      code: string;
-      address_line1?: string | null;
-      address_line2?: string | null;
-      city?: string | null;
-      state?: string | null;
-      zip_postal?: string | null;
-      country_code?: string | null;
-      location_tax_identifier?: string | null;
-      tax_registered_name?: string | null;
-    }
-  | Array<{
-      name: string;
-      code: string;
-      address_line1?: string | null;
-      address_line2?: string | null;
-      city?: string | null;
-      state?: string | null;
-      zip_postal?: string | null;
-      country_code?: string | null;
-      location_tax_identifier?: string | null;
-      tax_registered_name?: string | null;
-    }>
-  | null;
-type SupplierEmbed =
-  | {
-      name: string;
-      legal_name?: string | null;
-      billing_address_line1?: string | null;
-      billing_address_line2?: string | null;
-      billing_city?: string | null;
-      billing_state?: string | null;
-      billing_zip_postal?: string | null;
-      billing_country_code?: string | null;
-      tax_registration_number?: string | null;
-    }
-  | Array<{
-      name: string;
-      legal_name?: string | null;
-      billing_address_line1?: string | null;
-      billing_address_line2?: string | null;
-      billing_city?: string | null;
-      billing_state?: string | null;
-      billing_zip_postal?: string | null;
-      billing_country_code?: string | null;
-      tax_registration_number?: string | null;
-    }>
-  | null;
+type SupplierEmbedRow = {
+  name: string;
+  legal_name?: string | null;
+  billing_address_line1?: string | null;
+  billing_address_line2?: string | null;
+  billing_city?: string | null;
+  billing_state?: string | null;
+  billing_zip_postal?: string | null;
+  billing_country_code?: string | null;
+  tax_registration_number?: string | null;
+};
+type SupplierEmbed = SupplierEmbedRow | SupplierEmbedRow[] | null;
+type LocationEmbedRow = {
+  name: string;
+  code: string;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_postal?: string | null;
+  country_code?: string | null;
+  location_tax_identifier?: string | null;
+  tax_registered_name?: string | null;
+};
+type LocationEmbed = LocationEmbedRow | LocationEmbedRow[] | null;
 
 async function hydratePurchaseOrderApprovalSubmitters(
   supabase: SupabaseClient,
@@ -444,21 +419,22 @@ type ReceivablePoDbRow = {
 };
 
 function mapSupplierAddress(
-  supplier: ReturnType<typeof resolveJoin<NonNullable<SupplierEmbed>>>,
+  supplier: SupplierEmbed,
   fallbackName: string
 ): PurchaseOrderPartyAddress | null {
-  if (!supplier) return null;
+  const resolved = resolveJoin(supplier);
+  if (!resolved) return null;
 
-  const name = supplier.legal_name?.trim() || supplier.name?.trim() || fallbackName.trim();
+  const name = resolved.legal_name?.trim() || resolved.name?.trim() || fallbackName.trim();
   const address: PurchaseOrderPartyAddress = {
     name,
-    address_line1: supplier.billing_address_line1?.trim() || null,
-    address_line2: supplier.billing_address_line2?.trim() || null,
-    city: supplier.billing_city?.trim() || null,
-    state: supplier.billing_state?.trim() || null,
-    zip_postal: supplier.billing_zip_postal?.trim() || null,
-    country_code: supplier.billing_country_code?.trim() || null,
-    tax_identifier: supplier.tax_registration_number?.trim() || null,
+    address_line1: resolved.billing_address_line1?.trim() || null,
+    address_line2: resolved.billing_address_line2?.trim() || null,
+    city: resolved.billing_city?.trim() || null,
+    state: resolved.billing_state?.trim() || null,
+    zip_postal: resolved.billing_zip_postal?.trim() || null,
+    country_code: resolved.billing_country_code?.trim() || null,
+    tax_identifier: resolved.tax_registration_number?.trim() || null,
   };
 
   if (
@@ -477,25 +453,26 @@ function mapSupplierAddress(
 }
 
 function mapDestinationAddress(
-  destination: ReturnType<typeof resolveJoin<NonNullable<LocationEmbed>>>,
+  destination: LocationEmbed,
   fallbackName: string
 ): PurchaseOrderPartyAddress | null {
-  if (!destination) return null;
+  const resolved = resolveJoin(destination);
+  if (!resolved) return null;
 
   const name =
-    destination.tax_registered_name?.trim() ||
-    destination.name?.trim() ||
+    resolved.tax_registered_name?.trim() ||
+    resolved.name?.trim() ||
     fallbackName.trim();
 
   return {
     name,
-    address_line1: destination.address_line1?.trim() || null,
-    address_line2: destination.address_line2?.trim() || null,
-    city: destination.city?.trim() || null,
-    state: destination.state?.trim() || null,
-    zip_postal: destination.zip_postal?.trim() || null,
-    country_code: destination.country_code?.trim() || null,
-    tax_identifier: destination.location_tax_identifier?.trim() || null,
+    address_line1: resolved.address_line1?.trim() || null,
+    address_line2: resolved.address_line2?.trim() || null,
+    city: resolved.city?.trim() || null,
+    state: resolved.state?.trim() || null,
+    zip_postal: resolved.zip_postal?.trim() || null,
+    country_code: resolved.country_code?.trim() || null,
+    tax_identifier: resolved.location_tax_identifier?.trim() || null,
   };
 }
 
@@ -632,7 +609,7 @@ export async function fetchPurchaseOrders(
         query = query.eq("document_status", options.status);
       }
 
-      return query;
+      return query as unknown as Promise<{ data: PoListDbRow[] | null; error: { message: string } | null }>;
     }
   );
 
@@ -681,8 +658,8 @@ export async function fetchReceivablePurchaseOrders(
   options?: { locationId?: string | null }
 ): Promise<ReceivablePurchaseOrderOption[]> {
   const receivableShapes: PoSelectShape[] = [
-    { includeAddresses: false, includeLineIds: true, includeTaxColumns: true },
-    { includeAddresses: false, includeLineIds: true, includeTaxColumns: false },
+    { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
+    { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
   ];
 
   const { data, error } = await runPoSelectWithFallback<ReceivablePoDbRow[]>(
@@ -699,7 +676,7 @@ export async function fetchReceivablePurchaseOrders(
         query = query.eq("destination_location_id", options.locationId);
       }
 
-      return query;
+      return query as unknown as Promise<{ data: ReceivablePoDbRow[] | null; error: { message: string } | null }>;
     }
   );
 
@@ -791,7 +768,7 @@ export async function fetchBillablePurchaseOrders(
         query = query.eq("supplier_id", options.supplierId);
       }
 
-      return query;
+      return query as unknown as Promise<{ data: ReceivablePoDbRow[] | null; error: { message: string } | null }>;
     }
   );
 

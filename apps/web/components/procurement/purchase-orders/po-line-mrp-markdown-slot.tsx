@@ -118,7 +118,7 @@ export function PoLineMrpMarkdownSlot({
             className={cn(
               PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
               "!w-[3.75rem]",
-              documentFieldTypographyClassName(column),
+              documentFieldTypographyClassName(column, ""),
               column.align === "right" && "text-right"
             )}
             value={markdownValue}

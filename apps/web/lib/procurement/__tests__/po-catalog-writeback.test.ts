@@ -8,10 +8,10 @@ import {
   writebackGroupSelectableIds,
 } from "@/lib/procurement/purchase-orders/po-catalog-writeback";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import { emptyWritebackSnapshot } from "@/lib/procurement/purchase-orders/po-line-writeback-snapshot";
 
 function line(overrides: Partial<PoDraftLine> & Pick<PoDraftLine, "key">): PoDraftLine {
   return {
-    key: overrides.key,
     sku: "",
     variant_id: overrides.variant_id ?? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     item_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -40,6 +40,7 @@ describe("buildPoCatalogWritebackRows", () => {
         unit_price_contractual: "0",
         is_promotional: true,
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: null,
           catalog_purchase_price: null,
           catalog_supplier_price: null,
@@ -61,6 +62,7 @@ describe("buildPoCatalogWritebackRows", () => {
         mrp_reference: "125",
         catalog_context: { mrp: "120" } as PoDraftLine["catalog_context"],
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: "120",
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -87,6 +89,7 @@ describe("buildPoCatalogWritebackRows", () => {
         mrp_reference: "120",
         catalog_context: { mrp: null } as PoDraftLine["catalog_context"],
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: "100",
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -112,6 +115,7 @@ describe("buildPoCatalogWritebackRows", () => {
         key: "paid",
         unit_price_contractual: "15",
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: "100",
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -135,6 +139,7 @@ describe("buildPoCatalogWritebackRows", () => {
         uom_code: "BOX",
         catalog_context: catalogContext,
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: null,
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -161,6 +166,7 @@ describe("buildPoCatalogWritebackRows", () => {
         uom_code: "PALLET",
         catalog_context: catalogContext,
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: null,
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -180,6 +186,7 @@ describe("buildPoCatalogWritebackRows", () => {
         uom_code: "PCS",
         catalog_context: { mrp: "100" } as PoDraftLine["catalog_context"],
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: "100",
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -204,6 +211,7 @@ describe("buildPoCatalogWritebackRows", () => {
           tax_rate: 18,
         } as PoDraftLine["catalog_context"],
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: "100",
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
@@ -249,6 +257,7 @@ describe("groupPoCatalogWritebackRows", () => {
         mrp_reference: "120",
         catalog_context: { mrp: null } as PoDraftLine["catalog_context"],
         writeback_snapshot: {
+          ...emptyWritebackSnapshot(),
           catalog_mrp: "100",
           catalog_purchase_price: "10",
           catalog_supplier_price: "800",

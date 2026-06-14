@@ -20,13 +20,15 @@ const W_STATUS = columnWidths({ default: { min: 120, max: 160 } });
 const W_NUMBER = columnWidths({ default: { min: 72, max: 96 } });
 const W_DATE = columnWidths({ default: { min: 100, max: 140 } });
 
-const TRANSFER_STATUS_CHIP_CATALOG: Array<{ value: StockTransferStatus; label: string }> = [
-  "DRAFT",
-  "DISPATCHED_IN_TRANSIT",
-  "FULLY_COMPLETED",
-  "RECEIPT_DISCREPANCY",
-  "CANCELLED",
-].map((status) => ({
+const TRANSFER_STATUS_CHIP_CATALOG = (
+  [
+    "DRAFT",
+    "DISPATCHED_IN_TRANSIT",
+    "FULLY_COMPLETED",
+    "RECEIPT_DISCREPANCY",
+    "CANCELLED",
+  ] as const satisfies readonly StockTransferStatus[]
+).map((status) => ({
   value: status,
   label: stockTransferStatusLabel(status),
 }));

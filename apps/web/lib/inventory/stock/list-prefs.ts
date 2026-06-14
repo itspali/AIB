@@ -77,6 +77,10 @@ export function loadStockListPrefs(): StockListPrefs {
     }
 
     const parsed = JSON.parse(raw) as Partial<StockListPrefs> & { prefsVersion?: number };
+    const prefsVersion =
+      typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
+        ? parsed.prefsVersion
+        : 0;
     const viewMode = parsed.viewMode === "adjustments" ? "adjustments" : "balances";
     const locationId =
       typeof parsed.locationId === "string" && parsed.locationId.trim()
@@ -100,12 +104,12 @@ export function loadStockListPrefs(): StockListPrefs {
       parsed.adjustmentSortDirection === "desc" ? "desc" : defaults.adjustmentSortDirection;
 
     const balanceColumnPrefs =
-      parsed.prefsVersion >= PREFS_VERSION && parsed.balanceColumnPrefs
+      prefsVersion >= PREFS_VERSION && parsed.balanceColumnPrefs
         ? normalizeListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY, parsed.balanceColumnPrefs)
         : loadListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY);
 
     const adjustmentColumnPrefs =
-      parsed.prefsVersion >= PREFS_VERSION && parsed.adjustmentColumnPrefs
+      prefsVersion >= PREFS_VERSION && parsed.adjustmentColumnPrefs
         ? normalizeListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY, parsed.adjustmentColumnPrefs)
         : loadListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY);
 

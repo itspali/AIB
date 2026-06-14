@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { VARIANT_ATTRIBUTES_ALL_ID } from "@/lib/documents/catalog-field-ids";
 import {
   createOptimisticPoLineCatalogContextFromPicker,
+  emptyPoLineCatalogContext,
   mergePoLineCatalogContext,
   needsPoLineCatalogHydration,
   resolveCatalogLineFieldDisplay,
@@ -115,13 +116,7 @@ describe("needsPoLineCatalogHydration", () => {
   it("requires hydration for optimistic snapshots", () => {
     expect(
       needsPoLineCatalogHydration({
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "EA",
-        image_url: "https://cdn.example/item.jpg",
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
+        ...emptyPoLineCatalogContext("https://cdn.example/item.jpg"),
         catalog_snapshot_source: "optimistic",
       })
     ).toBe(true);
@@ -141,22 +136,12 @@ describe("mergePoLineCatalogContext", () => {
   it("keeps optimistic base unit when server returns null", () => {
     const merged = mergePoLineCatalogContext(
       {
-        description: null,
-        hsn_sac_code: null,
+        ...emptyPoLineCatalogContext("https://cdn.example/client.jpg"),
         base_unit_of_measure: "EA",
-        image_url: "https://cdn.example/client.jpg",
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
       },
       {
+        ...emptyPoLineCatalogContext(),
         description: "Test",
-        hsn_sac_code: null,
-        base_unit_of_measure: null,
-        image_url: null,
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
       },
       "https://cdn.example/client.jpg"
     );
@@ -168,23 +153,11 @@ describe("mergePoLineCatalogContext", () => {
   it("does not wipe server catalog fields when optimistic snapshot arrives late", () => {
     const merged = mergePoLineCatalogContext(
       {
-        description: "Widget assembly",
-        hsn_sac_code: "8471",
-        base_unit_of_measure: "EA",
+        ...sampleContext,
         image_url: null,
-        custom_fields: { brand: "Acme" },
-        variant_attributes: { Color: "Red" },
-        attribute_labels: { Color: "Colour" },
-        catalog_snapshot_source: "server",
       },
       {
-        description: null,
-        hsn_sac_code: null,
-        base_unit_of_measure: "EA",
-        image_url: "https://cdn.example/client.jpg",
-        custom_fields: {},
-        variant_attributes: {},
-        attribute_labels: {},
+        ...emptyPoLineCatalogContext("https://cdn.example/client.jpg"),
         catalog_snapshot_source: "optimistic",
       }
     );

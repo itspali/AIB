@@ -69,11 +69,19 @@ export async function fetchPendingGroupInvitationsForGroup(
   if (error || !data) return [];
 
   return data.map((row) => {
-    const tenant = row.tenants as {
-      name: string;
-      trade_name: string | null;
-      organization_code: string | null;
-    } | null;
+    const tenantRaw = row.tenants as
+      | {
+          name: string;
+          trade_name: string | null;
+          organization_code: string | null;
+        }
+      | {
+          name: string;
+          trade_name: string | null;
+          organization_code: string | null;
+        }[]
+      | null;
+    const tenant = Array.isArray(tenantRaw) ? (tenantRaw[0] ?? null) : tenantRaw;
     const orgLabel = tenant?.trade_name || tenant?.name || "Organization";
     return {
       invitation_id: row.id as string,

@@ -24,7 +24,7 @@ function parsePostingSteps(raw: unknown): PostingStepResult[] {
         detail: typeof row.detail === "string" ? row.detail : null,
       } satisfies PostingStepResult;
     })
-    .filter((step): step is PostingStepResult => step !== null);
+    .filter((step): step is NonNullable<typeof step> => step !== null);
 }
 
 export async function fetchLatestDocumentPostingRun(

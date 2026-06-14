@@ -29,6 +29,7 @@ export function SubcontractManagementTerminal({ initialContext }: Props) {
         <ListModulePageTitleHeader
           title="Subcontracting"
           description="Configure vendor WIP locations and subcontract BOM lines consumed when finished goods are received."
+          createLabel="Add subcontract job"
         />
       }
     >

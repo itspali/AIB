@@ -44,7 +44,14 @@ export function StockListColumnSettings({
       detectedDevice={detectedDeviceClass}
       onEditingLayoutChange={() => {}}
       onEditingDeviceChange={setEditingDevice}
-      onChange={(columnPrefs) => onChange(setStockColumnPrefs(prefs, columnPrefs))}
+      onChange={(columnPrefs) =>
+        onChange(
+          setStockColumnPrefs(
+            prefs,
+            columnPrefs as Parameters<typeof setStockColumnPrefs>[1]
+          )
+        )
+      }
       frozenColumnCount={prefs.frozenColumnCount}
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })

@@ -281,7 +281,6 @@ export function StockDrawerForm({
       setDetailLoading(false);
       if ("error" in result) {
         setError(result.error);
-        setErrorAction(result.errorAction ?? null);
         return;
       }
       setDetail(result.adjustment);

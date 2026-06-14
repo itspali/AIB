@@ -596,6 +596,7 @@ export function detailToListRow(detail: ProductDetailSnapshot): ProductListRow {
     default_sku: detail.sku,
     barcode: detail.barcode,
     selling_price: detail.selling_price || null,
+    mrp: detail.mrp || null,
     purchase_price: detail.purchase_price || null,
     supplier_name: detail.supplier_name,
     stock_on_hand: String(stockTotal),

@@ -494,7 +494,7 @@ export function PoLineQtyCell({
   const unitCode =
     showUnitUnderQty && line.variant_id ? resolvePoDraftLineUnitCode(line) : null;
   const uomOptions = resolvePoLineUomOptions(line).map((option) => option.uom_code);
-  const editableUom = line.variant_id && canEditPoLineUom(line);
+  const editableUom = Boolean(line.variant_id) && canEditPoLineUom(line);
   const conversionHint =
     showUnitUnderQty && line.variant_id ? formatPoLineUomConversionHint(line) : null;
   const showQtyStack = showUnitUnderQty && Boolean(line.variant_id);
@@ -1022,7 +1022,10 @@ export function PoLineTotalCell({
     purchasePricesTaxInclusive: pricesTaxInclusive,
     taxMechanism,
   });
-  const showStack = shouldShowPoLineTotalExTaxSubline(line, resolved);
+  const showStack = shouldShowPoLineTotalExTaxSubline(line, {
+    taxRate: line.catalog_context?.tax_rate ?? 0,
+    taxAmount: resolved.taxAmount,
+  });
   const primaryAmount = resolvePoLineTotalPrimaryAmount(resolved, showStack);
   const primaryValue = formatPoMoney(primaryAmount, decimalPlaces);
   const exTaxValue = formatPoMoney(resolved.taxableBase, decimalPlaces);

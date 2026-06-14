@@ -117,7 +117,7 @@ function defaultCreateForm(
       assessable_value: "",
       customs_duty_amount: "",
       import_igst_amount: "",
-      lines: selectedPo.lines.map(mapReceivablePoLineToGrnDraft),
+      lines: selectedPo.lines.map((line) => mapReceivablePoLineToGrnDraft(line)),
       landed_charges: [],
       git_voucher_id: null,
     };

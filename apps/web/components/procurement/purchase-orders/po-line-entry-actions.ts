@@ -261,6 +261,7 @@ export function usePoLineEntryActions(
               context,
               fallbackImageUrl
             );
+            if (!catalog_context) return line;
             const uom_code = resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context);
             return applyMrpMarkdownSync(
               attachWritebackSnapshotFromCatalog(

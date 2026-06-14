@@ -1690,27 +1690,40 @@ type CompositionLineDbRow = {
   unit_price: number | string;
   price_mode: string;
   sort_order: number;
-  component_item: { name: string; item_type: ItemType } | null;
-  component_variant: { sku: string } | null;
+  component_item:
+    | { name: string; item_type: ItemType }
+    | { name: string; item_type: ItemType }[]
+    | null;
+  component_variant: { sku: string } | { sku: string }[] | null;
 };
 
+function resolveCompositionEmbed<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
 function mapCompositionLineRows(data: CompositionLineDbRow[] | null): CompositionLineRow[] {
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    parent_variant_id: row.parent_variant_id,
-    component_item_id: row.component_item_id,
-    component_variant_id: row.component_variant_id,
-    quantity: Number(row.quantity),
-    is_mandatory: row.is_mandatory,
-    is_optional_addon: row.is_optional_addon,
-    default_selected: row.default_selected,
-    unit_price: Number(row.unit_price),
-    price_mode: (row.price_mode === "COMPLIMENTARY" ? "COMPLIMENTARY" : "FIXED") as CompositionPriceMode,
-    sort_order: row.sort_order,
-    component_name: row.component_item?.name ?? "Unknown item",
-    component_item_type: row.component_item?.item_type ?? "PHYSICAL",
-    component_sku: row.component_variant?.sku ?? null,
-  }));
+  return (data ?? []).map((row) => {
+    const componentItem = resolveCompositionEmbed(row.component_item);
+    const componentVariant = resolveCompositionEmbed(row.component_variant);
+
+    return {
+      id: row.id,
+      parent_variant_id: row.parent_variant_id,
+      component_item_id: row.component_item_id,
+      component_variant_id: row.component_variant_id,
+      quantity: Number(row.quantity),
+      is_mandatory: row.is_mandatory,
+      is_optional_addon: row.is_optional_addon,
+      default_selected: row.default_selected,
+      unit_price: Number(row.unit_price),
+      price_mode: (row.price_mode === "COMPLIMENTARY" ? "COMPLIMENTARY" : "FIXED") as CompositionPriceMode,
+      sort_order: row.sort_order,
+      component_name: componentItem?.name ?? "Unknown item",
+      component_item_type: componentItem?.item_type ?? "PHYSICAL",
+      component_sku: componentVariant?.sku ?? null,
+    };
+  });
 }
 
 export async function listCompositionComponentCandidates(
@@ -1828,7 +1841,7 @@ export async function getItemComposition(
     return { error: error.message };
   }
 
-  return { data: { lines: mapCompositionLineRows(data as CompositionLineDbRow[]) } };
+  return { data: { lines: mapCompositionLineRows(data) } };
 }
 
 export async function saveItemComposition(

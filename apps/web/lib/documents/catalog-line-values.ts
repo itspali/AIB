@@ -96,6 +96,7 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     hsn_sac_code: partial.hsn_sac_code?.trim() || null,
     base_unit_of_measure: partial.base_unit_of_measure?.trim() || null,
     mrp,
+    purchase_price: null,
     image_url: partial.image_url?.trim() || null,
     tax_code_id: null,
     tax_rate: 0,

@@ -524,6 +524,7 @@ function mapListRow(
     default_sku: variant?.sku ?? null,
     barcode: variant?.barcode ?? null,
     selling_price: commerce?.selling_price ?? null,
+    mrp: null,
     purchase_price: commerce?.purchase_price ?? null,
     supplier_name: commerce?.supplier_name ?? null,
     stock_on_hand: stockOnHand ?? null,
@@ -969,7 +970,9 @@ function assemblePeekEssentialsSnapshot(
     name: row.name,
     code: row.code,
     description: row.description,
-    classification: row.classification,
+    classification: isItemClassification(row.classification)
+      ? row.classification
+      : "PHYSICAL_GOOD",
     base_unit_of_measure: row.base_unit_of_measure,
     category_id: row.category_id,
     category_name: resolveCategoryName(row.item_categories),

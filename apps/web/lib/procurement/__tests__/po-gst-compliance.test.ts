@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import {
   applyGstRegisteredPoLayoutOverrides,
   isOrganizationGstRegistered,
@@ -12,7 +13,6 @@ import { DEFAULT_PO_SCREEN_LAYOUT } from "@/lib/documents/purchase-order-layout"
 
 function line(overrides: Partial<PoDraftLine> & Pick<PoDraftLine, "key">): PoDraftLine {
   return {
-    key: overrides.key,
     sku: "",
     variant_id: overrides.variant_id ?? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     item_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -24,20 +24,8 @@ function line(overrides: Partial<PoDraftLine> & Pick<PoDraftLine, "key">): PoDra
     discount_amount: "0",
     skuError: null,
     catalog_context: {
-      description: null,
-      hsn_sac_code: null,
+      ...emptyPoLineCatalogContext(),
       base_unit_of_measure: "PCS",
-      mrp: null,
-      purchase_price: null,
-      image_url: null,
-      tax_code_id: null,
-      tax_rate: 0,
-      tax_is_variable: false,
-      default_purchase_uom: null,
-      alternate_uoms: [],
-      custom_fields: {},
-      variant_attributes: {},
-      attribute_labels: {},
     },
     ...overrides,
   };

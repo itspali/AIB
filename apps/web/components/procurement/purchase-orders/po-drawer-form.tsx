@@ -45,6 +45,7 @@ import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawe
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
+import { applySavedPoTaxToDraftForm } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import {
   defaultPoDraftForm,
   filterSavablePoLines,

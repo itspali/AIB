@@ -60,6 +60,10 @@ export function loadPurchaseOrderListPrefs(): PurchaseOrderListPrefs {
     }
 
     const parsed = JSON.parse(raw) as Partial<PurchaseOrderListPrefs> & { prefsVersion?: number };
+    const prefsVersion =
+      typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
+        ? parsed.prefsVersion
+        : 0;
     const sortField =
       typeof parsed.sortField === "string" && isPurchaseOrderSortField(parsed.sortField)
         ? parsed.sortField
@@ -67,7 +71,7 @@ export function loadPurchaseOrderListPrefs(): PurchaseOrderListPrefs {
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
     const columnPrefs =
-      parsed.prefsVersion >= PREFS_VERSION && parsed.columnPrefs
+      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
         ? normalizeListColumnPrefs(PO_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
         : loadListColumnPrefs(PO_LIST_COLUMN_REGISTRY);
 

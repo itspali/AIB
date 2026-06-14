@@ -677,18 +677,18 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
     : parseColumnPrefsByContext(parsed.columnPrefs) ?? defaults.columnPrefs;
 
   const cardGridColumns =
-    parsed.prefsVersion >= 8
+    rawVersion >= 8
       ? parseCardGridColumns(parsed.cardGridColumns)
       : getDefaultCardGridColumns();
   const showVariants = parsed.showVariants === true;
   const partial = parsed as Partial<ProductListPrefs>;
   const cardLayout = parseProductCardLayout(partial.cardLayout);
   const cardOrientation =
-    parsed.prefsVersion >= 8
+    rawVersion >= 8
       ? parseProductCardOrientation(partial.cardOrientation)
       : defaults.cardOrientation;
   const cardMetaDisplay =
-    parsed.prefsVersion >= 8
+    rawVersion >= 8
       ? parseProductCardMetaDisplay(partial.cardMetaDisplay)
       : defaults.cardMetaDisplay;
   const cardVariantColumnPrefs = parseCardVariantColumnPrefs(

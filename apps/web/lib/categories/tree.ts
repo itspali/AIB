@@ -203,7 +203,7 @@ export function parseAttributeTemplates(raw: unknown): AttributeTemplateEntry[] 
     .map((entry) => {
       const typeValue = String(entry.type ?? "text");
       const roleRaw = entry.role;
-      const role =
+      const role: AttributeTemplateEntry["role"] =
         roleRaw === "axis" || roleRaw === "descriptive" ? roleRaw : undefined;
       return {
         key: String(entry.key ?? ""),

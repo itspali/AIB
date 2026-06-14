@@ -14,6 +14,8 @@ import type {
   DocumentLineSlot,
 } from "@/lib/documents/types";
 
+export type { DocumentLayoutDefaults };
+
 /** Line grid column ids — includes Phase 3 discount columns (hidden by default). */
 export const PO_LINE_COLUMN_IDS = [
   "item",
@@ -699,7 +701,7 @@ export function normalizePoLayoutTemplate(
       mergeFieldOrder(
         "totalsFieldOrder" in template ? template.totalsFieldOrder : undefined,
         PO_TOTALS_FIELD_IDS
-      )
+      ) as PoTotalsFieldId[]
     ),
     imageDisplayMode:
       "imageDisplayMode" in template && template.imageDisplayMode

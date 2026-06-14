@@ -7,6 +7,7 @@ import {
   shouldShowPoUnitUnderQtyColumn,
 } from "@/lib/procurement/purchase-orders/po-line-unit";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
 
 const draftLine: PoDraftLine = {
@@ -22,18 +23,8 @@ const draftLine: PoDraftLine = {
   discount_amount: "0",
   skuError: null,
   catalog_context: {
-    description: null,
-    hsn_sac_code: null,
+    ...emptyPoLineCatalogContext(),
     base_unit_of_measure: "EA",
-    image_url: null,
-    tax_code_id: null,
-    tax_rate: 0,
-    tax_is_variable: false,
-    default_purchase_uom: null,
-    alternate_uoms: [],
-    custom_fields: {},
-    variant_attributes: {},
-    attribute_labels: {},
     catalog_snapshot_source: "server",
   },
 };

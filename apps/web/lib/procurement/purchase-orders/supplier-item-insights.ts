@@ -303,7 +303,10 @@ export async function fetchSupplierItemInsights(
     is_primary: boolean;
   }>;
   const variantSiblings = (variantSiblingsResult.data ?? []) as Array<{ id: string; is_master: boolean | null }>;
-  const storagePath = pickPrimaryImageStoragePath(mediaRows, variantId, variantSiblings);
+  const storagePath = pickPrimaryImageStoragePath(mediaRows, variantId, variantSiblings.map((variant) => ({
+    id: variant.id,
+    is_master: variant.is_master ?? undefined,
+  })));
   if (storagePath) {
     const signed = await resolveProductMediaSignedUrls(supabase, [storagePath]);
     imageUrl = signed.get(storagePath) ?? null;

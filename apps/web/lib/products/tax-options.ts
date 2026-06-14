@@ -69,7 +69,7 @@ export function deriveDefaultTaxCategoryFromTaxCode(
 
 export function resolveTaxCodeFromCatalog(
   taxCodeId: string | null | undefined,
-  taxCodes: readonly TaxCodeForCategoryDerivation & { id: string }[]
+  taxCodes: readonly (TaxCodeForCategoryDerivation & { id: string })[]
 ): TaxCodeForCategoryDerivation | null {
   if (!taxCodeId) return null;
   const row = taxCodes.find((entry) => entry.id === taxCodeId);

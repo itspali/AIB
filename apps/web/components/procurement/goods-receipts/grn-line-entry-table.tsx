@@ -18,6 +18,11 @@ import {
 } from "@/lib/documents/line-entry";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
+  GRN_REJECT_DISPOSITIONS,
+  grnRejectDispositionLabel,
+  type GrnRejectDisposition,
+} from "@/lib/procurement/goods-receipts/grn-reject-dispositions";
+import {
   defaultGrnExceptionForReceived,
   isGrnExceptionInvalid,
   syncGrnQuantitiesOnExceptionChange,
@@ -149,7 +154,7 @@ function useGrnLineEntryActions(
   policyHints: Record<string, VariantQcPolicyHint>,
   onChange: (lines: GrnDraftLine[] | ((current: GrnDraftLine[]) => GrnDraftLine[])) => void
 ) {
-  const itemRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
 
   const patchLine = useCallback(
     (key: string, patch: Partial<GrnDraftLine>) => {

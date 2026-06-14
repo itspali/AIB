@@ -3,8 +3,8 @@ import { poPeekShowsPromoEntitlements } from "@/lib/procurement/purchase-orders/
 
 describe("poPeekShowsPromoEntitlements", () => {
   it("shows promo section for issued and in-flight statuses", () => {
-    expect(poPeekShowsPromoEntitlements("ISSUED")).toBe(true);
-    expect(poPeekShowsPromoEntitlements("PARTIALLY_RECEIVED")).toBe(true);
+    expect(poPeekShowsPromoEntitlements("ISSUED_ACTIVE")).toBe(true);
+    expect(poPeekShowsPromoEntitlements("PARTIALLY_FULFILLED")).toBe(true);
   });
 
   it("hides promo section for draft and cancelled orders", () => {

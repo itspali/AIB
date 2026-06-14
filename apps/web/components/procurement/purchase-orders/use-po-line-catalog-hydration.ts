@@ -93,7 +93,8 @@ export function usePoLineCatalogHydration(
         onChange((current) =>
           current.map((line) =>
             line.variant_id === variantId &&
-            needsPoLineCatalogHydration(line.catalog_context)
+            needsPoLineCatalogHydration(line.catalog_context) &&
+            result.context
               ? applyCatalogHydration(line, result.context, taxCodeOptions)
               : line
           )

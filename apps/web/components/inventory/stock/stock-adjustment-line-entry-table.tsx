@@ -95,7 +95,7 @@ function useStockAdjustmentLineActions(
       | ((current: StockAdjustmentDraftLine[]) => StockAdjustmentDraftLine[])
   ) => void
 ) {
-  const itemRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
 
   const patchLine = useCallback(
     (key: string, patch: Partial<StockAdjustmentDraftLine>) => {

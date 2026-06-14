@@ -68,6 +68,10 @@ export function loadPurchaseBillListPrefs(): PurchaseBillListPrefs {
     }
 
     const parsed = JSON.parse(raw) as Partial<PurchaseBillListPrefs> & { prefsVersion?: number };
+    const prefsVersion =
+      typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
+        ? parsed.prefsVersion
+        : 0;
     const sortField =
       typeof parsed.sortField === "string" && isPurchaseBillSortField(parsed.sortField)
         ? parsed.sortField
@@ -75,7 +79,7 @@ export function loadPurchaseBillListPrefs(): PurchaseBillListPrefs {
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
     const columnPrefs =
-      parsed.prefsVersion >= PREFS_VERSION && parsed.columnPrefs
+      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
         ? normalizeListColumnPrefs(BILL_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
         : loadListColumnPrefs(BILL_LIST_COLUMN_REGISTRY);
 

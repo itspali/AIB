@@ -77,7 +77,7 @@ export function PoPromoEntitlementsPanel({
     setLoading(false);
     if ("error" in result) {
       setEntitlements([]);
-      setLoadError(result.error);
+      setLoadError(result.error ?? "Unable to load promotional entitlements.");
       return;
     }
     setEntitlements(result.entitlements);
@@ -114,7 +114,11 @@ export function PoPromoEntitlementsPanel({
         reason: writeOffReason,
       });
       if ("error" in result) {
-        toast.error(result.error);
+        toast.error(
+          typeof result.error === "string"
+            ? result.error
+            : (result.error?.message ?? "Unable to write off entitlement.")
+        );
         return;
       }
       toast.success("Promotional entitlement written off");
