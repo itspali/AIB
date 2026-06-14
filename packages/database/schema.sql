@@ -629,6 +629,7 @@ CREATE TABLE activity_events (
     occurred_at     TIMESTAMPTZ NOT NULL,
     source_kind     TEXT,
     source_id       UUID,
+    sequence_no     BIGINT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

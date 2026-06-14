@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ActivityEntityType, ActivityTimelineEvent } from "@/lib/activity/types";
+import type {
+  ActivityEntityType,
+  ActivityTimelineCursor,
+  ActivityTimelineEvent,
+} from "@/lib/activity/types";
 
 function parseDetail(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -12,13 +16,14 @@ export async function fetchEntityActivityTimeline(
   supabase: SupabaseClient,
   entityType: ActivityEntityType,
   entityId: string,
-  options?: { limit?: number; before?: string | null }
+  options?: { limit?: number; before?: ActivityTimelineCursor | null }
 ): Promise<ActivityTimelineEvent[]> {
   const { data, error } = await supabase.rpc("fetch_entity_activity_timeline", {
     p_entity_type: entityType,
     p_entity_id: entityId,
     p_limit: options?.limit ?? 50,
-    p_before: options?.before ?? null,
+    p_before_occurred_at: options?.before?.occurred_at ?? null,
+    p_before_sequence_no: options?.before?.sequence_no ?? null,
   });
 
   if (error) throw new Error(error.message);
@@ -36,6 +41,7 @@ export async function fetchEntityActivityTimeline(
       actor_id: typeof record.actor_id === "string" ? record.actor_id : null,
       actor_name: typeof record.actor_name === "string" ? record.actor_name : null,
       occurred_at: String(record.occurred_at ?? ""),
+      sequence_no: Number(record.sequence_no ?? 0),
     } satisfies ActivityTimelineEvent;
   });
 }

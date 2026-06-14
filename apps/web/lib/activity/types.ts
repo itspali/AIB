@@ -20,4 +20,10 @@ export type ActivityTimelineEvent = {
   actor_id: string | null;
   actor_name: string | null;
   occurred_at: string;
+  sequence_no: number;
+};
+
+export type ActivityTimelineCursor = {
+  occurred_at: string;
+  sequence_no: number;
 };

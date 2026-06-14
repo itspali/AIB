@@ -29,6 +29,7 @@ function formatActivityTimestamp(iso: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
   });
 }
 
@@ -115,7 +116,7 @@ export function DocumentActivityTimelinePanel({
   const [hasMore, setHasMore] = useState(false);
 
   const loadTimeline = useCallback(
-    async (before?: string | null, append = false) => {
+    async (before?: ActivityTimelineEvent | null, append = false) => {
       if (append) {
         setLoadingMore(true);
       } else {
@@ -123,7 +124,13 @@ export function DocumentActivityTimelinePanel({
         setError(null);
       }
 
-      const result = await loadEntityActivityTimeline(entityType, entityId, before);
+      const result = await loadEntityActivityTimeline(
+        entityType,
+        entityId,
+        before
+          ? { occurred_at: before.occurred_at, sequence_no: before.sequence_no }
+          : null
+      );
       if ("error" in result) {
         setError(result.error);
         if (!append) setEvents([]);
@@ -147,7 +154,7 @@ export function DocumentActivityTimelinePanel({
     setExpanded(!isMobile);
   }, [isMobile]);
 
-  const lastOccurredAt = events.at(-1)?.occurred_at ?? null;
+  const oldestEvent = events.at(-1) ?? null;
 
   return (
     <section
@@ -200,7 +207,7 @@ export function DocumentActivityTimelinePanel({
                   size="sm"
                   className="mt-2 h-auto px-0 text-xs text-muted-foreground"
                   disabled={loadingMore}
-                  onClick={() => void loadTimeline(lastOccurredAt, true)}
+                  onClick={() => void loadTimeline(oldestEvent, true)}
                 >
                   {loadingMore ? "Loading…" : "Load older activity"}
                 </Button>
