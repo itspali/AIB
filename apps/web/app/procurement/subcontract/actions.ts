@@ -50,7 +50,14 @@ export async function loadSubcontractAdminContext() {
   if (bomLines.error) throw new Error(bomLines.error.message);
 
   const supplierNameById = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]));
-  const itemIds = (bomLines.data ?? []).map((row) => row.component_item_id as string);
+  const itemIds = [
+    ...new Set(
+      (bomLines.data ?? []).flatMap((row) => [
+        row.parent_item_id as string,
+        row.component_item_id as string,
+      ])
+    ),
+  ].filter(Boolean);
   const { data: itemRows } = itemIds.length
     ? await supabase.from("items").select("id, name").eq("tenant_id", tenantId).in("id", itemIds)
     : { data: [] };
@@ -69,6 +76,7 @@ export async function loadSubcontractAdminContext() {
     bomLines: (bomLines.data ?? []).map((row) => ({
       id: row.id as string,
       parent_item_id: row.parent_item_id as string,
+      parent_item_name: itemNameById.get(row.parent_item_id as string) ?? "",
       component_item_id: row.component_item_id as string,
       component_name: itemNameById.get(row.component_item_id as string) ?? "",
       quantity_per: String(row.quantity_per ?? "0"),

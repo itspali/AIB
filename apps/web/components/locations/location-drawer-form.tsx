@@ -188,8 +188,28 @@ export function LocationDrawerForm({
     setForm((prev) => {
       const next = { ...prev, [key]: value };
       if (key === "presence_type" && value === "VIRTUAL") {
-        next.is_stock_holding = false;
         next.is_manufacturing_floor = false;
+        if (!next.is_git_holding && !next.is_subcontract_wip) {
+          next.is_stock_holding = false;
+        }
+      }
+      if (key === "is_git_holding") {
+        if (value === true) {
+          next.is_stock_holding = true;
+        } else if (next.presence_type === "VIRTUAL" && !next.is_subcontract_wip) {
+          next.is_stock_holding = false;
+        }
+      }
+      if (key === "is_subcontract_wip") {
+        if (value === true) {
+          next.is_stock_holding = true;
+        } else if (next.presence_type === "VIRTUAL" && !next.is_git_holding) {
+          next.is_stock_holding = false;
+        }
+      }
+      if (key === "is_stock_holding" && value === false) {
+        next.is_git_holding = false;
+        next.is_subcontract_wip = false;
       }
       if (key === "is_commercial_storefront" && value === false) {
         next.pos_terminal_count = 0;
@@ -329,19 +349,26 @@ export function LocationDrawerForm({
             disabled={stockToggleDisabled}
             onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
           />
-          {form.is_stock_holding ? (
-            <>
-              <SwitchRow
-                label="GIT holding node (in-transit inventory)"
-                checked={form.is_git_holding}
-                onCheckedChange={(checked) => updateField("is_git_holding", checked)}
-              />
-              <SwitchRow
-                label="Subcontract WIP (vendor job work)"
-                checked={form.is_subcontract_wip}
-                onCheckedChange={(checked) => updateField("is_subcontract_wip", checked)}
-              />
-            </>
+          <SwitchRow
+            label="GIT holding node (in-transit inventory)"
+            checked={form.is_git_holding}
+            onCheckedChange={(checked) => updateField("is_git_holding", checked)}
+          />
+          <SwitchRow
+            label="Subcontract WIP (vendor job work)"
+            checked={form.is_subcontract_wip}
+            onCheckedChange={(checked) => updateField("is_subcontract_wip", checked)}
+          />
+          {form.presence_type === "VIRTUAL" && stockToggleDisabled ? (
+            <p className="text-xs text-muted-foreground">
+              Enable GIT holding or subcontract WIP to activate stock on a virtual node.
+            </p>
+          ) : null}
+          {form.is_git_holding ? (
+            <p className="text-xs text-muted-foreground">
+              Used by Procurement → Goods in transit. Prefer a virtual presence node for GIT
+              holding.
+            </p>
           ) : null}
           {form.is_commercial_storefront && (
             <div className="space-y-2">

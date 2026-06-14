@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   saveSubcontractBomLines,
   saveVendorJobWorkLocation,
 } from "@/app/procurement/subcontract/actions";
+import {
+  StockVariantSkuField,
+  type StockLineSkuSelection,
+} from "@/components/inventory/stock/stock-variant-sku-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 
 type JobLinkRow = {
   id: string;
@@ -28,6 +33,7 @@ type JobLinkRow = {
 type BomLineRow = {
   id: string;
   parent_item_id: string;
+  parent_item_name: string;
   component_item_id: string;
   component_name: string;
   quantity_per: string;
@@ -41,6 +47,18 @@ type Props = {
   onChanged: () => void;
 };
 
+function emptyCatalogSelection(): StockLineSkuSelection {
+  return {
+    sku: "",
+    variant_id: "",
+    item_id: "",
+    item_name: "",
+    variant_sku: "",
+    unit_cost: "0",
+    skuError: null,
+  };
+}
+
 export function SubcontractAdminPanel({
   suppliers,
   wipLocations,
@@ -50,10 +68,18 @@ export function SubcontractAdminPanel({
 }: Props) {
   const [supplierId, setSupplierId] = useState("");
   const [locationId, setLocationId] = useState(wipLocations[0]?.id ?? "");
-  const [parentItemId, setParentItemId] = useState("");
-  const [componentItemId, setComponentItemId] = useState("");
+  const [parentSelection, setParentSelection] = useState<StockLineSkuSelection>(
+    emptyCatalogSelection
+  );
+  const [componentSelection, setComponentSelection] = useState<StockLineSkuSelection>(
+    emptyCatalogSelection
+  );
   const [quantityPer, setQuantityPer] = useState("1");
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    prefetchBrowseVariants();
+  }, []);
 
   if (wipLocations.length === 0 && jobLinks.length === 0 && bomLines.length === 0) {
     return (
@@ -83,10 +109,18 @@ export function SubcontractAdminPanel({
   };
 
   const saveBom = () => {
+    const parentItemId = parentSelection.item_id?.trim() ?? "";
+    const componentItemId = componentSelection.item_id?.trim() ?? "";
+
     if (!parentItemId || !componentItemId) {
-      toast.error("Enter parent and component item IDs.");
+      toast.error("Select finished and component items from the catalog.");
       return;
     }
+    if (parentItemId === componentItemId) {
+      toast.error("Component must differ from the finished item.");
+      return;
+    }
+
     startTransition(async () => {
       const existingForParent = bomLines.filter((line) => line.parent_item_id === parentItemId);
       const nextLines = [
@@ -105,7 +139,7 @@ export function SubcontractAdminPanel({
         return;
       }
       toast.success("Subcontract BOM updated.");
-      setComponentItemId("");
+      setComponentSelection(emptyCatalogSelection());
       onChanged();
     });
   };
@@ -171,14 +205,23 @@ export function SubcontractAdminPanel({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="space-y-1">
-          <Label>Finished item ID</Label>
-          <Input value={parentItemId} onChange={(event) => setParentItemId(event.target.value)} />
+          <Label>Finished item</Label>
+          <StockVariantSkuField
+            compact
+            displayMode="item"
+            disabled={isPending}
+            value={parentSelection}
+            onChange={(patch) => setParentSelection((current) => ({ ...current, ...patch }))}
+          />
         </div>
         <div className="space-y-1">
-          <Label>Component item ID</Label>
-          <Input
-            value={componentItemId}
-            onChange={(event) => setComponentItemId(event.target.value)}
+          <Label>Component item</Label>
+          <StockVariantSkuField
+            compact
+            displayMode="item"
+            disabled={isPending}
+            value={componentSelection}
+            onChange={(patch) => setComponentSelection((current) => ({ ...current, ...patch }))}
           />
         </div>
         <div className="space-y-1">
@@ -196,8 +239,8 @@ export function SubcontractAdminPanel({
         <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
           {bomLines.slice(0, 6).map((line) => (
             <li key={line.id}>
-              Parent {line.parent_item_id.slice(0, 8)}… uses {line.quantity_per} ×{" "}
-              {line.component_name}
+              {line.parent_item_name || "Finished item"} uses {line.quantity_per} ×{" "}
+              {line.component_name || "Component"}
             </li>
           ))}
         </ul>

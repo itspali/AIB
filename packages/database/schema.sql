@@ -598,6 +598,69 @@ CREATE TABLE document_posting_runs (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ====================================================================
+-- ACTIVITY TIMELINE (Forensic projection)
+-- Full triggers, RLS, and functions live in:
+--   supabase/migrations/20260624100000_activity_events_foundation.sql
+--   supabase/migrations/20260624110000_activity_events_backfill.sql
+-- ====================================================================
+
+CREATE TYPE activity_entity_type AS ENUM (
+    'PURCHASE_ORDER',
+    'GOODS_RECEIPT',
+    'PURCHASE_INVOICE',
+    'GOODS_IN_TRANSIT',
+    'STOCK_ADJUSTMENT',
+    'STOCK_TRANSFER',
+    'SALES_ORDER',
+    'SALES_INVOICE'
+);
+
+CREATE TABLE activity_events (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    entity_type     activity_entity_type NOT NULL,
+    entity_id       UUID NOT NULL,
+    event_kind      TEXT NOT NULL,
+    event_code      TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    detail          JSONB NOT NULL DEFAULT '{}'::jsonb,
+    actor_id        UUID REFERENCES users (id) ON DELETE SET NULL,
+    occurred_at     TIMESTAMPTZ NOT NULL,
+    source_kind     TEXT,
+    source_id       UUID,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE activity_event_outbox (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    entity_type     activity_entity_type NOT NULL,
+    entity_id       UUID NOT NULL,
+    event_kind      TEXT NOT NULL,
+    event_code      TEXT NOT NULL,
+    payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    actor_id        UUID REFERENCES users (id) ON DELETE SET NULL,
+    occurred_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    enqueued_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at    TIMESTAMPTZ
+);
+
+CREATE TABLE document_approval_requests (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    document_type   TEXT NOT NULL,
+    document_id     UUID NOT NULL,
+    status          TEXT NOT NULL,
+    submitted_by    UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    decided_by      UUID REFERENCES users (id) ON DELETE RESTRICT,
+    decided_at      TIMESTAMPTZ,
+    decision_notes  TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE inventory_valuation_audit_log (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,

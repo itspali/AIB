@@ -30,6 +30,7 @@ import {
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
+import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
 import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
@@ -603,13 +604,11 @@ export function GrnDrawerForm({
               />
             </div>
 
-            {detail.posting_steps?.length ? (
-              <DocumentPostingSummaryPanel
-                steps={detail.posting_steps}
-                overall="success"
-                postedAt={detail.posting_at ? formatDate(detail.posting_at) : null}
-              />
-            ) : null}
+            <DocumentActivityTimelinePanel
+              entityType="GOODS_RECEIPT"
+              entityId={detail.id}
+              refreshKey={`${detail.id}:${detail.created_at}:${postSuccessSummary?.steps.length ?? 0}`}
+            />
           </div>
             );
           })()

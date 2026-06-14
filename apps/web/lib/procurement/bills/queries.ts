@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchLatestDocumentPostingRun } from "@/lib/documents/posting-queries";
 import type {
   LinkedGoodsReceiptSummary,
   PurchaseBillLineRow,
@@ -176,7 +175,6 @@ export async function fetchPurchaseBillById(
     })
     .filter((row): row is LinkedGoodsReceiptSummary => row !== null);
 
-  const postingRun = await fetchLatestDocumentPostingRun(supabase, "BILL", purchaseInvoiceId);
 
   return {
     id: data.id as string,
@@ -200,7 +198,5 @@ export async function fetchPurchaseBillById(
     created_at: data.created_at as string,
     lines,
     linked_goods_receipts,
-    posting_steps: postingRun?.steps,
-    posting_at: postingRun?.posted_at ?? null,
   };
 }

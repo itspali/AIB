@@ -197,6 +197,8 @@ export function LocationProvisionForm({
             editingLocation.is_commercial_storefront ||
             editingLocation.is_manufacturing_floor ||
             editingLocation.is_stock_holding ||
+            editingLocation.is_git_holding ||
+            editingLocation.is_subcontract_wip ||
             editingLocation.valuation_calculation_rule ||
             editingLocation.pos_terminal_count > 0 ||
             editingLocation.address_line2 ||
@@ -306,9 +308,25 @@ export function LocationProvisionForm({
     setForm((prev) => {
       const next = { ...prev, [key]: value };
       if (key === "presence_type" && value === "VIRTUAL") {
-        next.is_stock_holding = false;
         next.is_manufacturing_floor = false;
         next.valuation_calculation_rule = null;
+        if (!next.is_git_holding && !next.is_subcontract_wip) {
+          next.is_stock_holding = false;
+        }
+      }
+      if (key === "is_git_holding") {
+        if (value === true) {
+          next.is_stock_holding = true;
+        } else if (next.presence_type === "VIRTUAL" && !next.is_subcontract_wip) {
+          next.is_stock_holding = false;
+        }
+      }
+      if (key === "is_subcontract_wip") {
+        if (value === true) {
+          next.is_stock_holding = true;
+        } else if (next.presence_type === "VIRTUAL" && !next.is_git_holding) {
+          next.is_stock_holding = false;
+        }
       }
       if (key === "presence_type" && value === "PHYSICAL") {
         next.virtual_configuration = DEFAULT_VIRTUAL_LOCATION_CONFIG;
@@ -319,8 +337,12 @@ export function LocationProvisionForm({
           next.valuation_calculation_rule = null;
         }
       }
-      if (key === "is_stock_holding" && !value && !next.is_commercial_storefront) {
-        next.valuation_calculation_rule = null;
+      if (key === "is_stock_holding" && !value) {
+        next.is_git_holding = false;
+        next.is_subcontract_wip = false;
+        if (!next.is_commercial_storefront) {
+          next.valuation_calculation_rule = null;
+        }
       }
       if (key === "code" && typeof value === "string") {
         next.code = value.toUpperCase();
@@ -471,7 +493,7 @@ export function LocationProvisionForm({
             <p className="text-sm font-medium">Show Advanced Parameters</p>
             <p className="text-xs text-muted-foreground">
               {isVirtual
-                ? "Reveal digital integration hooks, sales channel controls, and virtual DOM routing."
+                ? "Reveal logistics nodes (GIT / subcontract WIP), digital integration hooks, and virtual DOM routing."
                 : "Reveal address mapping, inventory rules, POS registry, and manufacturing controls."}
             </p>
           </div>
@@ -493,6 +515,8 @@ export function LocationProvisionForm({
 
             {isVirtual ? (
               <>
+                <InventoryLogisticsCard form={form} updateField={updateField} />
+
                 <CapabilityCard title={storefrontCapabilityCardTitle(form.presence_type)}>
                   <SwitchRow
                     label={storefrontCapabilityToggleLabel(form.presence_type)}
@@ -590,20 +614,11 @@ export function LocationProvisionForm({
                   </CapabilityCard>
                 )}
 
-                <CapabilityCard title="Inventory Storage Rules">
-                  <SwitchRow
-                    label="Houses physical inventory stock"
-                    checked={form.is_stock_holding}
-                    onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
-                  />
-                  {form.is_stock_holding && (
-                    <div className="mt-3 rounded-md border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
-                      Warehouse layout zone metrics and bin allocation grids will attach to this
-                      node in the inventory module. Stock authority is active for MWAC and shelf
-                      slot selectors.
-                    </div>
-                  )}
-                </CapabilityCard>
+                <InventoryLogisticsCard
+                  form={form}
+                  updateField={updateField}
+                  showPhysicalWarehouseHint
+                />
 
                 {locationSupportsValuationRule(form) && (
                   <CapabilityCard title="Inventory Calculation Rule">
@@ -718,6 +733,62 @@ export function LocationProvisionForm({
         </Button>
       </footer>
     </div>
+  );
+}
+
+function InventoryLogisticsCard({
+  form,
+  updateField,
+  showPhysicalWarehouseHint = false,
+}: {
+  form: LocationFormValues;
+  updateField: <K extends keyof LocationFormValues>(key: K, value: LocationFormValues[K]) => void;
+  showPhysicalWarehouseHint?: boolean;
+}) {
+  const isVirtual = form.presence_type === "VIRTUAL";
+  const stockToggleDisabled =
+    isVirtual && !form.is_git_holding && !form.is_subcontract_wip;
+
+  return (
+    <CapabilityCard title="Inventory Storage Rules">
+      <SwitchRow
+        label="GIT holding node (in-transit inventory)"
+        checked={form.is_git_holding}
+        onCheckedChange={(checked) => updateField("is_git_holding", checked)}
+      />
+      <SwitchRow
+        label="Subcontract WIP (vendor job work)"
+        checked={form.is_subcontract_wip}
+        onCheckedChange={(checked) => updateField("is_subcontract_wip", checked)}
+      />
+      {form.is_git_holding ? (
+        <p className="text-xs text-muted-foreground">
+          Used by Procurement → Goods in transit to hold import stock between dispatch and GRN
+          clearance. Prefer a virtual presence node for GIT holding.
+        </p>
+      ) : null}
+      <SwitchRow
+        label={
+          isVirtual
+            ? "Holds inventory stock (logistics node)"
+            : "Houses physical inventory stock"
+        }
+        checked={form.is_stock_holding}
+        disabled={stockToggleDisabled}
+        onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
+      />
+      {isVirtual && stockToggleDisabled ? (
+        <p className="text-xs text-muted-foreground">
+          Enable GIT holding or subcontract WIP above to activate stock on a virtual node.
+        </p>
+      ) : null}
+      {form.is_stock_holding && showPhysicalWarehouseHint ? (
+        <div className="mt-1 rounded-md border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
+          Warehouse layout zone metrics and bin allocation grids will attach to this node in the
+          inventory module. Stock authority is active for MWAC and shelf slot selectors.
+        </div>
+      ) : null}
+    </CapabilityCard>
   );
 }
 

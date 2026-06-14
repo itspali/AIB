@@ -9,6 +9,7 @@ import {
   StockAdjustmentLineEntryTable,
   type StockAdjustmentDraftLine,
 } from "@/components/inventory/stock/stock-adjustment-line-entry-table";
+import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
 import {
   DocumentLinePeekItemCell,
   DocumentLinePeekTable,
@@ -472,6 +473,12 @@ export function StockDrawerForm({
                     }}
                   />
                 </div>
+
+                <DocumentActivityTimelinePanel
+                  entityType="STOCK_ADJUSTMENT"
+                  entityId={detail.id}
+                  refreshKey={`${detail.id}:${detail.posted_at}`}
+                />
               </div>
             ) : (
               <p className="py-8 text-sm text-muted-foreground">Adjustment not found.</p>

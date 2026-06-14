@@ -6,8 +6,6 @@ import {
   DocumentLinePeekTable,
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
-import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
-import { formatDate } from "@/lib/dashboard/format";
 import {
   billMatchStatusLabel,
   computePriceVariancePct,
@@ -21,13 +19,6 @@ type Props = {
 };
 
 export function BillPeekView({ bill, matchingTolerancePct }: Props) {
-  const overall =
-    bill.match_status === "PPV_HOLD"
-      ? "failure"
-      : bill.posting_steps?.some((step) => step.status === "failure")
-        ? "failure"
-        : "success";
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -117,14 +108,6 @@ export function BillPeekView({ bill, matchingTolerancePct }: Props) {
             }}
           />
         </div>
-      ) : null}
-
-      {bill.posting_steps?.length ? (
-        <DocumentPostingSummaryPanel
-          steps={bill.posting_steps}
-          overall={overall}
-          postedAt={bill.posting_at ? formatDate(bill.posting_at) : null}
-        />
       ) : null}
     </div>
   );

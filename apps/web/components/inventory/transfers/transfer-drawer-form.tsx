@@ -24,6 +24,7 @@ import {
   DocumentLinePeekTable,
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
+import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -725,6 +726,14 @@ export function TransferDrawerForm({
                   }}
                 />
               </div>
+            ) : null}
+
+            {surface === "peek" ? (
+              <DocumentActivityTimelinePanel
+                entityType="STOCK_TRANSFER"
+                entityId={detail.id}
+                refreshKey={`${detail.id}:${detail.current_status}:${detail.received_at ?? detail.dispatched_at ?? detail.created_at}`}
+              />
             ) : null}
           </div>
         ) : (

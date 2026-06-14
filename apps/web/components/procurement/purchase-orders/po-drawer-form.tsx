@@ -82,6 +82,7 @@ import { buildPoCatalogWritebackRows } from "@/lib/procurement/purchase-orders/p
 import type { PoCatalogWritebackRow } from "@/lib/procurement/purchase-orders/po-catalog-writeback";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
+import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import {
   isPoApprovalRequiredBeforeIssue,
@@ -967,14 +968,22 @@ export function PoDrawerForm({
       {loadingMessage}
       {peekLoadingSkeleton}
       {readOnly && detail && !showLoadingPeek ? (
-        <PoPeekView
-          order={detail}
-          layout={documentLayout}
-          organizationBillTo={organizationBillTo}
-          enableMrpTradeTerms={enableMrpTradeTerms}
-          promoEntitlements={peekPromoEntitlements ?? []}
-          promoLoadError={peekPromoLoadError}
-        />
+        <>
+          <PoPeekView
+            order={detail}
+            layout={documentLayout}
+            organizationBillTo={organizationBillTo}
+            enableMrpTradeTerms={enableMrpTradeTerms}
+            promoEntitlements={peekPromoEntitlements ?? []}
+            promoLoadError={peekPromoLoadError}
+          />
+          <DocumentActivityTimelinePanel
+            entityType="PURCHASE_ORDER"
+            entityId={detail.id}
+            refreshKey={`${detail.id}:${detail.updated_at}:${issuePostingSummary?.length ?? 0}`}
+            className="mt-4"
+          />
+        </>
       ) : null}
       {mutatingForm}
       {issuePostingSummary?.length ? (

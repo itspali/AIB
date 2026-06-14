@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchLatestDocumentPostingRun } from "@/lib/documents/posting-queries";
 import type { GoodsReceiptLineRow, GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import {
   fetchAllSupabaseRows,
@@ -272,11 +271,6 @@ export async function fetchGoodsReceiptById(
     );
   }
 
-  const postingRun = await fetchLatestDocumentPostingRun(supabase, "GRN", goodsReceiptId);
-  if (postingRun) {
-    mapped.posting_steps = postingRun.steps;
-    mapped.posting_at = postingRun.posted_at;
-  }
 
   return mapped;
 }
