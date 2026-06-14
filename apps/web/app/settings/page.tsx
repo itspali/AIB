@@ -1,4 +1,5 @@
 import {
+  Bell,
   Building2,
   LayoutTemplate,
   MapPin,
@@ -50,6 +51,12 @@ export default async function AdministrationPage() {
             label: "Module settings",
             description: "Document layouts, module policies, and operational preferences by module.",
             icon: LayoutTemplate,
+          },
+          {
+            href: "/settings/notifications",
+            label: "Notification templates",
+            description: "Email, SMS, and WhatsApp templates for approval and credit-hold events.",
+            icon: Bell,
           },
           {
             href: "/settings/uom",

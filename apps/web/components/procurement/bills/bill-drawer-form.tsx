@@ -16,7 +16,7 @@ import { BillPaymentPanel } from "@/components/procurement/bills/bill-payment-pa
 import { BillPeekView } from "@/components/procurement/bills/bill-peek-view";
 import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
-import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
+import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import {
   AlertDialog,
@@ -545,13 +545,12 @@ export function BillDrawerForm({
         detailLoading && !detail?.lines?.length ? (
           <p className="text-sm text-muted-foreground">Loading bill…</p>
         ) : detail ? (
-          <div className="space-y-4">
+          <DocumentPeekActivityShell
+            entityType="PURCHASE_INVOICE"
+            entityId={detail.id}
+            refreshKey={`${detail.id}:${detail.created_at}:${postingSummary?.steps.length ?? 0}`}
+          >
             <BillPeekView bill={detail} matchingTolerancePct={matchingTolerancePct} />
-            <DocumentActivityTimelinePanel
-              entityType="PURCHASE_INVOICE"
-              entityId={detail.id}
-              refreshKey={`${detail.id}:${detail.created_at}:${postingSummary?.steps.length ?? 0}`}
-            />
             <BillAdvanceApplicationPanel
               purchaseInvoiceId={detail.id}
               supplierId={detail.supplier_id}
@@ -564,7 +563,7 @@ export function BillDrawerForm({
               isPaid={detail.is_paid}
               onPaid={reloadDetail}
             />
-          </div>
+          </DocumentPeekActivityShell>
         ) : null
       ) : isCreating || isEditing ? (
         postingSummary ? null : (

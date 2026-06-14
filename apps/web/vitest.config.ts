@@ -19,6 +19,7 @@ export default defineConfig({
       "lib/group/__tests__/**/*.test.ts",
       "lib/entity-categories/__tests__/**/*.test.ts",
       "lib/entities/__tests__/**/*.test.ts",
+      "lib/notifications/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

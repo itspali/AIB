@@ -57,7 +57,7 @@ export function ProcurementApprovalsPanel({
     <div className="space-y-4">
       <OrgSettingsSection
         title="Purchase order approval"
-        description="Control whether purchase orders must be approved before they can be issued to suppliers. See docs/PROCUREMENT_APPROVAL_DESIGN.md for the full workflow."
+        description="Control whether purchase orders must be approved before they can be issued to suppliers. Customize message templates under Administration → Notification templates."
       >
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">

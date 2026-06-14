@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
+  Bell,
   Boxes,
   Building2,
   ClipboardList,
@@ -160,6 +161,7 @@ export const moduleNavItems: ModuleNavItem[] = [
       { href: "/settings/group", label: "Group", icon: Network },
       { href: "/settings/locations", label: "Locations", icon: MapPin },
       { href: "/settings/modules", label: "Module settings", icon: LayoutTemplate },
+      { href: "/settings/notifications", label: "Notification templates", icon: Bell },
       { href: "/settings/uom", label: "Units of Measure", icon: Ruler },
       { href: "/settings/tax", label: "Tax", icon: Receipt },
       { href: "/settings/users", label: "Users & Roles", icon: Shield, comingSoon: true },

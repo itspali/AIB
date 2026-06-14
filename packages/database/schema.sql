@@ -662,6 +662,48 @@ CREATE TABLE document_approval_requests (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Notification templates (Email / SMS / WhatsApp — delivery providers wired separately)
+-- Full RPCs and seed catalog: supabase/migrations/20260625100000_notification_templates_foundation.sql
+CREATE TYPE notification_channel AS ENUM ('EMAIL', 'SMS', 'WHATSAPP');
+
+CREATE TABLE notification_template_system_defaults (
+    template_key                    TEXT NOT NULL,
+    channel                         notification_channel NOT NULL,
+    locale                          VARCHAR(10) NOT NULL DEFAULT 'en-US',
+    event_code                      TEXT NOT NULL,
+    document_domain                 TEXT NOT NULL,
+    label                           TEXT NOT NULL,
+    description                     TEXT,
+    subject_template                TEXT,
+    body_template                   TEXT NOT NULL,
+    body_template_html              TEXT,
+    whatsapp_provider_template_name TEXT,
+    whatsapp_param_mapping          JSONB NOT NULL DEFAULT '[]'::jsonb,
+    PRIMARY KEY (template_key, channel, locale)
+);
+
+CREATE TABLE notification_templates (
+    id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    template_key                    TEXT NOT NULL,
+    channel                         notification_channel NOT NULL,
+    locale                          VARCHAR(10) NOT NULL DEFAULT 'en-US',
+    event_code                      TEXT NOT NULL,
+    document_domain                 TEXT NOT NULL,
+    label                           TEXT NOT NULL,
+    description                     TEXT,
+    subject_template                TEXT,
+    body_template                   TEXT NOT NULL,
+    body_template_html              TEXT,
+    whatsapp_provider_template_name TEXT,
+    whatsapp_param_mapping          JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_active                       BOOLEAN NOT NULL DEFAULT TRUE,
+    is_customized                   BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, template_key, channel, locale)
+);
+
 CREATE TABLE inventory_valuation_audit_log (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,

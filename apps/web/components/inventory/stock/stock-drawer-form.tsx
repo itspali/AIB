@@ -9,7 +9,7 @@ import {
   StockAdjustmentLineEntryTable,
   type StockAdjustmentDraftLine,
 } from "@/components/inventory/stock/stock-adjustment-line-entry-table";
-import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
+import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import {
   DocumentLinePeekItemCell,
   DocumentLinePeekTable,
@@ -408,6 +408,11 @@ export function StockDrawerForm({
             showLoadingPeek ? (
               <p className="py-8 text-sm text-muted-foreground">Loading adjustment…</p>
             ) : detail ? (
+              <DocumentPeekActivityShell
+                entityType="STOCK_ADJUSTMENT"
+                entityId={detail.id}
+                refreshKey={`${detail.id}:${detail.posted_at}`}
+              >
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1">
@@ -473,13 +478,8 @@ export function StockDrawerForm({
                     }}
                   />
                 </div>
-
-                <DocumentActivityTimelinePanel
-                  entityType="STOCK_ADJUSTMENT"
-                  entityId={detail.id}
-                  refreshKey={`${detail.id}:${detail.posted_at}`}
-                />
               </div>
+              </DocumentPeekActivityShell>
             ) : (
               <p className="py-8 text-sm text-muted-foreground">Adjustment not found.</p>
             )

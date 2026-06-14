@@ -10,7 +10,6 @@ import {
 import type { ActivityEntityType, ActivityTimelineEvent } from "@/lib/activity/types";
 import { Button } from "@/components/ui/button";
 import { useDeviceClass } from "@/hooks/use-device-class";
-import { formatDate } from "@/lib/dashboard/format";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +18,10 @@ type Props = {
   entityId: string;
   refreshKey?: number | string;
   className?: string;
+  /** collapsible: inline section with expand/collapse; pane: dedicated peek pane */
+  presentation?: "collapsible" | "pane";
+  /** When false, skip fetching (rail tab not selected). Defaults to true. */
+  active?: boolean;
 };
 
 function formatActivityTimestamp(iso: string): string {
@@ -101,19 +104,74 @@ function ActivityTimelineRow({ event }: { event: ActivityTimelineEvent }) {
   );
 }
 
+function ActivityTimelineBody({
+  loading,
+  loadingMore,
+  error,
+  events,
+  hasMore,
+  onLoadMore,
+}: {
+  loading: boolean;
+  loadingMore: boolean;
+  error: string | null;
+  events: ActivityTimelineEvent[];
+  hasMore: boolean;
+  onLoadMore: () => void;
+}) {
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading activity…</p>;
+  }
+
+  if (error) {
+    return <p className="text-sm text-destructive">{error}</p>;
+  }
+
+  if (events.length === 0) {
+    return <p className="text-sm text-muted-foreground">No activity recorded yet.</p>;
+  }
+
+  return (
+    <>
+      <ol className="relative">
+        {events.map((event) => (
+          <ActivityTimelineRow key={event.id} event={event} />
+        ))}
+      </ol>
+      {hasMore ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mt-2 h-auto px-0 text-xs text-muted-foreground"
+          disabled={loadingMore}
+          onClick={onLoadMore}
+        >
+          {loadingMore ? "Loading…" : "Load older activity"}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 export function DocumentActivityTimelinePanel({
   entityType,
   entityId,
   refreshKey,
   className,
+  presentation = "collapsible",
+  active = true,
 }: Props) {
   const { isMobile } = useDeviceClass();
-  const [expanded, setExpanded] = useState(!isMobile);
+  const isPane = presentation === "pane";
+  const [expanded, setExpanded] = useState(isPane ? true : !isMobile);
   const [events, setEvents] = useState<ActivityTimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+
+  const shouldLoad = active && (isPane || expanded);
 
   const loadTimeline = useCallback(
     async (before?: ActivityTimelineEvent | null, append = false) => {
@@ -146,15 +204,40 @@ export function DocumentActivityTimelinePanel({
   );
 
   useEffect(() => {
-    if (!expanded) return;
+    if (!shouldLoad) return;
     void loadTimeline();
-  }, [entityId, entityType, expanded, loadTimeline, refreshKey]);
+  }, [entityId, entityType, shouldLoad, loadTimeline, refreshKey]);
 
   useEffect(() => {
+    if (isPane) {
+      setExpanded(true);
+      return;
+    }
     setExpanded(!isMobile);
-  }, [isMobile]);
+  }, [isMobile, isPane]);
 
   const oldestEvent = events.at(-1) ?? null;
+
+  if (isPane) {
+    return (
+      <section className={cn("min-h-0", className)} aria-label="Activity timeline">
+        <div className="mb-3 space-y-1">
+          <h3 className="text-sm font-semibold">Activity</h3>
+          <p className="text-xs text-muted-foreground">
+            Who did what on this document, newest first.
+          </p>
+        </div>
+        <ActivityTimelineBody
+          loading={loading}
+          loadingMore={loadingMore}
+          error={error}
+          events={events}
+          hasMore={hasMore}
+          onLoadMore={() => void loadTimeline(oldestEvent, true)}
+        />
+      </section>
+    );
+  }
 
   return (
     <section
@@ -187,33 +270,14 @@ export function DocumentActivityTimelinePanel({
 
       {expanded ? (
         <div className="border-t border-border px-4 py-3">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading activity…</p>
-          ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
-          ) : (
-            <>
-              <ol className="relative">
-                {events.map((event) => (
-                  <ActivityTimelineRow key={event.id} event={event} />
-                ))}
-              </ol>
-              {hasMore ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 h-auto px-0 text-xs text-muted-foreground"
-                  disabled={loadingMore}
-                  onClick={() => void loadTimeline(oldestEvent, true)}
-                >
-                  {loadingMore ? "Loading…" : "Load older activity"}
-                </Button>
-              ) : null}
-            </>
-          )}
+          <ActivityTimelineBody
+            loading={loading}
+            loadingMore={loadingMore}
+            error={error}
+            events={events}
+            hasMore={hasMore}
+            onLoadMore={() => void loadTimeline(oldestEvent, true)}
+          />
         </div>
       ) : null}
     </section>

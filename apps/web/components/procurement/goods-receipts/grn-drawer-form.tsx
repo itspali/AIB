@@ -30,7 +30,7 @@ import {
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
-import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
+import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
@@ -504,6 +504,11 @@ export function GrnDrawerForm({
             const peekLines = detail.lines ?? [];
             const showLineImportTax = peekLines.some(grnLineHasImportTax);
             return (
+          <DocumentPeekActivityShell
+            entityType="GOODS_RECEIPT"
+            entityId={detail.id}
+            refreshKey={`${detail.id}:${detail.created_at}:${postSuccessSummary?.steps.length ?? 0}`}
+          >
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -603,13 +608,8 @@ export function GrnDrawerForm({
                 }}
               />
             </div>
-
-            <DocumentActivityTimelinePanel
-              entityType="GOODS_RECEIPT"
-              entityId={detail.id}
-              refreshKey={`${detail.id}:${detail.created_at}:${postSuccessSummary?.steps.length ?? 0}`}
-            />
           </div>
+          </DocumentPeekActivityShell>
             );
           })()
         ) : isMutating ? (

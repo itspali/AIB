@@ -24,7 +24,7 @@ import {
   DocumentLinePeekTable,
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
-import { DocumentActivityTimelinePanel } from "@/components/activity/document-activity-timeline-panel";
+import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -620,6 +620,11 @@ export function TransferDrawerForm({
         ) : showLoadingPeek ? (
           <p className="text-sm text-muted-foreground">Loading transfer…</p>
         ) : detail ? (
+          <DocumentPeekActivityShell
+            entityType="STOCK_TRANSFER"
+            entityId={detail.id}
+            refreshKey={`${detail.id}:${detail.current_status}:${detail.received_at ?? detail.dispatched_at ?? detail.created_at}`}
+          >
           <div className="space-y-5">
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
@@ -727,15 +732,8 @@ export function TransferDrawerForm({
                 />
               </div>
             ) : null}
-
-            {surface === "peek" ? (
-              <DocumentActivityTimelinePanel
-                entityType="STOCK_TRANSFER"
-                entityId={detail.id}
-                refreshKey={`${detail.id}:${detail.current_status}:${detail.received_at ?? detail.dispatched_at ?? detail.created_at}`}
-              />
-            ) : null}
           </div>
+          </DocumentPeekActivityShell>
         ) : (
           <p className="text-sm text-muted-foreground">Transfer not found.</p>
         )}
