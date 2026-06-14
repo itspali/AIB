@@ -17,6 +17,7 @@ import {
 import { PoDocumentEditorShell } from "@/components/procurement/purchase-orders/po-document-editor-shell";
 import { PoCatalogWritebackDialog } from "@/components/procurement/purchase-orders/po-catalog-writeback-dialog";
 import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
+import { PoPeekViewSkeleton } from "@/components/procurement/purchase-orders/po-peek-view-skeleton";
 import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
 import {
@@ -81,6 +82,7 @@ import {
   type ProcurementApprovalSettings,
 } from "@/lib/procurement/approval-settings";
 import { cn } from "@/lib/utils";
+import { useDelayedVisible } from "@/hooks/use-delayed-visible";
 
 type Props = {
   open: boolean;
@@ -229,10 +231,13 @@ export function PoDrawerForm({
     !resolvedDocumentLocationId &&
     Boolean(resolvedPeekRecordId ?? editOrderId);
 
-  const documentLayout = useLivePoDocumentLayout(documentLayoutProp, {
-    refreshWhen: open && !awaitingDocumentLocation,
-    documentLocationId: resolvedDocumentLocationId,
-  });
+  const { layout: documentLayout, isResolvingLocationLayout } = useLivePoDocumentLayout(
+    documentLayoutProp,
+    {
+      refreshWhen: open && !awaitingDocumentLocation,
+      documentLocationId: resolvedDocumentLocationId,
+    }
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -345,7 +350,7 @@ export function PoDrawerForm({
     return () => {
       cancelled = true;
     };
-  }, [open, resolvedPeekRecordId, surface, peekOrder?.lines?.length]);
+  }, [open, resolvedPeekRecordId, surface, peekOrder?.document_status, peekOrder?.lines?.length]);
 
   useEffect(() => {
     if (!open || surface !== "edit" || !editOrderId) return;
@@ -389,6 +394,12 @@ export function PoDrawerForm({
   const patchForm = useCallback((next: Partial<PoDraftFormState>) => {
     setForm((current) => ({ ...current, ...next }));
     setIsDirty(true);
+  }, []);
+
+  const reloadDetail = useCallback(async (orderId: string) => {
+    const result = await loadPurchaseOrderDetail(orderId);
+    if ("error" in result) return;
+    setDetail(result.purchaseOrder);
   }, []);
 
   const finishSaveFlow = useCallback(
@@ -568,9 +579,10 @@ export function PoDrawerForm({
       toast.success("Purchase order issued");
       setIssuePostingSummary(result.steps ?? []);
       setIsDirty(false);
+      await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [detail?.id, editOrderId, onAfterSave]);
+  }, [detail?.id, editOrderId, onAfterSave, reloadDetail]);
 
   const handleSubmitForApproval = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -589,9 +601,10 @@ export function PoDrawerForm({
       toast.success("Purchase order submitted for approval");
       setIssuePostingSummary(result.steps ?? []);
       setIsDirty(false);
+      await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [detail?.id, editOrderId, onAfterSave]);
+  }, [detail?.id, editOrderId, onAfterSave, reloadDetail]);
 
   const handleApprove = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -610,9 +623,10 @@ export function PoDrawerForm({
       toast.success("Purchase order approved and issued");
       setIssuePostingSummary(result.steps ?? []);
       setIsDirty(false);
+      await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [detail?.id, editOrderId, onAfterSave]);
+  }, [detail?.id, editOrderId, onAfterSave, reloadDetail]);
 
   const handleReject = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -642,9 +656,10 @@ export function PoDrawerForm({
       setRejectNotes("");
       setIssuePostingSummary(result.steps ?? []);
       setIsDirty(false);
+      await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [detail?.id, editOrderId, onAfterSave, rejectNotes]);
+  }, [detail?.id, editOrderId, onAfterSave, rejectNotes, reloadDetail]);
 
   submitRef.current = handleSaveDraft;
 
@@ -834,14 +849,17 @@ export function PoDrawerForm({
       </>
     ) : null;
 
-  if (!open || surface === "closed") return discardDialog;
-
   const detailReadyForPeek = detail?.id === resolvedPeekRecordId;
   const showLoadingPeek =
+    open &&
     surface === "peek" &&
     resolvedPeekRecordId != null &&
-    (detailLoading || !detailReadyForPeek);
-  const showLoadingEdit = surface === "edit" && detailLoading;
+    (detailLoading || !detailReadyForPeek || isResolvingLocationLayout);
+  const showLoadingPeekSkeleton = useDelayedVisible(showLoadingPeek);
+  const showLoadingEdit = open && surface === "edit" && detailLoading;
+
+  if (!open || surface === "closed") return discardDialog;
+
   const assignedVoucherNumber = detail?.voucher_number ?? null;
   const drawerTitle =
     isMutating && assignedVoucherNumber
@@ -867,9 +885,12 @@ export function PoDrawerForm({
   ) : null;
 
   const loadingMessage =
-    showLoadingPeek || showLoadingEdit ? (
+    showLoadingEdit ? (
       <p className="text-sm text-muted-foreground">Loading purchase order…</p>
     ) : null;
+
+  const peekLoadingSkeleton =
+    showLoadingPeek && showLoadingPeekSkeleton ? <PoPeekViewSkeleton /> : null;
 
   const mutatingForm =
     isMutating && !showLoadingPeek && !showLoadingEdit ? (
@@ -908,7 +929,8 @@ export function PoDrawerForm({
       <PoDrawerLayoutBridge onLayout={handleDrawerLayout} />
       {errorBanner}
       {loadingMessage}
-      {readOnly && detail ? (
+      {peekLoadingSkeleton}
+      {readOnly && detail && !showLoadingPeek ? (
         <PoPeekView
           order={detail}
           layout={documentLayout}

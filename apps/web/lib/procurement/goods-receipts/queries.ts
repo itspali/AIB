@@ -54,6 +54,7 @@ type GrnLineDbRow = {
   quantity_received: number | string;
   quantity_accepted: number | string;
   quantity_rejected: number | string;
+  route_to_qc?: boolean | null;
   raw_unit_cost: number | string;
   total_final_landed_cost: number | string;
   import_igst_amount: number | string | null;
@@ -76,6 +77,7 @@ function mapGrnLine(row: GrnLineDbRow): GoodsReceiptLineRow {
     quantity_received: formatDecimal(row.quantity_received),
     quantity_accepted: formatDecimal(row.quantity_accepted),
     quantity_rejected: formatDecimal(row.quantity_rejected),
+    route_to_qc: row.route_to_qc === true,
     raw_unit_cost: formatDecimal(row.raw_unit_cost),
     total_final_landed_cost: formatDecimal(row.total_final_landed_cost),
     import_igst_amount: formatDecimal(row.import_igst_amount),
@@ -185,6 +187,7 @@ export async function fetchGoodsReceiptById(
         quantity_received,
         quantity_accepted,
         quantity_rejected,
+        route_to_qc,
         raw_unit_cost,
         total_final_landed_cost,
         import_igst_amount,
@@ -205,6 +208,15 @@ export async function fetchGoodsReceiptById(
   const mapped = mapGrnListRow(row);
   mapped.lines = (row.grn_lines ?? []).map(mapGrnLine);
 
+  if (mapped.is_qc_pending && mapped.lines.length > 0) {
+    mapped.lines = await hydrateGrnLineQcHoldQuantities(
+      supabase,
+      tenantId,
+      goodsReceiptId,
+      mapped.lines
+    );
+  }
+
   const postingRun = await fetchLatestDocumentPostingRun(supabase, "GRN", goodsReceiptId);
   if (postingRun) {
     mapped.posting_steps = postingRun.steps;
@@ -212,6 +224,38 @@ export async function fetchGoodsReceiptById(
   }
 
   return mapped;
+}
+
+async function hydrateGrnLineQcHoldQuantities(
+  supabase: SupabaseClient,
+  tenantId: string,
+  goodsReceiptId: string,
+  lines: GoodsReceiptLineRow[]
+): Promise<GoodsReceiptLineRow[]> {
+  const { data, error } = await supabase
+    .from("qc_inventory_balances")
+    .select("goods_receipt_item_id, quantity_on_hand")
+    .eq("tenant_id", tenantId)
+    .eq("goods_receipt_id", goodsReceiptId);
+
+  if (error) return lines;
+  if (!data?.length) return lines;
+
+  const holdByLineId = new Map(
+    data.map(
+      (row) =>
+        [
+          row.goods_receipt_item_id as string,
+          formatDecimal(row.quantity_on_hand),
+        ] as const
+    )
+  );
+
+  return lines.map((line) => {
+    const hold = holdByLineId.get(line.id);
+    if (hold == null) return line;
+    return { ...line, quantity_on_qc_hold: hold };
+  });
 }
 
 export async function fetchGoodsReceiptsForPurchaseOrder(
@@ -247,6 +291,7 @@ export async function fetchGoodsReceiptsForPurchaseOrder(
         quantity_received,
         quantity_accepted,
         quantity_rejected,
+        route_to_qc,
         raw_unit_cost,
         total_final_landed_cost,
         import_igst_amount,

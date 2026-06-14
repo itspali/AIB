@@ -5,7 +5,8 @@ import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
 } from "@/lib/procurement/location-scope";
-import { fetchProcurementApprovalSettings, canUserApprovePurchaseOrders } from "@/lib/procurement/approval-settings";
+import { canUserApprovePurchaseOrders } from "@/lib/procurement/approval-settings";
+import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";

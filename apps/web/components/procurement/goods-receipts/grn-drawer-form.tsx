@@ -59,6 +59,7 @@ import {
   type QcPolicyContext,
   type VariantQcPolicyHint,
 } from "@/lib/procurement/qc-receipt-policy";
+import { grnLineQcHoldQuantity } from "@/lib/procurement/goods-receipts/grn-qc-release";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ type Props = {
   >;
   onClose: () => void;
   onAfterSave: (goodsReceiptId: string) => void;
+  onReceiptUpdated?: () => void;
 };
 
 function defaultCreateForm(
@@ -152,6 +154,7 @@ export function GrnDrawerForm({
   procurementSettings,
   onClose,
   onAfterSave,
+  onReceiptUpdated,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
@@ -239,31 +242,39 @@ export function GrnDrawerForm({
 
   useEffect(() => {
     if (!open) return;
-    setForm(defaultCreateForm(locations, prefillPurchaseOrderId, receivableOrders));
     setError(null);
     setErrorAction(null);
     setIsDirty(false);
-    setDetail(peekReceipt);
     setPostSuccessSummary(null);
-  }, [open, surface, peekReceipt?.id, locations, prefillSignature, prefillPurchaseOrderId, receivableOrders]);
 
-  const reloadDetail = useCallback(() => {
-    if (!detail?.id) return;
-    void loadGoodsReceiptDetail(detail.id).then((result) => {
-      if ("error" in result) {
-        setError(result.error);
-        return;
-      }
-      setDetail(result.goodsReceipt);
-    });
-  }, [detail?.id]);
+    if (surface === "create") {
+      setForm(defaultCreateForm(locations, prefillPurchaseOrderId, receivableOrders));
+      setDetail(null);
+    }
+  }, [open, surface, locations, prefillSignature, prefillPurchaseOrderId, receivableOrders]);
+
+  const reloadDetail = useCallback(async (goodsReceiptId?: string) => {
+    const id = goodsReceiptId ?? detail?.id ?? peekReceipt?.id;
+    if (!id) return;
+
+    setDetailLoading(true);
+    const result = await loadGoodsReceiptDetail(id);
+    setDetailLoading(false);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setDetail(result.goodsReceipt);
+  }, [detail?.id, peekReceipt?.id]);
+
+  const handleQcReleased = useCallback(async () => {
+    const id = detail?.id ?? peekReceipt?.id;
+    await reloadDetail(id);
+    onReceiptUpdated?.();
+  }, [detail?.id, onReceiptUpdated, peekReceipt?.id, reloadDetail]);
 
   useEffect(() => {
     if (!open || surface !== "peek" || !peekReceipt?.id) return;
-    if (peekReceipt.lines?.length) {
-      setDetail(peekReceipt);
-      return;
-    }
 
     let cancelled = false;
     setDetailLoading(true);
@@ -280,7 +291,7 @@ export function GrnDrawerForm({
     return () => {
       cancelled = true;
     };
-  }, [open, surface, peekReceipt]);
+  }, [open, surface, peekReceipt?.id]);
 
   const patchForm = useCallback((next: Partial<CreateFormState>) => {
     setForm((current) => ({ ...current, ...next }));
@@ -494,13 +505,19 @@ export function GrnDrawerForm({
               goodsReceiptId={detail.id}
               isQcPending={detail.is_qc_pending}
               qcLines={detail.lines ?? []}
-              onReleased={reloadDetail}
+              onReleased={handleQcReleased}
             />
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Lines
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {detail.is_qc_pending ? "Receipt summary" : "Lines"}
               </p>
+              {detail.is_qc_pending ? (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Quantities and costs recorded at receipt. Use quality inspection above to post
+                  stock or record rejects.
+                </p>
+              ) : null}
               <DocumentLinePeekTable
                 lines={peekLines}
                 getRowKey={(line) => line.id}
@@ -510,7 +527,9 @@ export function GrnDrawerForm({
                   { id: "quantity_rejected", label: "Exceptions", align: "right", widthClass: "w-[5rem]" },
                   {
                     id: "quantity_accepted",
-                    label: grnStockColumnLabel(qcContext.qcModuleEnabled),
+                    label: detail.is_qc_pending
+                      ? "On hold"
+                      : grnStockColumnLabel(qcContext.qcModuleEnabled),
                     align: "right",
                     widthClass: "w-[5.5rem]",
                   },
@@ -545,7 +564,10 @@ export function GrnDrawerForm({
                     return <DocumentLinePeekValueCell value={line.quantity_received} />;
                   }
                   if (column.id === "quantity_accepted") {
-                    return <DocumentLinePeekValueCell value={line.quantity_accepted} />;
+                    const holdValue = detail.is_qc_pending
+                      ? String(grnLineQcHoldQuantity(line))
+                      : line.quantity_accepted;
+                    return <DocumentLinePeekValueCell value={holdValue} />;
                   }
                   if (column.id === "quantity_rejected") {
                     return <DocumentLinePeekValueCell value={line.quantity_rejected} />;

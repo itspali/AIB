@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { loadEffectivePoDocumentLayout } from "@/app/procurement/purchase-orders/actions";
 import {
+  getCachedPoDocumentLayout,
+  needsLocationLayoutFetch,
+  resolveLayoutForDocumentLocation,
+  setCachedPoDocumentLayout,
+} from "@/lib/documents/po-document-layout-cache";
+import {
   DEFAULT_PO_SCREEN_LAYOUT,
   normalizePoLayoutTemplate,
 } from "@/lib/documents/purchase-order-layout";
@@ -10,11 +16,10 @@ import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 
 type LayoutFetchResult = { layout: DocumentLayoutTemplate } | { error: string };
 
-const layoutResultCache = new Map<string, DocumentLayoutTemplate>();
 const layoutFetchInflight = new Map<string, Promise<LayoutFetchResult>>();
 
 function fetchPoDocumentLayout(documentLocationId: string): Promise<LayoutFetchResult> {
-  const cached = layoutResultCache.get(documentLocationId);
+  const cached = getCachedPoDocumentLayout(documentLocationId);
   if (cached) {
     return Promise.resolve({ layout: cached });
   }
@@ -24,10 +29,7 @@ function fetchPoDocumentLayout(documentLocationId: string): Promise<LayoutFetchR
     pending = loadEffectivePoDocumentLayout(documentLocationId)
       .then((result) => {
         if (!("error" in result)) {
-          layoutResultCache.set(
-            documentLocationId,
-            normalizePoLayoutTemplate(result.layout)
-          );
+          setCachedPoDocumentLayout(documentLocationId, result.layout);
         }
         return result;
       })
@@ -47,6 +49,17 @@ type Options = {
   documentLocationId?: string | null;
 };
 
+export type LivePoDocumentLayoutState = {
+  layout: DocumentLayoutTemplate;
+  /** True while a location-specific layout override is being fetched (not yet cached). */
+  isResolvingLocationLayout: boolean;
+};
+
+export {
+  needsLocationLayoutFetch,
+  resolveLayoutForDocumentLocation,
+} from "@/lib/documents/po-document-layout-cache";
+
 /**
  * Keeps PO document layout in sync with saved settings without a full page reload.
  * SSR `initialLayout` is the tenant default; opening the drawer refetches only when a
@@ -55,30 +68,52 @@ type Options = {
 export function useLivePoDocumentLayout(
   initialLayout: DocumentLayoutTemplate = DEFAULT_PO_SCREEN_LAYOUT,
   options?: Options
-): DocumentLayoutTemplate {
-  const [layout, setLayout] = useState(() => normalizePoLayoutTemplate(initialLayout));
+): LivePoDocumentLayoutState {
   const refreshWhen = options?.refreshWhen ?? false;
   const documentLocationId = options?.documentLocationId?.trim() || null;
   const fetchedLocationRef = useRef<string | null>(null);
 
+  const [layout, setLayout] = useState(() =>
+    resolveLayoutForDocumentLocation(initialLayout, documentLocationId)
+  );
+  const [isResolvingLocationLayout, setIsResolvingLocationLayout] = useState(() =>
+    needsLocationLayoutFetch(refreshWhen, documentLocationId)
+  );
+
   useEffect(() => {
-    setLayout(normalizePoLayoutTemplate(initialLayout));
-  }, [initialLayout]);
+    setLayout(resolveLayoutForDocumentLocation(initialLayout, documentLocationId));
+  }, [documentLocationId, initialLayout]);
 
   useEffect(() => {
     if (!refreshWhen) {
       fetchedLocationRef.current = null;
+      setIsResolvingLocationLayout(false);
       return;
     }
 
-    if (!documentLocationId) return;
+    if (!documentLocationId) {
+      fetchedLocationRef.current = null;
+      setIsResolvingLocationLayout(false);
+      return;
+    }
+
+    const cached = getCachedPoDocumentLayout(documentLocationId);
+    if (cached) {
+      fetchedLocationRef.current = documentLocationId;
+      setLayout(normalizePoLayoutTemplate(cached));
+      setIsResolvingLocationLayout(false);
+      return;
+    }
 
     if (fetchedLocationRef.current === documentLocationId) return;
     fetchedLocationRef.current = documentLocationId;
+    setIsResolvingLocationLayout(true);
 
     let cancelled = false;
     void fetchPoDocumentLayout(documentLocationId).then((result) => {
-      if (cancelled || "error" in result) return;
+      if (cancelled) return;
+      setIsResolvingLocationLayout(false);
+      if ("error" in result) return;
       setLayout(normalizePoLayoutTemplate(result.layout));
     });
 
@@ -87,5 +122,5 @@ export function useLivePoDocumentLayout(
     };
   }, [documentLocationId, refreshWhen]);
 
-  return layout;
+  return { layout, isResolvingLocationLayout };
 }

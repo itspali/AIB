@@ -574,6 +574,7 @@ export function PoPeekView({
           purchaseOrderId={order.id}
           allowWriteOff
           variant="full"
+          hideUntilLoaded
         />
       ) : null}
 

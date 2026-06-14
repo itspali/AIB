@@ -37,6 +37,8 @@ type Props = {
   className?: string;
   /** Compact banner-only mode for GRN create form. */
   variant?: "banner" | "full";
+  /** Peek surfaces: wait for load before mounting so empty POs do not shift layout. */
+  hideUntilLoaded?: boolean;
 };
 
 function formatQtyDisplay(value: string): string {
@@ -50,6 +52,7 @@ export function PoPromoEntitlementsPanel({
   allowWriteOff = false,
   className,
   variant = "full",
+  hideUntilLoaded = false,
 }: Props) {
   const [entitlements, setEntitlements] = useState<PoPromoEntitlementRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,6 +111,10 @@ export function PoPromoEntitlementsPanel({
   };
 
   if (!purchaseOrderId || !showPanel) return null;
+
+  if (hideUntilLoaded && loading && entitlements.length === 0 && !loadError) {
+    return null;
+  }
 
   if (variant === "banner" && !showOpenBanner && !loading) {
     return null;

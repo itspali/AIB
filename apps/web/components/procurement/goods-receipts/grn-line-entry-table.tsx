@@ -29,8 +29,9 @@ import {
   type QcPolicyContext,
   type VariantQcPolicyHint,
 } from "@/lib/procurement/qc-receipt-policy";
+import { resolveGrnLineQcRouteUi } from "@/lib/procurement/goods-receipts/grn-line-qc-route";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -40,8 +41,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-export const GRN_REJECT_DISPOSITIONS = ["RTV", "SCRAP", "DAMAGE", "SHRINK"] as const;
-export type GrnRejectDisposition = (typeof GRN_REJECT_DISPOSITIONS)[number];
+export {
+  GRN_REJECT_DISPOSITIONS,
+  grnRejectDispositionLabel,
+  type GrnRejectDisposition,
+} from "@/lib/procurement/goods-receipts/grn-reject-dispositions";
 
 export type GrnDraftLine = {
   key: string;
@@ -283,7 +287,9 @@ export function GrnLineEntryTable({
       <p className="-mt-1 text-xs text-muted-foreground">
         Enter received quantity and any dock exceptions. {stockLabel} is calculated automatically.
         {qcContext.qcModuleEnabled
-          ? " Use the QC row under each item to route accepted stock into the inspection hold pool."
+          ? qcContext.allowLineOverride
+            ? " Use the QC row under each item to override catalog or organization routing."
+            : " QC routing follows item, category, and organization policy — no per-line toggle when overrides are disabled."
           : null}
       </p>
       <DocumentLineEntryGrid
@@ -408,7 +414,7 @@ export function GrnLineEntryTable({
                     <SelectContent>
                       {GRN_REJECT_DISPOSITIONS.map((d) => (
                         <SelectItem key={d} value={d}>
-                          {d}
+                          {grnRejectDispositionLabel(d)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -467,33 +473,34 @@ function GrnLineQcSubRow({
   policyHint: VariantQcPolicyHint | null;
   onRouteChange: (routeToQc: boolean) => void;
 }) {
-  const defaultRoute = policyHint
-    ? resolveDefaultRouteToQc(qcContext, policyHint)
-    : qcContext.orgDefaultRouteToQc;
-  const canEdit = qcContext.allowLineOverride && !disabled && Number(line.quantity_accepted) > 0;
-  const checked = line.route_to_qc;
+  const hasAcceptedQty = Number(line.quantity_accepted) > 0;
+  const ui = resolveGrnLineQcRouteUi(qcContext, policyHint, line.route_to_qc);
+  const canToggle = ui.canOverride && !disabled && hasAcceptedQty;
 
   return (
     <div className="mt-2 rounded-md border border-border/80 bg-muted/20 px-2 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor={`grn-qc-${line.key}`} className="text-[11px] font-normal text-muted-foreground">
-          Route to QC hold
-        </Label>
-        <Switch
-          id={`grn-qc-${line.key}`}
-          checked={checked}
-          disabled={!canEdit}
-          onCheckedChange={onRouteChange}
-        />
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1">
+          <p className="text-[11px] font-medium text-foreground">{ui.title}</p>
+          <p className="text-[10px] leading-snug text-muted-foreground">{ui.description}</p>
+        </div>
+        {ui.canOverride ? (
+          <Switch
+            id={`grn-qc-${line.key}`}
+            checked={ui.effectiveRoute}
+            disabled={!canToggle}
+            aria-label={`Route to QC hold for ${line.variant_sku || "line"}`}
+            onCheckedChange={onRouteChange}
+          />
+        ) : (
+          <Badge variant={ui.badgeVariant} className="shrink-0 text-[10px] font-normal">
+            {ui.badgeLabel}
+          </Badge>
+        )}
       </div>
-      {!qcContext.allowLineOverride ? (
+      {!hasAcceptedQty ? (
         <p className="mt-1 text-[10px] text-muted-foreground">
-          Per-line overrides are disabled in procurement settings.
-        </p>
-      ) : null}
-      {policyHint ? (
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          Catalog default: {defaultRoute ? "QC hold" : "direct to stock"}
+          Enter a received quantity to apply routing.
         </p>
       ) : null}
     </div>

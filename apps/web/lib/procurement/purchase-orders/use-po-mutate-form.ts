@@ -201,6 +201,15 @@ export function usePoMutateForm({
     setIsDirty(true);
   }, []);
 
+  const reloadDetail = useCallback(async (orderId: string) => {
+    const result = await loadPurchaseOrderDetail(orderId);
+    if ("error" in result) return;
+    setDetail(result.purchaseOrder);
+    setForm(
+      applySavedPoTaxToDraftForm(mapPurchaseOrderToDraft(result.purchaseOrder), taxCodeOptions)
+    );
+  }, [taxCodeOptions]);
+
   const handleLinesChange = useCallback(
     (
       linesOrUpdater:
@@ -297,9 +306,10 @@ export function usePoMutateForm({
 
       toast.success("Purchase order issued");
       setIsDirty(false);
+      await reloadDetail(orderId);
       onAfterSave(result.purchaseOrderId);
     });
-  }, [detail?.id, editOrderId, onAfterSave]);
+  }, [detail?.id, editOrderId, onAfterSave, reloadDetail]);
 
   submitRef.current = handleSaveDraft;
 

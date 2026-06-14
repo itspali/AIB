@@ -188,6 +188,7 @@ export function GrnManagementTerminal({
         procurementSettings={procurementSettings}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
+        onReceiptUpdated={refreshList}
       />
     </>
   );

@@ -4,7 +4,7 @@ import { fetchDocumentLayoutTemplate } from "@/lib/documents/document-layout-que
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchLocationRows } from "@/lib/locations/queries";
 import { fetchPoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
-import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
+import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
 import {
   fetchExpenseAccountOptions,
   fetchFinancialProcurementSettings,
