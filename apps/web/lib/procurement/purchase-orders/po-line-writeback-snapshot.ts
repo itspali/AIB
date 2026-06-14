@@ -8,6 +8,9 @@ export type PoLineWritebackSnapshot = {
   catalog_purchase_price: string | null;
   catalog_supplier_price: string | null;
   catalog_purchase_uom: string | null;
+  catalog_hsn_sac_code: string | null;
+  catalog_tax_code_id: string | null;
+  catalog_tax_rate: string | null;
 };
 
 export function emptyWritebackSnapshot(): PoLineWritebackSnapshot {
@@ -16,6 +19,9 @@ export function emptyWritebackSnapshot(): PoLineWritebackSnapshot {
     catalog_purchase_price: null,
     catalog_supplier_price: null,
     catalog_purchase_uom: null,
+    catalog_hsn_sac_code: null,
+    catalog_tax_code_id: null,
+    catalog_tax_rate: null,
   };
 }
 
@@ -23,11 +29,16 @@ export function writebackSnapshotFromCatalogContext(
   context: PoLineCatalogContext
 ): PoLineWritebackSnapshot {
   const baseUom = context.base_unit_of_measure?.trim() || null;
+  const taxRate =
+    context.tax_rate != null && Number.isFinite(context.tax_rate) ? String(context.tax_rate) : null;
   return {
     catalog_mrp: context.mrp?.trim() || null,
     catalog_purchase_price: context.purchase_price?.trim() || null,
     catalog_supplier_price: null,
     catalog_purchase_uom: resolveDefaultPoLineUomCode(context) || baseUom,
+    catalog_hsn_sac_code: context.hsn_sac_code?.trim() || null,
+    catalog_tax_code_id: context.tax_code_id?.trim() || null,
+    catalog_tax_rate: taxRate,
   };
 }
 

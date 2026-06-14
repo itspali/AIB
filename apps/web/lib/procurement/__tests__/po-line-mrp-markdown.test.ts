@@ -45,6 +45,8 @@ function sampleLine(partial: Partial<PoDraftLine> = {}): PoDraftLine {
       tax_code_id: null,
       tax_rate: 0,
       tax_is_variable: false,
+      price_is_tax_inclusive: false,
+      tax_components: [],
       default_purchase_uom: null,
       alternate_uoms: [],
       custom_fields: {},
@@ -203,6 +205,17 @@ describe("po-line-mrp-markdown", () => {
     expect(syncPoLineMrpMarkdownFromOfferPrice(sampleLine({ unit_price_contractual: "0" }))).toEqual({
       mrp_markdown_percentage: "100.00",
     });
+  });
+
+  it("normalizes MRP markdown when PO is tax exclusive and MRP is tax inclusive", () => {
+    const context = {
+      pricesTaxInclusive: false,
+      taxRate: 18,
+      mrpPriceIsTaxInclusive: true,
+    };
+    expect(computeImpliedMrpMarkdownPct(1255, 1100, context)).toBe("-3.43");
+    expect(computeImpliedMrpMarkdownPct(118, 90, context)).toBe("10.00");
+    expect(computeOfferUnitFromMrpMarkdown(118, 10, 2, context)).toBe("90.00");
   });
 
   it("shows catalog MRP in the PO reference field until overridden", () => {

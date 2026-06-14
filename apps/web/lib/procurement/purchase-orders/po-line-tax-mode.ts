@@ -5,6 +5,11 @@ export const PO_PRICES_TAX_MODE_LABEL: Record<PoPricesTaxMode, string> = {
   inclusive: "Tax inclusive",
 };
 
+export const PO_PRICES_TAX_MODE_SHORT_LABEL: Record<PoPricesTaxMode, string> = {
+  exclusive: "Ex. tax",
+  inclusive: "Inc. tax",
+};
+
 export function poPricesTaxInclusiveToMode(inclusive: boolean): PoPricesTaxMode {
   return inclusive ? "inclusive" : "exclusive";
 }
@@ -61,4 +66,32 @@ export function resolvePoLineTotalPrimaryAmount(
   showExTaxSubline: boolean
 ): number {
   return showExTaxSubline ? resolved.lineTotal : resolved.taxableBase;
+}
+
+/** Reconstruct saved line tax amounts for display (`line_total_gross` is always ex-tax base). */
+export function resolveSavedPoLineTaxDisplay(line: {
+  line_total_gross: string;
+  line_tax_amount: string;
+  tax_rate_percentage?: string;
+  variant_id?: string;
+  catalog_context?: { tax_is_variable?: boolean } | null;
+}): {
+  taxableBase: number;
+  taxAmount: number;
+  lineTotal: number;
+  taxRate: number;
+  showExTaxSubline: boolean;
+  primaryAmount: number;
+} {
+  const taxableBase = Number(line.line_total_gross) || 0;
+  const taxAmount = Number(line.line_tax_amount) || 0;
+  const taxRate = Number(line.tax_rate_percentage) || 0;
+  const lineTotal = taxableBase + taxAmount;
+  const resolved = { taxableBase, taxAmount, lineTotal, taxRate };
+  const showExTaxSubline = shouldShowPoLineTotalExTaxSubline(line, resolved);
+  return {
+    ...resolved,
+    showExTaxSubline,
+    primaryAmount: resolvePoLineTotalPrimaryAmount(resolved, showExTaxSubline),
+  };
 }

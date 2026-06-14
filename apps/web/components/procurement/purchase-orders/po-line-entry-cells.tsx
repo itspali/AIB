@@ -76,7 +76,6 @@ import {
   resolvePoLineDiscountInputValue,
   resolvePoLineDiscountType,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
-import { PoLineMrpMarkdownSlot } from "@/components/procurement/purchase-orders/po-line-mrp-markdown-slot";
 import { PoLinePromoSlot } from "@/components/procurement/purchase-orders/po-line-promo-slot";
 import {
   patchPoLineMrpReference,
@@ -85,16 +84,18 @@ import {
 } from "@/components/procurement/purchase-orders/po-line-mrp-reference-slot";
 import { isPromotionalPoLine } from "@/lib/procurement/purchase-orders/po-promo";
 import {
+  PO_HSN_CATALOG_FIELD_ID,
+} from "@/lib/procurement/purchase-orders/po-gst-compliance";
+import { PoLineHsnSacSlot } from "@/components/procurement/purchase-orders/po-line-hsn-slot";
+import {
   formatPoLineMrpReference,
   hasPoLineMrpOverride,
   resolvePoLineMrpFromCatalog,
-  patchPoLineMrpMarkdownPercentage,
-  patchPoLineMrpMarkdownPercentageDraft,
   patchPoLineOfferUnitPrice,
   patchPoLineOfferUnitPriceDraft,
-  shouldShowPoMrpTradeTermsStack,
   syncPoLineMrpMarkdownFromOfferPrice,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { resolvePoLinePickerOfferUnitPrice } from "@/lib/procurement/purchase-orders/supplier-price";
 
 export const PO_LINE_COMPACT_INPUT_CLASS = DOCUMENT_LINE_COMPACT_INPUT_CLASS;
 export const PO_LINE_ITEM_CELL_INPUT_CLASS = DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS;
@@ -111,8 +112,7 @@ type LineCellContext = {
   pricesTaxInclusive?: boolean;
   taxSupplyNature?: PoTaxSupplyNature;
   taxMechanism?: GstTaxMechanism;
-  /** MRP rendered as its own table column — suppress duplicate reference under offer price. */
-  mrpColumnVisible?: boolean;
+  gstRegistered?: boolean;
   itemRefs: React.MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>;
   qtyRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
   priceRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
@@ -139,12 +139,80 @@ function visibleNestedColumns(
   columns: DocumentColumnPref[],
   line: PoDraftLine,
   pricesTaxInclusive = false,
-  taxSupplyNature: PoTaxSupplyNature = "INTERSTATE"
+  taxSupplyNature: PoTaxSupplyNature = "INTERSTATE",
+  gstRegistered = false
 ): DocumentColumnPref[] {
-  return columns.filter((column) => {
+  const filtered = columns.filter((column) => {
+    if (gstRegistered && column.id === PO_HSN_CATALOG_FIELD_ID && line.variant_id) {
+      return true;
+    }
     const value = resolveNestedFieldDisplay(column, line, pricesTaxInclusive, taxSupplyNature);
     return value != null && value !== "";
   });
+
+  if (
+    gstRegistered &&
+    line.variant_id &&
+    !filtered.some((column) => column.id === PO_HSN_CATALOG_FIELD_ID)
+  ) {
+    const hsnColumn = columns.find((column) => column.id === PO_HSN_CATALOG_FIELD_ID);
+    if (hsnColumn) filtered.push(hsnColumn);
+  }
+
+  return filtered;
+}
+
+function renderNestedFieldContent({
+  column,
+  line,
+  pricesTaxInclusive,
+  taxSupplyNature,
+  gstRegistered,
+  disabled,
+  patchLine,
+}: {
+  column: DocumentColumnPref;
+  line: PoDraftLine;
+  pricesTaxInclusive: boolean;
+  taxSupplyNature: PoTaxSupplyNature;
+  gstRegistered: boolean;
+  disabled?: boolean;
+  patchLine?: (key: string, patch: Partial<PoDraftLine>) => void;
+}) {
+  if (gstRegistered && column.id === PO_HSN_CATALOG_FIELD_ID && patchLine) {
+    return (
+      <PoLineHsnSacSlot
+        line={line}
+        column={column}
+        disabled={disabled}
+        onPatch={(patch) => patchLine(line.key, patch)}
+      />
+    );
+  }
+
+  const displayValue = resolveNestedFieldDisplay(
+    column,
+    line,
+    pricesTaxInclusive,
+    taxSupplyNature
+  );
+  if (!displayValue) return null;
+
+  return (
+    <>
+      {column.showLabel !== false ? (
+        <span className="shrink-0">{column.label}:</span>
+      ) : null}
+      <span
+        className={cn(
+          "min-w-0 break-words text-foreground",
+          column.id === "sku" && "font-mono"
+        )}
+      >
+        {displayValue}
+      </span>
+    </>
+  );
 }
 
 function resolveLineImageUrl(line: PoDraftLine): string | null {
@@ -160,11 +228,17 @@ export function PoLineNestedUnderItemFields({
   nestedColumns,
   pricesTaxInclusive = false,
   taxSupplyNature = "INTERSTATE",
+  gstRegistered = false,
+  disabled = false,
+  patchLine,
 }: {
   line: PoDraftLine;
   nestedColumns: DocumentColumnPref[];
   pricesTaxInclusive?: boolean;
   taxSupplyNature?: PoTaxSupplyNature;
+  gstRegistered?: boolean;
+  disabled?: boolean;
+  patchLine?: (key: string, patch: Partial<PoDraftLine>) => void;
 }) {
   if (!line.variant_id || nestedColumns.length === 0) return null;
 
@@ -172,7 +246,8 @@ export function PoLineNestedUnderItemFields({
     nestedColumns,
     line,
     pricesTaxInclusive,
-    taxSupplyNature
+    taxSupplyNature,
+    gstRegistered
   );
   const detailRows = groupItemDetailRows(columnsToRender);
   const showSku =
@@ -196,13 +271,16 @@ export function PoLineNestedUnderItemFields({
             className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0 text-xs leading-snug"
           >
             {rowColumns.map((column, columnIndex) => {
-              const displayValue = resolveNestedFieldDisplay(
+              const content = renderNestedFieldContent({
                 column,
                 line,
                 pricesTaxInclusive,
-                taxSupplyNature
-              );
-              if (!displayValue) return null;
+                taxSupplyNature,
+                gstRegistered,
+                disabled,
+                patchLine,
+              });
+              if (!content) return null;
               return (
                 <span
                   key={column.id}
@@ -216,17 +294,7 @@ export function PoLineNestedUnderItemFields({
                       ·
                     </span>
                   ) : null}
-                  {column.showLabel !== false ? (
-                    <span className="shrink-0">{column.label}:</span>
-                  ) : null}
-                  <span
-                    className={cn(
-                      "min-w-0 break-words text-foreground",
-                      column.id === "sku" && "font-mono"
-                    )}
-                  >
-                    {displayValue}
-                  </span>
+                  {content}
                 </span>
               );
             })}
@@ -234,13 +302,16 @@ export function PoLineNestedUnderItemFields({
         ) : (
           (() => {
             const column = rowColumns[0]!;
-            const displayValue = resolveNestedFieldDisplay(
+            const content = renderNestedFieldContent({
               column,
               line,
               pricesTaxInclusive,
-              taxSupplyNature
-            );
-            if (!displayValue) return null;
+              taxSupplyNature,
+              gstRegistered,
+              disabled,
+              patchLine,
+            });
+            if (!content) return null;
             return (
               <div
                 key={column.id}
@@ -249,17 +320,7 @@ export function PoLineNestedUnderItemFields({
                   "flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
                 )}
               >
-                {column.showLabel !== false ? (
-                  <span className="shrink-0">{column.label}:</span>
-                ) : null}
-                <span
-                  className={cn(
-                    "min-w-0 break-words text-foreground",
-                    column.id === "sku" && "font-mono"
-                  )}
-                >
-                  {displayValue}
-                </span>
+                {content}
               </div>
             );
           })()
@@ -293,20 +354,27 @@ export function PoLineItemCell({
 
   const pricesTaxInclusive = ctx.pricesTaxInclusive ?? false;
   const taxSupplyNature = ctx.taxSupplyNature ?? "INTERSTATE";
+  const gstRegistered = ctx.gstRegistered ?? false;
 
   const skuLineFieldVisible = isSkuLineFieldVisible(nestedColumns);
   const showSkuFallback =
     Boolean(line.variant_sku) &&
     !skuLineFieldVisible &&
-    !visibleNestedColumns(nestedColumns, line, pricesTaxInclusive, taxSupplyNature).some((column) =>
-      isCatalogFieldId(column.id)
+    !visibleNestedColumns(nestedColumns, line, pricesTaxInclusive, taxSupplyNature, gstRegistered).some(
+      (column) => isCatalogFieldId(column.id)
     );
 
   const hideFieldSecondary =
     nestedColumns.length > 0 &&
     Boolean(line.variant_id) &&
     (skuLineFieldVisible ||
-      visibleNestedColumns(nestedColumns, line, pricesTaxInclusive, taxSupplyNature).length > 0 ||
+      visibleNestedColumns(
+        nestedColumns,
+        line,
+        pricesTaxInclusive,
+        taxSupplyNature,
+        gstRegistered
+      ).length > 0 ||
       showSkuFallback);
 
   const showInlineImage = shouldShowPoLineInlineImage(imageDisplayMode);
@@ -350,12 +418,16 @@ export function PoLineItemCell({
             excludePurchaseOrderId={excludePurchaseOrderId}
             disabled={disabled}
             onApplyCatalogPrice={(lineKey, price) => {
-              const sync = syncPoLineMrpMarkdownFromOfferPrice({
-                ...line,
-                unit_price_contractual: price,
-              });
+              const normalizedPrice = resolvePoLinePickerOfferUnitPrice(price);
+              const sync = syncPoLineMrpMarkdownFromOfferPrice(
+                {
+                  ...line,
+                  unit_price_contractual: normalizedPrice,
+                },
+                pricesTaxInclusive
+              );
               patchLine(lineKey, {
-                unit_price_contractual: price,
+                unit_price_contractual: normalizedPrice,
                 ...(sync ?? {}),
               });
             }}
@@ -367,6 +439,9 @@ export function PoLineItemCell({
         nestedColumns={nestedColumns}
         pricesTaxInclusive={pricesTaxInclusive}
         taxSupplyNature={taxSupplyNature}
+        gstRegistered={gstRegistered}
+        disabled={disabled}
+        patchLine={patchLine}
       />
     </div>
   );
@@ -490,22 +565,9 @@ export function PoLinePriceCell({
     priceRefs,
     patchLine,
     advanceFromLine,
-    enableMrpTradeTerms = true,
-    mrpColumnVisible = false,
     pricesTaxInclusive = false,
   } = ctx;
   const isPromoLine = isPromotionalPoLine(line) && Boolean(line.variant_id);
-  const mrpDisplayMode = mrpColumnVisible ? "hidden" : "editable";
-  const showMrpStack =
-    !isPromoLine &&
-    (shouldShowPoMrpTradeTermsStack(line, enableMrpTradeTerms) ||
-      (enableMrpTradeTerms && mrpDisplayMode === "editable" && Boolean(line.variant_id)));
-
-  const patchMrpReferenceDraft = (value: string) =>
-    patchLine(line.key, patchPoLineMrpReferenceDraft(line, value));
-
-  const patchMrpReference = (value: string) =>
-    patchLine(line.key, patchPoLineMrpReference(line, value, column));
 
   const promoSubline = isPromoLine ? (
     <PoLinePromoSlot
@@ -518,24 +580,7 @@ export function PoLinePriceCell({
     />
   ) : null;
 
-  const mrpSubline = showMrpStack ? (
-    <PoLineMrpMarkdownSlot
-      line={line}
-      column={column}
-      disabled={disabled}
-      mrpDisplayMode={mrpDisplayMode}
-      onMrpReferenceChange={patchMrpReferenceDraft}
-      onMrpReferenceBlur={patchMrpReference}
-      onMarkdownChange={(markdownPct) =>
-        patchLine(line.key, patchPoLineMrpMarkdownPercentageDraft(line, markdownPct, column))
-      }
-      onMarkdownBlur={(markdownPct) =>
-        patchLine(line.key, patchPoLineMrpMarkdownPercentage(line, markdownPct, column))
-      }
-    />
-  ) : null;
-
-  const sublineSlot = promoSubline ?? mrpSubline;
+  const sublineSlot = promoSubline;
   const showSublineStack = Boolean(sublineSlot);
 
   const priceInput = (
@@ -550,13 +595,14 @@ export function PoLinePriceCell({
       inputMode="decimal"
       aria-label={resolvePoUnitPriceAriaLabel(pricesTaxInclusive)}
       onChange={(event) =>
-        patchLine(line.key, patchPoLineOfferUnitPriceDraft(line, event.target.value))
+        patchLine(line.key, patchPoLineOfferUnitPriceDraft(line, event.target.value, pricesTaxInclusive))
       }
       onBlur={() => {
         const normalized = patchPoLineOfferUnitPrice(
           line,
           line.unit_price_contractual,
-          column
+          column,
+          pricesTaxInclusive
         );
         if (
           normalized.unit_price_contractual !== line.unit_price_contractual ||
@@ -598,7 +644,7 @@ export function PoLineMrpCell({
   ctx: LineCellContext;
   column: DocumentColumnPref;
 }) {
-  const { line, disabled, patchLine, enableMrpTradeTerms = true } = ctx;
+  const { line, disabled, patchLine, enableMrpTradeTerms = true, pricesTaxInclusive = false } = ctx;
 
   if (!line.variant_id || !enableMrpTradeTerms) {
     return (
@@ -626,8 +672,12 @@ export function PoLineMrpCell({
         column={column}
         layout="column"
         disabled={disabled}
-        onChange={(value) => patchLine(line.key, patchPoLineMrpReferenceDraft(line, value))}
-        onBlur={(value) => patchLine(line.key, patchPoLineMrpReference(line, value, column))}
+        onChange={(value) =>
+          patchLine(line.key, patchPoLineMrpReferenceDraft(line, value, pricesTaxInclusive))
+        }
+        onBlur={(value) =>
+          patchLine(line.key, patchPoLineMrpReference(line, value, column, pricesTaxInclusive))
+        }
       />
     </div>
   );
@@ -1121,7 +1171,7 @@ export function renderPoLineColumnCell(
     return <PoLinePriceCell ctx={ctx} column={column} />;
   }
   if (columnId === "mrp") {
-    return <PoLineMrpCell ctx={ctx} column={layoutColumn} />;
+    return <PoLineMrpCell ctx={ctx} column={column} />;
   }
   if (columnId === "discount_pct") {
     return (

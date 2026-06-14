@@ -1,12 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadEffectivePoDocumentLayout } from "@/app/procurement/purchase-orders/actions";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
   normalizePoLayoutTemplate,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+
+type LayoutFetchResult = { layout: DocumentLayoutTemplate } | { error: string };
+
+const layoutResultCache = new Map<string, DocumentLayoutTemplate>();
+const layoutFetchInflight = new Map<string, Promise<LayoutFetchResult>>();
+
+function fetchPoDocumentLayout(documentLocationId: string): Promise<LayoutFetchResult> {
+  const cached = layoutResultCache.get(documentLocationId);
+  if (cached) {
+    return Promise.resolve({ layout: cached });
+  }
+
+  let pending = layoutFetchInflight.get(documentLocationId);
+  if (!pending) {
+    pending = loadEffectivePoDocumentLayout(documentLocationId)
+      .then((result) => {
+        if (!("error" in result)) {
+          layoutResultCache.set(
+            documentLocationId,
+            normalizePoLayoutTemplate(result.layout)
+          );
+        }
+        return result;
+      })
+      .finally(() => {
+        layoutFetchInflight.delete(documentLocationId);
+      });
+    layoutFetchInflight.set(documentLocationId, pending);
+  }
+
+  return pending;
+}
 
 type Options = {
   /** Refetch saved layout from the server when this becomes true (e.g. drawer open). */
@@ -17,7 +49,8 @@ type Options = {
 
 /**
  * Keeps PO document layout in sync with saved settings without a full page reload.
- * SSR `initialLayout` is the first paint; opening the drawer refetches the tenant template.
+ * SSR `initialLayout` is the tenant default; opening the drawer refetches only when a
+ * destination location is known (location override). Tenant-default is never re-fetched.
  */
 export function useLivePoDocumentLayout(
   initialLayout: DocumentLayoutTemplate = DEFAULT_PO_SCREEN_LAYOUT,
@@ -26,33 +59,33 @@ export function useLivePoDocumentLayout(
   const [layout, setLayout] = useState(() => normalizePoLayoutTemplate(initialLayout));
   const refreshWhen = options?.refreshWhen ?? false;
   const documentLocationId = options?.documentLocationId?.trim() || null;
-  const inflightRef = useRef(false);
+  const fetchedLocationRef = useRef<string | null>(null);
 
   useEffect(() => {
     setLayout(normalizePoLayoutTemplate(initialLayout));
   }, [initialLayout]);
 
-  const refresh = useCallback(async () => {
-    if (inflightRef.current) return;
-    inflightRef.current = true;
-    try {
-      const result = await loadEffectivePoDocumentLayout(documentLocationId);
-      if ("error" in result) return;
-      setLayout(normalizePoLayoutTemplate(result.layout));
-    } finally {
-      inflightRef.current = false;
+  useEffect(() => {
+    if (!refreshWhen) {
+      fetchedLocationRef.current = null;
+      return;
     }
-  }, [documentLocationId]);
 
-  useEffect(() => {
-    if (!refreshWhen) return;
-    void refresh();
-  }, [refresh, refreshWhen]);
+    if (!documentLocationId) return;
 
-  useEffect(() => {
-    if (!refreshWhen || !documentLocationId) return;
-    void refresh();
-  }, [documentLocationId, refresh, refreshWhen]);
+    if (fetchedLocationRef.current === documentLocationId) return;
+    fetchedLocationRef.current = documentLocationId;
+
+    let cancelled = false;
+    void fetchPoDocumentLayout(documentLocationId).then((result) => {
+      if (cancelled || "error" in result) return;
+      setLayout(normalizePoLayoutTemplate(result.layout));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentLocationId, refreshWhen]);
 
   return layout;
 }

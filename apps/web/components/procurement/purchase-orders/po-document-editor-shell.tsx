@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { PoDocumentSummaryStack } from "@/components/procurement/purchase-orders/po-document-summary-stack";
-import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
+import { PoFormHeader } from "@/components/procurement/purchase-orders/po-form-header";
+import { PoLineEntryAnchorToggle } from "@/components/procurement/purchase-orders/po-line-entry-anchor-toggle";
 import { PoLineTaxModeToggle } from "@/components/procurement/purchase-orders/po-line-tax-mode-toggle";
 import { PoLineEntryTable } from "@/components/procurement/purchase-orders/po-line-entry-table";
 import { usePoLineEntryAnchor } from "@/components/procurement/purchase-orders/use-po-line-entry-anchor";
@@ -21,6 +22,10 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
+import {
+  isOrganizationGstRegistered,
+} from "@/lib/procurement/purchase-orders/po-gst-compliance";
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { cn } from "@/lib/utils";
@@ -50,6 +55,7 @@ export type PoDocumentEditorShellProps = {
   autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  organizationBillTo?: OrganizationBillToSnapshot | null;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<PoDraftFormState>) => void;
@@ -74,6 +80,7 @@ export function PoDocumentEditorShell({
   autoRoundOffPolicy,
   taxCodeOptions = [],
   tenantCountry = null,
+  organizationBillTo = null,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -89,6 +96,11 @@ export function PoDocumentEditorShell({
     lineTableFillHeight,
   } = usePoDrawerFormLayout(true, layoutOverride);
   const { entryAnchor, handleEntryAnchorChange } = usePoLineEntryAnchor(form.lines, onLinesChange);
+  const gstRegistered = useMemo(
+    () => isOrganizationGstRegistered(organizationBillTo),
+    [organizationBillTo]
+  );
+  const tenantCountryCode = organizationBillTo?.country_code ?? tenantCountry;
   const gstContext = useMemo(
     () =>
       resolvePoGstContextFromForm(
@@ -96,9 +108,9 @@ export function PoDocumentEditorShell({
         form.supplier_id,
         locations,
         form.destination_location_id,
-        tenantCountry
+        tenantCountryCode
       ),
-    [suppliers, form.supplier_id, locations, form.destination_location_id, tenantCountry]
+    [suppliers, form.supplier_id, locations, form.destination_location_id, tenantCountryCode]
   );
 
   const sideRailWidthClass = resolvePoSideRailWidthClass(useFullPageLayout, drawerWidthVw);
@@ -124,9 +136,9 @@ export function PoDocumentEditorShell({
   );
 
   const linesSectionHeader = (
-    <div className="flex shrink-0 items-center justify-between gap-3">
-      <p className={PO_SIDE_RAIL_SECTION_TITLE_CLASS}>Lines</p>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex shrink-0 items-center justify-between gap-2 sm:gap-3">
+      <p className={cn(PO_SIDE_RAIL_SECTION_TITLE_CLASS, "shrink-0")}>Lines</p>
+      <div className="flex min-w-0 flex-nowrap items-center justify-end gap-1 sm:gap-2">
         <PoLineTaxModeToggle
           value={form.prices_tax_inclusive}
           disabled={isPending}
@@ -158,6 +170,7 @@ export function PoDocumentEditorShell({
       taxSupplyNature={gstContext.supplyNature}
       taxMechanism={gstContext.taxMechanism}
       taxCodeOptions={taxCodeOptions}
+      gstRegistered={gstRegistered}
       entryAnchor={entryAnchor}
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange}

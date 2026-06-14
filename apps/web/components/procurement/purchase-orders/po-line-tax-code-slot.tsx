@@ -7,6 +7,7 @@ import {
 } from "@/lib/tax/item-tax-code-picker";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import { resolveTaxCodeIdForRate } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import {
   PO_LINE_SUBLINE_SELECT_CLASS,
   PO_LINE_SUBLINE_TEXT_CLASS,

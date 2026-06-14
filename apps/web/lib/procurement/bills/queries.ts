@@ -24,16 +24,21 @@ export async function fetchPurchaseBills(
     .select(
       `id, invoice_number_vendor, system_voucher_number, supplier_id, purchase_order_id,
        tax_treatment, tax_supply_nature, tax_mechanism, rcm_applicable,
-       total_gross_amount, total_tax_amount, total_liability_amount, match_status, is_paid, created_at,
-       supplier:entities!purchase_invoices_supplier_tenant_fk (name)`
+       total_gross_amount, total_tax_amount, total_liability_amount, match_status, document_status, is_paid, created_at,
+       supplier:entities!purchase_invoices_supplier_tenant_fk (name),
+       purchase_order:purchase_orders!purchase_invoices_po_tenant_fk (voucher_number)`
     )
     .eq("tenant_id", tenantId)
+    .eq("document_status", "ACTIVE")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
 
   return (data ?? []).map((row) => {
     const supplier = Array.isArray(row.supplier) ? row.supplier[0] : row.supplier;
+    const purchaseOrder = Array.isArray(row.purchase_order)
+      ? row.purchase_order[0]
+      : row.purchase_order;
     const mechanism = String(row.tax_mechanism ?? "FORWARD").toUpperCase() as GstTaxMechanism;
     const supplyNature = isPoTaxSupplyNature(String(row.tax_supply_nature ?? ""))
       ? (row.tax_supply_nature as PoTaxSupplyNature)
@@ -46,6 +51,7 @@ export async function fetchPurchaseBills(
       supplier_id: row.supplier_id as string,
       supplier_name: (supplier?.name as string) ?? "",
       purchase_order_id: (row.purchase_order_id as string | null) ?? null,
+      purchase_order_number: (purchaseOrder?.voucher_number as string | null) ?? null,
       tax_treatment: row.tax_treatment as PurchaseBillRow["tax_treatment"],
       tax_supply_nature: supplyNature,
       tax_mechanism: mechanism,
@@ -54,6 +60,7 @@ export async function fetchPurchaseBills(
       total_tax_amount: formatDecimal(row.total_tax_amount),
       total_liability_amount: formatDecimal(row.total_liability_amount),
       match_status: (row.match_status as string | null) ?? "MATCHED",
+      document_status: (row.document_status as string | null) ?? "ACTIVE",
       is_paid: row.is_paid === true,
       created_at: row.created_at as string,
     };
@@ -72,7 +79,7 @@ export async function fetchPurchaseBillById(
       id, invoice_number_vendor, system_voucher_number, supplier_id, purchase_order_id,
       billing_location_id,
       tax_treatment, tax_supply_nature, tax_mechanism, rcm_applicable,
-      total_gross_amount, total_tax_amount, total_liability_amount, match_status, is_paid, created_at,
+      total_gross_amount, total_tax_amount, total_liability_amount, match_status, document_status, is_paid, created_at,
       supplier:entities!purchase_invoices_supplier_tenant_fk (name),
       purchase_order:purchase_orders!purchase_invoices_po_tenant_fk (voucher_number),
       purchase_invoice_items (
@@ -188,6 +195,7 @@ export async function fetchPurchaseBillById(
     total_tax_amount: formatDecimal(data.total_tax_amount),
     total_liability_amount: formatDecimal(data.total_liability_amount),
     match_status: (data.match_status as string | null) ?? "MATCHED",
+    document_status: (data.document_status as string | null) ?? "ACTIVE",
     is_paid: data.is_paid === true,
     created_at: data.created_at as string,
     lines,

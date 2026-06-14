@@ -5,6 +5,7 @@ import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
 } from "@/lib/procurement/location-scope";
+import { fetchProcurementApprovalSettings, canUserApprovePurchaseOrders } from "@/lib/procurement/approval-settings";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
@@ -20,12 +21,13 @@ import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 export async function PoCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, suppliers, editAccess, procurementSettings, tenantRow, documentLayout, taxCodeOptions] =
+  const [locations, suppliers, editAccess, procurementSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
     await Promise.all([
       fetchProcurementLocations(supabase, tenantId),
       fetchProcurementSuppliers(supabase, tenantId),
       resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
       fetchProcurementSettings(supabase, tenantId),
+      fetchProcurementApprovalSettings(supabase, tenantId),
       supabase
         .from("tenants")
         .select(
@@ -55,6 +57,9 @@ export async function PoCatalogLoader() {
     scopedLocations,
     editAccess.locationScope
   );
+  const canApprovePurchaseOrders = canUserApprovePurchaseOrders(userId, approvalSettings, {
+    isOwner: editAccess.isOwner,
+  });
 
   return (
     <PoManagementTerminal
@@ -76,6 +81,10 @@ export async function PoCatalogLoader() {
       preferredDestinationLocationId={preferredDestinationLocationId ?? null}
       organizationBillTo={organizationBillTo}
       taxCodeOptions={taxCodeOptions}
+      approvalSettings={approvalSettings}
+      currentUserId={userId}
+      canApprovePurchaseOrders={canApprovePurchaseOrders}
+      isOwner={editAccess.isOwner}
     />
   );
 }

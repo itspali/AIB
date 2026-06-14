@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 const BASE_URL = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
+const SMOKE_EXTENDED = process.env.SMOKE_EXTENDED === "1";
 
 function loadEnvLocal() {
   try {
@@ -342,7 +343,32 @@ function stepKeys(steps) {
   return steps.map((s) => s.id ?? s.step_key ?? s.key ?? s.stepKey).filter(Boolean);
 }
 
-async function testProcurementFlow(ctx) {
+async function seedBillingCoaAccounts(supabase, tenantId) {
+  const accounts = [
+    {
+      tenant_id: tenantId,
+      account_code: "2100-AP",
+      account_name: "Accounts Payable",
+      classification: "LIABILITY",
+    },
+    {
+      tenant_id: tenantId,
+      account_code: "1400-INVENTORY",
+      account_name: "Inventory Stock Assets",
+      classification: "ASSET",
+    },
+  ];
+
+  for (const account of accounts) {
+    const { error } = await supabase.from("accounts").insert(account);
+    if (error && !/duplicate|unique/i.test(error.message)) {
+      throw new Error(`accounts insert ${account.account_code}: ${error.message}`);
+    }
+  }
+}
+
+async function testProcurementFlow(ctx, options = {}) {
+  const { assertPayablesPosted = false } = options;
   const { supabase, userId, locationId } = ctx;
   const stamp = Date.now();
   const unitPrice = 10;
@@ -513,6 +539,30 @@ async function testProcurementFlow(ctx) {
     `Expected bill_three_way_match, got: ${billPostingKeys.join(", ")}`
   );
 
+  if (assertPayablesPosted) {
+    assert(
+      billPostingKeys.includes("bill_payables_posted"),
+      `Expected bill_payables_posted, got: ${billPostingKeys.join(", ")}`
+    );
+    const payablesStep = parseRpcSteps(postingRun).find(
+      (step) => (step.id ?? step.step_key ?? step.key) === "bill_payables_posted"
+    );
+    assert(
+      payablesStep?.status === "success",
+      `Expected bill_payables_posted success, got ${payablesStep?.status ?? "missing"}`
+    );
+
+    const { data: billPayablesRow, error: payablesFetchError } = await supabase
+      .from("purchase_invoices")
+      .select("payables_posted_at")
+      .eq("id", billId)
+      .single();
+    if (payablesFetchError) {
+      throw new Error(`purchase_invoices payables fetch: ${payablesFetchError.message}`);
+    }
+    assert(billPayablesRow?.payables_posted_at, "Expected payables_posted_at to be set");
+  }
+
   return {
     poId,
     poVoucher: poRow.voucher_number,
@@ -522,6 +572,194 @@ async function testProcurementFlow(ctx) {
     issueSteps: stepKeys(issueSteps),
     grnSteps: grnStepKeys,
     billSteps: billPostingKeys,
+  };
+}
+
+async function testLandedChargesGrn(ctx) {
+  const { supabase, userId, locationId } = ctx;
+  const stamp = Date.now();
+  const unitPrice = 10;
+  const qty = 3;
+  const freightAmount = 30;
+
+  const supplierId = await createSupplier(supabase);
+  const { variantId } = await createTrackInventoryProduct(supabase, `${stamp}-landed`);
+
+  const { data: poId, error: savePoError } = await supabase.rpc("save_purchase_order", {
+    p_purchase_order_id: null,
+    p_destination_location_id: locationId,
+    p_supplier_id: supplierId,
+    p_lines: [
+      {
+        variant_id: variantId,
+        quantity_ordered: qty,
+        unit_price_contractual: unitPrice,
+        discount_percentage: 0,
+        discount_amount: 0,
+      },
+    ],
+    p_created_by: userId,
+    p_payment_terms_days: 30,
+    p_custom_fields: {},
+    p_currency_code: "USD",
+    p_prices_tax_inclusive: false,
+  });
+  if (savePoError) throw new Error(`save_purchase_order (landed): ${savePoError.message}`);
+
+  const { error: issueError } = await supabase.rpc("issue_purchase_order", {
+    p_purchase_order_id: poId,
+  });
+  if (issueError) throw new Error(`issue_purchase_order (landed): ${issueError.message}`);
+
+  const { data: poItems, error: poItemsError } = await supabase
+    .from("purchase_order_items")
+    .select("id")
+    .eq("purchase_order_id", poId);
+  if (poItemsError) throw new Error(`purchase_order_items fetch (landed): ${poItemsError.message}`);
+  const poItemId = poItems[0].id;
+
+  const { data: grnResult, error: grnError } = await supabase.rpc("post_goods_receipt", {
+    p_destination_location_id: locationId,
+    p_purchase_order_id: poId,
+    p_lines: [
+      {
+        variant_id: variantId,
+        po_item_id: poItemId,
+        quantity_received: qty,
+        raw_unit_cost: unitPrice,
+        is_promotional: false,
+      },
+    ],
+    p_created_by: userId,
+    p_landed_charges: [
+      {
+        charge_type: "FREIGHT",
+        amount: freightAmount,
+        allocation_method: "BY_QUANTITY",
+      },
+    ],
+  });
+  if (grnError) throw new Error(`post_goods_receipt (landed): ${grnError.message}`);
+
+  const grnId = grnResult?.goods_receipt_id ?? grnResult?.goodsReceiptId;
+  assert(grnId, "post_goods_receipt (landed) returned no goods_receipt_id");
+
+  const grnStepKeys = stepKeys(parseRpcSteps(grnResult));
+  assert(
+    grnStepKeys.includes("grn_landed_charges_allocated"),
+    `Expected grn_landed_charges_allocated, got: ${grnStepKeys.join(", ")}`
+  );
+
+  const { data: landedRows, error: landedError } = await supabase
+    .from("goods_receipt_landed_charges")
+    .select("charge_type, amount")
+    .eq("goods_receipt_id", grnId);
+  if (landedError) {
+    throw new Error(`goods_receipt_landed_charges fetch: ${landedError.message}`);
+  }
+  assert(landedRows?.length === 1, "Expected one landed charge row");
+  assert(Number(landedRows[0].amount) === freightAmount, "Landed charge amount mismatch");
+
+  return {
+    name: "GRN landed charges allocated",
+    ok: true,
+    detail: grnStepKeys.join(", "),
+  };
+}
+
+async function testBillQtyMismatchFails(ctx) {
+  const { supabase, userId, locationId } = ctx;
+  const stamp = Date.now();
+  const unitPrice = 10;
+  const qty = 4;
+
+  const supplierId = await createSupplier(supabase);
+  const { variantId } = await createTrackInventoryProduct(supabase, `${stamp}-mismatch`);
+
+  const { data: poId, error: savePoError } = await supabase.rpc("save_purchase_order", {
+    p_purchase_order_id: null,
+    p_destination_location_id: locationId,
+    p_supplier_id: supplierId,
+    p_lines: [
+      {
+        variant_id: variantId,
+        quantity_ordered: qty,
+        unit_price_contractual: unitPrice,
+        discount_percentage: 0,
+        discount_amount: 0,
+      },
+    ],
+    p_created_by: userId,
+    p_payment_terms_days: 30,
+    p_custom_fields: {},
+    p_currency_code: "USD",
+    p_prices_tax_inclusive: false,
+  });
+  if (savePoError) throw new Error(`save_purchase_order (mismatch): ${savePoError.message}`);
+
+  const { error: issueError } = await supabase.rpc("issue_purchase_order", {
+    p_purchase_order_id: poId,
+  });
+  if (issueError) throw new Error(`issue_purchase_order (mismatch): ${issueError.message}`);
+
+  const { data: poItems, error: poItemsError } = await supabase
+    .from("purchase_order_items")
+    .select("id")
+    .eq("purchase_order_id", poId);
+  if (poItemsError) {
+    throw new Error(`purchase_order_items fetch (mismatch): ${poItemsError.message}`);
+  }
+  const poItemId = poItems[0].id;
+
+  const { data: grnResult, error: grnError } = await supabase.rpc("post_goods_receipt", {
+    p_destination_location_id: locationId,
+    p_purchase_order_id: poId,
+    p_lines: [
+      {
+        variant_id: variantId,
+        po_item_id: poItemId,
+        quantity_received: qty,
+        raw_unit_cost: unitPrice,
+        is_promotional: false,
+      },
+    ],
+    p_created_by: userId,
+    p_landed_charges: [],
+  });
+  if (grnError) throw new Error(`post_goods_receipt (mismatch): ${grnError.message}`);
+
+  const grnId = grnResult?.goods_receipt_id ?? grnResult?.goodsReceiptId;
+  assert(grnId, "post_goods_receipt (mismatch) returned no goods_receipt_id");
+
+  const { error: billError } = await supabase.rpc("save_purchase_invoice", {
+    p_purchase_invoice_id: null,
+    p_supplier_id: supplierId,
+    p_billing_location_id: locationId,
+    p_invoice_number_vendor: `VINV-MISMATCH-${stamp}`,
+    p_lines: [
+      {
+        variant_id: variantId,
+        purchase_order_item_id: poItemId,
+        quantity_billed: qty + 1,
+        unit_price_billed: unitPrice,
+      },
+    ],
+    p_created_by: userId,
+    p_purchase_order_id: poId,
+    p_currency_code: "USD",
+    p_goods_receipt_ids: [grnId],
+  });
+
+  assert(billError, "Expected bill save to fail when quantity billed exceeds GRN accepted qty");
+  assert(
+    /exceeds accepted receipt quantity/i.test(billError.message),
+    `Unexpected bill qty mismatch error: ${billError.message}`
+  );
+
+  return {
+    name: "Bill qty mismatch rejected",
+    ok: true,
+    detail: billError.message,
   };
 }
 
@@ -589,11 +827,18 @@ async function main() {
     } = await provisioned.session.supabase.auth.getUser();
     if (!user) throw new Error("Missing authenticated user");
 
-    const flow = await testProcurementFlow({
-      supabase: provisioned.session.supabase,
-      userId: user.id,
-      locationId: provisioned.locationId,
-    });
+    if (SMOKE_EXTENDED) {
+      await seedBillingCoaAccounts(provisioned.session.supabase, provisioned.tenantId);
+    }
+
+    const flow = await testProcurementFlow(
+      {
+        supabase: provisioned.session.supabase,
+        userId: user.id,
+        locationId: provisioned.locationId,
+      },
+      { assertPayablesPosted: SMOKE_EXTENDED }
+    );
 
     results.push({
       name: "PO draft saved",
@@ -616,6 +861,23 @@ async function main() {
       detail: flow.billSteps.join(", "),
     });
 
+    if (SMOKE_EXTENDED) {
+      const extendedCtx = {
+        supabase: provisioned.session.supabase,
+        userId: user.id,
+        locationId: provisioned.locationId,
+      };
+      results.push(await testLandedChargesGrn(extendedCtx));
+      results.push(await testBillQtyMismatchFails(extendedCtx));
+      if (flow.billSteps.includes("bill_payables_posted")) {
+        results.push({
+          name: "Bill payables posted to AP",
+          ok: true,
+          detail: flow.billSteps.join(", "),
+        });
+      }
+    }
+
     results.push(await testProcurementPages(cookieHeader));
   } catch (error) {
     if (results.length > 0) {
@@ -632,6 +894,9 @@ async function main() {
   }
 
   console.log("\nProcurement smoke test (PO → GRN → Bills) — PASSED\n");
+  if (SMOKE_EXTENDED) {
+    console.log("  (extended mode: landed charges, qty mismatch, AP posting)\n");
+  }
   for (const result of results) {
     const suffix = result.detail ? `: ${result.detail}` : "";
     console.log(`  ✓ ${result.name}${suffix}`);

@@ -7,13 +7,26 @@ import {
   loadBillingGrnsForPo,
   loadPurchaseBillDetail,
   savePurchaseBill,
+  voidPurchaseBill,
 } from "@/app/procurement/bills/actions";
 import { BillAdvanceApplicationPanel } from "@/components/procurement/bills/bill-advance-application-panel";
 import { BillGrnLinkPanel } from "@/components/procurement/bills/bill-grn-link-panel";
 import { BillLineEntryTable } from "@/components/procurement/bills/bill-line-entry-table";
+import { BillPaymentPanel } from "@/components/procurement/bills/bill-payment-panel";
 import { BillPeekView } from "@/components/procurement/bills/bill-peek-view";
+import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,10 +42,12 @@ import {
   buildBillDraftLinesFromPo,
   defaultSelectedGrnIdsForPo,
   filterSavableBillDraftLines,
+  validateBillDraftLineQuantities,
   type BillDraftLine,
 } from "@/lib/procurement/bills/bill-draft-form";
 import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
+import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { BillablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type {
@@ -40,17 +55,24 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
+import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
+  surface: DrawerSurface;
   suppliers: ProcurementSupplierOption[];
   locations: ProcurementLocationOption[];
   billableOrders: BillablePurchaseOrderOption[];
   matchingTolerancePct: number;
   peekBill: PurchaseBillRow | null;
+  peekRecordId: string | null;
+  editBillId: string | null;
+  createPrefillPoId?: string | null;
   onClose: () => void;
-  onAfterSave: () => void;
+  onAfterSave: (billId: string) => void;
+  onOpenEdit?: (billId: string) => void;
+  onEditNotAllowed?: (billId: string) => void;
 };
 
 type CreateFormState = {
@@ -78,20 +100,33 @@ function defaultCreateForm(
 
 export function BillDrawerForm({
   open,
+  surface,
   suppliers,
   locations,
   billableOrders,
   matchingTolerancePct,
   peekBill,
+  peekRecordId,
+  editBillId,
+  createPrefillPoId = null,
   onClose,
   onAfterSave,
+  onOpenEdit,
+  onEditNotAllowed,
 }: Props) {
-  const readOnly = Boolean(peekBill);
-  const lineTableFillHeight = useDocumentLineTableFillHeight(!readOnly);
+  const readOnly = surface === "peek";
+  const isEditing = surface === "edit";
+  const isCreating = surface === "create";
+  const isMutating = isCreating || isEditing;
+  const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
+  const { requestClose, discardDialog } = useDiscardChangesConfirmation({
+    active: open && isMutating,
+  });
 
   const [form, setForm] = useState<CreateFormState>(() =>
     defaultCreateForm(suppliers, locations)
   );
+  const [isDirty, setIsDirty] = useState(false);
   const [poGrns, setPoGrns] = useState<GoodsReceiptRow[]>([]);
   const [detail, setDetail] = useState<PurchaseBillRow | null>(peekBill);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -101,6 +136,7 @@ export function BillDrawerForm({
     steps: PostingStepResult[];
     overall: "success" | "failure";
   } | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selectedPo = useMemo(
@@ -114,18 +150,32 @@ export function BillDrawerForm({
   }, [billableOrders, form.supplier_id]);
 
   const patchForm = useCallback((patch: Partial<CreateFormState>) => {
+    setIsDirty(true);
     setForm((current) => ({ ...current, ...patch }));
   }, []);
+
+  const closeForm = useCallback(() => {
+    setIsDirty(false);
+    onClose();
+  }, [onClose]);
+
+  const handleRequestClose = useCallback(() => {
+    if (isMutating && isDirty) {
+      requestClose(closeForm);
+      return;
+    }
+    closeForm();
+  }, [closeForm, isDirty, isMutating, requestClose]);
 
   const reloadDetail = useCallback(() => {
     if (!detail?.id) return;
     void loadPurchaseBillDetail(detail.id).then((result) => {
       if ("error" in result) {
-        setError(result.error);
+        setError(result.error ?? "Request failed.");
         return;
       }
       setDetail(result.bill);
-      onAfterSave();
+      onAfterSave(result.bill.id);
     });
   }, [detail?.id, onAfterSave]);
 
@@ -133,27 +183,46 @@ export function BillDrawerForm({
     if (!open) return;
     setError(null);
     setPostingSummary(null);
-    setDetail(peekBill);
-    if (!peekBill) {
-      setForm(defaultCreateForm(suppliers, locations));
+    if (surface === "peek") {
+      setDetail(peekBill);
+    } else if (surface === "create") {
+      setDetail(null);
+      setIsDirty(false);
+      const baseForm = defaultCreateForm(suppliers, locations);
+      const prefillOrder = createPrefillPoId
+        ? billableOrders.find((row) => row.id === createPrefillPoId)
+        : null;
+      setForm(
+        prefillOrder
+          ? {
+              ...baseForm,
+              supplier_id: prefillOrder.supplier_id,
+              billing_location_id: prefillOrder.destination_location_id,
+              purchase_order_id: prefillOrder.id,
+            }
+          : baseForm
+      );
       setPoGrns([]);
+    } else if (surface === "edit") {
+      setDetail(null);
+      setIsDirty(false);
     }
-  }, [open, peekBill, suppliers, locations]);
+  }, [billableOrders, createPrefillPoId, open, peekBill, surface, suppliers, locations]);
 
   useEffect(() => {
-    if (!open || !peekBill?.id) return;
-    if (peekBill.lines?.length) {
+    if (!open || surface !== "peek" || !peekRecordId) return;
+    if (peekBill?.lines?.length) {
       setDetail(peekBill);
       return;
     }
 
     let cancelled = false;
     setDetailLoading(true);
-    void loadPurchaseBillDetail(peekBill.id).then((result) => {
+    void loadPurchaseBillDetail(peekRecordId).then((result) => {
       if (cancelled) return;
       setDetailLoading(false);
       if ("error" in result) {
-        setError(result.error);
+        setError(result.error ?? "Request failed.");
         return;
       }
       setDetail(result.bill);
@@ -162,11 +231,44 @@ export function BillDrawerForm({
     return () => {
       cancelled = true;
     };
-  }, [open, peekBill]);
+  }, [open, peekBill, peekRecordId, surface]);
+
+  useEffect(() => {
+    if (!open || surface !== "edit" || !editBillId) return;
+
+    let cancelled = false;
+    setDetailLoading(true);
+    void loadPurchaseBillDetail(editBillId).then((result) => {
+      if (cancelled) return;
+      setDetailLoading(false);
+      if ("error" in result) {
+        setError(result.error ?? "Request failed.");
+        return;
+      }
+      const bill = result.bill;
+      if (bill.is_paid) {
+        onEditNotAllowed?.(bill.id);
+        return;
+      }
+      setDetail(bill);
+      setForm({
+        supplier_id: bill.supplier_id,
+        billing_location_id: bill.billing_location_id ?? locations[0]?.id ?? "",
+        purchase_order_id: bill.purchase_order_id,
+        invoice_number_vendor: bill.invoice_number_vendor,
+        selected_grn_ids: bill.linked_goods_receipts?.map((grn) => grn.id) ?? [],
+        lines: [],
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editBillId, locations, onEditNotAllowed, open, surface]);
 
   useEffect(() => {
     if (!open || readOnly || !form.purchase_order_id) {
-      setPoGrns([]);
+      if (!isEditing) setPoGrns([]);
       return;
     }
 
@@ -176,7 +278,7 @@ export function BillDrawerForm({
       if (cancelled) return;
       setGrnsLoading(false);
       if ("error" in result) {
-        setError(result.error);
+        setError(result.error ?? "Request failed.");
         return;
       }
       const grns = result.grns;
@@ -185,10 +287,52 @@ export function BillDrawerForm({
       setForm((current) => {
         const order = billableOrders.find((row) => row.id === current.purchase_order_id);
         if (!order) return current;
+
+        const selectedIds =
+          current.selected_grn_ids.length > 0 ? current.selected_grn_ids : defaultIds;
+        const draftLines = buildBillDraftLinesFromPo(order, grns, selectedIds);
+
+        if (isEditing && detail?.lines?.length) {
+          const mergedLines = draftLines
+            .map((draft) => {
+              const saved = detail.lines?.find(
+                (line) => line.purchase_order_item_id === draft.po_item_id
+              );
+              if (!saved) return draft;
+              const poLine = order.lines.find((line) => line.id === draft.po_item_id);
+              const invoicedOnPo = Number(poLine?.quantity_invoiced ?? 0);
+              const thisBillQty = Number(saved.quantity_billed);
+              const alreadyExcludingThis = Math.max(invoicedOnPo - thisBillQty, 0);
+              return {
+                ...draft,
+                key: saved.id,
+                quantity_billed: saved.quantity_billed,
+                unit_price_billed: saved.unit_price_billed,
+                po_unit_price: saved.po_unit_price ?? saved.unit_price_billed,
+                quantity_already_invoiced: String(alreadyExcludingThis),
+              };
+            })
+            .filter(
+              (line) =>
+                detail.lines?.some((saved) => saved.purchase_order_item_id === line.po_item_id) ||
+                Number(line.quantity_billed) > 0
+            );
+
+          return {
+            ...current,
+            selected_grn_ids: selectedIds,
+            lines: mergedLines,
+          };
+        }
+
+        if (isEditing && current.lines.length > 0) {
+          return { ...current, selected_grn_ids: selectedIds };
+        }
+
         return {
           ...current,
-          selected_grn_ids: defaultIds,
-          lines: buildBillDraftLinesFromPo(order, grns, defaultIds),
+          selected_grn_ids: selectedIds,
+          lines: draftLines,
         };
       });
     });
@@ -196,7 +340,7 @@ export function BillDrawerForm({
     return () => {
       cancelled = true;
     };
-  }, [open, readOnly, form.purchase_order_id, billableOrders]);
+  }, [open, readOnly, isEditing, form.purchase_order_id, billableOrders, detail?.lines]);
 
   const handlePoChange = (value: string) => {
     if (value === "none") {
@@ -242,9 +386,15 @@ export function BillDrawerForm({
       setError("Add at least one bill line with quantity.");
       return;
     }
+    const quantityError = validateBillDraftLineQuantities(savableLines);
+    if (quantityError) {
+      setError(quantityError);
+      return;
+    }
 
     startTransition(async () => {
       const result = await savePurchaseBill({
+        purchase_invoice_id: isEditing ? editBillId : null,
         supplier_id: form.supplier_id,
         billing_location_id: form.billing_location_id,
         invoice_number_vendor: form.invoice_number_vendor.trim(),
@@ -274,9 +424,9 @@ export function BillDrawerForm({
         steps: result.steps ?? [],
         overall: result.overall === "failure" ? "failure" : "success",
       });
-      onAfterSave();
+      onAfterSave(result.purchaseInvoiceId);
     });
-  }, [form, onAfterSave, selectedPo?.currency_code]);
+  }, [editBillId, form, isEditing, onAfterSave, selectedPo?.currency_code]);
 
   const handleApplyPpv = useCallback(() => {
     if (!detail?.id) return;
@@ -284,7 +434,7 @@ export function BillDrawerForm({
     startTransition(async () => {
       const result = await applyPurchasePriceVariance(detail.id);
       if ("error" in result) {
-        setError(result.error);
+        setError(result.error ?? "Request failed.");
         return;
       }
       toast.success("Purchase price variance applied");
@@ -296,38 +446,86 @@ export function BillDrawerForm({
         steps: result.steps ?? [],
         overall: result.overall === "failure" ? "failure" : "success",
       });
-      onAfterSave();
+      onAfterSave(detail.id);
+    });
+  }, [detail?.id, onAfterSave]);
+
+  const canVoidBill =
+    detail != null &&
+    !detail.is_paid &&
+    (detail.document_status == null || detail.document_status === "ACTIVE");
+
+  const handleVoidBill = useCallback(() => {
+    if (!detail?.id) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await voidPurchaseBill(detail.id);
+      if ("error" in result) {
+        setError(result.error ?? "Unable to void bill.");
+        return;
+      }
+      toast.success("Supplier bill voided");
+      setVoidDialogOpen(false);
+      setPostingSummary({
+        steps: result.steps ?? [],
+        overall: result.overall === "failure" ? "failure" : "success",
+      });
+      onAfterSave(detail.id);
     });
   }, [detail?.id, onAfterSave]);
 
   const headerActions = readOnly ? (
-    detail?.match_status === "PPV_HOLD" ? (
-      <Button size="sm" disabled={isPending} onClick={handleApplyPpv}>
-        {isPending ? "Applying…" : "Apply PPV"}
-      </Button>
-    ) : (
-      <Button size="sm" onClick={onClose}>
-        Close
-      </Button>
-    )
+    <div className="flex items-center gap-2">
+      {detail ? (
+        <DocumentPrintButton
+          moduleKey="PURCHASE_INVOICE"
+          documentId={detail.id}
+          documentLocationId={detail.billing_location_id}
+        />
+      ) : null}
+      {detail && !detail.is_paid && onOpenEdit ? (
+        <Button size="sm" variant="outline" onClick={() => onOpenEdit(detail.id)}>
+          Edit
+        </Button>
+      ) : null}
+      {canVoidBill ? (
+        <Button size="sm" variant="outline" disabled={isPending} onClick={() => setVoidDialogOpen(true)}>
+          Void
+        </Button>
+      ) : null}
+      {detail?.match_status === "PPV_HOLD" ? (
+        <Button size="sm" disabled={isPending} onClick={handleApplyPpv}>
+          {isPending ? "Applying…" : "Apply PPV"}
+        </Button>
+      ) : (
+        <Button size="sm" onClick={handleRequestClose}>
+          Close
+        </Button>
+      )}
+    </div>
   ) : postingSummary ? (
-    <Button size="sm" onClick={onClose}>
+    <Button size="sm" onClick={handleRequestClose}>
       Close
     </Button>
   ) : (
     <Button size="sm" disabled={isPending} onClick={handleSave}>
-      {isPending ? "Saving…" : "Save bill"}
+      {isPending ? "Saving…" : isEditing ? "Save changes" : "Save bill"}
     </Button>
   );
 
   return (
+    <>
     <RightDrawer
       open={open}
       onOpenChange={(next) => {
-        if (!next) onClose();
+        if (!next) handleRequestClose();
       }}
-      onRequestClose={onClose}
-      title={detail?.system_voucher_number ?? peekBill?.system_voucher_number ?? "New supplier bill"}
+      onRequestClose={handleRequestClose}
+      title={
+        detail?.system_voucher_number ??
+        peekBill?.system_voucher_number ??
+        (isEditing ? "Edit supplier bill" : "New supplier bill")
+      }
       headerActions={headerActions}
       bodyClassName={!readOnly ? "module-drawer-form-body" : undefined}
       scrollable={!( !readOnly && lineTableFillHeight )}
@@ -354,9 +552,16 @@ export function BillDrawerForm({
               invoiceLiability={detail.total_liability_amount}
               onApplied={reloadDetail}
             />
+            <BillPaymentPanel
+              purchaseInvoiceId={detail.id}
+              invoiceLiability={detail.total_liability_amount}
+              isPaid={detail.is_paid}
+              onPaid={reloadDetail}
+            />
           </div>
         ) : null
-      ) : postingSummary ? null : (
+      ) : isCreating || isEditing ? (
+        postingSummary ? null : (
         <div
           className={cn(
             "flex flex-col gap-5",
@@ -472,7 +677,27 @@ export function BillDrawerForm({
             </p>
           ) : null}
         </div>
-      )}
+        )
+      ) : null}
     </RightDrawer>
+    <AlertDialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Void supplier bill?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This reverses invoiced quantities on the purchase order and cancels the bill. Paid bills
+            cannot be voided.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={isPending} onClick={handleVoidBill}>
+            {isPending ? "Voiding…" : "Void bill"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    {discardDialog}
+    </>
   );
 }

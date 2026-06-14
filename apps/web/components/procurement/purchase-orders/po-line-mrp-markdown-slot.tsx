@@ -9,6 +9,7 @@ import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import {
   resolvePoLineMrp,
   resolvePoLineMrpMarkdownPercentage,
+  resolvePoLineMrpTaxContext,
   resolvePoLineMrpVarianceDirection,
   type PoLineMrpVarianceDirection,
 } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
@@ -25,6 +26,7 @@ type Props = {
   line: PoDraftLine;
   column: DocumentColumnPref;
   disabled?: boolean;
+  pricesTaxInclusive?: boolean;
   /**
    * hidden — MRP lives in its own column (or not shown here).
    * editable — PO MRP input (defaults from catalog; override for this order).
@@ -75,6 +77,7 @@ export function PoLineMrpMarkdownSlot({
   line,
   column,
   disabled = false,
+  pricesTaxInclusive = false,
   mrpDisplayMode = "editable",
   onMrpReferenceChange,
   onMrpReferenceBlur,
@@ -84,12 +87,17 @@ export function PoLineMrpMarkdownSlot({
   const mrp = resolvePoLineMrp(line);
   if (mrp <= 0 && mrpDisplayMode !== "editable") return null;
 
+  const mrpTaxContext = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
   const markdownValue =
-    mrp > 0 ? resolvePoLineMrpMarkdownPercentage(line) : "0";
+    mrp > 0 ? resolvePoLineMrpMarkdownPercentage(line, pricesTaxInclusive) : "0";
   const markdownDisabled = disabled || mrp <= 0;
   const varianceDirection =
     mrp > 0
-      ? resolvePoLineMrpVarianceDirection(mrp, parseUnitPrice(line.unit_price_contractual))
+      ? resolvePoLineMrpVarianceDirection(
+          mrp,
+          parseUnitPrice(line.unit_price_contractual),
+          mrpTaxContext
+        )
       : null;
   const showMrpRow = mrpDisplayMode !== "hidden";
 

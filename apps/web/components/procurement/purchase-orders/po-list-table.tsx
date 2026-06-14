@@ -144,11 +144,12 @@ export function PoListTable({
                         active && "text-foreground",
                         listTableHeaderCornerClass(index, columns.length - 1)
                       )}
-                      style={mergeColumnCellStyles(
-                        sticky.style,
-                        widthStyles,
-                        !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
-                      )}
+                      style={{
+                        ...mergeColumnCellStyles(sticky.style, widthStyles),
+                        ...(!isFrozen
+                          ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) }
+                          : {}),
+                      }}
                       aria-sort={
                         active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"
                       }

@@ -38,6 +38,24 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     description: "This order is now issued and can be received on a goods receipt.",
     documents: ["PO"],
   },
+  po_submitted_for_approval: {
+    id: "po_submitted_for_approval",
+    label: "Submitted for approval",
+    description: "This order was sent to an approver before it can be issued.",
+    documents: ["PO"],
+  },
+  po_approved: {
+    id: "po_approved",
+    label: "Approval granted",
+    description: "An approver cleared this order for issue to the supplier.",
+    documents: ["PO"],
+  },
+  po_rejected: {
+    id: "po_rejected",
+    label: "Approval rejected",
+    description: "An approver returned this order to draft with a reason.",
+    documents: ["PO"],
+  },
   po_promo_commitments_created: {
     id: "po_promo_commitments_created",
     label: "Free goods commitments recorded",
@@ -164,6 +182,18 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     id: "bill_payables_posted",
     label: "Amount owed to supplier updated",
     description: "The balance due to this vendor was updated in accounts payable.",
+    documents: ["BILL"],
+  },
+  bill_ppv_expense_gl: {
+    id: "bill_ppv_expense_gl",
+    label: "Purchase price variance expensed",
+    description: "Price variance beyond inventory restatement was posted to the configured PPV expense account.",
+    documents: ["BILL"],
+  },
+  bill_voided: {
+    id: "bill_voided",
+    label: "Bill voided",
+    description: "Invoiced quantities were reversed and the bill was cancelled or removed.",
     documents: ["BILL"],
   },
 };

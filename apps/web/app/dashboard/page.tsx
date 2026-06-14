@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionTenantId } from "@/lib/supabase/auth";
 import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
-import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
+import { fetchApprovalAlertCount, fetchPendingPurchaseOrderApprovals } from "@/lib/dashboard/queries";
 import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { CommandHubHeader } from "@/components/dashboard/command-hub-header";
+import { ApprovalQueuePanel } from "@/components/dashboard/approval-queue-panel";
 import { GettingStartedChecklist } from "@/components/dashboard/getting-started-checklist";
 import { MetricGaugeGrid } from "@/components/dashboard/metric-gauge-grid";
 import { fetchGettingStartedSnapshot } from "@/lib/dashboard/getting-started";
@@ -30,10 +31,12 @@ export default async function DashboardPage() {
 
   const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
 
-  const [approvalAlertCount, operatorProfile, gettingStarted] = await Promise.all([
+  const [approvalAlertCount, operatorProfile, gettingStarted, pendingPurchaseOrderApprovals] =
+    await Promise.all([
     fetchApprovalAlertCount(supabase, tenantId),
     fetchOperatorProfileForSession(supabase, orgName),
     fetchGettingStartedSnapshot(supabase, tenantId),
+    fetchPendingPurchaseOrderApprovals(supabase, tenantId),
   ]);
 
   return (
@@ -45,6 +48,8 @@ export default async function DashboardPage() {
     >
       <div className="canvas-scroll-endpad">
         <CommandHubHeader approvalAlertCount={approvalAlertCount} />
+
+        <ApprovalQueuePanel pendingPurchaseOrders={pendingPurchaseOrderApprovals} />
 
         <GettingStartedChecklist snapshot={gettingStarted} />
 

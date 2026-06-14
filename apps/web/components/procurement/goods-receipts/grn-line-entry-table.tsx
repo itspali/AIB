@@ -31,7 +31,17 @@ import {
 } from "@/lib/procurement/qc-receipt-policy";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+export const GRN_REJECT_DISPOSITIONS = ["RTV", "SCRAP", "DAMAGE", "SHRINK"] as const;
+export type GrnRejectDisposition = (typeof GRN_REJECT_DISPOSITIONS)[number];
 
 export type GrnDraftLine = {
   key: string;
@@ -45,6 +55,7 @@ export type GrnDraftLine = {
   exception_quantity: string;
   quantity_accepted: string;
   quantity_rejected: string;
+  reject_disposition: "RTV" | "SCRAP" | "DAMAGE" | "SHRINK";
   route_to_qc: boolean;
   raw_unit_cost: string;
   open_quantity: string | null;
@@ -82,6 +93,7 @@ export function mapReceivablePoLineToGrnDraft(
     exception_quantity: quantities.exception_quantity,
     quantity_accepted: quantities.quantity_accepted,
     quantity_rejected: quantities.quantity_rejected,
+    reject_disposition: "SCRAP",
     route_to_qc: options?.routeToQc ?? false,
     raw_unit_cost: unitPrice,
     open_quantity: line.open_quantity,
@@ -114,6 +126,7 @@ export function createEmptyGrnLine(): GrnDraftLine {
     exception_quantity: "0",
     quantity_accepted: "",
     quantity_rejected: "0",
+    reject_disposition: "SCRAP",
     route_to_qc: false,
     raw_unit_cost: "0",
     open_quantity: null,
@@ -362,21 +375,46 @@ export function GrnLineEntryTable({
 
           if (column.id === "exception_quantity") {
             const invalid = isGrnExceptionInvalid(line.quantity_received, line.exception_quantity);
+            const hasException = Number(line.exception_quantity) > 0;
             return (
-              <DocumentLineCompactInput
-                align="right"
-                value={line.exception_quantity}
-                disabled={disabled}
-                inputMode="decimal"
-                aria-label="Exception quantity"
-                className={cn(invalid && "border-destructive focus-visible:ring-destructive/30")}
-                onChange={(event) =>
-                  actions.patchLine(
-                    line.key,
-                    syncGrnQuantitiesOnExceptionChange(line.quantity_received, event.target.value)
-                  )
-                }
-              />
+              <div className="space-y-1 px-1 py-1">
+                <DocumentLineCompactInput
+                  align="right"
+                  value={line.exception_quantity}
+                  disabled={disabled}
+                  inputMode="decimal"
+                  aria-label="Exception quantity"
+                  className={cn(invalid && "border-destructive focus-visible:ring-destructive/30")}
+                  onChange={(event) =>
+                    actions.patchLine(
+                      line.key,
+                      syncGrnQuantitiesOnExceptionChange(line.quantity_received, event.target.value)
+                    )
+                  }
+                />
+                {hasException ? (
+                  <Select
+                    value={line.reject_disposition}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      actions.patchLine(line.key, {
+                        reject_disposition: value as GrnRejectDisposition,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Disposition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GRN_REJECT_DISPOSITIONS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+              </div>
             );
           }
 

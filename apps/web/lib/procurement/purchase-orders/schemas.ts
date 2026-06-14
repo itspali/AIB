@@ -127,6 +127,20 @@ export const issuePurchaseOrderSchema = z.object({
   purchase_order_id: z.string().uuid("Purchase order id is required."),
 });
 
+export const submitPurchaseOrderForApprovalSchema = z.object({
+  purchase_order_id: z.string().uuid("Purchase order id is required."),
+});
+
+export const approvePurchaseOrderSchema = z.object({
+  purchase_order_id: z.string().uuid("Purchase order id is required."),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+export const rejectPurchaseOrderSchema = z.object({
+  purchase_order_id: z.string().uuid("Purchase order id is required."),
+  notes: z.string().trim().min(1, "A rejection reason is required.").max(2000),
+});
+
 export const peekPurchaseOrderNumberSchema = z.object({
   destination_location_id: z.string().uuid("Select a destination location."),
 });

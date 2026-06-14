@@ -16,7 +16,8 @@ import {
   type PoHeaderChargesFields,
 } from "@/lib/procurement/purchase-orders/po-header-charges";
 import { mapPurchaseOrderTransactionDiscount } from "@/lib/procurement/purchase-orders/po-transaction-discount";
-import { computeImpliedMrpMarkdownPct } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { computeImpliedMrpMarkdownPct, resolvePeekLineMrpTaxContext } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import { mapSavedPoLineTaxComponents } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import type { PoLineWritebackSnapshot } from "@/lib/procurement/purchase-orders/po-line-writeback-snapshot";
 import type { ProcurementLocationOption, ProcurementSupplierOption } from "@/lib/procurement/shared/types";
 
@@ -244,14 +245,23 @@ export function supplierPaymentTerms(suppliers: ProcurementSupplierOption[], sup
   return supplier ? String(supplier.payment_terms_days) : "0";
 }
 
-function inferMrpMarkdownFromSavedLine(line: {
-  unit_price_contractual: string;
-  mrp?: string | null;
-}): string {
+function inferMrpMarkdownFromSavedLine(
+  line: {
+    unit_price_contractual: string;
+    mrp?: string | null;
+    tax_rate_percentage?: string;
+  },
+  pricesTaxInclusive = false
+): string {
   const mrp = Number((line.mrp ?? "").trim());
   const unit = Number((line.unit_price_contractual ?? "").trim());
   if (!Number.isFinite(mrp) || mrp <= 0 || !Number.isFinite(unit)) return "0";
-  return computeImpliedMrpMarkdownPct(mrp, Math.max(unit, 0));
+  return computeImpliedMrpMarkdownPct(mrp, Math.max(unit, 0), {
+    ...resolvePeekLineMrpTaxContext(
+      { tax_rate_percentage: line.tax_rate_percentage ?? "0" },
+      pricesTaxInclusive
+    ),
+  });
 }
 
 function lineCatalogSnapshot(line: {
@@ -285,20 +295,28 @@ export function mapPurchaseOrderHeaderCharges(order: PurchaseOrderRow): PoHeader
 }
 
 function lineCatalogSnapshotFromSavedLine(line: PurchaseOrderLineRow): PoLineCatalogContext {
-  return lineCatalogSnapshot({
-    tax_rate_percentage: line.tax_rate_percentage,
-    base_unit_of_measure: line.base_unit_of_measure,
-    uom_code: line.uom_code,
-    mrp: line.mrp,
-  });
+  const rate = Number(line.tax_rate_percentage ?? 0);
+  const taxComponents = mapSavedPoLineTaxComponents(line.tax_components);
+  return {
+    ...lineCatalogSnapshot({
+      tax_rate_percentage: line.tax_rate_percentage,
+      base_unit_of_measure: line.base_unit_of_measure,
+      uom_code: line.uom_code,
+      mrp: line.mrp,
+    }),
+    tax_rate: Number.isFinite(rate) ? rate : 0,
+    tax_components: taxComponents,
+  };
 }
 
 /** Map a persisted PO line into draft form shape (promo linkage uses saved line ids as keys). */
 export function mapSavedPoLineToDraftLine(
   line: PurchaseOrderLineRow,
-  key: string = line.id
+  key: string = line.id,
+  options?: { pricesTaxInclusive?: boolean }
 ): PoDraftLine {
   const parentLineId = line.linked_parent_line_id?.trim() || null;
+  const pricesTaxInclusive = options?.pricesTaxInclusive ?? false;
   return {
     key,
     sku: line.variant_sku,
@@ -308,10 +326,7 @@ export function mapSavedPoLineToDraftLine(
     variant_sku: line.variant_sku,
     quantity_ordered: line.quantity_ordered,
     unit_price_contractual: line.unit_price_contractual,
-    mrp_markdown_percentage: inferMrpMarkdownFromSavedLine({
-      unit_price_contractual: line.unit_price_contractual,
-      mrp: line.mrp,
-    }),
+    mrp_markdown_percentage: inferMrpMarkdownFromSavedLine(line, pricesTaxInclusive),
     discount_percentage: line.discount_percentage ?? "0",
     discount_amount: line.discount_amount ?? "0",
     discount_type: inferPoLineDiscountTypeFromSaved(line),
@@ -337,7 +352,13 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
     header_charges: mapPurchaseOrderHeaderCharges(order),
     lines:
       order.lines?.length
-        ? ensureTrailingPoLine(order.lines.map((line) => mapSavedPoLineToDraftLine(line)))
+        ? ensureTrailingPoLine(
+            order.lines.map((line) =>
+              mapSavedPoLineToDraftLine(line, line.id, {
+                pricesTaxInclusive: order.prices_tax_inclusive,
+              })
+            )
+          )
         : [createEmptyPoLine()],
   };
 }
@@ -351,7 +372,9 @@ export function copyPoDraftFromOrder(order: PurchaseOrderRow): PoDraftFormState 
   const remappedLines = sourceLines.map((line) => {
     const key = crypto.randomUUID();
     idToKey.set(line.id, key);
-    return mapSavedPoLineToDraftLine(line, key);
+    return mapSavedPoLineToDraftLine(line, key, {
+      pricesTaxInclusive: order.prices_tax_inclusive,
+    });
   });
 
   const linesWithPromoLinks = remappedLines.map((line) => {

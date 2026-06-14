@@ -4,13 +4,17 @@ import { useMemo, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { resolveColumnDecimalPlaces } from "@/lib/documents/decimal-format";
+import {
+  PO_PRICES_TAX_MODE_LABEL,
+  poPricesTaxInclusiveToMode,
+} from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 import { resolvePoPeekLineCellDisplay } from "@/lib/documents/peek-line-display";
 import { getPoPeekLineColumns, resolvePoFormFieldsGridProps } from "@/lib/documents/po-form-layout";
 import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
-  getItemDetailLineFields,
   getPoLayoutColumnPref,
+  getItemDetailLineFields,
   getVisibleHeaderFields,
   isPoLineColumnVisible,
   normalizePoLayoutTemplate,
@@ -26,12 +30,10 @@ import { parsePurchaseOrderCustomFields } from "@/lib/procurement/purchase-order
 import type { PurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import type { PurchaseOrderLineRow, PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import {
-  PO_PRICES_TAX_MODE_LABEL,
-  poPricesTaxInclusiveToMode,
+  resolveSavedPoLineTaxDisplay,
 } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
-import {
-  poTaxSupplyNatureLabel,
-} from "@/lib/procurement/purchase-orders/po-tax-supply";
+import { shouldShowPoTaxRateUnderLineTaxColumn } from "@/lib/procurement/purchase-orders/po-line-tax";
+import { poTaxSupplyNatureLabel } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import { formatPoMoney } from "@/lib/procurement/purchase-orders/totals";
 import {
   formatPoPeekLineUomConversionHint,
@@ -43,6 +45,7 @@ import {
   PoLineQtyUnitSlot,
   PoLineQtyValueStack,
   PoLineSublineRow,
+  PoLineSublineSingleRow,
   PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { PoAddressBlocks } from "@/components/procurement/purchase-orders/po-address-blocks";
@@ -51,13 +54,9 @@ import { cn } from "@/lib/utils";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import { resolvePoAddressBlocksForOrder } from "@/lib/procurement/purchase-orders/resolve-po-address-blocks";
 import {
-  formatPoLineMrpReference,
-  resolvePeekLineMrp,
-  resolvePeekLineMrpMarkdownPct,
-  resolvePoLineMrpVarianceDirection,
-  shouldShowPeekMrpTradeTermsStack,
-} from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
-import { PoLineMrpVarianceArrow } from "@/components/procurement/purchase-orders/po-line-mrp-markdown-slot";
+  DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
+  DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
+} from "@/components/documents/document-line-entry-cells";
 import {
   DOCUMENT_LINE_ROW_BASE,
   DOCUMENT_LINE_ROW_CELL_HOVER,
@@ -67,7 +66,32 @@ type Props = {
   order: PurchaseOrderRow;
   layout?: DocumentLayoutTemplate;
   organizationBillTo: OrganizationBillToSnapshot;
+  enableMrpTradeTerms?: boolean;
 };
+
+function peekLineCellClass(column: DocumentColumnPref, extra?: string) {
+  return documentFieldTypographyClassName(
+    column,
+    cn(
+      "p-0 align-top",
+      column.align === "right"
+        ? "text-right"
+        : column.align === "center"
+          ? "text-center"
+          : "text-left",
+      DOCUMENT_LINE_ROW_CELL_HOVER,
+      extra
+    )
+  );
+}
+
+function peekPrimaryAlignClass(align: DocumentColumnPref["align"] | undefined) {
+  return align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
+}
+
+function resolvePeekLineTaxAmount(line: PurchaseOrderLineRow) {
+  return resolveSavedPoLineTaxDisplay(line);
+}
 
 function resolvePeekHeaderValue(
   fieldId: string,
@@ -249,16 +273,18 @@ function PeekLineItemCell({
   const showSkuUnderItem = !skuLineFieldVisible && Boolean(line.variant_sku);
 
   return (
-    <td className={cn("p-2 align-top", DOCUMENT_LINE_ROW_CELL_HOVER)}>
-      <div className="truncate text-xs font-medium">{line.item_name}</div>
-      {showSkuUnderItem && line.variant_sku ? (
-        <div className="truncate font-mono text-xs text-muted-foreground">{line.variant_sku}</div>
-      ) : null}
-      <PeekLineNestedDetailFields
-        line={line}
-        nestedColumns={nestedColumns}
-        peekDisplayOptions={peekDisplayOptions}
-      />
+    <td className={cn("min-w-0 p-0 align-top whitespace-normal", DOCUMENT_LINE_ROW_CELL_HOVER)}>
+      <div className="min-w-0 px-2 py-2 text-sm">
+        <div className="truncate text-xs font-medium">{line.item_name}</div>
+        {showSkuUnderItem && line.variant_sku ? (
+          <div className="truncate font-mono text-xs text-muted-foreground">{line.variant_sku}</div>
+        ) : null}
+        <PeekLineNestedDetailFields
+          line={line}
+          nestedColumns={nestedColumns}
+          peekDisplayOptions={peekDisplayOptions}
+        />
+      </div>
     </td>
   );
 }
@@ -277,17 +303,7 @@ function PeekLineQtyCell({
   const conversionHint = showUnitUnderQty ? formatPoPeekLineUomConversionHint(line) : null;
 
   return (
-    <td
-      className={documentFieldTypographyClassName(
-        column,
-        cn(
-          "align-top tabular-nums",
-          showUnitUnderQty ? "p-0" : "p-2",
-          column.align === "right" ? "text-right" : "text-left",
-          DOCUMENT_LINE_ROW_CELL_HOVER
-        )
-      )}
-    >
+    <td className={peekLineCellClass(column, "tabular-nums")}>
       <PoLineQtyValueStack
         showUnitUnderQty={showUnitUnderQty}
         align={column.align}
@@ -301,9 +317,9 @@ function PeekLineQtyCell({
         }
       >
         <span
-          className={cn(
-            "block h-8 leading-8 tabular-nums",
-            column.align === "right" ? "text-right" : "text-left"
+          className={documentFieldTypographyClassName(
+            column,
+            cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
           )}
         >
           {value}
@@ -325,102 +341,152 @@ function PeekLineValueCell({
   const value = resolvePoPeekLineCellDisplay(column, line, peekDisplayOptions) ?? "—";
 
   return (
-    <td
-      className={documentFieldTypographyClassName(
-        column,
-        cn(
-          "p-2 tabular-nums",
-          column.align === "right" ? "text-right" : "text-left",
-          DOCUMENT_LINE_ROW_CELL_HOVER
-        )
-      )}
-    >
-      {value}
+    <td className={peekLineCellClass(column, "tabular-nums")}>
+      <div
+        className={documentFieldTypographyClassName(
+          column,
+          cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
+        )}
+      >
+        {value}
+      </div>
     </td>
   );
 }
 
-function PeekLinePriceCell({
+function PeekLineTaxCell({
   line,
   column,
-  enableMrpTradeTerms = true,
-  mrpColumnVisible = false,
+  taxRateColumn,
+  showTaxRateSubline,
+  peekDisplayOptions,
 }: {
   line: PurchaseOrderLineRow;
   column: DocumentColumnPref;
-  enableMrpTradeTerms?: boolean;
-  mrpColumnVisible?: boolean;
+  taxRateColumn?: DocumentColumnPref | null;
+  showTaxRateSubline: boolean;
+  peekDisplayOptions?: PoPeekLineDisplayOptions;
 }) {
-  const value = resolvePoPeekLineCellDisplay(column, line) ?? "—";
-  const markdownPct = resolvePeekLineMrpMarkdownPct(line);
-  const mrp = resolvePeekLineMrp(line);
-  const unitPrice = Number(line.unit_price_contractual ?? 0);
-  const varianceDirection = resolvePoLineMrpVarianceDirection(mrp, unitPrice);
-  const hasMarkdownDisplay = Boolean(markdownPct && markdownPct !== "0.00");
-  const hasVarianceDisplay = varianceDirection != null;
-  const showMrpStack =
-    shouldShowPeekMrpTradeTermsStack(line, enableMrpTradeTerms) &&
-    (!mrpColumnVisible || hasMarkdownDisplay || hasVarianceDisplay);
+  const value = resolvePoPeekLineCellDisplay(column, line, peekDisplayOptions) ?? "—";
+  const showStack =
+    showTaxRateSubline && Boolean(line.variant_id) && Boolean(taxRateColumn);
 
-  return (
-    <td
-      className={documentFieldTypographyClassName(
-        column,
-        cn(
-          "align-top tabular-nums",
-          showMrpStack ? "p-0" : "p-2",
-          column.align === "right" ? "text-right" : "text-left",
-          DOCUMENT_LINE_ROW_CELL_HOVER
-        )
-      )}
-    >
-      <PoLineQtyValueStack
-        showUnitUnderQty={showMrpStack}
-        align={column.align}
-        unitSlot={
-          showMrpStack ? (
-            <PoLineSublineZone align={column.align}>
-              <PoLineSublineRow align={column.align} reserve={!hasMarkdownDisplay && !hasVarianceDisplay}>
-                {hasMarkdownDisplay || hasVarianceDisplay ? (
-                  <span
-                    className={cn(
-                      "flex w-full min-w-0 items-center gap-1 px-2 tabular-nums",
-                      PO_LINE_SUBLINE_TEXT_CLASS,
-                      column.align === "right" && "justify-end text-right",
-                      column.align === "center" && "justify-center text-center"
-                    )}
-                  >
-                    {markdownPct ?? "0"}%
-                    <PoLineMrpVarianceArrow direction={varianceDirection} />
-                  </span>
-                ) : null}
-              </PoLineSublineRow>
-              <PoLineSublineRow align={column.align} reserve={mrpColumnVisible}>
-                {!mrpColumnVisible ? (
-                  <span
-                    className={cn(
-                      "w-full truncate px-2 tabular-nums",
-                      PO_LINE_SUBLINE_TEXT_CLASS,
-                      column.align === "right" && "text-right",
-                      column.align === "center" && "text-center"
-                    )}
-                  >
-                    MRP {formatPoLineMrpReference(mrp, 2)}
-                  </span>
-                ) : null}
-              </PoLineSublineRow>
-            </PoLineSublineZone>
-          ) : null
-        }
-      >
-        <span
-          className={cn(
-            "block h-8 leading-8 tabular-nums",
-            showMrpStack && "px-2",
-            column.align === "right" ? "text-right" : "text-left"
+  if (!showStack || !taxRateColumn) {
+    return (
+      <td className={peekLineCellClass(column, "tabular-nums")}>
+        <div
+          className={documentFieldTypographyClassName(
+            column,
+            cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
           )}
         >
           {value}
+        </div>
+      </td>
+    );
+  }
+
+  const rateDisplay =
+    resolvePoPeekLineCellDisplay(taxRateColumn, line, peekDisplayOptions) ?? "—";
+
+  return (
+    <td className={peekLineCellClass(column, "tabular-nums")}>
+      <PoLineQtyValueStack
+        showUnitUnderQty
+        align={column.align}
+        unitSlot={
+          <PoLineSublineSingleRow align={column.align}>
+            <span
+              className={cn(
+                "w-full truncate px-2 tabular-nums",
+                PO_LINE_SUBLINE_TEXT_CLASS,
+                peekPrimaryAlignClass(column.align)
+              )}
+            >
+              {rateDisplay}
+            </span>
+          </PoLineSublineSingleRow>
+        }
+      >
+        <span
+          className={documentFieldTypographyClassName(
+            column,
+            cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
+          )}
+        >
+          {value}
+        </span>
+      </PoLineQtyValueStack>
+    </td>
+  );
+}
+
+function PeekLineTotalCell({
+  line,
+  column,
+}: {
+  line: PurchaseOrderLineRow;
+  column: DocumentColumnPref;
+}) {
+  const decimalPlaces = resolveColumnDecimalPlaces(column);
+  const resolved = resolvePeekLineTaxAmount(line);
+  const primaryValue = formatPoMoney(resolved.primaryAmount, decimalPlaces);
+  const exTaxValue = formatPoMoney(resolved.taxableBase, decimalPlaces);
+
+  if (!resolved.showExTaxSubline) {
+    return (
+      <td className={peekLineCellClass(column, "tabular-nums")}>
+        <div
+          className={documentFieldTypographyClassName(
+            column,
+            cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
+          )}
+        >
+          {primaryValue}
+        </div>
+      </td>
+    );
+  }
+
+  return (
+    <td className={peekLineCellClass(column, "tabular-nums")}>
+      <PoLineQtyValueStack
+        showUnitUnderQty
+        align={column.align}
+        unitSlot={
+          <PoLineSublineZone align={column.align}>
+            <PoLineSublineRow align={column.align}>
+              <span
+                className={cn(
+                  "w-full px-2",
+                  PO_LINE_SUBLINE_TEXT_CLASS,
+                  peekPrimaryAlignClass(column.align)
+                )}
+              >
+                Before Tax
+              </span>
+            </PoLineSublineRow>
+            <PoLineSublineRow align={column.align}>
+              <span
+                className={cn(
+                  "w-full truncate px-2 tabular-nums",
+                  PO_LINE_SUBLINE_TEXT_CLASS,
+                  peekPrimaryAlignClass(column.align)
+                )}
+              >
+                {exTaxValue}
+              </span>
+            </PoLineSublineRow>
+          </PoLineSublineZone>
+        }
+      >
+        <span
+          className={documentFieldTypographyClassName(
+            column,
+            cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
+          )}
+        >
+          {primaryValue}
         </span>
       </PoLineQtyValueStack>
     </td>
@@ -431,6 +497,7 @@ export function PoPeekView({
   order,
   layout = DEFAULT_PO_SCREEN_LAYOUT,
   organizationBillTo,
+  enableMrpTradeTerms = true,
 }: Props) {
   const customFields = parsePurchaseOrderCustomFields(order.custom_fields);
   const resolvedLayout = useMemo(() => normalizePoLayoutTemplate(layout), [layout]);
@@ -439,13 +506,23 @@ export function PoPeekView({
     [order, organizationBillTo]
   );
   const headerFields = getVisibleHeaderFields(resolvedLayout);
-  const lineColumns = useMemo(() => getPoPeekLineColumns(resolvedLayout), [resolvedLayout]);
-  const nestedColumns = useMemo(() => getItemDetailLineFields(resolvedLayout), [resolvedLayout]);
+  const lineColumns = useMemo(
+    () => getPoPeekLineColumns(resolvedLayout, { enableMrpTradeTerms }),
+    [resolvedLayout, enableMrpTradeTerms]
+  );
+  const nestedColumns = useMemo(
+    () => getItemDetailLineFields(resolvedLayout, { enableMrpTradeTerms }),
+    [resolvedLayout, enableMrpTradeTerms]
+  );
   const skuLineFieldVisible = isPoLineColumnVisible("sku", resolvedLayout);
   const showUnitUnderQty = shouldShowPoUnitUnderQtyColumn(resolvedLayout);
-  const mrpColumnVisible = useMemo(
-    () => lineColumns.some((column) => column.id === "mrp"),
-    [lineColumns]
+  const taxRateColumn = useMemo(
+    () => getPoLayoutColumnPref(resolvedLayout, "tax_rate_pct"),
+    [resolvedLayout]
+  );
+  const showTaxRateUnderLineTax = useMemo(
+    () => shouldShowPoTaxRateUnderLineTaxColumn(resolvedLayout),
+    [resolvedLayout]
   );
   const peekDisplayOptions = useMemo<PoPeekLineDisplayOptions>(
     () => ({
@@ -546,7 +623,7 @@ export function PoPeekView({
                   >
                     <td
                       className={cn(
-                        "w-10 p-2 text-center tabular-nums text-xs text-muted-foreground",
+                        "w-10 border border-border px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground",
                         DOCUMENT_LINE_ROW_CELL_HOVER
                       )}
                     >
@@ -569,12 +646,23 @@ export function PoPeekView({
                           showUnitUnderQty={showUnitUnderQty}
                         />
                       ) : column.id === "unit_price" ? (
-                        <PeekLinePriceCell
+                        <PeekLineValueCell
                           key={column.id}
                           line={line}
                           column={column}
-                          mrpColumnVisible={mrpColumnVisible}
+                          peekDisplayOptions={peekDisplayOptions}
                         />
+                      ) : column.id === "line_tax_amount" ? (
+                        <PeekLineTaxCell
+                          key={column.id}
+                          line={line}
+                          column={column}
+                          taxRateColumn={taxRateColumn}
+                          showTaxRateSubline={showTaxRateUnderLineTax}
+                          peekDisplayOptions={peekDisplayOptions}
+                        />
+                      ) : column.id === "line_total" ? (
+                        <PeekLineTotalCell key={column.id} line={line} column={column} />
                       ) : (
                         <PeekLineValueCell
                           key={column.id}

@@ -1,4 +1,4 @@
-import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
+import { normalizeDocumentLayoutTemplate } from "@/lib/documents/normalize-document-layout";
 import type {
   DocumentColumnPref,
   DocumentImageDisplayMode,
@@ -157,13 +157,13 @@ export function documentLayoutFromRow(
   viewContext: DocumentViewContext
 ): DocumentLayoutTemplate {
   if (!row) {
-    return normalizePoLayoutTemplate({ moduleKey, viewContext });
+    return normalizeDocumentLayoutTemplate(moduleKey, { moduleKey, viewContext });
   }
 
   const columns = parseColumnPrefs(row.grid_columns_json);
   const formatting = parseFormattingMeta(row.line_item_formatting);
 
-  return normalizePoLayoutTemplate({
+  return normalizeDocumentLayoutTemplate(moduleKey, {
     moduleKey,
     viewContext,
     columns: columns ?? undefined,

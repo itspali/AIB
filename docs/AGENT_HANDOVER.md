@@ -6,6 +6,7 @@ You are an Elite Enterprise Full-Stack Engineer and Core Database Architect. You
   1. `@docs/DATA_STANDARDS.md` (Relational UUIDv4 constraints, NUMERIC(15,4) and NUMERIC(15,6) financial scales, UTC timezones)
   2. `@docs/DESIGN_SYSTEM.md` (Three-Zone Dashboard layouts, Mobile responsive grid stacks, Progressive disclosure toggles, **§5.4 document line-entry drawers**)
 - **Inventory / stock / transfers / procurement inbound:** read [`docs/INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for what is shipped, V1 constraints, and the current execution roadmap.
+- **Procurement billing (bills, three-way match, AP posting):** read [`docs/PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md).
 - **Procurement PO / GRN / future Sales line-entry docs:** read [`docs/PO_UX_PLAN.md`](./PO_UX_PLAN.md) for commercial UX decisions and [`docs/DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4 for reusable drawer layout.
 
 ## 2. Current Project State Architecture
@@ -44,7 +45,7 @@ The folder tree structure is:
 - `supabase/migrations/20260608130000_location_document_sequence_counters.sql` -> admin-set `next_value` on location document numbering save.
 - `supabase/migrations/20260608150000_default_location_document_naming_prefixes.sql` -> year-scoped default prefixes (e.g. `ST-2026-`, `SA-2026-`) for locations missing naming.
 - `apps/web/app/inventory/` -> Overview, Stock, Transfers modules (see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)).
-- `apps/web/app/procurement/purchase-orders/`, `apps/web/app/procurement/goods-receipts/` -> Tier B list modules + line-entry drawers (see [`PO_UX_PLAN.md`](./PO_UX_PLAN.md), DESIGN_SYSTEM §5.4).
+- `apps/web/app/procurement/purchase-orders/`, `apps/web/app/procurement/goods-receipts/`, `apps/web/app/procurement/bills/` -> Tier B list modules + line-entry drawers (see [`PO_UX_PLAN.md`](./PO_UX_PLAN.md), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md), DESIGN_SYSTEM §5.4).
 - `apps/web/components/documents/` -> Shared `DocumentLineEntryGrid` / `DocumentLinePeekTable` for multi-line commercial and inventory documents.
 - `apps/web/lib/documents/use-document-line-table-fill-height.ts` -> md+ line entry tables fill remaining drawer height; drawer body does not scroll when active.
 
@@ -53,7 +54,7 @@ The database contains forty-five+ active models, protected by Row-Level Security
 - `stock_adjustments`, `stock_adjustment_lines` — location-scoped posted adjustments (V1).
 - `stock_transfers`, `stock_transfer_items` — inter-location moves with status machine.
 - `item_valuations`, `inventory_ledger` — MWAC on-hand and append-only ledger.
-- Procurement (**UI built** for PO + GRN V1): `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`. Purchase invoices UI not built.
+- Procurement (**UI built** for PO + GRN + Bills V1): `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `goods_receipt_landed_charges`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`, `purchase_invoice_receipts`, `document_approval_requests`. See [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) for three-way match and AP gates.
 
 Full catalog (do not re-create):
 - `tenants`, `tenant_locations`, `users`, `entities`, `entity_contacts`, `item_categories`, `items`, `item_variants`, `item_uoms`, `supplier_items`, `price_books`, `price_book_entries`, `storefront_channels`, `storefront_items`, `item_media`, `tags`, `workspace_control_registry`, `document_layout_templates`, `document_sequences`, `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `purchase_order_grn_mappings`, `purchase_invoices`, `purchase_invoice_items`, `stock_transfers`, `stock_transfer_items`, `stock_transfer_incidents`, `transfer_discrepancy_claims`, `item_valuations`, `inventory_buffer_thresholds`, `sales_quotations`, `sales_orders`, `sales_invoices`, `sales_shipments`, `payment_gateway_vouchers`, `customer_payments`, `payment_applications`, `sales_credit_notes`, `sales_returns`, `document_approvals`, `accounts`, `tax_rate_registry`, `return_policies`, `currency_exchange_rates`, `general_ledger_headers`, `general_ledger_entries`, `inventory_ledger`, `stock_adjustments`, `stock_adjustment_lines`.
@@ -164,13 +165,21 @@ Full catalog (do not re-create):
 - **Location numbering:** sequence counter updates + default prefixes (`20260608130000_*`, `20260608150000_*`).
 - **Details:** [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 
-### Task Sequence 21: Procurement Inbound (PO + GRN) [IMPLEMENTED]
-- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules under Procurement.
+### Task Sequence 21: Procurement Inbound (PO + GRN + Bills) [IMPLEMENTED]
+- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts`, `/procurement/bills` — Tier B list modules under Procurement.
 - **PO V1 UX:** spreadsheet line entry, supplier combobox + catalog prefill, totals rail, voucher preview, md+ line-table fill height — see [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) Phase 1.
+- **Bills V1:** vendor invoice drawer, GRN link panel, three-way match status, posting step visibility — see [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md).
 - **Shared document UI:** `components/documents/` + `lib/documents/` (`DocumentLineEntryGrid`, `useDocumentLineTableFillHeight`, line-entry helpers) — reuse for stock adjustments, transfers, Sales Quotation / Order / Invoice (DESIGN_SYSTEM §5.4).
-- **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`.
-- **Cross-link:** PO peek **Receive** → GRN create with `?po=[uuid]`.
-- **Defer:** full PO approval workflow, supplier portal, purchase invoices, document layout settings UI — unless user expands scope.
+- **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`, `20260622110000_procurement_billing_three_way_gl.sql`.
+- **Cross-link:** PO peek **Receive** → GRN create with `?po=[uuid]`; GRN peek → Bill create with linked receipts.
+- **Defer:** supplier portal UI polish, document layout settings UI — unless user expands scope.
+
+### Task Sequence 21b: Procurement PO Approval Workflow [IMPLEMENTED]
+- **Design:** [`PROCUREMENT_APPROVAL_DESIGN.md`](./PROCUREMENT_APPROVAL_DESIGN.md) — submit / approve / reject before issue when `APPROVAL_SETTINGS` policy requires.
+- **RPCs:** `submit_purchase_order_for_approval`, `approve_purchase_order`, `reject_purchase_order`; `issue_purchase_order` respects approval gate.
+- **Schema:** `document_approval_requests`; `APPROVAL_SETTINGS` in `workspace_control_registry`.
+- **Migration:** `20260622120000_procurement_po_approval.sql`.
+- **UI:** approval actions on PO drawer/peek when status is `PENDING_APPROVAL`; settings under procurement module settings.
 
 ### Task Sequence 22: Enterprise Group Structure [IMPLEMENTED — Phase 2 UI]
 - **Route:** `/settings/group` — Administration → Group (DESIGN_SYSTEM §6 org-settings pattern).
@@ -183,6 +192,7 @@ Full catalog (do not re-create):
 - **Non-goals v1:** cross-org inventory, shared catalog, intercompany.
 - **Migrations:** `20260609100000_tenant_groups_foundation.sql`, `20260609200000_tenant_groups_invitations.sql`.
 - **Procurement PO Phase 2:** omnibar `purchase-orders` scope; duplicate/copy lines; full-page routes `/procurement/purchase-orders/new`, `/procurement/purchase-orders/[id]/edit`; per-location document layout overrides (`20260615100000_document_layout_location_scope.sql`).
-- **Procurement PO Phase 3 (started):** line discounts + line tax via `resolve_line_tax` + editable line UOM (`20260616100000_*`, `20260616200000_*`, `20260616300000_*`). Next: approval workflow.
+- **Procurement PO Phase 3 (started):** line discounts + line tax via `resolve_line_tax` + editable line UOM (`20260616100000_*`, `20260616200000_*`, `20260616300000_*`). **Approval workflow shipped** (`20260622120000_procurement_po_approval.sql`).
+- **Procurement billing (Phase 5):** bills UI, three-way match, `quantity_invoiced`, AP posting gates (`20260622110000_procurement_billing_three_way_gl.sql`); GRN QC/reject reconcile (`20260622100000_reconcile_post_goods_receipt_qc_exception.sql`); supplier portal foundation (`20260622130000_supplier_portal.sql`).
 - **Lib/UI:** `apps/web/lib/group/`, `apps/web/app/settings/group/`, `apps/web/components/settings/group/`.
 - **Org settings:** read-only parent group on Organization Identity when `tenants.group_id` set.

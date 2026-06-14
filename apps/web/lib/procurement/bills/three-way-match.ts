@@ -41,3 +41,43 @@ export function aggregateBillMatchSeverity(
   void tolerancePct;
   return "MATCHED";
 }
+
+export type BillLineQuantitySeverity = "matched" | "overage";
+
+export function computeQuantityOverage(
+  quantityBilled: number,
+  quantityOnGrns: number,
+  quantityAlreadyInvoiced = 0
+): number | null {
+  if (!Number.isFinite(quantityBilled) || !Number.isFinite(quantityOnGrns)) {
+    return null;
+  }
+  const allowed = Math.max(quantityOnGrns - quantityAlreadyInvoiced, 0);
+  const overage = quantityBilled - allowed;
+  return overage > 0 ? overage : 0;
+}
+
+export function resolveBillLineQuantitySeverity(
+  quantityBilled: number,
+  quantityOnGrns: number,
+  quantityAlreadyInvoiced = 0
+): BillLineQuantitySeverity {
+  const overage = computeQuantityOverage(quantityBilled, quantityOnGrns, quantityAlreadyInvoiced);
+  if (overage == null || overage <= 0) return "matched";
+  return "overage";
+}
+
+export function computeQuantityVariancePct(
+  quantityBilled: number,
+  quantityOnGrns: number,
+  quantityAlreadyInvoiced = 0
+): number | null {
+  if (!Number.isFinite(quantityBilled) || !Number.isFinite(quantityOnGrns)) {
+    return null;
+  }
+  const allowed = Math.max(quantityOnGrns - quantityAlreadyInvoiced, 0);
+  if (allowed <= 0) return quantityBilled > 0 ? 100 : null;
+  const overage = Math.max(quantityBilled - allowed, 0);
+  if (overage <= 0) return 0;
+  return (overage / allowed) * 100;
+}

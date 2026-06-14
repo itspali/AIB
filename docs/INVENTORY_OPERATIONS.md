@@ -2,9 +2,9 @@
 
 **Read this first** when working on stock, transfers, opening balances, inventory overview, or inbound procurement that touches on-hand quantities.
 
-**Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA).
+**Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) (bills / three-way match).
 
-**Last updated:** 2026-06-09 (document drawer UX polish: line-table fill height, trailing rows, stock header layout, GRN/Stock/Transfer header actions).
+**Last updated:** 2026-06-14 (GRN QC/reject/landed cost; procurement bills cross-link).
 
 ---
 
@@ -87,6 +87,27 @@
   - `apps/web/lib/search/executor/client-scopes.ts` — `filterStockBalancesByAst`, `filterStockAdjustmentsByAst`, `filterTransfersByAst`
   - `apps/web/components/documents/` — shared line-entry grid + peek table
   - `apps/web/lib/documents/use-document-line-table-fill-height.ts` — md+ line table fills drawer height
+
+### GRN QC, reject lines, and landed cost (2026-06-14)
+
+Receipt posting (`post_goods_receipt`) supports partial accept/reject, QC routing, and freight/landed charge allocation.
+
+| Feature | Behavior |
+|---------|----------|
+| **QC policy** | Layered `qc_receipt_policy` on category/item (`INHERIT` / `REQUIRED` / `EXEMPT`); org flag `is_qc_required_before_stocking` in procurement settings |
+| **Accept / reject qty** | Line fields `quantity_accepted`, `quantity_rejected`; only accepted qty posts to stock and counts toward PO `quantity_received` |
+| **Reject disposition** | `reject_disposition` enum: `RTV`, `SCRAP`, `DAMAGE`, `SHRINK` + optional `reject_reason` |
+| **QC override** | Per-line `route_to_qc` override when policy allows |
+| **Landed charges** | `p_landed_charges` JSON → `goods_receipt_landed_charges`; allocation `BY_QUANTITY` / `BY_VALUE` / `BY_WEIGHT`; posting step `grn_landed_charges_allocated` |
+| **Billing link** | Bill three-way match uses **accepted** GRN qty per PO line — see [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) |
+
+**Migrations:**
+- `20260612180000_grn_accept_reject_lines.sql` — accept/reject on receipt lines
+- `20260612260000_grn_exception_workflow_qc_policy.sql` — QC policy resolution + exception workflow
+- `20260622100000_reconcile_post_goods_receipt_qc_exception.sql` — reject disposition + reconcile with promo/QC
+- `20260620200000_procurement_promo_engine.sql` — landed charges table + allocation in `post_goods_receipt`
+
+**UI:** GRN drawer — landed cost panel (`GrnLandedCostPanel`), accept/reject columns when QC enabled; `apps/web/lib/procurement/goods-receipts/landed-cost-allocation.ts` mirrors server allocation preview.
 
 ### Document drawer UX (Stock / Transfers / GRN parity — 2026-06-09)
 
@@ -172,11 +193,12 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 
 ### Tier 2 — Procurement inbound [IMPLEMENTED — Sequence 21]
 
-- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts` — Tier B list modules with line-entry drawers (§5.4).
-- **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`
-- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 2 **shipped**; Phase 3 **in progress** (discounts, tax, line UOM shipped; approval next).
+- **Routes:** `/procurement/purchase-orders`, `/procurement/goods-receipts`, `/procurement/bills` — Tier B list modules with line-entry drawers (§5.4).
+- **Migrations:** `20260608160000_procurement_grn_v1_rpcs.sql`, `20260611140000_purchase_order_v1_ux_rpcs.sql`, `20260622110000_procurement_billing_three_way_gl.sql`, `20260622120000_procurement_po_approval.sql`
+- **UX plan:** [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) — Phase 2 **shipped**; Phase 3 **shipped** (discounts, tax, line UOM, PO approval).
+- **Billing:** [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) — three-way match, `quantity_invoiced`, AP posting gates.
 - **Shipped (Phase 2):** omnibar `purchase-orders`, duplicate/copy, full-page routes, per-location layout overrides (`20260615100000_document_layout_location_scope.sql`).
-- **Defer:** PO approval workflow UI, supplier portal, purchase invoices — unless scope expands.
+- **Defer:** supplier portal UI polish — unless scope expands.
 
 ### Tier 2b — Remaining inventory polish
 
@@ -198,6 +220,13 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 ## 6. What to execute next (for a new chat)
 
 **Default recommendation:** confirm scope with the user — net-new domains (Sales UI, Financials, RBAC) or remaining inventory deferred items (transfer approval, incidents UI, permissions hardening).
+
+### Recently shipped (2026-06-14)
+
+1. **Procurement bills UI** — `/procurement/bills` list + drawer; GRN link panel; match status badges.
+2. **Three-way match + AP posting** — `save_purchase_invoice` qty gate, `quantity_invoiced`, `bill_payables_posted` (`20260622110000_*`).
+3. **PO approval workflow** — submit/approve/reject RPCs + `document_approval_requests` (`20260622120000_*`).
+4. **GRN QC/reject reconcile** — accept/reject qty, reject disposition, landed charges posting step (`20260622100000_*`).
 
 ### Recently shipped (2026-06-10)
 
@@ -241,9 +270,10 @@ apps/web/
   app/procurement/
     purchase-orders/      # PO module
     goods-receipts/       # GRN module
+    bills/                # Vendor bills module
   components/documents/   # Shared line-entry grid + peek table
   lib/documents/          # Column registries, line-entry helpers, use-document-line-table-fill-height.ts
-  lib/procurement/        # PO + GRN queries, schemas, list prefs
+  lib/procurement/        # PO + GRN + bills queries, schemas, list prefs
   lib/inventory/
     stock/                # Balances, adjustments, valuation-engine
     transfers/            # Transfers queries, schemas, receipt-validation
@@ -259,6 +289,12 @@ supabase/migrations/
   20260608150000_default_location_document_naming_prefixes.sql
   20260608160000_procurement_grn_v1_rpcs.sql
   20260611140000_purchase_order_v1_ux_rpcs.sql
+  20260612180000_grn_accept_reject_lines.sql
+  20260612260000_grn_exception_workflow_qc_policy.sql
+  20260620200000_procurement_promo_engine.sql
+  20260622100000_reconcile_post_goods_receipt_qc_exception.sql
+  20260622110000_procurement_billing_three_way_gl.sql
+  20260622120000_procurement_po_approval.sql
 ```
 
 ---
@@ -273,3 +309,4 @@ supabase/migrations/
 6. On `/inventory/stock` and `/inventory/transfers`, omnibar auto-selects module scope; text search filters the visible list.
 7. Stock adjustment create at **40vw**: Location + Kind on one row, Reason on next row; at **60vw+** all three on one row; line table scrolls inside drawer on md+.
 8. GRN / stock / transfer line entry: picking an item appends a trailing blank row; no duplicate SKU text under the item field.
+9. **Extended procurement smoke** (`SMOKE_EXTENDED=1`): landed charges step, bill qty mismatch rejection, `bill_payables_posted` — see [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) §6.

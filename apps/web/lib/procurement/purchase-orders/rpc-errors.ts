@@ -95,6 +95,42 @@ export function formatPurchaseOrderRpcError(
     };
   }
 
+  if (message.toLowerCase().includes("purchase order approval is required before issue")) {
+    return {
+      message: "This purchase order must be submitted and approved before it can be issued.",
+    };
+  }
+
+  if (message.toLowerCase().includes("only draft purchase orders can be submitted for approval")) {
+    return {
+      message: "Only draft purchase orders can be submitted for approval.",
+    };
+  }
+
+  if (message.toLowerCase().includes("approval is not required for this purchase order")) {
+    return {
+      message: "Approval is not required for this purchase order. Use Issue instead.",
+    };
+  }
+
+  if (message.toLowerCase().includes("purchase order approver permission required")) {
+    return {
+      message: "You do not have permission to approve or reject purchase orders.",
+    };
+  }
+
+  if (message.toLowerCase().includes("submitter cannot self-approve this purchase order")) {
+    return {
+      message: "You cannot approve your own submission unless self-approve below threshold is enabled.",
+    };
+  }
+
+  if (message.toLowerCase().includes("rejection reason is required")) {
+    return {
+      message: "Enter a rejection reason before rejecting this purchase order.",
+    };
+  }
+
   if (
     message.toLowerCase().includes("purchase_orders_tenant_voucher_unique") ||
     message.toLowerCase().includes("duplicate key value") ||

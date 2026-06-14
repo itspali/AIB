@@ -46,6 +46,9 @@ import {
   DocumentLineEntrySection,
   type DocumentLineColumn,
 } from "@/components/documents/document-line-entry-grid";
+import {
+  applyGstRegisteredPoLayoutOverrides,
+} from "@/lib/procurement/purchase-orders/po-gst-compliance";
 
 type Props = {
   lines: PoDraftLine[];
@@ -64,6 +67,7 @@ type Props = {
   taxSupplyNature?: PoTaxSupplyNature;
   taxMechanism?: GstTaxMechanism;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  gstRegistered?: boolean;
   onPricesTaxInclusiveChange?: (value: boolean) => void;
   entryAnchor?: PoLineEntryAnchor;
   onEntryAnchorChange?: (anchor: PoLineEntryAnchor) => void;
@@ -85,7 +89,7 @@ function PoLineEntryGrid({
   disabled,
   fillHeight,
   autoScrollAddedLines,
-  layout: layoutProp,
+  layout,
   allowLineItemDiscounts,
   enableMrpTradeTerms,
   promoDefaultCategory,
@@ -93,6 +97,7 @@ function PoLineEntryGrid({
   taxSupplyNature = "INTERSTATE",
   taxMechanism = "FORWARD",
   taxCodeOptions = [],
+  gstRegistered = false,
   actions,
 }: {
   lines: PoDraftLine[];
@@ -110,32 +115,39 @@ function PoLineEntryGrid({
   taxSupplyNature: PoTaxSupplyNature;
   taxMechanism: GstTaxMechanism;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  gstRegistered?: boolean;
   actions: ReturnType<typeof usePoLineEntryActions>;
 }) {
-  const layout = useMemo(() => normalizePoLayoutTemplate(layoutProp), [layoutProp]);
-  const imageDisplayMode = useMemo(() => resolvePoLineImageDisplayMode(layout), [layout]);
+  const resolvedLayout = useMemo(
+    () => applyGstRegisteredPoLayoutOverrides(normalizePoLayoutTemplate(layout), gstRegistered),
+    [layout, gstRegistered]
+  );
+  const imageDisplayMode = useMemo(() => resolvePoLineImageDisplayMode(resolvedLayout), [resolvedLayout]);
   const visibleColumns = useMemo(
-    () => getPoLineEntryTableColumns(layout, { allowLineItemDiscounts }),
-    [layout, allowLineItemDiscounts]
+    () =>
+      getPoLineEntryTableColumns(resolvedLayout, {
+        allowLineItemDiscounts,
+        enableMrpTradeTerms,
+      }),
+    [resolvedLayout, allowLineItemDiscounts, enableMrpTradeTerms]
   );
-  const nestedColumns = useMemo(() => getItemDetailLineFields(layout), [layout]);
-  const showUnitUnderQty = useMemo(() => shouldShowPoUnitUnderQtyColumn(layout), [layout]);
+  const nestedColumns = useMemo(
+    () => getItemDetailLineFields(resolvedLayout, { enableMrpTradeTerms }),
+    [resolvedLayout, enableMrpTradeTerms]
+  );
+  const showUnitUnderQty = useMemo(() => shouldShowPoUnitUnderQtyColumn(resolvedLayout), [resolvedLayout]);
   const discountAmountColumn = useMemo(
-    () => getPoLayoutColumnPref(layout, "discount_amount"),
-    [layout]
+    () => getPoLayoutColumnPref(resolvedLayout, "discount_amount"),
+    [resolvedLayout]
   );
-  const taxRateColumn = useMemo(() => getPoLayoutColumnPref(layout, "tax_rate_pct"), [layout]);
+  const taxRateColumn = useMemo(() => getPoLayoutColumnPref(resolvedLayout, "tax_rate_pct"), [resolvedLayout]);
   const showTaxRateUnderLineTax = useMemo(
-    () => shouldShowPoTaxRateUnderLineTaxColumn(layout),
-    [layout]
+    () => shouldShowPoTaxRateUnderLineTaxColumn(resolvedLayout),
+    [resolvedLayout]
   );
   const showDiscountAmountUnderPct = useMemo(
-    () => shouldShowPoDiscountAmountUnderPctColumn(layout),
-    [layout]
-  );
-  const mrpColumnVisible = useMemo(
-    () => visibleColumns.some((column) => column.id === "mrp"),
-    [visibleColumns]
+    () => shouldShowPoDiscountAmountUnderPctColumn(resolvedLayout),
+    [resolvedLayout]
   );
 
   const columns: DocumentLineColumn[] = useMemo(
@@ -193,7 +205,7 @@ function PoLineEntryGrid({
           destinationLocationId,
           excludePurchaseOrderId,
           enableMrpTradeTerms,
-          mrpColumnVisible,
+          gstRegistered,
           pricesTaxInclusive,
           taxSupplyNature,
           taxMechanism,
@@ -235,6 +247,7 @@ export function PoLineEntryTable({
   taxSupplyNature = "INTERSTATE",
   taxMechanism = "FORWARD",
   taxCodeOptions = [],
+  gstRegistered = false,
   onPricesTaxInclusiveChange,
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
@@ -249,7 +262,7 @@ export function PoLineEntryTable({
   const handleEntryAnchorChange =
     onEntryAnchorChange ?? internalAnchor.handleEntryAnchorChange;
   const actions = usePoLineEntryActions(lines, supplierId, onChange, entryAnchor);
-  usePoLineCatalogHydration(lines, onChange);
+  usePoLineCatalogHydration(lines, onChange, taxCodeOptions);
 
   useEffect(() => {
     prefetchBrowseVariants();
@@ -273,7 +286,7 @@ export function PoLineEntryTable({
     ) : null;
 
   const headerControls = (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex min-w-0 flex-nowrap items-center justify-end gap-1 sm:gap-2">
       {taxModeToggle}
       {anchorToggle}
     </div>
@@ -302,6 +315,7 @@ export function PoLineEntryTable({
         taxSupplyNature={taxSupplyNature}
         taxMechanism={taxMechanism}
         taxCodeOptions={taxCodeOptions}
+        gstRegistered={gstRegistered}
         actions={actions}
       />
     </DocumentLineEntrySection>

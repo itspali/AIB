@@ -10,6 +10,8 @@ import type { LocationRow } from "@/lib/locations/types";
 import type { StockAdjustmentRow, StockBalanceRow } from "@/lib/inventory/stock/types";
 import type { StockTransferRow } from "@/lib/inventory/transfers/types";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
+import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
+import { billMatchStatusLabel } from "@/lib/procurement/bills/three-way-match";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
 
@@ -139,10 +141,14 @@ function purchaseOrderStatusHaystack(status: PurchaseOrderRow["document_status"]
   return [status, purchaseOrderStatusLabel(status)].join(" ").toLowerCase();
 }
 
+function billMatchStatusHaystack(status: string | null | undefined): string {
+  return [status, billMatchStatusLabel(status)].join(" ").toLowerCase();
+}
+
 function filterRowsByAst<T extends Record<string, unknown>>(
   rows: T[],
   ast: AstClause[],
-  scope: "stock" | "transfers" | "purchase-orders",
+  scope: "stock" | "transfers" | "purchase-orders" | "bills",
   textHaystack: (row: T) => string
 ): T[] {
   const structural = ast.filter((clause) => clause.kind === "predicate");
@@ -184,6 +190,35 @@ function filterRowsByAst<T extends Record<string, unknown>>(
             return haystack.includes(needle.replace(/^\^/, ""));
           case "NOT_ILIKE":
             return !haystack.includes(needle.replace(/^\^/, ""));
+          default:
+            return matchPredicate(row, clause, "categories");
+        }
+      }
+      if (scope === "bills" && clause.field === "match_status") {
+        const needle = String(clause.value).toLowerCase();
+        const haystack = billMatchStatusHaystack(row.match_status as string | null | undefined);
+        switch (clause.operator) {
+          case "EQ":
+            return haystack.includes(needle);
+          case "NEQ":
+            return !haystack.includes(needle);
+          case "ILIKE":
+            return haystack.includes(needle.replace(/^\^/, ""));
+          case "NOT_ILIKE":
+            return !haystack.includes(needle.replace(/^\^/, ""));
+          default:
+            return matchPredicate(row, clause, "categories");
+        }
+      }
+      if (scope === "bills" && clause.field === "is_paid") {
+        const paid = row.is_paid === true;
+        const needle = String(clause.value).toLowerCase();
+        const haystack = [paid ? "paid" : "unpaid", String(paid)].join(" ").toLowerCase();
+        switch (clause.operator) {
+          case "EQ":
+            return haystack.includes(needle);
+          case "NEQ":
+            return !haystack.includes(needle);
           default:
             return matchPredicate(row, clause, "categories");
         }
@@ -315,6 +350,41 @@ export function filterPurchaseOrdersByResidual(
 ): PurchaseOrderRow[] {
   if (!residualText.trim()) return rows;
   return filterPurchaseOrdersByAst(rows, [{ kind: "text", value: residualText }]);
+}
+
+function purchaseBillHaystack(row: PurchaseBillRow): string {
+  return [
+    row.system_voucher_number,
+    row.invoice_number_vendor,
+    row.supplier_name,
+    row.purchase_order_number,
+    billMatchStatusLabel(row.match_status),
+    row.match_status,
+    row.is_paid ? "paid" : "unpaid",
+    row.total_liability_amount,
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+export function filterPurchaseBillsByAst(
+  rows: PurchaseBillRow[],
+  ast: AstClause[]
+): PurchaseBillRow[] {
+  return filterRowsByAst(
+    rows as unknown as Record<string, unknown>[],
+    ast,
+    "bills",
+    (row) => purchaseBillHaystack(row as unknown as PurchaseBillRow)
+  ) as PurchaseBillRow[];
+}
+
+export function filterPurchaseBillsByResidual(
+  rows: PurchaseBillRow[],
+  residualText: string
+): PurchaseBillRow[] {
+  if (!residualText.trim()) return rows;
+  return filterPurchaseBillsByAst(rows, [{ kind: "text", value: residualText }]);
 }
 
 function entityHaystack(row: EntityListRow): string {

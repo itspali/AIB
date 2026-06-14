@@ -896,10 +896,26 @@ export function shouldShowPoLineImageColumn(mode: DocumentImageDisplayMode): boo
   return mode === "SEPARATE_COLUMN";
 }
 
+export type PoLineColumnVisibilityOptions = {
+  allowLineItemDiscounts?: boolean;
+  enableMrpTradeTerms?: boolean;
+};
+
+/** Suppress MRP line fields when procurement MRP/trade terms policy is disabled. */
+export function filterPoMrpTradeTermsLineFields(
+  columns: DocumentColumnPref[],
+  options?: Pick<PoLineColumnVisibilityOptions, "enableMrpTradeTerms">
+): DocumentColumnPref[] {
+  if (options?.enableMrpTradeTerms !== false) {
+    return columns;
+  }
+  return columns.filter((column) => column.id !== "mrp");
+}
+
 /** Drawer line grid columns including optional image column. */
 export function getPoLineEntryTableColumns(
   layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT,
-  options?: { allowLineItemDiscounts?: boolean }
+  options?: PoLineColumnVisibilityOptions
 ): DocumentColumnPref[] {
   const normalized = normalizePoLayoutTemplate(layout);
   let commercial = getColumnLineFields(normalized);
@@ -908,6 +924,7 @@ export function getPoLineEntryTableColumns(
       (column) => column.id !== "discount_pct" && column.id !== "discount_amount"
     );
   }
+  commercial = filterPoMrpTradeTermsLineFields(commercial, options);
   if (normalized.imageDisplayMode !== "SEPARATE_COLUMN") {
     return commercial;
   }
@@ -916,13 +933,14 @@ export function getPoLineEntryTableColumns(
 
 /** Visible line fields rendered under the item cell in compact drawer mode. */
 export function getItemDetailLineFields(
-  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
+  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT,
+  options?: Pick<PoLineColumnVisibilityOptions, "enableMrpTradeTerms">
 ): DocumentColumnPref[] {
   const commercial = getVisiblePoLineColumns(layout).filter(
     (column) => resolveLineFieldSlot(column) === "item_detail"
   );
   const catalog = getVisibleCatalogLineFields(layout);
-  return [...commercial, ...catalog];
+  return filterPoMrpTradeTermsLineFields([...commercial, ...catalog], options);
 }
 
 /** @deprecated Use getColumnLineFields */

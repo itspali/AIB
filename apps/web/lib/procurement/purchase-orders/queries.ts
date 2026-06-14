@@ -176,6 +176,7 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
         uom_conversion_factor,
         quantity_ordered,
         quantity_received,
+        quantity_invoiced,
         unit_price_contractual,
         is_promotional,
         linked_parent_line_id,
@@ -208,6 +209,7 @@ function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string 
         uom_conversion_factor,
         quantity_ordered,
         quantity_received,
+        quantity_invoiced,
         unit_price_contractual,
         is_promotional,
         linked_parent_line_id,
@@ -375,6 +377,7 @@ type PoLineDbRow = {
   uom_conversion_factor?: number | string | null;
   quantity_ordered: number | string;
   quantity_received: number | string;
+  quantity_invoiced?: number | string | null;
   unit_price_contractual: number | string;
   is_promotional?: boolean | null;
   linked_parent_line_id?: string | null;
@@ -472,6 +475,7 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
   const variant = resolveJoin(row.item_variants);
   const ordered = formatDecimal(row.quantity_ordered);
   const received = formatDecimal(row.quantity_received);
+  const invoiced = formatDecimal(row.quantity_invoiced ?? 0);
   const openQty = Math.max(0, Number(ordered) - Number(received));
 
   const unitPrice = formatDecimal(row.unit_price_contractual);
@@ -488,6 +492,7 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     mrp: extractMrpFromCustomFieldsRecord(item?.custom_fields) || null,
     quantity_ordered: ordered,
     quantity_received: received,
+    quantity_invoiced: invoiced,
     unit_price_contractual: unitPrice,
     is_promotional: Boolean(row.is_promotional) || Number(unitPrice) === 0,
     linked_parent_line_id: row.linked_parent_line_id ?? null,
@@ -723,6 +728,7 @@ export async function fetchBillablePurchaseOrders(
             uom_conversion_factor,
             quantity_ordered,
             quantity_received,
+            quantity_invoiced,
             unit_price_contractual,
             is_promotional,
             linked_parent_line_id,
@@ -764,9 +770,12 @@ export async function fetchBillablePurchaseOrders(
       const destination = resolveJoin(typed.destination_location);
       const supplier = resolveJoin(typed.supplier);
       const lines = (typed.po_lines ?? []).map(mapPoLine);
-      const billableLines = lines.filter(
-        (line) => !line.is_promotional && Number(line.quantity_received) > 0
-      );
+      const billableLines = lines.filter((line) => {
+        if (line.is_promotional) return false;
+        const received = Number(line.quantity_received);
+        const invoiced = Number(line.quantity_invoiced ?? 0);
+        return received > 0 && received - invoiced > 0;
+      });
       if (billableLines.length === 0) return null;
 
       return {

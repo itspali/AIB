@@ -17,6 +17,7 @@ export const goodsReceiptLineSchema = z
     quantity_rejected: z.string().trim().optional().default("0"),
     exception_quantity: z.string().trim().optional(),
     route_to_qc: z.boolean().optional().default(false),
+    reject_disposition: z.enum(["RTV", "SCRAP", "DAMAGE", "SHRINK"]).optional().default("SCRAP"),
     raw_unit_cost: z
       .string()
       .trim()

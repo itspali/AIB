@@ -1,10 +1,12 @@
 import {
   DEFAULT_PO_SCREEN_LAYOUT,
+  filterPoMrpTradeTermsLineFields,
   getColumnLineFields,
   getPoLayoutColumnPref,
   getVisibleHeaderFields,
   normalizePoLayoutTemplate,
   resolveHeaderFieldSlot,
+  type PoLineColumnVisibilityOptions,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref, DocumentLayoutDefaults } from "@/lib/documents/types";
 
@@ -85,18 +87,24 @@ export function getVisiblePoFormHeaderNotesField(
 
 /** Table columns for peek — column-slot line fields only (+ optional received qty). */
 export function getPoPeekLineColumns(
-  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT
+  layout: DocumentLayoutDefaults = DEFAULT_PO_SCREEN_LAYOUT,
+  options?: Pick<PoLineColumnVisibilityOptions, "enableMrpTradeTerms">
 ): DocumentColumnPref[] {
   const normalized = normalizePoLayoutTemplate(layout);
   const visibleLine = getColumnLineFields(normalized);
   const receivedPref = getPoLayoutColumnPref(normalized, "quantity_received");
-  if (!receivedPref?.defaultVisible) return visibleLine;
+  const withReceived =
+    !receivedPref?.defaultVisible
+      ? visibleLine
+      : (() => {
+          const columns = [...visibleLine];
+          const qtyIndex = columns.findIndex((column) => column.id === "quantity_ordered");
+          if (qtyIndex >= 0) {
+            columns.splice(qtyIndex + 1, 0, receivedPref);
+            return columns;
+          }
+          return [...columns, receivedPref];
+        })();
 
-  const columns = [...visibleLine];
-  const qtyIndex = columns.findIndex((column) => column.id === "quantity_ordered");
-  if (qtyIndex >= 0) {
-    columns.splice(qtyIndex + 1, 0, receivedPref);
-    return columns;
-  }
-  return [...columns, receivedPref];
+  return filterPoMrpTradeTermsLineFields(withReceived, options);
 }

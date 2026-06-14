@@ -51,7 +51,7 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     key: "created_at",
     synonyms: ["created", "created at", "creation date"],
     sensitivity: "standard",
-    scopes: ["items", "locations", "categories"],
+    scopes: ["items", "locations", "categories", "bills"],
   },
   {
     key: "name",
@@ -165,7 +165,43 @@ export const SEARCH_FIELD_REGISTRY: FieldRegistryEntry[] = [
     key: "supplier_name",
     synonyms: ["supplier", "vendor", "supplier name"],
     sensitivity: "standard",
-    scopes: ["purchase-orders"],
+    scopes: ["purchase-orders", "bills"],
+  },
+  {
+    key: "system_voucher_number",
+    synonyms: ["bill number", "voucher number", "system voucher"],
+    sensitivity: "standard",
+    scopes: ["bills"],
+  },
+  {
+    key: "invoice_number_vendor",
+    synonyms: ["vendor invoice", "invoice number", "supplier invoice"],
+    sensitivity: "standard",
+    scopes: ["bills"],
+  },
+  {
+    key: "match_status",
+    synonyms: ["match status", "matched", "ppv hold", "variance", "three way match"],
+    sensitivity: "standard",
+    scopes: ["bills"],
+  },
+  {
+    key: "is_paid",
+    synonyms: ["paid", "unpaid", "payment status"],
+    sensitivity: "standard",
+    scopes: ["bills"],
+  },
+  {
+    key: "total_liability_amount",
+    synonyms: ["amount due", "liability", "bill amount", "payable amount"],
+    sensitivity: "financial",
+    scopes: ["bills"],
+  },
+  {
+    key: "purchase_order_number",
+    synonyms: ["purchase order", "po number", "po"],
+    sensitivity: "standard",
+    scopes: ["bills"],
   },
   {
     key: "party_nature",

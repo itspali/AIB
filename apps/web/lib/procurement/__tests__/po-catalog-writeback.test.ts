@@ -44,6 +44,9 @@ describe("buildPoCatalogWritebackRows", () => {
           catalog_purchase_price: null,
           catalog_supplier_price: null,
           catalog_purchase_uom: null,
+          catalog_hsn_sac_code: null,
+          catalog_tax_code_id: null,
+          catalog_tax_rate: null,
         },
         mrp_reference: "100",
       }),
@@ -181,10 +184,52 @@ describe("buildPoCatalogWritebackRows", () => {
           catalog_purchase_price: "10",
           catalog_supplier_price: "10",
           catalog_purchase_uom: "PCS",
+          catalog_hsn_sac_code: null,
+          catalog_tax_code_id: null,
+          catalog_tax_rate: null,
         },
       }),
     ]);
     expect(rows).toHaveLength(0);
+  });
+
+  it("proposes HSN/SAC and tax write-back when PO values differ", () => {
+    const rows = buildPoCatalogWritebackRows([
+      line({
+        key: "paid",
+        catalog_context: {
+          ...catalogContext,
+          hsn_sac_code: "8471",
+          tax_code_id: "tax-18",
+          tax_rate: 18,
+        } as PoDraftLine["catalog_context"],
+        writeback_snapshot: {
+          catalog_mrp: "100",
+          catalog_purchase_price: "10",
+          catalog_supplier_price: "10",
+          catalog_purchase_uom: "PCS",
+          catalog_hsn_sac_code: "8400",
+          catalog_tax_code_id: "tax-12",
+          catalog_tax_rate: "12",
+        },
+      }),
+    ]);
+
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: "hsn_sac_code",
+          catalogValue: "8400",
+          proposedValue: "8471",
+        }),
+        expect.objectContaining({
+          field: "tax_code",
+          catalogValue: "12.00%",
+          proposedValue: "18.00%",
+          applyValue: "tax-18",
+        }),
+      ])
+    );
   });
 });
 

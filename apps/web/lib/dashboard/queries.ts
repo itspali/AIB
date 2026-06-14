@@ -43,6 +43,88 @@ export async function fetchApprovalAlertCount(
   return salesPending + salesHold + purchasePending + transferPending;
 }
 
+export type PendingPurchaseOrderApprovalRow = {
+  id: string;
+  voucher_number: string;
+  supplier_name: string | null;
+  total_net_amount: number;
+  currency_code: string;
+  submitted_at: string | null;
+  submitted_by_name: string | null;
+};
+
+export async function fetchPendingPurchaseOrderApprovals(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<PendingPurchaseOrderApprovalRow[]> {
+  const { data: orders, error } = await supabase
+    .from("purchase_orders")
+    .select(
+      `
+      id,
+      voucher_number,
+      total_net_amount,
+      currency_code,
+      supplier:entities!purchase_orders_supplier_tenant_fk (name)
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .eq("document_status", "PENDING_APPROVAL")
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
+  if (error || !orders?.length) return [];
+
+  const orderIds = orders.map((row) => row.id as string);
+  const { data: requests } = await supabase
+    .from("document_approval_requests")
+    .select("document_id, submitted_at, submitted_by")
+    .eq("tenant_id", tenantId)
+    .eq("document_type", "PURCHASE_ORDER")
+    .eq("status", "PENDING")
+    .in("document_id", orderIds);
+
+  const requestByOrderId = new Map(
+    (requests ?? []).map((row) => [row.document_id as string, row] as const)
+  );
+
+  const submitterIds = [
+    ...new Set(
+      (requests ?? [])
+        .map((row) => row.submitted_by as string | null)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  const submitterNameById = new Map<string, string>();
+  if (submitterIds.length) {
+    const { data: submitters } = await supabase
+      .from("users")
+      .select("id, first_name, last_name")
+      .in("id", submitterIds);
+
+    for (const user of submitters ?? []) {
+      submitterNameById.set(user.id, `${user.first_name} ${user.last_name}`.trim());
+    }
+  }
+
+  return orders.map((row) => {
+    const supplier = row.supplier as { name?: string } | null;
+    const request = requestByOrderId.get(row.id as string);
+    const submittedBy = request?.submitted_by as string | undefined;
+
+    return {
+      id: row.id as string,
+      voucher_number: (row.voucher_number as string) ?? "",
+      supplier_name: supplier?.name ?? null,
+      total_net_amount: Number(row.total_net_amount) || 0,
+      currency_code: (row.currency_code as string) ?? "",
+      submitted_at: (request?.submitted_at as string | null) ?? null,
+      submitted_by_name: submittedBy ? (submitterNameById.get(submittedBy) ?? null) : null,
+    };
+  });
+}
+
 export async function fetchDashboardMetrics(
   supabase: SupabaseClient,
   tenantId: string

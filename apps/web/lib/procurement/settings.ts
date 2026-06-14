@@ -227,3 +227,51 @@ export async function fetchFinancialProcurementSettings(
     vendor_prepayment_account_id: readUuid("vendor_prepayment_account_id"),
   };
 }
+
+export type ExpenseAccountOption = {
+  id: string;
+  account_code: string;
+  account_name: string;
+};
+
+export async function fetchExpenseAccountOptions(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<ExpenseAccountOption[]> {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, account_code, account_name")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .eq("classification", "EXPENSE")
+    .order("account_code");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id as string,
+    account_code: row.account_code as string,
+    account_name: row.account_name as string,
+  }));
+}
+
+export async function fetchLiabilityAccountOptions(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<ExpenseAccountOption[]> {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, account_code, account_name")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .eq("classification", "LIABILITY")
+    .order("account_code");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id as string,
+    account_code: row.account_code as string,
+    account_name: row.account_name as string,
+  }));
+}

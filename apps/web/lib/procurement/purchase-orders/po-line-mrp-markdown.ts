@@ -11,6 +11,64 @@ export const PO_LINE_MRP_MARKDOWN_CUSTOM_FIELD_KEY = "mrp_markdown_percentage";
 
 export type PoLineMrpVarianceDirection = "above" | "below";
 
+/** Tax basis for comparing catalog MRP against PO unit rate. */
+export type PoLineMrpTaxContext = {
+  pricesTaxInclusive: boolean;
+  taxRate: number;
+  /** Item master MRP includes tax (defaults true when unknown). */
+  mrpPriceIsTaxInclusive: boolean;
+};
+
+function roundMoney(value: number): number {
+  return Math.round(value * 10_000) / 10_000;
+}
+
+export function resolvePoLineMrpTaxContext(
+  line: Pick<PoDraftLine, "catalog_context">,
+  pricesTaxInclusive = false
+): PoLineMrpTaxContext {
+  return {
+    pricesTaxInclusive,
+    taxRate: Math.max(line.catalog_context?.tax_rate ?? 0, 0),
+    mrpPriceIsTaxInclusive: line.catalog_context?.price_is_tax_inclusive ?? true,
+  };
+}
+
+export function resolvePeekLineMrpTaxContext(
+  line: Pick<PurchaseOrderLineRow, "tax_rate_percentage">,
+  pricesTaxInclusive = false
+): PoLineMrpTaxContext {
+  return {
+    pricesTaxInclusive,
+    taxRate: Math.max(Number(line.tax_rate_percentage) || 0, 0),
+    mrpPriceIsTaxInclusive: true,
+  };
+}
+
+function toExTaxBasis(amount: number, isInclusive: boolean, taxRate: number): number {
+  if (amount <= 0 || !isInclusive || taxRate <= 0) return amount;
+  return roundMoney(amount / (1 + taxRate / 100));
+}
+
+function fromExTaxBasis(exTaxAmount: number, isInclusive: boolean, taxRate: number): number {
+  if (exTaxAmount <= 0 || !isInclusive || taxRate <= 0) return exTaxAmount;
+  return roundMoney(exTaxAmount * (1 + taxRate / 100));
+}
+
+function normalizeMrpMarkdownPair(
+  mrp: number,
+  unitPrice: number,
+  context: PoLineMrpTaxContext
+): { compareMrp: number; compareUnit: number } {
+  if (context.taxRate <= 0) {
+    return { compareMrp: mrp, compareUnit: unitPrice };
+  }
+  return {
+    compareMrp: toExTaxBasis(mrp, context.mrpPriceIsTaxInclusive, context.taxRate),
+    compareUnit: toExTaxBasis(unitPrice, context.pricesTaxInclusive, context.taxRate),
+  };
+}
+
 function parsePositiveAmount(value: string | undefined | null): number {
   const parsed = Number((value ?? "").trim());
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -54,12 +112,16 @@ export function resolvePoLineMrpFromCatalog(line: Pick<PoDraftLine, "catalog_con
 /** Offer vs MRP — red up when above, green down when below, none when equal/unset. */
 export function resolvePoLineMrpVarianceDirection(
   mrp: number,
-  unitPrice: number
+  unitPrice: number,
+  context?: PoLineMrpTaxContext
 ): PoLineMrpVarianceDirection | null {
-  if (mrp <= 0) return null;
-  if (unitPrice <= 0) return "below";
-  if (unitPrice > mrp) return "above";
-  if (unitPrice < mrp) return "below";
+  const { compareMrp, compareUnit } = context
+    ? normalizeMrpMarkdownPair(mrp, unitPrice, context)
+    : { compareMrp: mrp, compareUnit: unitPrice };
+  if (compareMrp <= 0) return null;
+  if (compareUnit <= 0) return "below";
+  if (compareUnit > compareMrp) return "above";
+  if (compareUnit < compareMrp) return "below";
   return null;
 }
 
@@ -75,29 +137,48 @@ export function shouldShowPoMrpTradeTermsStack(
 export function computeOfferUnitFromMrpMarkdown(
   mrp: number,
   markdownPct: number,
-  decimalPlaces = 2
+  decimalPlaces = 2,
+  context?: PoLineMrpTaxContext
 ): string {
   if (mrp <= 0) return "0";
-  const offer = mrp * (1 - markdownPct / 100);
+  const compareMrp = context
+    ? normalizeMrpMarkdownPair(mrp, 0, context).compareMrp
+    : mrp;
+  const compareOffer = Math.max(compareMrp * (1 - markdownPct / 100), 0);
+  const offer = context
+    ? fromExTaxBasis(compareOffer, context.pricesTaxInclusive, context.taxRate)
+    : compareOffer;
   return Math.max(offer, 0).toFixed(decimalPlaces);
 }
 
 /** Implied trade markdown % when the user edits offer unit price directly. */
-export function computeImpliedMrpMarkdownPct(mrp: number, unitPrice: number): string {
+export function computeImpliedMrpMarkdownPct(
+  mrp: number,
+  unitPrice: number,
+  context?: PoLineMrpTaxContext
+): string {
   if (mrp <= 0) return "0";
   const unit = Math.max(unitPrice, 0);
   if (unit <= 0) return formatDocumentDecimal(100, 2);
-  const pct = ((mrp - unit) / mrp) * 100;
+  const { compareMrp, compareUnit } = context
+    ? normalizeMrpMarkdownPair(mrp, unit, context)
+    : { compareMrp: mrp, compareUnit: unit };
+  if (compareMrp <= 0) return "0";
+  const pct = ((compareMrp - compareUnit) / compareMrp) * 100;
   return formatDocumentDecimal(pct, 2);
 }
 
-export function resolvePoLineMrpMarkdownPercentage(line: PoDraftLine): string {
+export function resolvePoLineMrpMarkdownPercentage(
+  line: PoDraftLine,
+  pricesTaxInclusive = false
+): string {
   const mrp = resolvePoLineMrp(line);
   const unit = parseNonNegativeAmount(line.unit_price_contractual);
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
   if (mrp <= 0) return "0";
 
   if (unit <= 0) {
-    return computeImpliedMrpMarkdownPct(mrp, unit);
+    return computeImpliedMrpMarkdownPct(mrp, unit, context);
   }
 
   const explicit = line.mrp_markdown_percentage?.trim();
@@ -105,23 +186,25 @@ export function resolvePoLineMrpMarkdownPercentage(line: PoDraftLine): string {
     return explicit;
   }
 
-  return computeImpliedMrpMarkdownPct(mrp, unit);
+  return computeImpliedMrpMarkdownPct(mrp, unit, context);
 }
 
 export function patchPoLineMrpMarkdownPercentage(
   line: PoDraftLine,
   markdownPctRaw: string,
-  priceColumn: DocumentColumnPref
+  priceColumn: DocumentColumnPref,
+  pricesTaxInclusive = false
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const decimalPlaces = resolveColumnDecimalPlaces(priceColumn);
   const markdownPct = parseSignedAmount(normalizeDocumentDecimalInput(markdownPctRaw, 2));
   const formattedMarkdown = formatDocumentDecimal(markdownPct, 2);
   const mrp = resolvePoLineMrp(line);
   const currentUnit = parseNonNegativeAmount(line.unit_price_contractual);
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
 
   // Tab-through on unchanged implied markdown must not round-trip unit price via 2-decimal %.
   if (mrp > 0 && currentUnit > 0) {
-    const impliedMarkdown = computeImpliedMrpMarkdownPct(mrp, currentUnit);
+    const impliedMarkdown = computeImpliedMrpMarkdownPct(mrp, currentUnit, context);
     if (formattedMarkdown === impliedMarkdown) {
       return {
         mrp_markdown_percentage: formattedMarkdown,
@@ -134,7 +217,7 @@ export function patchPoLineMrpMarkdownPercentage(
     mrp_markdown_percentage: formattedMarkdown,
     unit_price_contractual:
       mrp > 0
-        ? computeOfferUnitFromMrpMarkdown(mrp, markdownPct, decimalPlaces)
+        ? computeOfferUnitFromMrpMarkdown(mrp, markdownPct, decimalPlaces, context)
         : line.unit_price_contractual,
   };
 }
@@ -149,17 +232,19 @@ function parseDraftDecimal(raw: string): number | null {
 /** Live draft while typing — preserves raw input (no fixed decimal padding). */
 export function patchPoLineOfferUnitPriceDraft(
   line: PoDraftLine,
-  unitPriceRaw: string
+  unitPriceRaw: string,
+  pricesTaxInclusive = false
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const mrp = resolvePoLineMrp(line);
   const parsed = parseDraftDecimal(unitPriceRaw);
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
 
   return {
     unit_price_contractual: unitPriceRaw,
     mrp_markdown_percentage:
       mrp > 0
         ? parsed != null
-          ? computeImpliedMrpMarkdownPct(mrp, parsed)
+          ? computeImpliedMrpMarkdownPct(mrp, parsed, context)
           : "0"
         : line.mrp_markdown_percentage ?? "0",
   };
@@ -168,17 +253,19 @@ export function patchPoLineOfferUnitPriceDraft(
 export function patchPoLineOfferUnitPrice(
   line: PoDraftLine,
   unitPriceRaw: string,
-  priceColumn: DocumentColumnPref
+  priceColumn: DocumentColumnPref,
+  pricesTaxInclusive = false
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const decimalPlaces = resolveColumnDecimalPlaces(priceColumn);
   const normalized = normalizeDocumentDecimalInput(unitPriceRaw, decimalPlaces);
   const mrp = resolvePoLineMrp(line);
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
 
   return {
     unit_price_contractual: normalized,
     mrp_markdown_percentage:
       mrp > 0
-        ? computeImpliedMrpMarkdownPct(mrp, parseNonNegativeAmount(normalized))
+        ? computeImpliedMrpMarkdownPct(mrp, parseNonNegativeAmount(normalized), context)
         : line.mrp_markdown_percentage ?? "0",
   };
 }
@@ -187,15 +274,17 @@ export function patchPoLineOfferUnitPrice(
 export function patchPoLineMrpMarkdownPercentageDraft(
   line: PoDraftLine,
   markdownPctRaw: string,
-  priceColumn: DocumentColumnPref
+  priceColumn: DocumentColumnPref,
+  pricesTaxInclusive = false
 ): Pick<PoDraftLine, "mrp_markdown_percentage" | "unit_price_contractual"> {
   const decimalPlaces = resolveColumnDecimalPlaces(priceColumn);
   const mrp = resolvePoLineMrp(line);
   const parsed = parseSignedDraftDecimal(markdownPctRaw);
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
 
   const offer =
     mrp > 0 && parsed != null
-      ? Math.max(mrp * (1 - parsed / 100), 0).toFixed(decimalPlaces)
+      ? computeOfferUnitFromMrpMarkdown(mrp, parsed, decimalPlaces, context)
       : null;
 
   return {
@@ -206,13 +295,15 @@ export function patchPoLineMrpMarkdownPercentageDraft(
 
 /** After supplier/catalog price pre-fill, align markdown % with the offer price. */
 export function syncPoLineMrpMarkdownFromOfferPrice(
-  line: PoDraftLine
+  line: PoDraftLine,
+  pricesTaxInclusive = false
 ): Pick<PoDraftLine, "mrp_markdown_percentage"> | null {
   const mrp = resolvePoLineMrp(line);
   if (mrp <= 0) return null;
   const unit = parseNonNegativeAmount(line.unit_price_contractual);
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
   return {
-    mrp_markdown_percentage: computeImpliedMrpMarkdownPct(mrp, unit),
+    mrp_markdown_percentage: computeImpliedMrpMarkdownPct(mrp, unit, context),
   };
 }
 
@@ -259,10 +350,12 @@ export function shouldShowPeekMrpTradeTermsStack(
 }
 
 export function resolvePeekLineMrpMarkdownPct(
-  line: Pick<PurchaseOrderLineRow, "mrp" | "unit_price_contractual">
+  line: Pick<PurchaseOrderLineRow, "mrp" | "unit_price_contractual" | "tax_rate_percentage">,
+  context?: PoLineMrpTaxContext
 ): string | null {
   const mrp = resolvePeekLineMrp(line);
   if (mrp <= 0) return null;
   const unit = parseNonNegativeAmount(line.unit_price_contractual);
-  return computeImpliedMrpMarkdownPct(mrp, unit);
+  const resolvedContext = context ?? resolvePeekLineMrpTaxContext(line);
+  return computeImpliedMrpMarkdownPct(mrp, unit, resolvedContext);
 }

@@ -332,6 +332,44 @@ describe("purchase-order-layout compact columns", () => {
 
     expect(getPoPeekLineColumns(layout).map((column) => column.id)).not.toContain("sku");
   });
+
+  it("hides MRP line fields when procurement MRP/trade terms is disabled", () => {
+    const layoutWithMrpColumn = {
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
+        column.id === "mrp"
+          ? { ...column, defaultVisible: true, lineSlot: "column" as const }
+          : column
+      ),
+    };
+    const layoutWithMrpItemDetail = {
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
+        column.id === "mrp" ? { ...column, defaultVisible: true } : column
+      ),
+    };
+
+    expect(
+      getPoLineEntryTableColumns(layoutWithMrpColumn, { enableMrpTradeTerms: false }).map(
+        (column) => column.id
+      )
+    ).not.toContain("mrp");
+    expect(
+      getPoPeekLineColumns(layoutWithMrpColumn, { enableMrpTradeTerms: false }).map(
+        (column) => column.id
+      )
+    ).not.toContain("mrp");
+    expect(
+      getItemDetailLineFields(layoutWithMrpItemDetail, { enableMrpTradeTerms: false }).map(
+        (column) => column.id
+      )
+    ).not.toContain("mrp");
+    expect(
+      getPoLineEntryTableColumns(layoutWithMrpColumn, { enableMrpTradeTerms: true }).map(
+        (column) => column.id
+      )
+    ).toContain("mrp");
+  });
 });
 
 describe("po form fields grid", () => {

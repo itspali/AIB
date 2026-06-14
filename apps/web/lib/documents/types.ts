@@ -3,6 +3,7 @@ export type DocumentViewContext = "SCREEN_GRID" | "PDF_PRINT" | "EMAIL_HTML";
 export type DocumentModuleKey =
   | "PURCHASE_ORDER"
   | "GOODS_RECEIPT_NOTE"
+  | "PURCHASE_INVOICE"
   | "SALES_QUOTATION"
   | "SALES_ORDER"
   | "SALES_INVOICE";

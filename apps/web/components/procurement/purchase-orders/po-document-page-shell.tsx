@@ -91,6 +91,7 @@ export function PoDocumentPageShell({
     defaultPricesTaxInclusive,
     autoRoundOffPolicy,
     tenantCountry: organizationBillTo.country_code ?? null,
+    taxCodeOptions,
     onAfterSave: handleAfterSave,
     onEditNotAllowed: mode === "edit" ? handleEditNotAllowed : undefined,
   });

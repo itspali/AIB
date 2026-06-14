@@ -5,15 +5,19 @@ import { useCallback, useEffect, useId, useRef, useState, useTransition } from "
 import { Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
+  approvePurchaseOrder,
   issuePurchaseOrder,
   loadPurchaseOrderDetail,
+  rejectPurchaseOrder,
   savePurchaseOrder,
+  submitPurchaseOrderForApproval,
   updatePurchaseOrderVoucherNumber,
   applyPoCatalogWriteback,
 } from "@/app/procurement/purchase-orders/actions";
 import { PoDocumentEditorShell } from "@/components/procurement/purchase-orders/po-document-editor-shell";
 import { PoCatalogWritebackDialog } from "@/components/procurement/purchase-orders/po-catalog-writeback-dialog";
 import { PoPeekView } from "@/components/procurement/purchase-orders/po-peek-view";
+import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { PoVoucherNumberField } from "@/components/procurement/purchase-orders/po-voucher-number-field";
 import {
   RightDrawer,
@@ -23,6 +27,15 @@ import {
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
 import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
@@ -54,11 +67,19 @@ import {
   resolvePromoParentForSave,
   validatePoPromoLines,
 } from "@/lib/procurement/purchase-orders/po-promo";
+import {
+  isOrganizationGstRegistered,
+  validatePoGstComplianceLines,
+} from "@/lib/procurement/purchase-orders/po-gst-compliance";
 import { buildPoCatalogWritebackRows } from "@/lib/procurement/purchase-orders/po-catalog-writeback";
 import type { PoCatalogWritebackRow } from "@/lib/procurement/purchase-orders/po-catalog-writeback";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
+import {
+  isPoApprovalRequiredBeforeIssue,
+  type ProcurementApprovalSettings,
+} from "@/lib/procurement/approval-settings";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -89,6 +110,10 @@ type Props = {
   copyFromId?: string | null;
   onDuplicate?: (purchaseOrderId: string) => void;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  approvalSettings: ProcurementApprovalSettings;
+  currentUserId: string;
+  canApprovePurchaseOrders: boolean;
+  isOwner: boolean;
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
@@ -136,6 +161,10 @@ export function PoDrawerForm({
   copyFromId = null,
   onDuplicate,
   taxCodeOptions = [],
+  approvalSettings,
+  currentUserId,
+  canApprovePurchaseOrders,
+  isOwner,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
@@ -186,13 +215,23 @@ export function PoDrawerForm({
   const [writebackOpen, setWritebackOpen] = useState(false);
   const [writebackLines, setWritebackLines] = useState<PoDraftLine[]>([]);
   const [writebackPendingOrderId, setWritebackPendingOrderId] = useState<string | null>(null);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectNotes, setRejectNotes] = useState("");
   const submitRef = useRef<() => void>(() => {});
 
+  const resolvedDocumentLocationId = isMutating
+    ? form.destination_location_id?.trim() || null
+    : peekOrder?.destination_location_id?.trim() ??
+      detail?.destination_location_id?.trim() ??
+      null;
+  const awaitingDocumentLocation =
+    !isMutating &&
+    !resolvedDocumentLocationId &&
+    Boolean(resolvedPeekRecordId ?? editOrderId);
+
   const documentLayout = useLivePoDocumentLayout(documentLayoutProp, {
-    refreshWhen: open,
-    documentLocationId: isMutating
-      ? form.destination_location_id
-      : detail?.destination_location_id ?? peekOrder?.destination_location_id ?? null,
+    refreshWhen: open && !awaitingDocumentLocation,
+    documentLocationId: resolvedDocumentLocationId,
   });
 
   useEffect(() => {
@@ -266,7 +305,7 @@ export function PoDrawerForm({
         );
         return;
       }
-      setForm(copyPoDraftFromOrder(result.purchaseOrder));
+      setForm(applySavedPoTaxToDraftForm(copyPoDraftFromOrder(result.purchaseOrder), taxCodeOptions));
       setIsDirty(true);
     });
 
@@ -281,6 +320,7 @@ export function PoDrawerForm({
     preferredDestinationLocationId,
     suppliers,
     surface,
+    taxCodeOptions,
   ]);
 
   useEffect(() => {
@@ -320,14 +360,16 @@ export function PoDrawerForm({
         return;
       }
       setDetail(result.purchaseOrder);
-      setForm(mapPurchaseOrderToDraft(result.purchaseOrder));
+      setForm(
+        applySavedPoTaxToDraftForm(mapPurchaseOrderToDraft(result.purchaseOrder), taxCodeOptions)
+      );
       setIsDirty(false);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [open, surface, editOrderId]);
+  }, [open, surface, editOrderId, taxCodeOptions]);
 
   const canEditThisOrder =
     detail != null
@@ -385,7 +427,7 @@ export function PoDrawerForm({
             item_id: row.itemId,
             variant_id: row.variantId,
             field: row.field,
-            value: row.proposedValue,
+            value: row.applyValue ?? row.proposedValue,
           })),
         });
         if ("error" in result) {
@@ -431,14 +473,23 @@ export function PoDrawerForm({
         setError(promoError);
         return;
       }
-      const lineKeyToVariant = new Map(savableLines.map((line) => [line.key, line]));
-      const taxMechanism = resolvePoGstContextFromForm(
+      const gstRegistered = isOrganizationGstRegistered(organizationBillTo);
+      const gstContext = resolvePoGstContextFromForm(
         suppliers,
         form.supplier_id,
         locations,
         form.destination_location_id,
         organizationBillTo?.country_code ?? null
-      ).taxMechanism;
+      );
+      const gstComplianceError = validatePoGstComplianceLines(savableLines, gstRegistered, {
+        supplyNature: gstContext.supplyNature,
+      });
+      if (gstComplianceError) {
+        setError(gstComplianceError);
+        return;
+      }
+      const lineKeyToVariant = new Map(savableLines.map((line) => [line.key, line]));
+      const taxMechanism = gstContext.taxMechanism;
       const headerCharges = resolvePoHeaderChargesForSave(form.header_charges, savableLines, {
         purchasePricesTaxInclusive: form.prices_tax_inclusive,
         taxMechanism,
@@ -498,7 +549,7 @@ export function PoDrawerForm({
       setIsDirty(false);
       maybePromptCatalogWriteback(savableLines, result.purchaseOrderId);
     });
-  }, [autoRoundOffPolicy, detail?.id, detail?.lines, editOrderId, form, locations, maybePromptCatalogWriteback, organizationBillTo?.country_code, promoDefaultCategory, suppliers]);
+  }, [autoRoundOffPolicy, detail?.id, detail?.lines, editOrderId, form, locations, maybePromptCatalogWriteback, organizationBillTo, promoDefaultCategory, suppliers]);
 
   const handleIssue = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -521,6 +572,80 @@ export function PoDrawerForm({
     });
   }, [detail?.id, editOrderId, onAfterSave]);
 
+  const handleSubmitForApproval = useCallback(() => {
+    const orderId = editOrderId ?? detail?.id;
+    if (!orderId) return;
+
+    setError(null);
+    setErrorAction(null);
+    startTransition(async () => {
+      const result = await submitPurchaseOrderForApproval({ purchase_order_id: orderId });
+      if ("error" in result) {
+        setError(result.error ?? "Unable to submit purchase order for approval.");
+        setErrorAction(result.errorAction ?? null);
+        return;
+      }
+
+      toast.success("Purchase order submitted for approval");
+      setIssuePostingSummary(result.steps ?? []);
+      setIsDirty(false);
+      onAfterSave(result.purchaseOrderId);
+    });
+  }, [detail?.id, editOrderId, onAfterSave]);
+
+  const handleApprove = useCallback(() => {
+    const orderId = editOrderId ?? detail?.id;
+    if (!orderId) return;
+
+    setError(null);
+    setErrorAction(null);
+    startTransition(async () => {
+      const result = await approvePurchaseOrder({ purchase_order_id: orderId });
+      if ("error" in result) {
+        setError(result.error ?? "Unable to approve purchase order.");
+        setErrorAction(result.errorAction ?? null);
+        return;
+      }
+
+      toast.success("Purchase order approved and issued");
+      setIssuePostingSummary(result.steps ?? []);
+      setIsDirty(false);
+      onAfterSave(result.purchaseOrderId);
+    });
+  }, [detail?.id, editOrderId, onAfterSave]);
+
+  const handleReject = useCallback(() => {
+    const orderId = editOrderId ?? detail?.id;
+    if (!orderId) return;
+
+    const notes = rejectNotes.trim();
+    if (!notes) {
+      toast.error("Enter a rejection reason.");
+      return;
+    }
+
+    setError(null);
+    setErrorAction(null);
+    startTransition(async () => {
+      const result = await rejectPurchaseOrder({
+        purchase_order_id: orderId,
+        notes,
+      });
+      if ("error" in result) {
+        setError(result.error ?? "Unable to reject purchase order.");
+        setErrorAction(result.errorAction ?? null);
+        return;
+      }
+
+      toast.success("Purchase order rejected");
+      setRejectDialogOpen(false);
+      setRejectNotes("");
+      setIssuePostingSummary(result.steps ?? []);
+      setIsDirty(false);
+      onAfterSave(result.purchaseOrderId);
+    });
+  }, [detail?.id, editOrderId, onAfterSave, rejectNotes]);
+
   submitRef.current = handleSaveDraft;
 
   useEffect(() => {
@@ -540,8 +665,25 @@ export function PoDrawerForm({
     detail?.document_status === "PARTIALLY_FULFILLED";
 
   const isDraftOrder = detail?.document_status === "DRAFT";
-  const saveActionLabel = isDraftOrder ? "Save draft" : "Save";
+  const isPendingApprovalOrder = detail?.document_status === "PENDING_APPROVAL";
   const purchaseOrderId = editOrderId ?? detail?.id ?? null;
+  const totalNetAmount = Number(detail?.total_net_amount ?? 0);
+  const approvalRequiredBeforeIssue = isPoApprovalRequiredBeforeIssue(
+    approvalSettings,
+    totalNetAmount,
+    currentUserId,
+    { isOwner }
+  );
+  const showSubmitForApproval =
+    isDraftOrder && editAccessGranted && approvalRequiredBeforeIssue && purchaseOrderId != null;
+  const showIssue =
+    isDraftOrder &&
+    editAccessGranted &&
+    !approvalRequiredBeforeIssue &&
+    purchaseOrderId != null;
+  const showApproveReject =
+    isPendingApprovalOrder && canApprovePurchaseOrders && purchaseOrderId != null;
+  const saveActionLabel = isDraftOrder ? "Save draft" : "Save";
   const canEditVoucherNumber =
     isDraftOrder && canEditThisOrder && purchaseOrderId != null;
 
@@ -584,7 +726,18 @@ export function PoDrawerForm({
             >
               <Pencil className="h-4 w-4" />
             </Button>
-            {isDraftOrder ? (
+            {showSubmitForApproval ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={isPending}
+                onClick={handleSubmitForApproval}
+              >
+                {isPending ? "Submitting…" : "Submit for approval"}
+              </Button>
+            ) : null}
+            {showIssue ? (
               <Button
                 type="button"
                 size="sm"
@@ -594,6 +747,28 @@ export function PoDrawerForm({
               >
                 {isPending ? "Issuing…" : "Issue"}
               </Button>
+            ) : null}
+            {showApproveReject ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={isPending}
+                  onClick={handleApprove}
+                >
+                  {isPending ? "Approving…" : "Approve"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => setRejectDialogOpen(true)}
+                >
+                  Reject
+                </Button>
+              </>
             ) : null}
           </>
         ) : null}
@@ -617,6 +792,11 @@ export function PoDrawerForm({
             Duplicate
           </Button>
         ) : null}
+        <DocumentPrintButton
+          moduleKey="PURCHASE_ORDER"
+          documentId={detail.id}
+          documentLocationId={detail.destination_location_id}
+        />
       </>
     ) : isMutating ? (
       <>
@@ -629,7 +809,18 @@ export function PoDrawerForm({
         >
           {isPending ? "Saving…" : saveActionLabel}
         </Button>
-        {isDraftOrder && (editOrderId ?? detail?.id) ? (
+        {showSubmitForApproval ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={isPending}
+            onClick={handleSubmitForApproval}
+          >
+            {isPending ? "Submitting…" : "Submit for approval"}
+          </Button>
+        ) : null}
+        {showIssue ? (
           <Button
             type="button"
             size="sm"
@@ -695,7 +886,7 @@ export function PoDrawerForm({
         promoDefaultCategory={promoDefaultCategory}
         autoRoundOffPolicy={autoRoundOffPolicy}
         taxCodeOptions={taxCodeOptions}
-        tenantCountry={organizationBillTo?.country_code ?? null}
+        organizationBillTo={organizationBillTo}
         isPending={isPending}
         layoutOverride={drawerLayoutSnapshot}
         onPatch={patchForm}
@@ -722,6 +913,7 @@ export function PoDrawerForm({
           order={detail}
           layout={documentLayout}
           organizationBillTo={organizationBillTo}
+          enableMrpTradeTerms={enableMrpTradeTerms}
         />
       ) : null}
       {mutatingForm}
@@ -744,6 +936,28 @@ export function PoDrawerForm({
         onApply={handleWritebackApply}
         onSkip={handleWritebackSkip}
       />
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject purchase order</AlertDialogTitle>
+            <AlertDialogDescription>
+              The order will return to Draft. Enter a reason the submitter can act on.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <textarea
+            className="min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            placeholder="Rejection reason"
+            value={rejectNotes}
+            onChange={(event) => setRejectNotes(event.target.value)}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <Button type="button" variant="destructive" disabled={isPending} onClick={handleReject}>
+              {isPending ? "Rejecting…" : "Reject order"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <RightDrawer
         open={open}
         onOpenChange={(next) => {

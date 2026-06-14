@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import type { BillDraftLine } from "@/lib/procurement/bills/bill-draft-form";
 import {
   computePriceVariancePct,
+  computeQuantityOverage,
   resolveBillLineMatchSeverity,
+  resolveBillLineQuantitySeverity,
 } from "@/lib/procurement/bills/three-way-match";
 import { cn } from "@/lib/utils";
 
@@ -120,13 +122,18 @@ export function BillLineEntryTable({
         showRemoveColumn={false}
         renderCell={(column, line) => {
           if (column.id === "item") {
+            const alreadyInvoiced = Number(line.quantity_already_invoiced);
+            const onGrns = Number(line.quantity_on_grns);
+            const remaining = Math.max(onGrns - alreadyInvoiced, 0);
             return (
               <DocumentLineReadOnlyItemCell
                 itemName={line.item_name}
                 variantSku={line.variant_sku}
                 hint={
-                  Number(line.quantity_on_grns) > 0
-                    ? `On GRNs: ${line.quantity_on_grns}`
+                  onGrns > 0
+                    ? alreadyInvoiced > 0
+                      ? `GRN accepted: ${line.quantity_on_grns} · Remaining: ${remaining}`
+                      : `On GRNs: ${line.quantity_on_grns}`
                     : null
                 }
               />
@@ -134,17 +141,29 @@ export function BillLineEntryTable({
           }
 
           if (column.id === "quantity_billed") {
+            const qty = Number(line.quantity_billed);
+            const onGrns = Number(line.quantity_on_grns);
+            const alreadyInvoiced = Number(line.quantity_already_invoiced);
+            const qtySeverity = resolveBillLineQuantitySeverity(qty, onGrns, alreadyInvoiced);
+            const overage = computeQuantityOverage(qty, onGrns, alreadyInvoiced);
             return (
-              <DocumentLineCompactInput
-                align="right"
-                value={line.quantity_billed}
-                disabled={disabled}
-                inputMode="decimal"
-                aria-label="Quantity billed"
-                onChange={(event) =>
-                  patchLine(line.key, { quantity_billed: event.target.value })
-                }
-              />
+              <div className="px-1 py-1">
+                <DocumentLineCompactInput
+                  align="right"
+                  value={line.quantity_billed}
+                  disabled={disabled}
+                  inputMode="decimal"
+                  aria-label="Quantity billed"
+                  onChange={(event) =>
+                    patchLine(line.key, { quantity_billed: event.target.value })
+                  }
+                />
+                {qtySeverity === "overage" && overage != null ? (
+                  <p className="px-1 text-xs text-amber-700 dark:text-amber-300">
+                    +{overage} over remaining
+                  </p>
+                ) : null}
+              </div>
             );
           }
 

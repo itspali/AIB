@@ -13,6 +13,11 @@ import {
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
 import { syncPoLineMrpMarkdownFromOfferPrice } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import {
+  isPoLineSavedTaxSnapshot,
+  mergeSavedPoLineTaxIntoCatalog,
+} from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import { resolvePoLineUomAfterCatalogUpdate } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 
 function withMrpMarkdownSync(line: PoDraftLine): PoDraftLine {
@@ -20,9 +25,19 @@ function withMrpMarkdownSync(line: PoDraftLine): PoDraftLine {
   return sync ? { ...line, ...sync } : line;
 }
 
-function applyCatalogHydration(line: PoDraftLine, context: PoLineCatalogContext): PoDraftLine {
-  const catalog_context = mergePoLineCatalogContext(line.catalog_context, context);
-  if (!catalog_context) return line;
+function applyCatalogHydration(
+  line: PoDraftLine,
+  context: PoLineCatalogContext,
+  taxCodeOptions: readonly PoLineTaxCodeOption[]
+): PoDraftLine {
+  const savedSnapshot = line.catalog_context;
+  const catalog_contextRaw = mergePoLineCatalogContext(savedSnapshot, context);
+  if (!catalog_contextRaw) return line;
+
+  const catalog_context =
+    savedSnapshot && isPoLineSavedTaxSnapshot(savedSnapshot)
+      ? mergeSavedPoLineTaxIntoCatalog(savedSnapshot, catalog_contextRaw, taxCodeOptions)
+      : catalog_contextRaw;
 
   return withMrpMarkdownSync({
     ...line,
@@ -34,7 +49,8 @@ function applyCatalogHydration(line: PoDraftLine, context: PoLineCatalogContext)
 /** Loads read-only catalog snapshots for existing lines (e.g. when opening a saved PO). */
 export function usePoLineCatalogHydration(
   lines: PoDraftLine[],
-  onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void
+  onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void,
+  taxCodeOptions: readonly PoLineTaxCodeOption[] = []
 ) {
   const inflightRef = useRef(new Set<string>());
 
@@ -58,7 +74,7 @@ export function usePoLineCatalogHydration(
           current.map((line) =>
             line.variant_id === variantId &&
             needsPoLineCatalogHydration(line.catalog_context)
-              ? applyCatalogHydration(line, cached)
+              ? applyCatalogHydration(line, cached, taxCodeOptions)
               : line
           )
         );
@@ -78,11 +94,11 @@ export function usePoLineCatalogHydration(
           current.map((line) =>
             line.variant_id === variantId &&
             needsPoLineCatalogHydration(line.catalog_context)
-              ? applyCatalogHydration(line, result.context)
+              ? applyCatalogHydration(line, result.context, taxCodeOptions)
               : line
           )
         );
       });
     }
-  }, [lines, onChange]);
+  }, [lines, onChange, taxCodeOptions]);
 }

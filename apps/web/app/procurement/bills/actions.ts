@@ -26,6 +26,13 @@ import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-erro
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
 
+const postVendorPaymentSchema = z.object({
+  purchase_invoice_id: z.string().uuid(),
+  payment_reference: z.string().trim().min(1),
+  amount: z.number().positive(),
+  payment_date: z.string().trim().optional().nullable(),
+});
+
 const BILL_PATHS = ["/procurement/bills", "/procurement", "/dashboard"] as const;
 
 function revalidateBillPaths() {
@@ -284,6 +291,71 @@ export async function applyVendorAdvanceToBill(raw: unknown) {
   revalidateBillPaths();
   return {
     success: true as const,
+    steps: postingRun?.steps ?? [],
+    overall: postingRun?.overall_status ?? "success",
+    detail: data,
+  };
+}
+
+export async function voidPurchaseBill(purchaseInvoiceId: string) {
+  const parsed = z.string().uuid().safeParse(purchaseInvoiceId);
+  if (!parsed.success) return { error: "Invalid bill id." };
+
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("void_purchase_invoice", {
+    p_invoice_id: parsed.data,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("void_purchase_invoice") };
+    }
+    return { error: error.message };
+  }
+
+  const postingRun = await fetchLatestDocumentPostingRun(supabase, "BILL", parsed.data);
+
+  revalidateBillPaths();
+  return {
+    success: true as const,
+    steps: postingRun?.steps ?? [],
+    overall: postingRun?.overall_status ?? "success",
+    detail: data,
+  };
+}
+
+export async function postVendorPayment(raw: unknown) {
+  const parsed = postVendorPaymentSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid vendor payment." };
+  }
+
+  const { supabase, userId } = await requireTenantId();
+  const { data, error } = await supabase.rpc("post_vendor_payment", {
+    p_invoice_id: parsed.data.purchase_invoice_id,
+    p_payment_reference: parsed.data.payment_reference,
+    p_amount: parsed.data.amount,
+    p_payment_date: parsed.data.payment_date || null,
+    p_posted_by: userId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("post_vendor_payment") };
+    }
+    return { error: error.message };
+  }
+
+  const postingRun = await fetchLatestDocumentPostingRun(
+    supabase,
+    "BILL",
+    parsed.data.purchase_invoice_id
+  );
+
+  revalidateBillPaths();
+  return {
+    success: true as const,
+    is_paid: true,
     steps: postingRun?.steps ?? [],
     overall: postingRun?.overall_status ?? "success",
     detail: data,

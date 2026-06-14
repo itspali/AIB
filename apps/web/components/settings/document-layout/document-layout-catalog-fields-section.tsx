@@ -25,6 +25,7 @@ import {
   movePoCatalogLineFieldOrder,
   removePoCatalogField,
 } from "@/lib/documents/purchase-order-layout";
+import type { DocumentLayoutModuleAdapter } from "@/lib/documents/document-layout-module-adapters";
 import type { DocumentCatalogFieldSource, DocumentLayoutTemplate } from "@/lib/documents/types";
 
 type CatalogFieldSuggestion = {
@@ -38,6 +39,7 @@ type Props = {
   canEdit?: boolean;
   customFieldKeys?: string[];
   variantAttributeKeys?: string[];
+  catalogAdapter?: DocumentLayoutModuleAdapter["catalog"];
   onLayoutChange: (layout: DocumentLayoutTemplate) => void;
 };
 
@@ -63,8 +65,15 @@ export function DocumentLayoutCatalogFieldsSection({
   canEdit = true,
   customFieldKeys = [],
   variantAttributeKeys = [],
+  catalogAdapter,
   onLayoutChange,
 }: Props) {
+  const catalog = catalogAdapter ?? {
+    add: addPoCatalogField,
+    createPref: createPoCatalogFieldPref,
+    move: movePoCatalogLineFieldOrder,
+    remove: removePoCatalogField,
+  };
   const [customKey, setCustomKey] = useState("");
   const [selectedSuggestion, setSelectedSuggestion] = useState("");
 
@@ -114,8 +123,8 @@ export function DocumentLayoutCatalogFieldsSection({
       (entry) => suggestionId(entry) === selectedSuggestion
     );
     if (!suggestion) return;
-    const pref = createPoCatalogFieldPref(suggestion.source, suggestion.key, suggestion.label);
-    onLayoutChange(addPoCatalogField(layout, pref));
+    const pref = catalog.createPref(suggestion.source, suggestion.key, suggestion.label);
+    onLayoutChange(catalog.add(layout, pref));
     setSelectedSuggestion("");
   };
 
@@ -127,13 +136,13 @@ export function DocumentLayoutCatalogFieldsSection({
       setCustomKey("");
       return;
     }
-    const pref = createPoCatalogFieldPref("item_custom_field", key);
-    onLayoutChange(addPoCatalogField(layout, pref));
+    const pref = catalog.createPref("item_custom_field", key);
+    onLayoutChange(catalog.add(layout, pref));
     setCustomKey("");
   };
 
   const handleRemoveField = (fieldId: string) => {
-    onLayoutChange(removePoCatalogField(layout, fieldId));
+    onLayoutChange(catalog.remove(layout, fieldId));
   };
 
   return (
@@ -150,7 +159,7 @@ export function DocumentLayoutCatalogFieldsSection({
         })}
         onPatch={patchColumn}
         onMove={(fromId, toId) =>
-          onLayoutChange(movePoCatalogLineFieldOrder(layout, fromId, toId))
+          onLayoutChange(catalog.move(layout, fromId, toId))
         }
       />
 

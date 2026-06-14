@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { fetchGoodsReceiptById, fetchGoodsReceipts } from "@/lib/procurement/goods-receipts/queries";
 import { formatGoodsReceiptRpcError } from "@/lib/procurement/goods-receipts/rpc-errors";
 import { validateGrnLinesAgainstOpenQty } from "@/lib/procurement/goods-receipts/schemas";
-import { computeGrnLineQuantities } from "@/lib/procurement/goods-receipts/grn-line-validation";
+import {
+  computeGrnLineQuantities,
+  validateGrnExceptionLines,
+} from "@/lib/procurement/goods-receipts/grn-line-validation";
 import { fetchVariantQcPolicyHints } from "@/lib/procurement/goods-receipts/qc-policy-queries";
+import type { VariantQcPolicyHint } from "@/lib/procurement/qc-receipt-policy";
 import { postGoodsReceiptSchema } from "@/lib/procurement/goods-receipts/schemas";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
@@ -116,6 +120,7 @@ export async function postGoodsReceipt(
       quantity_accepted: accepted,
       quantity_rejected: rejected,
       route_to_qc: line.route_to_qc ?? false,
+      reject_disposition: line.reject_disposition ?? "SCRAP",
       raw_unit_cost: Number(line.raw_unit_cost),
       is_promotional: line.is_promotional ?? false,
     };
@@ -242,4 +247,43 @@ export async function releaseGoodsReceiptFromQc(goodsReceiptId: string) {
     steps: postingRun?.steps ?? [],
     detail: data,
   };
+}
+
+export async function releaseGoodsReceiptLineFromQc(input: {
+  goods_receipt_item_id: string;
+  quantity_released: string;
+  quantity_failed?: string;
+  failed_disposition?: "RTV" | "SCRAP" | "DAMAGE" | "SHRINK";
+}) {
+  const itemId = input.goods_receipt_item_id?.trim();
+  if (!itemId) return { error: "Goods receipt line id is required." };
+
+  const released = Number(input.quantity_released);
+  if (!Number.isFinite(released) || released < 0) {
+    return { error: "Released quantity is invalid." };
+  }
+
+  const failed = input.quantity_failed?.trim() ? Number(input.quantity_failed) : 0;
+  if (!Number.isFinite(failed) || failed < 0) {
+    return { error: "Failed quantity is invalid." };
+  }
+
+  const { supabase, userId } = await requireTenantId();
+  const { data, error } = await supabase.rpc("release_goods_receipt_line_from_qc", {
+    p_goods_receipt_item_id: itemId,
+    p_quantity_released: released,
+    p_quantity_failed: failed,
+    p_failed_disposition: input.failed_disposition ?? "SCRAP",
+    p_released_by: userId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("release_goods_receipt_line_from_qc") };
+    }
+    return { error: error.message };
+  }
+
+  revalidateGoodsReceiptPaths();
+  return { success: true as const, detail: data };
 }

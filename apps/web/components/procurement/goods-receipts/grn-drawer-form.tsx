@@ -22,6 +22,7 @@ import {
 } from "@/components/procurement/goods-receipts/grn-line-entry-table";
 import { GrnGitLinkPanel } from "@/components/procurement/goods-receipts/grn-git-link-panel";
 import { GrnImportTaxPeekPanel } from "@/components/procurement/goods-receipts/grn-import-tax-peek-panel";
+import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { GrnQcReleasePanel } from "@/components/procurement/goods-receipts/grn-qc-release-panel";
 import {
   DocumentLinePeekItemCell,
@@ -418,6 +419,12 @@ export function GrnDrawerForm({
         {isPending ? "Posting…" : "Post receipt"}
       </Button>
     )
+  ) : surface === "peek" && detail ? (
+    <DocumentPrintButton
+      moduleKey="GOODS_RECEIPT_NOTE"
+      documentId={detail.id}
+      documentLocationId={detail.destination_location_id}
+    />
   ) : null;
 
   if (!open || surface === "closed") return discardDialog;
@@ -486,6 +493,7 @@ export function GrnDrawerForm({
             <GrnQcReleasePanel
               goodsReceiptId={detail.id}
               isQcPending={detail.is_qc_pending}
+              qcLines={detail.lines ?? []}
               onReleased={reloadDetail}
             />
 

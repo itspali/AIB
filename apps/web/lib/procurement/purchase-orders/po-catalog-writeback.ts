@@ -10,7 +10,9 @@ export type PoCatalogWritebackField =
   | "mrp"
   | "purchase_price"
   | "supplier_price"
-  | "purchase_uom";
+  | "purchase_uom"
+  | "hsn_sac_code"
+  | "tax_code";
 
 export type PoCatalogWritebackRow = {
   id: string;
@@ -23,6 +25,8 @@ export type PoCatalogWritebackRow = {
   fieldLabel: string;
   catalogValue: string | null;
   proposedValue: string;
+  /** Server payload when it differs from display text (e.g. tax code id). */
+  applyValue?: string;
 };
 
 export type PoCatalogWritebackSelection = {
@@ -39,6 +43,8 @@ export const PO_CATALOG_WRITEBACK_FIELDS: ReadonlyArray<{
   { field: "purchase_price", label: "Purchase price", shortLabel: "Purchase" },
   { field: "supplier_price", label: "Supplier catalog price", shortLabel: "Supplier" },
   { field: "purchase_uom", label: "Purchase unit", shortLabel: "Unit" },
+  { field: "hsn_sac_code", label: "HSN/SAC", shortLabel: "HSN/SAC" },
+  { field: "tax_code", label: "Tax %", shortLabel: "Tax %" },
 ];
 
 export type PoCatalogWritebackGroup = {
@@ -87,7 +93,8 @@ function pushRow(
   field: PoCatalogWritebackField,
   fieldLabel: string,
   catalogValue: string | null,
-  proposedValue: string
+  proposedValue: string,
+  applyValue?: string
 ) {
   rows.push({
     id: rowId(line.key, field),
@@ -100,7 +107,24 @@ function pushRow(
     fieldLabel,
     catalogValue,
     proposedValue,
+    ...(applyValue ? { applyValue } : {}),
   });
+}
+
+function normalizeText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed || null;
+}
+
+function textsDiffer(a: string | null | undefined, b: string | null | undefined): boolean {
+  return normalizeText(a) !== normalizeText(b);
+}
+
+function formatWritebackTaxRateDisplay(rate: number | string | null | undefined): string | null {
+  if (rate == null || rate === "") return null;
+  const parsed = typeof rate === "number" ? rate : Number(String(rate).replace(/,/g, ""));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return `${parsed.toFixed(2)}%`;
 }
 
 export function buildPoCatalogWritebackRows(lines: PoDraftLine[]): PoCatalogWritebackRow[] {
@@ -163,6 +187,34 @@ export function buildPoCatalogWritebackRows(lines: PoDraftLine[]): PoCatalogWrit
         "Purchase unit",
         catalogUom,
         proposedUom!
+      );
+    }
+
+    const proposedHsn = line.catalog_context?.hsn_sac_code?.trim() || null;
+    if (textsDiffer(snapshot?.catalog_hsn_sac_code, proposedHsn) && proposedHsn) {
+      pushRow(
+        rows,
+        line,
+        "hsn_sac_code",
+        "HSN/SAC",
+        snapshot?.catalog_hsn_sac_code ?? null,
+        proposedHsn
+      );
+    }
+
+    const proposedTaxCodeId = line.catalog_context?.tax_code_id?.trim() || null;
+    if (proposedTaxCodeId && textsDiffer(snapshot?.catalog_tax_code_id, proposedTaxCodeId)) {
+      const catalogTaxDisplay = formatWritebackTaxRateDisplay(snapshot?.catalog_tax_rate);
+      const proposedTaxDisplay =
+        formatWritebackTaxRateDisplay(line.catalog_context?.tax_rate) ?? proposedTaxCodeId;
+      pushRow(
+        rows,
+        line,
+        "tax_code",
+        "Tax %",
+        catalogTaxDisplay,
+        proposedTaxDisplay,
+        proposedTaxCodeId
       );
     }
   }

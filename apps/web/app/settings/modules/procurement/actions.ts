@@ -5,8 +5,11 @@ import { z } from "zod";
 import { fetchDocumentLayoutTemplate, upsertDocumentLayoutTemplate } from "@/lib/documents/document-layout-queries";
 import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
-import type { DocumentLayoutTemplate, DocumentViewContext } from "@/lib/documents/types";
+import { normalizeGrnLayoutTemplate } from "@/lib/documents/goods-receipt-layout";
+import { normalizeBillLayoutTemplate } from "@/lib/documents/purchase-invoice-layout";
+import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
+import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 import {
   PO_AUTO_ROUND_OFF_STEP_PRESETS,
   resolvePoAutoRoundOffStep,
@@ -24,16 +27,22 @@ function resolveScopeLocationId(scope: DocumentLayoutScope): string | null {
   return scope.mode === "location" ? scope.locationId : null;
 }
 
-export async function loadPurchaseOrderDocumentLayout(input: {
+export type SaveDocumentLayoutInput = {
+  scope: DocumentLayoutScope;
   viewContext: DocumentViewContext;
-  scope?: DocumentLayoutScope;
-}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  layout: DocumentLayoutTemplate;
+};
+
+async function loadDocumentLayoutForModule(
+  moduleKey: DocumentModuleKey,
+  input: { viewContext: DocumentViewContext; scope?: DocumentLayoutScope }
+): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
   try {
     const { supabase, tenantId } = await requireTenantId();
     const layout = await fetchDocumentLayoutTemplate(
       supabase,
       tenantId,
-      "PURCHASE_ORDER",
+      moduleKey,
       input.viewContext,
       { locationId: input.scope ? resolveScopeLocationId(input.scope) : null }
     );
@@ -45,8 +54,11 @@ export async function loadPurchaseOrderDocumentLayout(input: {
   }
 }
 
-export async function savePurchaseOrderDocumentLayout(
-  input: SavePurchaseOrderDocumentLayoutInput
+async function saveDocumentLayoutForModule(
+  moduleKey: DocumentModuleKey,
+  normalize: (layout: DocumentLayoutTemplate) => DocumentLayoutTemplate,
+  revalidatePaths: string[],
+  input: SaveDocumentLayoutInput
 ): Promise<{ success: true } | { error: string }> {
   try {
     const { supabase, tenantId, userId } = await requireTenantId();
@@ -55,14 +67,14 @@ export async function savePurchaseOrderDocumentLayout(
       return { error: "You do not have permission to edit document layout." };
     }
 
-    const layout = normalizePoLayoutTemplate({
+    const layout = normalize({
       ...input.layout,
-      moduleKey: "PURCHASE_ORDER",
+      moduleKey,
       viewContext: input.viewContext,
     });
 
-    if (layout.moduleKey !== "PURCHASE_ORDER") {
-      return { error: "Invalid module for purchase order layout." };
+    if (layout.moduleKey !== moduleKey) {
+      return { error: "Invalid module for document layout." };
     }
 
     void layoutScopeKey(input.scope);
@@ -71,8 +83,9 @@ export async function savePurchaseOrderDocumentLayout(
       locationId: resolveScopeLocationId(input.scope),
     });
 
-    revalidatePath("/settings/modules/procurement");
-    revalidatePath("/procurement/purchase-orders");
+    for (const path of revalidatePaths) {
+      revalidatePath(path);
+    }
 
     return { success: true };
   } catch (error) {
@@ -80,6 +93,60 @@ export async function savePurchaseOrderDocumentLayout(
       error: error instanceof Error ? error.message : "Unable to save document layout.",
     };
   }
+}
+
+export async function loadPurchaseOrderDocumentLayout(input: {
+  viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
+}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  return loadDocumentLayoutForModule("PURCHASE_ORDER", input);
+}
+
+export async function loadGoodsReceiptDocumentLayout(input: {
+  viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
+}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  return loadDocumentLayoutForModule("GOODS_RECEIPT_NOTE", input);
+}
+
+export async function loadPurchaseInvoiceDocumentLayout(input: {
+  viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
+}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  return loadDocumentLayoutForModule("PURCHASE_INVOICE", input);
+}
+
+export async function savePurchaseOrderDocumentLayout(
+  input: SavePurchaseOrderDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  return saveDocumentLayoutForModule(
+    "PURCHASE_ORDER",
+    normalizePoLayoutTemplate,
+    ["/settings/modules/procurement", "/procurement/purchase-orders"],
+    input
+  );
+}
+
+export async function saveGoodsReceiptDocumentLayout(
+  input: SaveDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  return saveDocumentLayoutForModule(
+    "GOODS_RECEIPT_NOTE",
+    normalizeGrnLayoutTemplate,
+    ["/settings/modules/procurement", "/procurement/goods-receipts"],
+    input
+  );
+}
+
+export async function savePurchaseInvoiceDocumentLayout(
+  input: SaveDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  return saveDocumentLayoutForModule(
+    "PURCHASE_INVOICE",
+    normalizeBillLayoutTemplate,
+    ["/settings/modules/procurement", "/procurement/bills"],
+    input
+  );
 }
 
 const saveProcurementPoliciesSchema = z.object({
@@ -153,6 +220,109 @@ export async function saveProcurementPolicies(raw: unknown) {
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Unable to save procurement policies.",
+    };
+  }
+}
+
+const saveProcurementApprovalSettingsSchema = z.object({
+  require_po_approval_before_issue: z.boolean(),
+  po_approval_threshold_amount: z
+    .number()
+    .nonnegative("Threshold must be zero or greater.")
+    .nullable(),
+  allow_submitter_self_approve_below_threshold: z.boolean(),
+  po_approver_user_ids: z.array(z.string().uuid()),
+});
+
+export async function saveProcurementApprovalSettings(
+  raw: ProcurementApprovalSettings
+): Promise<{ success: true } | { error: string }> {
+  try {
+    const parsed = saveProcurementApprovalSettingsSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid approval settings." };
+    }
+
+    const { supabase, tenantId, userId } = await requireTenantId();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.granted) {
+      return { error: "You do not have permission to edit approval settings." };
+    }
+
+    const { error } = await supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: "APPROVAL_SETTINGS",
+      p_metadata_patch: {
+        require_po_approval_before_issue: parsed.data.require_po_approval_before_issue,
+        po_approval_threshold_amount: parsed.data.po_approval_threshold_amount,
+        allow_submitter_self_approve_below_threshold:
+          parsed.data.allow_submitter_self_approve_below_threshold,
+        po_approver_user_ids: parsed.data.po_approver_user_ids,
+      },
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return { error: formatRpcDeployError("upsert_tenant_workspace_control") };
+      }
+      return { error: error.message };
+    }
+
+    revalidatePath("/settings/modules/procurement");
+    revalidatePath("/procurement/purchase-orders");
+    revalidatePath("/procurement");
+    revalidatePath("/dashboard");
+
+    return { success: true as const };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to save approval settings.",
+    };
+  }
+}
+
+const saveFinancialProcurementSettingsSchema = z.object({
+  ppv_expense_account_id: z.string().uuid().nullable(),
+  vendor_prepayment_account_id: z.string().uuid().nullable(),
+});
+
+export async function saveFinancialProcurementSettings(
+  raw: unknown
+): Promise<{ success: true } | { error: string }> {
+  try {
+    const parsed = saveFinancialProcurementSettingsSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid financial settings." };
+    }
+
+    const { supabase, tenantId, userId } = await requireTenantId();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.granted) {
+      return { error: "You do not have permission to edit financial settings." };
+    }
+
+    const { error } = await supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: "FINANCIAL_SETTINGS",
+      p_metadata_patch: {
+        ppv_expense_account_id: parsed.data.ppv_expense_account_id,
+        vendor_prepayment_account_id: parsed.data.vendor_prepayment_account_id,
+      },
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return { error: formatRpcDeployError("upsert_tenant_workspace_control") };
+      }
+      return { error: error.message };
+    }
+
+    revalidatePath("/settings/modules/procurement");
+    revalidatePath("/procurement/bills");
+    revalidatePath("/procurement");
+
+    return { success: true };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to save financial settings.",
     };
   }
 }

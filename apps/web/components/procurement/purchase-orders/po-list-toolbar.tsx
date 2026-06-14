@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 const STATUS_OPTIONS: Array<PurchaseOrderStatus | "all"> = [
   "all",
   "DRAFT",
+  "PENDING_APPROVAL",
   "ISSUED_ACTIVE",
   "PARTIALLY_FULFILLED",
   "FULLY_COMPLETED",

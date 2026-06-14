@@ -52,6 +52,11 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
     label: "Purchase Orders",
     placeholder: "Search purchase orders (e.g., PO-2026, supplier Acme, status draft)…",
   },
+  bills: {
+    id: "bills",
+    label: "Supplier Bills",
+    placeholder: "Search bills (e.g., BILL-2026, vendor invoice, supplier Acme, unpaid)…",
+  },
   settings: {
     id: "settings",
     label: "Settings",
@@ -74,6 +79,7 @@ const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
   { prefix: "/inventory/transfers", scope: "transfers" },
   { prefix: "/inventory/stock", scope: "stock" },
   { prefix: "/procurement/purchase-orders", scope: "purchase-orders" },
+  { prefix: "/procurement/bills", scope: "bills" },
   { prefix: "/settings/locations", scope: "locations" },
   { prefix: "/settings", scope: "settings" },
 ];

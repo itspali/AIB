@@ -22,7 +22,8 @@ import {
   type PurchaseOrderListSortDirection,
   type PurchaseOrderListSortField,
 } from "@/lib/procurement/purchase-orders/list-sort";
-import { PROCUREMENT_PO_HREF, PO_COPY_FROM_PARAM } from "@/lib/procurement/navigation";
+import { PROCUREMENT_PO_HREF, PO_COPY_FROM_PARAM, PO_STATUS_FILTER_PARAM } from "@/lib/procurement/navigation";
+import type { PurchaseOrderStatus } from "@/lib/procurement/purchase-orders/types";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { useFilteredPurchaseOrders } from "@/lib/procurement/purchase-orders/use-filtered-purchase-orders";
@@ -31,11 +32,11 @@ import type {
   ProcurementSupplierOption,
 } from "@/lib/procurement/shared/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
-import { useLivePoDocumentLayout } from "@/lib/documents/use-live-po-document-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
+import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
@@ -57,6 +58,10 @@ type Props = {
   preferredDestinationLocationId?: string | null;
   organizationBillTo: OrganizationBillToSnapshot;
   taxCodeOptions: readonly PoLineTaxCodeOption[];
+  approvalSettings: ProcurementApprovalSettings;
+  currentUserId: string;
+  canApprovePurchaseOrders: boolean;
+  isOwner: boolean;
 };
 
 export function PoManagementTerminal({
@@ -72,22 +77,23 @@ export function PoManagementTerminal({
   autoRoundOffPolicy,
   defaultPricesTaxInclusive,
   defaultCurrency,
-  documentLayout: initialDocumentLayout,
+  documentLayout,
   preferredDestinationLocationId = null,
   organizationBillTo,
   taxCodeOptions,
+  approvalSettings,
+  currentUserId,
+  canApprovePurchaseOrders,
+  isOwner,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF, {
-    clearParamsOnClose: [PO_COPY_FROM_PARAM],
+    clearParamsOnClose: [PO_COPY_FROM_PARAM, PO_STATUS_FILTER_PARAM],
   });
   const copyFromId = useMemo(() => {
     if (drawer.surface !== "create") return null;
     return searchParams.get(PO_COPY_FROM_PARAM)?.trim() || null;
   }, [drawer.surface, searchParams]);
-  const documentLayout = useLivePoDocumentLayout(initialDocumentLayout, {
-    refreshWhen: drawer.isOpen,
-  });
   const [purchaseOrders, setPurchaseOrders] = useState(initialPurchaseOrders);
   const [prefs, setPrefs] = useState<PurchaseOrderListPrefs>(getDefaultPurchaseOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
@@ -97,6 +103,16 @@ export function PoManagementTerminal({
     setPrefs(loadPurchaseOrderListPrefs());
     setPrefsHydrated(true);
   }, []);
+
+  useEffect(() => {
+    const statusParam = searchParams.get(PO_STATUS_FILTER_PARAM)?.trim();
+    if (!statusParam || statusParam === "all") return;
+    setPrefs((current) =>
+      current.status === statusParam
+        ? current
+        : { ...current, status: statusParam as PurchaseOrderStatus | "all" }
+    );
+  }, [searchParams]);
 
   useEffect(() => {
     if (!prefsHydrated) return;
@@ -296,6 +312,10 @@ export function PoManagementTerminal({
         copyFromId={copyFromId}
         onDuplicate={editAccessGranted ? handleDuplicate : undefined}
         taxCodeOptions={taxCodeOptions}
+        approvalSettings={approvalSettings}
+        currentUserId={currentUserId}
+        canApprovePurchaseOrders={canApprovePurchaseOrders}
+        isOwner={isOwner}
       />
     </>
   );

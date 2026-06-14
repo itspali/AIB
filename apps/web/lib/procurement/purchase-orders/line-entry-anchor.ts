@@ -7,6 +7,11 @@ export const PO_LINE_ENTRY_ANCHOR_LABEL: Record<PoLineEntryAnchor, string> = {
   top: "Add at top",
 };
 
+export const PO_LINE_ENTRY_ANCHOR_SHORT_LABEL: Record<PoLineEntryAnchor, string> = {
+  bottom: "Bottom",
+  top: "Top",
+};
+
 export function readPoLineEntryAnchor(): PoLineEntryAnchor {
   if (typeof window === "undefined") return "bottom";
   return sessionStorage.getItem(PO_LINE_ENTRY_ANCHOR_STORAGE_KEY) === "top" ? "top" : "bottom";

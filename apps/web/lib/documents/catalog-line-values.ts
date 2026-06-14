@@ -29,6 +29,8 @@ export type PoLineCatalogContext = {
   tax_code_id: string | null;
   tax_rate: number;
   tax_is_variable: boolean;
+  /** Item master selling price / MRP tax treatment from catalog. */
+  price_is_tax_inclusive: boolean;
   /** GST sub-components from item tax code (CGST / SGST / IGST). */
   tax_components: Array<{ name: string; rate: number; sort_order: number }>;
   /** Default purchase UOM from item commerce settings (may differ from base). */
@@ -55,6 +57,7 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     tax_code_id: null,
     tax_rate: 0,
     tax_is_variable: false,
+    price_is_tax_inclusive: false,
     tax_components: [],
     default_purchase_uom: null,
     alternate_uoms: [],
@@ -97,6 +100,7 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     tax_code_id: null,
     tax_rate: 0,
     tax_is_variable: false,
+    price_is_tax_inclusive: false,
     tax_components: [],
     default_purchase_uom: parseDefaultPurchaseUomFromPickerCustomFields(partial.custom_fields),
     alternate_uoms: [],

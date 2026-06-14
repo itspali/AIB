@@ -34,6 +34,7 @@ type VariantCatalogRow = {
         custom_fields: Record<string, unknown> | null;
         category_id: string | null;
         tax_code_id: string | null;
+        price_is_tax_inclusive: boolean | null;
         tax_codes:
           | {
               rate: number | string | null;
@@ -58,6 +59,7 @@ type VariantCatalogRow = {
         custom_fields: Record<string, unknown> | null;
         category_id: string | null;
         tax_code_id: string | null;
+        price_is_tax_inclusive: boolean | null;
         tax_codes:
           | {
               rate: number | string | null;
@@ -132,6 +134,7 @@ export async function fetchPoLineCatalogContext(
         custom_fields,
         category_id,
         tax_code_id,
+        price_is_tax_inclusive,
         tax_codes (
           rate,
           is_variable,
@@ -204,6 +207,7 @@ export async function fetchPoLineCatalogContext(
     tax_code_id: item.tax_code_id,
     tax_rate: Number.isFinite(taxRate) ? taxRate : 0,
     tax_is_variable: Boolean(taxCode?.is_variable),
+    price_is_tax_inclusive: item.price_is_tax_inclusive === true,
     tax_components: taxComponents,
     default_purchase_uom,
     alternate_uoms,

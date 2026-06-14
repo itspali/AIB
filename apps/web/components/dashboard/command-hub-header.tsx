@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Radio } from "lucide-react";
+import { poPendingApprovalListHref } from "@/lib/procurement/navigation";
 
 type CommandHubHeaderProps = {
   approvalAlertCount?: number;
@@ -24,9 +26,12 @@ export function CommandHubHeader({ approvalAlertCount = 0 }: CommandHubHeaderPro
               Live sync active
             </span>
             {approvalAlertCount > 0 && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+              <Link
+                href={poPendingApprovalListHref()}
+                className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+              >
                 {approvalAlertCount} approval{approvalAlertCount === 1 ? "" : "s"} pending
-              </span>
+              </Link>
             )}
           </div>
           <h1 className="text-2xl font-bold tracking-tight">

@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeDocumentDecimalInput } from "@/lib/documents/decimal-format";
 import { extractDefaultPurchasePriceFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 
 const VARIANT_ITEM_EMBED = "items!item_variants_item_tenant_fk";
+
+/** Default precision for PO offer unit price (matches `unit_price` column default). */
+export const PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES = 2;
 
 function parsePositivePrice(value: string | null | undefined): string | null {
   const trimmed = (value ?? "").trim();
@@ -10,19 +14,31 @@ function parsePositivePrice(value: string | null | undefined): string | null {
   return Number.isFinite(parsed) && parsed > 0 ? trimmed : null;
 }
 
+function formatResolvedOfferUnitPrice(
+  value: string,
+  decimalPlaces = PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES
+): string {
+  return normalizeDocumentDecimalInput(value, decimalPlaces);
+}
+
 /** PO offer unit price from picker: item purchase rate (not inventory standard cost). */
 export function resolvePoLinePickerOfferUnitPrice(
-  purchasePrice: string | null | undefined
+  purchasePrice: string | null | undefined,
+  decimalPlaces = PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES
 ): string {
-  return parsePositivePrice(purchasePrice) ?? "0";
+  const positive = parsePositivePrice(purchasePrice);
+  return positive ? formatResolvedOfferUnitPrice(positive, decimalPlaces) : "0";
 }
 
 /** Supplier catalog price wins; otherwise item master purchase rate. */
 export function resolvePoLineOfferUnitPrice(
   supplierPrice: string | null | undefined,
-  purchasePrice: string | null | undefined
+  purchasePrice: string | null | undefined,
+  decimalPlaces = PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES
 ): string {
-  return parsePositivePrice(supplierPrice) ?? resolvePoLinePickerOfferUnitPrice(purchasePrice);
+  const positive = parsePositivePrice(supplierPrice);
+  if (positive) return formatResolvedOfferUnitPrice(positive, decimalPlaces);
+  return resolvePoLinePickerOfferUnitPrice(purchasePrice, decimalPlaces);
 }
 
 export async function fetchSupplierVariantPrice(

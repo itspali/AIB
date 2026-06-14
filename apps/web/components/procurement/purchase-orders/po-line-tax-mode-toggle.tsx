@@ -1,8 +1,14 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import {
   PO_PRICES_TAX_MODE_LABEL,
+  PO_PRICES_TAX_MODE_SHORT_LABEL,
   poPricesTaxInclusiveToMode,
   poPricesTaxModeToInclusive,
   type PoPricesTaxMode,
@@ -15,50 +21,31 @@ type Props = {
   onChange: (pricesTaxInclusive: boolean) => void;
 };
 
-function segmentButtonClass(selected: boolean): string {
-  return cn(
-    "h-7 gap-1.5 px-2.5 text-xs font-medium",
-    selected
-      ? "bg-background text-foreground shadow-sm"
-      : "text-muted-foreground hover:text-foreground"
-  );
-}
+const PO_PRICES_TAX_MODE_OPTIONS: PoPricesTaxMode[] = ["exclusive", "inclusive"];
+
+const triggerClassName =
+  "h-8 min-w-0 w-auto shrink-0 gap-1 px-1.5 text-xs font-medium sm:gap-1.5 sm:px-2.5 [&>svg]:h-3.5 [&>svg]:w-3.5 sm:[&>svg]:h-4 sm:[&>svg]:w-4";
 
 export function PoLineTaxModeToggle({ value, disabled, onChange }: Props) {
   const mode = poPricesTaxInclusiveToMode(value);
 
-  const setMode = (next: PoPricesTaxMode) => {
-    onChange(poPricesTaxModeToInclusive(next));
-  };
-
   return (
-    <div
-      className="inline-flex shrink-0 gap-px rounded-md border border-border bg-muted p-px"
-      role="group"
-      aria-label="Unit price tax treatment"
+    <Select
+      value={mode}
+      disabled={disabled}
+      onValueChange={(next) => onChange(poPricesTaxModeToInclusive(next as PoPricesTaxMode))}
     >
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className={segmentButtonClass(mode === "exclusive")}
-        disabled={disabled}
-        aria-pressed={mode === "exclusive"}
-        onClick={() => setMode("exclusive")}
-      >
-        {PO_PRICES_TAX_MODE_LABEL.exclusive}
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className={segmentButtonClass(mode === "inclusive")}
-        disabled={disabled}
-        aria-pressed={mode === "inclusive"}
-        onClick={() => setMode("inclusive")}
-      >
-        {PO_PRICES_TAX_MODE_LABEL.inclusive}
-      </Button>
-    </div>
+      <SelectTrigger className={triggerClassName} aria-label="Unit price tax treatment">
+        <span className={cn("truncate", "sm:hidden")}>{PO_PRICES_TAX_MODE_SHORT_LABEL[mode]}</span>
+        <span className={cn("truncate", "hidden sm:inline")}>{PO_PRICES_TAX_MODE_LABEL[mode]}</span>
+      </SelectTrigger>
+      <SelectContent align="end">
+        {PO_PRICES_TAX_MODE_OPTIONS.map((option) => (
+          <SelectItem key={option} value={option} className="text-xs">
+            {PO_PRICES_TAX_MODE_LABEL[option]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

@@ -19,6 +19,7 @@ export type PurchaseOrderLineRow = {
   variant_sku: string;
   quantity_ordered: string;
   quantity_received: string;
+  quantity_invoiced?: string;
   unit_price_contractual: string;
   discount_percentage: string;
   discount_amount: string;

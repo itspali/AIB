@@ -306,3 +306,66 @@ export async function fetchOrganizationSettingsSnapshot(
     ),
   };
 }
+
+export type WorkspaceEligibleUser = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+};
+
+export async function fetchWorkspaceEligibleUsers(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<WorkspaceEligibleUser[]> {
+  const { data: memberships } = await supabase
+    .from("user_tenant_memberships")
+    .select("user_id, email")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  const userIds = (memberships ?? []).map((row) => row.user_id as string);
+  if (!userIds.length) return [];
+
+  const { data: profiles } = await supabase
+    .from("users")
+    .select("id, first_name, last_name, email")
+    .in("id", userIds);
+
+  const profileById = new Map(
+    (profiles ?? []).map((user) => [user.id, user] as const)
+  );
+
+  return (memberships ?? [])
+    .map((row) => {
+      const profile = profileById.get(row.user_id as string);
+      if (!profile) return null;
+      return {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email || (row.email as string),
+      };
+    })
+    .filter((row): row is WorkspaceEligibleUser => row !== null);
+}
+
+export async function fetchWorkspaceUserProfiles(
+  supabase: SupabaseClient,
+  userIds: string[]
+): Promise<WorkspaceEligibleUser[]> {
+  const uniqueIds = [...new Set(userIds.filter((id) => id.trim().length > 0))];
+  if (!uniqueIds.length) return [];
+
+  const { data: profiles } = await supabase
+    .from("users")
+    .select("id, first_name, last_name, email")
+    .in("id", uniqueIds);
+
+  return (profiles ?? []).map((user) => ({
+    id: user.id,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    email: user.email,
+  }));
+}

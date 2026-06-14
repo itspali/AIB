@@ -117,7 +117,8 @@ export function PoLineMrpReferenceSlot({
 export function patchPoLineMrpReference(
   line: PoDraftLine,
   mrpReferenceRaw: string,
-  column?: DocumentColumnPref
+  column?: DocumentColumnPref,
+  pricesTaxInclusive = false
 ): Partial<PoDraftLine> {
   const decimalPlaces = column ? resolveColumnDecimalPlaces(column) : 2;
   const normalized = mrpReferenceRaw.trim()
@@ -138,20 +139,21 @@ export function patchPoLineMrpReference(
     ...line,
     mrp_reference,
   };
-  const sync = syncPoLineMrpMarkdownFromOfferPrice(next);
+  const sync = syncPoLineMrpMarkdownFromOfferPrice(next, pricesTaxInclusive);
   return sync ? { mrp_reference, ...sync } : { mrp_reference };
 }
 
 /** Live draft while typing — keeps raw input without normalizing or clearing to catalog. */
 export function patchPoLineMrpReferenceDraft(
   line: PoDraftLine,
-  mrpReferenceRaw: string
+  mrpReferenceRaw: string,
+  pricesTaxInclusive = false
 ): Partial<PoDraftLine> {
   const next: PoDraftLine = {
     ...line,
     mrp_reference: mrpReferenceRaw,
   };
-  const sync = syncPoLineMrpMarkdownFromOfferPrice(next);
+  const sync = syncPoLineMrpMarkdownFromOfferPrice(next, pricesTaxInclusive);
   return sync
     ? { mrp_reference: mrpReferenceRaw, ...sync }
     : { mrp_reference: mrpReferenceRaw };

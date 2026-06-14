@@ -4,6 +4,7 @@ import {
   poPricesTaxInclusiveToMode,
   poPricesTaxModeToInclusive,
   resolvePoLineTotalPrimaryAmount,
+  resolveSavedPoLineTaxDisplay,
   resolvePoUnitPriceColumnLabel,
   resolvePoUnitPriceColumnLabelFromLayout,
   shouldShowPoLineTotalExTaxSubline,
@@ -72,5 +73,19 @@ describe("po line tax mode", () => {
         false
       )
     ).toBe(1300);
+  });
+
+  it("reconstructs saved line totals from ex-tax gross and tax amount", () => {
+    const display = resolveSavedPoLineTaxDisplay({
+      variant_id: "variant-1",
+      line_total_gross: "1100",
+      line_tax_amount: "198",
+      tax_rate_percentage: "18",
+    });
+
+    expect(display.taxableBase).toBe(1100);
+    expect(display.lineTotal).toBe(1298);
+    expect(display.primaryAmount).toBe(1298);
+    expect(display.showExTaxSubline).toBe(true);
   });
 });

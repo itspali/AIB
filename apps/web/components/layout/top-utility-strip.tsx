@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -12,6 +13,7 @@ import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { OperatorProfile } from "@/lib/user/types";
+import { poPendingApprovalListHref } from "@/lib/procurement/navigation";
 import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
 import { cn } from "@/lib/utils";
 
@@ -93,15 +95,15 @@ export function TopUtilityStrip({
       {!hideWorkspaceTools ? (
         <div className={headerActionSlotClass}>
           {approvalAlertCount > 0 ? (
-            <Badge
-              variant="action_required"
-              className="h-9 gap-1.5 rounded-md border border-amber-500/20 px-2.5 shadow-sm transition-colors duration-200"
+            <Link
+              href={poPendingApprovalListHref()}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-800 shadow-sm transition-colors duration-200 hover:bg-amber-500/25 dark:text-amber-300"
               title={`${approvalAlertCount} items need managerial approval`}
             >
               <AlertTriangle className="h-3 w-3 shrink-0" />
               <span className="hidden md:inline">Approvals</span>
               <span className="tabular-nums">{approvalAlertCount}</span>
-            </Badge>
+            </Link>
           ) : (
             <Badge variant="locked" className="hidden h-9 rounded-md px-2.5 md:inline-flex">
               All clear

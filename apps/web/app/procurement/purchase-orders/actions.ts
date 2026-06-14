@@ -17,9 +17,12 @@ import { formatPurchaseOrderRpcError } from "@/lib/procurement/purchase-orders/r
 import { serializePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import { normalizePoHeaderChargesForSave } from "@/lib/procurement/purchase-orders/po-header-charges";
 import {
+  approvePurchaseOrderSchema,
   issuePurchaseOrderSchema,
   peekPurchaseOrderNumberSchema,
+  rejectPurchaseOrderSchema,
   savePurchaseOrderSchema,
+  submitPurchaseOrderForApprovalSchema,
   supplierItemInsightsSchema,
   updatePurchaseOrderVoucherNumberSchema,
 } from "@/lib/procurement/purchase-orders/schemas";
@@ -46,6 +49,7 @@ import {
   searchStockVariantsForAdjustment,
 } from "@/app/inventory/stock/actions";
 import { assignPromoGroups, validatePoPromoLines } from "@/lib/procurement/purchase-orders/po-promo";
+import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { parseIssuePurchaseOrderRpcResult } from "@/lib/documents/posting-queries";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
@@ -383,13 +387,92 @@ export async function issuePurchaseOrder(raw: unknown) {
   };
 }
 
+async function runPurchaseOrderWorkflowRpc(
+  rpcName:
+    | "submit_purchase_order_for_approval"
+    | "approve_purchase_order"
+    | "reject_purchase_order",
+  args: Record<string, unknown>
+): Promise<
+  | { success: true; purchaseOrderId: string; steps: PostingStepResult[] }
+  | { error: string; errorAction?: UserFacingErrorAction }
+> {
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc(rpcName, args);
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError(rpcName) };
+    }
+    const formatted = formatPurchaseOrderRpcError(error.message);
+    return {
+      error: formatted.message,
+      errorAction: formatted.action,
+    };
+  }
+
+  revalidatePurchaseOrderPaths();
+  revalidatePath("/dashboard");
+  const parsedResult = parseIssuePurchaseOrderRpcResult(data);
+  if (!parsedResult) {
+    return { error: "Action completed but the response was invalid." };
+  }
+  return {
+    success: true as const,
+    purchaseOrderId: parsedResult.purchaseOrderId,
+    steps: parsedResult.steps,
+  };
+}
+
+export async function submitPurchaseOrderForApproval(raw: unknown) {
+  const parsed = submitPurchaseOrderForApprovalSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid purchase order." };
+  }
+
+  return runPurchaseOrderWorkflowRpc("submit_purchase_order_for_approval", {
+    p_purchase_order_id: parsed.data.purchase_order_id,
+  });
+}
+
+export async function approvePurchaseOrder(raw: unknown) {
+  const parsed = approvePurchaseOrderSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid purchase order." };
+  }
+
+  return runPurchaseOrderWorkflowRpc("approve_purchase_order", {
+    p_purchase_order_id: parsed.data.purchase_order_id,
+    p_notes: parsed.data.notes ?? null,
+  });
+}
+
+export async function rejectPurchaseOrder(raw: unknown) {
+  const parsed = rejectPurchaseOrderSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid rejection request." };
+  }
+
+  return runPurchaseOrderWorkflowRpc("reject_purchase_order", {
+    p_purchase_order_id: parsed.data.purchase_order_id,
+    p_notes: parsed.data.notes,
+  });
+}
+
 const applyPoCatalogWritebackSchema = z.object({
   supplier_id: z.string().uuid(),
   updates: z.array(
     z.object({
       item_id: z.string().uuid(),
       variant_id: z.string().uuid(),
-      field: z.enum(["mrp", "purchase_price", "supplier_price", "purchase_uom"]),
+      field: z.enum([
+        "mrp",
+        "purchase_price",
+        "supplier_price",
+        "purchase_uom",
+        "hsn_sac_code",
+        "tax_code",
+      ]),
       value: z.string().trim().min(1),
     })
   ),
@@ -417,6 +500,8 @@ export async function applyPoCatalogWriteback(raw: unknown) {
       purchase_price?: string;
       supplier_price?: string;
       purchase_uom?: string;
+      hsn_sac_code?: string;
+      tax_code_id?: string;
     }
   >();
 
@@ -430,6 +515,8 @@ export async function applyPoCatalogWriteback(raw: unknown) {
     if (update.field === "purchase_price") row.purchase_price = update.value;
     if (update.field === "supplier_price") row.supplier_price = update.value;
     if (update.field === "purchase_uom") row.purchase_uom = update.value;
+    if (update.field === "hsn_sac_code") row.hsn_sac_code = update.value;
+    if (update.field === "tax_code") row.tax_code_id = update.value;
     grouped.set(key, row);
   }
 
@@ -472,7 +559,7 @@ export async function applyPoCatalogWriteback(raw: unknown) {
       }
     }
 
-    if (row.mrp || row.purchase_price || row.purchase_uom) {
+    if (row.mrp || row.purchase_price || row.purchase_uom || row.hsn_sac_code || row.tax_code_id) {
       const custom_fields = mergeWritebackCustomFields(
         profile,
         row.mrp,
@@ -500,7 +587,8 @@ export async function applyPoCatalogWriteback(raw: unknown) {
         p_standard_cost: profile.standard_cost,
         p_tracking_mode: profile.tracking_mode,
         p_is_bundle: profile.is_bundle,
-        p_tax_code_id: profile.tax_code_id,
+        p_tax_code_id: row.tax_code_id ?? profile.tax_code_id,
+        p_hsn_sac_code: row.hsn_sac_code ?? profile.hsn_sac_code,
         p_purchase_price: row.purchase_price ? Number(row.purchase_price) : null,
         p_variant_strategy: profile.variant_strategy,
       });

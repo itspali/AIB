@@ -21,6 +21,8 @@ import { normalizePoLineDiscountForSave } from "@/lib/procurement/purchase-order
 import { resolvePoDraftLineUomCodeForSave } from "@/lib/procurement/purchase-orders/po-line-unit";
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import { applySavedPoTaxToDraftForm } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type {
   ProcurementLocationOption,
@@ -44,6 +46,7 @@ type Options = {
   defaultPricesTaxInclusive?: boolean;
   autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   tenantCountry?: string | null;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
   onAfterSave: (purchaseOrderId: string) => void;
   onEditNotAllowed?: (purchaseOrderId: string) => void;
 };
@@ -62,6 +65,7 @@ export function usePoMutateForm({
   defaultPricesTaxInclusive = false,
   autoRoundOffPolicy,
   tenantCountry = null,
+  taxCodeOptions = [],
   onAfterSave,
   onEditNotAllowed,
 }: Options) {
@@ -135,7 +139,7 @@ export function usePoMutateForm({
         );
         return;
       }
-      setForm(copyPoDraftFromOrder(result.purchaseOrder));
+      setForm(applySavedPoTaxToDraftForm(copyPoDraftFromOrder(result.purchaseOrder), taxCodeOptions));
       setIsDirty(true);
     });
 
@@ -166,7 +170,9 @@ export function usePoMutateForm({
         return;
       }
       setDetail(result.purchaseOrder);
-      setForm(mapPurchaseOrderToDraft(result.purchaseOrder));
+      setForm(
+        applySavedPoTaxToDraftForm(mapPurchaseOrderToDraft(result.purchaseOrder), taxCodeOptions)
+      );
       setIsDirty(false);
     });
 
