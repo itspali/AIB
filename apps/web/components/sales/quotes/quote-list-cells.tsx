@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SalesListDocumentRefLink } from "@/components/sales/shared/sales-list-document-ref-link";
 import { formatDate } from "@/lib/dashboard/format";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
@@ -9,6 +10,7 @@ import {
   type SalesQuoteListColumnId,
 } from "@/lib/sales/quotes/list-columns";
 import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
+import { SALES_INVOICES_HREF, SALES_ORDERS_HREF } from "@/lib/sales/navigation";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 
 type Options = {
@@ -40,6 +42,22 @@ export function renderSalesQuoteListCell(
     }
     case "valid_until":
       return <span className="text-sm text-muted-foreground">{formatDate(row.valid_until)}</span>;
+    case "converted_order":
+      return (
+        <SalesListDocumentRefLink
+          documentId={row.converted_to_order_id}
+          documentNumber={row.converted_to_order_number}
+          moduleHref={SALES_ORDERS_HREF}
+        />
+      );
+    case "converted_invoice":
+      return (
+        <SalesListDocumentRefLink
+          documentId={row.converted_to_invoice_id}
+          documentNumber={row.converted_to_invoice_number}
+          moduleHref={SALES_INVOICES_HREF}
+        />
+      );
     case "lines":
       return <span className="tabular-nums">{row.line_count}</span>;
     case "net_amount":

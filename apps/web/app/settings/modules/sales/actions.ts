@@ -32,7 +32,7 @@ const approvalPolicyBandSchema = z.object({
 });
 
 const salesApprovalRuleSchema = z.object({
-  type: z.enum(["LINE_QTY_ABOVE", "LINE_PRICE_ABOVE_SUPPLIER", "LINE_PRICE_ABOVE_CATALOG"]),
+  type: z.enum(["LINE_QTY_ABOVE", "LINE_PRICE_BELOW_LIST", "LINE_DISCOUNT_ABOVE"]),
   enabled: z.boolean(),
   threshold: z.number().nonnegative().nullable().optional(),
   tolerance_percent: z.number().nonnegative().nullable().optional(),

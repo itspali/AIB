@@ -95,6 +95,9 @@ export function sortSalesInvoiceListRows(
       case "source_order":
         primary = compareStrings(a.source_order_number, b.source_order_number, direction);
         break;
+      case "source_quote":
+        primary = compareStrings(a.source_quotation_number, b.source_quotation_number, direction);
+        break;
       case "net_amount":
         primary = compareNumbers(a.total_net_amount, b.total_net_amount, direction);
         break;

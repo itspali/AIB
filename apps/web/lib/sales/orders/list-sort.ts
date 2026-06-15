@@ -23,6 +23,7 @@ export const SO_LIST_SORT_OPTIONS: SalesOrderSortOption[] = [
   { field: "customer", direction: "asc", label: "Customer (A–Z)" },
   { field: "shipping_location", direction: "asc", label: "Ship from (A–Z)" },
   { field: "status", direction: "asc", label: "Status (A–Z)" },
+  { field: "source_quote", direction: "asc", label: "Source quote (A–Z)" },
   { field: "lines", direction: "desc", label: "Lines (high–low)" },
   { field: "net_amount", direction: "desc", label: "Net amount (high–low)" },
   { field: "created", direction: "desc", label: "Created (newest)" },
@@ -133,6 +134,9 @@ export function sortSalesOrderListRows(
           salesOrderStatusLabel(b.commercial_status),
           direction
         );
+        break;
+      case "source_quote":
+        primary = compareStrings(a.source_quotation_number, b.source_quotation_number, direction);
         break;
       case "lines":
         primary = directionMultiplier(direction) * (a.line_count - b.line_count);

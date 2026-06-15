@@ -85,6 +85,16 @@ export function sortSalesQuoteListRows(
       case "valid_until":
         primary = compareDates(a.valid_until, b.valid_until, direction);
         break;
+      case "converted_order":
+        primary = compareStrings(a.converted_to_order_number, b.converted_to_order_number, direction);
+        break;
+      case "converted_invoice":
+        primary = compareStrings(
+          a.converted_to_invoice_number,
+          b.converted_to_invoice_number,
+          direction
+        );
+        break;
       case "lines":
         primary = compareNumbers(String(a.line_count), String(b.line_count), direction);
         break;

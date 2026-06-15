@@ -23,6 +23,8 @@ export function getSalesInvoiceListCellDisplayTexts(
       return [salesInvoicePaymentStatusLabel(row.invoice_payment_status)];
     case "source_order":
       return [row.source_order_number?.trim() || "—"];
+    case "source_quote":
+      return [row.source_quotation_number?.trim() || "—"];
     case "net_amount":
       return [row.total_net_amount];
     case "paid_amount":

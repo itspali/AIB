@@ -4,7 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
 import {
-  normalizePoApprovalRules,
+  migrateLegacySalesApprovalRules,
+} from "@/lib/sales/sales-approval-rules";
+import {
   normalizePoApproverRoles,
 } from "@/lib/approvals/approval-rules";
 import {
@@ -19,7 +21,7 @@ const DEFAULT_SALES_APPROVAL_SETTINGS: SalesApprovalSettings = {
   allow_submitter_self_approve_below_threshold: false,
   so_approver_user_ids: [],
   so_approver_roles: [],
-  so_approval_rules: normalizePoApprovalRules(undefined),
+  so_approval_rules: migrateLegacySalesApprovalRules(undefined),
   so_workflow_template: "standard",
   so_finance_approver_user_ids: [],
   so_approval_bands: undefined,
@@ -28,7 +30,7 @@ const DEFAULT_SALES_APPROVAL_SETTINGS: SalesApprovalSettings = {
   quote_approval_threshold_amount: null,
   quote_approver_user_ids: [],
   quote_approver_roles: [],
-  quote_approval_rules: normalizePoApprovalRules(undefined),
+  quote_approval_rules: migrateLegacySalesApprovalRules(undefined),
   quote_workflow_template: "standard",
   quote_finance_approver_user_ids: [],
   quote_approval_bands: undefined,
@@ -37,7 +39,7 @@ const DEFAULT_SALES_APPROVAL_SETTINGS: SalesApprovalSettings = {
   invoice_approval_threshold_amount: null,
   invoice_approver_user_ids: [],
   invoice_approver_roles: [],
-  invoice_approval_rules: normalizePoApprovalRules(undefined),
+  invoice_approval_rules: migrateLegacySalesApprovalRules(undefined),
   invoice_workflow_template: "standard",
   invoice_finance_approver_user_ids: [],
   invoice_approval_bands: undefined,
@@ -122,7 +124,7 @@ function parseDocumentApprovalConfig(
     ),
     [`${prefix}_approver_user_ids`]: parseApproverUserIds(meta[`${prefix}_approver_user_ids`]),
     [`${prefix}_approver_roles`]: normalizePoApproverRoles(meta[`${prefix}_approver_roles`]),
-    [`${prefix}_approval_rules`]: normalizePoApprovalRules(meta[`${prefix}_approval_rules`]),
+    [`${prefix}_approval_rules`]: migrateLegacySalesApprovalRules(meta[`${prefix}_approval_rules`]),
     [`${prefix}_workflow_template`]: workflowTemplate,
     [`${prefix}_finance_approver_user_ids`]: financeIds,
     [`${prefix}_approval_bands`]: bands,

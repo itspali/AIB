@@ -15,7 +15,7 @@ import {
   fetchPendingPoApprovalRunCount,
   runPoApprovalSlaReminders,
 } from "@/app/settings/modules/procurement/actions";
-import { defaultPoApprovalRules, hasEnabledPoApprovalRules } from "@/lib/approvals/approval-rules";
+import { defaultPoApprovalRules, hasEnabledPoApprovalRules, type PoApprovalRule } from "@/lib/approvals/approval-rules";
 import {
   buildManagerChainFinanceLevels,
   resolveWorkflowChoice,
@@ -483,7 +483,9 @@ export function ProcurementApprovalsPanel({
                     <ApprovalRulesEditor
                       rules={settings.po_approval_rules ?? defaultPoApprovalRules()}
                       disabled={!canEdit}
-                      onChange={(po_approval_rules) => patch({ po_approval_rules })}
+                      onChange={(po_approval_rules) =>
+                        patch({ po_approval_rules: po_approval_rules as PoApprovalRule[] })
+                      }
                     />
                   </div>
                 ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SalesListDocumentRefLink } from "@/components/sales/shared/sales-list-document-ref-link";
 import { formatDate } from "@/lib/dashboard/format";
 import {
   getSalesOrderColumnDef,
@@ -9,6 +10,7 @@ import {
 import { salesOrderStatusLabel } from "@/lib/sales/orders/labels";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import { SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +48,14 @@ export function renderSalesOrderListCell(
         chipDisplay: options?.chipDisplay?.status,
       });
     }
+    case "source_quote":
+      return (
+        <SalesListDocumentRefLink
+          documentId={row.source_quotation_id}
+          documentNumber={row.source_quotation_number}
+          moduleHref={SALES_QUOTES_HREF}
+        />
+      );
     case "lines":
       return <span className="tabular-nums">{row.line_count}</span>;
     case "net_amount":

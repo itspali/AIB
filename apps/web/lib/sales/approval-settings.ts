@@ -1,6 +1,7 @@
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
-import type { PoApprovalRule, PoApproverRole } from "@/lib/approvals/approval-rules";
+import type { PoApproverRole } from "@/lib/approvals/approval-rules";
 import type { PoWorkflowTemplate } from "@/lib/approvals/workflow-templates";
+import type { SalesApprovalRule } from "@/lib/sales/sales-approval-rules";
 
 export type SalesApprovalSettings = {
   require_so_approval_before_confirm: boolean;
@@ -8,7 +9,7 @@ export type SalesApprovalSettings = {
   allow_submitter_self_approve_below_threshold: boolean;
   so_approver_user_ids: string[];
   so_approver_roles?: PoApproverRole[];
-  so_approval_rules?: PoApprovalRule[];
+  so_approval_rules?: SalesApprovalRule[];
   so_workflow_template?: PoWorkflowTemplate;
   so_finance_approver_user_ids?: string[];
   so_approval_bands?: ApprovalPolicyBand[];
@@ -17,7 +18,7 @@ export type SalesApprovalSettings = {
   quote_approval_threshold_amount: number | null;
   quote_approver_user_ids: string[];
   quote_approver_roles?: PoApproverRole[];
-  quote_approval_rules?: PoApprovalRule[];
+  quote_approval_rules?: SalesApprovalRule[];
   quote_workflow_template?: PoWorkflowTemplate;
   quote_finance_approver_user_ids?: string[];
   quote_approval_bands?: ApprovalPolicyBand[];
@@ -26,7 +27,7 @@ export type SalesApprovalSettings = {
   invoice_approval_threshold_amount: number | null;
   invoice_approver_user_ids: string[];
   invoice_approver_roles?: PoApproverRole[];
-  invoice_approval_rules?: PoApprovalRule[];
+  invoice_approval_rules?: SalesApprovalRule[];
   invoice_workflow_template?: PoWorkflowTemplate;
   invoice_finance_approver_user_ids?: string[];
   invoice_approval_bands?: ApprovalPolicyBand[];

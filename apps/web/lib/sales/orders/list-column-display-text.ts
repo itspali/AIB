@@ -21,6 +21,8 @@ export function getSalesOrderListCellDisplayTexts(
     }
     case "status":
       return [salesOrderStatusLabel(row.commercial_status)];
+    case "source_quote":
+      return [row.source_quotation_number?.trim() || "—"];
     case "lines":
       return [String(row.line_count)];
     case "net_amount":

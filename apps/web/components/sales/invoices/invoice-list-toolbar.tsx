@@ -21,6 +21,22 @@ import type { SalesPaymentStatus } from "@/lib/sales/orders/types";
 import { listToolbarSelectClass } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
+const STATUS_OPTIONS: Array<SalesDocumentStatus | "all"> = [
+  "all",
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "APPROVED_ACTIVE",
+  "CANCELLED",
+];
+
+const PAYMENT_OPTIONS: Array<SalesPaymentStatus | "all"> = [
+  "all",
+  "UNPAID",
+  "PARTIALLY_PAID",
+  "FULLY_PAID",
+  "REFUNDED",
+];
+
 type Props = {
   prefs: SalesInvoiceListPrefs;
   onPrefsChange: (prefs: SalesInvoiceListPrefs) => void;
@@ -31,19 +47,107 @@ type Props = {
   prefsHydrated?: boolean;
 };
 
-const STATUS_OPTIONS: Array<{ value: SalesDocumentStatus | "all"; label: string }> = [
-  { value: "all", label: "All statuses" },
-  { value: "DRAFT", label: salesInvoiceStatusLabel("DRAFT") },
-  { value: "PENDING_APPROVAL", label: salesInvoiceStatusLabel("PENDING_APPROVAL") },
-  { value: "APPROVED_ACTIVE", label: salesInvoiceStatusLabel("APPROVED_ACTIVE") },
-];
+function StatusFilterSelect({
+  value,
+  disabled,
+  onValueChange,
+  triggerClassName,
+}: {
+  value: SalesInvoiceListPrefs["status"];
+  disabled: boolean;
+  onValueChange: (value: SalesInvoiceListPrefs["status"]) => void;
+  triggerClassName?: string;
+}) {
+  const statusActive = value !== "all";
 
-const PAYMENT_OPTIONS: Array<{ value: SalesPaymentStatus | "all"; label: string }> = [
-  { value: "all", label: "All payment states" },
-  { value: "UNPAID", label: salesInvoicePaymentStatusLabel("UNPAID") },
-  { value: "PARTIALLY_PAID", label: salesInvoicePaymentStatusLabel("PARTIALLY_PAID") },
-  { value: "FULLY_PAID", label: salesInvoicePaymentStatusLabel("FULLY_PAID") },
-];
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => onValueChange(next as SalesInvoiceListPrefs["status"])}
+    >
+      <SelectTrigger className={cn(listToolbarSelectClass(statusActive), triggerClassName)}>
+        <SelectValue placeholder="All statuses" />
+      </SelectTrigger>
+      <SelectContent>
+        {STATUS_OPTIONS.map((status) => (
+          <SelectItem key={status} value={status}>
+            {status === "all" ? "All statuses" : salesInvoiceStatusLabel(status)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function PaymentFilterSelect({
+  value,
+  disabled,
+  onValueChange,
+  triggerClassName,
+}: {
+  value: SalesInvoiceListPrefs["paymentStatus"];
+  disabled: boolean;
+  onValueChange: (value: SalesInvoiceListPrefs["paymentStatus"]) => void;
+  triggerClassName?: string;
+}) {
+  const paymentActive = value !== "all";
+
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => onValueChange(next as SalesInvoiceListPrefs["paymentStatus"])}
+    >
+      <SelectTrigger className={cn(listToolbarSelectClass(paymentActive), triggerClassName)}>
+        <SelectValue placeholder="All payment states" />
+      </SelectTrigger>
+      <SelectContent>
+        {PAYMENT_OPTIONS.map((status) => (
+          <SelectItem key={status} value={status}>
+            {status === "all" ? "All payment states" : salesInvoicePaymentStatusLabel(status)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function CustomerFilterSelect({
+  value,
+  disabled,
+  customers,
+  onValueChange,
+  triggerClassName,
+}: {
+  value: string | null;
+  disabled: boolean;
+  customers: CustomerOption[];
+  onValueChange: (customerId: string | null) => void;
+  triggerClassName?: string;
+}) {
+  const customerActive = Boolean(value);
+
+  return (
+    <Select
+      value={value ?? "all"}
+      disabled={disabled}
+      onValueChange={(next) => onValueChange(next === "all" ? null : next)}
+    >
+      <SelectTrigger className={cn(listToolbarSelectClass(customerActive), triggerClassName)}>
+        <SelectValue placeholder="All customers" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All customers</SelectItem>
+        {customers.map((customer) => (
+          <SelectItem key={customer.id} value={customer.id}>
+            {customer.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function InvoiceListToolbar({
   prefs,
@@ -84,81 +188,63 @@ export function InvoiceListToolbar({
                 <div className="space-y-3 p-1">
                   <div className="space-y-2">
                     <p className="px-2 text-xs font-medium text-muted-foreground">Customer</p>
-                    <Select
-                      value={prefs.customerId ?? "all"}
+                    <CustomerFilterSelect
+                      value={prefs.customerId}
                       disabled={controlsDisabled}
-                      onValueChange={(next) =>
-                        onPrefsChange({
-                          ...prefs,
-                          customerId: next === "all" ? null : next,
-                        })
+                      customers={customers}
+                      onValueChange={(customerId) =>
+                        onPrefsChange({ ...prefs, customerId })
                       }
-                    >
-                      <SelectTrigger className={cn(listToolbarSelectClass(customerActive), "h-8 w-full")}>
-                        <SelectValue placeholder="All customers" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All customers</SelectItem>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      triggerClassName="h-8 w-full"
+                    />
                   </div>
                   <div className="space-y-2">
                     <p className="px-2 text-xs font-medium text-muted-foreground">Status</p>
-                    <Select
+                    <StatusFilterSelect
                       value={prefs.status}
                       disabled={controlsDisabled}
-                      onValueChange={(next) =>
-                        onPrefsChange({
-                          ...prefs,
-                          status: next as SalesDocumentStatus | "all",
-                        })
-                      }
-                    >
-                      <SelectTrigger className={cn(listToolbarSelectClass(statusActive), "h-8 w-full")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onValueChange={(status) => onPrefsChange({ ...prefs, status })}
+                      triggerClassName="h-8 w-full"
+                    />
                   </div>
                   <div className="space-y-2">
                     <p className="px-2 text-xs font-medium text-muted-foreground">Payment</p>
-                    <Select
+                    <PaymentFilterSelect
                       value={prefs.paymentStatus}
                       disabled={controlsDisabled}
-                      onValueChange={(next) =>
-                        onPrefsChange({
-                          ...prefs,
-                          paymentStatus: next as SalesPaymentStatus | "all",
-                        })
+                      onValueChange={(paymentStatus) =>
+                        onPrefsChange({ ...prefs, paymentStatus })
                       }
-                    >
-                      <SelectTrigger className={cn(listToolbarSelectClass(paymentActive), "h-8 w-full")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      triggerClassName="h-8 w-full"
+                    />
                   </div>
                 </div>
               ),
             }}
           />
+
+          <CustomerFilterSelect
+            value={prefs.customerId}
+            disabled={controlsDisabled}
+            customers={customers}
+            onValueChange={(customerId) => onPrefsChange({ ...prefs, customerId })}
+            triggerClassName="hidden min-w-[8rem] md:inline-flex"
+          />
+
+          <StatusFilterSelect
+            value={prefs.status}
+            disabled={controlsDisabled}
+            onValueChange={(status) => onPrefsChange({ ...prefs, status })}
+            triggerClassName="hidden min-w-[8.5rem] md:inline-flex"
+          />
+
+          <PaymentFilterSelect
+            value={prefs.paymentStatus}
+            disabled={controlsDisabled}
+            onValueChange={(paymentStatus) => onPrefsChange({ ...prefs, paymentStatus })}
+            triggerClassName="hidden min-w-[9rem] md:inline-flex"
+          />
+
           <InvoiceListColumnSettings
             prefs={prefs}
             onChange={onPrefsChange}

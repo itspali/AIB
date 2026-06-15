@@ -50,6 +50,9 @@ describe("po line tax mode", () => {
       shouldShowPoLineTotalExTaxSubline(line, { taxRate: 18, taxAmount: 234 })
     ).toBe(true);
     expect(
+      shouldShowPoLineTotalExTaxSubline(line, { taxRate: 0, taxAmount: 234 })
+    ).toBe(true);
+    expect(
       shouldShowPoLineTotalExTaxSubline(line, { taxRate: 0, taxAmount: 0 })
     ).toBe(false);
     expect(
@@ -86,6 +89,19 @@ describe("po line tax mode", () => {
     expect(display.taxableBase).toBe(1100);
     expect(display.lineTotal).toBe(1298);
     expect(display.primaryAmount).toBe(1298);
+    expect(display.showExTaxSubline).toBe(true);
+  });
+
+  it("shows tax breakdown when tax amount is saved without rate percentage", () => {
+    const display = resolveSavedPoLineTaxDisplay({
+      variant_id: "variant-1",
+      line_total_gross: "28.28",
+      line_tax_amount: "2.82",
+    });
+
+    expect(display.taxableBase).toBe(28.28);
+    expect(display.lineTotal).toBe(31.1);
+    expect(display.primaryAmount).toBe(31.1);
     expect(display.showExTaxSubline).toBe(true);
   });
 });

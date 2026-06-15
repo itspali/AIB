@@ -1,6 +1,6 @@
 import type { ApprovalPolicyBand } from "@/lib/approvals/policy-types";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
-import { describePoApprovalRule, hasEnabledPoApprovalRules } from "@/lib/approvals/approval-rules";
+import { describePoApprovalRule } from "@/lib/approvals/approval-rules";
 import type { PoApprovalRule } from "@/lib/approvals/approval-rules";
 import type { WorkflowChoice } from "@/lib/approvals/workflow-templates";
 
@@ -38,6 +38,13 @@ type ApprovalPlainSummaryWording = {
   submitterNoun?: string;
 };
 
+type PlainSummaryRule = {
+  type: string;
+  enabled: boolean;
+  threshold?: number | null;
+  tolerance_percent?: number | null;
+};
+
 export function buildApprovalPlainSummary(options: {
   enabled: boolean;
   scopeMode: ApprovalScopeMode;
@@ -45,7 +52,8 @@ export function buildApprovalPlainSummary(options: {
   allowSelfApproveSmall: boolean;
   approverCount: number;
   extraStepCount: number;
-  enabledRules?: PoApprovalRule[];
+  enabledRules?: PlainSummaryRule[] | PoApprovalRule[];
+  describeRule?: (rule: PlainSummaryRule) => string;
   workflowChoice?: WorkflowChoice;
   respectDestinationLocation?: boolean;
   reminderHours?: number | null;
@@ -95,9 +103,17 @@ export function buildApprovalPlainSummary(options: {
     }
   }
 
-  if (options.enabledRules && hasEnabledPoApprovalRules(options.enabledRules)) {
+  const rulesHaveEnabled =
+    options.enabledRules?.some((rule) => rule.enabled) ??
+    false;
+
+  if (options.enabledRules && rulesHaveEnabled) {
+    const describe =
+      options.describeRule ??
+      ((rule) => describePoApprovalRule(rule as PoApprovalRule));
+
     for (const rule of options.enabledRules) {
-      const description = describePoApprovalRule(rule);
+      const description = describe(rule);
       if (description) lines.push(description);
     }
   }

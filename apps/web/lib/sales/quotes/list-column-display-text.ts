@@ -18,6 +18,10 @@ export function getSalesQuoteListCellDisplayTexts(
       return [salesQuoteStatusLabel(row.commercial_status)];
     case "valid_until":
       return [formatDate(row.valid_until)];
+    case "converted_order":
+      return [row.converted_to_order_number?.trim() || "—"];
+    case "converted_invoice":
+      return [row.converted_to_invoice_number?.trim() || "—"];
     case "lines":
       return [String(row.line_count)];
     case "net_amount":

@@ -8,6 +8,7 @@ export const SO_LIST_COLUMN_IDS = [
   "customer",
   "shipping_location",
   "status",
+  "source_quote",
   "lines",
   "net_amount",
   "created",
@@ -83,6 +84,14 @@ export const SO_LIST_COLUMNS: ListColumnDef<SalesOrderListColumnId>[] = [
       CANCELLED: { preset: "neutral" },
       [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
     },
+  },
+  {
+    id: "source_quote",
+    label: "Source quote",
+    defaultVisible: false,
+    group: "Reference",
+    valueKind: "code",
+    widths: W_CODE,
   },
   {
     id: "lines",

@@ -8,14 +8,39 @@ import {
   type PoApprovalRule,
 } from "@/lib/approvals/approval-rules";
 
-type Props = {
-  rules: PoApprovalRule[];
-  disabled?: boolean;
-  onChange: (rules: PoApprovalRule[]) => void;
+export type ApprovalRuleEditorDefinition = {
+  type: string;
+  label: string;
+  description: string;
+  usesThreshold: boolean;
+  usesTolerance: boolean;
+  thresholdLabel?: string;
+  toleranceLabel?: string;
 };
 
-export function ApprovalRulesEditor({ rules, disabled = false, onChange }: Props) {
-  const updateRule = (type: PoApprovalRule["type"], patch: Partial<PoApprovalRule>) => {
+export type ApprovalRuleEditorRow = {
+  type: string;
+  enabled: boolean;
+  threshold?: number | null;
+  tolerance_percent?: number | null;
+};
+
+type Props = {
+  rules: ApprovalRuleEditorRow[];
+  definitions?: readonly ApprovalRuleEditorDefinition[];
+  disabled?: boolean;
+  onChange: (rules: ApprovalRuleEditorRow[]) => void;
+  helperText?: string;
+};
+
+export function ApprovalRulesEditor({
+  rules,
+  definitions = PO_APPROVAL_RULE_DEFINITIONS,
+  disabled = false,
+  onChange,
+  helperText = "These checks can require approval even when a document is below your amount exemption.",
+}: Props) {
+  const updateRule = (type: string, patch: Partial<ApprovalRuleEditorRow>) => {
     onChange(
       rules.map((rule) => (rule.type === type ? { ...rule, ...patch } : rule))
     );
@@ -23,11 +48,9 @@ export function ApprovalRulesEditor({ rules, disabled = false, onChange }: Props
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        These checks can require approval even when an order is below your amount exemption.
-      </p>
+      <p className="text-xs text-muted-foreground">{helperText}</p>
 
-      {PO_APPROVAL_RULE_DEFINITIONS.map((def) => {
+      {definitions.map((def) => {
         const rule = rules.find((entry) => entry.type === def.type);
         if (!rule) return null;
 
@@ -71,7 +94,9 @@ export function ApprovalRulesEditor({ rules, disabled = false, onChange }: Props
 
                 {def.usesTolerance ? (
                   <div className="space-y-1">
-                    <Label className="text-xs">Allow up to (% over catalog)</Label>
+                    <Label className="text-xs">
+                      {def.toleranceLabel ?? "Allow up to (% over catalog)"}
+                    </Label>
                     <Input
                       type="number"
                       min={0}

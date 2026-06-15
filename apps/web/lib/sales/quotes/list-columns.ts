@@ -9,6 +9,8 @@ export const QUOTE_LIST_COLUMN_IDS = [
   "origin_location",
   "status",
   "valid_until",
+  "converted_order",
+  "converted_invoice",
   "lines",
   "net_amount",
   "created",
@@ -25,7 +27,7 @@ const W_AMOUNT = columnWidths({ default: { min: 96, max: 140 } });
 const W_DATE = columnWidths({ default: { min: 100, max: 140 } });
 
 const QUOTE_STATUS_CHIP_CATALOG: Array<{ value: SalesDocumentStatus; label: string }> = (
-  ["DRAFT", "PENDING_APPROVAL", "APPROVED_ACTIVE", "CANCELLED"] as SalesDocumentStatus[]
+  ["DRAFT", "PENDING_APPROVAL", "APPROVED_ACTIVE", "FULLY_COMPLETED", "CANCELLED"] as SalesDocumentStatus[]
 ).map((status) => ({
   value: status,
   label: salesQuoteStatusLabel(status),
@@ -69,6 +71,7 @@ export const QUOTE_LIST_COLUMNS: ListColumnDef<SalesQuoteListColumnId>[] = [
       DRAFT: { preset: "slate" },
       PENDING_APPROVAL: { preset: "amber" },
       APPROVED_ACTIVE: { preset: "emerald" },
+      FULLY_COMPLETED: { preset: "emerald" },
       CANCELLED: { preset: "neutral" },
       [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
     },
@@ -80,6 +83,22 @@ export const QUOTE_LIST_COLUMNS: ListColumnDef<SalesQuoteListColumnId>[] = [
     group: "Timestamps",
     valueKind: "date",
     widths: W_DATE,
+  },
+  {
+    id: "converted_order",
+    label: "Sales order",
+    defaultVisible: false,
+    group: "Reference",
+    valueKind: "code",
+    widths: W_CODE,
+  },
+  {
+    id: "converted_invoice",
+    label: "Invoice",
+    defaultVisible: false,
+    group: "Reference",
+    valueKind: "code",
+    widths: W_CODE,
   },
   {
     id: "lines",

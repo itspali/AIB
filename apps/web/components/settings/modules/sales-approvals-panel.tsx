@@ -18,7 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { defaultPoApprovalRules, hasEnabledPoApprovalRules } from "@/lib/approvals/approval-rules";
+import {
+  defaultSalesApprovalRules,
+  describeSalesApprovalRule,
+  hasEnabledSalesApprovalRules,
+  migrateLegacySalesApprovalRules,
+  SALES_APPROVAL_RULE_DEFINITIONS,
+  type SalesApprovalRule,
+} from "@/lib/sales/sales-approval-rules";
 import type { ApprovalPolicyBand } from "@/lib/approvals/policy-types";
 import {
   buildApprovalPlainSummary,
@@ -165,9 +172,9 @@ function getApproverRoles(settings: SalesApprovalSettings, kind: SalesDocKind) {
 }
 
 function getApprovalRules(settings: SalesApprovalSettings, kind: SalesDocKind) {
-  if (kind === "so") return settings.so_approval_rules ?? defaultPoApprovalRules();
-  if (kind === "quote") return settings.quote_approval_rules ?? defaultPoApprovalRules();
-  return settings.invoice_approval_rules ?? defaultPoApprovalRules();
+  if (kind === "so") return settings.so_approval_rules ?? defaultSalesApprovalRules();
+  if (kind === "quote") return settings.quote_approval_rules ?? defaultSalesApprovalRules();
+  return settings.invoice_approval_rules ?? defaultSalesApprovalRules();
 }
 
 function getFinanceApproverUserIds(settings: SalesApprovalSettings, kind: SalesDocKind): string[] {
@@ -329,6 +336,7 @@ function SalesDocumentApprovalsSection({
               ? (workflowBands[0]?.levels?.length ?? 1)
               : 1,
         enabledRules: getApprovalRules(settings, kind),
+        describeRule: (rule) => describeSalesApprovalRule(rule as SalesApprovalRule),
         workflowChoice,
         respectDestinationLocation: false,
         wording: config.wording,
@@ -504,13 +512,16 @@ function SalesDocumentApprovalsSection({
                 />
               </div>
               <p className="mt-1 pl-8 text-xs text-muted-foreground">
-                Require approval when prices or quantities look unusual — even on small documents.
+                Require approval when selling prices, discounts, or quantities look unusual — even on
+                small documents.
               </p>
               {rulesOpen ? (
                 <div className="mt-3 pl-8">
                   <ApprovalRulesEditor
                     rules={getApprovalRules(settings, kind)}
+                    definitions={SALES_APPROVAL_RULE_DEFINITIONS}
                     disabled={!canEdit}
+                    helperText="These checks can require approval even when the document is below your amount exemption."
                     onChange={(rules) =>
                       onPatch({ [rulesKey]: rules } as Partial<SalesApprovalSettings>)
                     }
@@ -535,13 +546,13 @@ export function SalesApprovalsPanel({
   const [settings, setSettings] = useState<SalesApprovalSettings>(() => ({
     ...initialSettings,
     so_approver_roles: initialSettings.so_approver_roles ?? [],
-    so_approval_rules: initialSettings.so_approval_rules ?? defaultPoApprovalRules(),
+    so_approval_rules: migrateLegacySalesApprovalRules(initialSettings.so_approval_rules),
     so_finance_approver_user_ids: initialSettings.so_finance_approver_user_ids ?? [],
     quote_approver_roles: initialSettings.quote_approver_roles ?? [],
-    quote_approval_rules: initialSettings.quote_approval_rules ?? defaultPoApprovalRules(),
+    quote_approval_rules: migrateLegacySalesApprovalRules(initialSettings.quote_approval_rules),
     quote_finance_approver_user_ids: initialSettings.quote_finance_approver_user_ids ?? [],
     invoice_approver_roles: initialSettings.invoice_approver_roles ?? [],
-    invoice_approval_rules: initialSettings.invoice_approval_rules ?? defaultPoApprovalRules(),
+    invoice_approval_rules: migrateLegacySalesApprovalRules(initialSettings.invoice_approval_rules),
     invoice_finance_approver_user_ids: initialSettings.invoice_finance_approver_user_ids ?? [],
   }));
   const [isPending, startTransition] = useTransition();
@@ -602,7 +613,7 @@ export function SalesApprovalsPanel({
     Object.fromEntries(
       DOC_CONFIGS.map((config) => [
         config.kind,
-        hasEnabledPoApprovalRules(getApprovalRules(initialSettings, config.kind)),
+        hasEnabledSalesApprovalRules(getApprovalRules(initialSettings, config.kind)),
       ])
     ) as Record<SalesDocKind, boolean>
   );

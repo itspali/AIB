@@ -57,7 +57,7 @@ export function shouldShowPoLineTotalExTaxSubline(
 ): boolean {
   if (!line.variant_id) return false;
   if (line.catalog_context?.tax_is_variable) return false;
-  return resolved.taxRate > 0 && resolved.taxAmount > 0;
+  return resolved.taxAmount > 0;
 }
 
 /** Primary line total in the grid (inc-tax when a tax breakdown subline is shown). */

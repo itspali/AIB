@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SalesListDocumentRefLink } from "@/components/sales/shared/sales-list-document-ref-link";
 import { formatDate } from "@/lib/dashboard/format";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
@@ -12,6 +13,7 @@ import {
   salesInvoicePaymentStatusLabel,
   salesInvoiceStatusLabel,
 } from "@/lib/sales/invoices/labels";
+import { SALES_ORDERS_HREF, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
 
 type Options = {
@@ -54,7 +56,19 @@ export function renderSalesInvoiceListCell(
     }
     case "source_order":
       return (
-        <span className="font-mono text-xs">{row.source_order_number?.trim() || "—"}</span>
+        <SalesListDocumentRefLink
+          documentId={row.source_order_id}
+          documentNumber={row.source_order_number}
+          moduleHref={SALES_ORDERS_HREF}
+        />
+      );
+    case "source_quote":
+      return (
+        <SalesListDocumentRefLink
+          documentId={row.source_quotation_id}
+          documentNumber={row.source_quotation_number}
+          moduleHref={SALES_QUOTES_HREF}
+        />
       );
     case "net_amount":
       return <span className="tabular-nums">{row.total_net_amount}</span>;

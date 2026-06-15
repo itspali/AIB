@@ -352,17 +352,69 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
   const decimalPlaces = resolveColumnDecimalPlaces(column);
 
   if (lineTotalField === "line_total_net") {
-    const primaryValue = formatPoMoney(Number(line.line_total_net) || 0, decimalPlaces);
+    const lineTotalNet = Number(line.line_total_net) || 0;
+    const taxAmount = Number(line.line_tax_amount) || 0;
+    const beforeTax = lineTotalNet - taxAmount;
+    const showBeforeTaxSubline = Boolean(line.variant_id) && taxAmount > 0;
+    const primaryValue = formatPoMoney(lineTotalNet, decimalPlaces);
+    const beforeTaxValue = formatPoMoney(beforeTax, decimalPlaces);
+
+    if (!showBeforeTaxSubline) {
+      return (
+        <td className={peekLineCellClass(column, "tabular-nums")}>
+          <div
+            className={documentFieldTypographyClassName(
+              column,
+              cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
+            )}
+          >
+            {primaryValue}
+          </div>
+        </td>
+      );
+    }
+
     return (
       <td className={peekLineCellClass(column, "tabular-nums")}>
-        <div
-          className={documentFieldTypographyClassName(
-            column,
-            cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
-          )}
+        <PoLineQtyValueStack
+          showUnitUnderQty
+          align={column.align}
+          unitSlot={
+            <PoLineSublineZone align={column.align}>
+              <PoLineSublineRow align={column.align}>
+                <span
+                  className={cn(
+                    "w-full px-2",
+                    PO_LINE_SUBLINE_TEXT_CLASS,
+                    peekPrimaryAlignClass(column.align)
+                  )}
+                >
+                  Before tax
+                </span>
+              </PoLineSublineRow>
+              <PoLineSublineRow align={column.align}>
+                <span
+                  className={cn(
+                    "w-full truncate px-2 tabular-nums",
+                    PO_LINE_SUBLINE_TEXT_CLASS,
+                    peekPrimaryAlignClass(column.align)
+                  )}
+                >
+                  {beforeTaxValue}
+                </span>
+              </PoLineSublineRow>
+            </PoLineSublineZone>
+          }
         >
-          {primaryValue}
-        </div>
+          <span
+            className={documentFieldTypographyClassName(
+              column,
+              cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
+            )}
+          >
+            {primaryValue}
+          </span>
+        </PoLineQtyValueStack>
       </td>
     );
   }
@@ -405,7 +457,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
                   peekPrimaryAlignClass(column.align)
                 )}
               >
-                Before Tax
+                Ex. tax
               </span>
             </PoLineSublineRow>
             <PoLineSublineRow align={column.align}>
