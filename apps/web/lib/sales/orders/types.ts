@@ -35,6 +35,8 @@ export type SalesOrderLineRow = {
   line_tax_amount: string;
   open_quantity: string;
   base_unit_of_measure?: string | null;
+  uom_code?: string | null;
+  uom_conversion_factor?: string | null;
 };
 
 export type SalesOrderPartyAddress = {
@@ -57,6 +59,7 @@ export type SalesOrderRow = {
   shipping_location_id: string | null;
   shipping_location_name: string;
   shipping_location_code: string;
+  /** Customer delivery address (ship-to). */
   shipping_address: SalesOrderPartyAddress | null;
   commercial_status: SalesOrderStatus;
   fulfillment_status: SalesFulfillmentStatus;

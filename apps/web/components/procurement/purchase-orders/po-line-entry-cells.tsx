@@ -66,6 +66,7 @@ import {
   formatPoLineUomConversionHint,
   resolvePoDraftLineUnitCode,
   resolvePoLineUomOptions,
+  buildPoDraftLineUomChangePatch,
 } from "@/lib/procurement/purchase-orders/po-line-unit";
 import {
   formatPoLineComputedDiscountAmount,
@@ -121,6 +122,14 @@ type LineCellContext = {
   focusPrice: (lineKey: string) => void;
   advanceFromLine: (lineKey: string) => void;
 };
+
+function patchPoLineUomChange(ctx: LineCellContext, nextUomCode: string) {
+  const { line, patchLine, pricesTaxInclusive = false } = ctx;
+  const uomPatch = buildPoDraftLineUomChangePatch(line, nextUomCode);
+  const nextLine = { ...line, ...uomPatch };
+  const sync = syncPoLineMrpMarkdownFromOfferPrice(nextLine, pricesTaxInclusive);
+  patchLine(line.key, { ...uomPatch, ...(sync ?? {}) });
+}
 
 function resolveNestedFieldDisplay(
   column: DocumentColumnPref,
@@ -472,7 +481,7 @@ export function PoLineUnitCell({
         editable={line.variant_id ? canEditPoLineUom(line) : false}
         disabled={disabled}
         unitOptions={uomOptions}
-        onUnitChange={(code) => patchLine(line.key, { uom_code: code })}
+        onUnitChange={(code) => patchPoLineUomChange(ctx, code)}
         conversionHint={conversionHint}
         className="w-full text-sm leading-snug"
       />
@@ -541,7 +550,7 @@ export function PoLineQtyCell({
           editable={editableUom}
           disabled={disabled}
           unitOptions={uomOptions}
-          onUnitChange={(code) => patchLine(line.key, { uom_code: code })}
+          onUnitChange={(code) => patchPoLineUomChange(ctx, code)}
           conversionHint={conversionHint}
           className="w-full"
         />

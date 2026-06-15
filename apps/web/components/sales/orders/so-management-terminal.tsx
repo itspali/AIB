@@ -41,6 +41,8 @@ import {
   canUserApproveSalesOrders,
   isSalesOrderApprovableByUser,
 } from "@/lib/sales/approval-settings";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 
 const SO_PAGE_DESCRIPTION =
   "Capture sales orders, route them through approval when required, and confirm for fulfilment.";
@@ -65,7 +67,11 @@ type Props = {
   customers: CustomerOption[];
   editAccessGranted: boolean;
   allowLineItemDiscounts: boolean;
+  allowTransactionDiscounts?: boolean;
   defaultCurrency: string;
+  documentLayout: DocumentLayoutTemplate;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  tenantCountry?: string | null;
   preferredShippingLocationId?: string | null;
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
@@ -78,7 +84,11 @@ export function SoManagementTerminal({
   customers,
   editAccessGranted,
   allowLineItemDiscounts,
+  allowTransactionDiscounts = false,
   defaultCurrency,
+  documentLayout,
+  taxCodeOptions = [],
+  tenantCountry = null,
   preferredShippingLocationId = null,
   approvalSettings,
   currentUserId,
@@ -448,7 +458,11 @@ export function SoManagementTerminal({
         onEditNotAllowed={handleEditNotAllowed}
         editAccessGranted={editAccessGranted}
         allowLineItemDiscounts={allowLineItemDiscounts}
+        allowTransactionDiscounts={allowTransactionDiscounts}
         defaultCurrency={defaultCurrency}
+        documentLayout={documentLayout}
+        taxCodeOptions={taxCodeOptions}
+        tenantCountry={tenantCountry}
         preferredShippingLocationId={preferredShippingLocationId}
         copyFromId={copyFromId}
         onDuplicate={editAccessGranted ? handleDuplicate : undefined}

@@ -10,6 +10,8 @@ import {
   resolvePoLineUomAfterCatalogUpdate,
   resolvePoLineUomConversionFactor,
   resolvePoPeekLineUomCode,
+  buildPoDraftLineUomChangePatch,
+  scalePoCatalogBaseUnitPriceToLineUom,
 } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
@@ -32,6 +34,18 @@ function draftLine(
     discount_amount: "0",
     skuError: null,
     ...partial,
+  };
+}
+
+function catalogContext(
+  partial: Partial<PoLineCatalogContext> &
+    Pick<PoLineCatalogContext, "base_unit_of_measure">
+): PoLineCatalogContext {
+  return {
+    ...emptyPoLineCatalogContext(),
+    ...partial,
+    mrp: partial.mrp ?? null,
+    purchase_price: partial.purchase_price ?? null,
   };
 }
 
@@ -80,10 +94,10 @@ describe("draft line UOM resolution", () => {
   it("uses explicit line uom when valid", () => {
     const line = draftLine({
       uom_code: "BOX",
-      catalog_context: {
-        ...emptyPoLineCatalogContext(),
+      catalog_context: catalogContext({
+        base_unit_of_measure: "PCS",
         alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
-      },
+      }),
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("BOX");
     expect(resolvePoLineUomConversionFactor(line)).toBe(12);
@@ -92,11 +106,11 @@ describe("draft line UOM resolution", () => {
 
   it("falls back to default purchase UOM when line uom unset", () => {
     const line = draftLine({
-      catalog_context: {
-        ...emptyPoLineCatalogContext(),
+      catalog_context: catalogContext({
+        base_unit_of_measure: "PCS",
         default_purchase_uom: "BOX",
         alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
-      },
+      }),
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("BOX");
     expect(canEditPoLineUom(line)).toBe(true);
@@ -105,10 +119,10 @@ describe("draft line UOM resolution", () => {
   it("omits unregistered alternates from save payload", () => {
     const line = draftLine({
       uom_code: "KG",
-      catalog_context: {
-        ...emptyPoLineCatalogContext(),
+      catalog_context: catalogContext({
+        base_unit_of_measure: "PCS",
         default_purchase_uom: "KG",
-      },
+      }),
     });
     expect(resolvePoDraftLineUomCode(line)).toBe("PCS");
     expect(resolvePoDraftLineUomCodeForSave(line)).toBeUndefined();
@@ -117,27 +131,15 @@ describe("draft line UOM resolution", () => {
   it("includes registered alternates in save payload", () => {
     const line = draftLine({
       uom_code: "BOX",
-      catalog_context: {
-        ...emptyPoLineCatalogContext(),
+      catalog_context: catalogContext({
+        base_unit_of_measure: "PCS",
         default_purchase_uom: "BOX",
         alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
-      },
+      }),
     });
     expect(resolvePoDraftLineUomCodeForSave(line)).toBe("BOX");
   });
 });
-
-function catalogContext(
-  partial: Partial<PoLineCatalogContext> &
-    Pick<PoLineCatalogContext, "base_unit_of_measure">
-): PoLineCatalogContext {
-  return {
-    ...emptyPoLineCatalogContext(),
-    ...partial,
-    mrp: partial.mrp ?? null,
-    purchase_price: partial.purchase_price ?? null,
-  };
-}
 
 describe("resolvePoLineUomAfterCatalogUpdate", () => {
   const boxPurchaseContext = catalogContext({
@@ -164,6 +166,39 @@ describe("resolvePoLineUomAfterCatalogUpdate", () => {
       ],
     });
     expect(resolvePoLineUomAfterCatalogUpdate("CASE", context)).toBe("CASE");
+  });
+});
+
+describe("buildPoDraftLineUomChangePatch", () => {
+  const boxContext = catalogContext({
+    base_unit_of_measure: "PCS",
+    alternate_uoms: [{ uom_code: "BOX", conversion_factor: 2 }],
+  });
+
+  it("rescales offer unit price when switching PCS to BOX", () => {
+    const line = draftLine({
+      uom_code: "PCS",
+      unit_price_contractual: "10",
+      catalog_context: boxContext,
+    });
+    expect(buildPoDraftLineUomChangePatch(line, "BOX")).toEqual({
+      uom_code: "BOX",
+      unit_price_contractual: "20.00",
+    });
+  });
+});
+
+describe("scalePoCatalogBaseUnitPriceToLineUom", () => {
+  it("scales catalog purchase rate to default line UOM", () => {
+    const line = draftLine({
+      uom_code: "BOX",
+      catalog_context: catalogContext({
+        base_unit_of_measure: "PCS",
+        default_purchase_uom: "BOX",
+        alternate_uoms: [{ uom_code: "BOX", conversion_factor: 2 }],
+      }),
+    });
+    expect(scalePoCatalogBaseUnitPriceToLineUom("10", line)).toBe("20.00");
   });
 });
 

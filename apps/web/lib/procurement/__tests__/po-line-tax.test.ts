@@ -40,12 +40,29 @@ describe("po line tax layout", () => {
     expect(shouldShowPoTaxRateUnderLineTaxColumn(layout)).toBe(true);
   });
 
-  it("keeps tax rate in its own column when Tax % is visible", () => {
+  it("stacks tax rate under line tax when Tax % is only in item detail", () => {
+    const layout = {
+      ...DEFAULT_PO_SCREEN_LAYOUT,
+      columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) => {
+        if (column.id === "line_tax_amount") {
+          return { ...column, defaultVisible: true, lineSlot: "column" as const };
+        }
+        if (column.id === "tax_rate_pct") {
+          return { ...column, defaultVisible: true, lineSlot: "item_detail" as const };
+        }
+        return column;
+      }),
+    };
+
+    expect(shouldShowPoTaxRateUnderLineTaxColumn(layout)).toBe(true);
+  });
+
+  it("keeps tax rate in its own column when Tax % is a grid column", () => {
     const layout = {
       ...DEFAULT_PO_SCREEN_LAYOUT,
       columns: DEFAULT_PO_SCREEN_LAYOUT.columns.map((column) =>
         column.id === "line_tax_amount" || column.id === "tax_rate_pct"
-          ? { ...column, defaultVisible: true }
+          ? { ...column, defaultVisible: true, lineSlot: "column" as const }
           : column
       ),
     };

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { salesCommerceRpcExtrasSchema } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { salesCommerceLineUomSchema } from "@/lib/sales/shared/sales-commerce-line-schema";
 
 export const INVOICE_CUSTOM_FIELD_KEYS = [
   "customer_po_number",
@@ -12,62 +14,62 @@ export const salesInvoiceCustomFieldsSchema = z.object({
 
 export type SalesInvoiceCustomFields = z.infer<typeof salesInvoiceCustomFieldsSchema>;
 
-export const salesInvoiceLineSchema = z.object({
-  variant_id: z.string().uuid("Select a valid variant."),
-  quantity_invoiced: z
-    .string()
-    .trim()
-    .min(1, "Quantity is required.")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed > 0;
-    }, "Quantity must be greater than zero."),
-  unit_price_selling: z
-    .string()
-    .trim()
-    .default("0")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0;
-    }, "Unit price must be zero or greater."),
-  discount_percentage: z
-    .string()
-    .trim()
-    .default("0")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
-    }, "Discount percent must be between 0 and 100."),
-  discount_amount: z
-    .string()
-    .trim()
-    .default("0")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0;
-    }, "Discount amount must be zero or greater."),
-  source_order_line_id: z.string().uuid().optional().nullable(),
-  source_quotation_line_id: z.string().uuid().optional().nullable(),
-});
+export const salesInvoiceLineSchema = z
+  .object({
+    variant_id: z.string().uuid("Select a valid variant."),
+    quantity_invoiced: z
+      .string()
+      .trim()
+      .min(1, "Quantity is required.")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0;
+      }, "Quantity must be greater than zero."),
+    unit_price_selling: z
+      .string()
+      .trim()
+      .default("0")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0;
+      }, "Unit price must be zero or greater."),
+    discount_percentage: z
+      .string()
+      .trim()
+      .default("0")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
+      }, "Discount percent must be between 0 and 100."),
+    discount_amount: z
+      .string()
+      .trim()
+      .default("0")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0;
+      }, "Discount amount must be zero or greater."),
+    source_order_line_id: z.string().uuid().optional().nullable(),
+    source_quotation_line_id: z.string().uuid().optional().nullable(),
+  })
+  .merge(salesCommerceLineUomSchema);
 
-export const saveSalesInvoiceSchema = z.object({
-  sales_invoice_id: z.string().uuid().optional().nullable(),
-  customer_id: z.string().uuid("Select a customer."),
-  origin_location_id: z.string().uuid("Select an origin location."),
-  billing_state: z.string().trim().min(1, "Billing state is required.").max(64),
-  shipping_state: z.string().trim().min(1, "Shipping state is required.").max(64),
-  source_order_id: z.string().uuid().optional().nullable(),
-  source_quotation_id: z.string().uuid().optional().nullable(),
-  payment_terms_days: z.number().int().min(0).optional().nullable(),
-  custom_fields: salesInvoiceCustomFieldsSchema.default({
-    customer_po_number: "",
-    internal_notes: "",
-  }),
-  currency_code: z.string().trim().length(3).optional().nullable(),
-  exchange_rate: z.string().trim().optional().nullable(),
-  prices_tax_inclusive: z.boolean().optional().nullable(),
-  lines: z.array(salesInvoiceLineSchema).min(1, "Add at least one line."),
-});
+export const saveSalesInvoiceSchema = z
+  .object({
+    sales_invoice_id: z.string().uuid().optional().nullable(),
+    customer_id: z.string().uuid("Select a customer."),
+    origin_location_id: z.string().uuid("Select an origin location."),
+    billing_state: z.string().trim().min(1, "Billing state is required.").max(64),
+    shipping_state: z.string().trim().min(1, "Shipping state is required.").max(64),
+    source_order_id: z.string().uuid().optional().nullable(),
+    source_quotation_id: z.string().uuid().optional().nullable(),
+    custom_fields: salesInvoiceCustomFieldsSchema.default({
+      customer_po_number: "",
+      internal_notes: "",
+    }),
+    lines: z.array(salesInvoiceLineSchema).min(1, "Add at least one line."),
+  })
+  .merge(salesCommerceRpcExtrasSchema);
 
 export type SaveSalesInvoiceInput = z.infer<typeof saveSalesInvoiceSchema>;
 

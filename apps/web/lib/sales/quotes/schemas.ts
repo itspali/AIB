@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { salesCommerceRpcExtrasSchema } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { salesCommerceLineUomSchema } from "@/lib/sales/shared/sales-commerce-line-schema";
 
 export const QUOTE_CUSTOM_FIELD_KEYS = [
   "customer_reference",
@@ -16,60 +18,60 @@ export const salesQuoteCustomFieldsSchema = z.object({
 
 export type SalesQuoteCustomFields = z.infer<typeof salesQuoteCustomFieldsSchema>;
 
-export const salesQuoteLineSchema = z.object({
-  variant_id: z.string().uuid("Select a valid variant."),
-  quantity_quoted: z
-    .string()
-    .trim()
-    .min(1, "Quantity is required.")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed > 0;
-    }, "Quantity must be greater than zero."),
-  unit_price_selling: z
-    .string()
-    .trim()
-    .default("0")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0;
-    }, "Unit price must be zero or greater."),
-  discount_percentage: z
-    .string()
-    .trim()
-    .default("0")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
-    }, "Discount percent must be between 0 and 100."),
-  discount_amount: z
-    .string()
-    .trim()
-    .default("0")
-    .refine((value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) && parsed >= 0;
-    }, "Discount amount must be zero or greater."),
-});
+export const salesQuoteLineSchema = z
+  .object({
+    variant_id: z.string().uuid("Select a valid variant."),
+    quantity_quoted: z
+      .string()
+      .trim()
+      .min(1, "Quantity is required.")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0;
+      }, "Quantity must be greater than zero."),
+    unit_price_selling: z
+      .string()
+      .trim()
+      .default("0")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0;
+      }, "Unit price must be zero or greater."),
+    discount_percentage: z
+      .string()
+      .trim()
+      .default("0")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
+      }, "Discount percent must be between 0 and 100."),
+    discount_amount: z
+      .string()
+      .trim()
+      .default("0")
+      .refine((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0;
+      }, "Discount amount must be zero or greater."),
+  })
+  .merge(salesCommerceLineUomSchema);
 
-export const saveSalesQuotationSchema = z.object({
-  sales_quotation_id: z.string().uuid().optional().nullable(),
-  customer_id: z.string().uuid("Select a customer."),
-  origin_location_id: z.string().uuid("Select an origin location.").optional().nullable(),
-  billing_state: z.string().trim().min(1, "Billing state is required.").max(64),
-  shipping_state: z.string().trim().min(1, "Shipping state is required.").max(64),
-  valid_until: z.string().trim().min(1, "Valid until date is required."),
-  payment_terms_days: z.number().int().min(0).optional().nullable(),
-  custom_fields: salesQuoteCustomFieldsSchema.default({
-    customer_reference: "",
-    internal_notes: "",
-    terms_and_conditions: "",
-  }),
-  currency_code: z.string().trim().length(3).optional().nullable(),
-  exchange_rate: z.string().trim().optional().nullable(),
-  prices_tax_inclusive: z.boolean().optional().nullable(),
-  lines: z.array(salesQuoteLineSchema).min(1, "Add at least one line."),
-});
+export const saveSalesQuotationSchema = z
+  .object({
+    sales_quotation_id: z.string().uuid().optional().nullable(),
+    customer_id: z.string().uuid("Select a customer."),
+    origin_location_id: z.string().uuid("Select an origin location.").optional().nullable(),
+    billing_state: z.string().trim().min(1, "Billing state is required.").max(64),
+    shipping_state: z.string().trim().min(1, "Shipping state is required.").max(64),
+    valid_until: z.string().trim().min(1, "Valid until date is required."),
+    custom_fields: salesQuoteCustomFieldsSchema.default({
+      customer_reference: "",
+      internal_notes: "",
+      terms_and_conditions: "",
+    }),
+    lines: z.array(salesQuoteLineSchema).min(1, "Add at least one line."),
+  })
+  .merge(salesCommerceRpcExtrasSchema);
 
 export type SaveSalesQuotationInput = z.infer<typeof saveSalesQuotationSchema>;
 

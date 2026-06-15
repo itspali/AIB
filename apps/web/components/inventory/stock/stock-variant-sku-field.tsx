@@ -50,6 +50,8 @@ export type StockLineSkuSelection = {
   unit_cost: string;
   /** Item master purchase rate — used by PO lines for offer unit price. */
   purchase_price?: string | null;
+  /** Item master selling rate — used by sales lines for offer unit price. */
+  selling_price?: string | null;
   skuError: string | null;
   /** Optional thumbnail URL from variant search/browse (PO line image hydration). */
   image_url?: string | null;
@@ -131,6 +133,7 @@ function applyVariant(
     variant_sku: variant.variant_sku,
     unit_cost: variant.standard_cost ?? "0",
     purchase_price: variant.purchase_price ?? null,
+    selling_price: variant.selling_price ?? null,
     skuError: null,
     ...(variant.image_url ? { image_url: variant.image_url } : {}),
     ...(variant.base_unit_of_measure
@@ -495,6 +498,7 @@ export function StockVariantSkuField({
           variant_sku: result.variant.variant_sku,
           standard_cost: result.variant.standard_cost,
           purchase_price: null,
+          selling_price: null,
           adjustable: true,
           blocked_reason: null,
           image_url: null,

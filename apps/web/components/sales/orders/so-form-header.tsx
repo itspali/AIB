@@ -14,6 +14,7 @@ import {
   customerDefaultStates,
   type SoDraftFormState,
 } from "@/lib/sales/orders/draft-form";
+import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 
 type Props = {
@@ -32,7 +33,12 @@ export function SoFormHeader({ form, locations, customers, disabled = false, onP
         value={form.customer_id}
         disabled={disabled}
         onChange={(customerId) => {
-          const states = customerDefaultStates(customers, customerId);
+          const states = customerDefaultStates(
+            customers,
+            customerId,
+            locations,
+            form.shipping_location_id
+          );
           onPatch({
             customer_id: customerId,
             billing_state: states.billing_state,
@@ -48,9 +54,18 @@ export function SoFormHeader({ form, locations, customers, disabled = false, onP
           disabled={disabled}
           onValueChange={(value) => {
             const location = locations.find((row) => row.id === value);
+            const states = resolveSalesCommerceSupplyStates({
+              customers,
+              locations,
+              customerId: form.customer_id,
+              originLocationId: value,
+              billingState: form.billing_state,
+              shippingState: location?.state?.trim() || form.shipping_state,
+            });
             onPatch({
               shipping_location_id: value,
-              shipping_state: location?.state?.trim() || form.shipping_state,
+              billing_state: states.billing_state,
+              shipping_state: states.shipping_state,
             });
           }}
         >

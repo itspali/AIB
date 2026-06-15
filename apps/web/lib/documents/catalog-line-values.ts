@@ -2,7 +2,7 @@ import {
   isCatalogFieldId,
   parseCatalogFieldId,
 } from "@/lib/documents/catalog-field-ids";
-import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
+import { extractMrpFromCustomFieldsRecord, extractDefaultSellingPriceFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 import type { DocumentColumnPref } from "@/lib/documents/types";
@@ -25,6 +25,8 @@ export type PoLineCatalogContext = {
   mrp: string | null;
   /** Default purchase rate from item master commerce settings. */
   purchase_price: string | null;
+  /** Default selling rate from price book / item master commerce settings. */
+  selling_price: string | null;
   image_url: string | null;
   tax_code_id: string | null;
   tax_rate: number;
@@ -35,6 +37,8 @@ export type PoLineCatalogContext = {
   tax_components: Array<{ name: string; rate: number; sort_order: number }>;
   /** Default purchase UOM from item commerce settings (may differ from base). */
   default_purchase_uom: string | null;
+  /** Default selling UOM from item commerce settings (may differ from base). */
+  default_selling_uom: string | null;
   /** Alternate UOM rows from item master (excludes base; base is always factor 1). */
   alternate_uoms: Array<{ uom_code: string; conversion_factor: number }>;
   /** Custom fields (reserved keys excluded). */
@@ -53,6 +57,7 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     base_unit_of_measure: null,
     mrp: null,
     purchase_price: null,
+    selling_price: null,
     image_url: imageUrl,
     tax_code_id: null,
     tax_rate: 0,
@@ -60,6 +65,7 @@ export function emptyPoLineCatalogContext(imageUrl: string | null = null): PoLin
     price_is_tax_inclusive: false,
     tax_components: [],
     default_purchase_uom: null,
+    default_selling_uom: null,
     alternate_uoms: [],
     custom_fields: {},
     variant_attributes: {},
@@ -83,12 +89,17 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
   description?: string | null;
   hsn_sac_code?: string | null;
   mrp?: string | null;
+  selling_price?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
 }): PoLineCatalogContext {
   const mrp =
     partial.mrp?.trim() ||
     extractMrpFromCustomFieldsRecord(partial.custom_fields) ||
+    null;
+  const selling_price =
+    partial.selling_price?.trim() ||
+    extractDefaultSellingPriceFromCustomFieldsRecord(partial.custom_fields) ||
     null;
 
   return {
@@ -97,6 +108,7 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     base_unit_of_measure: partial.base_unit_of_measure?.trim() || null,
     mrp,
     purchase_price: null,
+    selling_price,
     image_url: partial.image_url?.trim() || null,
     tax_code_id: null,
     tax_rate: 0,
@@ -104,6 +116,7 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     price_is_tax_inclusive: false,
     tax_components: [],
     default_purchase_uom: parseDefaultPurchaseUomFromPickerCustomFields(partial.custom_fields),
+    default_selling_uom: null,
     alternate_uoms: [],
     custom_fields: { ...(partial.custom_fields ?? {}) },
     variant_attributes: { ...(partial.variant_attributes ?? {}) },
@@ -231,6 +244,10 @@ export function mergePoLineCatalogContext(
     default_purchase_uom:
       incoming.default_purchase_uom?.trim() ||
       current?.default_purchase_uom?.trim() ||
+      null,
+    default_selling_uom:
+      incoming.default_selling_uom?.trim() ||
+      current?.default_selling_uom?.trim() ||
       null,
     custom_fields: { ...incoming.custom_fields },
     variant_attributes: { ...incoming.variant_attributes },

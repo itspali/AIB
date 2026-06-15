@@ -21,6 +21,9 @@ export {
   resolveDefaultPoLineUomCode,
   resolvePoLineUomAfterCatalogUpdate,
   resolvePoLineUomConversionFactor,
+  buildPoDraftLineUomChangePatch,
+  scalePoCatalogBaseUnitPriceToLineUom,
+  applyPoDraftLineUomTransition,
   formatPoLineUomConversionHint,
   formatPoPeekLineUomConversionHint,
 } from "@/lib/procurement/purchase-orders/po-line-uom-options";

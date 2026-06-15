@@ -3,9 +3,11 @@ import {
   resolveColumnDecimalPlaces,
 } from "@/lib/documents/decimal-format";
 import {
-  getPoLayoutColumnPref,
+  getPoLineEntryTableColumns,
   normalizePoLayoutTemplate,
+  PO_LINE_IMAGE_COLUMN_ID,
   type DocumentLayoutDefaults,
+  type PoLineColumnVisibilityOptions,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
@@ -21,24 +23,38 @@ export type PoLineTaxDisplayOptions = PurchaseOrderTotalsOptions & {
   taxSupplyNature?: PoTaxSupplyNature;
 };
 
-/** True when the Tax % line field is visible as its own column. */
+/** True when the Tax % line field is visible as its own grid column. */
+export function isPoTaxRateLineFieldVisibleInGrid(
+  layout: DocumentLayoutDefaults,
+  options?: PoLineColumnVisibilityOptions
+): boolean {
+  const normalized = normalizePoLayoutTemplate(layout);
+  const gridColumns = getPoLineEntryTableColumns(normalized, options).filter(
+    (column) => column.id !== PO_LINE_IMAGE_COLUMN_ID
+  );
+  return gridColumns.some((column) => column.id === "tax_rate_pct");
+}
+
+/** @deprecated Prefer isPoTaxRateLineFieldVisibleInGrid */
 export function isPoTaxRateLineFieldVisible(
   layout: DocumentLayoutDefaults
 ): boolean {
-  return (
-    getPoLayoutColumnPref(normalizePoLayoutTemplate(layout), "tax_rate_pct")
-      ?.defaultVisible === true
-  );
+  return isPoTaxRateLineFieldVisibleInGrid(layout);
 }
 
 /** Embed tax rate under line tax when the standalone Tax % column is off. */
 export function shouldShowPoTaxRateUnderLineTaxColumn(
-  layout: DocumentLayoutDefaults
+  layout: DocumentLayoutDefaults,
+  options?: PoLineColumnVisibilityOptions
 ): boolean {
   const normalized = normalizePoLayoutTemplate(layout);
-  const lineTaxVisible =
-    getPoLayoutColumnPref(normalized, "line_tax_amount")?.defaultVisible === true;
-  return lineTaxVisible && !isPoTaxRateLineFieldVisible(normalized);
+  const gridColumns = getPoLineEntryTableColumns(normalized, options).filter(
+    (column) => column.id !== PO_LINE_IMAGE_COLUMN_ID
+  );
+  return (
+    gridColumns.some((column) => column.id === "line_tax_amount") &&
+    !gridColumns.some((column) => column.id === "tax_rate_pct")
+  );
 }
 
 function formatTaxRate(rate: number, column: DocumentColumnPref): string {

@@ -1,6 +1,11 @@
 import { normalizeBillLayoutTemplate } from "@/lib/documents/purchase-invoice-layout";
 import { normalizeGrnLayoutTemplate } from "@/lib/documents/goods-receipt-layout";
 import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
+import {
+  normalizeSalesInvoiceLayoutTemplate,
+  normalizeSalesOrderLayoutTemplate,
+  normalizeSalesQuotationLayoutTemplate,
+} from "@/lib/sales/shared/sales-commerce-layout";
 import type { DocumentLayoutDefaults, DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 
 export function normalizeDocumentLayoutTemplate(
@@ -12,9 +17,15 @@ export function normalizeDocumentLayoutTemplate(
       return normalizeGrnLayoutTemplate({ ...template, moduleKey });
     case "PURCHASE_INVOICE":
       return normalizeBillLayoutTemplate({ ...template, moduleKey });
+    case "SALES_QUOTATION":
+      return normalizeSalesQuotationLayoutTemplate({ ...template, moduleKey });
+    case "SALES_ORDER":
+      return normalizeSalesOrderLayoutTemplate({ ...template, moduleKey });
+    case "SALES_INVOICE":
+      return normalizeSalesInvoiceLayoutTemplate({ ...template, moduleKey });
     case "PURCHASE_ORDER":
     default:
-      return normalizePoLayoutTemplate({ ...template, moduleKey: moduleKey === "PURCHASE_ORDER" ? moduleKey : "PURCHASE_ORDER" });
+      return normalizePoLayoutTemplate({ ...template, moduleKey: "PURCHASE_ORDER" });
   }
 }
 

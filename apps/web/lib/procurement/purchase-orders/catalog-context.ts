@@ -7,10 +7,12 @@ import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import { fetchVariantPrimaryImageUrl } from "@/lib/procurement/purchase-orders/variant-image";
 import {
   extractDefaultPurchasePriceFromCustomFieldsRecord,
+  extractDefaultSellingPriceFromCustomFieldsRecord,
   extractMrpFromCustomFieldsRecord,
   filterUserCustomFieldEntries,
 } from "@/lib/products/catalog-reserved-fields";
 import { parseDefaultPurchaseUomFromCustomFields } from "@/lib/procurement/purchase-orders/po-line-uom-options";
+import { parseDefaultSellingUomFromCustomFields } from "@/lib/sales/shared/sales-line-uom-options";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 
 export type { PoLineCatalogContext };
@@ -113,6 +115,53 @@ async function resolveCatalogAttributeLabels(
   return attributeLabels;
 }
 
+type PriceBookEntryRow = {
+  price: number | string | null;
+  min_quantity: number | string | null;
+  price_books: { is_active: boolean | null } | { is_active: boolean | null }[] | null;
+};
+
+function resolveJoinPriceBook<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function pickDefaultSellingPriceEntry(
+  rows: PriceBookEntryRow[] | null | undefined
+): PriceBookEntryRow | null {
+  if (!rows?.length) return null;
+  const activeEntries = rows.filter((row) => {
+    const book = resolveJoinPriceBook(row.price_books);
+    return book?.is_active !== false;
+  });
+  const candidates = activeEntries.length ? activeEntries : rows;
+  const listPrice = candidates.find((row) => Number(row.min_quantity) === 1);
+  return listPrice ?? candidates[0] ?? null;
+}
+
+async function fetchItemSellingPrice(
+  supabase: SupabaseClient,
+  tenantId: string,
+  itemId: string,
+  customFields: Record<string, unknown> | null | undefined
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("price_book_entries")
+    .select("price, min_quantity, price_books ( is_active )")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId);
+
+  if (!error && data?.length) {
+    const entry = pickDefaultSellingPriceEntry(data as PriceBookEntryRow[]);
+    if (entry?.price != null && String(entry.price).trim() !== "") {
+      return String(entry.price).trim();
+    }
+  }
+
+  const fallback = extractDefaultSellingPriceFromCustomFieldsRecord(customFields);
+  return fallback || null;
+}
+
 export async function fetchPoLineCatalogContext(
   supabase: SupabaseClient,
   tenantId: string,
@@ -170,7 +219,7 @@ export async function fetchPoLineCatalogContext(
     )
     .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
 
-  const [attributeLabels, imageUrl, alternateUomsResult] = await Promise.all([
+  const [attributeLabels, imageUrl, alternateUomsResult, sellingPrice] = await Promise.all([
     resolveCatalogAttributeLabels(supabase, tenantId, item.category_id),
     fetchVariantPrimaryImageUrl(supabase, tenantId, row.item_id, row.id).catch(() => null),
     supabase
@@ -178,6 +227,7 @@ export async function fetchPoLineCatalogContext(
       .select("uom_code, conversion_factor")
       .eq("tenant_id", tenantId)
       .eq("item_id", row.item_id),
+    fetchItemSellingPrice(supabase, tenantId, row.item_id, item.custom_fields),
   ]);
 
   const alternate_uoms = (alternateUomsResult.data ?? [])
@@ -193,6 +243,7 @@ export async function fetchPoLineCatalogContext(
     );
 
   const default_purchase_uom = parseDefaultPurchaseUomFromCustomFields(item.custom_fields);
+  const default_selling_uom = parseDefaultSellingUomFromCustomFields(item.custom_fields);
 
   const mrp = extractMrpFromCustomFieldsRecord(item.custom_fields);
   const purchase_price = extractDefaultPurchasePriceFromCustomFieldsRecord(item.custom_fields);
@@ -203,6 +254,7 @@ export async function fetchPoLineCatalogContext(
     base_unit_of_measure: item.base_unit_of_measure?.trim() || null,
     mrp: mrp || null,
     purchase_price: purchase_price || null,
+    selling_price: sellingPrice,
     image_url: imageUrl,
     tax_code_id: item.tax_code_id,
     tax_rate: Number.isFinite(taxRate) ? taxRate : 0,
@@ -210,6 +262,7 @@ export async function fetchPoLineCatalogContext(
     price_is_tax_inclusive: item.price_is_tax_inclusive === true,
     tax_components: taxComponents,
     default_purchase_uom,
+    default_selling_uom,
     alternate_uoms,
     custom_fields: mapCustomFields(item.custom_fields),
     variant_attributes: mapVariantAttributes(row.variant_attributes),

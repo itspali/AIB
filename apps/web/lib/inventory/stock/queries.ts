@@ -16,6 +16,7 @@ import type {
 import { resolveStockVariantBlockedReason } from "@/lib/inventory/stock/variant-eligibility";
 import {
   extractDefaultPurchasePriceFromCustomFieldsRecord,
+  extractDefaultSellingPriceFromCustomFieldsRecord,
   extractMrpFromCustomFieldsRecord,
   filterUserCustomFieldEntries,
 } from "@/lib/products/catalog-reserved-fields";
@@ -410,6 +411,9 @@ function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
     variant_sku: row.sku,
     standard_cost: extractStandardCost(item?.custom_fields ?? null),
     purchase_price: extractDefaultPurchasePriceFromCustomFieldsRecord(
+      item?.custom_fields ?? null
+    ) || null,
+    selling_price: extractDefaultSellingPriceFromCustomFieldsRecord(
       item?.custom_fields ?? null
     ) || null,
     adjustable: blockedReason == null,

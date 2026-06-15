@@ -120,6 +120,8 @@ type InvoiceLineDbRow = {
   discount_amount?: number | string | null;
   line_tax_amount?: number | string | null;
   line_total_net: number | string;
+  uom_code?: string | null;
+  uom_conversion_factor?: number | string | null;
   items:
     | { name: string; base_unit_of_measure?: string | null }
     | { name: string; base_unit_of_measure?: string | null }[]
@@ -145,6 +147,8 @@ function mapInvoiceLine(row: InvoiceLineDbRow): SalesInvoiceLineRow {
     line_total_net: formatDecimal(row.line_total_net),
     source_order_line_id: row.source_order_line_id,
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
+    uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || null,
+    uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
   };
 }
 
@@ -244,6 +248,8 @@ const INVOICE_DETAIL_SELECT = `
     discount_amount,
     line_tax_amount,
     line_total_net,
+    uom_code,
+    uom_conversion_factor,
     items!sales_invoice_items_item_tenant_fk (name, base_unit_of_measure),
     item_variants!sales_invoice_items_variant_tenant_fk (sku)
   )

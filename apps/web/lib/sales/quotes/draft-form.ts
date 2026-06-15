@@ -1,9 +1,18 @@
+import type { OrganizationCurrency } from "@/lib/organization/currency-options";
+import {
+  customerDefaultCurrency,
+  customerPaymentTerms,
+  customerDefaultStates,
+  emptySalesCommerceDraftBase,
+} from "@/lib/sales/shared/sales-commerce-draft";
+import { emptySalesHeaderCharges, type SalesHeaderChargesFields } from "@/lib/sales/shared/sales-header-charges";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import {
   salesQuoteCustomFieldsSchema,
   type SalesQuoteCustomFields,
 } from "@/lib/sales/quotes/schemas";
 import type { SalesQuoteLineRow, SalesQuoteRow } from "@/lib/sales/quotes/types";
+import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 
 export type QuoteDraftLine = {
   key: string;
@@ -16,19 +25,27 @@ export type QuoteDraftLine = {
   unit_price_selling: string;
   discount_percentage: string;
   discount_amount: string;
+  uom_code?: string;
   skuError: string | null;
+  catalog_context?: import("@/lib/documents/catalog-line-values").PoLineCatalogContext | null;
+  base_unit_of_measure?: string | null;
 };
 
 export type QuoteDraftFormState = {
   customer_id: string;
   origin_location_id: string;
+  currency_code: OrganizationCurrency;
+  payment_terms_days: string;
+  prices_tax_inclusive: boolean;
+  header_charges: SalesHeaderChargesFields;
   billing_state: string;
   shipping_state: string;
   valid_until: string;
-  payment_terms_days: string;
   custom_fields: SalesQuoteCustomFields;
   lines: QuoteDraftLine[];
 };
+
+export { customerDefaultCurrency, customerPaymentTerms, customerDefaultStates } from "@/lib/sales/shared/sales-commerce-draft";
 
 function defaultValidUntilIso(): string {
   const date = new Date();
@@ -89,22 +106,12 @@ export function filterSavableQuoteLines(lines: QuoteDraftLine[]): QuoteDraftLine
   return lines.filter(isQuoteLineComplete);
 }
 
-export function customerDefaultStates(
-  customers: CustomerOption[],
-  customerId: string
-): { billing_state: string; shipping_state: string } {
-  const customer = customers.find((row) => row.id === customerId);
-  return {
-    billing_state: customer?.billing_state?.trim() ?? "",
-    shipping_state: customer?.shipping_state?.trim() ?? customer?.billing_state?.trim() ?? "",
-  };
-}
-
 export function defaultQuoteDraftForm(
   locations: SalesLocationOption[],
   customers: CustomerOption[],
   preferredOriginLocationId?: string | null,
-  entryLineKey?: string
+  entryLineKey?: string,
+  defaultCurrency = "USD"
 ): QuoteDraftFormState {
   const customer = customers[0];
   const originLocationId =
@@ -113,16 +120,20 @@ export function defaultQuoteDraftForm(
       ? preferredOriginLocationId
       : (locations[0]?.id ?? "");
   const states = customer
-    ? customerDefaultStates(customers, customer.id)
+    ? customerDefaultStates(customers, customer.id, locations, originLocationId)
     : { billing_state: "", shipping_state: "" };
+  const commerceBase = emptySalesCommerceDraftBase(customers, defaultCurrency);
 
   return {
     customer_id: customer?.id ?? "",
     origin_location_id: originLocationId,
+    currency_code: commerceBase.currency_code,
+    payment_terms_days: commerceBase.payment_terms_days,
+    prices_tax_inclusive: commerceBase.prices_tax_inclusive,
+    header_charges: commerceBase.header_charges,
     billing_state: states.billing_state,
     shipping_state: states.shipping_state,
     valid_until: defaultValidUntilIso(),
-    payment_terms_days: String(customer?.payment_terms_days ?? 0),
     custom_fields: emptySalesQuoteCustomFields(),
     lines: [createEmptyQuoteLine(entryLineKey)],
   };
@@ -143,18 +154,26 @@ export function mapSavedQuoteLineToDraftLine(
     unit_price_selling: line.unit_price_selling,
     discount_percentage: line.discount_percentage ?? "0",
     discount_amount: line.discount_amount ?? "0",
+    uom_code: line.uom_code ?? undefined,
+    base_unit_of_measure: line.base_unit_of_measure ?? null,
     skuError: null,
   };
 }
 
-export function mapSalesQuoteToDraft(quote: SalesQuoteRow): QuoteDraftFormState {
+export function mapSalesQuoteToDraft(
+  quote: SalesQuoteRow,
+  defaultCurrency = "USD"
+): QuoteDraftFormState {
   return {
     customer_id: quote.customer_id,
     origin_location_id: quote.origin_location_id ?? "",
+    currency_code: (defaultCurrency as OrganizationCurrency),
+    payment_terms_days: String(quote.payment_terms_days ?? 0),
+    prices_tax_inclusive: false,
+    header_charges: emptySalesHeaderCharges(),
     billing_state: quote.billing_state,
     shipping_state: quote.shipping_state,
     valid_until: quote.valid_until,
-    payment_terms_days: String(quote.payment_terms_days ?? 0),
     custom_fields: parseSalesQuoteCustomFields(quote.custom_fields),
     lines:
       quote.lines?.length
@@ -164,11 +183,7 @@ export function mapSalesQuoteToDraft(quote: SalesQuoteRow): QuoteDraftFormState 
 }
 
 export function mapQuoteLinesToRpcPayload(lines: QuoteDraftLine[]) {
-  return filterSavableQuoteLines(lines).map((line) => ({
-    variant_id: line.variant_id,
-    quantity: Number(line.quantity_quoted),
-    unit_price: Number(line.unit_price_selling),
-    discount_percentage: Number(line.discount_percentage),
-    discount_amount: Number(line.discount_amount),
-  }));
+  return filterSavableQuoteLines(lines).map((line) =>
+    mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_quoted))
+  );
 }

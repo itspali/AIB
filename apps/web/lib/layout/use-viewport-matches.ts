@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 
 export function useViewportMatches(mediaQuery: string): boolean {
-  const [matches, setMatches] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(mediaQuery).matches;
-  });
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia(mediaQuery);

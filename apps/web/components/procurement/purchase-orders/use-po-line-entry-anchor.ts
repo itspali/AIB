@@ -23,7 +23,11 @@ export function usePoLineEntryAnchor(
   options?: Options
 ) {
   const enabled = options?.enabled ?? true;
-  const [entryAnchor, setEntryAnchor] = useState<PoLineEntryAnchor>(() => readPoLineEntryAnchor());
+  const [entryAnchor, setEntryAnchor] = useState<PoLineEntryAnchor>("bottom");
+
+  useEffect(() => {
+    setEntryAnchor(readPoLineEntryAnchor());
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;

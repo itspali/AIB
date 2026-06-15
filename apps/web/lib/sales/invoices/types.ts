@@ -16,6 +16,8 @@ export type SalesInvoiceLineRow = {
   line_tax_amount: string;
   source_order_line_id: string | null;
   base_unit_of_measure?: string | null;
+  uom_code?: string | null;
+  uom_conversion_factor?: string | null;
 };
 
 export type SalesInvoiceRow = {

@@ -124,14 +124,31 @@ export function PaymentDrawerForm({
     surface === "create" ? "Record payment" : detail?.payment_number ?? "Customer payment";
 
   return (
-    <RightDrawer
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      onRequestClose={onClose}
-      title={title}
-    >
+    <>
+      <RightDrawer
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        onRequestClose={onClose}
+        title={title}
+        headerActions={
+          !readOnly ? (
+            <Button
+              type="button"
+              size="sm"
+              disabled={isPending || !editAccessGranted}
+              onClick={handleSave}
+            >
+              {isPending ? "Saving…" : "Save payment"}
+            </Button>
+          ) : null
+        }
+        allowBackgroundInteraction={surface === "peek"}
+        className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
+        bodyClassName={surface === "peek" ? "module-drawer-peek-body" : "module-drawer-form-body"}
+        showCloseButton
+      >
       {readOnly ? (
         detailLoading ? (
           <p className="text-sm text-muted-foreground">Loading payment…</p>
@@ -246,6 +263,7 @@ export function PaymentDrawerForm({
           </Button>
         </div>
       )}
-    </RightDrawer>
+      </RightDrawer>
+    </>
   );
 }

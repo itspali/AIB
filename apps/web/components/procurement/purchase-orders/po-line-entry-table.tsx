@@ -142,8 +142,12 @@ function PoLineEntryGrid({
   );
   const taxRateColumn = useMemo(() => getPoLayoutColumnPref(resolvedLayout, "tax_rate_pct"), [resolvedLayout]);
   const showTaxRateUnderLineTax = useMemo(
-    () => shouldShowPoTaxRateUnderLineTaxColumn(resolvedLayout),
-    [resolvedLayout]
+    () =>
+      shouldShowPoTaxRateUnderLineTaxColumn(resolvedLayout, {
+        allowLineItemDiscounts,
+        enableMrpTradeTerms,
+      }),
+    [resolvedLayout, allowLineItemDiscounts, enableMrpTradeTerms]
   );
   const showDiscountAmountUnderPct = useMemo(
     () => shouldShowPoDiscountAmountUnderPctColumn(resolvedLayout),

@@ -2,7 +2,7 @@
 
 import {
   computeSalesOrderDraftTotals,
-  formatSoMoney,
+  formatSoMoneyWithCurrency,
 } from "@/lib/sales/orders/totals";
 import type { SoDraftLine } from "@/lib/sales/orders/draft-form";
 import { cn } from "@/lib/utils";
@@ -25,19 +25,19 @@ export function SoTotalsPanel({ lines, currencyCode = "USD", className }: Props)
         <div className="flex items-center justify-between gap-3">
           <dt className="text-muted-foreground">Subtotal</dt>
           <dd className="tabular-nums font-medium">
-            {formatSoMoney(totals.subtotal, currencyCode)}
+            {formatSoMoneyWithCurrency(totals.subtotal, currencyCode)}
           </dd>
         </div>
         <div className="flex items-center justify-between gap-3">
           <dt className="text-muted-foreground">Tax</dt>
           <dd className="tabular-nums font-medium">
-            {formatSoMoney(totals.totalTax, currencyCode)}
+            {formatSoMoneyWithCurrency(totals.totalTax, currencyCode)}
           </dd>
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
           <dt className="font-semibold text-foreground">Net amount</dt>
           <dd className="tabular-nums text-base font-semibold">
-            {formatSoMoney(totals.net, currencyCode)}
+            {formatSoMoneyWithCurrency(totals.net, currencyCode)}
           </dd>
         </div>
       </dl>

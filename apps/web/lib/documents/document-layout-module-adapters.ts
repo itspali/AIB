@@ -51,10 +51,23 @@ import {
   type PoTotalsFieldId,
 } from "@/lib/documents/purchase-order-layout";
 import {
-  SALES_INVOICE_LAYOUT_STUB,
-  SALES_ORDER_LAYOUT_STUB,
-  SALES_QUOTATION_LAYOUT_STUB,
-} from "@/lib/documents/sales-layout-stub";
+  DEFAULT_SALES_INVOICE_SCREEN_LAYOUT,
+  DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
+  DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT,
+  getSalesLineSettingsColumnOrder,
+  isSalesFormHeaderPlaceableField,
+  moveSalesHeaderFieldOrder,
+  moveSalesLineColumnOrder,
+  moveSalesTotalsFieldOrder,
+  normalizeSalesInvoiceLayoutTemplate,
+  normalizeSalesOrderLayoutTemplate,
+  normalizeSalesQuotationLayoutTemplate,
+  patchSalesLayoutColumn,
+  SALES_TOTALS_INTERNAL_FIELD_IDS,
+  type SalesHeaderFieldId,
+  type SalesLineSettingsColumnId,
+  type SalesTotalsFieldId,
+} from "@/lib/sales/shared/sales-commerce-layout";
 import type { DocumentCatalogFieldSource, DocumentModuleKey } from "@/lib/documents/types";
 
 export type DocumentLayoutModuleAdapter = {
@@ -171,49 +184,91 @@ export const PURCHASE_INVOICE_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
 export const SALES_QUOTATION_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   moduleKey: "SALES_QUOTATION",
   label: "Quotation",
-  defaultLayout: SALES_QUOTATION_LAYOUT_STUB.normalize({}),
-  normalize: SALES_QUOTATION_LAYOUT_STUB.normalize,
-  patchColumn: SALES_QUOTATION_LAYOUT_STUB.patchColumn,
-  getLineSettingsColumnOrder: SALES_QUOTATION_LAYOUT_STUB.getLineSettingsColumnOrder,
-  isFormHeaderPlaceableField: SALES_QUOTATION_LAYOUT_STUB.isFormHeaderPlaceableField,
-  moveHeaderFieldOrder: SALES_QUOTATION_LAYOUT_STUB.moveHeaderFieldOrder,
-  moveLineColumnOrder: SALES_QUOTATION_LAYOUT_STUB.moveLineColumnOrder,
-  totalsInternalFieldIds: [],
+  defaultLayout: DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT,
+  normalize: normalizeSalesQuotationLayoutTemplate,
+  patchColumn: patchSalesLayoutColumn,
+  getLineSettingsColumnOrder: (layout) => getSalesLineSettingsColumnOrder(layout),
+  isFormHeaderPlaceableField: isSalesFormHeaderPlaceableField,
+  moveHeaderFieldOrder: (layout, fromId, toId) =>
+    moveSalesHeaderFieldOrder(layout, fromId as SalesHeaderFieldId, toId as SalesHeaderFieldId),
+  moveLineColumnOrder: (layout, fromId, toId) =>
+    moveSalesLineColumnOrder(layout, fromId as SalesLineSettingsColumnId, toId as SalesLineSettingsColumnId),
+  moveTotalsFieldOrder: (layout, fromId, toId) =>
+    moveSalesTotalsFieldOrder(layout, fromId as SalesTotalsFieldId, toId as SalesTotalsFieldId),
+  totalsInternalFieldIds: SALES_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: false,
-  catalog: SALES_QUOTATION_LAYOUT_STUB.catalog,
+  catalog: {
+    add: (layout) => layout,
+    createPref: (_source, key, label) => ({
+      id: key,
+      label: label ?? key,
+      defaultVisible: false,
+      group: "catalog",
+    }),
+    move: (layout) => layout,
+    remove: (layout) => layout,
+  },
 };
 
 export const SALES_ORDER_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   moduleKey: "SALES_ORDER",
   label: "Sales order",
-  defaultLayout: SALES_ORDER_LAYOUT_STUB.normalize({}),
-  normalize: SALES_ORDER_LAYOUT_STUB.normalize,
-  patchColumn: SALES_ORDER_LAYOUT_STUB.patchColumn,
-  getLineSettingsColumnOrder: SALES_ORDER_LAYOUT_STUB.getLineSettingsColumnOrder,
-  isFormHeaderPlaceableField: SALES_ORDER_LAYOUT_STUB.isFormHeaderPlaceableField,
-  moveHeaderFieldOrder: SALES_ORDER_LAYOUT_STUB.moveHeaderFieldOrder,
-  moveLineColumnOrder: SALES_ORDER_LAYOUT_STUB.moveLineColumnOrder,
-  totalsInternalFieldIds: [],
+  defaultLayout: DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
+  normalize: normalizeSalesOrderLayoutTemplate,
+  patchColumn: patchSalesLayoutColumn,
+  getLineSettingsColumnOrder: (layout) => getSalesLineSettingsColumnOrder(layout),
+  isFormHeaderPlaceableField: isSalesFormHeaderPlaceableField,
+  moveHeaderFieldOrder: (layout, fromId, toId) =>
+    moveSalesHeaderFieldOrder(layout, fromId as SalesHeaderFieldId, toId as SalesHeaderFieldId),
+  moveLineColumnOrder: (layout, fromId, toId) =>
+    moveSalesLineColumnOrder(layout, fromId as SalesLineSettingsColumnId, toId as SalesLineSettingsColumnId),
+  moveTotalsFieldOrder: (layout, fromId, toId) =>
+    moveSalesTotalsFieldOrder(layout, fromId as SalesTotalsFieldId, toId as SalesTotalsFieldId),
+  totalsInternalFieldIds: SALES_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: false,
-  catalog: SALES_ORDER_LAYOUT_STUB.catalog,
+  catalog: {
+    add: (layout) => layout,
+    createPref: (_source, key, label) => ({
+      id: key,
+      label: label ?? key,
+      defaultVisible: false,
+      group: "catalog",
+    }),
+    move: (layout) => layout,
+    remove: (layout) => layout,
+  },
 };
 
 export const SALES_INVOICE_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   moduleKey: "SALES_INVOICE",
   label: "Sales invoice",
-  defaultLayout: SALES_INVOICE_LAYOUT_STUB.normalize({}),
-  normalize: SALES_INVOICE_LAYOUT_STUB.normalize,
-  patchColumn: SALES_INVOICE_LAYOUT_STUB.patchColumn,
-  getLineSettingsColumnOrder: SALES_INVOICE_LAYOUT_STUB.getLineSettingsColumnOrder,
-  isFormHeaderPlaceableField: SALES_INVOICE_LAYOUT_STUB.isFormHeaderPlaceableField,
-  moveHeaderFieldOrder: SALES_INVOICE_LAYOUT_STUB.moveHeaderFieldOrder,
-  moveLineColumnOrder: SALES_INVOICE_LAYOUT_STUB.moveLineColumnOrder,
-  totalsInternalFieldIds: [],
+  defaultLayout: DEFAULT_SALES_INVOICE_SCREEN_LAYOUT,
+  normalize: normalizeSalesInvoiceLayoutTemplate,
+  patchColumn: patchSalesLayoutColumn,
+  getLineSettingsColumnOrder: (layout) => getSalesLineSettingsColumnOrder(layout),
+  isFormHeaderPlaceableField: isSalesFormHeaderPlaceableField,
+  moveHeaderFieldOrder: (layout, fromId, toId) =>
+    moveSalesHeaderFieldOrder(layout, fromId as SalesHeaderFieldId, toId as SalesHeaderFieldId),
+  moveLineColumnOrder: (layout, fromId, toId) =>
+    moveSalesLineColumnOrder(layout, fromId as SalesLineSettingsColumnId, toId as SalesLineSettingsColumnId),
+  moveTotalsFieldOrder: (layout, fromId, toId) =>
+    moveSalesTotalsFieldOrder(layout, fromId as SalesTotalsFieldId, toId as SalesTotalsFieldId),
+  totalsInternalFieldIds: SALES_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: false,
-  catalog: SALES_INVOICE_LAYOUT_STUB.catalog,
+  catalog: {
+    add: (layout) => layout,
+    createPref: (_source, key, label) => ({
+      id: key,
+      label: label ?? key,
+      defaultVisible: false,
+      group: "catalog",
+    }),
+    move: (layout) => layout,
+    remove: (layout) => layout,
+  },
 };
 
 export const DOCUMENT_LAYOUT_MODULE_ADAPTERS: Record<

@@ -18,6 +18,8 @@ import {
 } from "@/lib/sales/quotes/schemas";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import { SALES_INVOICES_HREF, SALES_ORDERS_HREF, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
+import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
@@ -73,13 +75,36 @@ async function quoteErrorContext(
 }
 
 export async function saveSalesQuotation(raw: unknown) {
-  const parsed = saveSalesQuotationSchema.safeParse(raw);
+  const rawRecord =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : null;
+  if (!rawRecord) {
+    return { error: "Invalid quote." };
+  }
+
+  const { supabase, userId, tenantId } = await requireTenantId();
+  const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
+    customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
+    originLocationId:
+      typeof rawRecord.origin_location_id === "string" ? rawRecord.origin_location_id : null,
+    billingState: typeof rawRecord.billing_state === "string" ? rawRecord.billing_state : "",
+    shippingState: typeof rawRecord.shipping_state === "string" ? rawRecord.shipping_state : "",
+  });
+  if ("error" in resolvedStates) {
+    return { error: resolvedStates.error };
+  }
+
+  const parsed = saveSalesQuotationSchema.safeParse({
+    ...rawRecord,
+    billing_state: resolvedStates.billing_state,
+    shipping_state: resolvedStates.shipping_state,
+  });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
   const values = parsed.data;
-  const { supabase, userId, tenantId } = await requireTenantId();
   const errorContext = await quoteErrorContext(supabase, tenantId, values.origin_location_id);
 
   const { data, error } = await supabase.rpc("save_sales_quotation", {
@@ -105,17 +130,8 @@ export async function saveSalesQuotation(raw: unknown) {
     p_shipping_state: values.shipping_state,
     p_valid_until: values.valid_until,
     p_origin_location_id: values.origin_location_id ?? null,
-    p_payment_terms_days: values.payment_terms_days ?? null,
     p_custom_fields: values.custom_fields,
-    p_currency_code: values.currency_code ?? null,
-    p_exchange_rate: values.exchange_rate ? Number(values.exchange_rate) : null,
-    p_prices_tax_inclusive: values.prices_tax_inclusive ?? null,
-    p_shipping_amount: null,
-    p_shipping_tax_rate_pct: null,
-    p_round_off_amount: null,
-    p_additional_charges_amount: null,
-    p_transaction_discount_percentage: null,
-    p_transaction_discount_amount: null,
+    ...mapSalesCommerceRpcExtrasInput(values),
   });
 
   if (error) {

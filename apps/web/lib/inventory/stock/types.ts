@@ -59,6 +59,8 @@ export type StockVariantOption = {
   standard_cost: string | null;
   /** Item master default purchase rate (`_default_purchase_price`). */
   purchase_price: string | null;
+  /** Item master default selling rate (`_default_selling_price` / price book). */
+  selling_price?: string | null;
   adjustable: boolean;
   blocked_reason: string | null;
   image_url: string | null;

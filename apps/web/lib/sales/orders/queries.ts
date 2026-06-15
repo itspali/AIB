@@ -36,6 +36,12 @@ const SO_CUSTOMER_ADDRESS_FIELDS = `
         billing_state,
         billing_zip_postal,
         billing_country_code,
+        shipping_address_line1,
+        shipping_address_line2,
+        shipping_city,
+        shipping_state,
+        shipping_zip_postal,
+        shipping_country_code,
         tax_registration_number,
         tax_treatment
       `;
@@ -149,6 +155,8 @@ function buildSalesOrderDetailSelect(options: SoSelectShape): string {
         discount_amount,
         line_tax_amount,
         line_total_gross,
+        uom_code,
+        uom_conversion_factor,
         items!sales_order_items_item_tenant_fk (name, base_unit_of_measure),
         item_variants!sales_order_items_variant_tenant_fk (sku)
       )
@@ -182,6 +190,12 @@ type CustomerEmbedRow = {
   billing_state?: string | null;
   billing_zip_postal?: string | null;
   billing_country_code?: string | null;
+  shipping_address_line1?: string | null;
+  shipping_address_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_state?: string | null;
+  shipping_zip_postal?: string | null;
+  shipping_country_code?: string | null;
   tax_registration_number?: string | null;
   tax_treatment?: string | null;
 };
@@ -302,6 +316,8 @@ type SoLineDbRow = {
   discount_amount?: number | string | null;
   line_tax_amount?: number | string | null;
   line_total_gross: number | string;
+  uom_code?: string | null;
+  uom_conversion_factor?: number | string | null;
   items:
     | {
         name: string;
@@ -349,28 +365,38 @@ function mapCustomerAddress(
   return address;
 }
 
-function mapShippingAddress(
-  shippingLocation: LocationEmbed,
+function mapCustomerShipToAddress(
+  customer: CustomerEmbed,
   fallbackName: string
 ): SalesOrderPartyAddress | null {
-  const resolved = resolveJoin(shippingLocation);
+  const resolved = resolveJoin(customer);
   if (!resolved) return null;
 
-  const name =
-    resolved.tax_registered_name?.trim() ||
-    resolved.name?.trim() ||
-    fallbackName.trim();
+  const name = resolved.name?.trim() || fallbackName.trim();
+  const hasShipping =
+    resolved.shipping_address_line1?.trim() ||
+    resolved.shipping_address_line2?.trim() ||
+    resolved.shipping_city?.trim() ||
+    resolved.shipping_state?.trim() ||
+    resolved.shipping_zip_postal?.trim() ||
+    resolved.shipping_country_code?.trim();
 
-  return {
+  if (!hasShipping) {
+    return mapCustomerAddress(customer, fallbackName);
+  }
+
+  const address: SalesOrderPartyAddress = {
     name,
-    address_line1: resolved.address_line1?.trim() || null,
-    address_line2: resolved.address_line2?.trim() || null,
-    city: resolved.city?.trim() || null,
-    state: resolved.state?.trim() || null,
-    zip_postal: resolved.zip_postal?.trim() || null,
-    country_code: resolved.country_code?.trim() || null,
-    tax_identifier: resolved.location_tax_identifier?.trim() || null,
+    address_line1: resolved.shipping_address_line1?.trim() || null,
+    address_line2: resolved.shipping_address_line2?.trim() || null,
+    city: resolved.shipping_city?.trim() || null,
+    state: resolved.shipping_state?.trim() || null,
+    zip_postal: resolved.shipping_zip_postal?.trim() || null,
+    country_code: resolved.shipping_country_code?.trim() || null,
+    tax_identifier: resolved.tax_registration_number?.trim() || null,
   };
+
+  return address;
 }
 
 function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
@@ -397,6 +423,8 @@ function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
     line_total_gross: formatDecimal(row.line_total_gross),
     open_quantity: String(openQty),
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
+    uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || null,
+    uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
   };
 }
 
@@ -414,7 +442,7 @@ function mapSoListRow(row: SoListDbRow): SalesOrderRow {
     shipping_location_id: row.shipping_location_id,
     shipping_location_name: shippingLocation?.name ?? "",
     shipping_location_code: shippingLocation?.code ?? "",
-    shipping_address: mapShippingAddress(shippingLocation, shippingLocation?.name ?? ""),
+    shipping_address: mapCustomerShipToAddress(customer, customerName),
     commercial_status: row.commercial_status as SalesOrderStatus,
     fulfillment_status: row.fulfillment_status as SalesFulfillmentStatus,
     payment_status: row.payment_status as SalesPaymentStatus,

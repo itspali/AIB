@@ -2,22 +2,36 @@
 
 import { Badge } from "@/components/ui/badge";
 import { SoAddressBlocks } from "@/components/sales/orders/so-address-blocks";
+import { SalesCustomerCreditPanel } from "@/components/sales/shared/sales-customer-credit-panel";
+import { SalesCommercePeekLinesSection } from "@/components/sales/shared/sales-commerce-peek-lines-table";
 import { formatDate } from "@/lib/dashboard/format";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import { DEFAULT_SALES_ORDER_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
+import { resolveSoAddressBlocks } from "@/lib/sales/orders/address-blocks";
 import { parseSalesOrderCustomFields } from "@/lib/sales/orders/draft-form";
 import {
   salesOrderStatusBadgeVariant,
   salesOrderStatusLabel,
 } from "@/lib/sales/orders/labels";
-import { resolveSoAddressBlocks } from "@/lib/sales/orders/address-blocks";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
+import type { CustomerOption } from "@/lib/sales/shared/types";
 
 type Props = {
   order: SalesOrderRow;
+  layout?: DocumentLayoutTemplate;
+  allowLineItemDiscounts?: boolean;
+  customers?: CustomerOption[];
 };
 
-export function SoPeekView({ order }: Props) {
+export function SoPeekView({
+  order,
+  layout = DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
+  allowLineItemDiscounts = true,
+  customers = [],
+}: Props) {
   const customFields = parseSalesOrderCustomFields(order.custom_fields);
   const addressBlocks = resolveSoAddressBlocks(order);
+  const customer = customers.find((row) => row.id === order.customer_id);
 
   return (
     <div className="space-y-6">
@@ -54,17 +68,20 @@ export function SoPeekView({ order }: Props) {
           </p>
           <p className="text-sm">{formatDate(order.created_at)}</p>
         </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Net amount
-          </p>
-          <p className="text-sm tabular-nums font-medium">{order.total_net_amount}</p>
-        </div>
       </div>
 
       <SoAddressBlocks blocks={addressBlocks} />
 
-      {customFields.customer_po_number || customFields.requested_ship_date || customFields.internal_notes ? (
+      {customer ? (
+        <SalesCustomerCreditPanel
+          customer={customer}
+          orderNetAmount={Number(order.total_net_amount) || 0}
+        />
+      ) : null}
+
+      {customFields.customer_po_number ||
+      customFields.requested_ship_date ||
+      customFields.internal_notes ? (
         <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-2">
           {customFields.customer_po_number ? (
             <div>
@@ -88,37 +105,14 @@ export function SoPeekView({ order }: Props) {
       ) : null}
 
       {order.lines?.length ? (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2">Item</th>
-                <th className="px-3 py-2 text-right">Qty</th>
-                <th className="px-3 py-2 text-right">Price</th>
-                <th className="px-3 py-2 text-right">Discount</th>
-                <th className="px-3 py-2 text-right">Tax</th>
-                <th className="px-3 py-2 text-right">Line total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.lines.map((line) => (
-                <tr key={line.id} className="border-b border-border/70">
-                  <td className="px-3 py-2">
-                    <div className="font-medium">{line.item_name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{line.variant_sku}</div>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{line.quantity_ordered}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{line.unit_price_selling}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {line.discount_percentage}% / {line.discount_amount}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{line.line_tax_amount}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{line.line_total_gross}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SalesCommercePeekLinesSection
+          lines={order.lines}
+          layout={layout}
+          quantityField="quantity_ordered"
+          lineTotalField="line_total_gross"
+          grandTotal={order.total_net_amount}
+          allowLineItemDiscounts={allowLineItemDiscounts}
+        />
       ) : null}
     </div>
   );

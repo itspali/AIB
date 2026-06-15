@@ -18,7 +18,7 @@ import {
   isPoLineSavedTaxSnapshot,
   mergeSavedPoLineTaxIntoCatalog,
 } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
-import { resolvePoLineUomAfterCatalogUpdate } from "@/lib/procurement/purchase-orders/po-line-uom-options";
+import { resolvePoLineUomAfterCatalogUpdate, applyPoDraftLineUomTransition } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 
 function withMrpMarkdownSync(line: PoDraftLine): PoDraftLine {
   const sync = syncPoLineMrpMarkdownFromOfferPrice(line);
@@ -39,11 +39,15 @@ function applyCatalogHydration(
       ? mergeSavedPoLineTaxIntoCatalog(savedSnapshot, catalog_contextRaw, taxCodeOptions)
       : catalog_contextRaw;
 
-  return withMrpMarkdownSync({
-    ...line,
-    catalog_context,
-    uom_code: resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context),
-  });
+  return withMrpMarkdownSync(
+    applyPoDraftLineUomTransition(
+      {
+        ...line,
+        catalog_context,
+      },
+      resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context)
+    )
+  );
 }
 
 /** Loads read-only catalog snapshots for existing lines (e.g. when opening a saved PO). */

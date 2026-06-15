@@ -14,6 +14,8 @@ export type SalesQuoteLineRow = {
   line_total_gross: string;
   line_tax_amount: string;
   base_unit_of_measure?: string | null;
+  uom_code?: string | null;
+  uom_conversion_factor?: string | null;
 };
 
 export type SalesQuoteRow = {

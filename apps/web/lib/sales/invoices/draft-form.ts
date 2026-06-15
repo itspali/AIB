@@ -1,3 +1,11 @@
+import type { OrganizationCurrency } from "@/lib/organization/currency-options";
+import {
+  customerDefaultCurrency,
+  customerPaymentTerms,
+  customerDefaultStates,
+  emptySalesCommerceDraftBase,
+} from "@/lib/sales/shared/sales-commerce-draft";
+import { emptySalesHeaderCharges, type SalesHeaderChargesFields } from "@/lib/sales/shared/sales-header-charges";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import {
   salesInvoiceCustomFieldsSchema,
@@ -5,6 +13,7 @@ import {
 } from "@/lib/sales/invoices/schemas";
 import type { SalesInvoiceLineRow, SalesInvoiceRow } from "@/lib/sales/invoices/types";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
+import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 
 export type InvoiceDraftLine = {
   key: string;
@@ -18,20 +27,28 @@ export type InvoiceDraftLine = {
   discount_percentage: string;
   discount_amount: string;
   source_order_line_id: string | null;
+  uom_code?: string;
   skuError: string | null;
+  catalog_context?: import("@/lib/documents/catalog-line-values").PoLineCatalogContext | null;
+  base_unit_of_measure?: string | null;
 };
 
 export type InvoiceDraftFormState = {
   customer_id: string;
   origin_location_id: string;
+  currency_code: OrganizationCurrency;
+  payment_terms_days: string;
+  prices_tax_inclusive: boolean;
+  header_charges: SalesHeaderChargesFields;
   billing_state: string;
   shipping_state: string;
   source_order_id: string | null;
   source_quotation_id: string | null;
-  payment_terms_days: string;
   custom_fields: SalesInvoiceCustomFields;
   lines: InvoiceDraftLine[];
 };
+
+export { customerDefaultCurrency, customerPaymentTerms, customerDefaultStates } from "@/lib/sales/shared/sales-commerce-draft";
 
 export function emptySalesInvoiceCustomFields(): SalesInvoiceCustomFields {
   return salesInvoiceCustomFieldsSchema.parse({});
@@ -85,22 +102,12 @@ export function filterSavableInvoiceLines(lines: InvoiceDraftLine[]): InvoiceDra
   return lines.filter(isInvoiceLineComplete);
 }
 
-export function customerDefaultStates(
-  customers: CustomerOption[],
-  customerId: string
-): { billing_state: string; shipping_state: string } {
-  const customer = customers.find((row) => row.id === customerId);
-  return {
-    billing_state: customer?.billing_state?.trim() ?? "",
-    shipping_state: customer?.shipping_state?.trim() ?? customer?.billing_state?.trim() ?? "",
-  };
-}
-
 export function defaultInvoiceDraftForm(
   locations: SalesLocationOption[],
   customers: CustomerOption[],
   preferredOriginLocationId?: string | null,
-  entryLineKey?: string
+  entryLineKey?: string,
+  defaultCurrency = "USD"
 ): InvoiceDraftFormState {
   const customer = customers[0];
   const originLocationId =
@@ -109,17 +116,21 @@ export function defaultInvoiceDraftForm(
       ? preferredOriginLocationId
       : (locations[0]?.id ?? "");
   const states = customer
-    ? customerDefaultStates(customers, customer.id)
+    ? customerDefaultStates(customers, customer.id, locations, originLocationId)
     : { billing_state: "", shipping_state: "" };
+  const commerceBase = emptySalesCommerceDraftBase(customers, defaultCurrency);
 
   return {
     customer_id: customer?.id ?? "",
     origin_location_id: originLocationId,
+    currency_code: commerceBase.currency_code,
+    payment_terms_days: commerceBase.payment_terms_days,
+    prices_tax_inclusive: commerceBase.prices_tax_inclusive,
+    header_charges: commerceBase.header_charges,
     billing_state: states.billing_state,
     shipping_state: states.shipping_state,
     source_order_id: null,
     source_quotation_id: null,
-    payment_terms_days: String(customer?.payment_terms_days ?? 0),
     custom_fields: emptySalesInvoiceCustomFields(),
     lines: [createEmptyInvoiceLine(entryLineKey)],
   };
@@ -141,19 +152,27 @@ export function mapSavedInvoiceLineToDraftLine(
     discount_percentage: line.discount_percentage ?? "0",
     discount_amount: line.discount_amount ?? "0",
     source_order_line_id: line.source_order_line_id,
+    uom_code: line.uom_code ?? undefined,
+    base_unit_of_measure: line.base_unit_of_measure ?? null,
     skuError: null,
   };
 }
 
-export function mapSalesInvoiceToDraft(invoice: SalesInvoiceRow): InvoiceDraftFormState {
+export function mapSalesInvoiceToDraft(
+  invoice: SalesInvoiceRow,
+  defaultCurrency = "USD"
+): InvoiceDraftFormState {
   return {
     customer_id: invoice.customer_id,
     origin_location_id: invoice.origin_location_id,
+    currency_code: (defaultCurrency as OrganizationCurrency),
+    payment_terms_days: String(invoice.payment_terms_days ?? 0),
+    prices_tax_inclusive: false,
+    header_charges: emptySalesHeaderCharges(),
     billing_state: invoice.billing_state,
     shipping_state: invoice.shipping_state,
     source_order_id: invoice.source_order_id,
     source_quotation_id: invoice.source_quotation_id,
-    payment_terms_days: String(invoice.payment_terms_days ?? 0),
     custom_fields: parseSalesInvoiceCustomFields(invoice.custom_fields),
     lines:
       invoice.lines?.length
@@ -164,7 +183,10 @@ export function mapSalesInvoiceToDraft(invoice: SalesInvoiceRow): InvoiceDraftFo
   };
 }
 
-export function mapSalesOrderToInvoiceDraft(order: SalesOrderRow): InvoiceDraftFormState {
+export function mapSalesOrderToInvoiceDraft(
+  order: SalesOrderRow,
+  defaultCurrency = "USD"
+): InvoiceDraftFormState {
   const openLines = (order.lines ?? []).filter((line) => {
     const openQty = Number(line.quantity_ordered) - Number(line.quantity_invoiced);
     return openQty > 0;
@@ -173,11 +195,14 @@ export function mapSalesOrderToInvoiceDraft(order: SalesOrderRow): InvoiceDraftF
   return {
     customer_id: order.customer_id,
     origin_location_id: order.shipping_location_id ?? "",
+    currency_code: (defaultCurrency as OrganizationCurrency),
+    payment_terms_days: "0",
+    prices_tax_inclusive: false,
+    header_charges: emptySalesHeaderCharges(),
     billing_state: order.billing_state,
     shipping_state: order.shipping_state,
     source_order_id: order.id,
     source_quotation_id: order.source_quotation_id,
-    payment_terms_days: "0",
     custom_fields: emptySalesInvoiceCustomFields(),
     lines: ensureTrailingInvoiceLine(
       openLines.map((line) => {
@@ -197,6 +222,8 @@ export function mapSalesOrderToInvoiceDraft(order: SalesOrderRow): InvoiceDraftF
           discount_percentage: line.discount_percentage ?? "0",
           discount_amount: line.discount_amount ?? "0",
           source_order_line_id: line.id,
+          uom_code: line.uom_code ?? undefined,
+          base_unit_of_measure: line.base_unit_of_measure ?? null,
           skuError: null,
         };
       })
@@ -205,12 +232,9 @@ export function mapSalesOrderToInvoiceDraft(order: SalesOrderRow): InvoiceDraftF
 }
 
 export function mapInvoiceLinesToRpcPayload(lines: InvoiceDraftLine[]) {
-  return filterSavableInvoiceLines(lines).map((line) => ({
-    variant_id: line.variant_id,
-    quantity: Number(line.quantity_invoiced),
-    unit_price: Number(line.unit_price_selling),
-    discount_percentage: Number(line.discount_percentage),
-    discount_amount: Number(line.discount_amount),
-    source_order_line_id: line.source_order_line_id,
-  }));
+  return filterSavableInvoiceLines(lines).map((line) =>
+    mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_invoiced), {
+      source_order_line_id: line.source_order_line_id,
+    })
+  );
 }

@@ -1,30 +1,44 @@
 "use client";
 
+import { useMemo } from "react";
+import {
+  SalesCommerceEditorShell,
+  SALES_COMMERCE_FULL_PAGE_LAYOUT,
+} from "@/components/sales/shared/sales-commerce-editor-shell";
 import type { RightDrawerLayoutValue } from "@/components/ui/right-drawer";
-import { SoFormHeader } from "@/components/sales/orders/so-form-header";
-import { SoLineEntryTable } from "@/components/sales/orders/so-line-entry-table";
-import { SoTotalsPanel } from "@/components/sales/orders/so-totals-panel";
-import type { SoDraftFormState } from "@/lib/sales/orders/draft-form";
+import { DEFAULT_SALES_ORDER_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
+import {
+  computeSalesCommerceDraftTotals,
+  type SalesCommerceTotalsOptions,
+} from "@/lib/sales/orders/totals";
+import {
+  createEmptySoLine,
+  filterSavableSoLines,
+  type SoDraftFormState,
+  type SoDraftLine,
+} from "@/lib/sales/orders/draft-form";
+import { resolveSalesGstContextFromForm } from "@/lib/sales/shared/sales-tax-supply";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
-import { cn } from "@/lib/utils";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 
-export const SO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
-  widthVw: 100,
-  isPartialDrawer: false,
-};
+export { SALES_COMMERCE_FULL_PAGE_LAYOUT as SO_FULL_PAGE_LAYOUT };
 
 export type SoDocumentEditorShellProps = {
   form: SoDraftFormState;
   locations: SalesLocationOption[];
   customers: CustomerOption[];
   defaultCurrency: string;
+  documentLayout?: DocumentLayoutTemplate;
   allowLineItemDiscounts?: boolean;
+  allowTransactionDiscounts?: boolean;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  tenantCountry?: string | null;
   isPending: boolean;
+  layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<SoDraftFormState>) => void;
   onLinesChange: (
-    linesOrUpdater:
-      | SoDraftFormState["lines"]
-      | ((current: SoDraftFormState["lines"]) => SoDraftFormState["lines"])
+    linesOrUpdater: SoDraftLine[] | ((current: SoDraftLine[]) => SoDraftLine[])
   ) => void;
 };
 
@@ -33,37 +47,60 @@ export function SoDocumentEditorShell({
   locations,
   customers,
   defaultCurrency,
+  documentLayout = DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
   allowLineItemDiscounts = true,
+  allowTransactionDiscounts = false,
+  taxCodeOptions = [],
+  tenantCountry = null,
   isPending,
+  layoutOverride = null,
   onPatch,
   onLinesChange,
 }: SoDocumentEditorShellProps) {
+  const gstContext = useMemo(
+    () =>
+      resolveSalesGstContextFromForm(
+        customers,
+        form.customer_id,
+        locations,
+        form.shipping_location_id,
+        tenantCountry
+      ),
+    [customers, form.customer_id, form.shipping_location_id, locations, tenantCountry]
+  );
+
+  const totalsOptions: SalesCommerceTotalsOptions = {
+    sellingPricesTaxInclusive: form.prices_tax_inclusive,
+    headerCharges: form.header_charges,
+    allowTransactionDiscounts,
+    taxMechanism: gstContext.taxMechanism,
+  };
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
-      <SoFormHeader
-        form={form}
-        locations={locations}
-        customers={customers}
-        disabled={isPending}
-        onPatch={onPatch}
-      />
-
-      <div className="min-h-0 flex-1 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lines</p>
-        <div className={cn("min-h-0 overflow-auto")}>
-          <SoLineEntryTable
-            lines={form.lines}
-            disabled={isPending}
-            allowLineItemDiscounts={allowLineItemDiscounts}
-            onChange={onLinesChange}
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div />
-        <SoTotalsPanel lines={form.lines} currencyCode={defaultCurrency} />
-      </div>
-    </div>
+    <SalesCommerceEditorShell
+      form={form}
+      locations={locations}
+      customers={customers}
+      originLocationId={form.shipping_location_id}
+      locationField="shipping_location_id"
+      lineFieldNames={{ quantity: "quantity_ordered", unitPrice: "unit_price_selling" }}
+      requisitionField="customer_po_number"
+      deliveryDateField="requested_ship_date"
+      defaultCurrency={defaultCurrency}
+      documentLayout={documentLayout}
+      allowLineItemDiscounts={allowLineItemDiscounts}
+      allowTransactionDiscounts={allowTransactionDiscounts}
+      showCustomerCreditPanel
+      taxCodeOptions={taxCodeOptions}
+      tenantCountry={tenantCountry}
+      isPending={isPending}
+      layoutOverride={layoutOverride}
+      createLine={createEmptySoLine}
+      computeTotals={(lines) =>
+        computeSalesCommerceDraftTotals(filterSavableSoLines(lines), totalsOptions)
+      }
+      onPatch={onPatch}
+      onLinesChange={onLinesChange}
+    />
   );
 }

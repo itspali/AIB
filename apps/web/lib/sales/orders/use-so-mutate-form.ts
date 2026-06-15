@@ -17,6 +17,8 @@ import {
   mapSalesOrderToDraft,
   type SoDraftFormState,
 } from "@/lib/sales/orders/draft-form";
+import { buildSalesCommerceSaveExtras } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -31,6 +33,7 @@ type Options = {
   customers: CustomerOption[];
   preferredShippingLocationId?: string | null;
   editAccessGranted: boolean;
+  allowTransactionDiscounts?: boolean;
   onAfterSave: (salesOrderId: string) => void;
   onEditNotAllowed?: (salesOrderId: string) => void;
 };
@@ -43,6 +46,7 @@ export function useSoMutateForm({
   customers,
   preferredShippingLocationId = null,
   editAccessGranted,
+  allowTransactionDiscounts = false,
   onAfterSave,
   onEditNotAllowed,
 }: Options) {
@@ -136,21 +140,33 @@ export function useSoMutateForm({
     setErrorAction(null);
 
     startTransition(async () => {
+      const savableLines = filterSavableSoLines(form.lines);
+      const supplyStates = resolveSalesCommerceSupplyStates({
+        customers,
+        locations,
+        customerId: form.customer_id,
+        originLocationId: form.shipping_location_id,
+        billingState: form.billing_state,
+        shippingState: form.shipping_state,
+      });
       const result = await saveSalesOrder({
         sales_order_id: detail?.id ?? null,
         customer_id: form.customer_id,
         shipping_location_id: form.shipping_location_id,
-        billing_state: form.billing_state,
-        shipping_state: form.shipping_state,
+        billing_state: supplyStates.billing_state,
+        shipping_state: supplyStates.shipping_state,
         source_quotation_id: form.source_quotation_id,
         custom_fields: form.custom_fields,
-        lines: filterSavableSoLines(form.lines).map((line) => ({
+        lines: savableLines.map((line) => ({
           variant_id: line.variant_id,
           quantity_ordered: line.quantity_ordered,
           unit_price_selling: line.unit_price_selling,
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
         })),
+        ...buildSalesCommerceSaveExtras(form, savableLines, {
+          allowTransactionDiscounts,
+        }),
       });
 
       if ("error" in result) {
@@ -163,7 +179,7 @@ export function useSoMutateForm({
       setIsDirty(false);
       onAfterSave(result.salesOrderId);
     });
-  }, [detail?.id, form, onAfterSave]);
+  }, [allowTransactionDiscounts, customers, detail?.id, form, locations, onAfterSave]);
 
   submitRef.current = handleSaveDraft;
 

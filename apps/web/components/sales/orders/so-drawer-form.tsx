@@ -46,6 +46,8 @@ import {
   mapSalesOrderToDraft,
   type SoDraftFormState,
 } from "@/lib/sales/orders/draft-form";
+import { buildSalesCommerceSaveExtras } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import {
@@ -53,6 +55,11 @@ import {
   isSoApprovalRequiredBeforeConfirm,
   type SalesApprovalSettings,
 } from "@/lib/sales/approval-settings";
+import { DEFAULT_SALES_ORDER_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
+import { useSalesDrawerFormLayout } from "@/lib/sales/shared/sales-drawer-layout";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -68,7 +75,11 @@ type Props = {
   onEditNotAllowed: (salesOrderId: string) => void;
   editAccessGranted: boolean;
   allowLineItemDiscounts: boolean;
+  allowTransactionDiscounts?: boolean;
   defaultCurrency: string;
+  documentLayout?: DocumentLayoutTemplate;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  tenantCountry?: string | null;
   preferredShippingLocationId?: string | null;
   copyFromId?: string | null;
   onDuplicate?: (salesOrderId: string) => void;
@@ -96,7 +107,11 @@ export function SoDrawerForm({
   onEditNotAllowed,
   editAccessGranted,
   allowLineItemDiscounts,
+  allowTransactionDiscounts = false,
   defaultCurrency,
+  documentLayout = DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
+  taxCodeOptions = [],
+  tenantCountry = null,
   preferredShippingLocationId = null,
   copyFromId = null,
   onDuplicate,
@@ -106,9 +121,16 @@ export function SoDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const { lineTableFillHeight, useDrawerBodyScroll } = useSalesDrawerFormLayout(isMutating);
   const entryLineKey = useId();
   const [form, setForm] = useState<SoDraftFormState>(() =>
-    defaultSoDraftForm(locations, customers, preferredShippingLocationId, entryLineKey)
+    defaultSoDraftForm(
+      locations,
+      customers,
+      preferredShippingLocationId,
+      entryLineKey,
+      defaultCurrency
+    )
   );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
@@ -133,13 +155,25 @@ export function SoDrawerForm({
     if (surface === "create") {
       if (!copyFromId) {
         setForm(
-          defaultSoDraftForm(locations, customers, preferredShippingLocationId, entryLineKey)
+          defaultSoDraftForm(
+            locations,
+            customers,
+            preferredShippingLocationId,
+            entryLineKey,
+            defaultCurrency
+          )
         );
         setDetail(null);
       }
     } else if (surface !== "peek") {
       setForm(
-        defaultSoDraftForm(locations, customers, preferredShippingLocationId, entryLineKey)
+        defaultSoDraftForm(
+          locations,
+          customers,
+          preferredShippingLocationId,
+          entryLineKey,
+          defaultCurrency
+        )
       );
       setDetail(peekOrder);
     } else if (peekOrder?.lines?.length) {
@@ -155,6 +189,7 @@ export function SoDrawerForm({
     customers,
     preferredShippingLocationId,
     entryLineKey,
+    defaultCurrency,
   ]);
 
   useEffect(() => {
@@ -169,7 +204,13 @@ export function SoDrawerForm({
         toast.error(result.error ?? "Unable to duplicate sales order.");
         setError(result.error);
         setForm(
-          defaultSoDraftForm(locations, customers, preferredShippingLocationId, entryLineKey)
+          defaultSoDraftForm(
+            locations,
+            customers,
+            preferredShippingLocationId,
+            entryLineKey,
+            defaultCurrency
+          )
         );
         return;
       }
@@ -219,7 +260,7 @@ export function SoDrawerForm({
         return;
       }
       setDetail(result.salesOrder);
-      setForm(mapSalesOrderToDraft(result.salesOrder));
+      setForm(mapSalesOrderToDraft(result.salesOrder, defaultCurrency));
       setIsDirty(false);
     });
 
@@ -257,21 +298,33 @@ export function SoDrawerForm({
     setErrorAction(null);
 
     startTransition(async () => {
+      const savableLines = filterSavableSoLines(form.lines);
+      const supplyStates = resolveSalesCommerceSupplyStates({
+        customers,
+        locations,
+        customerId: form.customer_id,
+        originLocationId: form.shipping_location_id,
+        billingState: form.billing_state,
+        shippingState: form.shipping_state,
+      });
       const result = await saveSalesOrder({
         sales_order_id: editOrderId ?? detail?.id ?? null,
         customer_id: form.customer_id,
         shipping_location_id: form.shipping_location_id,
-        billing_state: form.billing_state,
-        shipping_state: form.shipping_state,
+        billing_state: supplyStates.billing_state,
+        shipping_state: supplyStates.shipping_state,
         source_quotation_id: form.source_quotation_id,
         custom_fields: form.custom_fields,
-        lines: filterSavableSoLines(form.lines).map((line) => ({
+        lines: savableLines.map((line) => ({
           variant_id: line.variant_id,
           quantity_ordered: line.quantity_ordered,
           unit_price_selling: line.unit_price_selling,
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
         })),
+        ...buildSalesCommerceSaveExtras(form, savableLines, {
+          allowTransactionDiscounts,
+        }),
       });
 
       if ("error" in result) {
@@ -285,7 +338,7 @@ export function SoDrawerForm({
       await reloadDetail(result.salesOrderId);
       onAfterSave(result.salesOrderId);
     });
-  }, [detail?.id, editOrderId, form, onAfterSave, reloadDetail]);
+  }, [allowTransactionDiscounts, detail?.id, editOrderId, form, onAfterSave, reloadDetail]);
 
   const handleSubmitForApproval = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -583,7 +636,12 @@ export function SoDrawerForm({
             />
           }
         >
-          <SoPeekView order={detail} />
+          <SoPeekView
+            order={detail}
+            layout={documentLayout}
+            allowLineItemDiscounts={allowLineItemDiscounts}
+            customers={customers}
+          />
         </DocumentPeekActivityShell>
       ) : isMutating ? (
         <SoDocumentEditorShell
@@ -591,7 +649,11 @@ export function SoDrawerForm({
           locations={locations}
           customers={customers}
           defaultCurrency={defaultCurrency}
+          documentLayout={documentLayout}
           allowLineItemDiscounts={allowLineItemDiscounts}
+          allowTransactionDiscounts={allowTransactionDiscounts}
+          taxCodeOptions={taxCodeOptions}
+          tenantCountry={tenantCountry}
           isPending={isPending}
           onPatch={patchForm}
           onLinesChange={(linesOrUpdater) => {
@@ -630,10 +692,20 @@ export function SoDrawerForm({
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
         className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
-        bodyClassName={surface === "peek" ? "module-drawer-peek-body" : "module-drawer-form-body"}
+        bodyClassName={
+          surface === "peek"
+            ? "module-drawer-peek-body"
+            : isMutating
+              ? cn(
+                  "module-drawer-form-body",
+                  useDrawerBodyScroll && "module-drawer-form-body-scroll"
+                )
+              : undefined
+        }
+        scrollable={useDrawerBodyScroll || !(isMutating && lineTableFillHeight)}
         showCloseButton
       >
-        {drawerBody}
+        <div className={cn(isMutating && useDrawerBodyScroll && "shrink-0 pb-6")}>{drawerBody}</div>
       </RightDrawer>
 
       {discardDialog}

@@ -110,6 +110,8 @@ type QuoteLineDbRow = {
   discount_amount?: number | string | null;
   line_tax_amount?: number | string | null;
   line_total_gross: number | string;
+  uom_code?: string | null;
+  uom_conversion_factor?: number | string | null;
   items:
     | { name: string; base_unit_of_measure?: string | null }
     | { name: string; base_unit_of_measure?: string | null }[]
@@ -134,6 +136,8 @@ function mapQuoteLine(row: QuoteLineDbRow): SalesQuoteLineRow {
     line_tax_amount: formatDecimal(row.line_tax_amount ?? 0),
     line_total_gross: formatDecimal(row.line_total_gross),
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
+    uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || null,
+    uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
   };
 }
 
@@ -225,6 +229,8 @@ const QUOTE_DETAIL_SELECT = `
     discount_amount,
     line_tax_amount,
     line_total_gross,
+    uom_code,
+    uom_conversion_factor,
     items!sales_quotation_items_item_tenant_fk (name, base_unit_of_measure),
     item_variants!sales_quotation_items_variant_tenant_fk (sku)
   )

@@ -40,6 +40,9 @@ import {
   fetchSalesLocationLabel,
   fetchSalesLocations,
 } from "@/lib/sales/shared/queries";
+import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
+import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
@@ -130,13 +133,36 @@ export async function peekSalesOrderNumber(raw: unknown) {
 }
 
 export async function saveSalesOrder(raw: unknown) {
-  const parsed = saveSalesOrderSchema.safeParse(raw);
+  const rawRecord =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : null;
+  if (!rawRecord) {
+    return { error: "Invalid sales order." };
+  }
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
+    customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
+    originLocationId:
+      typeof rawRecord.shipping_location_id === "string" ? rawRecord.shipping_location_id : null,
+    billingState: typeof rawRecord.billing_state === "string" ? rawRecord.billing_state : "",
+    shippingState: typeof rawRecord.shipping_state === "string" ? rawRecord.shipping_state : "",
+  });
+  if ("error" in resolvedStates) {
+    return { error: resolvedStates.error };
+  }
+
+  const parsed = saveSalesOrderSchema.safeParse({
+    ...rawRecord,
+    billing_state: resolvedStates.billing_state,
+    shipping_state: resolvedStates.shipping_state,
+  });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid sales order." };
   }
 
   const values = parsed.data;
-  const { supabase, userId } = await requireTenantId();
 
   const { data, error } = await supabase.rpc("save_sales_order", {
     p_sales_order_id: values.sales_order_id ?? null,
@@ -146,14 +172,11 @@ export async function saveSalesOrder(raw: unknown) {
     p_shipping_state: values.shipping_state,
     p_source_quotation_id: values.source_quotation_id ?? null,
     p_custom_fields: values.custom_fields,
-    p_lines: values.lines.map((line) => ({
-      variant_id: line.variant_id,
-      quantity_ordered: Number(line.quantity_ordered),
-      unit_price_selling: Number(line.unit_price_selling || 0),
-      discount_percentage: Number(line.discount_percentage || 0),
-      discount_amount: Number(line.discount_amount || 0),
-    })),
+    p_lines: values.lines.map((line) =>
+      mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_ordered))
+    ),
     p_created_by: userId,
+    ...mapSalesCommerceRpcExtrasInput(values),
   });
 
   if (error) {

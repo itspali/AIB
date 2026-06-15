@@ -1,20 +1,38 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  DocumentLinePeekItemCell,
-  DocumentLinePeekTable,
-  DocumentLinePeekValueCell,
-} from "@/components/documents/document-line-peek-table";
+import { SalesCommerceAddressBlocks } from "@/components/sales/shared/sales-commerce-address-blocks";
+import { SalesCommercePeekLinesSection } from "@/components/sales/shared/sales-commerce-peek-lines-table";
 import { formatDate } from "@/lib/dashboard/format";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import { DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
+import { resolveSalesCommerceAddressBlocks } from "@/lib/sales/shared/resolve-sales-address-blocks";
 import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
+import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 
 type Props = {
   quote: SalesQuoteRow;
+  layout?: DocumentLayoutTemplate;
+  allowLineItemDiscounts?: boolean;
+  customers?: CustomerOption[];
+  locations?: SalesLocationOption[];
 };
 
-export function QuotePeekView({ quote }: Props) {
+export function QuotePeekView({
+  quote,
+  layout = DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT,
+  allowLineItemDiscounts = true,
+  customers = [],
+  locations = [],
+}: Props) {
+  const customer = customers.find((row) => row.id === quote.customer_id);
+  const addressBlocks = resolveSalesCommerceAddressBlocks({
+    customer,
+    billing_state: quote.billing_state,
+    shipping_state: quote.shipping_state,
+  });
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -37,48 +55,22 @@ export function QuotePeekView({ quote }: Props) {
           <p className="text-sm">{formatDate(quote.valid_until)}</p>
         </div>
         <div>
-          <p className="text-xs font-medium text-muted-foreground">Net amount</p>
-          <p className="text-sm font-medium">{quote.total_net_amount}</p>
-        </div>
-        <div>
           <p className="text-xs font-medium text-muted-foreground">Origin</p>
           <p className="text-sm">{quote.origin_location_name || "—"}</p>
         </div>
       </div>
 
+      {addressBlocks.length > 0 ? <SalesCommerceAddressBlocks blocks={addressBlocks} /> : null}
+
       {quote.lines?.length ? (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Lines
-          </p>
-          <DocumentLinePeekTable
-            lines={quote.lines}
-            getRowKey={(line) => line.id}
-            columns={[
-              { id: "item", label: "Item", align: "left" },
-              { id: "quantity", label: "Qty", align: "right", widthClass: "w-[4.5rem]" },
-              { id: "unit_price", label: "Unit price", align: "right", widthClass: "w-[4.5rem]" },
-              { id: "line_total", label: "Line total", align: "right", widthClass: "w-[4.5rem]" },
-            ]}
-            renderCell={(column, line) => {
-              if (column.id === "item") {
-                return (
-                  <DocumentLinePeekItemCell
-                    itemName={line.item_name ?? "Item"}
-                    variantSku={line.variant_sku ?? ""}
-                  />
-                );
-              }
-              if (column.id === "quantity") {
-                return <DocumentLinePeekValueCell value={line.quantity_quoted} />;
-              }
-              if (column.id === "unit_price") {
-                return <DocumentLinePeekValueCell value={line.unit_price_selling} />;
-              }
-              return <DocumentLinePeekValueCell value={line.line_total_gross} />;
-            }}
-          />
-        </div>
+        <SalesCommercePeekLinesSection
+          lines={quote.lines}
+          layout={layout}
+          quantityField="quantity_quoted"
+          lineTotalField="line_total_gross"
+          grandTotal={quote.total_net_amount}
+          allowLineItemDiscounts={allowLineItemDiscounts}
+        />
       ) : null}
     </div>
   );

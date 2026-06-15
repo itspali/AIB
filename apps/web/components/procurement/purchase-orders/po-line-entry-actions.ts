@@ -32,6 +32,8 @@ import type { PoLineEntryAnchor } from "@/lib/procurement/purchase-orders/line-e
 import {
   resolveDefaultPoLineUomCode,
   resolvePoLineUomAfterCatalogUpdate,
+  applyPoDraftLineUomTransition,
+  scalePoCatalogBaseUnitPriceToLineUom,
 } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 import { syncPoLineMrpMarkdownFromOfferPrice } from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
 import {
@@ -237,7 +239,7 @@ export function usePoLineEntryActions(
             attachSupplierPriceSnapshot(
               {
                 ...line,
-                unit_price_contractual: nextPrice || "0",
+                unit_price_contractual: scalePoCatalogBaseUnitPriceToLineUom(nextPrice || "0", line),
               },
               result.unit_price
             )
@@ -265,11 +267,7 @@ export function usePoLineEntryActions(
             const uom_code = resolvePoLineUomAfterCatalogUpdate(line.uom_code, catalog_context);
             return applyMrpMarkdownSync(
               attachWritebackSnapshotFromCatalog(
-                {
-                  ...line,
-                  catalog_context,
-                  uom_code,
-                },
+                applyPoDraftLineUomTransition({ ...line, catalog_context }, uom_code),
                 catalog_context
               )
             );
@@ -351,21 +349,29 @@ export function usePoLineEntryActions(
           variantChanged && patch.variant_id
             ? buildOptimisticCatalogContext(patch.variant_id, patch)
             : null;
+        const defaultUom = clearingItem
+          ? undefined
+          : variantChanged
+            ? resolveDefaultPoLineUomCode(optimisticContext)
+            : row.uom_code;
+        const baseOfferPrice = clearingItem
+          ? "0"
+          : resolvePoLinePickerOfferUnitPrice(patch.purchase_price);
         const draft: PoDraftLine = {
           ...row,
           ...patch,
           item_id: clearingItem ? "" : patch.item_id ?? row.item_id,
-          unit_price_contractual: clearingItem
-            ? "0"
-            : resolvePoLinePickerOfferUnitPrice(patch.purchase_price),
+          unit_price_contractual:
+            clearingItem || !variantChanged
+              ? baseOfferPrice
+              : scalePoCatalogBaseUnitPriceToLineUom(baseOfferPrice, {
+                  catalog_context: optimisticContext,
+                  uom_code: defaultUom,
+                }),
           catalog_context: clearingItem
             ? undefined
             : optimisticContext ?? row.catalog_context,
-          uom_code: clearingItem
-            ? undefined
-            : variantChanged
-              ? resolveDefaultPoLineUomCode(optimisticContext)
-              : row.uom_code,
+          uom_code: defaultUom,
         };
         return variantChanged && patch.variant_id && !clearingItem
           ? applyMrpMarkdownSync(draft)

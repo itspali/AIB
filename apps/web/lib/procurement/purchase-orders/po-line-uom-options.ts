@@ -1,6 +1,11 @@
 import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import {
+  rescaleUnitPriceBetweenUoms,
+  scaleCatalogBaseUnitPriceToLineUom,
+} from "@/lib/documents/line-uom-unit-price";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
+import { PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES } from "@/lib/procurement/purchase-orders/supplier-price";
 import type { PurchaseOrderLineRow } from "@/lib/procurement/purchase-orders/types";
 
 export type PoLineUomOption = {
@@ -150,6 +155,70 @@ export function resolvePoLineUomConversionFactor(line: PoDraftLine): number {
   if (!code) return 1;
   const match = resolvePoLineUomOptions(line).find((option) => option.uom_code === code);
   return match?.conversion_factor ?? 1;
+}
+
+/** Patch fields when the user picks a different line UOM (rescales offer unit price). */
+export function buildPoDraftLineUomChangePatch(
+  line: PoDraftLine,
+  nextUomCode: string
+): Partial<Pick<PoDraftLine, "uom_code" | "unit_price_contractual">> {
+  const currentUom = resolvePoDraftLineUomCode(line);
+  const normalizedNext = trimCode(nextUomCode) ?? nextUomCode;
+  if (!currentUom || normalizedNext === currentUom) {
+    return { uom_code: normalizedNext };
+  }
+
+  const options = resolvePoLineUomOptions(line);
+  return {
+    uom_code: normalizedNext,
+    unit_price_contractual: rescaleUnitPriceBetweenUoms(
+      line.unit_price_contractual,
+      currentUom,
+      normalizedNext,
+      options,
+      PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES
+    ),
+  };
+}
+
+/** Scale catalog/base-unit purchase rate to the line's order UOM. */
+export function scalePoCatalogBaseUnitPriceToLineUom(
+  baseUnitPrice: string,
+  line: Pick<PoDraftLine, "catalog_context" | "uom_code">
+): string {
+  const options = resolvePoLineUomOptions(line as PoDraftLine);
+  const targetUom = resolvePoDraftLineUomCode(line as PoDraftLine) ?? line.uom_code;
+  return scaleCatalogBaseUnitPriceToLineUom(
+    baseUnitPrice,
+    targetUom,
+    options,
+    PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES
+  );
+}
+
+/** Rescale offer unit price when UOM changes during catalog hydration. */
+export function applyPoDraftLineUomTransition(
+  line: PoDraftLine,
+  nextUomCode: string | null | undefined
+): PoDraftLine {
+  const previousUom = resolvePoDraftLineUomCode(line);
+  const normalizedNext = trimCode(nextUomCode) ?? previousUom;
+  if (!normalizedNext || !previousUom || normalizedNext === previousUom) {
+    return { ...line, uom_code: normalizedNext ?? line.uom_code };
+  }
+
+  const options = resolvePoLineUomOptions({ ...line, catalog_context: line.catalog_context });
+  return {
+    ...line,
+    uom_code: normalizedNext,
+    unit_price_contractual: rescaleUnitPriceBetweenUoms(
+      line.unit_price_contractual,
+      previousUom,
+      normalizedNext,
+      options,
+      PO_LINE_OFFER_UNIT_PRICE_DECIMAL_PLACES
+    ),
+  };
 }
 
 function formatConversionQuantity(value: number): string {

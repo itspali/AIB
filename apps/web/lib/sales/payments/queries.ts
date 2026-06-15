@@ -96,7 +96,7 @@ const PAYMENT_LIST_SELECT = `
   created_by,
   created_at,
   customer:entities!customer_payments_customer_tenant_fk (name),
-  payment_applications (amount_applied)
+  payment_applications:payment_applications!payment_applications_payment_tenant_fk (amount_applied)
 `;
 
 const PAYMENT_DETAIL_SELECT = `
@@ -111,12 +111,12 @@ const PAYMENT_DETAIL_SELECT = `
   created_by,
   created_at,
   customer:entities!customer_payments_customer_tenant_fk (name),
-  payment_applications (
+  payment_applications:payment_applications!payment_applications_payment_tenant_fk (
     id,
     sales_invoice_id,
     amount_applied,
     created_at,
-    sales_invoice:sales_invoices (invoice_number)
+    sales_invoice:sales_invoices!payment_applications_invoice_tenant_fk (invoice_number)
   )
 `;
 

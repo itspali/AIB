@@ -9,7 +9,7 @@ import { defaultDocumentNamingPrefix } from "@/lib/organization/naming-options";
 import { emptyNamingSequencesForm, parseNamingSequences } from "@/lib/naming/sequences";
 
 describe("document-numbering", () => {
-  it("returns procurement and transfer keys for stock-holding locations", () => {
+  it("returns procurement, transfer, and sales fulfillment keys for stock-holding locations", () => {
     expect(
       getLocationDocumentNumberingKeys({
         is_stock_holding: true,
@@ -22,6 +22,10 @@ describe("document-numbering", () => {
       "PURCHASE_INVOICE",
       "STOCK_TRANSFER",
       "STOCK_ADJUSTMENT",
+      "SALES_QUOTATION",
+      "SALES_ORDER",
+      "SALES_INVOICE",
+      "SALES_CREDIT_NOTE",
     ]);
   });
 
@@ -41,14 +45,14 @@ describe("document-numbering", () => {
     ]);
   });
 
-  it("returns GL for administrative office locations", () => {
+  it("returns GL and customer payment keys for administrative office locations", () => {
     expect(
       getLocationDocumentNumberingKeys({
         is_stock_holding: false,
         is_commercial_storefront: false,
         is_administrative_office: true,
       })
-    ).toEqual(["GENERAL_LEDGER"]);
+    ).toEqual(["CUSTOMER_PAYMENT", "GENERAL_LEDGER"]);
   });
 
   it("returns the union for combined capabilities", () => {
@@ -61,7 +65,15 @@ describe("document-numbering", () => {
     expect(keys).toContain("PURCHASE_ORDER");
     expect(keys).toContain("SALES_INVOICE");
     expect(keys).toContain("GENERAL_LEDGER");
+    expect(keys).toContain("CUSTOMER_PAYMENT");
     expect(keys).toHaveLength(11);
+  });
+
+  it("seeds year-scoped default sales prefixes for stock-holding locations", () => {
+    expect(emptyNamingSequencesForm(["SALES_ORDER", "SALES_INVOICE"], 2026)).toEqual({
+      SALES_ORDER: { prefix: "SO-2026-", digits: "5", next: "1" },
+      SALES_INVOICE: { prefix: "SI-2026-", digits: "5", next: "1" },
+    });
   });
 
   it("returns no keys for manufacturing-only locations", () => {

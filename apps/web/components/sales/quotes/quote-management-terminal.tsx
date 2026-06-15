@@ -26,6 +26,8 @@ import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import { useFilteredQuotes } from "@/lib/sales/quotes/use-filtered-quotes";
 import { QUOTE_STATUS_FILTER_PARAM, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
@@ -38,6 +40,13 @@ type Props = {
   customers: CustomerOption[];
   locations: SalesLocationOption[];
   editAccessGranted: boolean;
+  allowLineItemDiscounts?: boolean;
+  allowTransactionDiscounts?: boolean;
+  defaultCurrency?: string;
+  documentLayout: DocumentLayoutTemplate;
+  taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  tenantCountry?: string | null;
+  preferredOriginLocationId?: string | null;
 };
 
 export function QuoteManagementTerminal({
@@ -45,6 +54,13 @@ export function QuoteManagementTerminal({
   customers,
   locations,
   editAccessGranted,
+  allowLineItemDiscounts = true,
+  allowTransactionDiscounts = false,
+  defaultCurrency = "USD",
+  documentLayout,
+  taxCodeOptions = [],
+  tenantCountry = null,
+  preferredOriginLocationId = null,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_QUOTES_HREF, {
@@ -208,6 +224,13 @@ export function QuoteManagementTerminal({
         peekRecordId={selectedId}
         editQuoteId={editQuoteId}
         editAccessGranted={editAccessGranted}
+        defaultCurrency={defaultCurrency}
+        documentLayout={documentLayout}
+        allowLineItemDiscounts={allowLineItemDiscounts}
+        allowTransactionDiscounts={allowTransactionDiscounts}
+        taxCodeOptions={taxCodeOptions}
+        tenantCountry={tenantCountry}
+        preferredOriginLocationId={preferredOriginLocationId}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
         onOpenEdit={handleOpenEdit}
