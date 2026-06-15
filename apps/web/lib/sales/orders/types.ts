@@ -37,6 +37,7 @@ export type SalesOrderLineRow = {
   base_unit_of_measure?: string | null;
   uom_code?: string | null;
   uom_conversion_factor?: string | null;
+  source_quotation_line_id?: string | null;
 };
 
 export type SalesOrderPartyAddress = {
@@ -73,10 +74,12 @@ export type SalesOrderRow = {
   customer_tax_treatment: TaxTreatmentType | null;
   custom_fields: Record<string, unknown>;
   source_quotation_id: string | null;
+  source_quotation_number?: string | null;
   created_by: string;
   created_by_name: string;
   /** Pending approval request submitter, when status is PENDING_APPROVAL. */
   approval_submitted_by?: string | null;
+  approval_workflow_complete?: boolean;
   created_at: string;
   updated_at: string;
   lines?: SalesOrderLineRow[];

@@ -1,6 +1,7 @@
 import { QuoteManagementTerminal } from "@/components/sales/quotes/quote-management-terminal";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
+import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
 import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
@@ -14,12 +15,13 @@ import { getModulePageContext } from "@/lib/layout/module-page";
 export async function QuoteCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, customers, editAccess, salesSettings, tenantRow, documentLayout, taxCodeOptions] =
+  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
     await Promise.all([
       fetchSalesLocations(supabase, tenantId),
       fetchSalesCustomers(supabase, tenantId),
       resolveSalesOrderEditAccess(supabase, userId, tenantId),
       fetchSalesSettings(supabase, tenantId),
+      fetchSalesApprovalSettings(supabase, tenantId),
       supabase
         .from("tenants")
         .select("base_currency, billing_country_code")
@@ -58,6 +60,9 @@ export async function QuoteCatalogLoader() {
       tenantCountry={tenantCountry}
       preferredOriginLocationId={preferredOriginLocationId ?? null}
       documentConversionMode={salesSettings.document_conversion_mode}
+      approvalSettings={approvalSettings}
+      currentUserId={userId}
+      isOwner={editAccess.isOwner}
     />
   );
 }

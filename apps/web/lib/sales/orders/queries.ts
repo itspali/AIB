@@ -8,9 +8,12 @@ import type {
   SalesOrderStatus,
   SalesPaymentStatus,
 } from "@/lib/sales/orders/types";
+import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
 const SHIPPING_LOCATION_EMBED =
   "shipping_location:tenant_locations!sales_orders_shipping_location_tenant_fk";
+const SOURCE_QUOTATION_EMBED =
+  "source_quotation:sales_quotations!sales_orders_quotation_tenant_fk";
 const CUSTOMER_EMBED = "customer:entities!sales_orders_customer_tenant_fk";
 const SO_ITEMS_EMBED = "so_lines:sales_order_items!sales_order_items_order_tenant_fk";
 
@@ -112,6 +115,7 @@ function buildSalesOrderListSelect(options: SoSelectShape): string {
       updated_at,
       ${SHIPPING_LOCATION_EMBED} (${shippingFields}),
       ${CUSTOMER_EMBED} (${customerFields}),
+      ${SOURCE_QUOTATION_EMBED} (quotation_number),
       ${SO_ITEMS_EMBED} (id)
     `;
 }
@@ -144,6 +148,7 @@ function buildSalesOrderDetailSelect(options: SoSelectShape): string {
       updated_at,
       ${SHIPPING_LOCATION_EMBED} (${shippingFields}),
       ${CUSTOMER_EMBED} (${customerFields}),
+      ${SOURCE_QUOTATION_EMBED} (quotation_number),
       ${SO_ITEMS_EMBED} (
         id,
         item_id,
@@ -155,6 +160,7 @@ function buildSalesOrderDetailSelect(options: SoSelectShape): string {
         discount_amount,
         line_tax_amount,
         line_total_gross,
+        source_quotation_line_id,
         uom_code,
         uom_conversion_factor,
         items!sales_order_items_item_tenant_fk (name, base_unit_of_measure),
@@ -224,22 +230,27 @@ async function hydrateSalesOrderApprovalSubmitters(
     .map((row) => row.id);
   if (pendingIds.length === 0) return;
 
-  const { data, error } = await supabase
-    .from("document_approval_requests")
-    .select("document_id, submitted_by")
-    .eq("tenant_id", tenantId)
-    .eq("document_type", "SALES_ORDER")
-    .eq("status", "PENDING")
-    .in("document_id", pendingIds);
-
-  if (error || !data?.length) return;
+  const [{ data }, workflowCompleteIds] = await Promise.all([
+    supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "SALES_ORDER")
+      .eq("status", "PENDING")
+      .in("document_id", pendingIds),
+    fetchApprovalWorkflowCompleteByDocumentId(supabase, tenantId, "SALES_ORDER", pendingIds),
+  ]);
 
   const submitterBySoId = new Map(
-    data.map((row) => [row.document_id as string, (row.submitted_by as string | null) ?? null])
+    (data ?? []).map((row) => [
+      row.document_id as string,
+      (row.submitted_by as string | null) ?? null,
+    ])
   );
 
   for (const row of rows) {
     row.approval_submitted_by = submitterBySoId.get(row.id) ?? null;
+    row.approval_workflow_complete = workflowCompleteIds.has(row.id);
   }
 }
 
@@ -301,6 +312,10 @@ type SoListDbRow = {
   updated_at: string;
   shipping_location: LocationEmbed;
   customer: CustomerEmbed;
+  source_quotation:
+    | { quotation_number: string }
+    | { quotation_number: string }[]
+    | null;
   so_lines: Array<{ id: string }> | null;
 };
 
@@ -311,6 +326,7 @@ type SoLineDbRow = {
   quantity_ordered: number | string;
   quantity_shipped: number | string;
   quantity_invoiced?: number | string | null;
+  source_quotation_line_id?: string | null;
   unit_price_selling: number | string;
   discount_percentage?: number | string | null;
   discount_amount?: number | string | null;
@@ -422,6 +438,7 @@ function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
     line_tax_amount: formatDecimal(row.line_tax_amount ?? 0),
     line_total_gross: formatDecimal(row.line_total_gross),
     open_quantity: String(openQty),
+    source_quotation_line_id: row.source_quotation_line_id ?? null,
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
     uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || null,
     uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
@@ -431,6 +448,7 @@ function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
 function mapSoListRow(row: SoListDbRow): SalesOrderRow {
   const shippingLocation = resolveJoin(row.shipping_location);
   const customer = resolveJoin(row.customer);
+  const sourceQuotation = resolveJoin(row.source_quotation);
   const customerName = customer?.name ?? "";
 
   return {
@@ -455,6 +473,7 @@ function mapSoListRow(row: SoListDbRow): SalesOrderRow {
     customer_tax_treatment: (customer?.tax_treatment as TaxTreatmentType | null) ?? null,
     custom_fields: row.custom_fields ?? {},
     source_quotation_id: row.source_quotation_id,
+    source_quotation_number: sourceQuotation?.quotation_number ?? null,
     created_by: row.created_by,
     created_by_name: "",
     approval_submitted_by: null,

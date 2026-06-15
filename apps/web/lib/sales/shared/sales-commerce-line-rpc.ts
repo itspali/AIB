@@ -22,6 +22,7 @@ export type SalesCommerceRpcLinePayload = {
   discount_amount: number;
   uom_code?: string;
   source_order_line_id?: string;
+  source_quotation_line_id?: string;
 };
 
 function trimUomCode(value: string | null | undefined): string | undefined {
@@ -32,7 +33,7 @@ function trimUomCode(value: string | null | undefined): string | undefined {
 export function mapSalesCommerceLineToRpcPayload(
   line: SalesCommerceRpcLineSource,
   quantity: number,
-  options?: { source_order_line_id?: string | null }
+  options?: { source_order_line_id?: string | null; source_quotation_line_id?: string | null }
 ): SalesCommerceRpcLinePayload {
   const resolvedUom = resolveSalesDraftLineUomCodeForSave(line);
   const explicitUom = trimUomCode(line.uom_code);
@@ -49,5 +50,8 @@ export function mapSalesCommerceLineToRpcPayload(
     discount_amount: Number(line.discount_amount),
     ...(uomCode ? { uom_code: uomCode } : {}),
     ...(options?.source_order_line_id ? { source_order_line_id: options.source_order_line_id } : {}),
+    ...(options?.source_quotation_line_id
+      ? { source_quotation_line_id: options.source_quotation_line_id }
+      : {}),
   };
 }

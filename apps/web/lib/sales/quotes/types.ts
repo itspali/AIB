@@ -39,6 +39,8 @@ export type SalesQuoteRow = {
   custom_fields: Record<string, unknown>;
   converted_to_order_id: string | null;
   converted_to_invoice_id: string | null;
+  converted_to_order_number?: string | null;
+  converted_to_invoice_number?: string | null;
   created_by: string;
   created_by_name: string;
   approval_submitted_by?: string | null;

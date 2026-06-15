@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { loadSalesInvoices } from "@/app/sales/invoices/actions";
+import {
+  bulkApproveSalesInvoices,
+  bulkPostSalesInvoices,
+  loadSalesInvoices,
+} from "@/app/sales/invoices/actions";
 import { InvoiceDrawerForm } from "@/components/sales/invoices/invoice-drawer-form";
 import { InvoiceEmptyState } from "@/components/sales/invoices/invoice-empty-state";
 import { InvoiceListTable } from "@/components/sales/invoices/invoice-list-table";
 import { InvoiceListToolbar } from "@/components/sales/invoices/invoice-list-toolbar";
+import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultSalesInvoiceListPrefs,
   loadSalesInvoiceListPrefs,
@@ -36,9 +42,24 @@ import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-l
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
+import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
+import {
+  canUserApproveSalesInvoices,
+  isSalesInvoiceApprovableByUser,
+  isSalesInvoicePostableByUser,
+} from "@/lib/sales/approval-settings";
 
 const INVOICE_PAGE_DESCRIPTION =
   "Issue customer invoices, post to accounts receivable, and track payment status.";
+
+function resolveBulkInvoiceIds(
+  bulkSelectAllMatching: boolean,
+  bulkSelectedIds: Set<string>,
+  matchingIds: string[]
+): string[] {
+  if (bulkSelectAllMatching) return matchingIds;
+  return [...bulkSelectedIds];
+}
 
 type Props = {
   initialInvoices: SalesInvoiceRow[];
@@ -51,6 +72,9 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  approvalSettings: SalesApprovalSettings;
+  currentUserId: string;
+  isOwner: boolean;
 };
 
 export function InvoiceManagementTerminal({
@@ -64,6 +88,9 @@ export function InvoiceManagementTerminal({
   documentLayout,
   taxCodeOptions = [],
   tenantCountry = null,
+  approvalSettings,
+  currentUserId,
+  isOwner,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_INVOICES_HREF, {
@@ -77,6 +104,36 @@ export function InvoiceManagementTerminal({
   const [prefs, setPrefs] = useState<SalesInvoiceListPrefs>(getDefaultSalesInvoiceListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [, startRefreshTransition] = useTransition();
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
+  const [isBulkPending, startBulkTransition] = useTransition();
+
+  const canBulkApprove = canUserApproveSalesInvoices(currentUserId, approvalSettings, { isOwner });
+  const canBulkPost = editAccessGranted;
+
+  const isRowBulkApprovable = useCallback(
+    (row: SalesInvoiceRow) => {
+      if (!canBulkApprove) return false;
+      if (isOwner) return row.commercial_status === "PENDING_APPROVAL";
+      return isSalesInvoiceApprovableByUser(row, currentUserId, approvalSettings, { isOwner });
+    },
+    [approvalSettings, canBulkApprove, currentUserId, isOwner]
+  );
+
+  const isRowBulkPostable = useCallback(
+    (row: SalesInvoiceRow) =>
+      canBulkPost &&
+      isSalesInvoicePostableByUser(row, approvalSettings, currentUserId, {
+        isOwner,
+        editAccessGranted,
+      }),
+    [approvalSettings, canBulkPost, currentUserId, editAccessGranted, isOwner]
+  );
+
+  const isRowBulkSelectable = useCallback(
+    (row: SalesInvoiceRow) => isRowBulkApprovable(row) || isRowBulkPostable(row),
+    [isRowBulkApprovable, isRowBulkPostable]
+  );
 
   useEffect(() => {
     setPrefs(loadSalesInvoiceListPrefs());
@@ -163,10 +220,143 @@ export function InvoiceManagementTerminal({
   }, [drawer, editAccessGranted]);
 
   const hasAnyData = invoices.length > 0;
+  const filteredRows = invoicesView.filteredRows;
   const sortedRows = useMemo(
-    () => sortSalesInvoiceListRows(invoicesView.filteredRows, prefs.sortField, prefs.sortDirection),
-    [invoicesView.filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortSalesInvoiceListRows(filteredRows, prefs.sortField, prefs.sortDirection),
+    [filteredRows, prefs.sortDirection, prefs.sortField]
   );
+
+  const selectableMatchingIds = useMemo(
+    () => filteredRows.filter(isRowBulkSelectable).map((row) => row.id),
+    [filteredRows, isRowBulkSelectable]
+  );
+
+  const selectableVisibleIds = useMemo(
+    () => sortedRows.filter(isRowBulkSelectable).map((row) => row.id),
+    [isRowBulkSelectable, sortedRows]
+  );
+
+  const pageAllSelected =
+    selectableVisibleIds.length > 0 &&
+    selectableVisibleIds.every((id) => bulkSelectedIds.has(id));
+  const pageSomeSelected =
+    selectableVisibleIds.some((id) => bulkSelectedIds.has(id)) && !pageAllSelected;
+
+  const bulkSelectionCount = bulkSelectAllMatching
+    ? selectableMatchingIds.length
+    : bulkSelectedIds.size;
+
+  const clearBulkSelection = useCallback(() => {
+    setBulkSelectedIds(new Set());
+    setBulkSelectAllMatching(false);
+  }, []);
+
+  const resolveSelectedIds = useCallback(
+    () => resolveBulkInvoiceIds(bulkSelectAllMatching, bulkSelectedIds, selectableMatchingIds),
+    [bulkSelectAllMatching, bulkSelectedIds, selectableMatchingIds]
+  );
+
+  const rowById = useMemo(() => new Map(invoices.map((row) => [row.id, row])), [invoices]);
+
+  const filterSelectedApprovableIds = useCallback(
+    (ids: string[]) =>
+      ids.filter((id) => {
+        const row = rowById.get(id);
+        return row != null && isRowBulkApprovable(row);
+      }),
+    [isRowBulkApprovable, rowById]
+  );
+
+  const filterSelectedPostableIds = useCallback(
+    (ids: string[]) =>
+      ids.filter((id) => {
+        const row = rowById.get(id);
+        return row != null && isRowBulkPostable(row);
+      }),
+    [isRowBulkPostable, rowById]
+  );
+
+  const handleBulkRowToggle = useCallback((invoiceId: string, checked: boolean) => {
+    setBulkSelectAllMatching(false);
+    setBulkSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(invoiceId);
+      else next.delete(invoiceId);
+      return next;
+    });
+  }, []);
+
+  const handleBulkPageToggle = useCallback(
+    (checked: boolean) => {
+      setBulkSelectAllMatching(false);
+      setBulkSelectedIds((current) => {
+        const next = new Set(current);
+        for (const id of selectableVisibleIds) {
+          if (checked) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    },
+    [selectableVisibleIds]
+  );
+
+  const handleBulkApprove = useCallback(() => {
+    const ids = filterSelectedApprovableIds(resolveSelectedIds());
+    if (ids.length === 0) {
+      toast.error("Select at least one invoice pending your approval.");
+      return;
+    }
+
+    startBulkTransition(async () => {
+      const result = await bulkApproveSalesInvoices({ sales_invoice_ids: ids });
+      if (result.success !== true) {
+        toast.error(result.error ?? "Unable to approve the selected invoices.");
+        return;
+      }
+
+      const approvedCount = result.approvedIds.length;
+      const failedCount = result.failures.length;
+      if (failedCount > 0) {
+        toast.success(
+          `${approvedCount} ${approvedCount === 1 ? "invoice" : "invoices"} approved; ${failedCount} could not be approved.`
+        );
+      } else {
+        toast.success(`${approvedCount} ${approvedCount === 1 ? "invoice" : "invoices"} approved`);
+      }
+      clearBulkSelection();
+      refreshList();
+      notifyApprovalAlertChanged();
+    });
+  }, [clearBulkSelection, filterSelectedApprovableIds, refreshList, resolveSelectedIds]);
+
+  const handleBulkPost = useCallback(() => {
+    const ids = filterSelectedPostableIds(resolveSelectedIds());
+    if (ids.length === 0) {
+      toast.error("Select at least one invoice that can be posted.");
+      return;
+    }
+
+    startBulkTransition(async () => {
+      const result = await bulkPostSalesInvoices({ sales_invoice_ids: ids });
+      if (result.success !== true) {
+        toast.error(result.error ?? "Unable to post the selected invoices.");
+        return;
+      }
+
+      const postedCount = result.postedIds.length;
+      const failedCount = result.failures.length;
+      if (failedCount > 0) {
+        toast.success(
+          `${postedCount} ${postedCount === 1 ? "invoice" : "invoices"} posted; ${failedCount} could not be posted.`
+        );
+      } else {
+        toast.success(`${postedCount} ${postedCount === 1 ? "invoice" : "invoices"} posted`);
+      }
+      clearBulkSelection();
+      refreshList();
+    });
+  }, [clearBulkSelection, filterSelectedPostableIds, refreshList, resolveSelectedIds]);
 
   const handleSortChange = useCallback(
     (field: SalesInvoiceListSortField, direction: SalesInvoiceListSortDirection) => {
@@ -198,8 +388,42 @@ export function InvoiceManagementTerminal({
       }
       selectedId={selectedId}
       onSelect={handleSelect}
+      bulkSelectionEnabled={canBulkApprove || canBulkPost}
+      bulkSelectedIds={bulkSelectedIds}
+      pageAllSelected={pageAllSelected}
+      pageSomeSelected={pageSomeSelected}
+      isRowBulkSelectable={isRowBulkSelectable}
+      onBulkRowToggle={handleBulkRowToggle}
+      onBulkPageToggle={handleBulkPageToggle}
     />
   );
+
+  const bulkToolbar =
+    hasAnyData && (canBulkApprove || canBulkPost) && bulkSelectionCount > 0 ? (
+      <SalesBulkActionToolbar
+        entitySingular="invoice"
+        entityPlural="invoices"
+        selectionMenuLabel="Select invoices for bulk actions"
+        ariaLabel="Bulk invoice actions"
+        selectedCount={bulkSelectedIds.size}
+        totalMatchingCount={selectableMatchingIds.length}
+        selectAllMatching={bulkSelectAllMatching}
+        pageAllSelected={pageAllSelected}
+        visibleCount={selectableVisibleIds.length}
+        isPending={isBulkPending}
+        pendingLabel="Processing invoices"
+        onClearSelection={clearBulkSelection}
+        onSelectPage={() => handleBulkPageToggle(true)}
+        onSelectAllMatching={() => {
+          setBulkSelectAllMatching(true);
+          setBulkSelectedIds(new Set(selectableMatchingIds));
+        }}
+        onApprove={canBulkApprove ? handleBulkApprove : undefined}
+        onConfirm={canBulkPost ? handleBulkPost : undefined}
+        confirmLabel="Post"
+        embedded
+      />
+    ) : null;
 
   return (
     <>
@@ -226,6 +450,7 @@ export function InvoiceManagementTerminal({
             />
           ) : null
         }
+        bulkToolbar={bulkToolbar}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}

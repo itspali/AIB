@@ -8,11 +8,14 @@ import type {
   SalesInvoiceLineRow,
   SalesInvoiceRow,
 } from "@/lib/sales/invoices/types";
+import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
 const ORIGIN_LOCATION_EMBED =
   "origin_location:tenant_locations!sales_invoices_origin_location_tenant_fk";
 const CUSTOMER_EMBED = "customer:entities!sales_invoices_customer_tenant_fk";
 const SOURCE_ORDER_EMBED = "source_order:sales_orders!sales_invoices_order_tenant_fk";
+const SOURCE_QUOTATION_EMBED =
+  "source_quotation:sales_quotations!sales_invoices_source_quotation_tenant_fk";
 const INVOICE_ITEMS_EMBED =
   "invoice_lines:sales_invoice_items!sales_invoice_items_invoice_tenant_fk";
 
@@ -38,22 +41,27 @@ async function hydrateInvoiceApprovalSubmitters(
     .map((row) => row.id);
   if (pendingIds.length === 0) return;
 
-  const { data } = await supabase
-    .from("document_approval_requests")
-    .select("document_id, submitted_by")
-    .eq("tenant_id", tenantId)
-    .eq("document_type", "SALES_INVOICE")
-    .eq("status", "PENDING")
-    .in("document_id", pendingIds);
-
-  if (!data?.length) return;
+  const [{ data }, workflowCompleteIds] = await Promise.all([
+    supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "SALES_INVOICE")
+      .eq("status", "PENDING")
+      .in("document_id", pendingIds),
+    fetchApprovalWorkflowCompleteByDocumentId(supabase, tenantId, "SALES_INVOICE", pendingIds),
+  ]);
 
   const submitterById = new Map(
-    data.map((row) => [row.document_id as string, (row.submitted_by as string | null) ?? null])
+    (data ?? []).map((row) => [
+      row.document_id as string,
+      (row.submitted_by as string | null) ?? null,
+    ])
   );
 
   for (const row of rows) {
     row.approval_submitted_by = submitterById.get(row.id) ?? null;
+    row.approval_workflow_complete = workflowCompleteIds.has(row.id);
   }
 }
 
@@ -106,6 +114,7 @@ type InvoiceListDbRow = {
   origin_location: { name: string; code: string } | { name: string; code: string }[] | null;
   customer: { name: string; tax_treatment?: string | null } | { name: string; tax_treatment?: string | null }[] | null;
   source_order: { voucher_number: string } | { voucher_number: string }[] | null;
+  source_quotation: { quotation_number: string } | { quotation_number: string }[] | null;
   invoice_lines: Array<{ id: string }> | null;
 };
 
@@ -114,6 +123,7 @@ type InvoiceLineDbRow = {
   item_id: string;
   variant_id: string;
   source_order_line_id: string | null;
+  source_quotation_line_id?: string | null;
   quantity_invoiced: number | string;
   unit_price_selling: number | string;
   discount_percentage?: number | string | null;
@@ -146,6 +156,7 @@ function mapInvoiceLine(row: InvoiceLineDbRow): SalesInvoiceLineRow {
     line_tax_amount: formatDecimal(row.line_tax_amount ?? 0),
     line_total_net: formatDecimal(row.line_total_net),
     source_order_line_id: row.source_order_line_id,
+    source_quotation_line_id: row.source_quotation_line_id ?? null,
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
     uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || null,
     uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
@@ -156,6 +167,7 @@ function mapInvoiceListRow(row: InvoiceListDbRow): SalesInvoiceRow {
   const originLocation = resolveJoin(row.origin_location);
   const customer = resolveJoin(row.customer);
   const sourceOrder = resolveJoin(row.source_order);
+  const sourceQuotation = resolveJoin(row.source_quotation);
 
   return {
     id: row.id,
@@ -168,6 +180,7 @@ function mapInvoiceListRow(row: InvoiceListDbRow): SalesInvoiceRow {
     source_order_id: row.source_order_id,
     source_order_number: sourceOrder?.voucher_number ?? null,
     source_quotation_id: row.source_quotation_id,
+    source_quotation_number: sourceQuotation?.quotation_number ?? null,
     commercial_status: row.commercial_status as SalesDocumentStatus,
     invoice_payment_status: row.invoice_payment_status as SalesPaymentStatus,
     billing_state: row.billing_state ?? "",
@@ -211,6 +224,7 @@ const INVOICE_LIST_SELECT = `
   ${ORIGIN_LOCATION_EMBED} (name, code),
   ${CUSTOMER_EMBED} (name, tax_treatment),
   ${SOURCE_ORDER_EMBED} (voucher_number),
+  ${SOURCE_QUOTATION_EMBED} (quotation_number),
   ${INVOICE_ITEMS_EMBED} (id)
 `;
 
@@ -237,11 +251,13 @@ const INVOICE_DETAIL_SELECT = `
   ${ORIGIN_LOCATION_EMBED} (name, code),
   ${CUSTOMER_EMBED} (name, tax_treatment),
   ${SOURCE_ORDER_EMBED} (voucher_number),
+  ${SOURCE_QUOTATION_EMBED} (quotation_number),
   ${INVOICE_ITEMS_EMBED} (
     id,
     item_id,
     variant_id,
     source_order_line_id,
+    source_quotation_line_id,
     quantity_invoiced,
     unit_price_selling,
     discount_percentage,

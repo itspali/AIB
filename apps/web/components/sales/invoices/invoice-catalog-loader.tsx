@@ -1,6 +1,7 @@
 import { InvoiceManagementTerminal } from "@/components/sales/invoices/invoice-management-terminal";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
+import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
 import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
@@ -14,12 +15,13 @@ import { getModulePageContext } from "@/lib/layout/module-page";
 export async function InvoiceCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, customers, editAccess, salesSettings, tenantRow, documentLayout, taxCodeOptions] =
+  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
     await Promise.all([
       fetchSalesLocations(supabase, tenantId),
       fetchSalesCustomers(supabase, tenantId),
       resolveSalesOrderEditAccess(supabase, userId, tenantId),
       fetchSalesSettings(supabase, tenantId),
+      fetchSalesApprovalSettings(supabase, tenantId),
       supabase
         .from("tenants")
         .select("base_currency, billing_country_code")
@@ -53,6 +55,9 @@ export async function InvoiceCatalogLoader() {
       documentLayout={documentLayout}
       taxCodeOptions={taxCodeOptions}
       tenantCountry={tenantCountry}
+      approvalSettings={approvalSettings}
+      currentUserId={userId}
+      isOwner={editAccess.isOwner}
     />
   );
 }

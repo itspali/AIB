@@ -17,6 +17,7 @@ import {
   canUserApproveSalesOrders,
   describeSalesOrderSelfApprovalBlocker,
   isSalesOrderApprovableByUser,
+  isSalesOrderConfirmableByUser,
 } from "@/lib/sales/approval-settings";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
 import {
@@ -46,6 +47,7 @@ import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resol
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
 const SO_PATHS = ["/sales/orders", "/sales", "/dashboard"] as const;
 
@@ -173,7 +175,9 @@ export async function saveSalesOrder(raw: unknown) {
     p_source_quotation_id: values.source_quotation_id ?? null,
     p_custom_fields: values.custom_fields,
     p_lines: values.lines.map((line) =>
-      mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_ordered))
+      mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_ordered), {
+        source_quotation_line_id: line.source_quotation_line_id ?? null,
+      })
     ),
     p_created_by: userId,
     ...mapSalesCommerceRpcExtrasInput(values),
@@ -477,6 +481,137 @@ export async function bulkApproveSalesOrders(raw: unknown) {
   return {
     success: true as const,
     approvedIds,
+    failures,
+  };
+}
+
+const bulkConfirmSalesOrdersSchema = z.object({
+  sales_order_ids: z.array(z.string().uuid()).min(1),
+});
+
+export async function bulkConfirmSalesOrders(raw: unknown) {
+  const parsed = bulkConfirmSalesOrdersSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid bulk confirmation request." };
+  }
+
+  const uniqueIds = [...new Set(parsed.data.sales_order_ids)];
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [access, approvalSettings] = await Promise.all([
+    resolveSalesOrderEditAccess(supabase, userId, tenantId),
+    fetchSalesApprovalSettings(supabase, tenantId),
+  ]);
+
+  if (!access.granted) {
+    return { error: "You do not have permission to confirm sales orders." };
+  }
+
+  const { data: orders, error: fetchError } = await supabase
+    .from("sales_orders")
+    .select("id, commercial_status, total_net_amount, shipping_location_id")
+    .eq("tenant_id", tenantId)
+    .in("id", uniqueIds);
+
+  if (fetchError) {
+    return { error: "Unable to load sales orders for confirmation." };
+  }
+
+  const orderById = new Map((orders ?? []).map((row) => [row.id as string, row]));
+
+  const { data: lineRows } = await supabase
+    .from("sales_order_items")
+    .select("sales_order_id")
+    .eq("tenant_id", tenantId)
+    .in("sales_order_id", uniqueIds);
+
+  const lineCountBySoId = new Map<string, number>();
+  for (const row of lineRows ?? []) {
+    const id = row.sales_order_id as string;
+    lineCountBySoId.set(id, (lineCountBySoId.get(id) ?? 0) + 1);
+  }
+
+  const pendingIds = uniqueIds.filter(
+    (id) => orderById.get(id)?.commercial_status === "PENDING_APPROVAL"
+  );
+
+  const workflowCompleteIds =
+    pendingIds.length > 0
+      ? await fetchApprovalWorkflowCompleteByDocumentId(
+          supabase,
+          tenantId,
+          "SALES_ORDER",
+          pendingIds
+        )
+      : new Set<string>();
+
+  const confirmedIds: string[] = [];
+  const failures: Array<{ id: string; error: string }> = [];
+
+  for (const salesOrderId of uniqueIds) {
+    const order = orderById.get(salesOrderId);
+    if (!order) {
+      failures.push({ id: salesOrderId, error: "Sales order not found." });
+      continue;
+    }
+
+    if (
+      order.shipping_location_id &&
+      !canAccessSalesOrderShippingLocation(order.shipping_location_id as string, {
+        locationScope: access.locationScope,
+      })
+    ) {
+      failures.push({ id: salesOrderId, error: "You do not have access to this sales order." });
+      continue;
+    }
+
+    const orderPayload = {
+      commercial_status: order.commercial_status as string,
+      total_net_amount: order.total_net_amount as string | number,
+      line_count: lineCountBySoId.get(salesOrderId) ?? 0,
+      approval_workflow_complete: workflowCompleteIds.has(salesOrderId),
+    };
+
+    if (
+      !isSalesOrderConfirmableByUser(orderPayload, approvalSettings, userId, {
+        isOwner: access.isOwner,
+        editAccessGranted: access.granted,
+      })
+    ) {
+      failures.push({
+        id: salesOrderId,
+        error: "This sales order cannot be confirmed.",
+      });
+      continue;
+    }
+
+    const result = await runSalesOrderWorkflowRpc(
+      "confirm_sales_order",
+      { p_sales_order_id: salesOrderId },
+      { revalidate: false }
+    );
+
+    if ("error" in result) {
+      failures.push({ id: salesOrderId, error: result.error });
+      continue;
+    }
+
+    confirmedIds.push(result.salesOrderId);
+  }
+
+  if (confirmedIds.length > 0) {
+    revalidateSalesOrderPaths();
+    revalidatePath("/dashboard");
+  }
+
+  if (confirmedIds.length === 0) {
+    return {
+      error: failures[0]?.error ?? "Unable to confirm the selected sales orders.",
+    };
+  }
+
+  return {
+    success: true as const,
+    confirmedIds,
     failures,
   };
 }

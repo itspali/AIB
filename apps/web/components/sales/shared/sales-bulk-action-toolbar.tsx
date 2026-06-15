@@ -17,16 +17,23 @@ import { listControlShellClassName } from "@/lib/products/list-control-shell";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  entitySingular: string;
+  entityPlural: string;
+  selectionMenuLabel: string;
+  ariaLabel: string;
   selectedCount: number;
   totalMatchingCount: number;
   selectAllMatching: boolean;
   pageAllSelected: boolean;
   visibleCount: number;
   isPending: boolean;
+  pendingLabel?: string;
   onClearSelection: () => void;
   onSelectPage: () => void;
   onSelectAllMatching: () => void;
-  onApprove: () => void;
+  onApprove?: () => void;
+  onConfirm?: () => void;
+  confirmLabel?: string;
   embedded?: boolean;
 };
 
@@ -50,6 +57,7 @@ function BulkSelectionMenu({
   selectionScope,
   displayCount,
   isPending,
+  selectionMenuLabel,
   onSelectPage,
   onSelectAllMatching,
   onClearSelection,
@@ -59,6 +67,7 @@ function BulkSelectionMenu({
   selectionScope: SelectionScope;
   displayCount: number;
   isPending: boolean;
+  selectionMenuLabel: string;
   onSelectPage: () => void;
   onSelectAllMatching: () => void;
   onClearSelection: () => void;
@@ -81,7 +90,7 @@ function BulkSelectionMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Select sales orders for bulk approval
+          {selectionMenuLabel}
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={selectionScope === "partial" ? "" : selectionScope}
@@ -91,15 +100,15 @@ function BulkSelectionMenu({
           }}
         >
           <DropdownMenuRadioItem value="listed" disabled={visibleCount <= 0}>
-            Listed orders ({visibleCount})
+            Listed ({visibleCount})
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="all-matching" disabled={totalMatchingCount <= 0}>
-            All matching orders ({totalMatchingCount})
+            All matching ({totalMatchingCount})
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         {hasMoreThanListed ? (
           <p className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground">
-            All matching includes pending orders filtered by your current view.
+            All matching includes documents filtered by your current view.
           </p>
         ) : null}
         <DropdownMenuSeparator />
@@ -114,17 +123,24 @@ function BulkSelectionMenu({
   );
 }
 
-export function SoBulkActionToolbar({
+export function SalesBulkActionToolbar({
+  entitySingular,
+  entityPlural,
+  selectionMenuLabel,
+  ariaLabel,
   selectedCount,
   totalMatchingCount,
   selectAllMatching,
   pageAllSelected,
   visibleCount,
   isPending,
+  pendingLabel = "Processing",
   onClearSelection,
   onSelectPage,
   onSelectAllMatching,
   onApprove,
+  onConfirm,
+  confirmLabel = "Confirm",
   embedded = false,
 }: Props) {
   const displayCount = selectAllMatching ? totalMatchingCount : selectedCount;
@@ -133,7 +149,7 @@ export function SoBulkActionToolbar({
 
   if (!hasSelection) return null;
 
-  const selectionLabel = `${displayCount} ${displayCount === 1 ? "order" : "orders"} selected`;
+  const selectionLabel = `${displayCount} ${displayCount === 1 ? entitySingular : entityPlural} selected`;
   const compactSelectionLabel = `${displayCount} selected`;
 
   return (
@@ -145,7 +161,7 @@ export function SoBulkActionToolbar({
         )
       )}
       role="toolbar"
-      aria-label="Bulk sales order actions"
+      aria-label={ariaLabel}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -162,6 +178,7 @@ export function SoBulkActionToolbar({
               selectionScope={selectionScope}
               displayCount={displayCount}
               isPending={isPending}
+              selectionMenuLabel={selectionMenuLabel}
               onSelectPage={onSelectPage}
               onSelectAllMatching={onSelectAllMatching}
               onClearSelection={onClearSelection}
@@ -171,17 +188,31 @@ export function SoBulkActionToolbar({
 
         <div className="flex shrink-0 items-center gap-2">
           {isPending ? (
-            <Spinner className="text-muted-foreground" label="Approving sales orders" />
+            <Spinner className="text-muted-foreground" label={pendingLabel} />
           ) : null}
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 px-2.5 text-xs"
-            disabled={isPending}
-            onClick={onApprove}
-          >
-            Approve
-          </Button>
+          {onApprove ? (
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              disabled={isPending}
+              onClick={onApprove}
+            >
+              Approve
+            </Button>
+          ) : null}
+          {onConfirm ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-7 px-2.5 text-xs"
+              disabled={isPending}
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

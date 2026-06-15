@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { bulkApproveSalesOrders, loadSalesOrders } from "@/app/sales/orders/actions";
-import { SoBulkActionToolbar } from "@/components/sales/orders/so-bulk-action-toolbar";
+import { bulkApproveSalesOrders, bulkConfirmSalesOrders, loadSalesOrders } from "@/app/sales/orders/actions";
+import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
 import { SoDrawerForm } from "@/components/sales/orders/so-drawer-form";
 import { SoEmptyState } from "@/components/sales/orders/so-empty-state";
 import { SoListTable } from "@/components/sales/orders/so-list-table";
@@ -42,6 +42,7 @@ import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import {
   canUserApproveSalesOrders,
   isSalesOrderApprovableByUser,
+  isSalesOrderConfirmableByUser,
 } from "@/lib/sales/approval-settings";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
@@ -121,13 +122,30 @@ export function SoManagementTerminal({
   const canBulkApprove = canUserApproveSalesOrders(currentUserId, approvalSettings, {
     isOwner,
   });
+  const canBulkConfirm = editAccessGranted;
 
   const isRowBulkApprovable = useCallback(
     (row: SalesOrderRow) => {
+      if (!canBulkApprove) return false;
       if (isOwner) return row.commercial_status === "PENDING_APPROVAL";
       return isSalesOrderApprovableByUser(row, currentUserId, approvalSettings, { isOwner });
     },
-    [approvalSettings, currentUserId, isOwner]
+    [approvalSettings, canBulkApprove, currentUserId, isOwner]
+  );
+
+  const isRowBulkConfirmable = useCallback(
+    (row: SalesOrderRow) =>
+      canBulkConfirm &&
+      isSalesOrderConfirmableByUser(row, approvalSettings, currentUserId, {
+        isOwner,
+        editAccessGranted,
+      }),
+    [approvalSettings, canBulkConfirm, currentUserId, editAccessGranted, isOwner]
+  );
+
+  const isRowBulkSelectable = useCallback(
+    (row: SalesOrderRow) => isRowBulkApprovable(row) || isRowBulkConfirmable(row),
+    [isRowBulkApprovable, isRowBulkConfirmable]
   );
 
   useEffect(() => {
@@ -245,24 +263,24 @@ export function SoManagementTerminal({
     [filteredRows, prefs.sortDirection, prefs.sortField]
   );
 
-  const approvableMatchingIds = useMemo(
-    () => filteredRows.filter(isRowBulkApprovable).map((row) => row.id),
-    [filteredRows, isRowBulkApprovable]
+  const selectableMatchingIds = useMemo(
+    () => filteredRows.filter(isRowBulkSelectable).map((row) => row.id),
+    [filteredRows, isRowBulkSelectable]
   );
 
-  const approvableVisibleIds = useMemo(
-    () => sortedRows.filter(isRowBulkApprovable).map((row) => row.id),
-    [isRowBulkApprovable, sortedRows]
+  const selectableVisibleIds = useMemo(
+    () => sortedRows.filter(isRowBulkSelectable).map((row) => row.id),
+    [isRowBulkSelectable, sortedRows]
   );
 
   const pageAllSelected =
-    approvableVisibleIds.length > 0 &&
-    approvableVisibleIds.every((id) => bulkSelectedIds.has(id));
+    selectableVisibleIds.length > 0 &&
+    selectableVisibleIds.every((id) => bulkSelectedIds.has(id));
   const pageSomeSelected =
-    approvableVisibleIds.some((id) => bulkSelectedIds.has(id)) && !pageAllSelected;
+    selectableVisibleIds.some((id) => bulkSelectedIds.has(id)) && !pageAllSelected;
 
   const bulkSelectionCount = bulkSelectAllMatching
-    ? approvableMatchingIds.length
+    ? selectableMatchingIds.length
     : bulkSelectedIds.size;
 
   const clearBulkSelection = useCallback(() => {
@@ -271,8 +289,28 @@ export function SoManagementTerminal({
   }, []);
 
   const resolveSelectedIds = useCallback(
-    () => resolveBulkSalesOrderIds(bulkSelectAllMatching, bulkSelectedIds, approvableMatchingIds),
-    [approvableMatchingIds, bulkSelectAllMatching, bulkSelectedIds]
+    () => resolveBulkSalesOrderIds(bulkSelectAllMatching, bulkSelectedIds, selectableMatchingIds),
+    [bulkSelectAllMatching, bulkSelectedIds, selectableMatchingIds]
+  );
+
+  const rowById = useMemo(() => new Map(salesOrders.map((row) => [row.id, row])), [salesOrders]);
+
+  const filterSelectedApprovableIds = useCallback(
+    (ids: string[]) =>
+      ids.filter((id) => {
+        const row = rowById.get(id);
+        return row != null && isRowBulkApprovable(row);
+      }),
+    [isRowBulkApprovable, rowById]
+  );
+
+  const filterSelectedConfirmableIds = useCallback(
+    (ids: string[]) =>
+      ids.filter((id) => {
+        const row = rowById.get(id);
+        return row != null && isRowBulkConfirmable(row);
+      }),
+    [isRowBulkConfirmable, rowById]
   );
 
   const handleBulkRowToggle = useCallback((salesOrderId: string, checked: boolean) => {
@@ -290,18 +328,18 @@ export function SoManagementTerminal({
       setBulkSelectAllMatching(false);
       setBulkSelectedIds((current) => {
         const next = new Set(current);
-        for (const id of approvableVisibleIds) {
+        for (const id of selectableVisibleIds) {
           if (checked) next.add(id);
           else next.delete(id);
         }
         return next;
       });
     },
-    [approvableVisibleIds]
+    [selectableVisibleIds]
   );
 
   const handleBulkApprove = useCallback(() => {
-    const ids = resolveSelectedIds();
+    const ids = filterSelectedApprovableIds(resolveSelectedIds());
     if (ids.length === 0) {
       toast.error("Select at least one sales order pending your approval.");
       return;
@@ -329,7 +367,37 @@ export function SoManagementTerminal({
       refreshList();
       notifyApprovalAlertChanged();
     });
-  }, [clearBulkSelection, refreshList, resolveSelectedIds]);
+  }, [clearBulkSelection, filterSelectedApprovableIds, refreshList, resolveSelectedIds]);
+
+  const handleBulkConfirm = useCallback(() => {
+    const ids = filterSelectedConfirmableIds(resolveSelectedIds());
+    if (ids.length === 0) {
+      toast.error("Select at least one sales order that can be confirmed.");
+      return;
+    }
+
+    startBulkTransition(async () => {
+      const result = await bulkConfirmSalesOrders({ sales_order_ids: ids });
+      if (result.success !== true) {
+        toast.error(result.error ?? "Unable to confirm the selected sales orders.");
+        return;
+      }
+
+      const confirmedCount = result.confirmedIds.length;
+      const failedCount = result.failures.length;
+      if (failedCount > 0) {
+        toast.success(
+          `${confirmedCount} sales ${confirmedCount === 1 ? "order" : "orders"} confirmed; ${failedCount} could not be confirmed.`
+        );
+      } else {
+        toast.success(
+          `${confirmedCount} sales ${confirmedCount === 1 ? "order" : "orders"} confirmed`
+        );
+      }
+      clearBulkSelection();
+      refreshList();
+    });
+  }, [clearBulkSelection, filterSelectedConfirmableIds, refreshList, resolveSelectedIds]);
 
   const handleSortChange = useCallback(
     (field: SalesOrderListSortField, direction: SalesOrderListSortDirection) => {
@@ -390,32 +458,39 @@ export function SoManagementTerminal({
       }
       selectedId={selectedId}
       onSelect={handleSelect}
-      bulkSelectionEnabled={canBulkApprove}
+      bulkSelectionEnabled={canBulkApprove || canBulkConfirm}
       bulkSelectedIds={bulkSelectedIds}
       pageAllSelected={pageAllSelected}
       pageSomeSelected={pageSomeSelected}
-      isRowBulkSelectable={isRowBulkApprovable}
+      isRowBulkSelectable={isRowBulkSelectable}
       onBulkRowToggle={handleBulkRowToggle}
       onBulkPageToggle={handleBulkPageToggle}
     />
   );
 
   const bulkToolbar =
-    hasAnyData && canBulkApprove && bulkSelectionCount > 0 ? (
-      <SoBulkActionToolbar
+    hasAnyData && (canBulkApprove || canBulkConfirm) && bulkSelectionCount > 0 ? (
+      <SalesBulkActionToolbar
+        entitySingular="sales order"
+        entityPlural="sales orders"
+        selectionMenuLabel="Select sales orders for bulk actions"
+        ariaLabel="Bulk sales order actions"
         selectedCount={bulkSelectedIds.size}
-        totalMatchingCount={approvableMatchingIds.length}
+        totalMatchingCount={selectableMatchingIds.length}
         selectAllMatching={bulkSelectAllMatching}
         pageAllSelected={pageAllSelected}
-        visibleCount={approvableVisibleIds.length}
+        visibleCount={selectableVisibleIds.length}
         isPending={isBulkPending}
+        pendingLabel="Processing sales orders"
         onClearSelection={clearBulkSelection}
         onSelectPage={() => handleBulkPageToggle(true)}
         onSelectAllMatching={() => {
           setBulkSelectAllMatching(true);
-          setBulkSelectedIds(new Set(approvableMatchingIds));
+          setBulkSelectedIds(new Set(selectableMatchingIds));
         }}
-        onApprove={handleBulkApprove}
+        onApprove={canBulkApprove ? handleBulkApprove : undefined}
+        onConfirm={canBulkConfirm ? handleBulkConfirm : undefined}
+        confirmLabel="Confirm"
         embedded
       />
     ) : null;

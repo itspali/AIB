@@ -28,6 +28,18 @@ import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resol
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
+import {
+  canAccessSalesOrderShippingLocation,
+  resolveSalesOrderEditAccess,
+} from "@/lib/sales/access";
+import {
+  canUserApproveSalesInvoices,
+  describeSalesOrderSelfApprovalBlocker,
+  isSalesInvoiceApprovableByUser,
+  isSalesInvoicePostableByUser,
+} from "@/lib/sales/approval-settings";
+import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
+import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
 const INVOICE_PATHS = [
   SALES_INVOICES_HREF,
@@ -179,6 +191,7 @@ export async function saveSalesInvoice(raw: unknown) {
     p_lines: values.lines.map((line) =>
       mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_invoiced), {
         source_order_line_id: line.source_order_line_id ?? null,
+        source_quotation_line_id: line.source_quotation_line_id ?? null,
       })
     ),
     p_created_by: userId,
@@ -290,6 +303,293 @@ export async function postSalesInvoice(raw: unknown) {
 
   revalidateInvoicePaths();
   return { success: true as const, salesInvoiceId: parsed.data.sales_invoice_id };
+}
+
+const bulkApproveSalesInvoicesSchema = z.object({
+  sales_invoice_ids: z.array(z.string().uuid()).min(1),
+});
+
+export async function bulkApproveSalesInvoices(raw: unknown) {
+  const parsed = bulkApproveSalesInvoicesSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid bulk approval request." };
+  }
+
+  const uniqueIds = [...new Set(parsed.data.sales_invoice_ids)];
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [access, approvalSettings] = await Promise.all([
+    resolveSalesOrderEditAccess(supabase, userId, tenantId),
+    fetchSalesApprovalSettings(supabase, tenantId),
+  ]);
+
+  if (!canUserApproveSalesInvoices(userId, approvalSettings, { isOwner: access.isOwner })) {
+    return { error: "You do not have permission to approve invoices." };
+  }
+
+  const { data: invoices, error: fetchError } = await supabase
+    .from("sales_invoices")
+    .select("id, commercial_status, total_net_amount, origin_location_id")
+    .eq("tenant_id", tenantId)
+    .in("id", uniqueIds);
+
+  if (fetchError) {
+    return { error: "Unable to load invoices for approval." };
+  }
+
+  const invoiceById = new Map((invoices ?? []).map((row) => [row.id as string, row]));
+  const pendingIds = uniqueIds.filter(
+    (id) => invoiceById.get(id)?.commercial_status === "PENDING_APPROVAL"
+  );
+
+  const submitterByInvoiceId = new Map<string, string | null>();
+  if (pendingIds.length > 0) {
+    const { data: approvalRequests } = await supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "SALES_INVOICE")
+      .eq("status", "PENDING")
+      .in("document_id", pendingIds);
+
+    for (const request of approvalRequests ?? []) {
+      submitterByInvoiceId.set(
+        request.document_id as string,
+        (request.submitted_by as string | null) ?? null
+      );
+    }
+  }
+
+  const approvedIds: string[] = [];
+  const failures: Array<{ id: string; error: string }> = [];
+
+  for (const salesInvoiceId of uniqueIds) {
+    const invoice = invoiceById.get(salesInvoiceId);
+    if (!invoice) {
+      failures.push({ id: salesInvoiceId, error: "Invoice not found." });
+      continue;
+    }
+
+    if (
+      invoice.origin_location_id &&
+      !canAccessSalesOrderShippingLocation(invoice.origin_location_id as string, {
+        locationScope: access.locationScope,
+      })
+    ) {
+      failures.push({ id: salesInvoiceId, error: "You do not have access to this invoice." });
+      continue;
+    }
+
+    if (invoice.commercial_status !== "PENDING_APPROVAL") {
+      failures.push({
+        id: salesInvoiceId,
+        error: "Only pending-approval invoices can be approved.",
+      });
+      continue;
+    }
+
+    if (!access.isOwner) {
+      const approvalSubmittedBy = submitterByInvoiceId.get(salesInvoiceId) ?? null;
+      const invoicePayload = {
+        commercial_status: invoice.commercial_status as string,
+        total_net_amount: invoice.total_net_amount as string | number,
+        approval_submitted_by: approvalSubmittedBy,
+      };
+
+      if (
+        !isSalesInvoiceApprovableByUser(invoicePayload, userId, approvalSettings, {
+          isOwner: false,
+        })
+      ) {
+        const selfApprovalBlocker =
+          approvalSubmittedBy === userId
+            ? describeSalesOrderSelfApprovalBlocker(
+                approvalSettings,
+                Number(invoice.total_net_amount),
+                userId,
+                { isOwner: false }
+              )
+            : null;
+
+        failures.push({
+          id: salesInvoiceId,
+          error: selfApprovalBlocker ?? "This invoice cannot be approved by you.",
+        });
+        continue;
+      }
+    }
+
+    const { error } = await supabase.rpc("approve_sales_invoice", {
+      p_sales_invoice_id: salesInvoiceId,
+      p_notes: null,
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        failures.push({ id: salesInvoiceId, error: formatRpcDeployError("approve_sales_invoice") });
+      } else {
+        failures.push({
+          id: salesInvoiceId,
+          error: formatSalesInvoiceRpcError(error.message).message,
+        });
+      }
+      continue;
+    }
+
+    approvedIds.push(salesInvoiceId);
+  }
+
+  if (approvedIds.length > 0) {
+    revalidateInvoicePaths();
+    revalidatePath("/dashboard");
+  }
+
+  if (approvedIds.length === 0) {
+    return {
+      error: failures[0]?.error ?? "Unable to approve the selected invoices.",
+    };
+  }
+
+  return {
+    success: true as const,
+    approvedIds,
+    failures,
+  };
+}
+
+const bulkPostSalesInvoicesSchema = z.object({
+  sales_invoice_ids: z.array(z.string().uuid()).min(1),
+});
+
+export async function bulkPostSalesInvoices(raw: unknown) {
+  const parsed = bulkPostSalesInvoicesSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid bulk post request." };
+  }
+
+  const uniqueIds = [...new Set(parsed.data.sales_invoice_ids)];
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [access, approvalSettings] = await Promise.all([
+    resolveSalesOrderEditAccess(supabase, userId, tenantId),
+    fetchSalesApprovalSettings(supabase, tenantId),
+  ]);
+
+  if (!access.granted) {
+    return { error: "You do not have permission to post invoices." };
+  }
+
+  const { data: invoices, error: fetchError } = await supabase
+    .from("sales_invoices")
+    .select("id, commercial_status, total_net_amount, origin_location_id")
+    .eq("tenant_id", tenantId)
+    .in("id", uniqueIds);
+
+  if (fetchError) {
+    return { error: "Unable to load invoices for posting." };
+  }
+
+  const invoiceById = new Map((invoices ?? []).map((row) => [row.id as string, row]));
+
+  const { data: lineRows } = await supabase
+    .from("sales_invoice_items")
+    .select("sales_invoice_id")
+    .eq("tenant_id", tenantId)
+    .in("sales_invoice_id", uniqueIds);
+
+  const lineCountByInvoiceId = new Map<string, number>();
+  for (const row of lineRows ?? []) {
+    const id = row.sales_invoice_id as string;
+    lineCountByInvoiceId.set(id, (lineCountByInvoiceId.get(id) ?? 0) + 1);
+  }
+
+  const pendingIds = uniqueIds.filter(
+    (id) => invoiceById.get(id)?.commercial_status === "PENDING_APPROVAL"
+  );
+
+  const workflowCompleteIds =
+    pendingIds.length > 0
+      ? await fetchApprovalWorkflowCompleteByDocumentId(
+          supabase,
+          tenantId,
+          "SALES_INVOICE",
+          pendingIds
+        )
+      : new Set<string>();
+
+  const postedIds: string[] = [];
+  const failures: Array<{ id: string; error: string }> = [];
+
+  for (const salesInvoiceId of uniqueIds) {
+    const invoice = invoiceById.get(salesInvoiceId);
+    if (!invoice) {
+      failures.push({ id: salesInvoiceId, error: "Invoice not found." });
+      continue;
+    }
+
+    if (
+      invoice.origin_location_id &&
+      !canAccessSalesOrderShippingLocation(invoice.origin_location_id as string, {
+        locationScope: access.locationScope,
+      })
+    ) {
+      failures.push({ id: salesInvoiceId, error: "You do not have access to this invoice." });
+      continue;
+    }
+
+    const invoicePayload = {
+      commercial_status: invoice.commercial_status as string,
+      total_net_amount: invoice.total_net_amount as string | number,
+      line_count: lineCountByInvoiceId.get(salesInvoiceId) ?? 0,
+      approval_workflow_complete: workflowCompleteIds.has(salesInvoiceId),
+    };
+
+    if (
+      !isSalesInvoicePostableByUser(invoicePayload, approvalSettings, userId, {
+        isOwner: access.isOwner,
+        editAccessGranted: access.granted,
+      })
+    ) {
+      failures.push({
+        id: salesInvoiceId,
+        error: "This invoice cannot be posted.",
+      });
+      continue;
+    }
+
+    const { error } = await supabase.rpc("post_sales_invoice", {
+      p_sales_invoice_id: salesInvoiceId,
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        failures.push({ id: salesInvoiceId, error: formatRpcDeployError("post_sales_invoice") });
+      } else {
+        failures.push({
+          id: salesInvoiceId,
+          error: formatSalesInvoiceRpcError(error.message).message,
+        });
+      }
+      continue;
+    }
+
+    postedIds.push(salesInvoiceId);
+  }
+
+  if (postedIds.length > 0) {
+    revalidateInvoicePaths();
+    revalidatePath("/dashboard");
+  }
+
+  if (postedIds.length === 0) {
+    return {
+      error: failures[0]?.error ?? "Unable to post the selected invoices.",
+    };
+  }
+
+  return {
+    success: true as const,
+    postedIds,
+    failures,
+  };
 }
 
 export async function convertOrderToInvoice(raw: unknown) {

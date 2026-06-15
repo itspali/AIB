@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { loadSalesQuotations } from "@/app/sales/quotes/actions";
+import { bulkApproveSalesQuotations, loadSalesQuotations } from "@/app/sales/quotes/actions";
 import { QuoteDrawerForm } from "@/components/sales/quotes/quote-drawer-form";
 import { QuoteEmptyState } from "@/components/sales/quotes/quote-empty-state";
 import { QuoteListTable } from "@/components/sales/quotes/quote-list-table";
 import { QuoteListToolbar } from "@/components/sales/quotes/quote-list-toolbar";
+import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultSalesQuoteListPrefs,
   loadSalesQuoteListPrefs,
@@ -32,9 +34,23 @@ import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
+import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
+import {
+  canUserApproveSalesQuotes,
+  isSalesQuoteApprovableByUser,
+} from "@/lib/sales/approval-settings";
 
 const QUOTE_PAGE_DESCRIPTION =
   "Create sales quotations, route them through approval, and convert to orders or invoices.";
+
+function resolveBulkQuoteIds(
+  bulkSelectAllMatching: boolean,
+  bulkSelectedIds: Set<string>,
+  matchingIds: string[]
+): string[] {
+  if (bulkSelectAllMatching) return matchingIds;
+  return [...bulkSelectedIds];
+}
 
 type Props = {
   initialQuotes: SalesQuoteRow[];
@@ -49,6 +65,9 @@ type Props = {
   tenantCountry?: string | null;
   preferredOriginLocationId?: string | null;
   documentConversionMode?: SalesDocumentConversionMode;
+  approvalSettings: SalesApprovalSettings;
+  currentUserId: string;
+  isOwner: boolean;
 };
 
 export function QuoteManagementTerminal({
@@ -64,6 +83,9 @@ export function QuoteManagementTerminal({
   tenantCountry = null,
   preferredOriginLocationId = null,
   documentConversionMode = "prefill_form",
+  approvalSettings,
+  currentUserId,
+  isOwner,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_QUOTES_HREF, {
@@ -73,6 +95,20 @@ export function QuoteManagementTerminal({
   const [prefs, setPrefs] = useState<SalesQuoteListPrefs>(getDefaultSalesQuoteListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [, startRefreshTransition] = useTransition();
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
+  const [isBulkPending, startBulkTransition] = useTransition();
+
+  const canBulkApprove = canUserApproveSalesQuotes(currentUserId, approvalSettings, { isOwner });
+
+  const isRowBulkApprovable = useCallback(
+    (row: SalesQuoteRow) => {
+      if (!canBulkApprove) return false;
+      if (isOwner) return row.commercial_status === "PENDING_APPROVAL";
+      return isSalesQuoteApprovableByUser(row, currentUserId, approvalSettings, { isOwner });
+    },
+    [approvalSettings, canBulkApprove, currentUserId, isOwner]
+  );
 
   useEffect(() => {
     setPrefs(loadSalesQuoteListPrefs());
@@ -149,10 +185,95 @@ export function QuoteManagementTerminal({
   }, [drawer, editAccessGranted]);
 
   const hasAnyData = quotes.length > 0;
+  const filteredRows = quotesView.filteredRows;
   const sortedRows = useMemo(
-    () => sortSalesQuoteListRows(quotesView.filteredRows, prefs.sortField, prefs.sortDirection),
-    [prefs.sortDirection, prefs.sortField, quotesView.filteredRows]
+    () => sortSalesQuoteListRows(filteredRows, prefs.sortField, prefs.sortDirection),
+    [prefs.sortDirection, prefs.sortField, filteredRows]
   );
+
+  const approvableMatchingIds = useMemo(
+    () => filteredRows.filter(isRowBulkApprovable).map((row) => row.id),
+    [filteredRows, isRowBulkApprovable]
+  );
+
+  const approvableVisibleIds = useMemo(
+    () => sortedRows.filter(isRowBulkApprovable).map((row) => row.id),
+    [isRowBulkApprovable, sortedRows]
+  );
+
+  const pageAllSelected =
+    approvableVisibleIds.length > 0 &&
+    approvableVisibleIds.every((id) => bulkSelectedIds.has(id));
+  const pageSomeSelected =
+    approvableVisibleIds.some((id) => bulkSelectedIds.has(id)) && !pageAllSelected;
+
+  const bulkSelectionCount = bulkSelectAllMatching
+    ? approvableMatchingIds.length
+    : bulkSelectedIds.size;
+
+  const clearBulkSelection = useCallback(() => {
+    setBulkSelectedIds(new Set());
+    setBulkSelectAllMatching(false);
+  }, []);
+
+  const resolveSelectedIds = useCallback(
+    () => resolveBulkQuoteIds(bulkSelectAllMatching, bulkSelectedIds, approvableMatchingIds),
+    [approvableMatchingIds, bulkSelectAllMatching, bulkSelectedIds]
+  );
+
+  const handleBulkRowToggle = useCallback((quoteId: string, checked: boolean) => {
+    setBulkSelectAllMatching(false);
+    setBulkSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(quoteId);
+      else next.delete(quoteId);
+      return next;
+    });
+  }, []);
+
+  const handleBulkPageToggle = useCallback(
+    (checked: boolean) => {
+      setBulkSelectAllMatching(false);
+      setBulkSelectedIds((current) => {
+        const next = new Set(current);
+        for (const id of approvableVisibleIds) {
+          if (checked) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    },
+    [approvableVisibleIds]
+  );
+
+  const handleBulkApprove = useCallback(() => {
+    const ids = resolveSelectedIds();
+    if (ids.length === 0) {
+      toast.error("Select at least one quote pending your approval.");
+      return;
+    }
+
+    startBulkTransition(async () => {
+      const result = await bulkApproveSalesQuotations({ quotation_ids: ids });
+      if (result.success !== true) {
+        toast.error(result.error ?? "Unable to approve the selected quotes.");
+        return;
+      }
+
+      const approvedCount = result.approvedIds.length;
+      const failedCount = result.failures.length;
+      if (failedCount > 0) {
+        toast.success(
+          `${approvedCount} ${approvedCount === 1 ? "quote" : "quotes"} approved; ${failedCount} could not be approved.`
+        );
+      } else {
+        toast.success(`${approvedCount} ${approvedCount === 1 ? "quote" : "quotes"} approved`);
+      }
+      clearBulkSelection();
+      refreshList();
+      notifyApprovalAlertChanged();
+    });
+  }, [clearBulkSelection, refreshList, resolveSelectedIds]);
 
   const handleSortChange = useCallback(
     (field: SalesQuoteListSortField, direction: SalesQuoteListSortDirection) => {
@@ -184,8 +305,40 @@ export function QuoteManagementTerminal({
       }
       selectedId={selectedId}
       onSelect={handleSelect}
+      bulkSelectionEnabled={canBulkApprove}
+      bulkSelectedIds={bulkSelectedIds}
+      pageAllSelected={pageAllSelected}
+      pageSomeSelected={pageSomeSelected}
+      isRowBulkSelectable={isRowBulkApprovable}
+      onBulkRowToggle={handleBulkRowToggle}
+      onBulkPageToggle={handleBulkPageToggle}
     />
   );
+
+  const bulkToolbar =
+    hasAnyData && canBulkApprove && bulkSelectionCount > 0 ? (
+      <SalesBulkActionToolbar
+        entitySingular="quote"
+        entityPlural="quotes"
+        selectionMenuLabel="Select quotes for bulk approval"
+        ariaLabel="Bulk quote actions"
+        selectedCount={bulkSelectedIds.size}
+        totalMatchingCount={approvableMatchingIds.length}
+        selectAllMatching={bulkSelectAllMatching}
+        pageAllSelected={pageAllSelected}
+        visibleCount={approvableVisibleIds.length}
+        isPending={isBulkPending}
+        pendingLabel="Approving quotes"
+        onClearSelection={clearBulkSelection}
+        onSelectPage={() => handleBulkPageToggle(true)}
+        onSelectAllMatching={() => {
+          setBulkSelectAllMatching(true);
+          setBulkSelectedIds(new Set(approvableMatchingIds));
+        }}
+        onApprove={handleBulkApprove}
+        embedded
+      />
+    ) : null;
 
   return (
     <>
@@ -212,6 +365,7 @@ export function QuoteManagementTerminal({
             />
           ) : null
         }
+        bulkToolbar={bulkToolbar}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           {listPrimary}

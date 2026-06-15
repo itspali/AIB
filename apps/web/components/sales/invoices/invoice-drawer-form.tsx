@@ -15,6 +15,10 @@ import {
 import { InvoiceDocumentEditorShell } from "@/components/sales/invoices/invoice-document-editor-shell";
 import { InvoicePaymentPanel } from "@/components/sales/invoices/invoice-payment-panel";
 import { InvoicePeekView } from "@/components/sales/invoices/invoice-peek-view";
+import {
+  SalesDocumentLinkPanel,
+  toSalesDocumentLinkRef,
+} from "@/components/sales/shared/sales-document-link-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
@@ -213,6 +217,13 @@ export function InvoiceDrawerForm({
     setForm((current) => ({ ...current, ...patch }));
   }, []);
 
+  const reloadInvoiceDetail = useCallback(async (invoiceId: string) => {
+    const result = await loadSalesInvoiceDetail(invoiceId);
+    if ("invoice" in result) {
+      setDetail(result.invoice);
+    }
+  }, []);
+
   const handleSave = () => {
     startTransition(async () => {
       setError(null);
@@ -246,6 +257,7 @@ export function InvoiceDrawerForm({
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
           source_order_line_id: line.source_order_line_id,
+          source_quotation_line_id: line.source_quotation_line_id,
           uom_code: resolveSalesDraftLineUomCodeForSave(line),
         })),
         ...buildSalesCommerceSaveExtras(form, savableLines, {
@@ -358,6 +370,23 @@ export function InvoiceDrawerForm({
               allowLineItemDiscounts={allowLineItemDiscounts}
               customers={customers}
               locations={locations}
+            />
+            <SalesDocumentLinkPanel
+              documentType="invoice"
+              documentId={detail.id}
+              customerId={detail.customer_id}
+              editAccessGranted={editAccessGranted}
+              sourceOrder={toSalesDocumentLinkRef(
+                "sales_order",
+                detail.source_order_id,
+                detail.source_order_number
+              )}
+              sourceQuote={toSalesDocumentLinkRef(
+                "quote",
+                detail.source_quotation_id,
+                detail.source_quotation_number
+              )}
+              onLinked={() => void reloadInvoiceDetail(detail.id)}
             />
             {detail.commercial_status === "APPROVED_ACTIVE" ? (
               <InvoicePaymentPanel

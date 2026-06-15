@@ -53,6 +53,7 @@ export const salesOrderLineSchema = z
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed >= 0;
       }, "Discount amount must be zero or greater."),
+    source_quotation_line_id: z.string().uuid().optional().nullable(),
   })
   .merge(salesCommerceLineUomSchema);
 

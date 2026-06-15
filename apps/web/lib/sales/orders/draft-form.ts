@@ -26,6 +26,7 @@ export type SoDraftLine = {
   unit_price_selling: string;
   discount_percentage: string;
   discount_amount: string;
+  source_quotation_line_id?: string | null;
   uom_code?: string;
   skuError: string | null;
   catalog_context?: import("@/lib/documents/catalog-line-values").PoLineCatalogContext | null;
@@ -161,7 +162,9 @@ export function mapSavedSoLineToDraftLine(
 
 export function mapSoLinesToRpcPayload(lines: SoDraftLine[]) {
   return filterSavableSoLines(lines).map((line) =>
-    mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_ordered))
+    mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_ordered), {
+      source_quotation_line_id: line.source_quotation_line_id,
+    })
   );
 }
 
@@ -232,6 +235,7 @@ export function mapSalesQuoteToSoDraft(
         unit_price_selling: line.unit_price_selling,
         discount_percentage: line.discount_percentage ?? "0",
         discount_amount: line.discount_amount ?? "0",
+        source_quotation_line_id: line.id,
         uom_code: line.uom_code ?? undefined,
         base_unit_of_measure: line.base_unit_of_measure ?? null,
         skuError: null,

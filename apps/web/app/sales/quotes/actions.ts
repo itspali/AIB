@@ -24,6 +24,15 @@ import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resol
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
+import {
+  canAccessSalesOrderShippingLocation,
+  resolveSalesOrderEditAccess,
+} from "@/lib/sales/access";
+import {
+  canUserApproveSalesQuotes,
+  isSalesQuoteApprovableByUser,
+} from "@/lib/sales/approval-settings";
+import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
 
 const QUOTE_PATHS = [SALES_QUOTES_HREF, SALES_ORDERS_HREF, SALES_INVOICES_HREF, "/sales", "/dashboard"] as const;
 
@@ -201,6 +210,145 @@ export async function rejectSalesQuotation(raw: unknown) {
 
   revalidateQuotePaths();
   return { success: true as const, quotationId: parsed.data.quotation_id };
+}
+
+const bulkApproveSalesQuotationsSchema = z.object({
+  quotation_ids: z.array(z.string().uuid()).min(1),
+});
+
+export async function bulkApproveSalesQuotations(raw: unknown) {
+  const parsed = bulkApproveSalesQuotationsSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid bulk approval request." };
+  }
+
+  const uniqueIds = [...new Set(parsed.data.quotation_ids)];
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const [access, approvalSettings] = await Promise.all([
+    resolveSalesOrderEditAccess(supabase, userId, tenantId),
+    fetchSalesApprovalSettings(supabase, tenantId),
+  ]);
+
+  if (!canUserApproveSalesQuotes(userId, approvalSettings, { isOwner: access.isOwner })) {
+    return { error: "You do not have permission to approve quotes." };
+  }
+
+  const { data: quotes, error: fetchError } = await supabase
+    .from("sales_quotations")
+    .select("id, commercial_status, total_net_amount, origin_location_id")
+    .eq("tenant_id", tenantId)
+    .in("id", uniqueIds);
+
+  if (fetchError) {
+    return { error: "Unable to load quotes for approval." };
+  }
+
+  const quoteById = new Map((quotes ?? []).map((row) => [row.id as string, row]));
+  const pendingIds = uniqueIds.filter(
+    (id) => quoteById.get(id)?.commercial_status === "PENDING_APPROVAL"
+  );
+
+  const submitterByQuoteId = new Map<string, string | null>();
+  if (pendingIds.length > 0) {
+    const { data: approvalRequests } = await supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "SALES_QUOTATION")
+      .eq("status", "PENDING")
+      .in("document_id", pendingIds);
+
+    for (const request of approvalRequests ?? []) {
+      submitterByQuoteId.set(
+        request.document_id as string,
+        (request.submitted_by as string | null) ?? null
+      );
+    }
+  }
+
+  const approvedIds: string[] = [];
+  const failures: Array<{ id: string; error: string }> = [];
+
+  for (const quotationId of uniqueIds) {
+    const quote = quoteById.get(quotationId);
+    if (!quote) {
+      failures.push({ id: quotationId, error: "Quote not found." });
+      continue;
+    }
+
+    if (
+      quote.origin_location_id &&
+      !canAccessSalesOrderShippingLocation(quote.origin_location_id as string, {
+        locationScope: access.locationScope,
+      })
+    ) {
+      failures.push({ id: quotationId, error: "You do not have access to this quote." });
+      continue;
+    }
+
+    if (quote.commercial_status !== "PENDING_APPROVAL") {
+      failures.push({
+        id: quotationId,
+        error: "Only pending-approval quotes can be approved.",
+      });
+      continue;
+    }
+
+    if (!access.isOwner) {
+      const approvalSubmittedBy = submitterByQuoteId.get(quotationId) ?? null;
+      const quotePayload = {
+        commercial_status: quote.commercial_status as string,
+        total_net_amount: quote.total_net_amount as string | number,
+        approval_submitted_by: approvalSubmittedBy,
+      };
+
+      if (
+        !isSalesQuoteApprovableByUser(quotePayload, userId, approvalSettings, { isOwner: false })
+      ) {
+        failures.push({
+          id: quotationId,
+          error: "This quote cannot be approved by you.",
+        });
+        continue;
+      }
+    }
+
+    const { error } = await supabase.rpc("approve_sales_quotation", {
+      p_quotation_id: quotationId,
+      p_notes: null,
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        failures.push({ id: quotationId, error: formatRpcDeployError("approve_sales_quotation") });
+      } else {
+        failures.push({
+          id: quotationId,
+          error: formatSalesQuoteRpcError(error.message).message,
+        });
+      }
+      continue;
+    }
+
+    approvedIds.push(quotationId);
+  }
+
+  if (approvedIds.length > 0) {
+    revalidateQuotePaths();
+    revalidatePath("/dashboard");
+  }
+
+  if (approvedIds.length === 0) {
+    return {
+      error: failures[0]?.error ?? "Unable to approve the selected quotes.",
+    };
+  }
+
+  return {
+    success: true as const,
+    approvedIds,
+    failures,
+  };
 }
 
 export async function convertQuotationToOrder(raw: unknown) {

@@ -1,8 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SalesCommerceAddressBlocks } from "@/components/sales/shared/sales-commerce-address-blocks";
 import { SalesCommercePeekLinesSection } from "@/components/sales/shared/sales-commerce-peek-lines-table";
+import {
+  SALES_ORDERS_HREF,
+  SALES_QUOTES_HREF,
+} from "@/lib/sales/navigation";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import { DEFAULT_SALES_INVOICE_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
 import { resolveSalesCommerceAddressBlocks } from "@/lib/sales/shared/resolve-sales-address-blocks";
@@ -60,8 +66,28 @@ export function InvoicePeekView({
         </div>
         <div>
           <p className="text-xs font-medium text-muted-foreground">Sales order</p>
-          <p className="font-mono text-sm">{invoice.source_order_number ?? "—"}</p>
+          {invoice.source_order_id && invoice.source_order_number ? (
+            <Button type="button" size="sm" variant="ghost" className="h-auto p-0 font-mono text-sm text-primary" asChild>
+              <Link href={`${SALES_ORDERS_HREF}?id=${encodeURIComponent(invoice.source_order_id)}`}>
+                {invoice.source_order_number}
+              </Link>
+            </Button>
+          ) : (
+            <p className="font-mono text-sm">—</p>
+          )}
         </div>
+        {invoice.source_quotation_id && invoice.source_quotation_number ? (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Source quote</p>
+            <Button type="button" size="sm" variant="ghost" className="h-auto p-0 font-mono text-sm text-primary" asChild>
+              <Link
+                href={`${SALES_QUOTES_HREF}?id=${encodeURIComponent(invoice.source_quotation_id)}`}
+              >
+                {invoice.source_quotation_number}
+              </Link>
+            </Button>
+          </div>
+        ) : null}
         <div>
           <p className="text-xs font-medium text-muted-foreground">Paid</p>
           <p className="text-sm font-medium tabular-nums">{invoice.total_paid_amount}</p>

@@ -1,9 +1,10 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { renderSalesInvoiceListCell } from "@/components/sales/invoices/invoice-list-cells";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { getOrderedVisibleColumns } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
@@ -15,6 +16,8 @@ import {
 import { useResizableListColumns } from "@/lib/list-columns/use-resizable-list-columns";
 import {
   isAutoFrozenColumnPref,
+  LIST_SELECTION_COLUMN_Z_BODY,
+  LIST_SELECTION_COLUMN_Z_HEADER,
   LIST_TABLE_HEADER_Z,
   resolveListFrozenColumnCount,
   useFrozenListColumns,
@@ -33,13 +36,17 @@ import {
 import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
 import {
   LIST_TABLE_BODY_CELL,
+  LIST_TABLE_CHECKBOX_CLASS,
+  LIST_TABLE_FROZEN_EDGE_SHADOW,
   LIST_TABLE_HEADER_CELL,
+  LIST_TABLE_HEADER_CELL_BG,
   LIST_TABLE_HEADER_SORTABLE,
   LIST_TABLE_ROOT,
   LIST_TABLE_SCROLL,
   LIST_TABLE_SURFACE,
   listTableElementClass,
   listTableHeaderCornerClass,
+  listTableLeadingCellInteractionClass,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
@@ -55,20 +62,34 @@ type Props = {
   onColumnWidthChange?: (columnId: SalesInvoiceListColumnId, width: number | null) => void;
   selectedId: string | null;
   onSelect: (invoiceId: string) => void;
+  bulkSelectionEnabled?: boolean;
+  bulkSelectedIds?: Set<string>;
+  pageAllSelected?: boolean;
+  pageSomeSelected?: boolean;
+  isRowBulkSelectable?: (row: SalesInvoiceRow) => boolean;
+  onBulkRowToggle?: (invoiceId: string, checked: boolean) => void;
+  onBulkPageToggle?: (checked: boolean) => void;
 };
 
-export function InvoiceListTable(props: Props) {
-  const {
-    rows,
-    columnPrefs,
-    sortField,
-    sortDirection,
-    frozenColumnCount,
-    onSortChange,
-    onColumnWidthChange,
-    selectedId,
-    onSelect,
-  } = props;
+export function InvoiceListTable({
+  rows,
+  columnPrefs,
+  sortField,
+  sortDirection,
+  frozenColumnCount,
+  onSortChange,
+  onColumnWidthChange,
+  selectedId,
+  onSelect,
+  bulkSelectionEnabled = false,
+  bulkSelectedIds = new Set<string>(),
+  pageAllSelected = false,
+  pageSomeSelected = false,
+  isRowBulkSelectable = () => false,
+  onBulkRowToggle,
+  onBulkPageToggle,
+}: Props) {
+  const selectionColumnRef = useRef<HTMLTableCellElement | null>(null);
   const { deviceClass } = useDeviceClass();
   const columns = useMemo(() => getOrderedVisibleColumns(columnPrefs), [columnPrefs]);
   const widthRemeasureKey = useMemo(
@@ -80,6 +101,7 @@ export function InvoiceListTable(props: Props) {
     columnCount: columns.length,
     frozenColumnCount: resolvedFrozenCount,
     freezeColumnsAuto: isAutoFrozenColumnPref(frozenColumnCount),
+    leadingColumnRef: bulkSelectionEnabled ? selectionColumnRef : undefined,
     remeasureKey: `${rows.length}:${widthRemeasureKey}`,
   });
   const resolveAutoWidth = useCallback(
@@ -111,6 +133,22 @@ export function InvoiceListTable(props: Props) {
     onSortChange(next.field, next.direction);
   };
 
+  const selectionColumnShowsEdge =
+    bulkSelectionEnabled && frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
+
+  const selectionHeaderClass = cn(
+    "w-10 p-0 font-medium text-muted-foreground",
+    LIST_TABLE_HEADER_CELL_BG,
+    selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
+  );
+
+  const selectionBodyClass = (selected: boolean) =>
+    cn(
+      "w-10 p-0 text-center",
+      selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW,
+      listTableLeadingCellInteractionClass(selected)
+    );
+
   return (
     <div className={LIST_TABLE_ROOT}>
       <div className={LIST_TABLE_SURFACE}>
@@ -118,6 +156,25 @@ export function InvoiceListTable(props: Props) {
           <table className={listTableElementClass("medium")}>
             <thead>
               <tr className="text-left">
+                {bulkSelectionEnabled ? (
+                  <th
+                    ref={selectionColumnRef}
+                    className={cn(
+                      "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
+                      selectionHeaderClass
+                    )}
+                    style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
+                  >
+                    <div className="flex items-center justify-center p-2.5">
+                      <Checkbox
+                        className={LIST_TABLE_CHECKBOX_CLASS}
+                        checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                        onCheckedChange={(checked) => onBulkPageToggle?.(checked === true)}
+                        aria-label="Select all actionable invoices on this page"
+                      />
+                    </div>
+                  </th>
+                ) : null}
                 {columns.map((columnId, index) => {
                   const column = getSalesInvoiceColumnDef(columnId);
                   const active = sortField === columnId;
@@ -141,7 +198,10 @@ export function InvoiceListTable(props: Props) {
                         frozen.headerCellClass(index),
                         column.align === "right" && "text-right",
                         active && "text-foreground",
-                        listTableHeaderCornerClass(index, columns.length - 1)
+                        listTableHeaderCornerClass(
+                          bulkSelectionEnabled ? index + 1 : index,
+                          bulkSelectionEnabled ? columns.length : columns.length - 1
+                        )
                       )}
                       style={{
                         ...mergeColumnCellStyles(sticky.style, widthStyles),
@@ -187,34 +247,67 @@ export function InvoiceListTable(props: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className={listTableRowClass(selectedId === row.id, true)}
-                  onClick={() => onSelect(row.id)}
-                >
-                  {columns.map((columnId, index) => {
-                    const column = getSalesInvoiceColumnDef(columnId);
-                    const sticky = frozen.getStickyCellProps(index, "body");
-                    const widthStyles = resize.resolveWidthStyles(columnId, index);
+              {rows.map((row) => {
+                const selected = selectedId === row.id;
+                const bulkSelected = bulkSelectedIds.has(row.id);
+                const bulkSelectable = isRowBulkSelectable(row);
 
-                    return (
+                return (
+                  <tr
+                    key={row.id}
+                    className={listTableRowClass(selected, true)}
+                    onClick={() => onSelect(row.id)}
+                  >
+                    {bulkSelectionEnabled ? (
                       <td
-                        key={columnId}
                         className={cn(
+                          "sticky left-0 isolate",
                           LIST_TABLE_BODY_CELL,
-                          sticky.className,
-                          frozen.bodyCellClass(index, selectedId === row.id),
-                          column.align === "right" && "text-right"
+                          selectionBodyClass(selected)
                         )}
-                        style={mergeColumnCellStyles(sticky.style, widthStyles)}
+                        style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
                       >
-                        {renderSalesInvoiceListCell(columnId, row)}
+                        {bulkSelectable ? (
+                          <div
+                            className="flex items-center justify-center p-2.5"
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                          >
+                            <Checkbox
+                              className={LIST_TABLE_CHECKBOX_CLASS}
+                              checked={bulkSelected}
+                              onCheckedChange={(checked) =>
+                                onBulkRowToggle?.(row.id, checked === true)
+                              }
+                              aria-label={`Select ${row.invoice_number}`}
+                            />
+                          </div>
+                        ) : null}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                    ) : null}
+                    {columns.map((columnId, index) => {
+                      const column = getSalesInvoiceColumnDef(columnId);
+                      const sticky = frozen.getStickyCellProps(index, "body");
+                      const widthStyles = resize.resolveWidthStyles(columnId, index);
+
+                      return (
+                        <td
+                          key={columnId}
+                          className={cn(
+                            LIST_TABLE_BODY_CELL,
+                            sticky.className,
+                            frozen.bodyCellClass(index, selected),
+                            column.align === "right" && "text-right"
+                          )}
+                          style={mergeColumnCellStyles(sticky.style, widthStyles)}
+                        >
+                          {renderSalesInvoiceListCell(columnId, row)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -15,6 +15,7 @@ export type SalesInvoiceLineRow = {
   line_total_net: string;
   line_tax_amount: string;
   source_order_line_id: string | null;
+  source_quotation_line_id?: string | null;
   base_unit_of_measure?: string | null;
   uom_code?: string | null;
   uom_conversion_factor?: string | null;
@@ -31,6 +32,7 @@ export type SalesInvoiceRow = {
   source_order_id: string | null;
   source_order_number: string | null;
   source_quotation_id: string | null;
+  source_quotation_number?: string | null;
   commercial_status: SalesDocumentStatus;
   invoice_payment_status: SalesPaymentStatus;
   billing_state: string;
@@ -46,6 +48,7 @@ export type SalesInvoiceRow = {
   created_by: string;
   created_by_name: string;
   approval_submitted_by?: string | null;
+  approval_workflow_complete?: boolean;
   created_at: string;
   updated_at: string;
   lines?: SalesInvoiceLineRow[];

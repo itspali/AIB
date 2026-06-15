@@ -20,6 +20,12 @@ import { DocumentPeekActivityShell } from "@/components/activity/document-peek-a
 import { SoDocumentEditorShell } from "@/components/sales/orders/so-document-editor-shell";
 import { SoPeekView } from "@/components/sales/orders/so-peek-view";
 import { SalesDocumentConversionConfirmDialog } from "@/components/sales/shared/sales-document-conversion-confirm-dialog";
+import {
+  SalesDocumentLinkPanel,
+  toSalesDocumentLinkRef,
+  type SalesDocumentLinkRef,
+} from "@/components/sales/shared/sales-document-link-panel";
+import { loadInvoicesLinkedToSalesOrder } from "@/app/sales/link-actions";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -153,6 +159,7 @@ export function SoDrawerForm({
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectNotes, setRejectNotes] = useState("");
   const [invoiceConversionDialogOpen, setInvoiceConversionDialogOpen] = useState(false);
+  const [relatedInvoices, setRelatedInvoices] = useState<SalesDocumentLinkRef[]>([]);
   const submitRef = useRef<() => void>(() => {});
 
   const resolvedPeekRecordId = surface === "peek" ? (peekOrder?.id ?? peekRecordId) : null;
@@ -247,7 +254,7 @@ export function SoDrawerForm({
       setDetailLoading(false);
       if ("error" in result) {
         toast.error(result.error ?? "Unable to load quotation prefill.");
-        setError(result.error);
+        setError(result.error ?? "Unable to load quotation prefill.");
         setForm(
           defaultSoDraftForm(
             locations,
@@ -348,6 +355,23 @@ export function SoDrawerForm({
     setDetail(result.salesOrder);
   }, []);
 
+  useEffect(() => {
+    if (!open || !detail?.id) {
+      setRelatedInvoices([]);
+      return;
+    }
+
+    let cancelled = false;
+    void loadInvoicesLinkedToSalesOrder(detail.id).then((result) => {
+      if (cancelled || "error" in result) return;
+      setRelatedInvoices(result.invoices ?? []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detail?.id, open]);
+
   const handleSaveDraft = useCallback(() => {
     setError(null);
     setErrorAction(null);
@@ -376,6 +400,7 @@ export function SoDrawerForm({
           unit_price_selling: line.unit_price_selling,
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
+          source_quotation_line_id: line.source_quotation_line_id,
           uom_code: resolveSalesDraftLineUomCodeForSave(line),
         })),
         ...buildSalesCommerceSaveExtras(form, savableLines, {
@@ -547,7 +572,7 @@ export function SoDrawerForm({
 
       setInvoiceConversionDialogOpen(false);
       toast.success("Invoice created.");
-      if ("salesInvoiceId" in result) {
+      if ("salesInvoiceId" in result && result.salesInvoiceId) {
         router.push(`${SALES_INVOICES_HREF}?id=${encodeURIComponent(result.salesInvoiceId)}`);
       }
     });
@@ -743,31 +768,75 @@ export function SoDrawerForm({
             allowLineItemDiscounts={allowLineItemDiscounts}
             customers={customers}
           />
+          <SalesDocumentLinkPanel
+            documentType="sales_order"
+            documentId={detail.id}
+            customerId={detail.customer_id}
+            editAccessGranted={editAccessGranted}
+            sourceQuote={toSalesDocumentLinkRef(
+              "quote",
+              detail.source_quotation_id,
+              detail.source_quotation_number
+            )}
+            relatedInvoices={relatedInvoices}
+            onLinked={async () => {
+              await reloadDetail(detail.id);
+              const invoiceResult = await loadInvoicesLinkedToSalesOrder(detail.id);
+              if ("invoices" in invoiceResult) {
+                setRelatedInvoices(invoiceResult.invoices ?? []);
+              }
+            }}
+          />
         </DocumentPeekActivityShell>
       ) : isMutating ? (
-        <SoDocumentEditorShell
-          form={form}
-          locations={locations}
-          customers={customers}
-          defaultCurrency={defaultCurrency}
-          documentLayout={documentLayout}
-          allowLineItemDiscounts={allowLineItemDiscounts}
-          allowTransactionDiscounts={allowTransactionDiscounts}
-          taxCodeOptions={taxCodeOptions}
-          tenantCountry={tenantCountry}
-          isPending={isPending}
-          onPatch={patchForm}
-          onLinesChange={(linesOrUpdater) => {
-            setForm((current) => ({
-              ...current,
-              lines:
-                typeof linesOrUpdater === "function"
-                  ? linesOrUpdater(current.lines)
-                  : linesOrUpdater,
-            }));
-            setIsDirty(true);
-          }}
-        />
+        <>
+          <SoDocumentEditorShell
+            form={form}
+            locations={locations}
+            customers={customers}
+            defaultCurrency={defaultCurrency}
+            documentLayout={documentLayout}
+            allowLineItemDiscounts={allowLineItemDiscounts}
+            allowTransactionDiscounts={allowTransactionDiscounts}
+            taxCodeOptions={taxCodeOptions}
+            tenantCountry={tenantCountry}
+            isPending={isPending}
+            onPatch={patchForm}
+            onLinesChange={(linesOrUpdater) => {
+              setForm((current) => ({
+                ...current,
+                lines:
+                  typeof linesOrUpdater === "function"
+                    ? linesOrUpdater(current.lines)
+                    : linesOrUpdater,
+              }));
+              setIsDirty(true);
+            }}
+          />
+          {detail?.id ? (
+            <div className="mt-6">
+              <SalesDocumentLinkPanel
+                documentType="sales_order"
+                documentId={detail.id}
+                customerId={detail.customer_id}
+                editAccessGranted={editAccessGranted}
+                sourceQuote={toSalesDocumentLinkRef(
+                  "quote",
+                  detail.source_quotation_id,
+                  detail.source_quotation_number
+                )}
+                relatedInvoices={relatedInvoices}
+                onLinked={async () => {
+                  await reloadDetail(detail.id);
+                  const invoiceResult = await loadInvoicesLinkedToSalesOrder(detail.id);
+                  if ("invoices" in invoiceResult) {
+                    setRelatedInvoices(invoiceResult.invoices ?? []);
+                  }
+                }}
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {surface === "edit" && salesOrderId ? (

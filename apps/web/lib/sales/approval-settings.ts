@@ -362,3 +362,63 @@ export function isInvoiceApprovalRequiredBeforePost(
 
   return true;
 }
+
+export function isSalesOrderConfirmableByUser(
+  order: {
+    commercial_status: string;
+    total_net_amount: string | number;
+    line_count: number;
+    approval_workflow_complete?: boolean;
+  },
+  settings: SalesApprovalSettings,
+  userId: string,
+  options: SalesApproverOptions & { editAccessGranted: boolean }
+): boolean {
+  if (!options.editAccessGranted) return false;
+  if (order.line_count < 1) return false;
+
+  if (order.commercial_status === "DRAFT") {
+    return !isSoApprovalRequiredBeforeConfirm(
+      settings,
+      Number(order.total_net_amount),
+      userId,
+      options
+    );
+  }
+
+  if (order.commercial_status === "PENDING_APPROVAL") {
+    return order.approval_workflow_complete === true;
+  }
+
+  return false;
+}
+
+export function isSalesInvoicePostableByUser(
+  invoice: {
+    commercial_status: string;
+    total_net_amount: string | number;
+    line_count: number;
+    approval_workflow_complete?: boolean;
+  },
+  settings: SalesApprovalSettings,
+  userId: string,
+  options: SalesApproverOptions & { editAccessGranted: boolean }
+): boolean {
+  if (!options.editAccessGranted) return false;
+  if (invoice.line_count < 1) return false;
+
+  if (invoice.commercial_status === "DRAFT") {
+    return !isInvoiceApprovalRequiredBeforePost(
+      settings,
+      Number(invoice.total_net_amount),
+      userId,
+      options
+    );
+  }
+
+  if (invoice.commercial_status === "PENDING_APPROVAL") {
+    return invoice.approval_workflow_complete === true;
+  }
+
+  return false;
+}

@@ -15,6 +15,10 @@ import {
 import { QuoteDocumentEditorShell } from "@/components/sales/quotes/quote-document-editor-shell";
 import { QuotePeekView } from "@/components/sales/quotes/quote-peek-view";
 import {
+  SalesDocumentLinkPanel,
+  toSalesDocumentLinkRef,
+} from "@/components/sales/shared/sales-document-link-panel";
+import {
   SalesDocumentConversionConfirmDialog,
   type SalesDocumentConversionKind,
 } from "@/components/sales/shared/sales-document-conversion-confirm-dialog";
@@ -197,6 +201,13 @@ export function QuoteDrawerForm({
     setForm((current) => ({ ...current, ...patch }));
   }, []);
 
+  const reloadQuoteDetail = useCallback(async (quoteId: string) => {
+    const result = await loadSalesQuotationDetail(quoteId);
+    if ("quote" in result) {
+      setDetail(result.quote);
+    }
+  }, []);
+
   const handleSave = () => {
     startTransition(async () => {
       setError(null);
@@ -298,11 +309,11 @@ export function QuoteDrawerForm({
         conversionKind === "quote_to_order" ? "Sales order created." : "Invoice created."
       );
 
-      if (conversionKind === "quote_to_order" && "salesOrderId" in result) {
+      if (conversionKind === "quote_to_order" && "salesOrderId" in result && result.salesOrderId) {
         router.push(`${SALES_ORDERS_HREF}?id=${encodeURIComponent(result.salesOrderId)}`);
         return;
       }
-      if ("salesInvoiceId" in result) {
+      if ("salesInvoiceId" in result && result.salesInvoiceId) {
         router.push(`${SALES_INVOICES_HREF}?id=${encodeURIComponent(result.salesInvoiceId)}`);
       }
     });
@@ -384,13 +395,32 @@ export function QuoteDrawerForm({
         detailLoading ? (
           <p className="text-sm text-muted-foreground">Loading quote…</p>
         ) : detail ? (
-          <QuotePeekView
-            quote={detail}
-            layout={documentLayout}
-            allowLineItemDiscounts={allowLineItemDiscounts}
-            customers={customers}
-            locations={locations}
-          />
+          <div className="space-y-6">
+            <QuotePeekView
+              quote={detail}
+              layout={documentLayout}
+              allowLineItemDiscounts={allowLineItemDiscounts}
+              customers={customers}
+              locations={locations}
+            />
+            <SalesDocumentLinkPanel
+              documentType="quote"
+              documentId={detail.id}
+              customerId={detail.customer_id}
+              editAccessGranted={editAccessGranted}
+              convertedOrder={toSalesDocumentLinkRef(
+                "sales_order",
+                detail.converted_to_order_id,
+                detail.converted_to_order_number
+              )}
+              convertedInvoice={toSalesDocumentLinkRef(
+                "invoice",
+                detail.converted_to_invoice_id,
+                detail.converted_to_invoice_number
+              )}
+              onLinked={() => void reloadQuoteDetail(detail.id)}
+            />
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">Quote not found.</p>
         )

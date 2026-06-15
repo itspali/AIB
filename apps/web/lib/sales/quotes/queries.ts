@@ -6,6 +6,10 @@ import type { SalesQuoteLineRow, SalesQuoteRow } from "@/lib/sales/quotes/types"
 const ORIGIN_LOCATION_EMBED =
   "origin_location:tenant_locations!sales_quotations_origin_location_tenant_fk";
 const CUSTOMER_EMBED = "customer:entities!sales_quotations_customer_tenant_fk";
+const CONVERTED_ORDER_EMBED =
+  "converted_order:sales_orders!sales_quotations_converted_to_order_tenant_fk";
+const CONVERTED_INVOICE_EMBED =
+  "converted_invoice:sales_invoices!sales_quotations_converted_to_invoice_tenant_fk";
 const QUOTE_ITEMS_EMBED =
   "quote_lines:sales_quotation_items!sales_quotation_items_quotation_tenant_fk";
 
@@ -97,6 +101,8 @@ type QuoteListDbRow = {
   updated_at: string;
   origin_location: { name: string; code: string } | { name: string; code: string }[] | null;
   customer: { name: string; tax_treatment?: string | null } | { name: string; tax_treatment?: string | null }[] | null;
+  converted_order: { voucher_number: string } | { voucher_number: string }[] | null;
+  converted_invoice: { invoice_number: string } | { invoice_number: string }[] | null;
   quote_lines: Array<{ id: string }> | null;
 };
 
@@ -144,6 +150,8 @@ function mapQuoteLine(row: QuoteLineDbRow): SalesQuoteLineRow {
 function mapQuoteListRow(row: QuoteListDbRow): SalesQuoteRow {
   const originLocation = resolveJoin(row.origin_location);
   const customer = resolveJoin(row.customer);
+  const convertedOrder = resolveJoin(row.converted_order);
+  const convertedInvoice = resolveJoin(row.converted_invoice);
 
   return {
     id: row.id,
@@ -166,6 +174,8 @@ function mapQuoteListRow(row: QuoteListDbRow): SalesQuoteRow {
     custom_fields: row.custom_fields ?? {},
     converted_to_order_id: row.converted_to_order_id,
     converted_to_invoice_id: row.converted_to_invoice_id,
+    converted_to_order_number: convertedOrder?.voucher_number ?? null,
+    converted_to_invoice_number: convertedInvoice?.invoice_number ?? null,
     created_by: row.created_by,
     created_by_name: "",
     approval_submitted_by: null,
@@ -195,6 +205,8 @@ const QUOTE_LIST_SELECT = `
   updated_at,
   ${ORIGIN_LOCATION_EMBED} (name, code),
   ${CUSTOMER_EMBED} (name, tax_treatment),
+  ${CONVERTED_ORDER_EMBED} (voucher_number),
+  ${CONVERTED_INVOICE_EMBED} (invoice_number),
   ${QUOTE_ITEMS_EMBED} (id)
 `;
 
@@ -219,6 +231,8 @@ const QUOTE_DETAIL_SELECT = `
   updated_at,
   ${ORIGIN_LOCATION_EMBED} (name, code),
   ${CUSTOMER_EMBED} (name, tax_treatment),
+  ${CONVERTED_ORDER_EMBED} (voucher_number),
+  ${CONVERTED_INVOICE_EMBED} (invoice_number),
   ${QUOTE_ITEMS_EMBED} (
     id,
     item_id,
