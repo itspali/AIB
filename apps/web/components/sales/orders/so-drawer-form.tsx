@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { convertOrderToInvoice } from "@/app/sales/invoices/actions";
+import { loadSalesOrderPrefillFromQuote } from "@/app/sales/quotes/actions";
 import {
   approveSalesOrder,
   confirmSalesOrder,
@@ -16,6 +19,7 @@ import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-a
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { SoDocumentEditorShell } from "@/components/sales/orders/so-document-editor-shell";
 import { SoPeekView } from "@/components/sales/orders/so-peek-view";
+import { SalesDocumentConversionConfirmDialog } from "@/components/sales/shared/sales-document-conversion-confirm-dialog";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -36,8 +40,10 @@ import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawe
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   invoiceCreateFromSoHref,
+  SALES_INVOICES_HREF,
   soFullPageEditHref,
 } from "@/lib/sales/navigation";
+import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import { canEditSalesOrderDocument } from "@/lib/sales/access";
 import {
   copySoDraftFromOrder,
@@ -46,6 +52,7 @@ import {
   mapSalesOrderToDraft,
   type SoDraftFormState,
 } from "@/lib/sales/orders/draft-form";
+import { resolveSalesDraftLineUomCodeForSave } from "@/lib/sales/shared/sales-line-uom-options";
 import { buildSalesCommerceSaveExtras } from "@/lib/sales/shared/sales-commerce-save-extras";
 import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
@@ -82,6 +89,8 @@ type Props = {
   tenantCountry?: string | null;
   preferredShippingLocationId?: string | null;
   copyFromId?: string | null;
+  createPrefillQuoteId?: string | null;
+  documentConversionMode?: SalesDocumentConversionMode;
   onDuplicate?: (salesOrderId: string) => void;
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
@@ -114,11 +123,14 @@ export function SoDrawerForm({
   tenantCountry = null,
   preferredShippingLocationId = null,
   copyFromId = null,
+  createPrefillQuoteId = null,
+  documentConversionMode = "prefill_form",
   onDuplicate,
   approvalSettings,
   currentUserId,
   isOwner,
 }: Props) {
+  const router = useRouter();
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
   const { lineTableFillHeight, useDrawerBodyScroll } = useSalesDrawerFormLayout(isMutating);
@@ -140,6 +152,7 @@ export function SoDrawerForm({
   const [detailLoading, setDetailLoading] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectNotes, setRejectNotes] = useState("");
+  const [invoiceConversionDialogOpen, setInvoiceConversionDialogOpen] = useState(false);
   const submitRef = useRef<() => void>(() => {});
 
   const resolvedPeekRecordId = surface === "peek" ? (peekOrder?.id ?? peekRecordId) : null;
@@ -153,7 +166,7 @@ export function SoDrawerForm({
     setErrorAction(null);
     setIsDirty(false);
     if (surface === "create") {
-      if (!copyFromId) {
+      if (!copyFromId && !createPrefillQuoteId) {
         setForm(
           defaultSoDraftForm(
             locations,
@@ -181,6 +194,7 @@ export function SoDrawerForm({
     }
   }, [
     copyFromId,
+    createPrefillQuoteId,
     open,
     surface,
     peekOrder?.id,
@@ -222,6 +236,47 @@ export function SoDrawerForm({
       cancelled = true;
     };
   }, [copyFromId, customers, entryLineKey, locations, open, preferredShippingLocationId, surface]);
+
+  useEffect(() => {
+    if (!open || surface !== "create" || !createPrefillQuoteId || copyFromId) return;
+
+    let cancelled = false;
+    setDetailLoading(true);
+    void loadSalesOrderPrefillFromQuote(createPrefillQuoteId).then((result) => {
+      if (cancelled) return;
+      setDetailLoading(false);
+      if ("error" in result) {
+        toast.error(result.error ?? "Unable to load quotation prefill.");
+        setError(result.error);
+        setForm(
+          defaultSoDraftForm(
+            locations,
+            customers,
+            preferredShippingLocationId,
+            entryLineKey,
+            defaultCurrency
+          )
+        );
+        return;
+      }
+      setForm(result.draft);
+      setIsDirty(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    copyFromId,
+    createPrefillQuoteId,
+    customers,
+    defaultCurrency,
+    entryLineKey,
+    locations,
+    open,
+    preferredShippingLocationId,
+    surface,
+  ]);
 
   useEffect(() => {
     if (!open || surface !== "peek" || !resolvedPeekRecordId) return;
@@ -321,6 +376,7 @@ export function SoDrawerForm({
           unit_price_selling: line.unit_price_selling,
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
+          uom_code: resolveSalesDraftLineUomCodeForSave(line),
         })),
         ...buildSalesCommerceSaveExtras(form, savableLines, {
           allowTransactionDiscounts,
@@ -463,6 +519,40 @@ export function SoDrawerForm({
     detail?.commercial_status === "APPROVED_ACTIVE" ||
     detail?.commercial_status === "PARTIALLY_SHIPPED";
 
+  const handleCreateInvoice = () => {
+    if (!detail) return;
+
+    if (documentConversionMode === "prefill_form") {
+      router.push(invoiceCreateFromSoHref(detail.id));
+      return;
+    }
+
+    setInvoiceConversionDialogOpen(true);
+  };
+
+  const handleConfirmInvoiceConversion = () => {
+    if (!detail) return;
+
+    startTransition(async () => {
+      setError(null);
+      const result = await convertOrderToInvoice({
+        sales_order_id: detail.id,
+        origin_location_id: detail.shipping_location_id,
+      });
+
+      if ("error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setInvoiceConversionDialogOpen(false);
+      toast.success("Invoice created.");
+      if ("salesInvoiceId" in result) {
+        router.push(`${SALES_INVOICES_HREF}?id=${encodeURIComponent(result.salesInvoiceId)}`);
+      }
+    });
+  };
+
   const headerActions =
     surface === "peek" && detail ? (
       <>
@@ -525,9 +615,20 @@ export function SoDrawerForm({
           </>
         ) : null}
         {canCreateInvoice ? (
-          <Button type="button" size="sm" asChild>
-            <Link href={invoiceCreateFromSoHref(detail.id)}>Create invoice</Link>
-          </Button>
+          documentConversionMode === "prefill_form" ? (
+            <Button type="button" size="sm" asChild>
+              <Link href={invoiceCreateFromSoHref(detail.id)}>Create invoice</Link>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              disabled={isPending}
+              onClick={handleCreateInvoice}
+            >
+              Create invoice
+            </Button>
+          )
         ) : null}
         {editAccessGranted && onDuplicate ? (
           <Button
@@ -737,6 +838,14 @@ export function SoDrawerForm({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SalesDocumentConversionConfirmDialog
+        kind="order_to_invoice"
+        open={invoiceConversionDialogOpen}
+        isPending={isPending}
+        onOpenChange={setInvoiceConversionDialogOpen}
+        onConfirm={handleConfirmInvoiceConversion}
+      />
     </>
   );
 }

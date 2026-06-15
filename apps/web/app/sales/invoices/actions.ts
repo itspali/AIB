@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { lookupStockVariantBySku } from "@/app/inventory/stock/actions";
 import { fetchSalesOrderById } from "@/lib/sales/orders/queries";
-import { mapSalesOrderToInvoiceDraft } from "@/lib/sales/invoices/draft-form";
+import { fetchSalesQuotationById } from "@/lib/sales/quotes/queries";
+import { mapSalesOrderToInvoiceDraft, mapSalesQuoteToInvoiceDraft } from "@/lib/sales/invoices/draft-form";
 import {
   fetchInvoicePaymentApplications,
   fetchSalesInvoiceById,
   fetchSalesInvoices,
 } from "@/lib/sales/invoices/queries";
-import { mapInvoiceLinesToRpcPayload } from "@/lib/sales/invoices/draft-form";
+import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 import { formatSalesInvoiceRpcError } from "@/lib/sales/invoices/rpc-errors";
 import {
   approveSalesInvoiceSchema,
@@ -103,6 +104,22 @@ export async function loadSalesInvoicePrefillFromOrder(salesOrderId: string) {
   }
 }
 
+export async function loadSalesInvoicePrefillFromQuote(quotationId: string) {
+  const parsed = z.string().uuid().safeParse(quotationId);
+  if (!parsed.success) return { error: "Invalid quotation id." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  try {
+    const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
+    if (!quote) return { error: "Quotation not found." };
+    return { draft: mapSalesQuoteToInvoiceDraft(quote), quote };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load quotation prefill.",
+    };
+  }
+}
+
 export async function resolveInvoiceLineSku(sku: string) {
   return lookupStockVariantBySku(sku);
 }
@@ -159,21 +176,10 @@ export async function saveSalesInvoice(raw: unknown) {
     p_sales_invoice_id: values.sales_invoice_id ?? null,
     p_customer_id: values.customer_id,
     p_origin_location_id: values.origin_location_id,
-    p_lines: mapInvoiceLinesToRpcPayload(
-      values.lines.map((line) => ({
-        key: line.variant_id,
-        sku: "",
-        variant_id: line.variant_id,
-        item_id: "",
-        item_name: "",
-        variant_sku: "",
-        quantity_invoiced: line.quantity_invoiced,
-        unit_price_selling: line.unit_price_selling,
-        discount_percentage: line.discount_percentage,
-        discount_amount: line.discount_amount,
+    p_lines: values.lines.map((line) =>
+      mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_invoiced), {
         source_order_line_id: line.source_order_line_id ?? null,
-        skuError: null,
-      }))
+      })
     ),
     p_created_by: userId,
     p_billing_state: values.billing_state,

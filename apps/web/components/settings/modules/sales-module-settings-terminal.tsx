@@ -4,14 +4,17 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { SalesApprovalsPanel } from "@/components/settings/modules/sales-approvals-panel";
+import { SalesPoliciesPanel } from "@/components/settings/modules/sales-policies-panel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
+import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import type { WorkspaceEligibleUser } from "@/lib/organization/queries";
 
 type Props = {
   canEdit: boolean;
   approvalSettings: SalesApprovalSettings;
+  documentConversionMode: SalesDocumentConversionMode;
   eligibleUsers: WorkspaceEligibleUser[];
   approverProfiles: WorkspaceEligibleUser[];
 };
@@ -19,12 +22,14 @@ type Props = {
 export function SalesModuleSettingsTerminal({
   canEdit,
   approvalSettings,
+  documentConversionMode,
   eligibleUsers,
   approverProfiles,
 }: Props) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = tabParam === "approvals" ? "approvals" : "layout";
+  const initialTab =
+    tabParam === "approvals" ? "approvals" : tabParam === "policies" ? "policies" : "layout";
 
   return (
     <div className="canvas-scroll-endpad space-y-3">
@@ -47,6 +52,9 @@ export function SalesModuleSettingsTerminal({
           <TabsTrigger value="approvals" className="h-7 px-3 text-xs">
             Approvals
           </TabsTrigger>
+          <TabsTrigger value="policies" className="h-7 px-3 text-xs">
+            Policies
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="layout" className="mt-2">
@@ -64,6 +72,13 @@ export function SalesModuleSettingsTerminal({
             canEdit={canEdit}
             eligibleUsers={eligibleUsers}
             approverProfiles={approverProfiles}
+          />
+        </TabsContent>
+
+        <TabsContent value="policies" className="mt-2">
+          <SalesPoliciesPanel
+            initialDocumentConversionMode={documentConversionMode}
+            canEdit={canEdit}
           />
         </TabsContent>
       </Tabs>

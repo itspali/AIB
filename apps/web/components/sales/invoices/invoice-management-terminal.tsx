@@ -25,6 +25,7 @@ import {
 import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
 import { useFilteredInvoices } from "@/lib/sales/invoices/use-filtered-invoices";
 import {
+  INVOICE_DRAWER_QUOTE_PARAM,
   INVOICE_DRAWER_SO_PARAM,
   INVOICE_STATUS_FILTER_PARAM,
   SALES_INVOICES_HREF,
@@ -66,7 +67,11 @@ export function InvoiceManagementTerminal({
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_INVOICES_HREF, {
-    clearParamsOnClose: [INVOICE_DRAWER_SO_PARAM, INVOICE_STATUS_FILTER_PARAM],
+    clearParamsOnClose: [
+      INVOICE_DRAWER_SO_PARAM,
+      INVOICE_DRAWER_QUOTE_PARAM,
+      INVOICE_STATUS_FILTER_PARAM,
+    ],
   });
   const [invoices, setInvoices] = useState(initialInvoices);
   const [prefs, setPrefs] = useState<SalesInvoiceListPrefs>(getDefaultSalesInvoiceListPrefs);
@@ -116,6 +121,11 @@ export function InvoiceManagementTerminal({
   const createPrefillSoId = useMemo(() => {
     if (drawer.surface !== "create") return null;
     return searchParams.get(INVOICE_DRAWER_SO_PARAM)?.trim() || null;
+  }, [drawer.surface, searchParams]);
+
+  const createPrefillQuoteId = useMemo(() => {
+    if (drawer.surface !== "create") return null;
+    return searchParams.get(INVOICE_DRAWER_QUOTE_PARAM)?.trim() || null;
   }, [drawer.surface, searchParams]);
 
   const handleSelect = useCallback(
@@ -231,6 +241,7 @@ export function InvoiceManagementTerminal({
         peekRecordId={selectedId}
         editInvoiceId={editInvoiceId}
         createPrefillSoId={createPrefillSoId}
+        createPrefillQuoteId={createPrefillQuoteId}
         editAccessGranted={editAccessGranted}
         defaultCurrency={defaultCurrency}
         documentLayout={documentLayout}

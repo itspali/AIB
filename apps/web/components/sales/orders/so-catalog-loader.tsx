@@ -71,6 +71,7 @@ export async function SoCatalogLoader() {
       approvalSettings={approvalSettings}
       currentUserId={userId}
       isOwner={editAccess.isOwner}
+      documentConversionMode={salesSettings.document_conversion_mode}
     />
   );
 }

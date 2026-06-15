@@ -57,6 +57,7 @@ export async function QuoteCatalogLoader() {
       taxCodeOptions={taxCodeOptions}
       tenantCountry={tenantCountry}
       preferredOriginLocationId={preferredOriginLocationId ?? null}
+      documentConversionMode={salesSettings.document_conversion_mode}
     />
   );
 }

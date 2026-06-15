@@ -27,8 +27,10 @@ import {
 import {
   SALES_ORDERS_HREF,
   SO_COPY_FROM_PARAM,
+  SO_DRAWER_QUOTE_PARAM,
   SO_STATUS_FILTER_PARAM,
 } from "@/lib/sales/navigation";
+import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import type { SalesOrderStatus } from "@/lib/sales/orders/types";
 import { canEditSalesOrderDocument } from "@/lib/sales/access";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
@@ -76,6 +78,7 @@ type Props = {
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
   isOwner: boolean;
+  documentConversionMode?: SalesDocumentConversionMode;
 };
 
 export function SoManagementTerminal({
@@ -93,14 +96,19 @@ export function SoManagementTerminal({
   approvalSettings,
   currentUserId,
   isOwner,
+  documentConversionMode = "prefill_form",
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_ORDERS_HREF, {
-    clearParamsOnClose: [SO_COPY_FROM_PARAM, SO_STATUS_FILTER_PARAM],
+    clearParamsOnClose: [SO_COPY_FROM_PARAM, SO_DRAWER_QUOTE_PARAM, SO_STATUS_FILTER_PARAM],
   });
   const copyFromId = useMemo(() => {
     if (drawer.surface !== "create") return null;
     return searchParams.get(SO_COPY_FROM_PARAM)?.trim() || null;
+  }, [drawer.surface, searchParams]);
+  const createPrefillQuoteId = useMemo(() => {
+    if (drawer.surface !== "create") return null;
+    return searchParams.get(SO_DRAWER_QUOTE_PARAM)?.trim() || null;
   }, [drawer.surface, searchParams]);
   const [salesOrders, setSalesOrders] = useState(initialSalesOrders);
   const [prefs, setPrefs] = useState<SalesOrderListPrefs>(getDefaultSalesOrderListPrefs);
@@ -465,6 +473,8 @@ export function SoManagementTerminal({
         tenantCountry={tenantCountry}
         preferredShippingLocationId={preferredShippingLocationId}
         copyFromId={copyFromId}
+        createPrefillQuoteId={createPrefillQuoteId}
+        documentConversionMode={documentConversionMode}
         onDuplicate={editAccessGranted ? handleDuplicate : undefined}
         approvalSettings={approvalSettings}
         currentUserId={currentUserId}

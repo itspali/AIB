@@ -31,6 +31,7 @@ import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-l
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
+import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 
 const QUOTE_PAGE_DESCRIPTION =
   "Create sales quotations, route them through approval, and convert to orders or invoices.";
@@ -47,6 +48,7 @@ type Props = {
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
   preferredOriginLocationId?: string | null;
+  documentConversionMode?: SalesDocumentConversionMode;
 };
 
 export function QuoteManagementTerminal({
@@ -61,6 +63,7 @@ export function QuoteManagementTerminal({
   taxCodeOptions = [],
   tenantCountry = null,
   preferredOriginLocationId = null,
+  documentConversionMode = "prefill_form",
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_QUOTES_HREF, {
@@ -231,6 +234,7 @@ export function QuoteManagementTerminal({
         taxCodeOptions={taxCodeOptions}
         tenantCountry={tenantCountry}
         preferredOriginLocationId={preferredOriginLocationId}
+        documentConversionMode={documentConversionMode}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
         onOpenEdit={handleOpenEdit}

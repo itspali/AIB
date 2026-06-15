@@ -1,17 +1,24 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  DEFAULT_SALES_DOCUMENT_CONVERSION_MODE,
+  parseSalesDocumentConversionMode,
+  type SalesDocumentConversionMode,
+} from "@/lib/sales/document-conversion-settings";
 
 export type SalesSettings = {
   allow_line_item_discounts: boolean;
   allow_transaction_discounts: boolean;
   selling_prices_tax_inclusive: boolean;
+  document_conversion_mode: SalesDocumentConversionMode;
 };
 
 const DEFAULT_SALES_SETTINGS: SalesSettings = {
   allow_line_item_discounts: true,
   allow_transaction_discounts: false,
   selling_prices_tax_inclusive: false,
+  document_conversion_mode: DEFAULT_SALES_DOCUMENT_CONVERSION_MODE,
 };
 
 function readBoolean(
@@ -56,5 +63,6 @@ export async function fetchSalesSettings(
       "selling_prices_tax_inclusive",
       DEFAULT_SALES_SETTINGS.selling_prices_tax_inclusive
     ),
+    document_conversion_mode: parseSalesDocumentConversionMode(meta.document_conversion_mode),
   };
 }

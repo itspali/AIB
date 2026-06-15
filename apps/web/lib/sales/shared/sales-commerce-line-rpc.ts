@@ -24,12 +24,23 @@ export type SalesCommerceRpcLinePayload = {
   source_order_line_id?: string;
 };
 
+function trimUomCode(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function mapSalesCommerceLineToRpcPayload(
   line: SalesCommerceRpcLineSource,
   quantity: number,
   options?: { source_order_line_id?: string | null }
 ): SalesCommerceRpcLinePayload {
-  const uomCode = resolveSalesDraftLineUomCodeForSave(line);
+  const resolvedUom = resolveSalesDraftLineUomCodeForSave(line);
+  const explicitUom = trimUomCode(line.uom_code);
+  const baseUom =
+    trimUomCode(line.catalog_context?.base_unit_of_measure) ??
+    trimUomCode(line.base_unit_of_measure);
+  const uomCode =
+    resolvedUom ?? (explicitUom && explicitUom !== baseUom ? explicitUom : undefined);
   return {
     variant_id: line.variant_id,
     quantity,

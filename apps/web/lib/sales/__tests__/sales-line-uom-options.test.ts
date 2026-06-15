@@ -273,4 +273,26 @@ describe("mapSalesCommerceLineToRpcPayload", () => {
       discount_amount: 0,
     });
   });
+
+  it("keeps alternate uom_code from save payload without catalog snapshot", () => {
+    expect(
+      mapSalesCommerceLineToRpcPayload(
+        {
+          variant_id: "variant-1",
+          unit_price_selling: "10",
+          discount_percentage: "0",
+          discount_amount: "0",
+          uom_code: "BOX",
+        },
+        1
+      )
+    ).toEqual({
+      variant_id: "variant-1",
+      quantity: 1,
+      unit_price: 10,
+      discount_percentage: 0,
+      discount_amount: 0,
+      uom_code: "BOX",
+    });
+  });
 });

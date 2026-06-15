@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   approveSalesQuotation,
@@ -13,6 +14,10 @@ import {
 } from "@/app/sales/quotes/actions";
 import { QuoteDocumentEditorShell } from "@/components/sales/quotes/quote-document-editor-shell";
 import { QuotePeekView } from "@/components/sales/quotes/quote-peek-view";
+import {
+  SalesDocumentConversionConfirmDialog,
+  type SalesDocumentConversionKind,
+} from "@/components/sales/shared/sales-document-conversion-confirm-dialog";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
@@ -23,11 +28,19 @@ import {
   type QuoteDraftFormState,
 } from "@/lib/sales/quotes/draft-form";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
+import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
+import {
+  invoiceCreateFromQuoteHref,
+  SALES_INVOICES_HREF,
+  SALES_ORDERS_HREF,
+  soCreateFromQuoteHref,
+} from "@/lib/sales/navigation";
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
 import { buildSalesCommerceSaveExtras } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { resolveSalesDraftLineUomCodeForSave } from "@/lib/sales/shared/sales-line-uom-options";
 import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import { useSalesDrawerFormLayout } from "@/lib/sales/shared/sales-drawer-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
@@ -51,6 +64,7 @@ type Props = {
   allowTransactionDiscounts?: boolean;
   tenantCountry?: string | null;
   preferredOriginLocationId?: string | null;
+  documentConversionMode?: SalesDocumentConversionMode;
   onClose: () => void;
   onAfterSave: (quoteId: string) => void;
   onOpenEdit?: (quoteId: string) => void;
@@ -72,10 +86,12 @@ export function QuoteDrawerForm({
   allowTransactionDiscounts = false,
   tenantCountry = null,
   preferredOriginLocationId = null,
+  documentConversionMode = "prefill_form",
   onClose,
   onAfterSave,
   onOpenEdit,
 }: Props) {
+  const router = useRouter();
   const readOnly = surface === "peek";
   const isEditing = surface === "edit";
   const isCreating = surface === "create";
@@ -100,6 +116,8 @@ export function QuoteDrawerForm({
   const [error, setError] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [conversionKind, setConversionKind] = useState<SalesDocumentConversionKind | null>(null);
+  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
 
   const resolvedPeekRecordId = surface === "peek" ? (peekQuote?.id ?? peekRecordId) : null;
 
@@ -197,7 +215,7 @@ export function QuoteDrawerForm({
         shippingState: form.shipping_state,
       });
       const result = await saveSalesQuotation({
-        sales_quotation_id: editQuoteId,
+        sales_quotation_id: editQuoteId ?? detail?.id ?? null,
         customer_id: form.customer_id,
         origin_location_id: form.origin_location_id || null,
         billing_state: supplyStates.billing_state,
@@ -210,6 +228,7 @@ export function QuoteDrawerForm({
           unit_price_selling: line.unit_price_selling,
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
+          uom_code: resolveSalesDraftLineUomCodeForSave(line),
         })),
         ...buildSalesCommerceSaveExtras(form, savableLines, {
           allowTransactionDiscounts,
@@ -239,6 +258,56 @@ export function QuoteDrawerForm({
     });
   };
 
+  const handleQuoteConversion = (kind: "quote_to_order" | "quote_to_invoice") => {
+    if (!detail) return;
+
+    if (documentConversionMode === "prefill_form") {
+      const href =
+        kind === "quote_to_order"
+          ? soCreateFromQuoteHref(detail.id)
+          : invoiceCreateFromQuoteHref(detail.id);
+      router.push(href);
+      return;
+    }
+
+    setConversionKind(kind);
+    setConversionDialogOpen(true);
+  };
+
+  const handleConfirmConversion = () => {
+    if (!detail || !conversionKind) return;
+
+    startTransition(async () => {
+      setError(null);
+      const result =
+        conversionKind === "quote_to_order"
+          ? await convertQuotationToOrder({ quotation_id: detail.id })
+          : await convertQuotationToInvoice({
+              quotation_id: detail.id,
+              origin_location_id: detail.origin_location_id,
+            });
+
+      if ("error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setConversionDialogOpen(false);
+      setConversionKind(null);
+      toast.success(
+        conversionKind === "quote_to_order" ? "Sales order created." : "Invoice created."
+      );
+
+      if (conversionKind === "quote_to_order" && "salesOrderId" in result) {
+        router.push(`${SALES_ORDERS_HREF}?id=${encodeURIComponent(result.salesOrderId)}`);
+        return;
+      }
+      if ("salesInvoiceId" in result) {
+        router.push(`${SALES_INVOICES_HREF}?id=${encodeURIComponent(result.salesInvoiceId)}`);
+      }
+    });
+  };
+
   const title =
     surface === "create"
       ? "New quote"
@@ -259,9 +328,7 @@ export function QuoteDrawerForm({
           size="sm"
           variant="outline"
           disabled={isPending}
-          onClick={() =>
-            runWorkflow(() => convertQuotationToOrder({ quotation_id: detail.id }))
-          }
+          onClick={() => handleQuoteConversion("quote_to_order")}
         >
           Convert to order
         </Button>
@@ -272,14 +339,7 @@ export function QuoteDrawerForm({
           size="sm"
           variant="outline"
           disabled={isPending}
-          onClick={() =>
-            runWorkflow(() =>
-              convertQuotationToInvoice({
-                quotation_id: detail.id,
-                origin_location_id: detail.origin_location_id,
-              })
-            )
-          }
+          onClick={() => handleQuoteConversion("quote_to_invoice")}
         >
           Convert to invoice
         </Button>
@@ -415,6 +475,16 @@ export function QuoteDrawerForm({
         <div className={cn(isMutating && useDrawerBodyScroll && "shrink-0 pb-6")}>{drawerBody}</div>
       </RightDrawer>
       {discardDialog}
+      <SalesDocumentConversionConfirmDialog
+        kind={conversionKind}
+        open={conversionDialogOpen}
+        isPending={isPending}
+        onOpenChange={(next) => {
+          setConversionDialogOpen(next);
+          if (!next) setConversionKind(null);
+        }}
+        onConfirm={handleConfirmConversion}
+      />
     </>
   );
 }

@@ -18,6 +18,7 @@ import {
   type SoDraftFormState,
 } from "@/lib/sales/orders/draft-form";
 import { buildSalesCommerceSaveExtras } from "@/lib/sales/shared/sales-commerce-save-extras";
+import { resolveSalesDraftLineUomCodeForSave } from "@/lib/sales/shared/sales-line-uom-options";
 import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
@@ -163,6 +164,7 @@ export function useSoMutateForm({
           unit_price_selling: line.unit_price_selling,
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
+          uom_code: resolveSalesDraftLineUomCodeForSave(line),
         })),
         ...buildSalesCommerceSaveExtras(form, savableLines, {
           allowTransactionDiscounts,

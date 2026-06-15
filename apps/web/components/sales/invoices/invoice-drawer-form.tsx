@@ -6,6 +6,7 @@ import {
   approveSalesInvoice,
   loadSalesInvoiceDetail,
   loadSalesInvoicePrefillFromOrder,
+  loadSalesInvoicePrefillFromQuote,
   postSalesInvoice,
   rejectSalesInvoice,
   saveSalesInvoice,
@@ -28,6 +29,7 @@ import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { DEFAULT_SALES_INVOICE_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
+import { resolveSalesDraftLineUomCodeForSave } from "@/lib/sales/shared/sales-line-uom-options";
 import { buildSalesCommerceSaveExtras } from "@/lib/sales/shared/sales-commerce-save-extras";
 import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-commerce-draft";
 import { useSalesDrawerFormLayout } from "@/lib/sales/shared/sales-drawer-layout";
@@ -45,6 +47,7 @@ type Props = {
   peekRecordId: string | null;
   editInvoiceId: string | null;
   createPrefillSoId?: string | null;
+  createPrefillQuoteId?: string | null;
   editAccessGranted: boolean;
   defaultCurrency?: string;
   documentLayout?: DocumentLayoutTemplate;
@@ -66,6 +69,7 @@ export function InvoiceDrawerForm({
   peekRecordId,
   editInvoiceId,
   createPrefillSoId = null,
+  createPrefillQuoteId = null,
   editAccessGranted,
   defaultCurrency = "USD",
   documentLayout = DEFAULT_SALES_INVOICE_SCREEN_LAYOUT,
@@ -121,6 +125,26 @@ export function InvoiceDrawerForm({
             setForm(result.draft);
           })
           .finally(() => setDetailLoading(false));
+      } else if (createPrefillQuoteId) {
+        setDetailLoading(true);
+        loadSalesInvoicePrefillFromQuote(createPrefillQuoteId)
+          .then((result) => {
+            if ("error" in result) {
+              setError(result.error ?? "Unable to load prefill.");
+              setForm(
+                defaultInvoiceDraftForm(
+                  locations,
+                  customers,
+                  null,
+                  entryLineKey,
+                  defaultCurrency
+                )
+              );
+              return;
+            }
+            setForm(result.draft);
+          })
+          .finally(() => setDetailLoading(false));
       } else {
         setForm(
           defaultInvoiceDraftForm(locations, customers, null, entryLineKey, defaultCurrency)
@@ -154,6 +178,7 @@ export function InvoiceDrawerForm({
     editInvoiceId,
     peekRecordId,
     createPrefillSoId,
+    createPrefillQuoteId,
     locations,
     customers,
     entryLineKey,
@@ -221,6 +246,7 @@ export function InvoiceDrawerForm({
           discount_percentage: line.discount_percentage,
           discount_amount: line.discount_amount,
           source_order_line_id: line.source_order_line_id,
+          uom_code: resolveSalesDraftLineUomCodeForSave(line),
         })),
         ...buildSalesCommerceSaveExtras(form, savableLines, {
           allowTransactionDiscounts,

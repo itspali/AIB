@@ -70,6 +70,17 @@ export function formatSalesQuoteRpcError(
     return { message: "Enter a rejection reason before rejecting this quote." };
   }
 
+  if (
+    message.includes("sales_quotations_tenant_number_unique") ||
+    (message.toLowerCase().includes("duplicate key") &&
+      message.toLowerCase().includes("quotation"))
+  ) {
+    return {
+      message:
+        "This quote number is already in use. Save again to get the next available number.",
+    };
+  }
+
   return {
     message: replaceLocationTokens(message, context),
   };

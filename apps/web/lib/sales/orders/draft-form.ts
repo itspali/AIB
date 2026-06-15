@@ -12,6 +12,7 @@ import {
   type SalesOrderCustomFields,
 } from "@/lib/sales/orders/schemas";
 import type { SalesOrderLineRow, SalesOrderRow } from "@/lib/sales/orders/types";
+import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 
 export type SoDraftLine = {
@@ -198,6 +199,43 @@ export function copySoDraftFromOrder(order: SalesOrderRow): SoDraftFormState {
     },
     lines: ensureTrailingSoLine(
       sourceLines.map((line) => mapSavedSoLineToDraftLine(line, crypto.randomUUID()))
+    ),
+  };
+}
+
+export function mapSalesQuoteToSoDraft(
+  quote: SalesQuoteRow,
+  defaultCurrency = "USD"
+): SoDraftFormState {
+  const sourceLines = (quote.lines ?? []).filter((line) => Boolean(line.variant_id));
+
+  return {
+    customer_id: quote.customer_id,
+    shipping_location_id: quote.origin_location_id ?? "",
+    currency_code: (defaultCurrency as OrganizationCurrency),
+    payment_terms_days: String(quote.payment_terms_days ?? 0),
+    prices_tax_inclusive: false,
+    header_charges: emptySalesHeaderCharges(),
+    billing_state: quote.billing_state,
+    shipping_state: quote.shipping_state,
+    source_quotation_id: quote.id,
+    custom_fields: emptySalesOrderCustomFields(),
+    lines: ensureTrailingSoLine(
+      sourceLines.map((line) => ({
+        key: crypto.randomUUID(),
+        sku: line.variant_sku,
+        variant_id: line.variant_id,
+        item_id: line.item_id,
+        item_name: line.item_name,
+        variant_sku: line.variant_sku,
+        quantity_ordered: line.quantity_quoted,
+        unit_price_selling: line.unit_price_selling,
+        discount_percentage: line.discount_percentage ?? "0",
+        discount_amount: line.discount_amount ?? "0",
+        uom_code: line.uom_code ?? undefined,
+        base_unit_of_measure: line.base_unit_of_measure ?? null,
+        skuError: null,
+      }))
     ),
   };
 }

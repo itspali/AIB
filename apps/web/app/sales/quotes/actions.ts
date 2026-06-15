@@ -7,7 +7,7 @@ import {
   fetchSalesQuotationById,
   fetchSalesQuotations,
 } from "@/lib/sales/quotes/queries";
-import { mapQuoteLinesToRpcPayload } from "@/lib/sales/quotes/draft-form";
+import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 import { formatSalesQuoteRpcError } from "@/lib/sales/quotes/rpc-errors";
 import {
   approveSalesQuotationSchema,
@@ -17,6 +17,7 @@ import {
   submitSalesQuotationForApprovalSchema,
 } from "@/lib/sales/quotes/schemas";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
+import { mapSalesQuoteToSoDraft } from "@/lib/sales/orders/draft-form";
 import { SALES_INVOICES_HREF, SALES_ORDERS_HREF, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerce-save-extras";
 import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
@@ -110,20 +111,8 @@ export async function saveSalesQuotation(raw: unknown) {
   const { data, error } = await supabase.rpc("save_sales_quotation", {
     p_sales_quotation_id: values.sales_quotation_id ?? null,
     p_customer_id: values.customer_id,
-    p_lines: mapQuoteLinesToRpcPayload(
-      values.lines.map((line) => ({
-        key: line.variant_id,
-        sku: "",
-        variant_id: line.variant_id,
-        item_id: "",
-        item_name: "",
-        variant_sku: "",
-        quantity_quoted: line.quantity_quoted,
-        unit_price_selling: line.unit_price_selling,
-        discount_percentage: line.discount_percentage,
-        discount_amount: line.discount_amount,
-        skuError: null,
-      }))
+    p_lines: values.lines.map((line) =>
+      mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_quoted))
     ),
     p_created_by: userId,
     p_billing_state: values.billing_state,
@@ -258,4 +247,20 @@ export async function convertQuotationToInvoice(raw: unknown) {
   revalidateQuotePaths();
   revalidatePath(SALES_INVOICES_HREF);
   return { success: true as const, salesInvoiceId: data as string };
+}
+
+export async function loadSalesOrderPrefillFromQuote(quotationId: string) {
+  const parsed = z.string().uuid().safeParse(quotationId);
+  if (!parsed.success) return { error: "Invalid quotation id." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  try {
+    const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
+    if (!quote) return { error: "Quotation not found." };
+    return { draft: mapSalesQuoteToSoDraft(quote), quote };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load quotation prefill.",
+    };
+  }
 }

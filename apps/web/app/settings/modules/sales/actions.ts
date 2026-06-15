@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
+import { SALES_DOCUMENT_CONVERSION_MODES } from "@/lib/sales/document-conversion-settings";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 
@@ -183,6 +184,51 @@ export async function saveSalesApprovalSettings(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Unable to save approval settings.",
+    };
+  }
+}
+
+const saveSalesPoliciesSchema = z.object({
+  document_conversion_mode: z.enum(SALES_DOCUMENT_CONVERSION_MODES),
+});
+
+export async function saveSalesPolicies(raw: unknown) {
+  try {
+    const parsed = saveSalesPoliciesSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid sales policies." };
+    }
+
+    const { supabase, tenantId, userId } = await requireTenantId();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.granted) {
+      return { error: "You do not have permission to edit sales policies." };
+    }
+
+    const { error } = await supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: "SALES_SETTINGS",
+      p_metadata_patch: {
+        document_conversion_mode: parsed.data.document_conversion_mode,
+      },
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return { error: formatRpcDeployError("upsert_tenant_workspace_control") };
+      }
+      return { error: error.message };
+    }
+
+    revalidatePath("/settings/modules/sales");
+    revalidatePath("/sales/orders");
+    revalidatePath("/sales/quotes");
+    revalidatePath("/sales/invoices");
+    revalidatePath("/sales");
+
+    return { success: true as const };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to save sales policies.",
     };
   }
 }

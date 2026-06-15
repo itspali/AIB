@@ -7,14 +7,16 @@ import {
 } from "@/lib/organization/queries";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
+import { fetchSalesSettings } from "@/lib/sales/settings";
 
 export default async function SalesModuleSettingsPage() {
   const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
     await getModulePageContext();
 
-  const [access, approvalSettings, eligibleUsers] = await Promise.all([
+  const [access, approvalSettings, salesSettings, eligibleUsers] = await Promise.all([
     resolveOrganizationSettingsAccess(supabase, userId, tenantId),
     fetchSalesApprovalSettings(supabase, tenantId),
+    fetchSalesSettings(supabase, tenantId),
     fetchWorkspaceEligibleUsers(supabase, tenantId),
   ]);
 
@@ -38,6 +40,7 @@ export default async function SalesModuleSettingsPage() {
       <SalesModuleSettingsTerminal
         canEdit={access.granted}
         approvalSettings={approvalSettings}
+        documentConversionMode={salesSettings.document_conversion_mode}
         eligibleUsers={eligibleUsers}
         approverProfiles={approverProfiles}
       />
