@@ -14,13 +14,12 @@ import {
   fetchSalesLocations,
 } from "@/lib/sales/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
-
-import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 
 export async function SoCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
+  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, gstRegistered] =
     await Promise.all([
       fetchSalesLocations(supabase, tenantId),
       fetchSalesCustomers(supabase, tenantId),
@@ -39,6 +38,7 @@ export async function SoCatalogLoader() {
         viewContext: "SCREEN_GRID",
       }),
       fetchActivePoLineTaxCodeOptions(supabase, tenantId),
+      fetchOrganizationGstRegistered(supabase, tenantId),
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
@@ -67,6 +67,7 @@ export async function SoCatalogLoader() {
       documentLayout={documentLayout}
       taxCodeOptions={taxCodeOptions}
       tenantCountry={tenantCountry}
+      gstRegistered={gstRegistered}
       preferredShippingLocationId={preferredShippingLocationId ?? null}
       approvalSettings={approvalSettings}
       currentUserId={userId}

@@ -122,4 +122,30 @@ describe("sales approval-settings", () => {
       isQuoteApprovalRequiredBeforeConfirm(settings, 4_000, "staff-1", { isOwner: false })
     ).toBe(false);
   });
+
+  it("skips invoice approval when posting is not gated", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_invoice_approval_before_post: false,
+      invoice_approval_threshold_amount: 2_000,
+      invoice_approver_user_ids: ["invoice-approver"],
+    };
+
+    expect(
+      isInvoiceApprovalRequiredBeforePost(settings, 50_000, "staff-1", { isOwner: false })
+    ).toBe(false);
+  });
+
+  it("lets workspace owners post invoices directly when approval is enabled", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_invoice_approval_before_post: true,
+      invoice_approval_threshold_amount: 2_000,
+      invoice_approver_user_ids: ["invoice-approver"],
+    };
+
+    expect(
+      isInvoiceApprovalRequiredBeforePost(settings, 50_000, "owner-1", { isOwner: true })
+    ).toBe(false);
+  });
 });

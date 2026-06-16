@@ -72,6 +72,7 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
   isOwner: boolean;
@@ -88,6 +89,7 @@ export function InvoiceManagementTerminal({
   documentLayout,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   approvalSettings,
   currentUserId,
   isOwner,
@@ -474,6 +476,7 @@ export function InvoiceManagementTerminal({
         allowTransactionDiscounts={allowTransactionDiscounts}
         taxCodeOptions={taxCodeOptions}
         tenantCountry={tenantCountry}
+        gstRegistered={gstRegistered}
         approvalSettings={approvalSettings}
         currentUserId={currentUserId}
         isOwner={isOwner}

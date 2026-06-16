@@ -75,6 +75,7 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   preferredShippingLocationId?: string | null;
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
@@ -93,6 +94,7 @@ export function SoManagementTerminal({
   documentLayout,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   preferredShippingLocationId = null,
   approvalSettings,
   currentUserId,
@@ -546,6 +548,7 @@ export function SoManagementTerminal({
         documentLayout={documentLayout}
         taxCodeOptions={taxCodeOptions}
         tenantCountry={tenantCountry}
+        gstRegistered={gstRegistered}
         preferredShippingLocationId={preferredShippingLocationId}
         copyFromId={copyFromId}
         createPrefillQuoteId={createPrefillQuoteId}

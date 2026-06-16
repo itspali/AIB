@@ -22,7 +22,18 @@ import {
   toSalesDocumentLinkRef,
 } from "@/components/sales/shared/sales-document-link-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import {
   defaultInvoiceDraftForm,
@@ -42,6 +53,13 @@ import { useSalesDrawerFormLayout } from "@/lib/sales/shared/sales-drawer-layout
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
+import {
+  isInvoiceApprovalRequiredBeforePost,
+  isSalesInvoiceApprovableByUser,
+  isSalesInvoicePostableByUser,
+} from "@/lib/sales/approval-settings";
+import { mapInvoiceLinesForApprovalRules } from "@/lib/sales/evaluate-sales-approval-rules";
+import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +80,7 @@ type Props = {
   allowLineItemDiscounts?: boolean;
   allowTransactionDiscounts?: boolean;
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
   isOwner: boolean;
@@ -87,6 +106,7 @@ export function InvoiceDrawerForm({
   allowLineItemDiscounts = true,
   allowTransactionDiscounts = false,
   tenantCountry = null,
+  gstRegistered = false,
   approvalSettings,
   currentUserId,
   isOwner,
@@ -111,6 +131,7 @@ export function InvoiceDrawerForm({
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const resolvedPeekRecordId = surface === "peek" ? (peekInvoice?.id ?? peekRecordId) : null;
@@ -284,18 +305,161 @@ export function InvoiceDrawerForm({
     });
   };
 
-  const runWorkflow = (action: () => Promise<{ error?: string; success?: boolean }>) => {
+  const invoiceId = editInvoiceId ?? detail?.id ?? null;
+  const isDraftInvoice = detail?.commercial_status === "DRAFT" || surface === "create";
+  const isPendingApprovalInvoice = detail?.commercial_status === "PENDING_APPROVAL";
+  const totalNetAmount = Number(detail?.total_net_amount ?? 0);
+  const approvalRequiredBeforePost = isInvoiceApprovalRequiredBeforePost(
+    approvalSettings,
+    totalNetAmount,
+    currentUserId,
+    { isOwner },
+    mapInvoiceLinesForApprovalRules(detail?.lines)
+  );
+  const showSubmitForApproval =
+    isDraftInvoice && editAccessGranted && approvalRequiredBeforePost && invoiceId != null;
+  const showPostInvoice =
+    detail != null &&
+    editAccessGranted &&
+    invoiceId != null &&
+    isSalesInvoicePostableByUser(detail, approvalSettings, currentUserId, {
+      isOwner,
+      editAccessGranted,
+    });
+  const showApproveReject =
+    isPendingApprovalInvoice &&
+    detail != null &&
+    isSalesInvoiceApprovableByUser(detail, currentUserId, approvalSettings, { isOwner }) &&
+    invoiceId != null;
+
+  const handleSubmitForApproval = useCallback(() => {
+    if (!invoiceId) return;
     startTransition(async () => {
       setError(null);
-      const result = await action();
+      const result = await submitSalesInvoiceForApproval({ sales_invoice_id: invoiceId });
       if (result.error) {
         setError(result.error);
         return;
       }
-      toast.success("Invoice updated.");
-      if (detail?.id) onAfterSave(detail.id);
+      toast.success("Submitted for approval");
+      await reloadInvoiceDetail(invoiceId);
+      onAfterSave(invoiceId);
+      notifyApprovalAlertChanged();
     });
-  };
+  }, [invoiceId, onAfterSave, reloadInvoiceDetail]);
+
+  const handlePostInvoice = useCallback(() => {
+    if (!invoiceId) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await postSalesInvoice({ sales_invoice_id: invoiceId });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success("Invoice posted");
+      await reloadInvoiceDetail(invoiceId);
+      onAfterSave(invoiceId);
+    });
+  }, [invoiceId, onAfterSave, reloadInvoiceDetail]);
+
+  const handleApprove = useCallback(() => {
+    if (!invoiceId) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await approveSalesInvoice({ sales_invoice_id: invoiceId });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success("Invoice approved");
+      await reloadInvoiceDetail(invoiceId);
+      onAfterSave(invoiceId);
+      notifyApprovalAlertChanged();
+    });
+  }, [invoiceId, onAfterSave, reloadInvoiceDetail]);
+
+  const handleReject = useCallback(() => {
+    if (!invoiceId) return;
+    const notes = rejectNotes.trim();
+    if (!notes) {
+      toast.error("Enter a rejection reason.");
+      return;
+    }
+
+    startTransition(async () => {
+      setError(null);
+      const result = await rejectSalesInvoice({ sales_invoice_id: invoiceId, notes });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success("Invoice rejected");
+      setRejectDialogOpen(false);
+      setRejectNotes("");
+      await reloadInvoiceDetail(invoiceId);
+      onAfterSave(invoiceId);
+      notifyApprovalAlertChanged();
+    });
+  }, [invoiceId, onAfterSave, rejectNotes, reloadInvoiceDetail]);
+
+  const draftNextStepHint =
+    detail?.commercial_status === "DRAFT"
+      ? approvalRequiredBeforePost
+        ? "Submit for approval when ready. Once approved, post the invoice to finalize it."
+        : "Post the invoice when ready to finalize it and record receivables."
+      : isPendingApprovalInvoice && detail.approval_workflow_complete
+        ? "Approval is complete. Post the invoice to finalize it."
+        : null;
+
+  const renderWorkflowActions = () => (
+    <>
+      {showSubmitForApproval ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isPending}
+          onClick={handleSubmitForApproval}
+        >
+          {isPending ? "Submitting…" : "Submit for approval"}
+        </Button>
+      ) : null}
+      {showPostInvoice ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isPending}
+          onClick={handlePostInvoice}
+        >
+          {isPending ? "Posting…" : "Post invoice"}
+        </Button>
+      ) : null}
+      {showApproveReject ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={isPending}
+            onClick={handleApprove}
+          >
+            {isPending ? "Approving…" : "Approve"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => setRejectDialogOpen(true)}
+          >
+            Reject
+          </Button>
+        </>
+      ) : null}
+    </>
+  );
 
   const title =
     surface === "create"
@@ -304,66 +468,31 @@ export function InvoiceDrawerForm({
         ? "Edit invoice"
         : detail?.invoice_number ?? "Invoice";
 
-  const headerActions = readOnly ? (
-    <>
-      {editAccessGranted && detail && canEditSalesDocument(detail.commercial_status) ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => onOpenEdit?.(detail.id)}>
-          Edit
+  const headerActions =
+    surface === "peek" && detail ? (
+      <>
+        {editAccessGranted && canEditSalesDocument(detail.commercial_status) ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onOpenEdit?.(detail.id)}
+            >
+              Edit
+            </Button>
+            {renderWorkflowActions()}
+          </>
+        ) : null}
+      </>
+    ) : isMutating ? (
+      <>
+        <Button type="button" size="sm" disabled={isPending || detailLoading} onClick={handleSave}>
+          {isPending ? "Saving…" : "Save draft"}
         </Button>
-      ) : null}
-      {detail?.commercial_status === "DRAFT" ? (
-        <Button
-          type="button"
-          size="sm"
-          disabled={isPending}
-          onClick={() => runWorkflow(() => postSalesInvoice({ sales_invoice_id: detail.id }))}
-        >
-          Post invoice
-        </Button>
-      ) : null}
-    </>
-  ) : isMutating ? (
-    <>
-      <Button type="button" size="sm" disabled={isPending || detailLoading} onClick={handleSave}>
-        {isPending ? "Saving…" : "Save draft"}
-      </Button>
-      {editInvoiceId ? (
-        <>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={isPending}
-            onClick={() =>
-              runWorkflow(() => submitSalesInvoiceForApproval({ sales_invoice_id: editInvoiceId }))
-            }
-          >
-            Submit for approval
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={isPending}
-            onClick={() =>
-              runWorkflow(() => approveSalesInvoice({ sales_invoice_id: editInvoiceId }))
-            }
-          >
-            Approve
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={isPending}
-            onClick={() => runWorkflow(() => postSalesInvoice({ sales_invoice_id: editInvoiceId }))}
-          >
-            Post
-          </Button>
-        </>
-      ) : null}
-    </>
-  ) : null;
+        {invoiceId ? renderWorkflowActions() : null}
+      </>
+    ) : null;
 
   const drawerBody = (
     <>
@@ -409,6 +538,11 @@ export function InvoiceDrawerForm({
             }
           >
             <div className="space-y-4">
+              {draftNextStepHint ? (
+                <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  {draftNextStepHint}
+                </p>
+              ) : null}
               <InvoicePeekView
                 invoice={detail}
                 layout={documentLayout}
@@ -465,6 +599,7 @@ export function InvoiceDrawerForm({
           allowTransactionDiscounts={allowTransactionDiscounts}
           taxCodeOptions={taxCodeOptions}
           tenantCountry={tenantCountry}
+          gstRegistered={gstRegistered}
           isPending={isPending}
           onPatch={patchForm}
           onLinesChange={(linesOrUpdater) => {
@@ -478,32 +613,6 @@ export function InvoiceDrawerForm({
           }}
         />
       )}
-      {editInvoiceId && isMutating ? (
-        <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-4">
-          <input
-            className="h-8 min-w-[12rem] flex-1 rounded-md border border-input bg-background px-2 text-sm"
-            placeholder="Rejection reason"
-            value={rejectNotes}
-            onChange={(event) => setRejectNotes(event.target.value)}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            disabled={isPending || !rejectNotes.trim()}
-            onClick={() =>
-              runWorkflow(() =>
-                rejectSalesInvoice({
-                  sales_invoice_id: editInvoiceId,
-                  notes: rejectNotes.trim(),
-                })
-              )
-            }
-          >
-            Reject
-          </Button>
-        </div>
-      ) : null}
     </>
   );
 
@@ -535,6 +644,33 @@ export function InvoiceDrawerForm({
         <div className={cn(isMutating && useDrawerBodyScroll && "shrink-0 pb-6")}>{drawerBody}</div>
       </RightDrawer>
       {discardDialog}
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject {detail?.invoice_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The invoice returns to Draft. The submitter can edit and re-submit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="invoice-reject-notes">Reason</Label>
+            <textarea
+              id="invoice-reject-notes"
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={rejectNotes}
+              onChange={(event) => setRejectNotes(event.target.value)}
+              rows={3}
+              placeholder="Explain why this invoice cannot be approved…"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={isPending} onClick={handleReject}>
+              Reject invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

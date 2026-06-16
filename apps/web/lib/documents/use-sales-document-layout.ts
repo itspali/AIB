@@ -1,11 +1,25 @@
 "use client";
 
 import { useMemo } from "react";
-import { normalizeSalesCommerceLayoutTemplate } from "@/lib/sales/shared/sales-commerce-layout";
+import { applyGstRegisteredDocumentLayoutOverrides } from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import {
+  createSalesCatalogFieldPref,
+  normalizeSalesCommerceLayoutTemplate,
+} from "@/lib/sales/shared/sales-commerce-layout";
 
 export function useSalesDocumentLayout(
-  layout: DocumentLayoutTemplate
+  layout: DocumentLayoutTemplate,
+  gstRegistered = false
 ): DocumentLayoutTemplate {
-  return useMemo(() => normalizeSalesCommerceLayoutTemplate(layout), [layout]);
+  return useMemo(() => {
+    const normalized = normalizeSalesCommerceLayoutTemplate(layout);
+    return gstRegistered
+      ? applyGstRegisteredDocumentLayoutOverrides(
+          normalized,
+          true,
+          createSalesCatalogFieldPref
+        )
+      : normalized;
+  }, [layout, gstRegistered]);
 }

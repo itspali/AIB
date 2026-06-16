@@ -63,6 +63,7 @@ type Props = {
   documentLayout: DocumentLayoutTemplate;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   preferredOriginLocationId?: string | null;
   documentConversionMode?: SalesDocumentConversionMode;
   approvalSettings: SalesApprovalSettings;
@@ -81,6 +82,7 @@ export function QuoteManagementTerminal({
   documentLayout,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   preferredOriginLocationId = null,
   documentConversionMode = "prefill_form",
   approvalSettings,
@@ -387,6 +389,7 @@ export function QuoteManagementTerminal({
         allowTransactionDiscounts={allowTransactionDiscounts}
         taxCodeOptions={taxCodeOptions}
         tenantCountry={tenantCountry}
+        gstRegistered={gstRegistered}
         preferredOriginLocationId={preferredOriginLocationId}
         documentConversionMode={documentConversionMode}
         approvalSettings={approvalSettings}

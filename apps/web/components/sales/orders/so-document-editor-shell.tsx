@@ -34,6 +34,7 @@ export type SoDocumentEditorShellProps = {
   allowTransactionDiscounts?: boolean;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<SoDraftFormState>) => void;
@@ -52,6 +53,7 @@ export function SoDocumentEditorShell({
   allowTransactionDiscounts = false,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -93,6 +95,7 @@ export function SoDocumentEditorShell({
       showCustomerCreditPanel
       taxCodeOptions={taxCodeOptions}
       tenantCountry={tenantCountry}
+      gstRegistered={gstRegistered}
       isPending={isPending}
       layoutOverride={layoutOverride}
       createLine={createEmptySoLine}

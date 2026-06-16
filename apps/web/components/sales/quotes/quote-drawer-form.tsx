@@ -88,6 +88,7 @@ type Props = {
   allowLineItemDiscounts?: boolean;
   allowTransactionDiscounts?: boolean;
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   preferredOriginLocationId?: string | null;
   documentConversionMode?: SalesDocumentConversionMode;
   approvalSettings: SalesApprovalSettings;
@@ -113,6 +114,7 @@ export function QuoteDrawerForm({
   allowLineItemDiscounts = true,
   allowTransactionDiscounts = false,
   tenantCountry = null,
+  gstRegistered = false,
   preferredOriginLocationId = null,
   documentConversionMode = "prefill_form",
   approvalSettings,
@@ -651,6 +653,7 @@ export function QuoteDrawerForm({
           allowTransactionDiscounts={allowTransactionDiscounts}
           taxCodeOptions={taxCodeOptions}
           tenantCountry={tenantCountry}
+          gstRegistered={gstRegistered}
           isPending={isPending}
           onPatch={patchForm}
           onLinesChange={handleLinesChange}

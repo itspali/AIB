@@ -2,6 +2,7 @@ import { buildCatalogFieldId } from "@/lib/documents/catalog-field-ids";
 import {
   applyGstRegisteredDocumentLayoutOverrides,
   HSN_CATALOG_FIELD_ID,
+  patchCatalogLineHsnSacCode,
 } from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import { createPoCatalogFieldPref } from "@/lib/documents/purchase-order-layout";
@@ -41,14 +42,7 @@ export function patchPoLineHsnSacCode(
   line: PoDraftLine,
   hsnSacCode: string
 ): Partial<PoDraftLine> {
-  if (!line.catalog_context) return {};
-  const normalized = hsnSacCode.trim();
-  return {
-    catalog_context: {
-      ...line.catalog_context,
-      hsn_sac_code: normalized || null,
-    },
-  };
+  return patchCatalogLineHsnSacCode(line, hsnSacCode);
 }
 
 function lineItemLabel(line: PoDraftLine): string {

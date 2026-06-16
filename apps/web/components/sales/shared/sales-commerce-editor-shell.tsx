@@ -85,6 +85,7 @@ export type SalesCommerceEditorShellProps<
   showCustomerCreditPanel?: boolean;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   computeTotals: (lines: TLine[]) => SalesCommerceTotalsSnapshot;
@@ -112,6 +113,7 @@ export function SalesCommerceEditorShell<
   showCustomerCreditPanel = false,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   isPending,
   layoutOverride = null,
   computeTotals,
@@ -119,7 +121,7 @@ export function SalesCommerceEditorShell<
   onPatch,
   onLinesChange,
 }: SalesCommerceEditorShellProps<TForm, TLine>) {
-  const resolvedDocumentLayout = useSalesDocumentLayout(documentLayout);
+  const resolvedDocumentLayout = useSalesDocumentLayout(documentLayout, gstRegistered);
   const showNotesSection = Boolean(getVisibleSalesFormHeaderNotesField(resolvedDocumentLayout));
   const {
     drawerWidthVw,
@@ -244,6 +246,7 @@ export function SalesCommerceEditorShell<
       pricesTaxInclusive={form.prices_tax_inclusive}
       taxMechanism={gstContext.taxMechanism}
       taxCodeOptions={taxCodeOptions}
+      gstRegistered={gstRegistered}
       entryAnchor={entryAnchor}
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange as (lines: (SalesCommerceLineBase & Record<string, string | null>)[] | ((current: (SalesCommerceLineBase & Record<string, string | null>)[]) => (SalesCommerceLineBase & Record<string, string | null>)[])) => void}

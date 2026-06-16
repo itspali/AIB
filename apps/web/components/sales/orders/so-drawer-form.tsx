@@ -94,6 +94,7 @@ type Props = {
   documentLayout?: DocumentLayoutTemplate;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   preferredShippingLocationId?: string | null;
   copyFromId?: string | null;
   createPrefillQuoteId?: string | null;
@@ -128,6 +129,7 @@ export function SoDrawerForm({
   documentLayout = DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   preferredShippingLocationId = null,
   copyFromId = null,
   createPrefillQuoteId = null,
@@ -802,6 +804,7 @@ export function SoDrawerForm({
             allowTransactionDiscounts={allowTransactionDiscounts}
             taxCodeOptions={taxCodeOptions}
             tenantCountry={tenantCountry}
+            gstRegistered={gstRegistered}
             isPending={isPending}
             onPatch={patchForm}
             onLinesChange={(linesOrUpdater) => {

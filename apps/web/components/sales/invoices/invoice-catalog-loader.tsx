@@ -11,11 +11,12 @@ import { fetchSalesSettings } from "@/lib/sales/settings";
 import { fetchSalesCustomers, fetchSalesLocations } from "@/lib/sales/shared/queries";
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 
 export async function InvoiceCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
+  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, gstRegistered] =
     await Promise.all([
       fetchSalesLocations(supabase, tenantId),
       fetchSalesCustomers(supabase, tenantId),
@@ -34,6 +35,7 @@ export async function InvoiceCatalogLoader() {
         viewContext: "SCREEN_GRID",
       }),
       fetchActivePoLineTaxCodeOptions(supabase, tenantId),
+      fetchOrganizationGstRegistered(supabase, tenantId),
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
@@ -55,6 +57,7 @@ export async function InvoiceCatalogLoader() {
       documentLayout={documentLayout}
       taxCodeOptions={taxCodeOptions}
       tenantCountry={tenantCountry}
+      gstRegistered={gstRegistered}
       approvalSettings={approvalSettings}
       currentUserId={userId}
       isOwner={editAccess.isOwner}

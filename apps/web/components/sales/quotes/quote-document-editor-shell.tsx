@@ -34,6 +34,7 @@ export type QuoteDocumentEditorShellProps = {
   allowTransactionDiscounts?: boolean;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  gstRegistered?: boolean;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
   onPatch: (patch: Partial<QuoteDraftFormState>) => void;
@@ -52,6 +53,7 @@ export function QuoteDocumentEditorShell({
   allowTransactionDiscounts = false,
   taxCodeOptions = [],
   tenantCountry = null,
+  gstRegistered = false,
   isPending,
   layoutOverride = null,
   onPatch,
@@ -92,6 +94,7 @@ export function QuoteDocumentEditorShell({
       allowTransactionDiscounts={allowTransactionDiscounts}
       taxCodeOptions={taxCodeOptions}
       tenantCountry={tenantCountry}
+      gstRegistered={gstRegistered}
       isPending={isPending}
       layoutOverride={layoutOverride}
       createLine={createEmptyQuoteLine}

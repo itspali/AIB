@@ -10,6 +10,7 @@ import {
   DocumentLineCompactInput,
 } from "@/components/documents/document-line-entry-cells";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
+import { DocumentLineHsnSacSlot } from "@/components/procurement/purchase-orders/po-line-hsn-slot";
 import { PoLineDiscountTypeSlot } from "@/components/procurement/purchase-orders/po-line-discount-type-slot";
 import { PoLineTaxCodeSlot } from "@/components/procurement/purchase-orders/po-line-tax-code-slot";
 import {
@@ -42,6 +43,7 @@ import { getCachedVariantBaseUnit, getCachedVariantImageUrl } from "@/lib/invent
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { resolveLineDetailFieldDisplay } from "@/lib/documents/catalog-line-values";
 import { isCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import { HSN_CATALOG_FIELD_ID } from "@/lib/documents/gst-document-layout-compliance";
 import {
   formatDocumentDecimal,
   normalizeDocumentDecimalInput,
@@ -96,6 +98,7 @@ export type SalesLineCellContext<T extends SalesCommerceLineBase> = {
   focusPrice: (lineKey: string) => void;
   advanceFromLine: (lineKey: string) => void;
   getQuantity: (line: T) => string;
+  gstRegistered?: boolean;
 };
 
 function patchSalesLineUomChange<T extends SalesCommerceLineBase>(
@@ -164,15 +167,53 @@ function resolveNestedFieldDisplay(
 
 function visibleNestedColumns(
   columns: DocumentColumnPref[],
-  line: SalesCommerceLineBase
+  line: SalesCommerceLineBase,
+  gstRegistered = false
 ): DocumentColumnPref[] {
-  return columns.filter((column) => {
+  const filtered = columns.filter((column) => {
+    if (gstRegistered && column.id === HSN_CATALOG_FIELD_ID && line.variant_id) {
+      return true;
+    }
     const value = resolveNestedFieldDisplay(column, line);
     return value != null && value !== "";
   });
+
+  if (
+    gstRegistered &&
+    line.variant_id &&
+    !filtered.some((column) => column.id === HSN_CATALOG_FIELD_ID)
+  ) {
+    const hsnColumn = columns.find((column) => column.id === HSN_CATALOG_FIELD_ID);
+    if (hsnColumn) filtered.push(hsnColumn);
+  }
+
+  return filtered;
 }
 
-function renderNestedFieldContent(column: DocumentColumnPref, line: SalesCommerceLineBase) {
+function renderNestedFieldContent<T extends SalesCommerceLineBase>({
+  column,
+  line,
+  gstRegistered,
+  disabled,
+  patchLine,
+}: {
+  column: DocumentColumnPref;
+  line: T;
+  gstRegistered: boolean;
+  disabled?: boolean;
+  patchLine?: (key: string, patch: Partial<T>) => void;
+}) {
+  if (gstRegistered && column.id === HSN_CATALOG_FIELD_ID && patchLine) {
+    return (
+      <DocumentLineHsnSacSlot
+        line={line}
+        column={column}
+        disabled={disabled}
+        onPatch={(patch) => patchLine(line.key, patch)}
+      />
+    );
+  }
+
   const displayValue = resolveNestedFieldDisplay(column, line);
   if (!displayValue) return null;
 
@@ -196,13 +237,19 @@ function renderNestedFieldContent(column: DocumentColumnPref, line: SalesCommerc
 function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
   line,
   nestedColumns,
+  gstRegistered = false,
+  disabled = false,
+  patchLine,
 }: {
   line: T;
   nestedColumns: DocumentColumnPref[];
+  gstRegistered?: boolean;
+  disabled?: boolean;
+  patchLine?: (key: string, patch: Partial<T>) => void;
 }) {
   if (!line.variant_id || nestedColumns.length === 0) return null;
 
-  const columnsToRender = visibleNestedColumns(nestedColumns, line);
+  const columnsToRender = visibleNestedColumns(nestedColumns, line, gstRegistered);
   const detailRows = groupItemDetailRows(columnsToRender);
   const showSku =
     Boolean(line.variant_sku) &&
@@ -225,7 +272,13 @@ function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
             className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0 text-xs leading-snug"
           >
             {rowColumns.map((column, columnIndex) => {
-              const content = renderNestedFieldContent(column, line);
+              const content = renderNestedFieldContent({
+                column,
+                line,
+                gstRegistered,
+                disabled,
+                patchLine,
+              });
               if (!content) return null;
               return (
                 <span
@@ -248,7 +301,13 @@ function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
         ) : (
           (() => {
             const column = rowColumns[0]!;
-            const content = renderNestedFieldContent(column, line);
+            const content = renderNestedFieldContent({
+              column,
+              line,
+              gstRegistered,
+              disabled,
+              patchLine,
+            });
             if (!content) return null;
             return (
               <div
@@ -287,17 +346,20 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
   itemColumn: DocumentColumnPref;
   imageDisplayMode: DocumentImageDisplayMode;
 }) {
-  const { line, disabled, unitPriceField, itemRefs, bindItemChange } = ctx;
+  const { line, disabled, unitPriceField, itemRefs, bindItemChange, gstRegistered = false, patchLine } =
+    ctx;
   const skuLineFieldVisible = isSkuLineFieldVisible(nestedColumns);
   const showSkuFallback =
     Boolean(line.variant_sku) &&
     !skuLineFieldVisible &&
-    !visibleNestedColumns(nestedColumns, line).some((column) => isCatalogFieldId(column.id));
+    !visibleNestedColumns(nestedColumns, line, gstRegistered).some((column) =>
+      isCatalogFieldId(column.id)
+    );
   const hideFieldSecondary =
     nestedColumns.length > 0 &&
     Boolean(line.variant_id) &&
     (skuLineFieldVisible ||
-      visibleNestedColumns(nestedColumns, line).length > 0 ||
+      visibleNestedColumns(nestedColumns, line, gstRegistered).length > 0 ||
       showSkuFallback);
   const showInlineImage = shouldShowSalesLineInlineImage(imageDisplayMode);
 
@@ -333,7 +395,13 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
           />
         </div>
       </div>
-      <SalesLineNestedUnderItemFields line={line} nestedColumns={nestedColumns} />
+      <SalesLineNestedUnderItemFields
+        line={line}
+        nestedColumns={nestedColumns}
+        gstRegistered={gstRegistered}
+        disabled={disabled}
+        patchLine={patchLine}
+      />
     </div>
   );
 }

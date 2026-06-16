@@ -1,6 +1,7 @@
 import type { SalesApprovalRule } from "@/lib/sales/sales-approval-rules";
 import type { SalesQuoteLineRow } from "@/lib/sales/quotes/types";
 import type { SalesOrderLineRow } from "@/lib/sales/orders/types";
+import type { SalesInvoiceLineRow } from "@/lib/sales/invoices/types";
 
 export type SalesApprovalRuleEvaluationLine = {
   quantity: number;
@@ -67,6 +68,18 @@ export function mapSalesOrderLinesForApprovalRules(
 
   return lines.map((line) => ({
     quantity: Number(line.quantity_ordered),
+    unit_price_selling: Number(line.unit_price_selling),
+    discount_percentage: Number(line.discount_percentage),
+  }));
+}
+
+export function mapInvoiceLinesForApprovalRules(
+  lines: SalesInvoiceLineRow[] | undefined
+): SalesApprovalRuleEvaluationLine[] | undefined {
+  if (!lines?.length) return undefined;
+
+  return lines.map((line) => ({
+    quantity: Number(line.quantity_invoiced),
     unit_price_selling: Number(line.unit_price_selling),
     discount_percentage: Number(line.discount_percentage),
   }));

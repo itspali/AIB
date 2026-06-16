@@ -14,10 +14,12 @@ import {
   getDocumentLineColumnWidthClass,
   getDocumentLineColumnWidthRem,
 } from "@/lib/documents/line-column-widths";
+import { applyGstRegisteredDocumentLayoutOverrides } from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import { resolvePoUnitPriceColumnLabelFromLayout } from "@/lib/procurement/purchase-orders/po-line-tax-mode";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
+  createSalesCatalogFieldPref,
   DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
   getSalesItemDetailLineFields,
   getSalesLayoutColumnPref,
@@ -64,6 +66,7 @@ type Props<TLine extends LineWithQuantity> = {
   pricesTaxInclusive?: boolean;
   taxMechanism?: GstTaxMechanism;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
+  gstRegistered?: boolean;
   entryAnchor?: "top" | "bottom";
   onEntryAnchorChange?: (anchor: "top" | "bottom") => void;
   onPricesTaxInclusiveChange?: (value: boolean) => void;
@@ -101,6 +104,7 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
   pricesTaxInclusive,
   taxMechanism = "FORWARD",
   taxCodeOptions = [],
+  gstRegistered = false,
   actions,
   getQuantity,
 }: {
@@ -114,10 +118,20 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
   pricesTaxInclusive: boolean;
   taxMechanism: GstTaxMechanism;
   taxCodeOptions: readonly PoLineTaxCodeOption[];
+  gstRegistered?: boolean;
   actions: ReturnType<typeof useSalesLineEntryActions<TLine>>;
   getQuantity: (line: TLine) => string;
 }) {
-  const resolvedLayout = useMemo(() => normalizeSalesCommerceLayoutTemplate(layout), [layout]);
+  const resolvedLayout = useMemo(() => {
+    const normalized = normalizeSalesCommerceLayoutTemplate(layout);
+    return gstRegistered
+      ? applyGstRegisteredDocumentLayoutOverrides(
+          normalized,
+          true,
+          createSalesCatalogFieldPref
+        )
+      : normalized;
+  }, [layout, gstRegistered]);
   const imageDisplayMode = useMemo(
     () => resolveSalesLineImageDisplayMode(resolvedLayout),
     [resolvedLayout]
@@ -193,6 +207,7 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
     focusPrice: actions.focusPrice,
     advanceFromLine: actions.advanceFromLine,
     getQuantity,
+    gstRegistered,
   } satisfies Omit<SalesLineCellContext<TLine>, "line">;
 
   return (
@@ -246,6 +261,7 @@ export function SalesCommerceLineEntryTable<TLine extends LineWithQuantity>({
   pricesTaxInclusive = false,
   taxMechanism = "FORWARD",
   taxCodeOptions = [],
+  gstRegistered = false,
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
   onPricesTaxInclusiveChange,
@@ -304,6 +320,7 @@ export function SalesCommerceLineEntryTable<TLine extends LineWithQuantity>({
       pricesTaxInclusive={pricesTaxInclusive}
       taxMechanism={taxMechanism}
       taxCodeOptions={taxCodeOptions}
+      gstRegistered={gstRegistered}
       actions={actions}
       getQuantity={(line) => getLineQuantity(line, quantityField)}
     />

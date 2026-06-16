@@ -2,21 +2,31 @@
 
 import { DocumentLineCompactInput } from "@/components/documents/document-line-entry-cells";
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import { patchCatalogLineHsnSacCode } from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentColumnPref } from "@/lib/documents/types";
-import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
-import { patchPoLineHsnSacCode } from "@/lib/procurement/purchase-orders/po-gst-compliance";
 import { PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
 import { cn } from "@/lib/utils";
 
-type Props = {
-  line: PoDraftLine;
-  column: DocumentColumnPref;
-  disabled?: boolean;
-  onPatch: (patch: Partial<PoDraftLine>) => void;
+type LineWithCatalog = {
+  variant_id?: string | null;
+  catalog_context?: PoLineCatalogContext | null;
 };
 
-/** Editable HSN/SAC for GST-registered PO entry when catalog value is missing or overridden. */
-export function PoLineHsnSacSlot({ line, column, disabled = false, onPatch }: Props) {
+type Props<T extends LineWithCatalog> = {
+  line: T;
+  column: DocumentColumnPref;
+  disabled?: boolean;
+  onPatch: (patch: Partial<T>) => void;
+};
+
+/** Editable HSN/SAC for GST-registered document entry when catalog value is missing or overridden. */
+export function DocumentLineHsnSacSlot<T extends LineWithCatalog>({
+  line,
+  column,
+  disabled = false,
+  onPatch,
+}: Props<T>) {
   const value = line.catalog_context?.hsn_sac_code ?? "";
 
   return (
@@ -41,9 +51,12 @@ export function PoLineHsnSacSlot({ line, column, disabled = false, onPatch }: Pr
         inputMode="text"
         aria-label="HSN or SAC code"
         placeholder="Required"
-        onChange={(event) => onPatch(patchPoLineHsnSacCode(line, event.target.value))}
-        onBlur={(event) => onPatch(patchPoLineHsnSacCode(line, event.target.value.trim()))}
+        onChange={(event) => onPatch(patchCatalogLineHsnSacCode(line, event.target.value))}
+        onBlur={(event) => onPatch(patchCatalogLineHsnSacCode(line, event.target.value.trim()))}
       />
     </div>
   );
 }
+
+/** @deprecated Use DocumentLineHsnSacSlot */
+export { DocumentLineHsnSacSlot as PoLineHsnSacSlot };

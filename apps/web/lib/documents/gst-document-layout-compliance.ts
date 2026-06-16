@@ -1,4 +1,5 @@
 import { buildCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { DocumentCatalogFieldSource, DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 
 export const HSN_CATALOG_FIELD_ID = buildCatalogFieldId("item_column", "hsn_sac_code");
@@ -66,4 +67,18 @@ export function isGstMandatoryCatalogFieldId(
   gstRegistered: boolean
 ): boolean {
   return gstRegistered && fieldId === HSN_CATALOG_FIELD_ID;
+}
+
+export function patchCatalogLineHsnSacCode<T extends { catalog_context?: PoLineCatalogContext | null }>(
+  line: T,
+  hsnSacCode: string
+): Partial<T> {
+  if (!line.catalog_context) return {};
+  const normalized = hsnSacCode.trim();
+  return {
+    catalog_context: {
+      ...line.catalog_context,
+      hsn_sac_code: normalized || null,
+    },
+  } as Partial<T>;
 }
