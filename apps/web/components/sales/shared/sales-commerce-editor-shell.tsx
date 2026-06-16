@@ -31,6 +31,7 @@ import type {
 } from "@/components/sales/shared/sales-commerce-details-panel";
 import type { SalesCommerceTotalsSnapshot } from "@/lib/sales/orders/totals";
 import type { SalesCommerceLineBase } from "@/lib/sales/shared/sales-line-entry";
+import { syncSalesLineSellingMarkdownFromOfferPrice } from "@/lib/sales/shared/sales-line-selling-markdown";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { cn } from "@/lib/utils";
 
@@ -212,7 +213,15 @@ export function SalesCommerceEditorShell<
         <PoLineTaxModeToggle
           value={form.prices_tax_inclusive}
           disabled={isPending}
-          onChange={(pricesTaxInclusive) => onPatch({ prices_tax_inclusive: pricesTaxInclusive } as Partial<TForm>)}
+          onChange={(pricesTaxInclusive) => {
+            onPatch({
+              prices_tax_inclusive: pricesTaxInclusive,
+              lines: (form.lines as TLine[]).map((line) => {
+                const sync = syncSalesLineSellingMarkdownFromOfferPrice(line, pricesTaxInclusive);
+                return sync ? ({ ...line, ...sync } as TLine) : line;
+              }),
+            } as Partial<TForm>);
+          }}
         />
         <PoLineEntryAnchorToggle
           value={entryAnchor}

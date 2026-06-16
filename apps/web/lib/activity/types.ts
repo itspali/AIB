@@ -6,6 +6,7 @@ export const ACTIVITY_ENTITY_TYPES = [
   "STOCK_ADJUSTMENT",
   "STOCK_TRANSFER",
   "SALES_ORDER",
+  "SALES_QUOTATION",
   "SALES_INVOICE",
 ] as const;
 

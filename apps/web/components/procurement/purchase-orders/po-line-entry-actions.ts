@@ -82,6 +82,7 @@ type ItemChangePatch = Partial<PoDraftLine> & {
   mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
+  alternate_uoms?: Array<{ uom_code: string; conversion_factor: number }>;
 };
 
 function buildOptimisticCatalogContext(
@@ -96,6 +97,7 @@ function buildOptimisticCatalogContext(
     mrp: patch.mrp,
     variant_attributes: patch.variant_attributes,
     custom_fields: patch.custom_fields,
+    alternate_uoms: patch.alternate_uoms,
   });
 }
 

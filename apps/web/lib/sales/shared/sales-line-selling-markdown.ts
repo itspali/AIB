@@ -37,6 +37,11 @@ function toExTaxBasis(amount: number, isInclusive: boolean, taxRate: number): nu
   return roundMoney(amount / (1 + taxRate / 100));
 }
 
+function fromExTaxBasis(exTaxAmount: number, isInclusive: boolean, taxRate: number): number {
+  if (exTaxAmount <= 0 || !isInclusive || taxRate <= 0) return exTaxAmount;
+  return roundMoney(exTaxAmount * (1 + taxRate / 100));
+}
+
 function normalizeCatalogOfferPair(
   catalogSelling: number,
   offerUnit: number,
@@ -210,6 +215,38 @@ export function formatSalesLineCatalogSellingReference(
   decimalPlaces = 2
 ): string {
   return formatDocumentDecimal(catalogSelling, decimalPlaces);
+}
+
+/** Catalog selling rate in the same tax basis as the document unit rate field. */
+export function resolveSalesLineCatalogSellingDisplayAmount(
+  line: Pick<SalesCommerceLineBase, "catalog_context">,
+  pricesTaxInclusive = false
+): number {
+  const catalogSelling = resolveSalesLineCatalogSellingPrice(line);
+  if (catalogSelling <= 0) return 0;
+
+  const context = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
+  if (context.taxRate <= 0) return catalogSelling;
+
+  const exTax = toExTaxBasis(
+    catalogSelling,
+    context.mrpPriceIsTaxInclusive,
+    context.taxRate
+  );
+  return pricesTaxInclusive
+    ? fromExTaxBasis(exTax, true, context.taxRate)
+    : exTax;
+}
+
+export function formatSalesLineCatalogSellingReferenceForDocument(
+  line: Pick<SalesCommerceLineBase, "catalog_context">,
+  pricesTaxInclusive: boolean,
+  decimalPlaces = 2
+): string {
+  return formatDocumentDecimal(
+    resolveSalesLineCatalogSellingDisplayAmount(line, pricesTaxInclusive),
+    decimalPlaces
+  );
 }
 
 export function shouldShowSalesLineCatalogSellingSubline(

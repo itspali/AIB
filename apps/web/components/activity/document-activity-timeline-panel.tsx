@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Circle } from "lucide-react";
+import {
+  PostingStepStatusIcon,
+  postingStepStatusLabel,
+} from "@/components/documents/document-posting-summary-panel";
 import { loadEntityActivityTimeline } from "@/lib/activity/actions";
 import {
   resolveActivityEventDescription,
@@ -10,6 +14,11 @@ import {
 import type { ActivityEntityType, ActivityTimelineEvent } from "@/lib/activity/types";
 import { Button } from "@/components/ui/button";
 import { useDeviceClass } from "@/hooks/use-device-class";
+import { resolvePostingStepDefinition } from "@/lib/documents/posting-step-catalog";
+import {
+  countNotApplicablePostingSteps,
+  resolveVisiblePostingSteps,
+} from "@/lib/documents/posting-step-visibility";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { cn } from "@/lib/utils";
 
@@ -63,10 +72,127 @@ function parsePostingSteps(detail: Record<string, unknown>): PostingStepResult[]
   return steps;
 }
 
+function milestoneDrawerToggleLabel(stepCount: number, expanded: boolean): string {
+  const noun = stepCount === 1 ? "milestone" : "milestones";
+  return expanded ? "Hide milestone details" : `Show ${stepCount} ${noun}`;
+}
+
+function activityMilestoneSummary(steps: PostingStepResult[]): string {
+  const applicable = steps.filter(
+    (step) => step.status !== "skipped" && step.status !== "not_run"
+  );
+  if (applicable.length === 0) {
+    return `${steps.length} system ${steps.length === 1 ? "step" : "steps"}`;
+  }
+  const failed = applicable.filter((step) => step.status === "failure").length;
+  if (failed > 0) {
+    return `${failed} failed · ${applicable.length} ${applicable.length === 1 ? "milestone" : "milestones"}`;
+  }
+  return `${applicable.length} ${applicable.length === 1 ? "milestone" : "milestones"} completed`;
+}
+
+function ActivityEventMilestoneDrawer({
+  event,
+  steps,
+}: {
+  event: ActivityTimelineEvent;
+  steps: PostingStepResult[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [showNotApplicable, setShowNotApplicable] = useState(false);
+  const description = resolveActivityEventDescription(event.event_code, event.title, event.detail);
+  const notApplicableCount = countNotApplicablePostingSteps(steps);
+  const visibleSteps = resolveVisiblePostingSteps(steps, showNotApplicable);
+
+  if (steps.length === 0 && !description) return null;
+
+  const drawerLabel =
+    steps.length > 0
+      ? milestoneDrawerToggleLabel(steps.length, expanded)
+      : expanded
+        ? "Hide details"
+        : "Show details";
+
+  return (
+    <div className="mt-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-auto gap-1 px-0 py-0.5 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        {expanded ? (
+          <ChevronUp className="size-3.5 shrink-0" aria-hidden />
+        ) : (
+          <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+        )}
+        {drawerLabel}
+        {!expanded && steps.length > 0 ? (
+          <span className="text-muted-foreground/80">· {activityMilestoneSummary(steps)}</span>
+        ) : null}
+      </Button>
+
+      {expanded ? (
+        <div className="mt-2 space-y-2 rounded-md border border-border/60 bg-background/60 p-2.5">
+          {description ? (
+            <p className="text-xs text-foreground/80">{description}</p>
+          ) : null}
+          {visibleSteps.length > 0 ? (
+            <ol className="space-y-2.5">
+              {visibleSteps.map((step) => {
+                const definition = resolvePostingStepDefinition(step.id);
+                return (
+                  <li key={step.id} className="flex gap-2.5">
+                    <PostingStepStatusIcon status={step.status} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <p className="text-xs font-medium text-foreground">{definition.label}</p>
+                        <span className="text-xs text-muted-foreground">
+                          {postingStepStatusLabel(step.status)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{definition.description}</p>
+                      {step.detail ? (
+                        <p className="mt-0.5 text-xs font-medium text-foreground/80">{step.detail}</p>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : null}
+          {notApplicableCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto px-0 py-0.5 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
+              aria-expanded={showNotApplicable}
+              onClick={() => setShowNotApplicable((current) => !current)}
+            >
+              {showNotApplicable ? (
+                <ChevronUp className="size-3.5 shrink-0" aria-hidden />
+              ) : (
+                <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+              )}
+              {showNotApplicable
+                ? "Hide not applicable steps"
+                : `Show ${notApplicableCount} not applicable ${notApplicableCount === 1 ? "step" : "steps"}`}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ActivityTimelineRow({ event }: { event: ActivityTimelineEvent }) {
   const label = resolveActivityEventLabel(event.event_code, event.title);
   const description = resolveActivityEventDescription(event.event_code, event.title, event.detail);
   const steps = parsePostingSteps(event.detail);
+  const showInlineDescription = Boolean(description) && steps.length === 0;
 
   return (
     <li className="relative flex gap-3 pb-6 last:pb-0">
@@ -84,23 +210,32 @@ function ActivityTimelineRow({ event }: { event: ActivityTimelineEvent }) {
         <p className="text-xs text-muted-foreground">
           {event.actor_name?.trim() ? event.actor_name : "System"}
         </p>
-        {description ? (
+        {showInlineDescription ? (
           <p className="mt-1 text-xs text-foreground/80">{description}</p>
         ) : null}
-        {steps.length > 0 ? (
-          <ul className="mt-2 space-y-1 rounded-md border border-border/60 bg-background/60 p-2">
-            {steps.map((step) => (
-              <li key={step.id} className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground/80">{step.id.replaceAll("_", " ")}</span>
-                {" · "}
-                {step.status.replaceAll("_", " ")}
-                {step.detail ? ` — ${step.detail}` : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {steps.length > 0 ? <ActivityEventMilestoneDrawer event={event} steps={steps} /> : null}
       </div>
     </li>
+  );
+}
+
+function ActivityCollapsedPreview({ events }: { events: ActivityTimelineEvent[] }) {
+  if (events.length === 0) return null;
+
+  const latest = events[0]!;
+  const latestLabel = resolveActivityEventLabel(latest.event_code, latest.title);
+  const latestSteps = parsePostingSteps(latest.detail);
+  const stepSummary =
+    latestSteps.length > 0 ? ` · ${activityMilestoneSummary(latestSteps)}` : "";
+
+  return (
+    <div className="border-t border-border px-4 py-2.5">
+      <p className="text-xs text-muted-foreground">
+        {events.length} {events.length === 1 ? "event" : "events"} · Latest:{" "}
+        <span className="text-foreground/80">{latestLabel}</span>
+        {stepSummary}
+      </p>
+    </div>
   );
 }
 
@@ -171,7 +306,7 @@ export function DocumentActivityTimelinePanel({
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
 
-  const shouldLoad = active && (isPane || expanded);
+  const shouldLoad = active;
 
   const loadTimeline = useCallback(
     async (before?: ActivityTimelineEvent | null, append = false) => {
@@ -279,7 +414,17 @@ export function DocumentActivityTimelinePanel({
             onLoadMore={() => void loadTimeline(oldestEvent, true)}
           />
         </div>
-      ) : null}
+      ) : loading ? (
+        <div className="border-t border-border px-4 py-2.5">
+          <p className="text-xs text-muted-foreground">Loading activity…</p>
+        </div>
+      ) : error ? (
+        <div className="border-t border-border px-4 py-2.5">
+          <p className="text-xs text-destructive">{error}</p>
+        </div>
+      ) : (
+        <ActivityCollapsedPreview events={events} />
+      )}
     </section>
   );
 }

@@ -12,6 +12,8 @@ import {
   saveSalesQuotation,
   submitSalesQuotationForApproval,
 } from "@/app/sales/quotes/actions";
+import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
+import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { QuoteDocumentEditorShell } from "@/components/sales/quotes/quote-document-editor-shell";
 import { QuotePeekView } from "@/components/sales/quotes/quote-peek-view";
 import {
@@ -33,6 +35,7 @@ import {
 } from "@/lib/sales/quotes/draft-form";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
+import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import {
   invoiceCreateFromQuoteHref,
   SALES_INVOICES_HREF,
@@ -69,6 +72,9 @@ type Props = {
   tenantCountry?: string | null;
   preferredOriginLocationId?: string | null;
   documentConversionMode?: SalesDocumentConversionMode;
+  approvalSettings: SalesApprovalSettings;
+  currentUserId: string;
+  isOwner: boolean;
   onClose: () => void;
   onAfterSave: (quoteId: string) => void;
   onOpenEdit?: (quoteId: string) => void;
@@ -91,6 +97,9 @@ export function QuoteDrawerForm({
   tenantCountry = null,
   preferredOriginLocationId = null,
   documentConversionMode = "prefill_form",
+  approvalSettings,
+  currentUserId,
+  isOwner,
   onClose,
   onAfterSave,
   onOpenEdit,
@@ -200,6 +209,19 @@ export function QuoteDrawerForm({
   const patchForm = useCallback((patch: Partial<QuoteDraftFormState>) => {
     setForm((current) => ({ ...current, ...patch }));
   }, []);
+
+  const handleLinesChange = useCallback(
+    (linesOrUpdater: QuoteDraftFormState["lines"] | ((current: QuoteDraftFormState["lines"]) => QuoteDraftFormState["lines"])) => {
+      setForm((current) => ({
+        ...current,
+        lines:
+          typeof linesOrUpdater === "function"
+            ? linesOrUpdater(current.lines)
+            : linesOrUpdater,
+      }));
+    },
+    []
+  );
 
   const reloadQuoteDetail = useCallback(async (quoteId: string) => {
     const result = await loadSalesQuotationDetail(quoteId);
@@ -395,32 +417,69 @@ export function QuoteDrawerForm({
         detailLoading ? (
           <p className="text-sm text-muted-foreground">Loading quote…</p>
         ) : detail ? (
-          <div className="space-y-6">
-            <QuotePeekView
-              quote={detail}
-              layout={documentLayout}
-              allowLineItemDiscounts={allowLineItemDiscounts}
-              customers={customers}
-              locations={locations}
-            />
-            <SalesDocumentLinkPanel
-              documentType="quote"
-              documentId={detail.id}
-              customerId={detail.customer_id}
-              editAccessGranted={editAccessGranted}
-              convertedOrder={toSalesDocumentLinkRef(
-                "sales_order",
-                detail.converted_to_order_id,
-                detail.converted_to_order_number
-              )}
-              convertedInvoice={toSalesDocumentLinkRef(
-                "invoice",
-                detail.converted_to_invoice_id,
-                detail.converted_to_invoice_number
-              )}
-              onLinked={() => void reloadQuoteDetail(detail.id)}
-            />
-          </div>
+          <DocumentPeekActivityShell
+            entityType="SALES_QUOTATION"
+            entityId={detail.id}
+            refreshKey={`${detail.id}:${detail.updated_at}`}
+            showApprovalPane={detail.commercial_status === "PENDING_APPROVAL"}
+            approvalPane={
+              <DocumentPeekApprovalPane
+                documentType="SALES_QUOTATION"
+                documentId={detail.id}
+                documentStatus={detail.commercial_status}
+                voucherNumber={detail.quotation_number}
+                totalNetAmount={Number(detail.total_net_amount)}
+                currencyCode={defaultCurrency}
+                approvalSubmittedBy={detail.approval_submitted_by}
+                currentUserId={currentUserId}
+                isOwner={isOwner}
+                approvalSettings={approvalSettings}
+                onActionComplete={() => void reloadQuoteDetail(detail.id)}
+                onApprove={async () => {
+                  const result = await approveSalesQuotation({ quotation_id: detail.id });
+                  if ("error" in result) throw new Error(result.error);
+                  await reloadQuoteDetail(detail.id);
+                  onAfterSave(detail.id);
+                }}
+                onReject={async (notes) => {
+                  const result = await rejectSalesQuotation({
+                    quotation_id: detail.id,
+                    notes,
+                  });
+                  if ("error" in result) throw new Error(result.error);
+                  await reloadQuoteDetail(detail.id);
+                  onAfterSave(detail.id);
+                }}
+              />
+            }
+          >
+            <div className="space-y-6">
+              <QuotePeekView
+                quote={detail}
+                layout={documentLayout}
+                allowLineItemDiscounts={allowLineItemDiscounts}
+                customers={customers}
+                locations={locations}
+              />
+              <SalesDocumentLinkPanel
+                documentType="quote"
+                documentId={detail.id}
+                customerId={detail.customer_id}
+                editAccessGranted={editAccessGranted}
+                convertedOrder={toSalesDocumentLinkRef(
+                  "sales_order",
+                  detail.converted_to_order_id,
+                  detail.converted_to_order_number
+                )}
+                convertedInvoice={toSalesDocumentLinkRef(
+                  "invoice",
+                  detail.converted_to_invoice_id,
+                  detail.converted_to_invoice_number
+                )}
+                onLinked={() => void reloadQuoteDetail(detail.id)}
+              />
+            </div>
+          </DocumentPeekActivityShell>
         ) : (
           <p className="text-sm text-muted-foreground">Quote not found.</p>
         )
@@ -437,15 +496,7 @@ export function QuoteDrawerForm({
           tenantCountry={tenantCountry}
           isPending={isPending}
           onPatch={patchForm}
-          onLinesChange={(linesOrUpdater) => {
-            setForm((current) => ({
-              ...current,
-              lines:
-                typeof linesOrUpdater === "function"
-                  ? linesOrUpdater(current.lines)
-                  : linesOrUpdater,
-            }));
-          }}
+          onLinesChange={handleLinesChange}
         />
       )}
       {editQuoteId && isMutating ? (

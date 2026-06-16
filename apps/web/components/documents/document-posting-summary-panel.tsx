@@ -18,7 +18,7 @@ type Props = {
   className?: string;
 };
 
-function StepIcon({ status }: { status: PostingStepResult["status"] }) {
+export function PostingStepStatusIcon({ status }: { status: PostingStepResult["status"] }) {
   switch (status) {
     case "success":
       return <CheckCircle2 className="size-4 shrink-0 text-emerald-600" aria-hidden />;
@@ -31,7 +31,7 @@ function StepIcon({ status }: { status: PostingStepResult["status"] }) {
   }
 }
 
-function statusLabel(status: PostingStepResult["status"]): string {
+export function postingStepStatusLabel(status: PostingStepResult["status"]): string {
   switch (status) {
     case "success":
       return "Completed";
@@ -82,11 +82,13 @@ export function DocumentPostingSummaryPanel({ steps, overall, postedAt, classNam
           const definition = resolvePostingStepDefinition(step.id);
           return (
             <li key={step.id} className="flex gap-3">
-              <StepIcon status={step.status} />
+              <PostingStepStatusIcon status={step.status} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <p className="text-sm font-medium">{definition.label}</p>
-                  <span className="text-xs text-muted-foreground">{statusLabel(step.status)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {postingStepStatusLabel(step.status)}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{definition.description}</p>
                 {step.detail ? (

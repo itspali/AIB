@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
 import type { StockVariantOption } from "@/lib/inventory/stock/types";
-import { prefetchPoLineCatalogContext } from "@/lib/documents/po-line-catalog-cache";
 import {
   filterStockVariantSuggestions,
   getCachedBrowseVariants,
@@ -30,6 +29,7 @@ import {
   prefetchBrowseVariants,
   registerVariantSuggestions,
 } from "@/lib/inventory/stock/variant-suggestion-cache";
+import { prefetchPoLineCatalogContext } from "@/lib/documents/po-line-catalog-cache";
 import { cn } from "@/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 100;
@@ -62,6 +62,12 @@ export type StockLineSkuSelection = {
   mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
+  /** Item tax code from variant search — hydrates line tax before full catalog fetch. */
+  tax_code_id?: string | null;
+  tax_rate?: number;
+  tax_is_variable?: boolean;
+  /** Alternate UOM rows from item master — hydrates line UOM before full catalog fetch. */
+  alternate_uoms?: Array<{ uom_code: string; conversion_factor: number }>;
 };
 
 type Props = {
@@ -113,7 +119,7 @@ function VariantSuggestionThumb({ imageUrl }: { imageUrl: string | null }) {
   return (
     <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-border/60 bg-muted">
       {imageUrl ? (
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
       ) : (
         <Package className="h-4 w-4 text-muted-foreground" aria-hidden />
       )}
@@ -148,6 +154,12 @@ function applyVariant(
     ...(variant.custom_fields && Object.keys(variant.custom_fields).length > 0
       ? { custom_fields: variant.custom_fields }
       : {}),
+    ...(variant.tax_code_id ? { tax_code_id: variant.tax_code_id } : {}),
+    ...(variant.tax_rate != null && Number.isFinite(variant.tax_rate)
+      ? { tax_rate: variant.tax_rate }
+      : {}),
+    ...(variant.tax_is_variable != null ? { tax_is_variable: variant.tax_is_variable } : {}),
+    ...(variant.alternate_uoms?.length ? { alternate_uoms: variant.alternate_uoms } : {}),
   });
 }
 
@@ -528,6 +540,10 @@ export function StockVariantSkuField({
     highlightIndexRef.current = clamped;
     setHighlightIndex(clamped);
     inputRef.current?.focus({ preventScroll: true });
+    const variant = resultsRef.current[clamped];
+    if (variant?.variant_id) {
+      prefetchPoLineCatalogContext(variant.variant_id);
+    }
   }, []);
 
   const handleComboboxKeyDown = useCallback(
@@ -843,10 +859,7 @@ export function StockVariantSkuField({
                           "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors",
                           selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/70"
                         )}
-                        onMouseEnter={() => {
-                          setHighlight(index);
-                          prefetchPoLineCatalogContext(variant.variant_id);
-                        }}
+                        onMouseEnter={() => setHighlight(index)}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectVariant(variant)}
                       >

@@ -474,6 +474,9 @@ export function InvoiceManagementTerminal({
         allowTransactionDiscounts={allowTransactionDiscounts}
         taxCodeOptions={taxCodeOptions}
         tenantCountry={tenantCountry}
+        approvalSettings={approvalSettings}
+        currentUserId={currentUserId}
+        isOwner={isOwner}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
         onOpenEdit={handleOpenEdit}

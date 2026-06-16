@@ -35,12 +35,21 @@ export type DocumentLineColumn = {
   headerClassName?: string;
 };
 
-export const DOCUMENT_LINE_HEADER_CELL =
-  "border border-border sticky top-0 z-[5] bg-muted/95 backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))]";
+/** Shared cell chrome: light vertical/top edges, stronger bottom row divider. */
+export const DOCUMENT_LINE_CELL_BORDER =
+  "border-x border-t border-border/45 border-b-2 border-b-border";
 
-export const DOCUMENT_LINE_BODY_CELL = "border border-border";
+export const DOCUMENT_LINE_HEADER_CELL = cn(
+  DOCUMENT_LINE_CELL_BORDER,
+  "sticky top-0 z-[5] bg-muted/95 backdrop-blur-sm"
+);
 
-export const DOCUMENT_LINE_EDITABLE_CELL = "border border-border po-line-cell-surface";
+export const DOCUMENT_LINE_BODY_CELL = DOCUMENT_LINE_CELL_BORDER;
+
+export const DOCUMENT_LINE_EDITABLE_CELL = cn(
+  DOCUMENT_LINE_CELL_BORDER,
+  "po-line-cell-surface"
+);
 
 export const DOCUMENT_LINE_ROW_BASE =
   "group transition-colors duration-100 ease-out";

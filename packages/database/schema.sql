@@ -613,6 +613,7 @@ CREATE TYPE activity_entity_type AS ENUM (
     'STOCK_ADJUSTMENT',
     'STOCK_TRANSFER',
     'SALES_ORDER',
+    'SALES_QUOTATION',
     'SALES_INVOICE'
 );
 

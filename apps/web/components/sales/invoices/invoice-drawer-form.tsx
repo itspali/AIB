@@ -12,6 +12,8 @@ import {
   saveSalesInvoice,
   submitSalesInvoiceForApproval,
 } from "@/app/sales/invoices/actions";
+import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
+import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { InvoiceDocumentEditorShell } from "@/components/sales/invoices/invoice-document-editor-shell";
 import { InvoicePaymentPanel } from "@/components/sales/invoices/invoice-payment-panel";
 import { InvoicePeekView } from "@/components/sales/invoices/invoice-peek-view";
@@ -39,6 +41,7 @@ import { resolveSalesCommerceSupplyStates } from "@/lib/sales/shared/sales-comme
 import { useSalesDrawerFormLayout } from "@/lib/sales/shared/sales-drawer-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
+import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +62,9 @@ type Props = {
   allowLineItemDiscounts?: boolean;
   allowTransactionDiscounts?: boolean;
   tenantCountry?: string | null;
+  approvalSettings: SalesApprovalSettings;
+  currentUserId: string;
+  isOwner: boolean;
   onClose: () => void;
   onAfterSave: (invoiceId: string) => void;
   onOpenEdit?: (invoiceId: string) => void;
@@ -81,6 +87,9 @@ export function InvoiceDrawerForm({
   allowLineItemDiscounts = true,
   allowTransactionDiscounts = false,
   tenantCountry = null,
+  approvalSettings,
+  currentUserId,
+  isOwner,
   onClose,
   onAfterSave,
   onOpenEdit,
@@ -363,46 +372,83 @@ export function InvoiceDrawerForm({
         detailLoading ? (
           <p className="text-sm text-muted-foreground">Loading invoice…</p>
         ) : detail ? (
-          <div className="space-y-4">
-            <InvoicePeekView
-              invoice={detail}
-              layout={documentLayout}
-              allowLineItemDiscounts={allowLineItemDiscounts}
-              customers={customers}
-              locations={locations}
-            />
-            <SalesDocumentLinkPanel
-              documentType="invoice"
-              documentId={detail.id}
-              customerId={detail.customer_id}
-              editAccessGranted={editAccessGranted}
-              sourceOrder={toSalesDocumentLinkRef(
-                "sales_order",
-                detail.source_order_id,
-                detail.source_order_number
-              )}
-              sourceQuote={toSalesDocumentLinkRef(
-                "quote",
-                detail.source_quotation_id,
-                detail.source_quotation_number
-              )}
-              onLinked={() => void reloadInvoiceDetail(detail.id)}
-            />
-            {detail.commercial_status === "APPROVED_ACTIVE" ? (
-              <InvoicePaymentPanel
-                salesInvoiceId={detail.id}
-                customerId={detail.customer_id}
-                invoiceNetAmount={detail.total_net_amount}
-                totalPaidAmount={detail.total_paid_amount}
-                invoicePaymentStatus={detail.invoice_payment_status}
-                onApplied={() => {
-                  void loadSalesInvoiceDetail(detail.id).then((result) => {
-                    if ("invoice" in result) setDetail(result.invoice);
+          <DocumentPeekActivityShell
+            entityType="SALES_INVOICE"
+            entityId={detail.id}
+            refreshKey={`${detail.id}:${detail.updated_at}`}
+            showApprovalPane={detail.commercial_status === "PENDING_APPROVAL"}
+            approvalPane={
+              <DocumentPeekApprovalPane
+                documentType="SALES_INVOICE"
+                documentId={detail.id}
+                documentStatus={detail.commercial_status}
+                voucherNumber={detail.invoice_number}
+                totalNetAmount={Number(detail.total_net_amount)}
+                currencyCode={defaultCurrency}
+                approvalSubmittedBy={detail.approval_submitted_by}
+                currentUserId={currentUserId}
+                isOwner={isOwner}
+                approvalSettings={approvalSettings}
+                onActionComplete={() => void reloadInvoiceDetail(detail.id)}
+                onApprove={async () => {
+                  const result = await approveSalesInvoice({ sales_invoice_id: detail.id });
+                  if ("error" in result) throw new Error(result.error);
+                  await reloadInvoiceDetail(detail.id);
+                  onAfterSave(detail.id);
+                }}
+                onReject={async (notes) => {
+                  const result = await rejectSalesInvoice({
+                    sales_invoice_id: detail.id,
+                    notes,
                   });
+                  if ("error" in result) throw new Error(result.error);
+                  await reloadInvoiceDetail(detail.id);
+                  onAfterSave(detail.id);
                 }}
               />
-            ) : null}
-          </div>
+            }
+          >
+            <div className="space-y-4">
+              <InvoicePeekView
+                invoice={detail}
+                layout={documentLayout}
+                allowLineItemDiscounts={allowLineItemDiscounts}
+                customers={customers}
+                locations={locations}
+              />
+              <SalesDocumentLinkPanel
+                documentType="invoice"
+                documentId={detail.id}
+                customerId={detail.customer_id}
+                editAccessGranted={editAccessGranted}
+                sourceOrder={toSalesDocumentLinkRef(
+                  "sales_order",
+                  detail.source_order_id,
+                  detail.source_order_number
+                )}
+                sourceQuote={toSalesDocumentLinkRef(
+                  "quote",
+                  detail.source_quotation_id,
+                  detail.source_quotation_number
+                )}
+                onLinked={() => void reloadInvoiceDetail(detail.id)}
+              />
+              {detail.commercial_status === "APPROVED_ACTIVE" ? (
+                <InvoicePaymentPanel
+                  salesInvoiceId={detail.id}
+                  customerId={detail.customer_id}
+                  invoiceNetAmount={detail.total_net_amount}
+                  totalPaidAmount={detail.total_paid_amount}
+                  invoicePaymentStatus={detail.invoice_payment_status}
+                  onApplied={() => {
+                    void loadSalesInvoiceDetail(detail.id).then((result) => {
+                      if ("invoice" in result) setDetail(result.invoice);
+                    });
+                  }}
+                />
+              ) : null}
+            </div>
+          </DocumentPeekActivityShell>
         ) : (
           <p className="text-sm text-muted-foreground">Invoice not found.</p>
         )

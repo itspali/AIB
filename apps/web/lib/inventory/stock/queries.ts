@@ -22,9 +22,10 @@ import {
 } from "@/lib/products/catalog-reserved-fields";
 import { resolveProductMediaSignedUrls } from "@/lib/products/media";
 import { pickPrimaryImageStoragePath } from "@/lib/products/primary-image";
-import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
+import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY, COMMERCE_DEFAULT_SELLING_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 import { parseDefaultPurchaseUomFromCustomFields } from "@/lib/procurement/purchase-orders/po-line-uom-options";
+import { parseDefaultSellingUomFromCustomFields } from "@/lib/sales/shared/sales-line-uom-options";
 
 /** Disambiguate composite tenant FK embeds on item_valuations. */
 const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
@@ -358,6 +359,11 @@ type VariantItemJoin = {
   tracking_mode: string;
   base_unit_of_measure: string;
   custom_fields: Record<string, unknown> | null;
+  tax_code_id: string | null;
+  tax_codes:
+    | { rate: number | string | null; is_variable: boolean | null }
+    | Array<{ rate: number | string | null; is_variable: boolean | null }>
+    | null;
 };
 
 type VariantSearchDbRow = {
@@ -384,6 +390,10 @@ function mapSuggestionCustomFields(
   if (purchaseUom) {
     fields[COMMERCE_DEFAULT_PURCHASE_UOM_KEY] = purchaseUom;
   }
+  const sellingUom = parseDefaultSellingUomFromCustomFields(raw);
+  if (sellingUom) {
+    fields[COMMERCE_DEFAULT_SELLING_UOM_KEY] = sellingUom;
+  }
   return fields;
 }
 
@@ -399,6 +409,9 @@ function extractStandardCost(customFields: Record<string, unknown> | null | unde
 
 function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
   const item = resolveJoin(row.items);
+  const taxCode = resolveJoin(item?.tax_codes ?? null);
+  const taxRateRaw = taxCode?.rate != null ? Number(taxCode.rate) : 0;
+  const tax_rate = Number.isFinite(taxRateRaw) && taxRateRaw >= 0 ? taxRateRaw : 0;
   const blockedReason = resolveStockVariantBlockedReason({
     is_sellable: row.is_sellable,
     track_inventory: item?.track_inventory,
@@ -425,6 +438,9 @@ function mapVariantSearchResult(row: VariantSearchDbRow): StockVariantOption {
     mrp: extractMrpFromCustomFieldsRecord(item?.custom_fields) || null,
     variant_attributes: Object.fromEntries(listVariantAttributeEntries(row.variant_attributes)),
     custom_fields: mapSuggestionCustomFields(item?.custom_fields),
+    tax_code_id: item?.tax_code_id?.trim() || null,
+    tax_rate,
+    tax_is_variable: Boolean(taxCode?.is_variable),
   };
 }
 
@@ -441,6 +457,53 @@ type VariantSuggestionMasterRow = {
   item_id: string;
   is_master: boolean | null;
 };
+
+type VariantSuggestionAlternateUomRow = {
+  item_id: string;
+  uom_code: string;
+  conversion_factor: number | string;
+};
+
+async function attachStockVariantSuggestionAlternateUoms(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options: StockVariantOption[]
+): Promise<StockVariantOption[]> {
+  if (!options.length) return options;
+
+  const itemIds = [...new Set(options.map((option) => option.item_id))];
+  const { data, error } = await supabase
+    .from("item_uoms")
+    .select("item_id, uom_code, conversion_factor")
+    .eq("tenant_id", tenantId)
+    .in("item_id", itemIds);
+
+  if (error) throw new Error(error.message);
+
+  const byItemId = new Map<string, Array<{ uom_code: string; conversion_factor: number }>>();
+  for (const row of (data ?? []) as VariantSuggestionAlternateUomRow[]) {
+    const uom_code = String(row.uom_code ?? "").trim();
+    const conversion_factor = Number(row.conversion_factor);
+    if (!uom_code || !Number.isFinite(conversion_factor) || conversion_factor <= 0) continue;
+    const list = byItemId.get(row.item_id) ?? [];
+    list.push({ uom_code, conversion_factor });
+    byItemId.set(row.item_id, list);
+  }
+
+  return options.map((option) => ({
+    ...option,
+    alternate_uoms: byItemId.get(option.item_id) ?? [],
+  }));
+}
+
+async function attachStockVariantSuggestionEnrichment(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options: StockVariantOption[]
+): Promise<StockVariantOption[]> {
+  const withImages = await attachStockVariantSuggestionImages(supabase, tenantId, options);
+  return attachStockVariantSuggestionAlternateUoms(supabase, tenantId, withImages);
+}
 
 async function attachStockVariantSuggestionImages(
   supabase: SupabaseClient,
@@ -525,7 +588,7 @@ const VARIANT_SEARCH_SELECT = `
   item_id,
   is_sellable,
   variant_attributes,
-  ${VARIANT_ITEM_EMBED}!inner (name, description, hsn_sac_code, track_inventory, tracking_mode, base_unit_of_measure, custom_fields)
+  ${VARIANT_ITEM_EMBED}!inner (name, description, hsn_sac_code, track_inventory, tracking_mode, base_unit_of_measure, custom_fields, tax_code_id, tax_codes ( rate, is_variable ))
 `;
 
 async function queryVariantSearchResults(
@@ -637,7 +700,7 @@ export async function listStockVariantsForBrowse(
 
   if (error) throw new Error(error.message);
 
-  return attachStockVariantSuggestionImages(
+  return attachStockVariantSuggestionEnrichment(
     supabase,
     tenantId,
     sortStockVariantsAlphabetically(
@@ -669,7 +732,7 @@ export async function searchStockVariants(
     }
   }
 
-  return attachStockVariantSuggestionImages(
+  return attachStockVariantSuggestionEnrichment(
     supabase,
     tenantId,
     rankStockVariantResults([...merged.values()], trimmed)

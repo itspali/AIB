@@ -11,7 +11,6 @@ import {
 } from "@/components/documents/document-line-entry-cells";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
 import { PoLineDiscountTypeSlot } from "@/components/procurement/purchase-orders/po-line-discount-type-slot";
-import { PoLineMrpVarianceArrow } from "@/components/procurement/purchase-orders/po-line-mrp-markdown-slot";
 import { PoLineTaxCodeSlot } from "@/components/procurement/purchase-orders/po-line-tax-code-slot";
 import {
   PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
@@ -57,17 +56,8 @@ import {
   resolvePoLineDiscountType,
 } from "@/lib/procurement/purchase-orders/po-line-discount";
 import {
-  resolvePoLineMrpTaxContext,
-  resolvePoLineMrpVarianceDirection,
-} from "@/lib/procurement/purchase-orders/po-line-mrp-markdown";
-import {
-  formatSalesLineCatalogSellingReference,
   patchSalesLineOfferUnitPrice,
   patchSalesLineOfferUnitPriceDraft,
-  patchSalesLineSellingMarkdownPercentage,
-  resolveSalesLineCatalogSellingPrice,
-  resolveSalesLineSellingMarkdownPercentage,
-  shouldShowSalesLineCatalogSellingSubline,
   syncSalesLineSellingMarkdownFromOfferPrice,
 } from "@/lib/sales/shared/sales-line-selling-markdown";
 import {
@@ -143,7 +133,10 @@ function formatSalesLineComputedDiscountAmount<T extends SalesCommerceLineBase>(
 }
 
 function resolveSalesLineImageUrl(line: SalesCommerceLineBase): string | null {
-  if (line.image_url?.trim()) return line.image_url.trim();
+  const fromCatalog = line.catalog_context?.image_url?.trim();
+  if (fromCatalog) return fromCatalog;
+  const fromLine = line.image_url?.trim();
+  if (fromLine) return fromLine;
   if (line.variant_id) return getCachedVariantImageUrl(line.variant_id);
   return null;
 }
@@ -408,22 +401,9 @@ export function SalesLinePriceCell<T extends SalesCommerceLineBase>({
 }) {
   const { line, disabled, unitPriceField, priceRefs, patchLine, advanceFromLine, pricesTaxInclusive } =
     ctx;
-  const decimalPlaces = resolveColumnDecimalPlaces(column);
   const unitPrice = String(line[unitPriceField as keyof T] ?? "");
-  const showSublineStack = shouldShowSalesLineCatalogSellingSubline(line);
-  const catalogSelling = resolveSalesLineCatalogSellingPrice(line);
-  const markdownValue = resolveSalesLineSellingMarkdownPercentage(line, pricesTaxInclusive);
-  const sellingTaxContext = resolvePoLineMrpTaxContext(line, pricesTaxInclusive);
-  const varianceDirection =
-    catalogSelling > 0
-      ? resolvePoLineMrpVarianceDirection(
-          catalogSelling,
-          Number(unitPrice.replace(/,/g, "")) || 0,
-          sellingTaxContext
-        )
-      : null;
 
-  const priceInput = (
+  return (
     <DocumentLineCompactInput
       ref={(node) => {
         priceRefs.current[line.key] = node;
@@ -461,111 +441,6 @@ export function SalesLinePriceCell<T extends SalesCommerceLineBase>({
       }}
     />
   );
-
-  if (!showSublineStack) {
-    return priceInput;
-  }
-
-  const catalogSellingLabel = formatSalesLineCatalogSellingReference(catalogSelling, decimalPlaces);
-
-  return (
-    <PoLineQtyValueStack
-      showUnitUnderQty
-      align={column.align}
-      unitSlot={
-        <PoLineSublineZone align={column.align}>
-          <PoLineSublineRow align={column.align}>
-            <span
-              className={cn(
-                "w-full truncate px-2 tabular-nums",
-                PO_LINE_SUBLINE_TEXT_CLASS,
-                column.align === "right" && "text-right"
-              )}
-              title={`Catalog selling rate ${catalogSellingLabel}`}
-            >
-              Cat. {catalogSellingLabel}
-            </span>
-          </PoLineSublineRow>
-          <PoLineSublineRow align={column.align}>
-            <div
-              role="group"
-              aria-label="Percent discount from catalog selling rate"
-              className={cn(
-                "flex w-full min-w-0 items-center gap-1 px-2",
-                PO_LINE_SUBLINE_TEXT_CLASS,
-                column.align === "right" && "justify-end text-right",
-                column.align === "center" && "justify-center text-center"
-              )}
-            >
-              <DocumentLineCompactInput
-                className={cn(
-                  PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
-                  "!w-[3.75rem]",
-                  documentFieldTypographyClassName(column, ""),
-                  column.align === "right" && "text-right"
-                )}
-                value={markdownValue}
-                disabled={disabled}
-                inputMode="decimal"
-                title="Edit percent discount from catalog selling rate"
-                onChange={(event) =>
-                  patchLine(
-                    line.key,
-                    patchSalesLineSellingMarkdownPercentage(
-                      line,
-                      event.target.value,
-                      column,
-                      pricesTaxInclusive
-                    ) as Partial<T>
-                  )
-                }
-                onBlur={(event) => {
-                  const normalized = patchSalesLineSellingMarkdownPercentage(
-                    line,
-                    event.target.value,
-                    column,
-                    pricesTaxInclusive
-                  );
-                  patchLine(line.key, normalized as Partial<T>);
-                }}
-              />
-              <span className="shrink-0 select-none">%</span>
-              <PoLineMrpVarianceArrow direction={varianceDirection} />
-            </div>
-          </PoLineSublineRow>
-        </PoLineSublineZone>
-      }
-    >
-      {priceInput}
-    </PoLineQtyValueStack>
-  );
-}
-
-function SalesLineDiscountAmountSubline<T extends SalesCommerceLineBase>({
-  line,
-  column,
-  getQuantity,
-  unitPriceField,
-  align,
-}: {
-  line: T;
-  column: DocumentColumnPref;
-  getQuantity: (line: T) => string;
-  unitPriceField: string;
-  align?: "left" | "right" | "center";
-}) {
-  const value = formatSalesLineComputedDiscountAmount(line, column, getQuantity, unitPriceField);
-  return (
-    <span
-      className={cn(
-        "w-full truncate px-2 tabular-nums",
-        PO_LINE_SUBLINE_TEXT_CLASS,
-        align === "right" && "text-right"
-      )}
-    >
-      {value}
-    </span>
-  );
 }
 
 export function SalesLineDiscountPctCell<T extends SalesCommerceLineBase>({
@@ -588,18 +463,72 @@ export function SalesLineDiscountPctCell<T extends SalesCommerceLineBase>({
     discountAmountColumn
   );
   const showStack = Boolean(line.variant_id);
-  const showAmountSubline =
+  const showAmountPrimary =
     showDiscountAmountSubline && Boolean(discountAmountColumn) && showStack;
 
   if (!showStack) return null;
 
-  return (
-    <PoLineQtyValueStack
-      showUnitUnderQty={showStack}
+  const discountEntryInput = (
+    <DocumentLineCompactInput
       align={column.align}
-      unitSlot={
-        showAmountSubline && discountAmountColumn ? (
+      className={documentFieldTypographyClassName(
+        column,
+        cn(
+          showAmountPrimary ? PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS : DOCUMENT_LINE_COMPACT_INPUT_CLASS,
+          showAmountPrimary && "!w-full max-w-full"
+        )
+      )}
+      value={inputValue}
+      disabled={disabled}
+      inputMode="decimal"
+      aria-label={discountType === "amount" ? "Discount amount" : "Discount percent"}
+      onChange={(event) => {
+        const value = event.target.value;
+        patchLine(
+          line.key,
+          (discountType === "amount"
+            ? patchPoLineDiscountAmountInput(line, value)
+            : patchPoLineDiscountPercentInput(line, value)) as Partial<T>
+        );
+      }}
+      onBlur={() => {
+        const normalized = normalizeDocumentDecimalInput(inputValue, decimalPlaces);
+        if (normalized === inputValue) return;
+        patchLine(
+          line.key,
+          (discountType === "amount"
+            ? patchPoLineDiscountAmountInput(line, normalized)
+            : patchPoLineDiscountPercentInput(line, normalized)) as Partial<T>
+        );
+      }}
+    />
+  );
+
+  if (showAmountPrimary && discountAmountColumn) {
+    const amountValue = formatSalesLineComputedDiscountAmount(
+      line,
+      discountAmountColumn,
+      getQuantity,
+      unitPriceField
+    );
+
+    return (
+      <PoLineQtyValueStack
+        showUnitUnderQty={showStack}
+        align={column.align}
+        unitSlot={
           <PoLineSublineZone align={column.align}>
+            <PoLineSublineRow align={column.align}>
+              <div
+                className={cn(
+                  "flex w-full min-w-0 px-2",
+                  column.align === "right" && "justify-end",
+                  column.align === "center" && "justify-center"
+                )}
+              >
+                {discountEntryInput}
+              </div>
+            </PoLineSublineRow>
             <PoLineSublineRow align={column.align}>
               <PoLineDiscountTypeSlot
                 type={discountType}
@@ -610,57 +539,42 @@ export function SalesLineDiscountPctCell<T extends SalesCommerceLineBase>({
                 }
               />
             </PoLineSublineRow>
-            <PoLineSublineRow align={column.align}>
-              <SalesLineDiscountAmountSubline
-                line={line}
-                column={discountAmountColumn}
-                getQuantity={getQuantity}
-                unitPriceField={unitPriceField}
-                align={column.align}
-              />
-            </PoLineSublineRow>
           </PoLineSublineZone>
-        ) : (
-          <PoLineSublineSingleRow align={column.align}>
-            <PoLineDiscountTypeSlot
-              type={discountType}
-              align={column.align}
-              disabled={disabled}
-              onTypeChange={(type) =>
-                patchLine(line.key, patchPoLineDiscountType(line, type) as Partial<T>)
-              }
-            />
-          </PoLineSublineSingleRow>
-        )
+        }
+      >
+        <span
+          className={documentFieldTypographyClassName(
+            column,
+            cn(
+              DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
+              column.align === "right" ? "text-right" : "text-left"
+            )
+          )}
+        >
+          {amountValue}
+        </span>
+      </PoLineQtyValueStack>
+    );
+  }
+
+  return (
+    <PoLineQtyValueStack
+      showUnitUnderQty={showStack}
+      align={column.align}
+      unitSlot={
+        <PoLineSublineSingleRow align={column.align}>
+          <PoLineDiscountTypeSlot
+            type={discountType}
+            align={column.align}
+            disabled={disabled}
+            onTypeChange={(type) =>
+              patchLine(line.key, patchPoLineDiscountType(line, type) as Partial<T>)
+            }
+          />
+        </PoLineSublineSingleRow>
       }
     >
-      <DocumentLineCompactInput
-        align={column.align}
-        className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
-        value={inputValue}
-        disabled={disabled}
-        inputMode="decimal"
-        aria-label={discountType === "amount" ? "Discount amount" : "Discount percent"}
-        onChange={(event) => {
-          const value = event.target.value;
-          patchLine(
-            line.key,
-            (discountType === "amount"
-              ? patchPoLineDiscountAmountInput(line, value)
-              : patchPoLineDiscountPercentInput(line, value)) as Partial<T>
-          );
-        }}
-        onBlur={() => {
-          const normalized = normalizeDocumentDecimalInput(inputValue, decimalPlaces);
-          if (normalized === inputValue) return;
-          patchLine(
-            line.key,
-            (discountType === "amount"
-              ? patchPoLineDiscountAmountInput(line, normalized)
-              : patchPoLineDiscountPercentInput(line, normalized)) as Partial<T>
-          );
-        }}
-      />
+      {discountEntryInput}
     </PoLineQtyValueStack>
   );
 }

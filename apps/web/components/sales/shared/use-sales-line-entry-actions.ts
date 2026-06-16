@@ -29,7 +29,6 @@ import {
 import { resolveSalesLinePickerOfferUnitPrice } from "@/lib/sales/shared/sales-line-offer-price";
 import { applySellingCatalogToLine } from "@/lib/sales/shared/sales-line-selling-markdown";
 import {
-  resolveDefaultSalesLineUomCode,
   resolveSalesLineUomAfterCatalogUpdate,
   applySalesDraftLineUomTransition,
   scaleSalesCatalogBaseUnitPriceToLineUom,
@@ -66,8 +65,12 @@ function buildOptimisticCatalogContext(variantId: string, patch: ItemChangePatch
     hsn_sac_code: patch.hsn_sac_code,
     mrp: patch.mrp,
     selling_price: patch.selling_price,
+    tax_code_id: patch.tax_code_id,
+    tax_rate: patch.tax_rate,
+    tax_is_variable: patch.tax_is_variable,
     variant_attributes: patch.variant_attributes,
     custom_fields: patch.custom_fields,
+    alternate_uoms: patch.alternate_uoms,
   });
 }
 
@@ -209,19 +212,27 @@ export function useSalesLineEntryActions<T extends SalesCommerceLineBase>(
         : null;
       const optimisticContext =
         variantChanged && variantId ? buildOptimisticCatalogContext(variantId, patch) : null;
+      const cachedCatalog =
+        variantChanged && variantId ? getCachedPoLineCatalogContext(variantId) : null;
+      const initialCatalogContext = cachedCatalog
+        ? mergePoLineCatalogContext(optimisticContext, cachedCatalog, resolvedImageUrl)
+        : optimisticContext;
+      const usedServerCatalog = Boolean(
+        initialCatalogContext?.catalog_snapshot_source === "server"
+      );
       const defaultUom =
         variantChanged && variantId && !clearingItem
-          ? resolveDefaultSalesLineUomCode(optimisticContext)
+          ? resolveSalesLineUomAfterCatalogUpdate(undefined, initialCatalogContext)
           : undefined;
       const scaledOfferPrice =
         offerPrice && defaultUom
           ? scaleSalesCatalogBaseUnitPriceToLineUom(offerPrice, {
-              catalog_context: optimisticContext,
+              catalog_context: initialCatalogContext,
               uom_code: defaultUom,
             })
           : offerPrice;
 
-      patchLine(lineKey, {
+      const basePatch = {
         ...rest,
         ...(clearingItem
           ? {
@@ -231,18 +242,47 @@ export function useSalesLineEntryActions<T extends SalesCommerceLineBase>(
               uom_code: undefined,
             }
           : {}),
-        ...(scaledOfferPrice ? { unit_price_selling: scaledOfferPrice } : {}),
         image_url: resolvedImageUrl,
         base_unit_of_measure: resolvedBaseUnit,
-        ...(optimisticContext ? { catalog_context: optimisticContext } : {}),
-        ...(defaultUom ? { uom_code: defaultUom } : {}),
-      } as Partial<T>);
+      } as Partial<T>;
 
-      if (variantChanged && variantId) {
+      if (variantChanged && variantId && !clearingItem && initialCatalogContext) {
+        const draftLine = {
+          ...currentLine,
+          ...basePatch,
+          catalog_context: initialCatalogContext,
+          ...(defaultUom ? { uom_code: defaultUom } : {}),
+          ...(scaledOfferPrice ? { unit_price_selling: scaledOfferPrice } : {}),
+        } as T;
+        const hydrated = applySellingCatalogToLine(
+          applySalesDraftLineUomTransition(
+            draftLine,
+            defaultUom ?? draftLine.uom_code
+          ),
+          initialCatalogContext,
+          pricesTaxInclusive
+        );
+        patchLine(lineKey, {
+          ...basePatch,
+          catalog_context: hydrated.catalog_context,
+          uom_code: hydrated.uom_code,
+          unit_price_selling: scaledOfferPrice ?? hydrated.unit_price_selling,
+          selling_markdown_percentage: hydrated.selling_markdown_percentage,
+        } as Partial<T>);
+      } else {
+        patchLine(lineKey, {
+          ...basePatch,
+          ...(scaledOfferPrice ? { unit_price_selling: scaledOfferPrice } : {}),
+          ...(initialCatalogContext ? { catalog_context: initialCatalogContext } : {}),
+          ...(defaultUom ? { uom_code: defaultUom } : {}),
+        } as Partial<T>);
+      }
+
+      if (variantChanged && variantId && !usedServerCatalog) {
         void applyCatalogContext(lineKey, variantId, resolvedImageUrl);
       }
     },
-    [applyCatalogContext, lines, patchLine]
+    [applyCatalogContext, lines, patchLine, pricesTaxInclusive]
   );
 
   const removeLine = useCallback(

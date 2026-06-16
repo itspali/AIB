@@ -9,7 +9,7 @@ import {
   type PoLineCatalogContext,
 } from "@/lib/documents/catalog-line-values";
 import { createPoCatalogFieldPref } from "@/lib/documents/purchase-order-layout";
-import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
+import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY, COMMERCE_DEFAULT_SELLING_UOM_KEY } from "@/lib/products/item-uom-commerce";
 
 const sampleContext: PoLineCatalogContext = {
   description: "Widget assembly",
@@ -106,6 +106,29 @@ describe("createOptimisticPoLineCatalogContextFromPicker", () => {
     });
 
     expect(context.default_purchase_uom).toBe("BOX");
+  });
+
+  it("parses default selling UOM and tax from picker snapshot", () => {
+    const context = createOptimisticPoLineCatalogContextFromPicker({
+      base_unit_of_measure: "PCS",
+      custom_fields: { [COMMERCE_DEFAULT_SELLING_UOM_KEY]: "BOX" },
+      tax_code_id: "tax-1",
+      tax_rate: 18,
+      tax_is_variable: false,
+    });
+
+    expect(context.default_selling_uom).toBe("BOX");
+    expect(context.tax_rate).toBe(18);
+    expect(context.tax_code_id).toBe("tax-1");
+  });
+
+  it("keeps alternate UOM rows from the picker snapshot", () => {
+    const context = createOptimisticPoLineCatalogContextFromPicker({
+      base_unit_of_measure: "PCS",
+      alternate_uoms: [{ uom_code: "BOX", conversion_factor: 12 }],
+    });
+
+    expect(context.alternate_uoms).toEqual([{ uom_code: "BOX", conversion_factor: 12 }]);
   });
 });
 

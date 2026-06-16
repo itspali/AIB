@@ -47,7 +47,7 @@ export const PO_LINE_QTY_INPUT_ROW_CLASS = "h-8 w-full shrink-0";
 
 /** Divider between the primary value input and stacked sublines (UOM, MRP %, disc type). */
 export const PO_LINE_QTY_VALUE_SUBLINE_SEPARATOR_CLASS =
-  "border-t border-border pt-2 pb-0.5";
+  "border-t border-border/30 pt-2 pb-0.5";
 
 function rowAlignClass(align: PoLineQtyUnitSlotProps["align"] | undefined) {
   return align === "right"

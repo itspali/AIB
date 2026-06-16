@@ -7,6 +7,7 @@ import {
   DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
 } from "@/components/documents/document-line-entry-cells";
 import {
+  DOCUMENT_LINE_CELL_BORDER,
   DOCUMENT_LINE_ROW_BASE,
   DOCUMENT_LINE_ROW_CELL_HOVER,
 } from "@/components/documents/document-line-entry-grid";
@@ -94,7 +95,7 @@ function PeekLineNestedDetailFields<TLine extends SalesCommercePeekLineRow>({
   if (detailRows.length === 0) return null;
 
   return (
-    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5 text-xs leading-snug text-muted-foreground">
+    <div className="mt-1.5 space-y-1 border-t border-border/30 pt-1.5 text-xs leading-snug text-muted-foreground">
       {detailRows.map((rowColumns, rowIndex) =>
         rowColumns.length > 1 ? (
           <div
@@ -389,7 +390,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
                     peekPrimaryAlignClass(column.align)
                   )}
                 >
-                  Before tax
+                  Before Tax
                 </span>
               </PoLineSublineRow>
               <PoLineSublineRow align={column.align}>
@@ -457,7 +458,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
                   peekPrimaryAlignClass(column.align)
                 )}
               >
-                Ex. tax
+                Before Tax
               </span>
             </PoLineSublineRow>
             <PoLineSublineRow align={column.align}>
@@ -575,10 +576,11 @@ export function SalesCommercePeekLinesSection<TLine extends SalesCommercePeekLin
           </thead>
           <tbody>
             {lines.map((line, lineIndex) => (
-              <tr key={line.id} className={cn("border-b border-border", DOCUMENT_LINE_ROW_BASE)}>
+              <tr key={line.id} className={cn("border-b-2 border-b-border", DOCUMENT_LINE_ROW_BASE)}>
                 <td
                   className={cn(
-                    "w-10 border border-border px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground",
+                    "w-10 px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground",
+                    DOCUMENT_LINE_CELL_BORDER,
                     DOCUMENT_LINE_ROW_CELL_HOVER
                   )}
                 >

@@ -3,7 +3,7 @@ import {
   parseCatalogFieldId,
 } from "@/lib/documents/catalog-field-ids";
 import { extractMrpFromCustomFieldsRecord, extractDefaultSellingPriceFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
-import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY } from "@/lib/products/item-uom-commerce";
+import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY, COMMERCE_DEFAULT_SELLING_UOM_KEY } from "@/lib/products/item-uom-commerce";
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 
@@ -11,6 +11,15 @@ function parseDefaultPurchaseUomFromPickerCustomFields(
   customFields: Record<string, string> | undefined
 ): string | null {
   const raw = customFields?.[COMMERCE_DEFAULT_PURCHASE_UOM_KEY];
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
+}
+
+function parseDefaultSellingUomFromPickerCustomFields(
+  customFields: Record<string, string> | undefined
+): string | null {
+  const raw = customFields?.[COMMERCE_DEFAULT_SELLING_UOM_KEY];
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   return trimmed || null;
@@ -90,6 +99,11 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
   hsn_sac_code?: string | null;
   mrp?: string | null;
   selling_price?: string | null;
+  tax_code_id?: string | null;
+  tax_rate?: number | null;
+  tax_is_variable?: boolean | null;
+  default_selling_uom?: string | null;
+  alternate_uoms?: ReadonlyArray<{ uom_code: string; conversion_factor: number | string }>;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
 }): PoLineCatalogContext {
@@ -101,6 +115,11 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     partial.selling_price?.trim() ||
     extractDefaultSellingPriceFromCustomFieldsRecord(partial.custom_fields) ||
     null;
+  const taxRateRaw = partial.tax_rate;
+  const tax_rate =
+    taxRateRaw != null && Number.isFinite(Number(taxRateRaw)) && Number(taxRateRaw) >= 0
+      ? Number(taxRateRaw)
+      : 0;
 
   return {
     description: partial.description?.trim() || null,
@@ -110,14 +129,26 @@ export function createOptimisticPoLineCatalogContextFromPicker(partial: {
     purchase_price: null,
     selling_price,
     image_url: partial.image_url?.trim() || null,
-    tax_code_id: null,
-    tax_rate: 0,
-    tax_is_variable: false,
+    tax_code_id: partial.tax_code_id?.trim() || null,
+    tax_rate,
+    tax_is_variable: partial.tax_is_variable === true,
     price_is_tax_inclusive: false,
     tax_components: [],
     default_purchase_uom: parseDefaultPurchaseUomFromPickerCustomFields(partial.custom_fields),
-    default_selling_uom: null,
-    alternate_uoms: [],
+    default_selling_uom:
+      partial.default_selling_uom?.trim() ||
+      parseDefaultSellingUomFromPickerCustomFields(partial.custom_fields),
+    alternate_uoms: (partial.alternate_uoms ?? [])
+      .map((row) => ({
+        uom_code: String(row.uom_code ?? "").trim(),
+        conversion_factor: Number(row.conversion_factor),
+      }))
+      .filter(
+        (row) =>
+          row.uom_code.length > 0 &&
+          Number.isFinite(row.conversion_factor) &&
+          row.conversion_factor > 0
+      ),
     custom_fields: { ...(partial.custom_fields ?? {}) },
     variant_attributes: { ...(partial.variant_attributes ?? {}) },
     attribute_labels: {},

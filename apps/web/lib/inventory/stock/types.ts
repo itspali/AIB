@@ -71,4 +71,10 @@ export type StockVariantOption = {
   mrp?: string | null;
   variant_attributes?: Record<string, string>;
   custom_fields?: Record<string, string>;
+  /** Item tax code from variant search — hydrates sales/PO tax column before full catalog fetch. */
+  tax_code_id?: string | null;
+  tax_rate?: number;
+  tax_is_variable?: boolean;
+  /** Alternate UOM rows from item master — hydrates line UOM before full catalog fetch. */
+  alternate_uoms?: Array<{ uom_code: string; conversion_factor: number }>;
 };

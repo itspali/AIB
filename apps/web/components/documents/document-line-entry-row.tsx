@@ -9,6 +9,7 @@ import {
 } from "@/components/documents/document-line-entry-cells";
 import {
   DOCUMENT_LINE_BODY_CELL,
+  DOCUMENT_LINE_CELL_BORDER,
   DOCUMENT_LINE_EDITABLE_CELL,
   DOCUMENT_LINE_ROW_BASE,
   DOCUMENT_LINE_ROW_CELL_HOVER,
@@ -91,7 +92,10 @@ export function DocumentLineEntryRow<T extends LineRow>({
       {showLineNumbers ? (
         <td
           className={cn(
-            "border border-border px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground",
+            cn(
+              DOCUMENT_LINE_CELL_BORDER,
+              "px-0 py-1 text-center align-top text-xs tabular-nums text-muted-foreground"
+            ),
             !isDragging && DOCUMENT_LINE_ROW_CELL_HOVER,
             isDragging && "opacity-40"
           )}
@@ -142,7 +146,7 @@ export function DocumentLineEntryRow<T extends LineRow>({
         <td
           style={cellShiftStyle}
           className={cn(
-            "border border-border p-0 text-center align-top",
+            cn(DOCUMENT_LINE_CELL_BORDER, "p-0 text-center align-top"),
             !isDragging && DOCUMENT_LINE_ROW_CELL_HOVER,
             isDragging && "opacity-40"
           )}

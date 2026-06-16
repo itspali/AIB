@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
+  DOCUMENT_LINE_CELL_BORDER,
   DOCUMENT_LINE_HEADER_CELL,
   DOCUMENT_LINE_ROW_BASE,
   DOCUMENT_LINE_ROW_CELL_HOVER,
@@ -79,12 +80,13 @@ export function DocumentLinePeekTable<T>({
           {lines.map((line, lineIndex) => (
             <tr
               key={getRowKey(line, lineIndex)}
-              className={cn("border-b border-border last:border-0", DOCUMENT_LINE_ROW_BASE)}
+              className={cn("border-b-2 border-b-border last:border-0", DOCUMENT_LINE_ROW_BASE)}
             >
               {showLineNumbers ? (
                 <td
                   className={cn(
-                    "w-9 border border-border px-0 py-1 text-center align-middle text-xs tabular-nums text-muted-foreground",
+                    "w-9 px-0 py-1 text-center align-middle text-xs tabular-nums text-muted-foreground",
+                    DOCUMENT_LINE_CELL_BORDER,
                     DOCUMENT_LINE_ROW_CELL_HOVER
                   )}
                 >
@@ -95,7 +97,8 @@ export function DocumentLinePeekTable<T>({
                 <td
                   key={column.id}
                   className={cn(
-                    "border border-border p-2 align-top",
+                    "p-2 align-top",
+                    DOCUMENT_LINE_CELL_BORDER,
                     peekColumnClass(column),
                     DOCUMENT_LINE_ROW_CELL_HOVER
                   )}

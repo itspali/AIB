@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { lookupSalesLineCatalogContext } from "@/app/sales/shared/catalog-actions";
 import {
   mergePoLineCatalogContext,
@@ -18,7 +18,10 @@ import {
 } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import type { SalesCommerceLineBase } from "@/lib/sales/shared/sales-line-entry";
 import { applySellingCatalogToLine } from "@/lib/sales/shared/sales-line-selling-markdown";
-import { resolveSalesLineUomAfterCatalogUpdate, applySalesDraftLineUomTransition } from "@/lib/sales/shared/sales-line-uom-options";
+import {
+  resolveSalesLineUomAfterCatalogUpdate,
+  applySalesDraftLineUomTransition,
+} from "@/lib/sales/shared/sales-line-uom-options";
 
 function applyCatalogHydration<T extends SalesCommerceLineBase>(
   line: T,
@@ -48,6 +51,24 @@ function applyCatalogHydration<T extends SalesCommerceLineBase>(
   );
 }
 
+function applyHydratedCatalogToLines<T extends SalesCommerceLineBase>(
+  current: T[],
+  variantId: string,
+  context: PoLineCatalogContext,
+  taxCodeOptions: readonly PoLineTaxCodeOption[],
+  pricesTaxInclusive: boolean
+): T[] {
+  let changed = false;
+  const next = current.map((line) => {
+    if (line.variant_id !== variantId || !needsPoLineCatalogHydration(line.catalog_context)) {
+      return line;
+    }
+    changed = true;
+    return applyCatalogHydration(line, context, taxCodeOptions, pricesTaxInclusive);
+  });
+  return changed ? next : current;
+}
+
 /** Loads read-only catalog snapshots for existing sales lines (e.g. when opening a saved document). */
 export function useSalesLineCatalogHydration<T extends SalesCommerceLineBase>(
   lines: T[],
@@ -56,9 +77,16 @@ export function useSalesLineCatalogHydration<T extends SalesCommerceLineBase>(
   pricesTaxInclusive = false
 ) {
   const inflightRef = useRef(new Set<string>());
+  const onChangeRef = useRef(onChange);
+  const taxCodeOptionsRef = useRef(taxCodeOptions);
+  const pricesTaxInclusiveRef = useRef(pricesTaxInclusive);
 
-  useEffect(() => {
-    const variantIds = [
+  onChangeRef.current = onChange;
+  taxCodeOptionsRef.current = taxCodeOptions;
+  pricesTaxInclusiveRef.current = pricesTaxInclusive;
+
+  const variantIdsNeedingHydration = useMemo(
+    () => [
       ...new Set(
         lines
           .filter(
@@ -66,19 +94,29 @@ export function useSalesLineCatalogHydration<T extends SalesCommerceLineBase>(
           )
           .map((line) => line.variant_id)
       ),
-    ];
+    ],
+    [lines]
+  );
+
+  const hydrationKey = variantIdsNeedingHydration.join("|");
+
+  useEffect(() => {
+    if (!hydrationKey) return;
+
+    const variantIds = hydrationKey.split("|");
 
     for (const variantId of variantIds) {
       if (inflightRef.current.has(variantId)) continue;
 
       const cached = getCachedPoLineCatalogContext(variantId);
       if (cached) {
-        onChange((current) =>
-          current.map((line) =>
-            line.variant_id === variantId &&
-            needsPoLineCatalogHydration(line.catalog_context)
-              ? applyCatalogHydration(line, cached, taxCodeOptions, pricesTaxInclusive)
-              : line
+        onChangeRef.current((current) =>
+          applyHydratedCatalogToLines(
+            current,
+            variantId,
+            cached,
+            taxCodeOptionsRef.current,
+            pricesTaxInclusiveRef.current
           )
         );
         continue;
@@ -87,22 +125,29 @@ export function useSalesLineCatalogHydration<T extends SalesCommerceLineBase>(
       inflightRef.current.add(variantId);
 
       void lookupSalesLineCatalogContext({ variant_id: variantId }).then((result) => {
-        inflightRef.current.delete(variantId);
-        if ("error" in result) return;
+        if ("error" in result) {
+          inflightRef.current.delete(variantId);
+          return;
+        }
+
         if (result.context) {
           setCachedPoLineCatalogContext(variantId, result.context);
         }
 
-        onChange((current) =>
-          current.map((line) =>
-            line.variant_id === variantId &&
-            needsPoLineCatalogHydration(line.catalog_context) &&
-            result.context
-              ? applyCatalogHydration(line, result.context, taxCodeOptions, pricesTaxInclusive)
-              : line
+        inflightRef.current.delete(variantId);
+
+        if (!result.context) return;
+
+        onChangeRef.current((current) =>
+          applyHydratedCatalogToLines(
+            current,
+            variantId,
+            result.context,
+            taxCodeOptionsRef.current,
+            pricesTaxInclusiveRef.current
           )
         );
       });
     }
-  }, [lines, onChange, taxCodeOptions, pricesTaxInclusive]);
+  }, [hydrationKey]);
 }

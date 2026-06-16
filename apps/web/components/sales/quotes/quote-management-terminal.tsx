@@ -389,6 +389,9 @@ export function QuoteManagementTerminal({
         tenantCountry={tenantCountry}
         preferredOriginLocationId={preferredOriginLocationId}
         documentConversionMode={documentConversionMode}
+        approvalSettings={approvalSettings}
+        currentUserId={currentUserId}
+        isOwner={isOwner}
         onClose={drawer.close}
         onAfterSave={handleAfterSave}
         onOpenEdit={handleOpenEdit}
