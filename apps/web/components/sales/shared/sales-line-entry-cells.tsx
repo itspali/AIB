@@ -40,11 +40,14 @@ import {
 } from "@/lib/sales/shared/sales-line-uom-options";
 import { getCachedVariantBaseUnit, getCachedVariantImageUrl } from "@/lib/inventory/stock/variant-suggestion-cache";
 import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import { resolveLineDetailFieldDisplay } from "@/lib/documents/catalog-line-values";
+import { isCatalogFieldId } from "@/lib/documents/catalog-field-ids";
 import {
   formatDocumentDecimal,
   normalizeDocumentDecimalInput,
   resolveColumnDecimalPlaces,
 } from "@/lib/documents/decimal-format";
+import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import type { DocumentColumnPref, DocumentImageDisplayMode } from "@/lib/documents/types";
 import {
   formatPoLineComputedDiscountAmount,
@@ -149,13 +152,14 @@ function isSkuLineFieldVisible(columns: DocumentColumnPref[]): boolean {
   return columns.some((column) => column.id === "sku" && column.defaultVisible);
 }
 
-function resolveNestedFieldValue(
+function resolveNestedFieldDisplay(
   column: DocumentColumnPref,
   line: SalesCommerceLineBase
 ): string | null {
-  if (column.id === "sku") return line.variant_sku?.trim() || null;
-  if (column.id === "unit") return resolveSalesLineUnitCode(line);
-  return null;
+  let commercial: string | null = null;
+  if (column.id === "sku") commercial = line.variant_sku?.trim() || null;
+  else if (column.id === "unit") commercial = resolveSalesLineUnitCode(line);
+  return resolveLineDetailFieldDisplay(column, line.catalog_context, commercial);
 }
 
 function visibleNestedColumns(
@@ -163,9 +167,30 @@ function visibleNestedColumns(
   line: SalesCommerceLineBase
 ): DocumentColumnPref[] {
   return columns.filter((column) => {
-    const value = resolveNestedFieldValue(column, line);
+    const value = resolveNestedFieldDisplay(column, line);
     return value != null && value !== "";
   });
+}
+
+function renderNestedFieldContent(column: DocumentColumnPref, line: SalesCommerceLineBase) {
+  const displayValue = resolveNestedFieldDisplay(column, line);
+  if (!displayValue) return null;
+
+  return (
+    <>
+      {column.showLabel !== false ? (
+        <span className="shrink-0">{column.label}:</span>
+      ) : null}
+      <span
+        className={cn(
+          "min-w-0 break-words text-foreground",
+          column.id === "sku" && "font-mono"
+        )}
+      >
+        {displayValue}
+      </span>
+    </>
+  );
 }
 
 function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
@@ -178,12 +203,13 @@ function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
   if (!line.variant_id || nestedColumns.length === 0) return null;
 
   const columnsToRender = visibleNestedColumns(nestedColumns, line);
+  const detailRows = groupItemDetailRows(columnsToRender);
   const showSku =
     Boolean(line.variant_sku) &&
     !isSkuLineFieldVisible(nestedColumns) &&
-    !columnsToRender.some((column) => column.id === "sku");
+    !columnsToRender.some((column) => isCatalogFieldId(column.id));
 
-  if (!showSku && columnsToRender.length === 0) return null;
+  if (!showSku && detailRows.length === 0) return null;
 
   return (
     <div className="mt-1.5 space-y-1 border-t border-border/50 px-0 pb-0.5 pt-1.5">
@@ -192,31 +218,52 @@ function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
           {line.variant_sku}
         </div>
       ) : null}
-      {columnsToRender.map((column) => {
-        const value = resolveNestedFieldValue(column, line);
-        if (!value) return null;
-        return (
+      {detailRows.map((rowColumns, rowIndex) =>
+        rowColumns.length > 1 ? (
           <div
-            key={column.id}
-            className={documentFieldTypographyClassName(
-              column,
-              "flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
-            )}
+            key={`inline-${rowIndex}`}
+            className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0 text-xs leading-snug"
           >
-            {column.showLabel !== false ? (
-              <span className="shrink-0">{column.label}:</span>
-            ) : null}
-            <span
-              className={cn(
-                "min-w-0 break-words text-foreground",
-                column.id === "sku" && "font-mono"
-              )}
-            >
-              {value}
-            </span>
+            {rowColumns.map((column, columnIndex) => {
+              const content = renderNestedFieldContent(column, line);
+              if (!content) return null;
+              return (
+                <span
+                  key={column.id}
+                  className={documentFieldTypographyClassName(
+                    column,
+                    "inline-flex min-w-0 items-baseline gap-1 text-muted-foreground"
+                  )}
+                >
+                  {columnIndex > 0 ? (
+                    <span className="text-muted-foreground/45" aria-hidden>
+                      ·
+                    </span>
+                  ) : null}
+                  {content}
+                </span>
+              );
+            })}
           </div>
-        );
-      })}
+        ) : (
+          (() => {
+            const column = rowColumns[0]!;
+            const content = renderNestedFieldContent(column, line);
+            if (!content) return null;
+            return (
+              <div
+                key={column.id}
+                className={documentFieldTypographyClassName(
+                  column,
+                  "flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
+                )}
+              >
+                {content}
+              </div>
+            );
+          })()
+        )
+      )}
     </div>
   );
 }
@@ -245,7 +292,7 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
   const showSkuFallback =
     Boolean(line.variant_sku) &&
     !skuLineFieldVisible &&
-    !visibleNestedColumns(nestedColumns, line).some((column) => column.id === "sku");
+    !visibleNestedColumns(nestedColumns, line).some((column) => isCatalogFieldId(column.id));
   const hideFieldSecondary =
     nestedColumns.length > 0 &&
     Boolean(line.variant_id) &&
@@ -920,7 +967,7 @@ export function renderSalesLineColumnCell<T extends SalesCommerceLineBase>(
     return <SalesLineTotalCell ctx={ctx} column={column} />;
   }
 
-  const nestedValue = resolveNestedFieldValue(column, ctx.line);
+  const nestedValue = resolveNestedFieldDisplay(column, ctx.line);
   if (nestedValue == null) return null;
 
   return (

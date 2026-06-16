@@ -68,6 +68,7 @@ import {
   isSoApprovalRequiredBeforeConfirm,
   type SalesApprovalSettings,
 } from "@/lib/sales/approval-settings";
+import { mapSalesOrderLinesForApprovalRules } from "@/lib/sales/evaluate-sales-approval-rules";
 import { DEFAULT_SALES_ORDER_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
 import { useSalesDrawerFormLayout } from "@/lib/sales/shared/sales-drawer-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
@@ -529,7 +530,8 @@ export function SoDrawerForm({
     approvalSettings,
     totalNetAmount,
     currentUserId,
-    { isOwner }
+    { isOwner },
+    mapSalesOrderLinesForApprovalRules(detail?.lines)
   );
   const showSubmitForApproval =
     isDraftOrder && editAccessGranted && approvalRequiredBeforeConfirm && salesOrderId != null;

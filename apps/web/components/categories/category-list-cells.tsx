@@ -7,13 +7,19 @@ import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import { getCategoryColumnDef, type CategoryListColumnId } from "@/lib/categories/list-columns";
 import type { CategoryListRow } from "@/lib/categories/list-row";
+import {
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_PRIMARY,
+} from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
 export function categoryListCellClassName(columnId: CategoryListColumnId): string {
-  if (columnId === "name") return "font-medium";
+  if (columnId === "name") return LIST_TABLE_CELL_PRIMARY;
   if (columnId === "parent_name") return "text-muted-foreground";
   if (columnId === "item_count" || columnId === "attribute_count") {
-    return "tabular-nums text-muted-foreground";
+    return LIST_TABLE_CELL_COUNT;
   }
   return "";
 }
@@ -21,19 +27,6 @@ export function categoryListCellClassName(columnId: CategoryListColumnId): strin
 type RenderCategoryListCellOptions = {
   chipDisplay?: Partial<Record<CategoryListColumnId, ColumnChipDisplay>>;
 };
-
-function formatActiveStatusText(value: boolean): ReactNode {
-  return (
-    <span
-      className={cn(
-        "text-xs font-medium",
-        value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-      )}
-    >
-      {value ? "Active" : "Inactive"}
-    </span>
-  );
-}
 
 function formatBooleanCell(
   columnId: CategoryListColumnId,
@@ -46,16 +39,7 @@ function formatBooleanCell(
     column,
     valueKey: booleanValueKey(value),
     label,
-    textNode: (
-      <span
-        className={cn(
-          "text-xs font-medium",
-          value ? "text-emerald-600" : "text-muted-foreground"
-        )}
-      >
-        {label}
-      </span>
-    ),
+    textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
     chipDisplay: chipDisplay?.[columnId],
   });
 }
@@ -77,7 +61,7 @@ export function renderCategoryListCell(
         column,
         valueKey: booleanValueKey(row.is_active),
         label,
-        textNode: formatActiveStatusText(row.is_active),
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.is_active,
       });
     }
@@ -116,9 +100,9 @@ export function renderCategoryListCell(
         options?.chipDisplay
       );
     case "created_at":
-      return formatDate(row.created_at);
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "updated_at":
-      return formatDate(row.updated_at);
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>;
     default:
       return "—";
   }

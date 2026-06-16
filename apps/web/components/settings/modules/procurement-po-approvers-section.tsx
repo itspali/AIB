@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   PO_APPROVER_ROLE_OPTIONS,
+  type ApproverRoleOption,
   type PoApproverRole,
 } from "@/lib/approvals/approval-rules";
 
@@ -30,6 +31,7 @@ type Props = {
   approverRoles: PoApproverRole[];
   approverProfiles: WorkspaceUserOption[];
   eligibleUsers: WorkspaceUserOption[];
+  roleOptions?: readonly ApproverRoleOption[];
   canEdit: boolean;
   onChangeUsers: (approverUserIds: string[]) => void;
   onChangeRoles: (approverRoles: PoApproverRole[]) => void;
@@ -40,6 +42,7 @@ export function ProcurementPoApproversSection({
   approverRoles,
   approverProfiles,
   eligibleUsers,
+  roleOptions = PO_APPROVER_ROLE_OPTIONS,
   canEdit,
   onChangeUsers,
   onChangeRoles,
@@ -72,7 +75,7 @@ export function ProcurementPoApproversSection({
       <div className="space-y-2">
         <Label className="text-xs">Roles that can approve</Label>
         <div className="space-y-2">
-          {PO_APPROVER_ROLE_OPTIONS.map((option) => (
+          {roleOptions.map((option) => (
             <div
               key={option.role}
               className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"

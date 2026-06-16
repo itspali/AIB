@@ -140,6 +140,14 @@ export function getDefaultColorRulesForColumn<TId extends string>(
   return { [FALLBACK_KEY]: { preset: "neutral" } };
 }
 
+export function resolveChipDisplayMode<TId extends string>(
+  column: ListColumnDef<TId>,
+  prefs?: ColumnChipDisplay | null
+): "text" | "chip" {
+  if (prefs?.mode === "text" || prefs?.mode === "chip") return prefs.mode;
+  return column.chipEligible ? "chip" : "text";
+}
+
 export function getEffectiveChipDisplay<TId extends string>(
   column: ListColumnDef<TId>,
   prefs?: ColumnChipDisplay | null
@@ -154,7 +162,7 @@ export function getEffectiveChipDisplay<TId extends string>(
   }
 
   return {
-    mode: prefs?.mode === "chip" ? "chip" : "text",
+    mode: resolveChipDisplayMode(column, prefs),
     valueColors: merged,
   };
 }
@@ -172,10 +180,12 @@ export function resolveValueColorRule(
 }
 
 export function isChipModeEnabled<TId extends string>(
-  columnId: TId,
+  column: ListColumnDef<TId>,
   prefs: ListColumnPrefs<TId>
 ): boolean {
-  return prefs.columnChipDisplay?.[columnId]?.mode === "chip";
+  return (
+    resolveChipDisplayMode(column, prefs.columnChipDisplay?.[column.id]) === "chip"
+  );
 }
 
 export function buildClassificationDefaultColors(): Record<string, ColumnValueColorRule> {

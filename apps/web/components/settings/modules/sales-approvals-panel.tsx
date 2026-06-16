@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SALES_APPROVER_ROLE_OPTIONS } from "@/lib/approvals/approval-rules";
 import {
   defaultSalesApprovalRules,
   describeSalesApprovalRule,
@@ -395,6 +396,7 @@ function SalesDocumentApprovalsSection({
                   approverRoles={approverRoles}
                   approverProfiles={approverProfilesForSection}
                   eligibleUsers={eligibleUsers.filter((user) => !approverUserIds.includes(user.id))}
+                  roleOptions={SALES_APPROVER_ROLE_OPTIONS}
                   canEdit={canEdit}
                   onChangeUsers={(ids) =>
                     onPatch({ [`${kind}_approver_user_ids`]: ids } as Partial<SalesApprovalSettings>)

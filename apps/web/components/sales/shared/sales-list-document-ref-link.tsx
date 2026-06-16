@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { LIST_TABLE_CELL_MONO_REF } from "@/lib/layout/list-table-chrome";
+import { cn } from "@/lib/utils";
 
 type Props = {
   documentId: string | null | undefined;
@@ -21,7 +23,7 @@ export function SalesListDocumentRefLink({
   return (
     <Link
       href={`${moduleHref}?id=${encodeURIComponent(documentId)}`}
-      className="font-mono text-xs text-primary hover:underline"
+      className={cn(LIST_TABLE_CELL_MONO_REF, "text-primary hover:underline")}
       onClick={(event) => event.stopPropagation()}
     >
       {trimmed}

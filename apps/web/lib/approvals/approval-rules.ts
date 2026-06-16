@@ -14,22 +14,30 @@ export type PoApprovalRule = {
 
 export type PoApproverRole = "ADMIN" | "MANAGER";
 
-export const PO_APPROVER_ROLE_OPTIONS: ReadonlyArray<{
+export type ApproverRoleOption = {
   role: PoApproverRole;
   label: string;
   description: string;
-}> = [
-  {
-    role: "ADMIN",
-    label: "Admins",
-    description: "Workspace admins can approve purchase orders.",
-  },
-  {
-    role: "MANAGER",
-    label: "Managers",
-    description: "Location managers can approve purchase orders.",
-  },
-];
+};
+
+export function buildApproverRoleOptions(documentPlural: string): ReadonlyArray<ApproverRoleOption> {
+  return [
+    {
+      role: "ADMIN",
+      label: "Admins",
+      description: `Workspace admins can approve ${documentPlural}.`,
+    },
+    {
+      role: "MANAGER",
+      label: "Managers",
+      description: `Location managers can approve ${documentPlural}.`,
+    },
+  ];
+}
+
+export const PO_APPROVER_ROLE_OPTIONS = buildApproverRoleOptions("purchase orders");
+
+export const SALES_APPROVER_ROLE_OPTIONS = buildApproverRoleOptions("sales documents");
 
 export const PO_APPROVAL_RULE_DEFINITIONS: ReadonlyArray<{
   type: PoApprovalRuleType;

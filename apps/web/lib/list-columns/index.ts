@@ -21,6 +21,7 @@ export {
   isValidCustomHex,
   normalizeColorRule,
   resolveChipColorRule,
+  resolveChipDisplayMode,
   resolveValueColorRule,
 } from "@/lib/list-columns/chip-colors";
 export { renderChipOrText } from "@/lib/list-columns/render-chip-value";

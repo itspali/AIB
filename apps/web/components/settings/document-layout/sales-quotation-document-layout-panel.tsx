@@ -1,12 +1,12 @@
 "use client";
 
-import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
 import {
-  loadGoodsReceiptDocumentLayout,
-  saveGoodsReceiptDocumentLayout,
-} from "@/app/settings/modules/procurement/actions";
+  loadSalesQuotationDocumentLayout,
+  saveSalesQuotationDocumentLayout,
+} from "@/app/settings/modules/sales/actions";
 import { DocumentLayoutPanel } from "@/components/settings/document-layout/document-layout-panel";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
+import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 
@@ -18,12 +18,12 @@ type Props = {
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 };
 
-export function GrnDocumentLayoutPanel(props: Props) {
+export function SalesQuotationDocumentLayoutPanel(props: Props) {
   return (
     <DocumentLayoutPanel
-      adapter={DOCUMENT_LAYOUT_MODULE_ADAPTERS.GOODS_RECEIPT_NOTE}
-      loadLayout={loadGoodsReceiptDocumentLayout}
-      saveLayout={saveGoodsReceiptDocumentLayout}
+      adapter={DOCUMENT_LAYOUT_MODULE_ADAPTERS.SALES_QUOTATION}
+      loadLayout={loadSalesQuotationDocumentLayout}
+      saveLayout={saveSalesQuotationDocumentLayout}
       {...props}
     />
   );

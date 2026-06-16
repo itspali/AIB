@@ -10,6 +10,15 @@ import {
   type SalesQuoteListColumnId,
 } from "@/lib/sales/quotes/list-columns";
 import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
+import {
+  LIST_TABLE_CELL_AMOUNT,
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_MONO_DOC,
+  LIST_TABLE_CELL_PRIMARY,
+  LIST_TABLE_CELL_SECONDARY,
+} from "@/lib/layout/list-table-chrome";
 import { SALES_INVOICES_HREF, SALES_ORDERS_HREF } from "@/lib/sales/navigation";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 
@@ -24,11 +33,11 @@ export function renderSalesQuoteListCell(
 ): ReactNode {
   switch (columnId) {
     case "quote_number":
-      return <span className="font-mono text-xs font-medium">{row.quotation_number}</span>;
+      return <span className={LIST_TABLE_CELL_MONO_DOC}>{row.quotation_number}</span>;
     case "customer":
-      return <span className="font-medium">{row.customer_name}</span>;
+      return <span className={LIST_TABLE_CELL_PRIMARY}>{row.customer_name}</span>;
     case "origin_location":
-      return <span className="font-medium">{row.origin_location_name || "—"}</span>;
+      return <span className={LIST_TABLE_CELL_SECONDARY}>{row.origin_location_name || "—"}</span>;
     case "status": {
       const column = getSalesQuoteColumnDef("status");
       const label = salesQuoteStatusLabel(row.commercial_status);
@@ -36,12 +45,12 @@ export function renderSalesQuoteListCell(
         column,
         valueKey: row.commercial_status,
         label,
-        textNode: <span className="text-sm font-medium">{label}</span>,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.status,
       });
     }
     case "valid_until":
-      return <span className="text-sm text-muted-foreground">{formatDate(row.valid_until)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.valid_until)}</span>;
     case "converted_order":
       return (
         <SalesListDocumentRefLink
@@ -59,13 +68,13 @@ export function renderSalesQuoteListCell(
         />
       );
     case "lines":
-      return <span className="tabular-nums">{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
     case "net_amount":
-      return <span className="tabular-nums">{row.total_net_amount}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_net_amount}</span>;
     case "created":
-      return <span className="text-sm text-muted-foreground">{formatDate(row.created_at)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "updated":
-      return <span className="text-sm text-muted-foreground">{formatDate(row.updated_at)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>;
     default:
       return null;
   }

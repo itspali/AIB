@@ -162,6 +162,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["procurement", "purchase order", "po columns", "document layout", "print"],
   },
   {
+    label: "Sales document layout",
+    href: "/settings/modules/sales",
+    keywords: ["sales", "quotation", "quote", "sales order", "invoice", "document layout", "columns"],
+  },
+  {
     label: "Tax Settings",
     href: "/settings/tax",
     keywords: ["tax", "gst", "vat", "tax rule", "tax code", "slab", "rate", "settings"],

@@ -162,7 +162,7 @@ export function EntityListTable({
     <div className={LIST_TABLE_ROOT}>
       <div className={LIST_TABLE_SURFACE}>
         <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
-          <table className={listTableElementClass("wide")}>
+          <table className={listTableElementClass("wide", compactRows)}>
             <thead>
               <tr className="text-left">
                 <th

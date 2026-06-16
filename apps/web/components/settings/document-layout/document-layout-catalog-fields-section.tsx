@@ -25,6 +25,10 @@ import {
   movePoCatalogLineFieldOrder,
   removePoCatalogField,
 } from "@/lib/documents/purchase-order-layout";
+import {
+  GST_MANDATORY_HSN_DISABLED_REASON,
+  isGstMandatoryCatalogFieldId,
+} from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentLayoutModuleAdapter } from "@/lib/documents/document-layout-module-adapters";
 import type { DocumentCatalogFieldSource, DocumentLayoutTemplate } from "@/lib/documents/types";
 
@@ -37,6 +41,7 @@ type CatalogFieldSuggestion = {
 type Props = {
   layout: DocumentLayoutTemplate;
   canEdit?: boolean;
+  gstRegistered?: boolean;
   customFieldKeys?: string[];
   variantAttributeKeys?: string[];
   catalogAdapter?: DocumentLayoutModuleAdapter["catalog"];
@@ -63,6 +68,7 @@ function suggestionId(suggestion: CatalogFieldSuggestion): string {
 export function DocumentLayoutCatalogFieldsSection({
   layout,
   canEdit = true,
+  gstRegistered = false,
   customFieldKeys = [],
   variantAttributeKeys = [],
   catalogAdapter,
@@ -110,6 +116,9 @@ export function DocumentLayoutCatalogFieldsSection({
   );
 
   const patchColumn = (id: string, patch: Partial<(typeof layout.columns)[number]>) => {
+    if (isGstMandatoryCatalogFieldId(id, gstRegistered) && patch.defaultVisible === false) {
+      return;
+    }
     onLayoutChange({
       ...layout,
       columns: layout.columns.map((column) =>
@@ -142,6 +151,7 @@ export function DocumentLayoutCatalogFieldsSection({
   };
 
   const handleRemoveField = (fieldId: string) => {
+    if (isGstMandatoryCatalogFieldId(fieldId, gstRegistered)) return;
     onLayoutChange(catalog.remove(layout, fieldId));
   };
 
@@ -155,6 +165,10 @@ export function DocumentLayoutCatalogFieldsSection({
         getMeta={(id) => ({
           draggable: true,
           disabled: !canEdit,
+          pinned: isGstMandatoryCatalogFieldId(id, gstRegistered),
+          disabledReason: isGstMandatoryCatalogFieldId(id, gstRegistered)
+            ? GST_MANDATORY_HSN_DISABLED_REASON
+            : undefined,
           lockLineSlot: "item_detail",
         })}
         onPatch={patchColumn}
@@ -167,7 +181,7 @@ export function DocumentLayoutCatalogFieldsSection({
         <div className="flex flex-wrap gap-1.5">
           {layout.catalogLineFieldOrder.map((fieldId) => {
             const column = layout.columns.find((entry) => entry.id === fieldId);
-            if (!column) return null;
+            if (!column || isGstMandatoryCatalogFieldId(fieldId, gstRegistered)) return null;
             return (
               <Button
                 key={fieldId}

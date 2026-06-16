@@ -143,6 +143,36 @@ export const LIST_TABLE_HEADER_SORTABLE =
 
 export const LIST_TABLE_BODY_CELL = cn(LIST_TABLE_ROW_DIVIDER, "p-2.5");
 
+/** Line-1 primary scan target (customer, supplier, entity name). */
+export const LIST_TABLE_CELL_PRIMARY = "font-medium";
+
+/** Secondary descriptive field (origin, location name, vendor ref). */
+export const LIST_TABLE_CELL_SECONDARY = "text-muted-foreground";
+
+/** Line-2 muted subtext (codes, location abbreviations). */
+export const LIST_TABLE_CELL_SUBLINE = "text-xs text-muted-foreground";
+
+/** Mono document / voucher numbers — body size, muted reference tone. */
+export const LIST_TABLE_CELL_MONO_DOC = "font-mono text-sm text-muted-foreground";
+
+/** Mono secondary reference (linked PO numbers, etc.). */
+export const LIST_TABLE_CELL_MONO_REF = "font-mono text-sm text-muted-foreground";
+
+/** Primary monetary column (net amount, liability). */
+export const LIST_TABLE_CELL_AMOUNT = "font-medium tabular-nums";
+
+/** Secondary numeric metadata (line counts). */
+export const LIST_TABLE_CELL_COUNT = "tabular-nums text-muted-foreground";
+
+/** Chip / status fallback when chips are disabled — inherits table `text-sm`. */
+export const LIST_TABLE_CELL_STATUS = "font-medium";
+
+/** Plain-text fallback for chip-eligible columns when chip mode is off. */
+export const LIST_TABLE_CELL_CHIP_FALLBACK = LIST_TABLE_CELL_STATUS;
+
+/** Date and timestamp columns — inherits table `text-sm`. */
+export const LIST_TABLE_CELL_DATE = "text-muted-foreground tabular-nums";
+
 /** Bulk-select checkbox — border matches header label text (`text-muted-foreground`). */
 export const LIST_TABLE_CHECKBOX_CLASS =
   "border-muted-foreground bg-background shadow-none hover:bg-background data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground data-[state=checked]:text-background";

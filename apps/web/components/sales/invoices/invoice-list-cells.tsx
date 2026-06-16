@@ -13,6 +13,14 @@ import {
   salesInvoicePaymentStatusLabel,
   salesInvoiceStatusLabel,
 } from "@/lib/sales/invoices/labels";
+import {
+  LIST_TABLE_CELL_AMOUNT,
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_MONO_DOC,
+  LIST_TABLE_CELL_PRIMARY,
+  LIST_TABLE_CELL_SECONDARY,
+} from "@/lib/layout/list-table-chrome";
 import { SALES_ORDERS_HREF, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
 
@@ -27,11 +35,11 @@ export function renderSalesInvoiceListCell(
 ): ReactNode {
   switch (columnId) {
     case "invoice_number":
-      return <span className="font-mono text-xs font-medium">{row.invoice_number}</span>;
+      return <span className={LIST_TABLE_CELL_MONO_DOC}>{row.invoice_number}</span>;
     case "customer":
-      return <span className="font-medium">{row.customer_name}</span>;
+      return <span className={LIST_TABLE_CELL_PRIMARY}>{row.customer_name}</span>;
     case "origin_location":
-      return <span className="font-medium">{row.origin_location_name || "—"}</span>;
+      return <span className={LIST_TABLE_CELL_SECONDARY}>{row.origin_location_name || "—"}</span>;
     case "status": {
       const column = getSalesInvoiceColumnDef("status");
       const label = salesInvoiceStatusLabel(row.commercial_status);
@@ -39,7 +47,7 @@ export function renderSalesInvoiceListCell(
         column,
         valueKey: row.commercial_status,
         label,
-        textNode: <span className="text-sm font-medium">{label}</span>,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.status,
       });
     }
@@ -50,7 +58,7 @@ export function renderSalesInvoiceListCell(
         column,
         valueKey: row.invoice_payment_status,
         label,
-        textNode: <span className="text-sm font-medium">{label}</span>,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.payment_status,
       });
     }
@@ -71,13 +79,13 @@ export function renderSalesInvoiceListCell(
         />
       );
     case "net_amount":
-      return <span className="tabular-nums">{row.total_net_amount}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_net_amount}</span>;
     case "paid_amount":
-      return <span className="tabular-nums">{row.total_paid_amount}</span>;
+      return <span className={LIST_TABLE_CELL_SECONDARY}>{row.total_paid_amount}</span>;
     case "created":
-      return <span className="text-sm text-muted-foreground">{formatDate(row.created_at)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "updated":
-      return <span className="text-sm text-muted-foreground">{formatDate(row.updated_at)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>;
     default:
       return null;
   }

@@ -9,7 +9,16 @@ import {
 import { stockAdjustmentKindLabel } from "@/lib/inventory/stock/labels";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import {
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_MONO_DOC,
+  LIST_TABLE_CELL_SECONDARY,
+  LIST_TABLE_CELL_SUBLINE,
+} from "@/lib/layout/list-table-chrome";
 import type { StockAdjustmentRow } from "@/lib/inventory/stock/types";
+import { cn } from "@/lib/utils";
 
 type Options = {
   chipDisplay?: Partial<Record<StockAdjustmentColumnId, ColumnChipDisplay>>;
@@ -22,13 +31,13 @@ export function renderStockAdjustmentListCell(
 ): ReactNode {
   switch (columnId) {
     case "document":
-      return <div className="font-mono text-xs font-medium">{row.adjustment_number}</div>;
+      return <div className={LIST_TABLE_CELL_MONO_DOC}>{row.adjustment_number}</div>;
     case "location":
       return (
         <>
-          <div className="font-medium">{row.location_name}</div>
+          <div className={LIST_TABLE_CELL_SECONDARY}>{row.location_name}</div>
           {row.location_code ? (
-            <div className="text-xs text-muted-foreground">{row.location_code}</div>
+            <div className={LIST_TABLE_CELL_SUBLINE}>{row.location_code}</div>
           ) : null}
         </>
       );
@@ -39,16 +48,16 @@ export function renderStockAdjustmentListCell(
         column,
         valueKey: row.kind,
         label,
-        textNode: <span>{label}</span>,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.kind,
       });
     }
     case "reason":
-      return <div className="line-clamp-2">{row.reason}</div>;
+      return <div className={cn("line-clamp-2", LIST_TABLE_CELL_SECONDARY)}>{row.reason}</div>;
     case "lines":
-      return <span className="tabular-nums">{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
     case "posted":
-      return <span className="text-muted-foreground">{formatDate(row.posted_at)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.posted_at)}</span>;
     default:
       return null;
   }

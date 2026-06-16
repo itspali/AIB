@@ -25,6 +25,10 @@ import {
   type DocumentLayoutScope,
 } from "@/lib/documents/layout-scope";
 import type { DocumentLayoutModuleAdapter } from "@/lib/documents/document-layout-module-adapters";
+import {
+  applyGstRegisteredDocumentLayoutOverrides,
+  HSN_CATALOG_FIELD_ID,
+} from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentImageDisplayMode, DocumentLayoutTemplate, DocumentViewContext } from "@/lib/documents/types";
 import { DOCUMENT_LAYOUT_PRINT_EMAIL_ENABLED } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
@@ -50,6 +54,7 @@ type Props = {
   initialLayout: DocumentLayoutTemplate;
   locations?: DocumentLayoutLocationOption[];
   canEdit?: boolean;
+  gstRegistered?: boolean;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
   loadLayout: LoadLayoutFn;
   saveLayout: SaveLayoutFn;
@@ -92,15 +97,23 @@ export function DocumentLayoutPanel({
   initialLayout,
   locations = [],
   canEdit = true,
+  gstRegistered = false,
   catalogFieldSuggestions,
   loadLayout,
   saveLayout,
 }: Props) {
+  const applyGstCompliance = (template: DocumentLayoutTemplate) => {
+    const normalized = adapter.normalize(template);
+    return gstRegistered
+      ? applyGstRegisteredDocumentLayoutOverrides(normalized, true, adapter.catalog.createPref)
+      : normalized;
+  };
+
   const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
   const [viewContext, setViewContext] = useState<DocumentViewContext>(
     initialLayout.viewContext ?? "SCREEN_GRID"
   );
-  const [layout, setLayout] = useState<DocumentLayoutTemplate>(() => adapter.normalize(initialLayout));
+  const [layout, setLayout] = useState<DocumentLayoutTemplate>(() => applyGstCompliance(initialLayout));
   const [previewMode, setPreviewMode] = useState<"drawer" | "peek">("drawer");
   const [isPending, startTransition] = useTransition();
   const [isLoadingLayout, setIsLoadingLayout] = useState(false);
@@ -115,7 +128,7 @@ export function DocumentLayoutPanel({
       viewContext === (initialLayout.viewContext ?? "SCREEN_GRID");
 
     if (isInitialHydration) {
-      setLayout(adapter.normalize(initialLayout));
+      setLayout(applyGstCompliance(initialLayout));
       return;
     }
 
@@ -130,7 +143,7 @@ export function DocumentLayoutPanel({
       }
       hydratedScopeKey.current = scopeKey;
       hydratedViewContext.current = viewContext;
-      setLayout(adapter.normalize(result.layout));
+      setLayout(applyGstCompliance(result.layout));
     });
 
     return () => {
@@ -139,17 +152,28 @@ export function DocumentLayoutPanel({
     };
   }, [adapter, scope, viewContext, initialLayout, loadLayout]);
 
+  useEffect(() => {
+    setLayout((current) => applyGstCompliance(current));
+  }, [gstRegistered]);
+
   const columnById = useMemo(() => new Map(layout.columns.map((column) => [column.id, column])), [layout.columns]);
 
   const getColumn = (id: string) => columnById.get(id);
 
   const patchColumn = (id: string, patch: Partial<(typeof layout.columns)[number]>) => {
+    if (
+      gstRegistered &&
+      id === HSN_CATALOG_FIELD_ID &&
+      patch.defaultVisible === false
+    ) {
+      return;
+    }
     setLayout((current) => adapter.patchColumn(current, id, patch));
   };
 
   const handleReset = () => {
     setLayout(
-      adapter.normalize({
+      applyGstCompliance({
         ...adapter.defaultLayout,
         viewContext,
       })
@@ -168,14 +192,16 @@ export function DocumentLayoutPanel({
 
   const handleSave = () => {
     startTransition(async () => {
+      const compliantLayout = applyGstCompliance({
+        ...layout,
+        viewContext,
+        moduleKey: adapter.moduleKey,
+      });
+
       const result = await saveLayout({
         scope,
         viewContext,
-        layout: {
-          ...layout,
-          viewContext,
-          moduleKey: adapter.moduleKey,
-        },
+        layout: compliantLayout,
       });
 
       if ("error" in result) {
@@ -281,16 +307,26 @@ export function DocumentLayoutPanel({
             />
           </SectionBlock>
 
-          <SectionBlock title="Item catalog fields" hint="Read-only · from item master · under item cell">
-            <DocumentLayoutCatalogFieldsSection
-              layout={layout}
-              canEdit={!controlsDisabled}
-              catalogAdapter={adapter.catalog}
-              customFieldKeys={catalogFieldSuggestions?.customFieldKeys}
-              variantAttributeKeys={catalogFieldSuggestions?.variantAttributeKeys}
-              onLayoutChange={setLayout}
-            />
-          </SectionBlock>
+          {adapter.showCatalogSection ? (
+            <SectionBlock
+              title="Item catalog fields"
+              hint={
+                gstRegistered
+                  ? "HSN/SAC required · read-only · from item master · under item cell"
+                  : "Read-only · from item master · under item cell"
+              }
+            >
+              <DocumentLayoutCatalogFieldsSection
+                layout={layout}
+                canEdit={!controlsDisabled}
+                gstRegistered={gstRegistered}
+                catalogAdapter={adapter.catalog}
+                customFieldKeys={catalogFieldSuggestions?.customFieldKeys}
+                variantAttributeKeys={catalogFieldSuggestions?.variantAttributeKeys}
+                onLayoutChange={setLayout}
+              />
+            </SectionBlock>
+          ) : null}
 
           {adapter.showTotalsSection ? (
             <SectionBlock title="Totals">

@@ -49,6 +49,7 @@ import {
   ensureColumnInOrder,
   resolveSelectorColumnOrder,
 } from "@/lib/list-columns/prefs";
+import { resolveChipDisplayMode } from "@/lib/list-columns/chip-colors";
 import { getColumnDef } from "@/lib/list-columns/types";
 import type {
   CardGridColumnCount,
@@ -258,7 +259,7 @@ export function ListColumnSettings<TId extends string>({
     const next: Partial<Record<TId, ColumnChipDisplay>> = {
       ...(prefs.columnChipDisplay ?? {}),
     };
-    if (!display || display.mode === "text") {
+    if (!display) {
       delete next[columnId];
     } else {
       next[columnId] = display;
@@ -270,12 +271,19 @@ export function ListColumnSettings<TId extends string>({
   };
 
   const toggleChipMode = (columnId: TId, enabled: boolean) => {
+    const existing = prefs.columnChipDisplay?.[columnId];
     if (!enabled) {
       setExpandedChipColumnId((current) => (current === columnId ? null : current));
-      setChipDisplay(columnId, undefined);
+      setChipDisplay(columnId, {
+        mode: "text",
+        valueColors: existing?.valueColors,
+      });
       return;
     }
-    setChipDisplay(columnId, { mode: "chip" });
+    setChipDisplay(columnId, {
+      mode: "chip",
+      valueColors: existing?.valueColors,
+    });
     setExpandedChipColumnId(columnId);
   };
 
@@ -590,7 +598,8 @@ export function ListColumnSettings<TId extends string>({
     const rowDisabled = disabled || !applicable;
     const visible = prefs.visibleColumns.includes(columnId);
     const isDragOver = dragOverId === columnId;
-    const chipEnabled = prefs.columnChipDisplay?.[columnId]?.mode === "chip";
+    const chipEnabled =
+      resolveChipDisplayMode(column, prefs.columnChipDisplay?.[columnId]) === "chip";
 
     return (
       <div

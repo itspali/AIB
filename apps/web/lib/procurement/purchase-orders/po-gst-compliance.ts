@@ -1,4 +1,8 @@
 import { buildCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import {
+  applyGstRegisteredDocumentLayoutOverrides,
+  HSN_CATALOG_FIELD_ID,
+} from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import { createPoCatalogFieldPref } from "@/lib/documents/purchase-order-layout";
 import { isGstinFormat } from "@/lib/entities/gstin";
@@ -8,7 +12,7 @@ import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orde
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import { isGstImportSupplyNature } from "@/lib/tax/gst-supply-context";
 
-export const PO_HSN_CATALOG_FIELD_ID = buildCatalogFieldId("item_column", "hsn_sac_code");
+export const PO_HSN_CATALOG_FIELD_ID = HSN_CATALOG_FIELD_ID;
 
 /** Indian org with a valid GSTIN on file. */
 export function isOrganizationGstRegistered(
@@ -26,23 +30,11 @@ export function applyGstRegisteredPoLayoutOverrides(
   layout: DocumentLayoutTemplate,
   gstRegistered: boolean
 ): DocumentLayoutTemplate {
-  if (!gstRegistered) return layout;
-
-  const hsnPref =
-    layout.columns.find((column) => column.id === PO_HSN_CATALOG_FIELD_ID) ??
-    createPoCatalogFieldPref("item_column", "hsn_sac_code");
-
-  const columns = layout.columns.some((column) => column.id === PO_HSN_CATALOG_FIELD_ID)
-    ? layout.columns.map((column) =>
-        column.id === PO_HSN_CATALOG_FIELD_ID ? { ...column, defaultVisible: true } : column
-      )
-    : [...layout.columns, { ...hsnPref, defaultVisible: true }];
-
-  const catalogLineFieldOrder = layout.catalogLineFieldOrder.includes(PO_HSN_CATALOG_FIELD_ID)
-    ? layout.catalogLineFieldOrder
-    : [...layout.catalogLineFieldOrder, PO_HSN_CATALOG_FIELD_ID];
-
-  return { ...layout, columns, catalogLineFieldOrder };
+  return applyGstRegisteredDocumentLayoutOverrides(
+    layout,
+    gstRegistered,
+    createPoCatalogFieldPref
+  );
 }
 
 export function patchPoLineHsnSacCode(

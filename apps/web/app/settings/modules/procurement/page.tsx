@@ -16,15 +16,17 @@ import {
   fetchWorkspaceUserProfiles,
 } from "@/lib/organization/queries";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 
 export default async function ProcurementModuleSettingsPage() {
   const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
     await getModulePageContext();
 
-  const [locations, access, catalogFieldSuggestions, initialPoLayout, initialGrnLayout, initialBillLayout, procurementSettings, approvalSettings, eligibleUsers, financialSettings, expenseAccounts, liabilityAccounts] =
+  const [locations, access, gstRegistered, catalogFieldSuggestions, initialPoLayout, initialGrnLayout, initialBillLayout, procurementSettings, approvalSettings, eligibleUsers, financialSettings, expenseAccounts, liabilityAccounts] =
     await Promise.all([
     fetchLocationRows(supabase, tenantId),
     resolveOrganizationSettingsAccess(supabase, userId, tenantId),
+    fetchOrganizationGstRegistered(supabase, tenantId),
     fetchPoCatalogFieldSuggestions(supabase, tenantId),
     fetchDocumentLayoutTemplate(supabase, tenantId, "PURCHASE_ORDER", "SCREEN_GRID"),
     fetchDocumentLayoutTemplate(supabase, tenantId, "GOODS_RECEIPT_NOTE", "SCREEN_GRID"),
@@ -56,6 +58,7 @@ export default async function ProcurementModuleSettingsPage() {
       <ProcurementModuleSettingsTerminal
         locations={locationOptions}
         canEdit={access.granted}
+        gstRegistered={gstRegistered}
         catalogFieldSuggestions={catalogFieldSuggestions}
         initialPoLayout={initialPoLayout}
         initialGrnLayout={initialGrnLayout}

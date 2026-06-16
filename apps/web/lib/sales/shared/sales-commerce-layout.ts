@@ -1,5 +1,11 @@
+import {
+  buildCatalogFieldId,
+  isCatalogFieldId,
+  VARIANT_ATTRIBUTES_ALL_ID,
+} from "@/lib/documents/catalog-field-ids";
 import { mergeFieldOrder, moveFieldInOrder } from "@/lib/documents/layout-order";
 import type {
+  DocumentCatalogFieldSource,
   DocumentColumnPref,
   DocumentHeaderSlot,
   DocumentImageDisplayMode,
@@ -221,6 +227,42 @@ const SALES_LINE_COLUMNS: DocumentColumnPref[] = [
   },
 ];
 
+const SALES_CATALOG_LINE_COLUMNS: DocumentColumnPref[] = [
+  {
+    id: VARIANT_ATTRIBUTES_ALL_ID,
+    label: "Variant attributes",
+    defaultVisible: true,
+    group: "catalog",
+    lineSlot: "item_detail",
+    showLabel: false,
+    itemDetailFlow: "new_line",
+    catalogSource: "variant_attributes_all",
+    catalogSourceKey: "__all__",
+  },
+  {
+    id: buildCatalogFieldId("item_column", "hsn_sac_code"),
+    label: "HSN/SAC",
+    defaultVisible: false,
+    group: "catalog",
+    lineSlot: "item_detail",
+    showLabel: true,
+    itemDetailFlow: "new_line",
+    catalogSource: "item_column",
+    catalogSourceKey: "hsn_sac_code",
+  },
+  {
+    id: buildCatalogFieldId("item_column", "description"),
+    label: "Description",
+    defaultVisible: false,
+    group: "catalog",
+    lineSlot: "item_detail",
+    showLabel: true,
+    itemDetailFlow: "new_line",
+    catalogSource: "item_column",
+    catalogSourceKey: "description",
+  },
+];
+
 const SALES_HEADER_COLUMNS: DocumentColumnPref[] = [
   {
     id: "customer",
@@ -434,6 +476,9 @@ export const DEFAULT_SALES_LINE_SETTINGS_COLUMN_ORDER: SalesLineSettingsColumnId
 ];
 export const DEFAULT_SALES_HEADER_FIELD_ORDER: SalesHeaderFieldId[] = [...SALES_HEADER_FIELD_IDS];
 export const DEFAULT_SALES_TOTALS_FIELD_ORDER: SalesTotalsFieldId[] = [...SALES_TOTALS_FIELD_IDS];
+export const DEFAULT_SALES_CATALOG_LINE_FIELD_ORDER: string[] = SALES_CATALOG_LINE_COLUMNS.map(
+  (column) => column.id
+);
 
 function createSalesScreenLayout(
   moduleKey: DocumentLayoutTemplate["moduleKey"]
@@ -441,9 +486,14 @@ function createSalesScreenLayout(
   return {
     moduleKey,
     viewContext: "SCREEN_GRID",
-    columns: [...SALES_LINE_COLUMNS, ...SALES_HEADER_COLUMNS, ...SALES_TOTALS_COLUMNS],
+    columns: [
+      ...SALES_LINE_COLUMNS,
+      ...SALES_CATALOG_LINE_COLUMNS,
+      ...SALES_HEADER_COLUMNS,
+      ...SALES_TOTALS_COLUMNS,
+    ],
     lineColumnOrder: [...DEFAULT_SALES_LINE_COLUMN_ORDER],
-    catalogLineFieldOrder: [],
+    catalogLineFieldOrder: [...DEFAULT_SALES_CATALOG_LINE_FIELD_ORDER],
     headerFieldOrder: [...DEFAULT_SALES_HEADER_FIELD_ORDER],
     totalsFieldOrder: [...DEFAULT_SALES_TOTALS_FIELD_ORDER],
     imageDisplayMode: "HIDDEN",
@@ -518,6 +568,16 @@ export function mergeSalesColumnPrefs(saved: readonly DocumentColumnPref[]): Doc
   return merged;
 }
 
+/** Merge saved catalog field order — saved order is authoritative (supports remove/re-add). */
+function mergeCatalogLineFieldOrder(
+  saved: readonly string[] | undefined,
+  registryIds: readonly string[]
+): string[] {
+  if (!saved || saved.length === 0) return [...registryIds];
+  const registrySet = new Set(registryIds);
+  return saved.filter((id) => registrySet.has(id) || isCatalogFieldId(id));
+}
+
 export function normalizeSalesCommerceLayoutTemplate(
   template: Partial<DocumentLayoutTemplate> | DocumentLayoutDefaults,
   fallback: DocumentLayoutTemplate = DEFAULT_SALES_ORDER_SCREEN_LAYOUT
@@ -537,8 +597,10 @@ export function normalizeSalesCommerceLayoutTemplate(
       "lineColumnOrder" in template ? template.lineColumnOrder : undefined,
       SALES_LINE_COLUMN_IDS
     ),
-    catalogLineFieldOrder:
-      "catalogLineFieldOrder" in template ? (template.catalogLineFieldOrder ?? []) : [],
+    catalogLineFieldOrder: mergeCatalogLineFieldOrder(
+      "catalogLineFieldOrder" in template ? template.catalogLineFieldOrder : undefined,
+      DEFAULT_SALES_CATALOG_LINE_FIELD_ORDER
+    ),
     headerFieldOrder: mergeFieldOrder(
       "headerFieldOrder" in template ? template.headerFieldOrder : undefined,
       SALES_HEADER_FIELD_IDS
@@ -751,13 +813,97 @@ export function getSalesLineEntryTableColumns(
   return [SALES_LINE_IMAGE_COLUMN, ...commercial];
 }
 
+export function orderedSalesCatalogLineFields(layout: DocumentLayoutTemplate): DocumentColumnPref[] {
+  const normalized = normalizeSalesCommerceLayoutTemplate(layout);
+  return normalized.catalogLineFieldOrder
+    .map((id) => getColumnPref(normalized, id))
+    .filter((column): column is DocumentColumnPref => !!column && isCatalogFieldId(column.id));
+}
+
+export function getVisibleSalesCatalogLineFields(
+  layout: DocumentLayoutDefaults = DEFAULT_SALES_ORDER_SCREEN_LAYOUT
+): DocumentColumnPref[] {
+  return orderedSalesCatalogLineFields(normalizeSalesCommerceLayoutTemplate(layout)).filter(
+    (column) => column.defaultVisible
+  );
+}
+
+export function createSalesCatalogFieldPref(
+  source: DocumentCatalogFieldSource,
+  key: string,
+  label?: string
+): DocumentColumnPref {
+  const id = buildCatalogFieldId(source, key);
+  const resolvedLabel =
+    label?.trim() ||
+    (source === "variant_attributes_all"
+      ? "Variant attributes"
+      : key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()));
+
+  return {
+    id,
+    label: resolvedLabel,
+    defaultVisible: true,
+    group: "catalog",
+    lineSlot: "item_detail",
+    showLabel: source !== "variant_attributes_all",
+    itemDetailFlow:
+      source === "variant_attribute" || source === "item_custom_field"
+        ? "inline_previous"
+        : "new_line",
+    catalogSource: source,
+    catalogSourceKey: key,
+  };
+}
+
+export function addSalesCatalogField(
+  layout: DocumentLayoutTemplate,
+  pref: DocumentColumnPref
+): DocumentLayoutTemplate {
+  const columns = layout.columns.some((column) => column.id === pref.id)
+    ? layout.columns
+    : [...layout.columns, pref];
+  return {
+    ...layout,
+    columns,
+    catalogLineFieldOrder: layout.catalogLineFieldOrder.includes(pref.id)
+      ? layout.catalogLineFieldOrder
+      : [...layout.catalogLineFieldOrder, pref.id],
+  };
+}
+
+export function removeSalesCatalogField(
+  layout: DocumentLayoutTemplate,
+  fieldId: string
+): DocumentLayoutTemplate {
+  if (!isCatalogFieldId(fieldId)) return layout;
+  return {
+    ...layout,
+    catalogLineFieldOrder: layout.catalogLineFieldOrder.filter((id) => id !== fieldId),
+    columns: layout.columns.filter((column) => column.id !== fieldId),
+  };
+}
+
+export function moveSalesCatalogLineFieldOrder(
+  layout: DocumentLayoutTemplate,
+  fromId: string,
+  toId: string
+): DocumentLayoutTemplate {
+  return {
+    ...layout,
+    catalogLineFieldOrder: moveFieldInOrder(layout.catalogLineFieldOrder, fromId, toId),
+  };
+}
+
 /** Visible line fields rendered under the item cell in compact drawer mode. */
 export function getSalesItemDetailLineFields(
   layout: DocumentLayoutDefaults = DEFAULT_SALES_ORDER_SCREEN_LAYOUT
 ): DocumentColumnPref[] {
-  return getVisibleSalesLineColumns(layout).filter(
+  const commercial = getVisibleSalesLineColumns(layout).filter(
     (column) => resolveSalesLineFieldSlot(column) === "item_detail"
   );
+  const catalog = getVisibleSalesCatalogLineFields(layout);
+  return [...commercial, ...catalog];
 }
 
 export function getVisibleSalesHeaderFields(

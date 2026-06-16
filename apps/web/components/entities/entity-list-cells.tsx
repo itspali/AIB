@@ -10,8 +10,15 @@ import {
 } from "@/lib/entities/labels";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import {
+  LIST_TABLE_CELL_AMOUNT,
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_PRIMARY,
+  LIST_TABLE_CELL_SUBLINE,
+} from "@/lib/layout/list-table-chrome";
 import type { EntityListRow } from "@/lib/entities/types";
-import { cn } from "@/lib/utils";
 
 type Options = {
   chipDisplay?: Partial<Record<EntityListColumnId, ColumnChipDisplay>>;
@@ -26,10 +33,8 @@ export function renderEntityListCell(
     case "name":
       return (
         <>
-          <div className="font-medium">{row.name}</div>
-          {row.code ? (
-            <div className="text-xs text-muted-foreground">{row.code}</div>
-          ) : null}
+          <div className={LIST_TABLE_CELL_PRIMARY}>{row.name}</div>
+          {row.code ? <div className={LIST_TABLE_CELL_SUBLINE}>{row.code}</div> : null}
         </>
       );
     case "code":
@@ -41,7 +46,7 @@ export function renderEntityListCell(
         column,
         valueKey: row.type,
         label,
-        textNode: <span className="text-sm">{label}</span>,
+        textNode: <span>{label}</span>,
         chipDisplay: options?.chipDisplay?.type,
       });
     }
@@ -52,7 +57,7 @@ export function renderEntityListCell(
         column,
         valueKey: row.party_nature,
         label,
-        textNode: <span className="text-sm">{label}</span>,
+        textNode: <span>{label}</span>,
         chipDisplay: options?.chipDisplay?.party_nature,
       });
     }
@@ -69,7 +74,7 @@ export function renderEntityListCell(
         column,
         valueKey: row.tax_treatment,
         label,
-        textNode: <span className="text-sm">{label}</span>,
+        textNode: <span>{label}</span>,
         chipDisplay: options?.chipDisplay?.tax_treatment,
       });
     }
@@ -85,12 +90,12 @@ export function renderEntityListCell(
       return row.company_phone ?? "—";
     case "credit_limit":
     case "current_balance":
-      return <span className="tabular-nums">{row[columnId]}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{row[columnId]}</span>;
     case "payment_terms_days":
       return (
-        <span className="tabular-nums">
+        <span className={LIST_TABLE_CELL_COUNT}>
           {row.payment_terms_days}
-          <span className="text-muted-foreground"> d</span>
+          <span> d</span>
         </span>
       );
     case "is_active": {
@@ -100,24 +105,13 @@ export function renderEntityListCell(
         column,
         valueKey: String(row.is_active),
         label,
-        textNode: (
-          <span
-            className={cn(
-              "text-sm font-medium",
-              row.is_active ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"
-            )}
-          >
-            {label}
-          </span>
-        ),
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.is_active,
       });
     }
     case "created_at":
     case "updated_at":
-      return (
-        <span className="text-sm text-muted-foreground">{formatDate(row[columnId])}</span>
-      );
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row[columnId])}</span>;
     default:
       return "—";
   }

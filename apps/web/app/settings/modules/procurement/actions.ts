@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fetchDocumentLayoutTemplate, upsertDocumentLayoutTemplate } from "@/lib/documents/document-layout-queries";
+import { applyGstRegisteredDocumentLayoutOverrides } from "@/lib/documents/gst-document-layout-compliance";
 import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
 import { normalizeGrnLayoutTemplate } from "@/lib/documents/goods-receipt-layout";
 import { normalizeBillLayoutTemplate } from "@/lib/documents/purchase-invoice-layout";
 import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 import {
   PO_AUTO_ROUND_OFF_STEP_PRESETS,
@@ -77,9 +79,14 @@ async function saveDocumentLayoutForModule(
       return { error: "Invalid module for document layout." };
     }
 
+    const gstRegistered = await fetchOrganizationGstRegistered(supabase, tenantId);
+    const persistedLayout = gstRegistered
+      ? applyGstRegisteredDocumentLayoutOverrides(layout, true)
+      : layout;
+
     void layoutScopeKey(input.scope);
 
-    await upsertDocumentLayoutTemplate(supabase, tenantId, layout, {
+    await upsertDocumentLayoutTemplate(supabase, tenantId, persistedLayout, {
       locationId: resolveScopeLocationId(input.scope),
     });
 

@@ -9,7 +9,12 @@ import {
   getVisibleBillLineColumns,
   getVisibleTotalsFields as getVisibleBillTotalsFields,
 } from "@/lib/documents/purchase-invoice-layout";
-import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { DocumentColumnPref, DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
+import {
+  getVisibleSalesHeaderFields,
+  getVisibleSalesLineColumns,
+  getVisibleSalesTotalsFields,
+} from "@/lib/sales/shared/sales-commerce-layout";
 import { cn } from "@/lib/utils";
 
 type PreviewMode = "drawer" | "peek";
@@ -19,6 +24,12 @@ type Props = {
   previewMode: PreviewMode;
   onPreviewModeChange: (mode: PreviewMode) => void;
 };
+
+const SALES_MODULE_KEYS = new Set<DocumentModuleKey>([
+  "SALES_QUOTATION",
+  "SALES_ORDER",
+  "SALES_INVOICE",
+]);
 
 function previewHeaderValue(field: DocumentColumnPref): string {
   const samples: Record<string, string> = {
@@ -33,6 +44,17 @@ function previewHeaderValue(field: DocumentColumnPref): string {
     tax_treatment: "Regular B2B",
     created_at: "Jun 14, 2026",
     is_qc_pending: "No",
+    customer: "Northwind Retail",
+    shipping_location: "Main store",
+    tax_supply_nature: "Regular B2B",
+    currency: "USD",
+    payment_terms_days: "30",
+    requisition_number: "REQ-1042",
+    expected_delivery_date: "Jun 20, 2026",
+    internal_notes: "Rush order",
+    document_status: "Draft",
+    created_by: "Alex Morgan",
+    updated_at: "Jun 14, 2026",
   };
   return samples[field.id] ?? "…";
 }
@@ -90,22 +112,36 @@ function PreviewLineTable({ columns }: { columns: DocumentColumnPref[] }) {
   );
 }
 
+function resolvePreviewFields(layout: DocumentLayoutTemplate) {
+  if (layout.moduleKey === "GOODS_RECEIPT_NOTE") {
+    const normalized = DOCUMENT_LAYOUT_MODULE_ADAPTERS.GOODS_RECEIPT_NOTE.normalize(layout);
+    return {
+      headerFields: getVisibleGrnHeaderFields(normalized),
+      lineColumns: getVisibleGrnLineColumns(normalized),
+      totalsFields: [] as DocumentColumnPref[],
+    };
+  }
+
+  if (SALES_MODULE_KEYS.has(layout.moduleKey)) {
+    const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[layout.moduleKey];
+    const normalized = adapter.normalize(layout);
+    return {
+      headerFields: getVisibleSalesHeaderFields(normalized),
+      lineColumns: getVisibleSalesLineColumns(normalized),
+      totalsFields: getVisibleSalesTotalsFields(normalized),
+    };
+  }
+
+  const normalized = DOCUMENT_LAYOUT_MODULE_ADAPTERS.PURCHASE_INVOICE.normalize(layout);
+  return {
+    headerFields: getVisibleBillHeaderFields(normalized),
+    lineColumns: getVisibleBillLineColumns(normalized),
+    totalsFields: getVisibleBillTotalsFields(normalized),
+  };
+}
+
 export function DocumentLayoutSimplePreview({ layout, previewMode, onPreviewModeChange }: Props) {
-  const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[layout.moduleKey as "GOODS_RECEIPT_NOTE" | "PURCHASE_INVOICE"];
-  const normalized = adapter?.normalize(layout) ?? layout;
-
-  const headerFields =
-    layout.moduleKey === "GOODS_RECEIPT_NOTE"
-      ? getVisibleGrnHeaderFields(normalized)
-      : getVisibleBillHeaderFields(normalized);
-
-  const lineColumns =
-    layout.moduleKey === "GOODS_RECEIPT_NOTE"
-      ? getVisibleGrnLineColumns(normalized)
-      : getVisibleBillLineColumns(normalized);
-
-  const totalsFields =
-    layout.moduleKey === "PURCHASE_INVOICE" ? getVisibleBillTotalsFields(normalized) : [];
+  const { headerFields, lineColumns, totalsFields } = resolvePreviewFields(layout);
 
   return (
     <div className="w-full min-w-0 space-y-2.5 text-sm">

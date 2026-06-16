@@ -21,6 +21,14 @@ import {
   productListVariantNameIndentClass,
   resolveProductListRowPresentation,
 } from "@/lib/products/list-row-presentation";
+import {
+  LIST_TABLE_CELL_AMOUNT,
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_PRIMARY,
+  LIST_TABLE_CELL_SUBLINE,
+} from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 import type { ProductListViewMode } from "@/lib/products/list-prefs";
 function formatOptionalCurrency(value: string | null): string {
@@ -44,31 +52,14 @@ function formatBoolean(
     column,
     valueKey: booleanValueKey(value),
     label,
-    textNode: (
-      <span
-        className={cn(
-          "text-xs font-medium",
-          value ? "text-emerald-600" : "text-muted-foreground"
-        )}
-      >
-        {label}
-      </span>
-    ),
+    textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
     chipDisplay: chipDisplay?.[columnId],
   });
 }
 
 function formatActiveStatusText(value: boolean): ReactNode {
-  return (
-    <span
-      className={cn(
-        "text-xs font-medium",
-        value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-      )}
-    >
-      {value ? "Active" : "Inactive"}
-    </span>
-  );
+  const label = value ? "Active" : "Inactive";
+  return <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>;
 }
 
 export function renderProductListActiveStatus(
@@ -180,14 +171,14 @@ export function renderProductListCell(
       const nameWrapClass = resolveProductListCellTextWrapClass("name", wrapMode);
       const nameTextClass =
         wrapMode === "wrap"
-          ? cn("block font-medium", nameWrapClass)
-          : cn("block min-w-0 font-medium", nameWrapClass);
+          ? cn("block", LIST_TABLE_CELL_PRIMARY, nameWrapClass)
+          : cn("block min-w-0", LIST_TABLE_CELL_PRIMARY, nameWrapClass);
 
       return (
         <div className={productListVariantNameIndentClass(presentation, showVariants)}>
           <span className={nameTextClass}>{product.name?.trim() ? product.name : "—"}</span>
           {subline ? (
-            <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+            <span className={cn("mt-0.5 block truncate font-normal", LIST_TABLE_CELL_SUBLINE)}>
               {subline}
             </span>
           ) : null}
@@ -293,14 +284,12 @@ export function renderProductListCell(
     case "is_returnable":
       return formatBoolean("is_returnable", product.is_returnable, options?.chipDisplay);
     case "selling_price":
-      return (
-        <span className="tabular-nums">{formatOptionalCurrency(product.selling_price)}</span>
-      );
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatOptionalCurrency(product.selling_price)}</span>;
     case "mrp":
-      return <span className="tabular-nums">{formatOptionalCurrency(product.mrp)}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatOptionalCurrency(product.mrp)}</span>;
     case "purchase_price":
       return (
-        <span className="tabular-nums">{formatOptionalCurrency(product.purchase_price)}</span>
+        <span className={LIST_TABLE_CELL_COUNT}>{formatOptionalCurrency(product.purchase_price)}</span>
       );
     case "supplier_name":
       return wrappedTextValue(
@@ -312,19 +301,15 @@ export function renderProductListCell(
       if (qty == null || qty.trim() === "") return "—";
       const parsed = Number(qty);
       return (
-        <span className="tabular-nums">
+        <span className={LIST_TABLE_CELL_COUNT}>
           {Number.isFinite(parsed) ? parsed.toLocaleString() : qty}
         </span>
       );
     }
     case "created_at":
-      return (
-        <span className="text-muted-foreground tabular-nums">{formatDate(product.created_at)}</span>
-      );
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(product.created_at)}</span>;
     case "updated_at":
-      return (
-        <span className="text-muted-foreground tabular-nums">{formatDate(product.updated_at)}</span>
-      );
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(product.updated_at)}</span>;
     default:
       return "—";
   }
@@ -347,7 +332,7 @@ export function productListCellClassName(columnId: ProductListColumnId): string 
     columnId === "barcode" ||
     columnId === "base_unit_of_measure"
   ) {
-    return "font-mono text-xs";
+    return "font-mono text-muted-foreground";
   }
   if (columnId === "is_active") {
     return "w-24 min-w-24 text-center";

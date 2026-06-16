@@ -51,11 +51,14 @@ import {
   type PoTotalsFieldId,
 } from "@/lib/documents/purchase-order-layout";
 import {
+  addSalesCatalogField,
+  createSalesCatalogFieldPref,
   DEFAULT_SALES_INVOICE_SCREEN_LAYOUT,
   DEFAULT_SALES_ORDER_SCREEN_LAYOUT,
   DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT,
   getSalesLineSettingsColumnOrder,
   isSalesFormHeaderPlaceableField,
+  moveSalesCatalogLineFieldOrder,
   moveSalesHeaderFieldOrder,
   moveSalesLineColumnOrder,
   moveSalesTotalsFieldOrder,
@@ -63,6 +66,7 @@ import {
   normalizeSalesOrderLayoutTemplate,
   normalizeSalesQuotationLayoutTemplate,
   patchSalesLayoutColumn,
+  removeSalesCatalogField,
   SALES_TOTALS_INTERNAL_FIELD_IDS,
   type SalesHeaderFieldId,
   type SalesLineSettingsColumnId,
@@ -100,6 +104,7 @@ export type DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: readonly string[];
   showTotalsSection: boolean;
   showImageSection: boolean;
+  showCatalogSection: boolean;
   catalog: {
     add: (layout: DocumentLayoutTemplate, pref: DocumentColumnPref) => DocumentLayoutTemplate;
     createPref: (source: DocumentCatalogFieldSource, key: string, label?: string) => DocumentColumnPref;
@@ -125,6 +130,7 @@ export const PURCHASE_ORDER_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: PO_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: true,
+  showCatalogSection: true,
   catalog: {
     add: addPoCatalogField,
     createPref: createPoCatalogFieldPref,
@@ -148,6 +154,7 @@ export const GOODS_RECEIPT_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: [],
   showTotalsSection: false,
   showImageSection: true,
+  showCatalogSection: true,
   catalog: {
     add: addGrnCatalogField,
     createPref: createGrnCatalogFieldPref,
@@ -173,6 +180,7 @@ export const PURCHASE_INVOICE_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: BILL_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: true,
+  showCatalogSection: true,
   catalog: {
     add: addBillCatalogField,
     createPref: createBillCatalogFieldPref,
@@ -198,16 +206,12 @@ export const SALES_QUOTATION_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: SALES_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: false,
+  showCatalogSection: true,
   catalog: {
-    add: (layout) => layout,
-    createPref: (_source, key, label) => ({
-      id: key,
-      label: label ?? key,
-      defaultVisible: false,
-      group: "catalog",
-    }),
-    move: (layout) => layout,
-    remove: (layout) => layout,
+    add: addSalesCatalogField,
+    createPref: createSalesCatalogFieldPref,
+    move: moveSalesCatalogLineFieldOrder,
+    remove: removeSalesCatalogField,
   },
 };
 
@@ -228,16 +232,12 @@ export const SALES_ORDER_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: SALES_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: false,
+  showCatalogSection: true,
   catalog: {
-    add: (layout) => layout,
-    createPref: (_source, key, label) => ({
-      id: key,
-      label: label ?? key,
-      defaultVisible: false,
-      group: "catalog",
-    }),
-    move: (layout) => layout,
-    remove: (layout) => layout,
+    add: addSalesCatalogField,
+    createPref: createSalesCatalogFieldPref,
+    move: moveSalesCatalogLineFieldOrder,
+    remove: removeSalesCatalogField,
   },
 };
 
@@ -258,16 +258,12 @@ export const SALES_INVOICE_LAYOUT_ADAPTER: DocumentLayoutModuleAdapter = {
   totalsInternalFieldIds: SALES_TOTALS_INTERNAL_FIELD_IDS,
   showTotalsSection: true,
   showImageSection: false,
+  showCatalogSection: true,
   catalog: {
-    add: (layout) => layout,
-    createPref: (_source, key, label) => ({
-      id: key,
-      label: label ?? key,
-      defaultVisible: false,
-      group: "catalog",
-    }),
-    move: (layout) => layout,
-    remove: (layout) => layout,
+    add: addSalesCatalogField,
+    createPref: createSalesCatalogFieldPref,
+    move: moveSalesCatalogLineFieldOrder,
+    remove: removeSalesCatalogField,
   },
 };
 

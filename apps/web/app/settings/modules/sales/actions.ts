@@ -2,11 +2,152 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { fetchDocumentLayoutTemplate, upsertDocumentLayoutTemplate } from "@/lib/documents/document-layout-queries";
+import { applyGstRegisteredDocumentLayoutOverrides } from "@/lib/documents/gst-document-layout-compliance";
+import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
+import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import { SALES_DOCUMENT_CONVERSION_MODES } from "@/lib/sales/document-conversion-settings";
+import {
+  normalizeSalesInvoiceLayoutTemplate,
+  normalizeSalesOrderLayoutTemplate,
+  normalizeSalesQuotationLayoutTemplate,
+} from "@/lib/sales/shared/sales-commerce-layout";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
+
+export type SaveDocumentLayoutInput = {
+  scope: DocumentLayoutScope;
+  viewContext: DocumentViewContext;
+  layout: DocumentLayoutTemplate;
+};
+
+function resolveScopeLocationId(scope: DocumentLayoutScope): string | null {
+  return scope.mode === "location" ? scope.locationId : null;
+}
+
+async function loadDocumentLayoutForModule(
+  moduleKey: DocumentModuleKey,
+  input: { viewContext: DocumentViewContext; scope?: DocumentLayoutScope }
+): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const layout = await fetchDocumentLayoutTemplate(
+      supabase,
+      tenantId,
+      moduleKey,
+      input.viewContext,
+      { locationId: input.scope ? resolveScopeLocationId(input.scope) : null }
+    );
+    return { layout };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load document layout.",
+    };
+  }
+}
+
+async function saveDocumentLayoutForModule(
+  moduleKey: DocumentModuleKey,
+  normalize: (layout: DocumentLayoutTemplate) => DocumentLayoutTemplate,
+  revalidatePaths: string[],
+  input: SaveDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  try {
+    const { supabase, tenantId, userId } = await requireTenantId();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.granted) {
+      return { error: "You do not have permission to edit document layout." };
+    }
+
+    const layout = normalize({
+      ...input.layout,
+      moduleKey,
+      viewContext: input.viewContext,
+    });
+
+    if (layout.moduleKey !== moduleKey) {
+      return { error: "Invalid module for document layout." };
+    }
+
+    const gstRegistered = await fetchOrganizationGstRegistered(supabase, tenantId);
+    const persistedLayout = gstRegistered
+      ? applyGstRegisteredDocumentLayoutOverrides(layout, true)
+      : layout;
+
+    void layoutScopeKey(input.scope);
+
+    await upsertDocumentLayoutTemplate(supabase, tenantId, persistedLayout, {
+      locationId: resolveScopeLocationId(input.scope),
+    });
+
+    for (const path of revalidatePaths) {
+      revalidatePath(path);
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to save document layout.",
+    };
+  }
+}
+
+export async function loadSalesQuotationDocumentLayout(input: {
+  viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
+}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  return loadDocumentLayoutForModule("SALES_QUOTATION", input);
+}
+
+export async function loadSalesOrderDocumentLayout(input: {
+  viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
+}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  return loadDocumentLayoutForModule("SALES_ORDER", input);
+}
+
+export async function loadSalesInvoiceDocumentLayout(input: {
+  viewContext: DocumentViewContext;
+  scope?: DocumentLayoutScope;
+}): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
+  return loadDocumentLayoutForModule("SALES_INVOICE", input);
+}
+
+export async function saveSalesQuotationDocumentLayout(
+  input: SaveDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  return saveDocumentLayoutForModule(
+    "SALES_QUOTATION",
+    normalizeSalesQuotationLayoutTemplate,
+    ["/settings/modules/sales", "/sales/quotes"],
+    input
+  );
+}
+
+export async function saveSalesOrderDocumentLayout(
+  input: SaveDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  return saveDocumentLayoutForModule(
+    "SALES_ORDER",
+    normalizeSalesOrderLayoutTemplate,
+    ["/settings/modules/sales", "/sales/orders"],
+    input
+  );
+}
+
+export async function saveSalesInvoiceDocumentLayout(
+  input: SaveDocumentLayoutInput
+): Promise<{ success: true } | { error: string }> {
+  return saveDocumentLayoutForModule(
+    "SALES_INVOICE",
+    normalizeSalesInvoiceLayoutTemplate,
+    ["/settings/modules/sales", "/sales/invoices"],
+    input
+  );
+}
 
 const approvalPolicyBandSchema = z.object({
   min_amount: z.number().nonnegative(),

@@ -61,6 +61,12 @@ describe("approval-settings", () => {
     ).toBe(true);
   });
 
+  it("lets workspace owners issue purchase orders directly when approval is enabled", () => {
+    expect(
+      isPoApprovalRequiredBeforeIssue(baseSettings, 50_000, "owner-1", { isOwner: true })
+    ).toBe(false);
+  });
+
   it("only treats pending approval orders as bulk approvable", () => {
     expect(
       isPurchaseOrderApprovableByUser(

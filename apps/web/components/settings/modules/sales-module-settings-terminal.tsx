@@ -3,16 +3,28 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
+import { SalesInvoiceDocumentLayoutPanel } from "@/components/settings/document-layout/sales-invoice-document-layout-panel";
+import { SalesOrderDocumentLayoutPanel } from "@/components/settings/document-layout/sales-order-document-layout-panel";
+import { SalesQuotationDocumentLayoutPanel } from "@/components/settings/document-layout/sales-quotation-document-layout-panel";
 import { SalesApprovalsPanel } from "@/components/settings/modules/sales-approvals-panel";
 import { SalesPoliciesPanel } from "@/components/settings/modules/sales-policies-panel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import type { WorkspaceEligibleUser } from "@/lib/organization/queries";
 
 type Props = {
+  locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
+  gstRegistered: boolean;
+  catalogFieldSuggestions?: PoCatalogFieldSuggestions;
+  initialQuoteLayout: DocumentLayoutTemplate;
+  initialOrderLayout: DocumentLayoutTemplate;
+  initialInvoiceLayout: DocumentLayoutTemplate;
   approvalSettings: SalesApprovalSettings;
   documentConversionMode: SalesDocumentConversionMode;
   eligibleUsers: WorkspaceEligibleUser[];
@@ -20,7 +32,13 @@ type Props = {
 };
 
 export function SalesModuleSettingsTerminal({
+  locations,
   canEdit,
+  gstRegistered,
+  catalogFieldSuggestions,
+  initialQuoteLayout,
+  initialOrderLayout,
+  initialInvoiceLayout,
   approvalSettings,
   documentConversionMode,
   eligibleUsers,
@@ -28,8 +46,15 @@ export function SalesModuleSettingsTerminal({
 }: Props) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
+  const layoutDocParam = searchParams.get("layoutDoc");
   const initialTab =
     tabParam === "approvals" ? "approvals" : tabParam === "policies" ? "policies" : "layout";
+  const initialLayoutDoc =
+    layoutDocParam === "order"
+      ? "order"
+      : layoutDocParam === "invoice"
+        ? "invoice"
+        : "quote";
 
   return (
     <div className="canvas-scroll-endpad space-y-3">
@@ -58,12 +83,49 @@ export function SalesModuleSettingsTerminal({
         </TabsList>
 
         <TabsContent value="layout" className="mt-2">
-          <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-            <p className="text-sm font-medium">Document layout settings</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Quotation, sales order, and invoice layout editors will appear here in a future update.
-            </p>
-          </div>
+          <Tabs defaultValue={initialLayoutDoc}>
+            <TabsList className="mb-2 h-7">
+              <TabsTrigger value="quote" className="h-6 px-2.5 text-xs">
+                Quotation
+              </TabsTrigger>
+              <TabsTrigger value="order" className="h-6 px-2.5 text-xs">
+                Sales order
+              </TabsTrigger>
+              <TabsTrigger value="invoice" className="h-6 px-2.5 text-xs">
+                Invoice
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="quote">
+              <SalesQuotationDocumentLayoutPanel
+                initialLayout={initialQuoteLayout}
+                locations={locations}
+                canEdit={canEdit}
+                gstRegistered={gstRegistered}
+                catalogFieldSuggestions={catalogFieldSuggestions}
+              />
+            </TabsContent>
+
+            <TabsContent value="order">
+              <SalesOrderDocumentLayoutPanel
+                initialLayout={initialOrderLayout}
+                locations={locations}
+                canEdit={canEdit}
+                gstRegistered={gstRegistered}
+                catalogFieldSuggestions={catalogFieldSuggestions}
+              />
+            </TabsContent>
+
+            <TabsContent value="invoice">
+              <SalesInvoiceDocumentLayoutPanel
+                initialLayout={initialInvoiceLayout}
+                locations={locations}
+                canEdit={canEdit}
+                gstRegistered={gstRegistered}
+                catalogFieldSuggestions={catalogFieldSuggestions}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="approvals" className="mt-2">

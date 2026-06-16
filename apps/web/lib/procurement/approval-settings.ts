@@ -1,3 +1,4 @@
+import { isDocumentApprovalRequired } from "@/lib/approvals/approval-required-gate";
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
 import type { PoApprovalRule, PoApproverRole } from "@/lib/approvals/approval-rules";
 import type { PoWorkflowTemplate } from "@/lib/approvals/workflow-templates";
@@ -131,22 +132,20 @@ export function isPoApprovalRequiredBeforeIssue(
   settings: ProcurementApprovalSettings,
   totalNetAmount: number,
   userId: string,
-  options: { isOwner: boolean }
+  options: { isOwner: boolean },
+  rulesRequireApproval?: boolean
 ): boolean {
-  if (!settings.require_po_approval_before_issue) return false;
-
-  const threshold = settings.po_approval_threshold_amount;
-  const isApprover = canUserApprovePurchaseOrders(userId, settings, options);
-
-  if (
-    settings.allow_submitter_self_approve_below_threshold &&
-    isApprover &&
-    threshold != null &&
-    Number.isFinite(totalNetAmount) &&
-    totalNetAmount <= threshold
-  ) {
-    return false;
-  }
-
-  return true;
+  return isDocumentApprovalRequired({
+    requireEnabled: settings.require_po_approval_before_issue,
+    totalNetAmount,
+    userId,
+    isOwner: options.isOwner,
+    allowSubmitterSelfApprove: settings.allow_submitter_self_approve_below_threshold,
+    thresholdAmount: settings.po_approval_threshold_amount,
+    approverUserIds: settings.po_approver_user_ids,
+    approverRoles: settings.po_approver_roles,
+    bands: settings.po_approval_bands,
+    approverPools: settings.po_approver_pools,
+    rulesRequireApproval,
+  });
 }

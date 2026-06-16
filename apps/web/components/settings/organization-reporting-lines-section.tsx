@@ -52,12 +52,16 @@ export function OrganizationReportingLinesSection({ initialLines, canEdit }: Pro
   return (
     <OrgSettingsSection
       title="Reporting lines"
-      description="Who each person reports to. Used for manager-chain purchase order approvals."
+      description="Who each person reports to. Used for manager-chain document approvals."
     >
       <p className="text-xs text-muted-foreground">
-        Set a manager for buyers and approvers. Manager-chain PO approval uses these lines — see{" "}
+        Set a manager for submitters and approvers. Manager-chain workflows use these lines — see{" "}
         <Link href="/settings/modules/procurement?tab=approvals" className="text-primary hover:underline">
           Procurement approvals
+        </Link>{" "}
+        and{" "}
+        <Link href="/settings/modules/sales?tab=approvals" className="text-primary hover:underline">
+          Sales approvals
         </Link>
         .
       </p>

@@ -1,6 +1,9 @@
+import { isDocumentApprovalRequired } from "@/lib/approvals/approval-required-gate";
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
 import type { PoApproverRole } from "@/lib/approvals/approval-rules";
 import type { PoWorkflowTemplate } from "@/lib/approvals/workflow-templates";
+import type { SalesApprovalRuleEvaluationLine } from "@/lib/sales/evaluate-sales-approval-rules";
+import { salesApprovalRulesRequireApproval } from "@/lib/sales/evaluate-sales-approval-rules";
 import type { SalesApprovalRule } from "@/lib/sales/sales-approval-rules";
 
 export type SalesApprovalSettings = {
@@ -136,6 +139,71 @@ export function soSelfApproveAllowed(
   );
 }
 
+export function quoteSelfApproveAllowed(
+  settings: SalesApprovalSettings,
+  totalNetAmount: number,
+  userId: string,
+  options: SalesApproverOptions
+): boolean {
+  return selfApproveAllowedByConfig(
+    settings.allow_submitter_self_approve_below_threshold,
+    settings.quote_approval_threshold_amount,
+    totalNetAmount,
+    userId,
+    settings.quote_approver_user_ids,
+    settings.quote_approver_roles,
+    options
+  );
+}
+
+export function invoiceSelfApproveAllowed(
+  settings: SalesApprovalSettings,
+  totalNetAmount: number,
+  userId: string,
+  options: SalesApproverOptions
+): boolean {
+  return selfApproveAllowedByConfig(
+    settings.allow_submitter_self_approve_below_threshold,
+    settings.invoice_approval_threshold_amount,
+    totalNetAmount,
+    userId,
+    settings.invoice_approver_user_ids,
+    settings.invoice_approver_roles,
+    options
+  );
+}
+
+function salesDocumentApprovalRequired(
+  settings: SalesApprovalSettings,
+  config: {
+    requireEnabled: boolean;
+    thresholdAmount: number | null;
+    approverUserIds: string[];
+    approverRoles?: PoApproverRole[];
+    bands?: ApprovalPolicyBand[];
+    approverPools?: Record<string, ApprovalApproverPool>;
+    rules?: SalesApprovalRule[];
+  },
+  totalNetAmount: number,
+  userId: string,
+  options: SalesApproverOptions,
+  lines?: SalesApprovalRuleEvaluationLine[]
+): boolean {
+  return isDocumentApprovalRequired({
+    requireEnabled: config.requireEnabled,
+    totalNetAmount,
+    userId,
+    isOwner: options.isOwner,
+    allowSubmitterSelfApprove: settings.allow_submitter_self_approve_below_threshold,
+    thresholdAmount: config.thresholdAmount,
+    approverUserIds: config.approverUserIds,
+    approverRoles: config.approverRoles,
+    bands: config.bands,
+    approverPools: config.approverPools,
+    rulesRequireApproval: salesApprovalRulesRequireApproval(config.rules, lines),
+  });
+}
+
 export function describeSalesOrderSelfApprovalBlocker(
   settings: SalesApprovalSettings,
   totalNetAmount: number,
@@ -204,7 +272,7 @@ export function isSalesQuoteApprovableByUser(
 
   const submitterId = quote.approval_submitted_by ?? null;
   if (submitterId === userId) {
-    return soSelfApproveAllowed(settings, amount, userId, options);
+    return quoteSelfApproveAllowed(settings, amount, userId, options);
   }
 
   return true;
@@ -228,7 +296,7 @@ export function isSalesInvoiceApprovableByUser(
 
   const submitterId = invoice.approval_submitted_by ?? null;
   if (submitterId === userId) {
-    return soSelfApproveAllowed(settings, amount, userId, options);
+    return invoiceSelfApproveAllowed(settings, amount, userId, options);
   }
 
   return true;
@@ -238,24 +306,25 @@ export function isSoApprovalRequiredBeforeConfirm(
   settings: SalesApprovalSettings,
   totalNetAmount: number,
   userId: string,
-  options: SalesApproverOptions
+  options: SalesApproverOptions,
+  lines?: SalesApprovalRuleEvaluationLine[]
 ): boolean {
-  if (!settings.require_so_approval_before_confirm) return false;
-
-  const threshold = settings.so_approval_threshold_amount;
-  const isApprover = canUserApproveSalesOrders(userId, settings, options);
-
-  if (
-    settings.allow_submitter_self_approve_below_threshold &&
-    isApprover &&
-    threshold != null &&
-    Number.isFinite(totalNetAmount) &&
-    totalNetAmount <= threshold
-  ) {
-    return false;
-  }
-
-  return true;
+  return salesDocumentApprovalRequired(
+    settings,
+    {
+      requireEnabled: settings.require_so_approval_before_confirm,
+      thresholdAmount: settings.so_approval_threshold_amount,
+      approverUserIds: settings.so_approver_user_ids,
+      approverRoles: settings.so_approver_roles,
+      bands: settings.so_approval_bands,
+      approverPools: settings.so_approver_pools,
+      rules: settings.so_approval_rules,
+    },
+    totalNetAmount,
+    userId,
+    options,
+    lines
+  );
 }
 
 export function canUserApproveSalesQuotes(
@@ -291,24 +360,25 @@ export function isQuoteApprovalRequiredBeforeConfirm(
   settings: SalesApprovalSettings,
   totalNetAmount: number,
   userId: string,
-  options: SalesApproverOptions
+  options: SalesApproverOptions,
+  lines?: SalesApprovalRuleEvaluationLine[]
 ): boolean {
-  if (!settings.require_quote_approval_before_confirm) return false;
-
-  const threshold = settings.quote_approval_threshold_amount;
-  const isApprover = canUserApproveSalesQuotes(userId, settings, options);
-
-  if (
-    settings.allow_submitter_self_approve_below_threshold &&
-    isApprover &&
-    threshold != null &&
-    Number.isFinite(totalNetAmount) &&
-    totalNetAmount <= threshold
-  ) {
-    return false;
-  }
-
-  return true;
+  return salesDocumentApprovalRequired(
+    settings,
+    {
+      requireEnabled: settings.require_quote_approval_before_confirm,
+      thresholdAmount: settings.quote_approval_threshold_amount,
+      approverUserIds: settings.quote_approver_user_ids,
+      approverRoles: settings.quote_approver_roles,
+      bands: settings.quote_approval_bands,
+      approverPools: settings.quote_approver_pools,
+      rules: settings.quote_approval_rules,
+    },
+    totalNetAmount,
+    userId,
+    options,
+    lines
+  );
 }
 
 export function canUserApproveSalesInvoices(
@@ -344,24 +414,25 @@ export function isInvoiceApprovalRequiredBeforePost(
   settings: SalesApprovalSettings,
   totalNetAmount: number,
   userId: string,
-  options: SalesApproverOptions
+  options: SalesApproverOptions,
+  lines?: SalesApprovalRuleEvaluationLine[]
 ): boolean {
-  if (!settings.require_invoice_approval_before_post) return false;
-
-  const threshold = settings.invoice_approval_threshold_amount;
-  const isApprover = canUserApproveSalesInvoices(userId, settings, options);
-
-  if (
-    settings.allow_submitter_self_approve_below_threshold &&
-    isApprover &&
-    threshold != null &&
-    Number.isFinite(totalNetAmount) &&
-    totalNetAmount <= threshold
-  ) {
-    return false;
-  }
-
-  return true;
+  return salesDocumentApprovalRequired(
+    settings,
+    {
+      requireEnabled: settings.require_invoice_approval_before_post,
+      thresholdAmount: settings.invoice_approval_threshold_amount,
+      approverUserIds: settings.invoice_approver_user_ids,
+      approverRoles: settings.invoice_approver_roles,
+      bands: settings.invoice_approval_bands,
+      approverPools: settings.invoice_approver_pools,
+      rules: settings.invoice_approval_rules,
+    },
+    totalNetAmount,
+    userId,
+    options,
+    lines
+  );
 }
 
 export function isSalesOrderConfirmableByUser(

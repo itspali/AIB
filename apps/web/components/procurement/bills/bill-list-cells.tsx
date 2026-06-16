@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/dashboard/format";
+import { booleanValueKey } from "@/lib/list-columns/chip-colors";
 import {
   getPurchaseBillColumnDef,
   type PurchaseBillListColumnId,
@@ -10,8 +10,16 @@ import {
 import { billMatchStatusLabel } from "@/lib/procurement/bills/three-way-match";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import {
+  LIST_TABLE_CELL_AMOUNT,
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_MONO_DOC,
+  LIST_TABLE_CELL_MONO_REF,
+  LIST_TABLE_CELL_PRIMARY,
+  LIST_TABLE_CELL_SECONDARY,
+} from "@/lib/layout/list-table-chrome";
 import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
-
 type Options = {
   chipDisplay?: Partial<Record<PurchaseBillListColumnId, ColumnChipDisplay>>;
 };
@@ -23,14 +31,14 @@ export function renderPurchaseBillListCell(
 ): ReactNode {
   switch (columnId) {
     case "bill_number":
-      return <span className="font-mono text-xs font-medium">{row.system_voucher_number}</span>;
+      return <span className={LIST_TABLE_CELL_MONO_DOC}>{row.system_voucher_number}</span>;
     case "invoice_number":
-      return <span className="font-medium">{row.invoice_number_vendor}</span>;
+      return <span className={LIST_TABLE_CELL_SECONDARY}>{row.invoice_number_vendor}</span>;
     case "supplier":
-      return <span className="font-medium">{row.supplier_name}</span>;
+      return <span className={LIST_TABLE_CELL_PRIMARY}>{row.supplier_name}</span>;
     case "purchase_order":
       return (
-        <span className="font-mono text-xs">{row.purchase_order_number?.trim() || "—"}</span>
+        <span className={LIST_TABLE_CELL_MONO_REF}>{row.purchase_order_number?.trim() || "—"}</span>
       );
     case "match_status": {
       const column = getPurchaseBillColumnDef("match_status");
@@ -40,24 +48,25 @@ export function renderPurchaseBillListCell(
         column,
         valueKey: status,
         label,
-        textNode: <span className="text-sm font-medium">{label}</span>,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.match_status,
       });
     }
     case "liability":
-      return <span className="tabular-nums">{row.total_liability_amount}</span>;
-    case "paid":
-      return row.is_paid ? (
-        <Badge variant="completed" className="text-[10px] font-normal">
-          Paid
-        </Badge>
-      ) : (
-        <Badge variant="administrative" className="text-[10px] font-normal">
-          Unpaid
-        </Badge>
-      );
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_liability_amount}</span>;
+    case "paid": {
+      const column = getPurchaseBillColumnDef("paid");
+      const label = row.is_paid ? "Paid" : "Unpaid";
+      return renderChipOrText({
+        column,
+        valueKey: booleanValueKey(row.is_paid),
+        label,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
+        chipDisplay: options?.chipDisplay?.paid,
+      });
+    }
     case "created":
-      return <span className="text-sm text-muted-foreground">{formatDate(row.created_at)}</span>;
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     default:
       return null;
   }

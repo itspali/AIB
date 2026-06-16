@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   approveSalesQuotation,
@@ -24,9 +25,21 @@ import {
   SalesDocumentConversionConfirmDialog,
   type SalesDocumentConversionKind,
 } from "@/components/sales/shared/sales-document-conversion-confirm-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
+import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   defaultQuoteDraftForm,
   filterSavableQuoteLines,
@@ -36,6 +49,11 @@ import {
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
+import {
+  isQuoteApprovalRequiredBeforeConfirm,
+  isSalesQuoteApprovableByUser,
+} from "@/lib/sales/approval-settings";
+import { mapQuoteLinesForApprovalRules } from "@/lib/sales/evaluate-sales-approval-rules";
 import {
   invoiceCreateFromQuoteHref,
   SALES_INVOICES_HREF,
@@ -128,6 +146,7 @@ export function QuoteDrawerForm({
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [conversionKind, setConversionKind] = useState<SalesDocumentConversionKind | null>(null);
   const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
@@ -278,18 +297,184 @@ export function QuoteDrawerForm({
     });
   };
 
-  const runWorkflow = (action: () => Promise<{ error?: string; success?: boolean }>) => {
+
+  const quoteId = editQuoteId ?? detail?.id ?? null;
+  const isDraftQuote = detail?.commercial_status === "DRAFT" || surface === "create";
+  const isPendingApprovalQuote = detail?.commercial_status === "PENDING_APPROVAL";
+  const totalNetAmount = Number(detail?.total_net_amount ?? 0);
+  const approvalRequiredBeforeIssue = isQuoteApprovalRequiredBeforeConfirm(
+    approvalSettings,
+    totalNetAmount,
+    currentUserId,
+    { isOwner },
+    mapQuoteLinesForApprovalRules(detail?.lines)
+  );
+  const showSubmitForApproval =
+    isDraftQuote && editAccessGranted && approvalRequiredBeforeIssue && quoteId != null;
+  const showIssueQuote =
+    isDraftQuote && editAccessGranted && !approvalRequiredBeforeIssue && quoteId != null;
+  const showApproveReject =
+    isPendingApprovalQuote &&
+    detail != null &&
+    isSalesQuoteApprovableByUser(detail, currentUserId, approvalSettings, { isOwner }) &&
+    quoteId != null;
+  const canConvertQuote =
+    detail?.commercial_status === "APPROVED_ACTIVE" ||
+    (detail?.commercial_status === "DRAFT" && !approvalRequiredBeforeIssue);
+
+  const handleSubmitForApproval = useCallback(() => {
+    if (!quoteId) return;
     startTransition(async () => {
       setError(null);
-      const result = await action();
+      const result = await submitSalesQuotationForApproval({ quotation_id: quoteId });
       if (result.error) {
         setError(result.error);
         return;
       }
-      toast.success("Quote updated.");
-      if (detail?.id) onAfterSave(detail.id);
+      toast.success("Submitted for approval");
+      await reloadQuoteDetail(quoteId);
+      onAfterSave(quoteId);
+      notifyApprovalAlertChanged();
     });
-  };
+  }, [onAfterSave, quoteId, reloadQuoteDetail]);
+
+  const handleIssueQuote = useCallback(() => {
+    if (!quoteId) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await approveSalesQuotation({ quotation_id: quoteId });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success("Quote issued");
+      await reloadQuoteDetail(quoteId);
+      onAfterSave(quoteId);
+    });
+  }, [onAfterSave, quoteId, reloadQuoteDetail]);
+
+  const handleApprove = useCallback(() => {
+    if (!quoteId) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await approveSalesQuotation({ quotation_id: quoteId });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success("Quote approved");
+      await reloadQuoteDetail(quoteId);
+      onAfterSave(quoteId);
+      notifyApprovalAlertChanged();
+    });
+  }, [onAfterSave, quoteId, reloadQuoteDetail]);
+
+  const handleReject = useCallback(() => {
+    if (!quoteId) return;
+    const notes = rejectNotes.trim();
+    if (!notes) {
+      toast.error("Enter a rejection reason.");
+      return;
+    }
+
+    startTransition(async () => {
+      setError(null);
+      const result = await rejectSalesQuotation({ quotation_id: quoteId, notes });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success("Quote rejected");
+      setRejectDialogOpen(false);
+      setRejectNotes("");
+      await reloadQuoteDetail(quoteId);
+      onAfterSave(quoteId);
+      notifyApprovalAlertChanged();
+    });
+  }, [onAfterSave, quoteId, rejectNotes, reloadQuoteDetail]);
+
+  const draftNextStepHint =
+    detail?.commercial_status === "DRAFT"
+      ? approvalRequiredBeforeIssue
+        ? "Submit for approval when ready. Once approved, share the quote with your customer or convert it to an order or invoice."
+        : "Issue the quote to mark it ready to share with your customer, or convert it directly to an order or invoice."
+      : null;
+
+  const renderWorkflowActions = () => (
+    <>
+      {showSubmitForApproval ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isPending}
+          onClick={handleSubmitForApproval}
+        >
+          {isPending ? "Submitting…" : "Submit for approval"}
+        </Button>
+      ) : null}
+      {showIssueQuote ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isPending}
+          onClick={handleIssueQuote}
+        >
+          {isPending ? "Issuing…" : "Issue quote"}
+        </Button>
+      ) : null}
+      {showApproveReject ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={isPending}
+            onClick={handleApprove}
+          >
+            {isPending ? "Approving…" : "Approve"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => setRejectDialogOpen(true)}
+          >
+            Reject
+          </Button>
+        </>
+      ) : null}
+    </>
+  );
+
+  const renderConvertActions = () => (
+    <>
+      {canConvertQuote && detail && !detail.converted_to_order_id ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => handleQuoteConversion("quote_to_order")}
+        >
+          Convert to order
+        </Button>
+      ) : null}
+      {canConvertQuote && detail && !detail.converted_to_invoice_id ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => handleQuoteConversion("quote_to_invoice")}
+        >
+          Convert to invoice
+        </Button>
+      ) : null}
+    </>
+  );
 
   const handleQuoteConversion = (kind: "quote_to_order" | "quote_to_invoice") => {
     if (!detail) return;
@@ -348,67 +533,34 @@ export function QuoteDrawerForm({
         ? "Edit quote"
         : detail?.quotation_number ?? "Quote";
 
-  const headerActions = readOnly ? (
-    <>
-      {editAccessGranted && detail && canEditSalesDocument(detail.commercial_status) ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => onOpenEdit?.(detail.id)}>
-          Edit
+  const headerActions =
+    surface === "peek" && detail ? (
+      <>
+        {editAccessGranted && canEditSalesDocument(detail.commercial_status) ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              aria-label="Edit quote"
+              onClick={() => onOpenEdit?.(detail.id)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            {renderWorkflowActions()}
+          </>
+        ) : null}
+        {renderConvertActions()}
+      </>
+    ) : isMutating ? (
+      <>
+        <Button type="button" size="sm" disabled={isPending} onClick={handleSave}>
+          {isPending ? "Saving…" : "Save draft"}
         </Button>
-      ) : null}
-      {detail?.commercial_status === "APPROVED_ACTIVE" && !detail.converted_to_order_id ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => handleQuoteConversion("quote_to_order")}
-        >
-          Convert to order
-        </Button>
-      ) : null}
-      {detail?.commercial_status === "APPROVED_ACTIVE" && !detail.converted_to_invoice_id ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => handleQuoteConversion("quote_to_invoice")}
-        >
-          Convert to invoice
-        </Button>
-      ) : null}
-    </>
-  ) : isMutating ? (
-    <>
-      <Button type="button" size="sm" disabled={isPending} onClick={handleSave}>
-        {isPending ? "Saving…" : "Save draft"}
-      </Button>
-      {editQuoteId ? (
-        <>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={isPending}
-            onClick={() =>
-              runWorkflow(() => submitSalesQuotationForApproval({ quotation_id: editQuoteId }))
-            }
-          >
-            Submit for approval
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={isPending}
-            onClick={() => runWorkflow(() => approveSalesQuotation({ quotation_id: editQuoteId }))}
-          >
-            Approve
-          </Button>
-        </>
-      ) : null}
-    </>
-  ) : null;
+        {quoteId ? renderWorkflowActions() : null}
+      </>
+    ) : null;
 
   const drawerBody = (
     <>
@@ -454,6 +606,11 @@ export function QuoteDrawerForm({
             }
           >
             <div className="space-y-6">
+              {draftNextStepHint ? (
+                <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  {draftNextStepHint}
+                </p>
+              ) : null}
               <QuotePeekView
                 quote={detail}
                 layout={documentLayout}
@@ -499,32 +656,6 @@ export function QuoteDrawerForm({
           onLinesChange={handleLinesChange}
         />
       )}
-      {editQuoteId && isMutating ? (
-        <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-4">
-          <input
-            className="h-8 min-w-[12rem] flex-1 rounded-md border border-input bg-background px-2 text-sm"
-            placeholder="Rejection reason"
-            value={rejectNotes}
-            onChange={(event) => setRejectNotes(event.target.value)}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            disabled={isPending || !rejectNotes.trim()}
-            onClick={() =>
-              runWorkflow(() =>
-                rejectSalesQuotation({
-                  quotation_id: editQuoteId,
-                  notes: rejectNotes.trim(),
-                })
-              )
-            }
-          >
-            Reject
-          </Button>
-        </div>
-      ) : null}
     </>
   );
 
@@ -556,6 +687,33 @@ export function QuoteDrawerForm({
         <div className={cn(isMutating && useDrawerBodyScroll && "shrink-0 pb-6")}>{drawerBody}</div>
       </RightDrawer>
       {discardDialog}
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject {detail?.quotation_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The quote returns to Draft. The submitter can edit and re-submit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="quote-reject-notes">Reason</Label>
+            <textarea
+              id="quote-reject-notes"
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={rejectNotes}
+              onChange={(event) => setRejectNotes(event.target.value)}
+              rows={3}
+              placeholder="Explain why this quote cannot be approved…"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={isPending} onClick={handleReject}>
+              Reject quote
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <SalesDocumentConversionConfirmDialog
         kind={conversionKind}
         open={conversionDialogOpen}

@@ -11,15 +11,21 @@ import {
 } from "@/lib/entity-categories/list-columns";
 import type { EntityCategoryListRow } from "@/lib/entity-categories/list-row";
 import type { EntityCategoryWorkspace } from "@/lib/entity-categories/types";
+import {
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_PRIMARY,
+} from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
 export function entityCategoryListCellClassName(
   columnId: EntityCategoryListColumnId
 ): string {
-  if (columnId === "name") return "font-medium";
+  if (columnId === "name") return LIST_TABLE_CELL_PRIMARY;
   if (columnId === "parent_name") return "text-muted-foreground";
   if (columnId === "entity_count" || columnId === "attribute_count") {
-    return "tabular-nums text-muted-foreground";
+    return LIST_TABLE_CELL_COUNT;
   }
   return "";
 }
@@ -28,19 +34,6 @@ type RenderOptions = {
   workspace: EntityCategoryWorkspace;
   chipDisplay?: Partial<Record<EntityCategoryListColumnId, ColumnChipDisplay>>;
 };
-
-function formatActiveStatusText(value: boolean): ReactNode {
-  return (
-    <span
-      className={cn(
-        "text-xs font-medium",
-        value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-      )}
-    >
-      {value ? "Active" : "Inactive"}
-    </span>
-  );
-}
 
 function formatBooleanCell(
   workspace: EntityCategoryWorkspace,
@@ -54,16 +47,7 @@ function formatBooleanCell(
     column,
     valueKey: booleanValueKey(value),
     label,
-    textNode: (
-      <span
-        className={cn(
-          "text-xs font-medium",
-          value ? "text-emerald-600" : "text-muted-foreground"
-        )}
-      >
-        {label}
-      </span>
-    ),
+    textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
     chipDisplay: chipDisplay?.[columnId],
   });
 }
@@ -87,7 +71,7 @@ export function renderEntityCategoryListCell(
         column,
         valueKey: booleanValueKey(row.is_active),
         label,
-        textNode: formatActiveStatusText(row.is_active),
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: chipDisplay?.is_active,
       });
     }
@@ -103,9 +87,9 @@ export function renderEntityCategoryListCell(
         chipDisplay
       );
     case "created_at":
-      return formatDate(row.created_at);
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "updated_at":
-      return formatDate(row.updated_at);
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>;
     default:
       return "—";
   }

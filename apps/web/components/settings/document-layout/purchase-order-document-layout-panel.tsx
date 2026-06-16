@@ -14,6 +14,7 @@ type Props = {
   initialLayout: DocumentLayoutTemplate;
   locations?: DocumentLayoutLocationOption[];
   canEdit?: boolean;
+  gstRegistered?: boolean;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 };
 

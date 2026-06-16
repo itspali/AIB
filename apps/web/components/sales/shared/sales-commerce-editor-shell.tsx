@@ -220,7 +220,7 @@ export function SalesCommerceEditorShell<
                 const sync = syncSalesLineSellingMarkdownFromOfferPrice(line, pricesTaxInclusive);
                 return sync ? ({ ...line, ...sync } as TLine) : line;
               }),
-            } as Partial<TForm>);
+            } as unknown as Partial<TForm>);
           }}
         />
         <PoLineEntryAnchorToggle

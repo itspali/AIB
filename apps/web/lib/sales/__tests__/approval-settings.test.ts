@@ -96,4 +96,30 @@ describe("sales approval-settings", () => {
     expect(canUserApproveSalesQuotes("quote-approver", settings, { isOwner: false })).toBe(true);
     expect(canUserApproveSalesInvoices("other-user", settings, { isOwner: false })).toBe(false);
   });
+
+  it("lets workspace owners issue quotes directly when approval is enabled", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_quote_approval_before_confirm: true,
+      quote_approval_threshold_amount: 5_000,
+      quote_approver_user_ids: ["quote-approver"],
+    };
+
+    expect(
+      isQuoteApprovalRequiredBeforeConfirm(settings, 14_160, "owner-1", { isOwner: true })
+    ).toBe(false);
+  });
+
+  it("skips quote approval inside the configured threshold band", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_quote_approval_before_confirm: true,
+      quote_approval_threshold_amount: 5_000,
+      quote_approver_user_ids: ["quote-approver"],
+    };
+
+    expect(
+      isQuoteApprovalRequiredBeforeConfirm(settings, 4_000, "staff-1", { isOwner: false })
+    ).toBe(false);
+  });
 });

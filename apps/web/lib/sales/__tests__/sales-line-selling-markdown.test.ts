@@ -4,6 +4,7 @@ import {
   resolveSalesLineSellingMarkdownPercentage,
   syncSalesLineSellingMarkdownFromOfferPrice,
 } from "@/lib/sales/shared/sales-line-selling-markdown";
+import { emptyPoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { SalesCommerceLineBase } from "@/lib/sales/shared/sales-line-entry";
 
 function sampleLine(
@@ -13,13 +14,15 @@ function sampleLine(
     key: "line-1",
     sku: "",
     variant_id: "variant-1",
+    item_id: "item-1",
     item_name: "Widget",
     variant_sku: "W-1",
-    quantity_ordered: "1",
     unit_price_selling: "100",
     discount_percentage: "0",
     discount_amount: "0",
+    skuError: null,
     catalog_context: {
+      ...emptyPoLineCatalogContext(),
       selling_price: "118",
       price_is_tax_inclusive: true,
       tax_rate: 18,

@@ -1,5 +1,6 @@
 import { columnWidths } from "@/lib/list-columns/sizing";
 import { CHIP_DEFAULT_FALLBACK_KEY, type ListColumnDef, type ListColumnRegistry } from "@/lib/list-columns/types";
+import { BOOLEAN_YES_NO_CATALOG } from "@/lib/list-columns/chip-colors";
 import { billMatchStatusLabel } from "@/lib/procurement/bills/three-way-match";
 import type { BillMatchStatus } from "@/lib/procurement/bills/three-way-match";
 
@@ -93,8 +94,18 @@ export const BILL_LIST_COLUMNS: ListColumnDef<PurchaseBillListColumnId>[] = [
     label: "Paid",
     defaultVisible: true,
     group: "Status",
-    valueKind: "text",
+    valueKind: "boolean",
     widths: W_PAID,
+    chipEligible: true,
+    chipValueCatalog: BOOLEAN_YES_NO_CATALOG.map((entry) => ({
+      value: entry.value,
+      label: entry.value === "true" ? "Paid" : "Unpaid",
+    })),
+    chipDefaultColors: {
+      true: { preset: "emerald" },
+      false: { preset: "neutral" },
+      [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
+    },
   },
   {
     id: "created",

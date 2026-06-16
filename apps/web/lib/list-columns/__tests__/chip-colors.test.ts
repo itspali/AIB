@@ -6,6 +6,7 @@ import {
   isValidCustomHex,
   normalizeColorRule,
   resolveChipColorRule,
+  resolveChipDisplayMode,
   resolveValueColorRule,
 } from "@/lib/list-columns/chip-colors";
 import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
@@ -32,6 +33,23 @@ describe("chip-colors", () => {
     const resolved = resolveChipColorRule({ preset: "emerald", customHex: "#112233" });
     expect(resolved.className).toBeUndefined();
     expect(resolved.style?.color).toBe("#112233");
+  });
+
+  it("defaults chip-eligible columns to chip mode when prefs are unset", () => {
+    const column = getColumnDef(PRODUCT_LIST_COLUMN_REGISTRY, "is_active");
+    expect(resolveChipDisplayMode(column, undefined)).toBe("chip");
+    expect(getEffectiveChipDisplay(column, undefined).mode).toBe("chip");
+  });
+
+  it("respects explicit text mode override", () => {
+    const column = getColumnDef(PRODUCT_LIST_COLUMN_REGISTRY, "is_active");
+    expect(resolveChipDisplayMode(column, { mode: "text" })).toBe("text");
+    expect(getEffectiveChipDisplay(column, { mode: "text" }).mode).toBe("text");
+  });
+
+  it("keeps text mode for non chip-eligible columns", () => {
+    const column = getColumnDef(PRODUCT_LIST_COLUMN_REGISTRY, "name");
+    expect(resolveChipDisplayMode(column, undefined)).toBe("text");
   });
 
   it("merges user chip colors over column defaults", () => {

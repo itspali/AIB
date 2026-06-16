@@ -9,8 +9,17 @@ import {
 import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
+import {
+  LIST_TABLE_CELL_AMOUNT,
+  LIST_TABLE_CELL_CHIP_FALLBACK,
+  LIST_TABLE_CELL_COUNT,
+  LIST_TABLE_CELL_DATE,
+  LIST_TABLE_CELL_MONO_DOC,
+  LIST_TABLE_CELL_PRIMARY,
+  LIST_TABLE_CELL_SECONDARY,
+  LIST_TABLE_CELL_SUBLINE,
+} from "@/lib/layout/list-table-chrome";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
-import { cn } from "@/lib/utils";
 
 type Options = {
   chipDisplay?: Partial<Record<PurchaseOrderListColumnId, ColumnChipDisplay>>;
@@ -23,15 +32,15 @@ export function renderPurchaseOrderListCell(
 ): ReactNode {
   switch (columnId) {
     case "po_number":
-      return <div className="font-mono text-xs font-medium">{row.voucher_number}</div>;
+      return <div className={LIST_TABLE_CELL_MONO_DOC}>{row.voucher_number}</div>;
     case "supplier":
-      return <span className="font-medium">{row.supplier_name}</span>;
+      return <span className={LIST_TABLE_CELL_PRIMARY}>{row.supplier_name}</span>;
     case "destination":
       return (
         <>
-          <div className="font-medium">{row.destination_location_name}</div>
+          <div className={LIST_TABLE_CELL_SECONDARY}>{row.destination_location_name}</div>
           {row.destination_location_code ? (
-            <div className="text-xs text-muted-foreground">{row.destination_location_code}</div>
+            <div className={LIST_TABLE_CELL_SUBLINE}>{row.destination_location_code}</div>
           ) : null}
         </>
       );
@@ -42,24 +51,20 @@ export function renderPurchaseOrderListCell(
         column,
         valueKey: row.document_status,
         label,
-        textNode: <span className="text-sm font-medium">{label}</span>,
+        textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.status,
       });
     }
     case "lines":
-      return <span className="tabular-nums">{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
     case "net_amount":
-      return <span className="tabular-nums">{row.total_net_amount}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_net_amount}</span>;
     case "created":
-      return (
-        <span className={cn("text-sm text-muted-foreground")}>{formatDate(row.created_at)}</span>
-      );
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "created_by":
-      return <span className="text-sm">{row.created_by_name?.trim() || "—"}</span>;
+      return <span className={LIST_TABLE_CELL_SECONDARY}>{row.created_by_name?.trim() || "—"}</span>;
     case "updated":
-      return (
-        <span className={cn("text-sm text-muted-foreground")}>{formatDate(row.updated_at)}</span>
-      );
+      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>;
     default:
       return null;
   }

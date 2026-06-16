@@ -70,6 +70,26 @@ export function formatSalesQuoteRpcError(
     return { message: "Enter a rejection reason before rejecting this quote." };
   }
 
+  if (message.toLowerCase().includes("only draft quotations can be submitted for approval")) {
+    return { message: "Only draft quotes can be submitted for approval." };
+  }
+
+  if (message.toLowerCase().includes("approval is not required for this quotation")) {
+    return {
+      message: "Approval is not required for this quote. Use Issue quote instead.",
+    };
+  }
+
+  if (message.toLowerCase().includes("quotation approval is required before conversion")) {
+    return {
+      message: "This quote must be submitted and approved before it can be converted.",
+    };
+  }
+
+  if (message.toLowerCase().includes("quotation approver permission required")) {
+    return { message: "You do not have permission to approve or reject this quote." };
+  }
+
   if (
     message.includes("sales_quotations_tenant_number_unique") ||
     (message.toLowerCase().includes("duplicate key") &&

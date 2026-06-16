@@ -51,6 +51,8 @@ type Props = {
 
   canEdit: boolean;
 
+  gstRegistered: boolean;
+
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 
   initialPoLayout: DocumentLayoutTemplate;
@@ -116,6 +118,8 @@ export function ProcurementModuleSettingsTerminal({
   locations,
 
   canEdit,
+
+  gstRegistered,
 
   catalogFieldSuggestions,
 
@@ -241,6 +245,8 @@ export function ProcurementModuleSettingsTerminal({
 
                 canEdit={canEdit}
 
+                gstRegistered={gstRegistered}
+
                 catalogFieldSuggestions={catalogFieldSuggestions}
 
               />
@@ -257,6 +263,8 @@ export function ProcurementModuleSettingsTerminal({
 
                 canEdit={canEdit}
 
+                gstRegistered={gstRegistered}
+
                 catalogFieldSuggestions={catalogFieldSuggestions}
 
               />
@@ -272,6 +280,8 @@ export function ProcurementModuleSettingsTerminal({
                 locations={locations}
 
                 canEdit={canEdit}
+
+                gstRegistered={gstRegistered}
 
                 catalogFieldSuggestions={catalogFieldSuggestions}
 
