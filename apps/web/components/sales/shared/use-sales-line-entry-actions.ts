@@ -16,6 +16,7 @@ import {
   getCachedVariantBaseUnit,
   getCachedVariantImageUrl,
 } from "@/lib/inventory/stock/variant-suggestion-cache";
+import { prefetchLineStockContexts } from "@/lib/inventory/stock/line-stock-context-cache";
 import type { StockLineSkuSelection } from "@/components/inventory/stock/stock-variant-sku-field";
 import {
   ensureTrailingSalesCommerceLine,
@@ -84,9 +85,11 @@ export function useSalesLineEntryActions<T extends SalesCommerceLineBase>(
     setQuantity: (line: T, value: string) => T;
     duplicateLine: (line: T) => T;
     pricesTaxInclusive?: boolean;
+    stockLocationId?: string;
   }
 ) {
   const pricesTaxInclusive = options.pricesTaxInclusive ?? false;
+  const stockLocationId = options.stockLocationId ?? "";
   const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const qtyRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const priceRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
@@ -281,8 +284,12 @@ export function useSalesLineEntryActions<T extends SalesCommerceLineBase>(
       if (variantChanged && variantId && !usedServerCatalog) {
         void applyCatalogContext(lineKey, variantId, resolvedImageUrl);
       }
+
+      if (variantChanged && variantId) {
+        prefetchLineStockContexts(stockLocationId, variantId);
+      }
     },
-    [applyCatalogContext, lines, patchLine, pricesTaxInclusive]
+    [applyCatalogContext, lines, patchLine, pricesTaxInclusive, stockLocationId]
   );
 
   const removeLine = useCallback(

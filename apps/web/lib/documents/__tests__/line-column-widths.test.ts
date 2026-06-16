@@ -5,6 +5,7 @@ import {
   DOCUMENT_LINE_DISCOUNT_PCT_WIDTH_REM,
   DOCUMENT_LINE_ITEM_COLUMN_MIN_WIDTH_REM,
   DOCUMENT_LINE_QTY_WIDTH_REM,
+  DOCUMENT_LINE_UNIT_WIDTH_REM,
   getDocumentLineColumnMinWidthRem,
   getDocumentLineColumnWidthClass,
   getDocumentLineColumnWidthRem,
@@ -12,8 +13,10 @@ import {
 
 describe("line-column-widths", () => {
   it("assigns compact fixed widths to auxiliary columns", () => {
-    expect(getDocumentLineColumnWidthClass("unit")).toBe("w-[3.25rem]");
-    expect(getDocumentLineColumnWidthRem("unit")).toBe(3.25);
+    expect(getDocumentLineColumnWidthClass("unit")).toBe(
+      `w-[${DOCUMENT_LINE_UNIT_WIDTH_REM}rem]`
+    );
+    expect(getDocumentLineColumnWidthRem("unit")).toBe(DOCUMENT_LINE_UNIT_WIDTH_REM);
     expect(getDocumentLineColumnWidthClass("item")).toBe("min-w-[16rem]");
     expect(getDocumentLineColumnWidthRem("item")).toBeUndefined();
     expect(getDocumentLineColumnMinWidthRem("item")).toBe(DOCUMENT_LINE_ITEM_COLUMN_MIN_WIDTH_REM);

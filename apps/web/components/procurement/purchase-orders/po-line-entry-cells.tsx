@@ -1,6 +1,8 @@
 "use client";
 
+import { DocumentLineStockHint } from "@/components/documents/document-line-stock-hint";
 import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
+import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-context";
 import {
   DOCUMENT_LINE_COMPACT_INPUT_CLASS,
   DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -117,6 +119,7 @@ type LineCellContext = {
   itemRefs: React.MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>;
   qtyRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
   priceRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+  getLineStockContext?: (variantId: string) => DocumentLineStockContext | null;
   patchLine: (key: string, patch: Partial<PoDraftLine>) => void;
   bindItemChange: (lineKey: string) => (patch: Partial<PoDraftLine>) => void;
   focusPrice: (lineKey: string) => void;
@@ -352,14 +355,25 @@ export function PoLineItemCell({
   nestedColumns,
   itemColumn,
   imageDisplayMode,
+  showUnitUnderQty,
 }: {
   ctx: LineCellContext;
   nestedColumns: DocumentColumnPref[];
   itemColumn: DocumentColumnPref;
   imageDisplayMode: DocumentImageDisplayMode;
+  showUnitUnderQty: boolean;
 }) {
-  const { line, disabled, supplierId, destinationLocationId, excludePurchaseOrderId, itemRefs, bindItemChange, patchLine } =
-    ctx;
+  const {
+    line,
+    disabled,
+    supplierId,
+    destinationLocationId,
+    excludePurchaseOrderId,
+    itemRefs,
+    bindItemChange,
+    getLineStockContext,
+    patchLine,
+  } = ctx;
 
   const pricesTaxInclusive = ctx.pricesTaxInclusive ?? false;
   const taxSupplyNature = ctx.taxSupplyNature ?? "INTERSTATE";
@@ -401,6 +415,7 @@ export function PoLineItemCell({
               displayMode="item"
               wrapSelectedItemName
               disabled={disabled}
+              stockLocationId={destinationLocationId}
               inputClassName={documentFieldTypographyClassName(
                 itemColumn,
                 cn(PO_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")
@@ -419,6 +434,12 @@ export function PoLineItemCell({
               }}
               onChange={bindItemChange(line.key)}
             />
+            {line.variant_id && destinationLocationId && showUnitUnderQty ? (
+              <DocumentLineStockHint
+                context={getLineStockContext?.(line.variant_id)}
+                className="mt-1 px-0.5"
+              />
+            ) : null}
           </div>
           <PoLineSupplierInsightsButton
             line={line}
@@ -466,7 +487,9 @@ export function PoLineUnitCell({
   const { line, disabled, patchLine } = ctx;
   const unitCode = line.variant_id ? resolvePoDraftLineUnitCode(line) : null;
   const uomOptions = resolvePoLineUomOptions(line).map((option) => option.uom_code);
-  const conversionHint = line.variant_id ? formatPoLineUomConversionHint(line) : null;
+  const conversionHint = line.variant_id
+    ? formatPoLineUomConversionHint(line, { style: "parenthetical" })
+    : null;
 
   return (
     <div
@@ -483,7 +506,9 @@ export function PoLineUnitCell({
         unitOptions={uomOptions}
         onUnitChange={(code) => patchPoLineUomChange(ctx, code)}
         conversionHint={conversionHint}
-        className="w-full text-sm leading-snug"
+        standaloneColumn
+        primaryClassName={documentFieldTypographyClassName(column, "")}
+        className="w-full"
       />
     </div>
   );
@@ -498,7 +523,8 @@ export function PoLineQtyCell({
   column: DocumentColumnPref;
   showUnitUnderQty: boolean;
 }) {
-  const { line, disabled, qtyRefs, patchLine, focusPrice } = ctx;
+  const { line, disabled, qtyRefs, patchLine, focusPrice, destinationLocationId, getLineStockContext } =
+    ctx;
   const decimalPlaces = resolveColumnDecimalPlaces(column);
   const unitCode =
     showUnitUnderQty && line.variant_id ? resolvePoDraftLineUnitCode(line) : null;
@@ -507,6 +533,11 @@ export function PoLineQtyCell({
   const conversionHint =
     showUnitUnderQty && line.variant_id ? formatPoLineUomConversionHint(line) : null;
   const showQtyStack = showUnitUnderQty && Boolean(line.variant_id);
+  const showStockUnderQty =
+    !showUnitUnderQty && Boolean(line.variant_id) && Boolean(destinationLocationId);
+  const stockContext = showStockUnderQty
+    ? getLineStockContext?.(line.variant_id) ?? null
+    : null;
 
   const qtyInput = (
     <DocumentLineCompactInput
@@ -541,19 +572,27 @@ export function PoLineQtyCell({
 
   return (
     <PoLineQtyValueStack
-      showUnitUnderQty={showQtyStack}
+      showUnitUnderQty={showQtyStack || (showStockUnderQty && stockContext != null)}
       align={column.align}
       unitSlot={
-        <PoLineQtyUnitSlot
-          unitCode={unitCode}
-          align={column.align}
-          editable={editableUom}
-          disabled={disabled}
-          unitOptions={uomOptions}
-          onUnitChange={(code) => patchPoLineUomChange(ctx, code)}
-          conversionHint={conversionHint}
-          className="w-full"
-        />
+        showQtyStack ? (
+          <PoLineQtyUnitSlot
+            unitCode={unitCode}
+            align={column.align}
+            editable={editableUom}
+            disabled={disabled}
+            unitOptions={uomOptions}
+            onUnitChange={(code) => patchPoLineUomChange(ctx, code)}
+            conversionHint={conversionHint}
+            className="w-full"
+          />
+        ) : showStockUnderQty && stockContext ? (
+          <DocumentLineStockHint
+            variant="qty-subline"
+            align={column.align}
+            context={stockContext}
+          />
+        ) : null
       }
     >
       {qtyInput}
@@ -1168,6 +1207,7 @@ export function renderPoLineColumnCell(
         nestedColumns={nestedColumns}
         itemColumn={column}
         imageDisplayMode={imageDisplayMode}
+        showUnitUnderQty={showUnitUnderQty}
       />
     );
   }

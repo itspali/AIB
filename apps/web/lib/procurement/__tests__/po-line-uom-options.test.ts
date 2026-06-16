@@ -226,6 +226,15 @@ describe("formatPoLineUomConversionHint", () => {
     expect(formatPoLineUomConversionHint(line)).toBe("1 BOX = 2 PCS");
   });
 
+  it("shows parenthetical factor when qty is empty and style is parenthetical", () => {
+    const line = draftLine({
+      uom_code: "BOX",
+      quantity_ordered: "0",
+      catalog_context: boxContext,
+    });
+    expect(formatPoLineUomConversionHint(line, { style: "parenthetical" })).toBe("(2 PCS)");
+  });
+
   it("returns null for base unit lines", () => {
     const line = draftLine({
       uom_code: "PCS",

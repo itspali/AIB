@@ -30,6 +30,7 @@ import {
   registerVariantSuggestions,
 } from "@/lib/inventory/stock/variant-suggestion-cache";
 import { prefetchPoLineCatalogContext } from "@/lib/documents/po-line-catalog-cache";
+import { prefetchLineStockContexts } from "@/lib/inventory/stock/line-stock-context-cache";
 import { cn } from "@/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 100;
@@ -82,6 +83,8 @@ type Props = {
   showSecondaryText?: boolean;
   /** Show a clear control when a variant is selected (default true). */
   clearable?: boolean;
+  /** Document location for warming on-hand hints while browsing the picker. */
+  stockLocationId?: string;
   value: StockLineSkuSelection;
   onChange: (patch: Partial<StockLineSkuSelection>) => void;
 };
@@ -181,6 +184,7 @@ export function StockVariantSkuField({
   inputClassName,
   showSecondaryText = true,
   clearable = true,
+  stockLocationId = "",
   value,
   onChange,
 }: Props) {
@@ -189,6 +193,8 @@ export function StockVariantSkuField({
   onChangeRef.current = onChange;
   const displayModeRef = useRef(displayMode);
   displayModeRef.current = displayMode;
+  const stockLocationIdRef = useRef(stockLocationId);
+  stockLocationIdRef.current = stockLocationId;
   const [query, setQuery] = useState(() => resolveDisplayQuery(value, displayMode));
   const [results, setResults] = useState<StockVariantOption[]>([]);
   const [open, setOpen] = useState(false);
@@ -458,6 +464,7 @@ export function StockVariantSkuField({
     cancelPendingSearch();
     skipSearchRef.current = true;
     applyVariant(variant, onChangeRef.current);
+    prefetchLineStockContexts(stockLocationIdRef.current, variant.variant_id);
     setQuery(resolveVariantDisplayQuery(variant, displayModeRef.current));
     setOpen(false);
     setResults([]);
@@ -543,6 +550,7 @@ export function StockVariantSkuField({
     const variant = resultsRef.current[clamped];
     if (variant?.variant_id) {
       prefetchPoLineCatalogContext(variant.variant_id);
+      prefetchLineStockContexts(stockLocationIdRef.current, variant.variant_id);
     }
   }, []);
 

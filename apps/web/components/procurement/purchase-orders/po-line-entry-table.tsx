@@ -37,6 +37,7 @@ import {
   usePoLineEntryActions,
 } from "@/components/procurement/purchase-orders/po-line-entry-actions";
 import { usePoLineCatalogHydration } from "@/components/procurement/purchase-orders/use-po-line-catalog-hydration";
+import { useLineStockContext } from "@/lib/inventory/stock/use-line-stock-context";
 import {
   type LineCellContext,
   renderPoLineColumnCell,
@@ -153,6 +154,11 @@ function PoLineEntryGrid({
     () => shouldShowPoDiscountAmountUnderPctColumn(resolvedLayout),
     [resolvedLayout]
   );
+  const lineVariantIds = useMemo(
+    () => lines.map((line) => line.variant_id).filter(Boolean),
+    [lines]
+  );
+  const getLineStockContext = useLineStockContext(destinationLocationId, lineVariantIds);
 
   const columns: DocumentLineColumn[] = useMemo(
     () =>
@@ -220,6 +226,7 @@ function PoLineEntryGrid({
           bindItemChange: actions.bindItemChange,
           focusPrice: actions.focusPrice,
           advanceFromLine: actions.advanceFromLine,
+          getLineStockContext,
         };
 
         return renderPoLineColumnCell(column.id, layoutColumn, ctx, nestedColumns, imageDisplayMode, {
@@ -265,7 +272,13 @@ export function PoLineEntryTable({
   const entryAnchor = entryAnchorProp ?? internalAnchor.entryAnchor;
   const handleEntryAnchorChange =
     onEntryAnchorChange ?? internalAnchor.handleEntryAnchorChange;
-  const actions = usePoLineEntryActions(lines, supplierId, onChange, entryAnchor);
+  const actions = usePoLineEntryActions(
+    lines,
+    supplierId,
+    onChange,
+    entryAnchor,
+    destinationLocationId
+  );
   usePoLineCatalogHydration(lines, onChange, taxCodeOptions);
 
   useEffect(() => {

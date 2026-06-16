@@ -15,11 +15,14 @@ export const DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM = 8.5;
 /** Discount % column — value + %/Amt subline selector. */
 export const DOCUMENT_LINE_DISCOUNT_PCT_WIDTH_REM = 7;
 
+/** Unit column — UOM code + conversion hint (e.g. "1 BOX = 2 PCS"). */
+export const DOCUMENT_LINE_UNIT_WIDTH_REM = 6.5;
+
 const LINE_COLUMN_WIDTH_REM: Record<string, number> = {
   line_image: 3.25,
   sku: 5.5,
   quantity_ordered: DOCUMENT_LINE_QTY_WIDTH_REM,
-  unit: 3.25,
+  unit: DOCUMENT_LINE_UNIT_WIDTH_REM,
   unit_price: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,
   mrp: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,
   line_total: DOCUMENT_LINE_COMMERCIAL_MONEY_WIDTH_REM,

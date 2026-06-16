@@ -1,7 +1,9 @@
 "use client";
 
 import type { MutableRefObject } from "react";
+import { DocumentLineStockHint } from "@/components/documents/document-line-stock-hint";
 import { StockVariantSkuField, type StockLineSkuSelection } from "@/components/inventory/stock/stock-variant-sku-field";
+import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-context";
 import {
   DOCUMENT_LINE_COMPACT_INPUT_CLASS,
   DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS,
@@ -99,6 +101,8 @@ export type SalesLineCellContext<T extends SalesCommerceLineBase> = {
   advanceFromLine: (lineKey: string) => void;
   getQuantity: (line: T) => string;
   gstRegistered?: boolean;
+  getLineStockContext?: (variantId: string) => DocumentLineStockContext | null;
+  stockLocationId?: string;
 };
 
 function patchSalesLineUomChange<T extends SalesCommerceLineBase>(
@@ -340,14 +344,25 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
   nestedColumns,
   itemColumn,
   imageDisplayMode,
+  showUnitUnderQty,
 }: {
   ctx: SalesLineCellContext<T>;
   nestedColumns: DocumentColumnPref[];
   itemColumn: DocumentColumnPref;
   imageDisplayMode: DocumentImageDisplayMode;
+  showUnitUnderQty: boolean;
 }) {
-  const { line, disabled, unitPriceField, itemRefs, bindItemChange, gstRegistered = false, patchLine } =
-    ctx;
+  const {
+    line,
+    disabled,
+    unitPriceField,
+    itemRefs,
+    bindItemChange,
+    getLineStockContext,
+    stockLocationId,
+    gstRegistered = false,
+    patchLine,
+  } = ctx;
   const skuLineFieldVisible = isSkuLineFieldVisible(nestedColumns);
   const showSkuFallback =
     Boolean(line.variant_sku) &&
@@ -375,6 +390,7 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
             displayMode="item"
             wrapSelectedItemName
             disabled={disabled}
+            stockLocationId={stockLocationId}
             inputClassName={documentFieldTypographyClassName(
               itemColumn,
               cn(DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")
@@ -393,6 +409,12 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
             }}
             onChange={bindItemChange(line.key)}
           />
+          {line.variant_id && stockLocationId && showUnitUnderQty ? (
+            <DocumentLineStockHint
+              context={getLineStockContext?.(line.variant_id)}
+              className="mt-1 px-0.5"
+            />
+          ) : null}
         </div>
       </div>
       <SalesLineNestedUnderItemFields
@@ -413,10 +435,12 @@ export function SalesLineUnitCell<T extends SalesCommerceLineBase>({
   ctx: SalesLineCellContext<T>;
   column: DocumentColumnPref;
 }) {
-  const { line, disabled, patchLine } = ctx;
+  const { line, disabled, patchLine, getQuantity } = ctx;
   const unitCode = line.variant_id ? resolveSalesDraftLineUomCode(line) : null;
   const uomOptions = resolveSalesLineUomOptions(line).map((option) => option.uom_code);
-  const conversionHint = line.variant_id ? formatSalesLineUomConversionHint(line, "") : null;
+  const conversionHint = line.variant_id
+    ? formatSalesLineUomConversionHint(line, getQuantity(line), { style: "parenthetical" })
+    : null;
 
   return (
     <div
@@ -430,7 +454,9 @@ export function SalesLineUnitCell<T extends SalesCommerceLineBase>({
         unitOptions={uomOptions}
         onUnitChange={(code) => patchSalesLineUomChange(ctx, code)}
         conversionHint={conversionHint}
-        className="w-full text-sm leading-snug"
+        standaloneColumn
+        primaryClassName={documentFieldTypographyClassName(column, "")}
+        className="w-full"
       />
     </div>
   );
@@ -445,7 +471,17 @@ export function SalesLineQtyCell<T extends SalesCommerceLineBase>({
   column: DocumentColumnPref;
   showUnitUnderQty: boolean;
 }) {
-  const { line, disabled, qtyRefs, patchLine, focusPrice, getQuantity, quantityField } = ctx;
+  const {
+    line,
+    disabled,
+    qtyRefs,
+    patchLine,
+    focusPrice,
+    getQuantity,
+    quantityField,
+    stockLocationId,
+    getLineStockContext,
+  } = ctx;
   const decimalPlaces = resolveColumnDecimalPlaces(column);
   const quantity = getQuantity(line);
   const unitCode = showUnitUnderQty && line.variant_id ? resolveSalesDraftLineUomCode(line) : null;
@@ -454,6 +490,11 @@ export function SalesLineQtyCell<T extends SalesCommerceLineBase>({
   const conversionHint =
     showUnitUnderQty && line.variant_id ? formatSalesLineUomConversionHint(line, quantity) : null;
   const showQtyStack = showUnitUnderQty && Boolean(line.variant_id);
+  const showStockUnderQty =
+    !showUnitUnderQty && Boolean(line.variant_id) && Boolean(stockLocationId);
+  const stockContext = showStockUnderQty
+    ? getLineStockContext?.(line.variant_id) ?? null
+    : null;
 
   const qtyInput = (
     <DocumentLineCompactInput
@@ -487,19 +528,27 @@ export function SalesLineQtyCell<T extends SalesCommerceLineBase>({
 
   return (
     <PoLineQtyValueStack
-      showUnitUnderQty={showQtyStack}
+      showUnitUnderQty={showQtyStack || (showStockUnderQty && stockContext != null)}
       align={column.align}
       unitSlot={
-        <PoLineQtyUnitSlot
-          unitCode={unitCode}
-          align={column.align}
-          editable={editableUom}
-          disabled={disabled}
-          unitOptions={uomOptions}
-          onUnitChange={(code) => patchSalesLineUomChange(ctx, code)}
-          conversionHint={conversionHint}
-          className="w-full"
-        />
+        showQtyStack ? (
+          <PoLineQtyUnitSlot
+            unitCode={unitCode}
+            align={column.align}
+            editable={editableUom}
+            disabled={disabled}
+            unitOptions={uomOptions}
+            onUnitChange={(code) => patchSalesLineUomChange(ctx, code)}
+            conversionHint={conversionHint}
+            className="w-full"
+          />
+        ) : showStockUnderQty && stockContext ? (
+          <DocumentLineStockHint
+            variant="qty-subline"
+            align={column.align}
+            context={stockContext}
+          />
+        ) : null
       }
     >
       {qtyInput}
@@ -587,7 +636,7 @@ export function SalesLineDiscountPctCell<T extends SalesCommerceLineBase>({
     <DocumentLineCompactInput
       align={column.align}
       className={documentFieldTypographyClassName(
-        column,
+        showAmountPrimary ? undefined : column,
         cn(
           showAmountPrimary ? PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS : DOCUMENT_LINE_COMPACT_INPUT_CLASS,
           showAmountPrimary && "!w-full max-w-full"
@@ -990,6 +1039,7 @@ export function renderSalesLineColumnCell<T extends SalesCommerceLineBase>(
         nestedColumns={nestedColumns}
         itemColumn={column}
         imageDisplayMode={imageDisplayMode}
+        showUnitUnderQty={showUnitUnderQty}
       />
     );
   }

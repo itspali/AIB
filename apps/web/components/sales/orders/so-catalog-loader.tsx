@@ -15,6 +15,7 @@ import {
 } from "@/lib/sales/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
+import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 
 export async function SoCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();

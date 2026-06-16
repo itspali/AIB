@@ -40,6 +40,7 @@ import {
   resolvePoLineOfferUnitPrice,
   resolvePoLinePickerOfferUnitPrice,
 } from "@/lib/procurement/purchase-orders/supplier-price";
+import { prefetchLineStockContexts } from "@/lib/inventory/stock/line-stock-context-cache";
 import {
   attachSupplierPriceSnapshot,
   attachWritebackSnapshotFromCatalog,
@@ -105,7 +106,8 @@ export function usePoLineEntryActions(
   lines: PoDraftLine[],
   supplierId: string,
   onChange: (lines: PoDraftLine[] | ((current: PoDraftLine[]) => PoDraftLine[])) => void,
-  entryAnchor: PoLineEntryAnchor = "bottom"
+  entryAnchor: PoLineEntryAnchor = "bottom",
+  stockLocationId = ""
 ) {
   const itemRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -317,6 +319,7 @@ export function usePoLineEntryActions(
       const imageUrl = resolveVariantImageUrl(variantId, patchImageUrl ?? patch.image_url);
       const isEntryLine = isPoEntryLineKey(lineKey, nextLines, entryAnchor);
 
+      prefetchLineStockContexts(stockLocationId, variantId);
       void applySupplierPrice(
         lineKey,
         variantId,
@@ -333,7 +336,7 @@ export function usePoLineEntryActions(
         focusQty(lineKey);
       });
     },
-    [advanceFromLine, applyCatalogContext, applySupplierPrice, entryAnchor, focusQty]
+    [advanceFromLine, applyCatalogContext, applySupplierPrice, entryAnchor, focusQty, stockLocationId]
   );
 
   const bindItemChange = useCallback(

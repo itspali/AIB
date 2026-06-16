@@ -251,6 +251,7 @@ export function SalesCommerceEditorShell<
       onEntryAnchorChange={handleEntryAnchorChange}
       onChange={onLinesChange as (lines: (SalesCommerceLineBase & Record<string, string | null>)[] | ((current: (SalesCommerceLineBase & Record<string, string | null>)[]) => (SalesCommerceLineBase & Record<string, string | null>)[])) => void}
       createLine={createLine as () => SalesCommerceLineBase & Record<string, string | null>}
+      stockLocationId={originLocationId}
     />
   );
 

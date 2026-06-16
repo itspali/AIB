@@ -29,6 +29,8 @@ import { fetchPromotionalReclassificationBatches } from "@/lib/procurement/promo
 import type { PromotionalBatchRow } from "@/lib/procurement/promo/reclassification-helpers";
 import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balances";
 import type { QcInventoryBalanceRow } from "@/lib/inventory/stock/qc-balances";
+import { fetchDocumentLineStockContexts } from "@/lib/inventory/stock/line-stock-context";
+import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-context";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -43,6 +45,32 @@ function revalidateStockPaths() {
 export async function loadStockLocations(): Promise<StockLocationOption[]> {
   const { supabase, tenantId } = await requireTenantId();
   return fetchStockLocations(supabase, tenantId);
+}
+
+export async function loadDocumentLineStockContexts(input: {
+  location_id: string;
+  variant_ids: string[];
+}): Promise<
+  { contexts: Record<string, DocumentLineStockContext> } | { error: string }
+> {
+  const locationId = input.location_id.trim();
+  const variantIds = input.variant_ids.map((id) => id.trim()).filter(Boolean);
+  if (!locationId || variantIds.length === 0) {
+    return { contexts: {} };
+  }
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const contexts = await fetchDocumentLineStockContexts(supabase, tenantId, {
+      location_id: locationId,
+      variant_ids: variantIds,
+    });
+    return { contexts };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load stock for line items.",
+    };
+  }
 }
 
 export async function loadStockBalances(options?: {

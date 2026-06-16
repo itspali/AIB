@@ -231,11 +231,14 @@ function formatConversionQuantity(value: number): string {
   return rounded.toFixed(6).replace(/\.?0+$/, "");
 }
 
+export type UomConversionHintStyle = "ratio" | "parenthetical";
+
 function formatUomConversionHint(input: {
   uomCode: string;
   baseUom: string;
   factor: number;
   quantity?: string;
+  style?: UomConversionHintStyle;
 }): string | null {
   const { uomCode, baseUom, factor } = input;
   if (!uomCode || !baseUom || uomCode === baseUom || factor === 1) return null;
@@ -244,12 +247,16 @@ function formatUomConversionHint(input: {
   if (Number.isFinite(qty) && qty > 0) {
     return `(${formatConversionQuantity(qty * factor)} ${baseUom})`;
   }
+  if (input.style === "parenthetical") {
+    return `(${formatConversionQuantity(factor)} ${baseUom})`;
+  }
   return `1 ${uomCode} = ${formatConversionQuantity(factor)} ${baseUom}`;
 }
 
 export function formatSalesLineUomConversionHint(
   line: Pick<SalesCommerceLineBase, "catalog_context" | "uom_code" | "base_unit_of_measure">,
-  quantity: string
+  quantity: string,
+  options?: { style?: UomConversionHintStyle }
 ): string | null {
   const uomCode = resolveSalesDraftLineUomCode(line);
   const baseUom = trimCode(line.catalog_context?.base_unit_of_measure) ?? trimCode(line.base_unit_of_measure);
@@ -259,6 +266,7 @@ export function formatSalesLineUomConversionHint(
     baseUom,
     factor: resolveSalesLineUomConversionFactor(line),
     quantity,
+    style: options?.style,
   });
 }
 

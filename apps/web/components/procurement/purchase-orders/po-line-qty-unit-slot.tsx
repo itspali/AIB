@@ -23,6 +23,14 @@ export const PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS =
 export const PO_LINE_SUBLINE_SELECT_CLASS =
   "rounded-sm border border-transparent bg-transparent shadow-none transition-[background-color,border-color,box-shadow] hover:border-border/60 hover:bg-accent/30 focus:border-ring focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-50";
 
+/** Primary column select — matches DocumentLineCompactInput height and typography. */
+export const PO_LINE_UNIT_PRIMARY_SELECT_CLASS =
+  "h-8 w-full max-w-full cursor-pointer truncate rounded-none border-0 bg-transparent px-2 text-sm font-bold shadow-none transition-[background-color,box-shadow] hover:bg-accent/30 focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Primary column read-only unit label — matches h-8 compact inputs. */
+export const PO_LINE_UNIT_PRIMARY_TEXT_CLASS =
+  "block h-8 w-full max-w-full truncate px-2 text-sm font-bold leading-8";
+
 const PO_LINE_UNIT_TEXT_CLASS = PO_LINE_SUBLINE_TEXT_CLASS;
 
 export type PoLineQtyUnitSlotProps = {
@@ -37,6 +45,10 @@ export type PoLineQtyUnitSlotProps = {
   conversionHint?: string | null;
   /** When true, always reserves unit + hint rows so the qty cell height stays fixed. */
   reserveLayout?: boolean;
+  /** When true, unit is the column primary (h-8 / text-sm) with hint as subline below. */
+  standaloneColumn?: boolean;
+  /** Typography classes for the primary unit value (standalone column). */
+  primaryClassName?: string;
 };
 
 /** @deprecated Use PO_LINE_SUBLINE_ZONE_CLASS */
@@ -179,6 +191,8 @@ export function PoLineQtyUnitSlot({
   onUnitChange,
   conversionHint,
   reserveLayout = true,
+  standaloneColumn = false,
+  primaryClassName,
 }: PoLineQtyUnitSlotProps) {
   const options = unitOptions?.length ? unitOptions : unitCode ? [unitCode] : [];
   const showSelect = editable && options.length > 1 && unitCode;
@@ -191,9 +205,10 @@ export function PoLineQtyUnitSlot({
       aria-label="Unit of measure"
       onChange={(event) => onUnitChange?.(event.target.value)}
       className={cn(
-        "h-4 w-full max-w-full cursor-pointer truncate px-2",
-        PO_LINE_SUBLINE_SELECT_CLASS,
-        PO_LINE_UNIT_TEXT_CLASS,
+        standaloneColumn ? PO_LINE_UNIT_PRIMARY_SELECT_CLASS : "h-4 w-full max-w-full cursor-pointer truncate px-2",
+        !standaloneColumn && PO_LINE_SUBLINE_SELECT_CLASS,
+        !standaloneColumn && PO_LINE_UNIT_TEXT_CLASS,
+        standaloneColumn && primaryClassName,
         align === "right" && "text-right",
         align === "center" && "text-center"
       )}
@@ -207,8 +222,9 @@ export function PoLineQtyUnitSlot({
   ) : unitCode ? (
     <span
       className={cn(
-        "block w-full max-w-full truncate px-2",
-        PO_LINE_UNIT_TEXT_CLASS,
+        standaloneColumn ? PO_LINE_UNIT_PRIMARY_TEXT_CLASS : "block w-full max-w-full truncate px-2",
+        !standaloneColumn && PO_LINE_UNIT_TEXT_CLASS,
+        standaloneColumn && primaryClassName,
         align === "right" && "text-right",
         align === "center" && "text-center"
       )}
@@ -218,6 +234,36 @@ export function PoLineQtyUnitSlot({
       {unitCode}
     </span>
   ) : null;
+
+  if (standaloneColumn) {
+    return (
+      <div className={cn("flex w-full flex-col px-1 py-0.5", className)}>
+        <div className={PO_LINE_QTY_INPUT_ROW_CLASS}>{unitControl}</div>
+        {hint ? (
+          <div
+            className={cn(
+              PO_LINE_QTY_VALUE_SUBLINE_SEPARATOR_CLASS,
+              "w-full min-w-0 max-w-full shrink-0"
+            )}
+          >
+            <PoLineSublineSingleRow align={align}>
+              <span
+                className={cn(
+                  "block w-full truncate px-2",
+                  PO_LINE_SUBLINE_TEXT_CLASS,
+                  align === "right" && "text-right",
+                  align === "center" && "text-center"
+                )}
+                title={hint}
+              >
+                {hint}
+              </span>
+            </PoLineSublineSingleRow>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   if (!reserveLayout) {
     if (!unitCode && !hint) return null;

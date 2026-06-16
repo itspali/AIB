@@ -40,6 +40,7 @@ import {
   renderSalesLineColumnCell,
   type SalesLineCellContext,
 } from "@/components/sales/shared/sales-line-entry-cells";
+import { useLineStockContext } from "@/lib/inventory/stock/use-line-stock-context";
 import {
   canDuplicateSalesCommerceLine,
   canRemoveSalesCommerceLine,
@@ -70,6 +71,8 @@ type Props<TLine extends LineWithQuantity> = {
   entryAnchor?: "top" | "bottom";
   onEntryAnchorChange?: (anchor: "top" | "bottom") => void;
   onPricesTaxInclusiveChange?: (value: boolean) => void;
+  /** Stock-holding location for on-hand hints under item cells (ship-from / origin). */
+  stockLocationId?: string;
   onChange: (lines: TLine[] | ((current: TLine[]) => TLine[])) => void;
   createLine: () => TLine;
 };
@@ -107,6 +110,7 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
   gstRegistered = false,
   actions,
   getQuantity,
+  stockLocationId = "",
 }: {
   lines: TLine[];
   fieldNames: SalesCommerceLineFieldNames;
@@ -121,6 +125,7 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
   gstRegistered?: boolean;
   actions: ReturnType<typeof useSalesLineEntryActions<TLine>>;
   getQuantity: (line: TLine) => string;
+  stockLocationId?: string;
 }) {
   const resolvedLayout = useMemo(() => {
     const normalized = normalizeSalesCommerceLayoutTemplate(layout);
@@ -164,6 +169,11 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
     () => shouldEmbedSalesTaxRateUnderLineTaxFromGrid(visibleColumns),
     [visibleColumns]
   );
+  const lineVariantIds = useMemo(
+    () => lines.map((line) => line.variant_id).filter(Boolean),
+    [lines]
+  );
+  const getLineStockContext = useLineStockContext(stockLocationId, lineVariantIds);
 
   const columns: DocumentLineColumn[] = useMemo(
     () =>
@@ -208,6 +218,8 @@ function SalesLineEntryGrid<TLine extends LineWithQuantity>({
     advanceFromLine: actions.advanceFromLine,
     getQuantity,
     gstRegistered,
+    getLineStockContext,
+    stockLocationId,
   } satisfies Omit<SalesLineCellContext<TLine>, "line">;
 
   return (
@@ -265,6 +277,7 @@ export function SalesCommerceLineEntryTable<TLine extends LineWithQuantity>({
   entryAnchor: entryAnchorProp,
   onEntryAnchorChange,
   onPricesTaxInclusiveChange,
+  stockLocationId = "",
   onChange,
   createLine,
 }: Props<TLine>) {
@@ -285,6 +298,7 @@ export function SalesCommerceLineEntryTable<TLine extends LineWithQuantity>({
     setQuantity: (line, value) => setLineQuantity(line, quantityField, value),
     duplicateLine: (line) => ({ ...line, key: crypto.randomUUID() }),
     pricesTaxInclusive,
+    stockLocationId,
   });
 
   useEffect(() => {
@@ -323,6 +337,7 @@ export function SalesCommerceLineEntryTable<TLine extends LineWithQuantity>({
       gstRegistered={gstRegistered}
       actions={actions}
       getQuantity={(line) => getLineQuantity(line, quantityField)}
+      stockLocationId={stockLocationId}
     />
   );
 
