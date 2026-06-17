@@ -44,11 +44,17 @@ const textareaClassName = cn(
 type Props = {
   moduleKey: DocumentModuleKey;
   moduleLabel: string;
-  fieldLayoutHref: string;
+  fieldLayoutHref?: string;
   initialTemplates: DocumentPresentationTemplate[];
   locations?: DocumentLayoutLocationOption[];
   canEdit: boolean;
   gstRegistered?: boolean;
+  embedded?: boolean;
+  controlledScope?: DocumentLayoutScope;
+  controlledViewContext?: PresentationViewContext;
+  shellConfigSeed?: PresentationShellConfig | null;
+  shellConfigSeedVersion?: number;
+  onShellConfigChange?: (config: PresentationShellConfig) => void;
 };
 
 const VIEW_TABS: { id: PresentationViewContext; label: string }[] = [
@@ -92,9 +98,17 @@ export function PresentationTemplateEditor({
   locations = [],
   canEdit,
   gstRegistered = false,
+  embedded = false,
+  controlledScope,
+  controlledViewContext,
+  shellConfigSeed,
+  shellConfigSeedVersion,
+  onShellConfigChange,
 }: Props) {
-  const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
-  const [viewContext, setViewContext] = useState<PresentationViewContext>("PDF_PRINT");
+  const [scope, setScope] = useState<DocumentLayoutScope>(controlledScope ?? TENANT_LAYOUT_SCOPE);
+  const [viewContext, setViewContext] = useState<PresentationViewContext>(
+    controlledViewContext ?? "PDF_PRINT"
+  );
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const [isPreviewPending, startPreviewTransition] = useTransition();
@@ -110,6 +124,25 @@ export function PresentationTemplateEditor({
   );
 
   useEffect(() => {
+    if (controlledScope) setScope(controlledScope);
+  }, [controlledScope]);
+
+  useEffect(() => {
+    if (controlledViewContext) setViewContext(controlledViewContext);
+  }, [controlledViewContext]);
+
+  useEffect(() => {
+    if (!embedded || !shellConfigSeed || shellConfigSeedVersion == null) return;
+    setShellConfig(shellConfigSeed);
+  }, [embedded, shellConfigSeed, shellConfigSeedVersion]);
+
+  useEffect(() => {
+    if (!onShellConfigChange) return;
+    onShellConfigChange(shellConfig);
+  }, [shellConfig, onShellConfigChange]);
+
+  useEffect(() => {
+    if (embedded) return;
     let cancelled = false;
     setIsLoadingTemplate(true);
     void loadPresentationTemplate({ moduleKey, viewContext, scope }).then((result) => {
@@ -133,13 +166,14 @@ export function PresentationTemplateEditor({
     return () => {
       cancelled = true;
     };
-  }, [moduleKey, viewContext, layoutScopeKey(scope), gstRegistered]);
+  }, [moduleKey, viewContext, layoutScopeKey(scope), gstRegistered, embedded]);
 
   const showGstCompliance = moduleKey === "SALES_INVOICE" && gstRegistered;
   const complianceConfig =
     shellConfig.compliance ?? (showGstCompliance ? defaultGstComplianceConfig() : undefined);
 
   useEffect(() => {
+    if (embedded) return;
     const previewShellConfig =
       showGstCompliance && !shellConfig.compliance
         ? { ...shellConfig, compliance: complianceConfig }
@@ -156,7 +190,7 @@ export function PresentationTemplateEditor({
         setPreviewHtml(result.html);
       }
     });
-  }, [moduleKey, viewContext, shellConfig, scope, showGstCompliance, complianceConfig]);
+  }, [moduleKey, viewContext, shellConfig, scope, showGstCompliance, complianceConfig, embedded]);
 
   const patchShell = (patch: {
     header?: Partial<PresentationShellConfig["header"]>;
@@ -213,50 +247,61 @@ export function PresentationTemplateEditor({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{moduleLabel}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Appearance for print and email PDF output.
-          </p>
-          {moduleKey === "SALES_INVOICE" && gstRegistered ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              GST tax invoice compliance blocks can be tuned below. Title defaults to Tax Invoice
-              when blank.
+      {!embedded ? (
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">{moduleLabel}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Appearance for print and email PDF output.
             </p>
+            {moduleKey === "SALES_INVOICE" && gstRegistered ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                GST tax invoice compliance blocks can be tuned below. Title defaults to Tax Invoice
+                when blank.
+              </p>
+            ) : null}
+          </div>
+          {fieldLayoutHref ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={fieldLayoutHref} target="_blank" rel="noopener noreferrer">
+                Edit fields
+                <ExternalLink className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+              </Link>
+            </Button>
           ) : null}
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link href={fieldLayoutHref} target="_blank" rel="noopener noreferrer">
-            Edit fields
-            <ExternalLink className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </Button>
-      </div>
+      ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          value={viewContext}
-          onValueChange={(value) => setViewContext(value as PresentationViewContext)}
-        >
-          <TabsList>
-            {VIEW_TABS.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <DocumentLayoutScopeSelect
-          scope={scope}
-          locations={locations}
-          disabled={!canEdit || isLoadingTemplate}
-          onScopeChange={setScope}
-        />
-      </div>
+      {!embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Tabs
+            value={viewContext}
+            onValueChange={(value) => setViewContext(value as PresentationViewContext)}
+          >
+            <TabsList>
+              {VIEW_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <DocumentLayoutScopeSelect
+            scope={scope}
+            locations={locations}
+            disabled={!canEdit || isLoadingTemplate}
+            onScopeChange={setScope}
+          />
+        </div>
+      ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <div className="space-y-4 overflow-y-auto pr-1">
+      <div
+        className={cn(
+          "min-h-0 flex-1",
+          embedded ? "space-y-4 overflow-y-auto" : "grid gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
+        )}
+      >
+        <div className={cn("space-y-4", embedded ? "" : "overflow-y-auto pr-1")}>
           <OrgSettingsSection title="Letterhead" description="Branding at the top of the document.">
             <div className="space-y-2">
               <ToggleRow
@@ -313,7 +358,6 @@ export function PresentationTemplateEditor({
               <ToggleRow
                 id={`${moduleKey}-showHeaderFields`}
                 label="Header fields"
-                hint="Field visibility is in Module settings"
                 checked={shellConfig.sections.showHeaderFields}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ sections: { showHeaderFields: value } })}
@@ -406,7 +450,7 @@ export function PresentationTemplateEditor({
           {canEdit ? (
             <div className="flex flex-wrap gap-2">
               <Button type="button" disabled={isPending || isLoadingTemplate} onClick={handleSave}>
-                {isPending ? "Saving…" : "Save template"}
+                {isPending ? "Saving…" : embedded ? "Save appearance" : "Save template"}
               </Button>
               <Button
                 type="button"
@@ -421,6 +465,7 @@ export function PresentationTemplateEditor({
           ) : null}
         </div>
 
+        {!embedded ? (
         <OrgSettingsSection
           title="Preview"
           description="Sample document with current organization branding."
@@ -445,6 +490,7 @@ export function PresentationTemplateEditor({
             )}
           </div>
         </OrgSettingsSection>
+        ) : null}
       </div>
     </div>
   );

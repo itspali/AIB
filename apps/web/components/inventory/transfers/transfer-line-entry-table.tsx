@@ -45,8 +45,6 @@ type Props = {
   ) => void;
 };
 
-const TRANSFER_STOCK_SCOPE = { scope: "on_hand" as const };
-
 const TRANSFER_QTY_COLUMN_WIDTH = "min-w-[8.75rem] w-[8.75rem] sm:min-w-[9.5rem] sm:w-[9.5rem]";
 
 export function createEmptyTransferLine(): TransferDraftLine {
@@ -114,8 +112,9 @@ function useTransferLineActions(
 
   const bindItemChange = useCallback(
     (lineKey: string) => (patch: Partial<TransferDraftLine>) => {
-      if (patch.variant_id?.trim() && sourceLocationId.trim()) {
-        prefetchLineStockContexts(sourceLocationId, patch.variant_id, TRANSFER_STOCK_SCOPE);
+      const variantId = patch.variant_id?.trim();
+      if (variantId && sourceLocationId.trim()) {
+        prefetchLineStockContexts(sourceLocationId, variantId);
       }
 
       onChange((current) => {
@@ -142,21 +141,11 @@ export function TransferLineEntryTable({
     () => lines.map((line) => line.variant_id).filter(Boolean),
     [lines]
   );
-  const getLineStockContext = useLineStockContext(
-    sourceLocationId,
-    lineVariantIds,
-    TRANSFER_STOCK_SCOPE
-  );
+  const getLineStockContext = useLineStockContext(sourceLocationId, lineVariantIds);
 
   useEffect(() => {
     prefetchBrowseVariants();
   }, []);
-
-  useEffect(() => {
-    const locationId = sourceLocationId.trim();
-    if (!locationId || lineVariantIds.length === 0) return;
-    prefetchLineStockContexts(locationId, lineVariantIds, TRANSFER_STOCK_SCOPE);
-  }, [sourceLocationId, lineVariantIds]);
 
   return (
     <DocumentLineEntrySection
@@ -186,7 +175,6 @@ export function TransferLineEntryTable({
                   displayMode="item"
                   disabled={disabled}
                   stockLocationId={sourceLocationId}
-                  stockContextScope="on_hand"
                   inputClassName={DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS}
                   inputRef={(node) => {
                     actions.itemRefs.current[line.key] = node;

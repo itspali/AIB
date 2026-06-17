@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
+import { DocumentLayoutFieldFormatToolbar } from "@/components/settings/document-layout/document-layout-field-format-toolbar";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -46,6 +47,7 @@ type RowProps<TId extends string> = {
   showPresentationColumns: boolean;
   showHeaderPlacementColumns: boolean;
   showTypographyColumns: boolean;
+  compactToolbar?: boolean;
   onPatch: (patch: Partial<DocumentColumnPref>) => void;
   onMove: (fromId: TId, toId: TId) => void;
 };
@@ -129,6 +131,7 @@ function DocumentLayoutFieldRow<TId extends string>({
   showPresentationColumns,
   showHeaderPlacementColumns,
   showTypographyColumns,
+  compactToolbar = false,
   onPatch,
   onMove,
 }: RowProps<TId>) {
@@ -203,13 +206,15 @@ function DocumentLayoutFieldRow<TId extends string>({
         </button>
       </td>
       <td className="w-10 py-1 pl-1 pr-3 align-middle">
-        <Switch
-          size="xs"
-          checked={column.defaultVisible}
-          disabled={rowDisabled || pinned}
-          onCheckedChange={(checked) => onPatch({ defaultVisible: checked })}
-          aria-label={`Show ${column.label}`}
-        />
+        {compactToolbar ? null : (
+          <Switch
+            size="xs"
+            checked={column.defaultVisible}
+            disabled={rowDisabled || pinned}
+            onCheckedChange={(checked) => onPatch({ defaultVisible: checked })}
+            aria-label={`Show ${column.label}`}
+          />
+        )}
       </td>
       <td className="min-w-[10rem] py-1 pl-1 pr-2 align-middle">
         <Input
@@ -303,7 +308,7 @@ function DocumentLayoutFieldRow<TId extends string>({
           </td>
         </>
       ) : null}
-      {showAlignColumn ? (
+      {showAlignColumn && !compactToolbar ? (
         <td className="min-w-[5rem] px-1 py-1 align-middle">
           {showAlign ? (
             <Select
@@ -325,7 +330,7 @@ function DocumentLayoutFieldRow<TId extends string>({
           )}
         </td>
       ) : null}
-      {showDecimalsColumn ? (
+      {showDecimalsColumn && !compactToolbar ? (
         <td className="min-w-[3.5rem] px-1 py-1 align-middle">
           {showDecimalPlaces ? (
             <Select
@@ -349,7 +354,7 @@ function DocumentLayoutFieldRow<TId extends string>({
           )}
         </td>
       ) : null}
-      {showTypographyColumns ? (
+      {showTypographyColumns && !compactToolbar ? (
         showTypography ? (
           <TypographySelectCells column={column} disabled={rowDisabled} onPatch={onPatch} />
         ) : (
@@ -359,6 +364,18 @@ function DocumentLayoutFieldRow<TId extends string>({
             <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
           </>
         )
+      ) : null}
+      {compactToolbar ? (
+        <td className="min-w-[11rem] px-1 py-1 align-middle">
+          <DocumentLayoutFieldFormatToolbar
+            column={column}
+            disabled={rowDisabled || pinned}
+            showAlign={showAlign}
+            showDecimalPlaces={showDecimalPlaces}
+            showTypography={showTypography}
+            onPatch={onPatch}
+          />
+        </td>
       ) : null}
       <td className="w-10 px-1 py-1 align-middle text-[10px] text-muted-foreground">
         {pinned ? "Pin" : null}
@@ -378,6 +395,7 @@ type ListProps<TId extends string> = {
   showPresentationColumns?: boolean;
   showHeaderPlacementColumns?: boolean;
   showTypographyColumns?: boolean;
+  compactToolbar?: boolean;
 };
 
 export function DocumentLayoutFieldList<TId extends string>({
@@ -391,13 +409,15 @@ export function DocumentLayoutFieldList<TId extends string>({
   showPresentationColumns = false,
   showHeaderPlacementColumns = false,
   showTypographyColumns = false,
+  compactToolbar = false,
 }: ListProps<TId>) {
   const isWideTable =
-    showPresentationColumns ||
-    showHeaderPlacementColumns ||
-    showAlignColumn ||
-    showDecimalsColumn ||
-    showTypographyColumns;
+    !compactToolbar &&
+    (showPresentationColumns ||
+      showHeaderPlacementColumns ||
+      showAlignColumn ||
+      showDecimalsColumn ||
+      showTypographyColumns);
 
   return (
     <div className="table-chrome-frame overflow-x-auto rounded-md border border-border">
@@ -405,14 +425,14 @@ export function DocumentLayoutFieldList<TId extends string>({
         data-header-tone="subtle"
         className={cn(
           "table-chrome w-full border-separate border-spacing-0 text-xs",
-          isWideTable ? "min-w-[56rem] table-auto" : "min-w-[20rem] table-fixed"
+          isWideTable ? "min-w-[56rem] table-auto" : compactToolbar ? "min-w-[24rem] table-auto" : "min-w-[20rem] table-fixed"
         )}
       >
         <thead>
           <tr className="border-b border-border text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <th className="w-7 px-1 py-1.5" aria-label="Reorder" />
-            <th className="w-11 py-1.5 pl-1 pr-3 text-left">Show</th>
-            <th className={cn("py-1.5 pl-1 pr-2 text-left", isWideTable ? "min-w-[10rem]" : "")}>
+            {!compactToolbar ? <th className="w-11 py-1.5 pl-1 pr-3 text-left">Show</th> : null}
+            <th className={cn("py-1.5 pl-1 pr-2 text-left", isWideTable ? "min-w-[10rem]" : "min-w-[8rem]")}>
               Label
             </th>
             {showHeaderPlacementColumns ? (
@@ -434,6 +454,7 @@ export function DocumentLayoutFieldList<TId extends string>({
                 <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Ital</th>
               </>
             ) : null}
+            {compactToolbar ? <th className="min-w-[11rem] px-1 py-1.5 text-right">Format</th> : null}
             <th className="w-10 px-1 py-1.5" />
           </tr>
         </thead>
@@ -452,6 +473,7 @@ export function DocumentLayoutFieldList<TId extends string>({
                 showPresentationColumns={showPresentationColumns}
                 showHeaderPlacementColumns={showHeaderPlacementColumns}
                 showTypographyColumns={showTypographyColumns}
+                compactToolbar={compactToolbar}
                 onPatch={(patch) => onPatch(columnId, patch)}
                 onMove={onMove}
               />

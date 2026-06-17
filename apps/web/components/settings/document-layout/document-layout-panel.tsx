@@ -58,6 +58,13 @@ type Props = {
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
   loadLayout: LoadLayoutFn;
   saveLayout: SaveLayoutFn;
+  /** When true, only Print/Email contexts and no side preview (document designer). */
+  embedded?: boolean;
+  compactFieldToolbar?: boolean;
+  controlledScope?: DocumentLayoutScope;
+  controlledViewContext?: DocumentViewContext;
+  onLayoutChange?: (layout: DocumentLayoutTemplate) => void;
+  hideChromeToolbar?: boolean;
 };
 
 const VIEW_TABS: { id: DocumentViewContext; label: string; enabled: boolean }[] = [
@@ -101,6 +108,12 @@ export function DocumentLayoutPanel({
   catalogFieldSuggestions,
   loadLayout,
   saveLayout,
+  embedded = false,
+  compactFieldToolbar = false,
+  controlledScope,
+  controlledViewContext,
+  onLayoutChange,
+  hideChromeToolbar = false,
 }: Props) {
   const applyGstCompliance = (template: DocumentLayoutTemplate) => {
     const normalized = adapter.normalize(template);
@@ -109,11 +122,26 @@ export function DocumentLayoutPanel({
       : normalized;
   };
 
-  const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
+  const [scope, setScope] = useState<DocumentLayoutScope>(controlledScope ?? TENANT_LAYOUT_SCOPE);
   const [viewContext, setViewContext] = useState<DocumentViewContext>(
-    initialLayout.viewContext ?? "SCREEN_GRID"
+    controlledViewContext ?? (embedded ? "PDF_PRINT" : initialLayout.viewContext ?? "SCREEN_GRID")
   );
   const [layout, setLayout] = useState<DocumentLayoutTemplate>(() => applyGstCompliance(initialLayout));
+  const updateLayout = (updater: DocumentLayoutTemplate | ((current: DocumentLayoutTemplate) => DocumentLayoutTemplate)) => {
+    setLayout((current) => {
+      const next = typeof updater === "function" ? updater(current) : updater;
+      onLayoutChange?.(next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (controlledScope) setScope(controlledScope);
+  }, [controlledScope]);
+
+  useEffect(() => {
+    if (controlledViewContext) setViewContext(controlledViewContext);
+  }, [controlledViewContext]);
   const [previewMode, setPreviewMode] = useState<"drawer" | "peek">("drawer");
   const [isPending, startTransition] = useTransition();
   const [isLoadingLayout, setIsLoadingLayout] = useState(false);
@@ -128,7 +156,8 @@ export function DocumentLayoutPanel({
       viewContext === (initialLayout.viewContext ?? "SCREEN_GRID");
 
     if (isInitialHydration) {
-      setLayout(applyGstCompliance(initialLayout));
+      const next = applyGstCompliance(initialLayout);
+      updateLayout(next);
       return;
     }
 
@@ -143,7 +172,7 @@ export function DocumentLayoutPanel({
       }
       hydratedScopeKey.current = scopeKey;
       hydratedViewContext.current = viewContext;
-      setLayout(applyGstCompliance(result.layout));
+      updateLayout(applyGstCompliance(result.layout));
     });
 
     return () => {
@@ -153,7 +182,7 @@ export function DocumentLayoutPanel({
   }, [adapter, scope, viewContext, initialLayout, loadLayout]);
 
   useEffect(() => {
-    setLayout((current) => applyGstCompliance(current));
+    updateLayout((current) => applyGstCompliance(current));
   }, [gstRegistered]);
 
   const columnById = useMemo(() => new Map(layout.columns.map((column) => [column.id, column])), [layout.columns]);
@@ -168,11 +197,11 @@ export function DocumentLayoutPanel({
     ) {
       return;
     }
-    setLayout((current) => adapter.patchColumn(current, id, patch));
+    updateLayout((current) => adapter.patchColumn(current, id, patch));
   };
 
   const handleReset = () => {
-    setLayout(
+    updateLayout(
       applyGstCompliance({
         ...adapter.defaultLayout,
         viewContext,
@@ -221,14 +250,19 @@ export function DocumentLayoutPanel({
     (id) => !adapter.totalsInternalFieldIds.includes(id)
   );
 
+  const visibleViewTabs = VIEW_TABS.filter((tab) =>
+    embedded ? tab.id !== "SCREEN_GRID" && tab.enabled : tab.enabled
+  );
+
   return (
     <div className="space-y-3">
+      {!hideChromeToolbar ? (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2">
         <div className="flex flex-wrap items-center gap-3">
           <DocumentLayoutScopeSelect
             scope={scope}
             locations={locations}
-            disabled={!canEdit}
+            disabled={!canEdit || controlledScope != null}
             onScopeChange={setScope}
           />
           <Tabs
@@ -236,8 +270,8 @@ export function DocumentLayoutPanel({
             onValueChange={(value) => setViewContext(value as DocumentViewContext)}
           >
             <TabsList className="h-7">
-              {VIEW_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} disabled={!tab.enabled} className="h-6 px-2 text-xs">
+              {visibleViewTabs.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} disabled={!tab.enabled || (controlledViewContext != null && tab.id !== controlledViewContext)} className="h-6 px-2 text-xs">
                   {tab.label}
                   {!tab.enabled ? "*" : null}
                 </TabsTrigger>
@@ -246,7 +280,7 @@ export function DocumentLayoutPanel({
           </Tabs>
         </div>
         <div className="flex items-center gap-1.5">
-          {viewContext === "SCREEN_GRID" && hasLocalOverrides ? (
+          {!embedded && viewContext === "SCREEN_GRID" && hasLocalOverrides ? (
             <Button
               type="button"
               variant="ghost"
@@ -262,25 +296,36 @@ export function DocumentLayoutPanel({
             Reset
           </Button>
           <Button type="button" size="sm" className="h-7 px-3 text-xs" disabled={controlsDisabled} onClick={handleSave}>
-            {isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save"}
+            {isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save fields"}
           </Button>
         </div>
       </div>
+      ) : (
+        <div className="flex justify-end gap-1.5">
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={controlsDisabled} onClick={handleReset}>
+            Reset fields
+          </Button>
+          <Button type="button" size="sm" className="h-7 px-3 text-xs" disabled={controlsDisabled} onClick={handleSave}>
+            {isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save fields"}
+          </Button>
+        </div>
+      )}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+      <div className={cn("grid gap-3", embedded ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]")}>
         <div className="min-w-0 space-y-3 rounded-md border border-border bg-card p-2.5 sm:p-3">
           <SectionBlock title="Header" hint="Header · top row · Details · side panel">
             <DocumentLayoutFieldList
               order={headerOrder}
               getColumn={(id) => getColumn(id)}
-              showHeaderPlacementColumns
-              showTypographyColumns
+              showHeaderPlacementColumns={!embedded}
+              showTypographyColumns={!compactFieldToolbar}
+              compactToolbar={compactFieldToolbar}
               getMeta={(id) => ({
                 showHeaderPlacement: adapter.isFormHeaderPlaceableField(id),
               })}
               onPatch={patchColumn}
               onMove={(fromId, toId) =>
-                setLayout((current) => adapter.moveHeaderFieldOrder(current, fromId, toId))
+                updateLayout((current) => adapter.moveHeaderFieldOrder(current, fromId, toId))
               }
             />
           </SectionBlock>
@@ -289,10 +334,11 @@ export function DocumentLayoutPanel({
             <DocumentLayoutFieldList
               order={lineOrder}
               getColumn={(id) => getColumn(id)}
-              showPresentationColumns
+              showPresentationColumns={!embedded}
               showAlignColumn
               showDecimalsColumn
-              showTypographyColumns
+              showTypographyColumns={!compactFieldToolbar}
+              compactToolbar={compactFieldToolbar}
               getMeta={(id) => ({
                 pinned: id === "item",
                 draggable: id !== "item",
@@ -302,7 +348,7 @@ export function DocumentLayoutPanel({
               })}
               onPatch={patchColumn}
               onMove={(fromId, toId) =>
-                setLayout((current) => adapter.moveLineColumnOrder(current, fromId, toId))
+                updateLayout((current) => adapter.moveLineColumnOrder(current, fromId, toId))
               }
             />
           </SectionBlock>
@@ -323,7 +369,7 @@ export function DocumentLayoutPanel({
                 catalogAdapter={adapter.catalog}
                 customFieldKeys={catalogFieldSuggestions?.customFieldKeys}
                 variantAttributeKeys={catalogFieldSuggestions?.variantAttributeKeys}
-                onLayoutChange={setLayout}
+                onLayoutChange={(next) => updateLayout(next)}
               />
             </SectionBlock>
           ) : null}
@@ -335,7 +381,8 @@ export function DocumentLayoutPanel({
                 getColumn={(id) => getColumn(id)}
                 showAlignColumn
                 showDecimalsColumn
-                showTypographyColumns
+                showTypographyColumns={!compactFieldToolbar}
+                compactToolbar={compactFieldToolbar}
                 getMeta={(id) => ({
                   showAlign: true,
                   showDecimalPlaces: hasDecimalPlaces(id),
@@ -343,20 +390,20 @@ export function DocumentLayoutPanel({
                 onPatch={patchColumn}
                 onMove={(fromId, toId) =>
                   adapter.moveTotalsFieldOrder
-                    ? setLayout((current) => adapter.moveTotalsFieldOrder!(current, fromId, toId))
+                    ? updateLayout((current) => adapter.moveTotalsFieldOrder!(current, fromId, toId))
                     : undefined
                 }
               />
             </SectionBlock>
           ) : null}
 
-          {adapter.showImageSection ? (
+          {adapter.showImageSection && !embedded ? (
             <SectionBlock title="Line images" hint="On-screen drawer · print">
               <Select
                 value={layout.imageDisplayMode}
                 disabled={controlsDisabled}
                 onValueChange={(value) =>
-                  setLayout((current) => ({
+                  updateLayout((current) => ({
                     ...current,
                     imageDisplayMode: value as DocumentImageDisplayMode,
                   }))
@@ -375,6 +422,7 @@ export function DocumentLayoutPanel({
           ) : null}
         </div>
 
+        {!embedded ? (
         <aside className="min-w-0 rounded-md border border-border bg-card p-2.5 xl:sticky xl:top-2 xl:self-start">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Preview
@@ -393,11 +441,14 @@ export function DocumentLayoutPanel({
             />
           )}
         </aside>
+        ) : null}
       </div>
 
+      {!embedded ? (
       <p className="text-[10px] text-muted-foreground">
         {adapter.label} · {layoutScopeKey(scope)} · {viewContext}
       </p>
+      ) : null}
     </div>
   );
 }

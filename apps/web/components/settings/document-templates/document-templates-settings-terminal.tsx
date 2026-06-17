@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileOutput, FileText, Printer } from "lucide-react";
-import { PresentationTemplateEditor } from "@/components/settings/document-templates/presentation-template-editor";
+import { DocumentDesignerWorkspace } from "@/components/settings/document-templates/document-designer-workspace";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,16 +12,12 @@ import {
   groupPresentationModulesByDomain,
 } from "@/lib/documents/print/presentation-catalog";
 import type { PresentationModuleDefinition } from "@/lib/documents/print/types";
-import type { DocumentModuleKey } from "@/lib/documents/types";
+import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
+import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 import { cn } from "@/lib/utils";
 
 const DOMAIN_ORDER = ["PROCUREMENT", "SALES"] as const;
 const MODULE_QUERY = "module";
-
-const FIELD_LAYOUT_HREF: Record<"PROCUREMENT" | "SALES", string> = {
-  PROCUREMENT: "/settings/modules/procurement",
-  SALES: "/settings/modules/sales",
-};
 
 const VALID_MODULE_KEYS = new Set<DocumentModuleKey>(
   PRESENTATION_MODULE_DEFINITIONS.map((row) => row.moduleKey)
@@ -39,6 +34,8 @@ type Props = {
   gstRegistered: boolean;
   deployError?: string;
   initialModuleKey?: DocumentModuleKey | null;
+  initialLayouts: Record<DocumentModuleKey, DocumentLayoutTemplate>;
+  catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 };
 
 export function DocumentTemplatesSettingsTerminal({
@@ -47,6 +44,8 @@ export function DocumentTemplatesSettingsTerminal({
   gstRegistered,
   deployError,
   initialModuleKey,
+  initialLayouts,
+  catalogFieldSuggestions,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -101,19 +100,15 @@ export function DocumentTemplatesSettingsTerminal({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-4">
+    <div className="flex h-full min-h-0 w-full flex-col gap-3">
       <header className="shrink-0">
         <div className="flex items-center gap-2">
           <FileOutput className="h-6 w-6 text-primary" aria-hidden />
           <h1 className="text-2xl font-bold tracking-tight">Document print templates</h1>
         </div>
-        <p className="mt-1 max-w-4xl text-sm text-muted-foreground">
-          Configure letterhead, sections, and PDF appearance for every document type. Field
-          visibility is managed under{" "}
-          <Link href="/settings/modules" className="text-primary underline-offset-4 hover:underline">
-            Module settings
-          </Link>
-          .
+        <p className="mt-1 text-sm text-muted-foreground">
+          Design print and email PDF output — fields, appearance, and live preview. On-screen drawer
+          layouts stay in module settings.
         </p>
       </header>
 
@@ -132,76 +127,72 @@ export function DocumentTemplatesSettingsTerminal({
       <Tabs
         value={domain}
         onValueChange={(value) => handleDomainChange(value as "PROCUREMENT" | "SALES")}
-        className="flex min-h-0 flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col gap-3"
       >
-        <TabsList className="h-auto w-fit shrink-0 flex-wrap gap-1 bg-muted/50 p-1">
-          {DOMAIN_ORDER.map((domainKey) => (
-            <TabsTrigger key={domainKey} value={domainKey} className="text-xs sm:text-sm">
-              {domainKey === "PROCUREMENT" ? "Procurement" : "Sales"}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TabsList className="h-8 shrink-0 bg-muted/50 p-0.5">
+            {DOMAIN_ORDER.map((domainKey) => (
+              <TabsTrigger key={domainKey} value={domainKey} className="h-7 px-3 text-xs">
+                {domainKey === "PROCUREMENT" ? "Procurement" : "Sales"}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {DOMAIN_ORDER.map((domainKey) => (
           <TabsContent
             key={domainKey}
             value={domainKey}
-            className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+            className="mt-0 flex min-h-0 flex-1 flex-col gap-3 data-[state=inactive]:hidden"
           >
-            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
-              <aside className="flex min-h-0 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-card p-2">
-                <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Documents
-                </p>
+            <Tabs
+              value={selectedModuleKey}
+              onValueChange={(value) => {
+                const module = groups[domainKey].find((row) => row.moduleKey === value);
+                if (module) selectModule(module);
+              }}
+            >
+              <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
                 {groups[domainKey].map((module) => (
-                  <button
+                  <TabsTrigger
                     key={module.moduleKey}
-                    type="button"
-                    onClick={() => selectModule(module)}
+                    value={module.moduleKey}
                     className={cn(
-                      "flex w-full items-start gap-2.5 rounded-md border px-2.5 py-2.5 text-left transition-colors",
-                      selectedModuleKey === module.moduleKey
-                        ? "border-primary/40 bg-primary/5"
-                        : "border-transparent hover:border-border hover:bg-muted/40"
+                      "h-8 shrink-0 gap-1.5 rounded-md border border-transparent px-3 text-xs data-[state=active]:border-primary/30 data-[state=active]:bg-primary/5"
                     )}
                   >
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                      {module.printable ? (
-                        <Printer className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                      ) : (
-                        <FileText className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm font-medium leading-tight">{module.label}</span>
-                        {!module.printable ? (
-                          <Badge variant="administrative" className="text-[9px]">
-                            Layout only
-                          </Badge>
-                        ) : null}
-                      </span>
-                    </span>
-                  </button>
+                    {module.printable ? (
+                      <Printer className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    )}
+                    {module.label}
+                    {!module.printable ? (
+                      <Badge variant="administrative" className="ml-0.5 text-[9px]">
+                        Layout
+                      </Badge>
+                    ) : null}
+                  </TabsTrigger>
                 ))}
-              </aside>
+              </TabsList>
+            </Tabs>
 
-              <div className="min-h-0 min-w-0">
-                {selectedModule ? (
-                  <PresentationTemplateEditor
-                    key={selectedModule.moduleKey}
-                    moduleKey={selectedModule.moduleKey}
-                    moduleLabel={selectedModule.label}
-                    fieldLayoutHref={FIELD_LAYOUT_HREF[selectedModule.domain]}
-                    initialTemplates={[]}
-                    locations={locations}
-                    canEdit={canEdit}
-                    gstRegistered={gstRegistered}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">Select a document type.</p>
-                )}
-              </div>
+            <div className="min-h-0 min-w-0 flex-1">
+              {selectedModule && selectedModule.domain === domainKey ? (
+                <DocumentDesignerWorkspace
+                  key={selectedModule.moduleKey}
+                  moduleKey={selectedModule.moduleKey}
+                  moduleLabel={selectedModule.label}
+                  moduleDomain={selectedModule.domain}
+                  initialLayout={initialLayouts[selectedModule.moduleKey]}
+                  locations={locations}
+                  canEdit={canEdit}
+                  gstRegistered={gstRegistered}
+                  catalogFieldSuggestions={
+                    selectedModule.domain === "PROCUREMENT" ? catalogFieldSuggestions : undefined
+                  }
+                />
+              ) : null}
             </div>
           </TabsContent>
         ))}
