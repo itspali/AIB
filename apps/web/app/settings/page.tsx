@@ -1,6 +1,7 @@
 import {
   Bell,
   Building2,
+  FileOutput,
   LayoutTemplate,
   MapPin,
   Network,
@@ -47,9 +48,15 @@ export default async function AdministrationPage() {
             icon: MapPin,
           },
           {
+            href: "/settings/documents/templates",
+            label: "Document print templates",
+            description: "Letterhead, PDF appearance, and print layout shells for all modules.",
+            icon: FileOutput,
+          },
+          {
             href: "/settings/modules",
             label: "Module settings",
-            description: "Document layouts, module policies, and operational preferences by module.",
+            description: "Document field layouts, module policies, and operational preferences by module.",
             icon: LayoutTemplate,
           },
           {

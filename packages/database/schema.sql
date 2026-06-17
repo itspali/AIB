@@ -663,6 +663,37 @@ CREATE TABLE document_approval_requests (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Document presentation templates (print/PDF shell — field layouts remain in document_layout_templates)
+-- Full RPCs and seed catalog: supabase/migrations/20260717160000_document_presentation_templates.sql
+CREATE TABLE document_presentation_system_defaults (
+    template_key    TEXT NOT NULL,
+    module_key      TEXT NOT NULL,
+    view_context    TEXT NOT NULL,
+    label           TEXT NOT NULL,
+    description     TEXT,
+    shell_config    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    style_config    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    PRIMARY KEY (template_key, view_context)
+);
+
+CREATE TABLE document_presentation_templates (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    template_key    TEXT NOT NULL,
+    module_key      TEXT NOT NULL,
+    view_context    TEXT NOT NULL,
+    location_id     UUID NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    label           TEXT NOT NULL,
+    description     TEXT,
+    shell_config    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    style_config    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_default      BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    is_customized   BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Notification templates (Email / SMS / WhatsApp — delivery providers wired separately)
 -- Full RPCs and seed catalog: supabase/migrations/20260625100000_notification_templates_foundation.sql
 CREATE TYPE notification_channel AS ENUM ('EMAIL', 'SMS', 'WHATSAPP');

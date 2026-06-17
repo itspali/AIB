@@ -45,7 +45,7 @@ export function DocumentPrintButton({
         return;
       }
 
-      openDocumentPrintWindow(result.payload.title, result.payload.model);
+      openDocumentPrintWindow(result.payload.title, result.payload.html);
     });
   };
 

@@ -2,9 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatDate } from "@/lib/dashboard/format";
-import { buildDocumentPrintHtml } from "@/lib/documents/open-document-print-window";
-import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { buildDocumentPrintModel } from "@/lib/documents/build-document-print-model";
+import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-context";
+import { resolveEffectivePresentationTemplate } from "@/lib/documents/print/resolve-effective-presentation";
+import { renderDocumentHtml } from "@/lib/documents/print/render-document-html";
+import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { generatePdfFromHtml } from "@/lib/email/generate-document-pdf";
 import {
   isTransactionalEmailConfigured,
@@ -63,16 +65,26 @@ export async function sendQuotationEmailForQuote(input: {
   }
 
   const template = await loadQuotationEmailTemplate(input.supabase, input.tenantId);
-  const layout = await resolveEffectiveDocumentLayout({
-    supabase: input.supabase,
-    tenantId: input.tenantId,
-    moduleKey: "SALES_QUOTATION",
-    viewContext: "EMAIL_HTML",
-    documentLocationId: quote.origin_location_id,
-  });
+  const [layout, presentation, org] = await Promise.all([
+    resolveEffectiveDocumentLayout({
+      supabase: input.supabase,
+      tenantId: input.tenantId,
+      moduleKey: "SALES_QUOTATION",
+      viewContext: "EMAIL_HTML",
+      documentLocationId: quote.origin_location_id,
+    }),
+    resolveEffectivePresentationTemplate({
+      supabase: input.supabase,
+      tenantId: input.tenantId,
+      moduleKey: "SALES_QUOTATION",
+      viewContext: "EMAIL_HTML",
+      documentLocationId: quote.origin_location_id,
+    }),
+    fetchDocumentOrgRenderContext(input.supabase, input.tenantId),
+  ]);
 
   const printModel = buildDocumentPrintModel("SALES_QUOTATION", layout, quote);
-  const printHtml = buildDocumentPrintHtml(quote.quotation_number, printModel);
+  const printHtml = renderDocumentHtml(quote.quotation_number, printModel, presentation, org);
 
   const context: Record<string, string> = {
     quotation_number: quote.quotation_number,

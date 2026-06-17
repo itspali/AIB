@@ -152,6 +152,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["group", "enterprise", "holding", "subsidiary", "multi-org"],
   },
   {
+    label: "Document print templates",
+    href: "/settings/documents/templates",
+    keywords: ["print", "pdf", "document template", "letterhead", "appearance", "presentation"],
+  },
+  {
     label: "Module settings",
     href: "/settings/modules",
     keywords: ["module", "document layout", "purchase order layout", "procurement settings", "preferences"],
