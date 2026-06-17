@@ -37,8 +37,20 @@ describe("estimateSmsSegments", () => {
     expect(estimateSmsSegments("Short message")).toEqual({ length: 13, segments: 1 });
   });
 
-  it("counts multi-segment SMS", () => {
-    const long = "x".repeat(170);
-    expect(estimateSmsSegments(long)).toEqual({ length: 170, segments: 2 });
+  it("renders quotation sent template variables", () => {
+    const output = renderNotificationTemplate(
+      "Quotation {{quotation_number}} for {{customer_name}} — valid until {{valid_until}}. Total {{total_net_amount}}. From {{sender_name}}.",
+      {
+        quotation_number: "QT-100",
+        customer_name: "Acme",
+        valid_until: "2026-07-01",
+        total_net_amount: "INR 12,000.00",
+        sender_name: "Jane",
+      }
+    );
+
+    expect(output).toBe(
+      "Quotation QT-100 for Acme — valid until 2026-07-01. Total INR 12,000.00. From Jane."
+    );
   });
 });

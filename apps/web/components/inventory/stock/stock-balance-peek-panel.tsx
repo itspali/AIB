@@ -37,6 +37,9 @@ export function StockBalancePeekPanel({ balance }: Props) {
     void loadStockLedgerHistoryForVariants({
       location_id: balance.location_id,
       variant_ids: [balance.variant_id],
+      on_hand_by_variant: {
+        [balance.variant_id]: balance.total_quantity_on_hand,
+      },
     }).then((result) => {
       if (cancelled) return;
       setLedgerLoading(false);

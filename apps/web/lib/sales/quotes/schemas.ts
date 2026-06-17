@@ -93,3 +93,13 @@ export const convertQuotationSchema = z.object({
   quotation_id: z.string().uuid("Quotation id is required."),
   origin_location_id: z.string().uuid().optional().nullable(),
 });
+
+export const confirmSalesQuotationSchema = z.object({
+  quotation_id: z.string().uuid("Quotation id is required."),
+});
+
+export const sendSalesQuotationSchema = z.object({
+  quotation_id: z.string().uuid("Quotation id is required."),
+  sent_to_email: z.string().trim().email("Enter a valid email address.").optional().nullable(),
+  send_channel: z.enum(["EMAIL", "MANUAL"]).optional().default("EMAIL"),
+});

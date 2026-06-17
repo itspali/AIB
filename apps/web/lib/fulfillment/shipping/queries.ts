@@ -12,6 +12,10 @@ const SHIPMENT_LOCATION_EMBED =
   "tenant_locations!sales_shipments_origin_location_tenant_fk";
 const SHIPMENT_PACKAGES_EMBED =
   "packages:sales_shipment_packages!sales_shipment_packages_shipment_tenant_fk";
+const SHIPMENT_PACKAGE_ITEMS_EMBED =
+  "package_items:sales_shipment_items!sales_shipment_items_package_tenant_fk";
+const SHIPMENT_ITEM_ORDER_LINE_EMBED =
+  "sales_order_items!sales_shipment_items_order_item_tenant_fk";
 
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
   if (value == null || value === "") return fallback;
@@ -115,7 +119,7 @@ export async function fetchSalesShipments(
       ),
       ${SHIPMENT_LOCATION_EMBED} (name, code),
       ${SHIPMENT_PACKAGES_EMBED} (
-        package_items:sales_shipment_items (id)
+        ${SHIPMENT_PACKAGE_ITEMS_EMBED} (id)
       )
     `
     )
@@ -149,11 +153,11 @@ export async function fetchSalesShipmentById(
       ),
       ${SHIPMENT_LOCATION_EMBED} (name, code),
       ${SHIPMENT_PACKAGES_EMBED} (
-        package_items:sales_shipment_items (
+        ${SHIPMENT_PACKAGE_ITEMS_EMBED} (
           id,
           quantity_shipped,
           sales_order_item_id,
-          sales_order_items (
+          ${SHIPMENT_ITEM_ORDER_LINE_EMBED} (
             quantity_ordered,
             items (name),
             item_variants (sku)

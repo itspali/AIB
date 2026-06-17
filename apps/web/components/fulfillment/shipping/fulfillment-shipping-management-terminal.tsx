@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadSalesShipments } from "@/app/fulfillment/shipping/actions";
 import { FulfillmentShippingDrawerForm } from "@/components/fulfillment/shipping/fulfillment-shipping-drawer-form";
@@ -23,17 +23,13 @@ type Props = {
 
 export function FulfillmentShippingManagementTerminal({ initialShipments }: Props) {
   const searchParams = useSearchParams();
-  const drawer = useModuleDrawerUrl(FULFILLMENT_SHIPPING_HREF);
+  const drawer = useModuleDrawerUrl(FULFILLMENT_SHIPPING_HREF, {
+    clearParamsOnClose: [SHIPMENT_DRAWER_SO_PARAM],
+  });
   const [shipments, setShipments] = useState(initialShipments);
   const [, startRefresh] = useTransition();
 
   const prefillSalesOrderId = searchParams.get(SHIPMENT_DRAWER_SO_PARAM);
-
-  useEffect(() => {
-    if (searchParams.get("action") === "new" && prefillSalesOrderId) {
-      drawer.openCreate();
-    }
-  }, [drawer, prefillSalesOrderId, searchParams]);
 
   const refreshShipments = useCallback(() => {
     startRefresh(async () => {

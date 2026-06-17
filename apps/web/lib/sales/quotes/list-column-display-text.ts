@@ -1,6 +1,9 @@
 import { formatDate } from "@/lib/dashboard/format";
 import type { SalesQuoteListColumnId } from "@/lib/sales/quotes/list-columns";
-import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
+import {
+  salesQuoteDisplayStatusLabel,
+  salesQuoteStatusLabel,
+} from "@/lib/sales/quotes/labels";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 
 export function getSalesQuoteListCellDisplayTexts(
@@ -15,7 +18,9 @@ export function getSalesQuoteListCellDisplayTexts(
     case "origin_location":
       return [row.origin_location_name?.trim() || "—"];
     case "status":
-      return [salesQuoteStatusLabel(row.commercial_status)];
+      return [salesQuoteDisplayStatusLabel(row)];
+    case "sent_at":
+      return [row.sent_at ? formatDate(row.sent_at) : "—"];
     case "valid_until":
       return [formatDate(row.valid_until)];
     case "converted_order":

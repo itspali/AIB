@@ -5,6 +5,8 @@ import {
   canUserApproveSalesOrders,
   canUserApproveSalesQuotes,
   isInvoiceApprovalRequiredBeforePost,
+  isSalesQuoteConfirmableByUser,
+  isSalesQuoteSendableByUser,
   isQuoteApprovalRequiredBeforeConfirm,
   isSalesOrderApprovableByUser,
   isSoApprovalRequiredBeforeConfirm,
@@ -97,7 +99,7 @@ describe("sales approval-settings", () => {
     expect(canUserApproveSalesInvoices("other-user", settings, { isOwner: false })).toBe(false);
   });
 
-  it("lets workspace owners issue quotes directly when approval is enabled", () => {
+  it("lets workspace owners confirm quotes directly when approval is enabled", () => {
     const settings: SalesApprovalSettings = {
       ...baseSettings,
       require_quote_approval_before_confirm: true,
@@ -146,6 +148,72 @@ describe("sales approval-settings", () => {
 
     expect(
       isInvoiceApprovalRequiredBeforePost(settings, 50_000, "owner-1", { isOwner: true })
+    ).toBe(false);
+  });
+
+  it("allows confirm from draft when approval is not required", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_quote_approval_before_confirm: false,
+    };
+
+    expect(
+      isSalesQuoteConfirmableByUser(
+        {
+          commercial_status: "DRAFT",
+          total_net_amount: "1000",
+          line_count: 2,
+          valid_until: new Date(Date.now() + 86400000).toISOString(),
+        },
+        settings,
+        "staff-1",
+        { isOwner: false, editAccessGranted: true }
+      )
+    ).toBe(true);
+  });
+
+  it("allows confirm after workflow completes on pending approval", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_quote_approval_before_confirm: true,
+      quote_approver_user_ids: ["approver-1"],
+    };
+
+    expect(
+      isSalesQuoteConfirmableByUser(
+        {
+          commercial_status: "PENDING_APPROVAL",
+          total_net_amount: "12000",
+          line_count: 1,
+          valid_until: new Date(Date.now() + 86400000).toISOString(),
+          approval_workflow_complete: true,
+        },
+        settings,
+        "staff-1",
+        { isOwner: false, editAccessGranted: true }
+      )
+    ).toBe(true);
+  });
+
+  it("allows send only for confirmed, non-expired quotes with edit access", () => {
+    expect(
+      isSalesQuoteSendableByUser(
+        {
+          commercial_status: "APPROVED_ACTIVE",
+          valid_until: new Date(Date.now() + 86400000).toISOString(),
+        },
+        { editAccessGranted: true }
+      )
+    ).toBe(true);
+
+    expect(
+      isSalesQuoteSendableByUser(
+        {
+          commercial_status: "DRAFT",
+          valid_until: new Date(Date.now() + 86400000).toISOString(),
+        },
+        { editAccessGranted: true }
+      )
     ).toBe(false);
   });
 });

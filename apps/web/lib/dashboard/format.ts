@@ -19,6 +19,18 @@ export function formatDate(iso: string | null): string {
   });
 }
 
+export function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
 export function toDateInputValue(iso: string | null): string {
   if (!iso) return "";
   return iso.slice(0, 10);

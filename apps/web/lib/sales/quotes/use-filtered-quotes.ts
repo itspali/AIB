@@ -16,7 +16,9 @@ export function useFilteredQuotes(rows: SalesQuoteRow[], prefs: SalesQuoteListPr
       filtered = filtered.filter((row) => row.customer_id === prefs.customerId);
     }
 
-    if (prefs.status !== "all") {
+    if (prefs.status === "SENT") {
+      filtered = filtered.filter((row) => Boolean(row.sent_at));
+    } else if (prefs.status !== "all") {
       filtered = filtered.filter((row) => row.commercial_status === prefs.status);
     }
 

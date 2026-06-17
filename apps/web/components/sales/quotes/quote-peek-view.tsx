@@ -7,7 +7,10 @@ import { formatDate } from "@/lib/dashboard/format";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import { DEFAULT_SALES_QUOTATION_SCREEN_LAYOUT } from "@/lib/sales/shared/sales-commerce-layout";
 import { resolveSalesCommerceAddressBlocks } from "@/lib/sales/shared/resolve-sales-address-blocks";
-import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
+import {
+  salesQuoteDisplayStatusLabel,
+  salesQuoteStatusBadgeVariant,
+} from "@/lib/sales/quotes/labels";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 
@@ -43,7 +46,7 @@ export function QuotePeekView({
         <div>
           <p className="text-xs font-medium text-muted-foreground">Status</p>
           <Badge variant="administrative" className="mt-0.5 text-xs font-normal">
-            {salesQuoteStatusLabel(quote.commercial_status)}
+            {salesQuoteDisplayStatusLabel(quote)}
           </Badge>
         </div>
         <div>

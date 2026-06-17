@@ -292,6 +292,12 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     description: "An approver cleared this quotation for customer delivery.",
     documents: ["QUOTE"],
   },
+  quote_status_confirmed: {
+    id: "quote_status_confirmed",
+    label: "Quotation confirmed",
+    description: "This quotation was confirmed internally and is ready to send to the customer.",
+    documents: ["QUOTE"],
+  },
   quote_rejected: {
     id: "quote_rejected",
     label: "Approval rejected",

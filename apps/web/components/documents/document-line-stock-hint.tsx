@@ -16,6 +16,8 @@ type Props = {
   /** `qty-subline` aligns with compact line-grid sublines under Qty. */
   variant?: "item" | "qty-subline";
   align?: "left" | "right" | "center";
+  /** Which balance to show in compact qty sublines (default: available). */
+  sublineMetric?: "available" | "on_hand";
 };
 
 function formatCompactStockQuantity(raw: string): string {
@@ -53,6 +55,7 @@ export function DocumentLineStockHint({
   className,
   variant = "item",
   align = "left",
+  sublineMetric = "available",
 }: Props) {
   if (!context) return null;
 
@@ -66,12 +69,16 @@ export function DocumentLineStockHint({
     : `On hand: ${onHand} · Available: ${available}`;
 
   if (variant === "qty-subline") {
+    const sublineQuantity =
+      sublineMetric === "on_hand" ? onHand : available;
+    const sublinePrefix = sublineMetric === "on_hand" ? "On hand" : "Avail";
+
     if (context.below_reorder) {
       return (
         <PoLineSublineZone align={align} className={className}>
           <PoLineSublineRow align={align}>
             <span className={sublineTextClassName(align, "muted")} title={fullLabel}>
-              Avail {available}
+              {sublinePrefix} {sublineQuantity}
             </span>
           </PoLineSublineRow>
           <PoLineSublineRow align={align}>
@@ -86,7 +93,7 @@ export function DocumentLineStockHint({
     return (
       <PoLineSublineSingleRow align={align} className={className}>
         <span className={sublineTextClassName(align, "muted")} title={fullLabel}>
-          Avail {available}
+          {sublinePrefix} {sublineQuantity}
         </span>
       </PoLineSublineSingleRow>
     );

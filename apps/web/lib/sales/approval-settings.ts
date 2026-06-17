@@ -494,3 +494,48 @@ export function isSalesInvoicePostableByUser(
 
   return false;
 }
+
+export function isSalesQuoteConfirmableByUser(
+  quote: {
+    commercial_status: string;
+    total_net_amount: string | number;
+    line_count: number;
+    valid_until: string;
+    approval_workflow_complete?: boolean;
+  },
+  settings: SalesApprovalSettings,
+  userId: string,
+  options: SalesApproverOptions & { editAccessGranted: boolean }
+): boolean {
+  if (!options.editAccessGranted) return false;
+  if (quote.line_count < 1) return false;
+  if (new Date(quote.valid_until).getTime() <= Date.now()) return false;
+
+  if (quote.commercial_status === "DRAFT") {
+    return !isQuoteApprovalRequiredBeforeConfirm(
+      settings,
+      Number(quote.total_net_amount),
+      userId,
+      options
+    );
+  }
+
+  if (quote.commercial_status === "PENDING_APPROVAL") {
+    return quote.approval_workflow_complete === true;
+  }
+
+  return false;
+}
+
+export function isSalesQuoteSendableByUser(
+  quote: {
+    commercial_status: string;
+    valid_until: string;
+  },
+  options: { editAccessGranted: boolean }
+): boolean {
+  if (!options.editAccessGranted) return false;
+  if (quote.commercial_status !== "APPROVED_ACTIVE") return false;
+  if (new Date(quote.valid_until).getTime() <= Date.now()) return false;
+  return true;
+}

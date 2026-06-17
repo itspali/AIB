@@ -264,9 +264,18 @@ export function QuoteManagementTerminal({
 
       const approvedCount = result.approvedIds.length;
       const failedCount = result.failures.length;
+      const pendingNextCount = result.pendingNextStepIds?.length ?? 0;
       if (failedCount > 0) {
         toast.success(
           `${approvedCount} ${approvedCount === 1 ? "quote" : "quotes"} approved; ${failedCount} could not be approved.`
+        );
+      } else if (pendingNextCount > 0 && pendingNextCount === approvedCount) {
+        toast.success(
+          `${approvedCount} ${approvedCount === 1 ? "quote" : "quotes"} advanced — waiting for next approval step.`
+        );
+      } else if (pendingNextCount > 0) {
+        toast.success(
+          `${approvedCount} approved; ${pendingNextCount} waiting for next approval step.`
         );
       } else {
         toast.success(`${approvedCount} ${approvedCount === 1 ? "quote" : "quotes"} approved`);

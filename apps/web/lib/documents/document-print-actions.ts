@@ -61,6 +61,18 @@ export async function loadDocumentPrintPayload(input: {
       };
     }
 
+    if (input.moduleKey === "SALES_QUOTATION") {
+      const { fetchSalesQuotationById } = await import("@/lib/sales/quotes/queries");
+      const quote = await fetchSalesQuotationById(supabase, tenantId, input.documentId);
+      if (!quote) return { error: "Quote not found." };
+      return {
+        payload: {
+          title: quote.quotation_number,
+          model: buildDocumentPrintModel("SALES_QUOTATION", layout, quote),
+        },
+      };
+    }
+
     return { error: "Print is not supported for this document type." };
   } catch (error) {
     return {

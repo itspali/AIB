@@ -111,6 +111,33 @@ export function parseSalesOrderWorkflowRpcResult(raw: unknown): {
   };
 }
 
+export function parseSalesQuotationWorkflowRpcResult(raw: unknown): {
+  quotationId: string;
+  pendingNextStep?: boolean;
+} | null {
+  if (!raw || typeof raw !== "object") {
+    if (typeof raw === "string") {
+      return { quotationId: raw };
+    }
+    return null;
+  }
+
+  const payload = raw as Record<string, unknown>;
+  const quotationId =
+    typeof payload.quotation_id === "string"
+      ? payload.quotation_id
+      : typeof payload.quotationId === "string"
+        ? payload.quotationId
+        : null;
+
+  if (!quotationId) return null;
+
+  return {
+    quotationId,
+    pendingNextStep: payload.pending_next_step === true,
+  };
+}
+
 export function parseIssuePurchaseOrderRpcResult(raw: unknown): {
   purchaseOrderId: string;
   steps: PostingStepResult[];

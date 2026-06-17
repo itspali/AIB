@@ -11,17 +11,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { SalesQuoteListPrefs } from "@/lib/sales/quotes/list-prefs";
+import type { SalesQuoteListStatusFilter } from "@/lib/sales/quotes/list-prefs";
 import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
 import type { CustomerOption } from "@/lib/sales/shared/types";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import { listToolbarSelectClass } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
 
-const STATUS_OPTIONS: Array<SalesDocumentStatus | "all"> = [
+const STATUS_OPTIONS: SalesQuoteListStatusFilter[] = [
   "all",
   "DRAFT",
   "PENDING_APPROVAL",
   "APPROVED_ACTIVE",
+  "SENT",
   "FULLY_COMPLETED",
   "CANCELLED",
 ];
@@ -61,7 +63,11 @@ function StatusFilterSelect({
       <SelectContent>
         {STATUS_OPTIONS.map((status) => (
           <SelectItem key={status} value={status}>
-            {status === "all" ? "All statuses" : salesQuoteStatusLabel(status)}
+            {status === "all"
+              ? "All statuses"
+              : status === "SENT"
+                ? "Sent"
+                : salesQuoteStatusLabel(status as SalesDocumentStatus)}
           </SelectItem>
         ))}
       </SelectContent>

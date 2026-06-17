@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sheet";
 import { NOTIFICATION_INBOX_CHANGED_EVENT } from "@/lib/notifications/inbox-events";
 import type { UserNotificationRow } from "@/lib/approvals/types";
+import { useClientMounted } from "@/lib/dom/use-client-mounted";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -25,6 +26,7 @@ type Props = {
 };
 
 export function NotificationInboxSheet({ className }: Props) {
+  const mounted = useClientMounted();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<UserNotificationRow[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -59,24 +61,30 @@ export function NotificationInboxSheet({ className }: Props) {
     });
   };
 
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn("relative h-9 w-9 px-0", className)}
+      aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
+    >
+      <Bell className="h-4 w-4" />
+      {unreadCount > 0 ? (
+        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
+      ) : null}
+    </Button>
+  );
+
+  if (!mounted) {
+    return trigger;
+  }
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("relative h-9 w-9 px-0", className)}
-          aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
-        >
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 ? (
-            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
-      </SheetTrigger>
+      <SheetTrigger asChild>{trigger}</SheetTrigger>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Notifications</SheetTitle>

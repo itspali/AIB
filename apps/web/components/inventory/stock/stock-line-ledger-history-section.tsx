@@ -4,7 +4,7 @@ import {
   DocumentLinePeekTable,
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
-import { formatDate } from "@/lib/dashboard/format";
+import { formatDateTime } from "@/lib/dashboard/format";
 import { inventoryTransactionTypeLabel } from "@/lib/inventory/stock/labels";
 import type { InventoryLedgerHistoryRow } from "@/lib/inventory/stock/ledger-history";
 import type { StockAdjustmentLineRow } from "@/lib/inventory/stock/types";
@@ -80,17 +80,18 @@ export function StockLineLedgerHistorySection({
                   minTableWidth="min-w-[36rem]"
                   getRowKey={(entry) => entry.id}
                   columns={[
-                    { id: "posted", label: "Posted", align: "left", widthClass: "w-[7.5rem]" },
+                    { id: "posted", label: "Posted", align: "left", widthClass: "min-w-[10.5rem]" },
                     { id: "type", label: "Type", align: "left", widthClass: "min-w-[8rem]" },
                     { id: "reference", label: "Reference", align: "left", widthClass: "min-w-[8rem]" },
                     { id: "quantity", label: "Qty", align: "right", widthClass: "w-[4.5rem]" },
+                    { id: "balance", label: "Balance", align: "right", widthClass: "w-[5rem]" },
                     { id: "cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
                   ]}
                   renderCell={(column, entry) => {
                     if (column.id === "posted") {
                       return (
                         <span className="text-muted-foreground tabular-nums">
-                          {formatDate(entry.created_at)}
+                          {formatDateTime(entry.created_at)}
                         </span>
                       );
                     }
@@ -120,6 +121,9 @@ export function StockLineLedgerHistorySection({
                       return (
                         <DocumentLinePeekValueCell value={formatLedgerQuantity(entry.quantity)} />
                       );
+                    }
+                    if (column.id === "balance") {
+                      return <DocumentLinePeekValueCell value={entry.balance_after} />;
                     }
                     return <DocumentLinePeekValueCell value={entry.cost_at_transaction} />;
                   }}

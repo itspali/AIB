@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
+import { DocumentLineStockHint } from "@/components/documents/document-line-stock-hint";
 import { DocumentLineCompactInput, DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS } from "@/components/documents/document-line-entry-cells";
 import {
   DocumentLineEntryGrid,
@@ -12,7 +12,16 @@ import {
   ensureTrailingEmptyLine,
   isDocumentLineItemSelected,
 } from "@/lib/documents/line-entry";
+import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant-sku-field";
+import { transferQuantityExceedsOnHand } from "@/lib/inventory/transfers/draft-quantity-hints";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
+import { useLineStockContext } from "@/lib/inventory/stock/use-line-stock-context";
+import {
+  PoLineQtyValueStack,
+  PoLineSublineSingleRow,
+  PO_LINE_SUBLINE_TEXT_CLASS,
+} from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
+import { cn } from "@/lib/utils";
 
 export type TransferDraftLine = {
   key: string;
@@ -26,6 +35,7 @@ export type TransferDraftLine = {
 
 type Props = {
   lines: TransferDraftLine[];
+  sourceLocationId: string;
   disabled?: boolean;
   showSectionTitle?: boolean;
   fillHeight?: boolean;
@@ -111,12 +121,15 @@ function useTransferLineActions(
 
 export function TransferLineEntryTable({
   lines,
+  sourceLocationId,
   disabled = false,
   showSectionTitle = true,
   fillHeight = false,
   onChange,
 }: Props) {
   const actions = useTransferLineActions(lines, onChange);
+  const variantIds = lines.map((line) => line.variant_id);
+  const getLineStockContext = useLineStockContext(sourceLocationId, variantIds);
 
   useEffect(() => {
     prefetchBrowseVariants();
@@ -143,6 +156,7 @@ export function TransferLineEntryTable({
                   compact
                   displayMode="item"
                   disabled={disabled}
+                  stockLocationId={sourceLocationId}
                   inputClassName={DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS}
                   inputRef={(node) => {
                     actions.itemRefs.current[line.key] = node;
@@ -162,7 +176,16 @@ export function TransferLineEntryTable({
           }
 
           if (column.id === "quantity_dispatched") {
-            return (
+            const stockContext = line.variant_id
+              ? getLineStockContext(line.variant_id)
+              : null;
+            const exceedsOnHand = transferQuantityExceedsOnHand(
+              line.quantity_dispatched,
+              stockContext
+            );
+            const showStockSubline = Boolean(line.variant_id && sourceLocationId);
+
+            const qtyInput = (
               <DocumentLineCompactInput
                 align="right"
                 value={line.quantity_dispatched}
@@ -174,6 +197,44 @@ export function TransferLineEntryTable({
                   actions.patchLine(line.key, { quantity_dispatched: event.target.value })
                 }
               />
+            );
+
+            if (!showStockSubline) {
+              return qtyInput;
+            }
+
+            return (
+              <PoLineQtyValueStack
+                showUnitUnderQty
+                align="right"
+                unitSlot={
+                  <div className="flex w-full flex-col gap-1">
+                    {stockContext ? (
+                      <DocumentLineStockHint
+                        variant="qty-subline"
+                        align="right"
+                        sublineMetric="on_hand"
+                        context={stockContext}
+                      />
+                    ) : null}
+                    {exceedsOnHand ? (
+                      <PoLineSublineSingleRow align="right">
+                        <span
+                          className={cn(
+                            "block w-full truncate px-2 tabular-nums text-amber-700 dark:text-amber-300",
+                            PO_LINE_SUBLINE_TEXT_CLASS
+                          )}
+                          title="Draft saves are allowed; dispatch rechecks on-hand"
+                        >
+                          Exceeds on hand
+                        </span>
+                      </PoLineSublineSingleRow>
+                    ) : null}
+                  </div>
+                }
+              >
+                {qtyInput}
+              </PoLineQtyValueStack>
             );
           }
 

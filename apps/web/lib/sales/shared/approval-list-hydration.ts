@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type SalesApprovalDocumentType = "SALES_ORDER" | "SALES_INVOICE";
+type SalesApprovalDocumentType = "SALES_ORDER" | "SALES_INVOICE" | "SALES_QUOTATION";
 
 export async function fetchApprovalWorkflowCompleteByDocumentId(
   supabase: SupabaseClient,

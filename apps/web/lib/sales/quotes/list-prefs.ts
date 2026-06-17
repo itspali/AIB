@@ -22,9 +22,11 @@ import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-pre
 const STORAGE_KEY = "aib:sales-quote-list-prefs";
 const PREFS_VERSION = 1;
 
+export type SalesQuoteListStatusFilter = SalesDocumentStatus | "all" | "SENT";
+
 export type SalesQuoteListPrefs = {
   customerId: string | null;
-  status: SalesDocumentStatus | "all";
+  status: SalesQuoteListStatusFilter;
   sortField: SalesQuoteListSortField;
   sortDirection: SalesQuoteListSortDirection;
   columnPrefs: ListColumnPrefs<SalesQuoteListColumnId>;

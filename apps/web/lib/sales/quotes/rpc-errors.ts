@@ -54,6 +54,10 @@ export function formatSalesQuoteRpcError(
     return { message: "Valid until must be a future date." };
   }
 
+  if (message.toLowerCase().includes("this sales quotation cannot be edited after it has been sent")) {
+    return { message: "This quote can no longer be edited after it has been sent." };
+  }
+
   if (message.toLowerCase().includes("this sales quotation cannot be edited")) {
     return { message: "This quote can no longer be edited." };
   }
@@ -76,8 +80,40 @@ export function formatSalesQuoteRpcError(
 
   if (message.toLowerCase().includes("approval is not required for this quotation")) {
     return {
-      message: "Approval is not required for this quote. Use Issue quote instead.",
+      message: "Approval is not required for this quote. Confirm it instead.",
     };
+  }
+
+  if (message.toLowerCase().includes("only draft or pending-approval quotations can be confirmed")) {
+    return { message: "Only draft or fully approved quotes can be confirmed." };
+  }
+
+  if (message.toLowerCase().includes("quotation must be approved before confirmation")) {
+    return { message: "Complete approval before confirming this quote." };
+  }
+
+  if (message.toLowerCase().includes("quotation approval is required before confirmation")) {
+    return { message: "Submit and complete approval before confirming this quote." };
+  }
+
+  if (message.toLowerCase().includes("quotation has expired; update valid until before confirming")) {
+    return { message: "Quote has expired. Update valid until before confirming." };
+  }
+
+  if (message.toLowerCase().includes("quotation must have at least one line before confirmation")) {
+    return { message: "Add at least one line before confirming." };
+  }
+
+  if (message.toLowerCase().includes("only confirmed quotations can be sent")) {
+    return { message: "Confirm the quote before sending it to the customer." };
+  }
+
+  if (message.toLowerCase().includes("quotation has expired; cannot send")) {
+    return { message: "Quote has expired and cannot be sent." };
+  }
+
+  if (message.toLowerCase().includes("invalid send channel")) {
+    return { message: "Invalid send channel." };
   }
 
   if (message.toLowerCase().includes("quotation approval is required before conversion")) {

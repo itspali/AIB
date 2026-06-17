@@ -6,13 +6,17 @@ import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   approveSalesQuotation,
+  confirmSalesQuotation,
   convertQuotationToInvoice,
   convertQuotationToOrder,
   loadSalesQuotationDetail,
   rejectSalesQuotation,
+  resolveQuoteSendRecipientEmail,
   saveSalesQuotation,
+  sendSalesQuotation,
   submitSalesQuotationForApproval,
 } from "@/app/sales/quotes/actions";
+import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { QuoteDocumentEditorShell } from "@/components/sales/quotes/quote-document-editor-shell";
@@ -36,6 +40,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
@@ -52,6 +65,8 @@ import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import {
   isQuoteApprovalRequiredBeforeConfirm,
   isSalesQuoteApprovableByUser,
+  isSalesQuoteConfirmableByUser,
+  isSalesQuoteSendableByUser,
 } from "@/lib/sales/approval-settings";
 import { mapQuoteLinesForApprovalRules } from "@/lib/sales/evaluate-sales-approval-rules";
 import {
@@ -149,6 +164,8 @@ export function QuoteDrawerForm({
   const [error, setError] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendToEmail, setSendToEmail] = useState("");
   const [isPending, startTransition] = useTransition();
   const [conversionKind, setConversionKind] = useState<SalesDocumentConversionKind | null>(null);
   const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
@@ -313,23 +330,31 @@ export function QuoteDrawerForm({
   );
   const showSubmitForApproval =
     isDraftQuote && editAccessGranted && approvalRequiredBeforeIssue && quoteId != null;
-  const showIssueQuote =
-    isDraftQuote && editAccessGranted && !approvalRequiredBeforeIssue && quoteId != null;
+  const showConfirm =
+    detail != null &&
+    editAccessGranted &&
+    quoteId != null &&
+    isSalesQuoteConfirmableByUser(detail, approvalSettings, currentUserId, {
+      isOwner,
+      editAccessGranted,
+    });
+  const showSend =
+    detail != null &&
+    quoteId != null &&
+    isSalesQuoteSendableByUser(detail, { editAccessGranted });
   const showApproveReject =
     isPendingApprovalQuote &&
     detail != null &&
     isSalesQuoteApprovableByUser(detail, currentUserId, approvalSettings, { isOwner }) &&
     quoteId != null;
-  const canConvertQuote =
-    detail?.commercial_status === "APPROVED_ACTIVE" ||
-    (detail?.commercial_status === "DRAFT" && !approvalRequiredBeforeIssue);
+  const canConvertQuote = detail?.commercial_status === "APPROVED_ACTIVE";
 
   const handleSubmitForApproval = useCallback(() => {
     if (!quoteId) return;
     startTransition(async () => {
       setError(null);
       const result = await submitSalesQuotationForApproval({ quotation_id: quoteId });
-      if (result.error) {
+      if ("error" in result && result.error) {
         setError(result.error);
         return;
       }
@@ -340,31 +365,73 @@ export function QuoteDrawerForm({
     });
   }, [onAfterSave, quoteId, reloadQuoteDetail]);
 
-  const handleIssueQuote = useCallback(() => {
+  const handleConfirm = useCallback(() => {
     if (!quoteId) return;
     startTransition(async () => {
       setError(null);
-      const result = await approveSalesQuotation({ quotation_id: quoteId });
-      if (result.error) {
+      const result = await confirmSalesQuotation({ quotation_id: quoteId });
+      if ("error" in result && result.error) {
         setError(result.error);
         return;
       }
-      toast.success("Quote issued");
+      toast.success("Quote confirmed");
       await reloadQuoteDetail(quoteId);
       onAfterSave(quoteId);
     });
   }, [onAfterSave, quoteId, reloadQuoteDetail]);
+
+  const openSendDialog = useCallback(() => {
+    if (!quoteId) return;
+    setSendDialogOpen(true);
+    void resolveQuoteSendRecipientEmail(quoteId).then((result) => {
+      if ("email" in result && result.email) {
+        setSendToEmail(result.email);
+      }
+    });
+  }, [quoteId]);
+
+  const handleSendQuotation = useCallback(
+    (sendChannel: "EMAIL" | "MANUAL") => {
+      if (!quoteId) return;
+      startTransition(async () => {
+        setError(null);
+        const result = await sendSalesQuotation({
+          quotation_id: quoteId,
+          sent_to_email: sendChannel === "EMAIL" ? sendToEmail.trim() : null,
+          send_channel: sendChannel,
+        });
+        if ("error" in result && result.error) {
+          setError(result.error);
+          if (sendChannel === "EMAIL" && "notConfigured" in result && result.notConfigured) {
+            toast.error(result.error);
+          }
+          return;
+        }
+        toast.success(
+          detail?.sent_at ? "Quotation resent to customer." : "Quotation sent to customer."
+        );
+        setSendDialogOpen(false);
+        await reloadQuoteDetail(quoteId);
+        onAfterSave(quoteId);
+      });
+    },
+    [detail?.sent_at, onAfterSave, quoteId, reloadQuoteDetail, sendToEmail]
+  );
 
   const handleApprove = useCallback(() => {
     if (!quoteId) return;
     startTransition(async () => {
       setError(null);
       const result = await approveSalesQuotation({ quotation_id: quoteId });
-      if (result.error) {
+      if ("error" in result && result.error) {
         setError(result.error);
         return;
       }
-      toast.success("Quote approved");
+      toast.success(
+        "success" in result && result.pendingNextStep
+          ? "Step approved — confirm the quote once approval is complete."
+          : "Quote approved — confirm it before sending to the customer."
+      );
       await reloadQuoteDetail(quoteId);
       onAfterSave(quoteId);
       notifyApprovalAlertChanged();
@@ -382,7 +449,7 @@ export function QuoteDrawerForm({
     startTransition(async () => {
       setError(null);
       const result = await rejectSalesQuotation({ quotation_id: quoteId, notes });
-      if (result.error) {
+      if ("error" in result && result.error) {
         setError(result.error);
         return;
       }
@@ -398,9 +465,13 @@ export function QuoteDrawerForm({
   const draftNextStepHint =
     detail?.commercial_status === "DRAFT"
       ? approvalRequiredBeforeIssue
-        ? "Submit for approval when ready. Once approved, share the quote with your customer or convert it to an order or invoice."
-        : "Issue the quote to mark it ready to share with your customer, or convert it directly to an order or invoice."
-      : null;
+        ? "Submit for approval when ready. Once approved, confirm the quote, then send it to your customer or convert it."
+        : "Confirm the quote when ready, then send it to your customer or convert it to an order or invoice."
+      : detail?.commercial_status === "PENDING_APPROVAL" && detail.approval_workflow_complete
+        ? "Approval complete — confirm the quote, then send it to your customer."
+        : detail?.commercial_status === "APPROVED_ACTIVE" && !detail.sent_at
+          ? "Quote is confirmed — send it to your customer or convert it to an order or invoice."
+          : null;
 
   const renderWorkflowActions = () => (
     <>
@@ -415,15 +486,26 @@ export function QuoteDrawerForm({
           {isPending ? "Submitting…" : "Submit for approval"}
         </Button>
       ) : null}
-      {showIssueQuote ? (
+      {showConfirm ? (
         <Button
           type="button"
           size="sm"
           variant="secondary"
           disabled={isPending}
-          onClick={handleIssueQuote}
+          onClick={handleConfirm}
         >
-          {isPending ? "Issuing…" : "Issue quote"}
+          {isPending ? "Confirming…" : "Confirm"}
+        </Button>
+      ) : null}
+      {showSend ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isPending}
+          onClick={openSendDialog}
+        >
+          {detail?.sent_at ? "Resend quotation" : "Send quotation"}
         </Button>
       ) : null}
       {showApproveReject ? (
@@ -538,7 +620,7 @@ export function QuoteDrawerForm({
   const headerActions =
     surface === "peek" && detail ? (
       <>
-        {editAccessGranted && canEditSalesDocument(detail.commercial_status) ? (
+        {editAccessGranted && canEditSalesDocument(detail.commercial_status) && !detail.sent_at ? (
           <>
             <Button
               type="button"
@@ -551,6 +633,14 @@ export function QuoteDrawerForm({
               <Pencil className="h-4 w-4" />
             </Button>
             {renderWorkflowActions()}
+            {detail.commercial_status === "APPROVED_ACTIVE" || detail.sent_at ? (
+              <DocumentPrintButton
+                moduleKey="SALES_QUOTATION"
+                documentId={detail.id}
+                documentLocationId={detail.origin_location_id}
+                label="Preview PDF"
+              />
+            ) : null}
           </>
         ) : null}
         {renderConvertActions()}
@@ -574,7 +664,7 @@ export function QuoteDrawerForm({
           <DocumentPeekActivityShell
             entityType="SALES_QUOTATION"
             entityId={detail.id}
-            refreshKey={`${detail.id}:${detail.updated_at}`}
+            refreshKey={`${detail.id}:${detail.updated_at}:${detail.sent_at ?? ""}`}
             showApprovalPane={detail.commercial_status === "PENDING_APPROVAL"}
             approvalPane={
               <DocumentPeekApprovalPane
@@ -717,6 +807,57 @@ export function QuoteDrawerForm({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {detail?.sent_at ? "Resend quotation" : "Send quotation"}
+            </DialogTitle>
+            <DialogDescription>
+              Email the quotation PDF to your customer, or mark it as sent if you shared it another
+              way.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="quote-send-email">Recipient email</Label>
+              <Input
+                id="quote-send-email"
+                type="email"
+                value={sendToEmail}
+                onChange={(event) => setSendToEmail(event.target.value)}
+                placeholder="customer@example.com"
+              />
+            </div>
+            {detail ? (
+              <DocumentPrintButton
+                moduleKey="SALES_QUOTATION"
+                documentId={detail.id}
+                documentLocationId={detail.origin_location_id}
+                label="Preview PDF"
+                variant="outline"
+              />
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => handleSendQuotation("MANUAL")}
+            >
+              Mark as sent
+            </Button>
+            <Button
+              type="button"
+              disabled={isPending || !sendToEmail.trim()}
+              onClick={() => handleSendQuotation("EMAIL")}
+            >
+              {isPending ? "Sending…" : detail?.sent_at ? "Resend email" : "Send email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <SalesDocumentConversionConfirmDialog
         kind={conversionKind}
         open={conversionDialogOpen}

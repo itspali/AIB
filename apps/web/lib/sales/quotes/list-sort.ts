@@ -2,7 +2,10 @@ import {
   QUOTE_LIST_COLUMN_REGISTRY,
   type SalesQuoteListColumnId,
 } from "@/lib/sales/quotes/list-columns";
-import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
+import {
+  salesQuoteDisplayStatusLabel,
+  salesQuoteStatusLabel,
+} from "@/lib/sales/quotes/labels";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 
 export type SalesQuoteListSortDirection = "asc" | "desc";
@@ -77,10 +80,13 @@ export function sortSalesQuoteListRows(
         break;
       case "status":
         primary = compareStrings(
-          salesQuoteStatusLabel(a.commercial_status),
-          salesQuoteStatusLabel(b.commercial_status),
+          salesQuoteDisplayStatusLabel(a),
+          salesQuoteDisplayStatusLabel(b),
           direction
         );
+        break;
+      case "sent_at":
+        primary = compareDates(a.sent_at, b.sent_at, direction);
         break;
       case "valid_until":
         primary = compareDates(a.valid_until, b.valid_until, direction);

@@ -51,6 +51,12 @@ import type {
 } from "@/lib/inventory/transfers/types";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
+import { countTransferLinesExceedingOnHand } from "@/lib/inventory/transfers/draft-quantity-hints";
+import {
+  getCachedLineStockContext,
+  prefetchLineStockContexts,
+  subscribeLineStockContextCache,
+} from "@/lib/inventory/stock/line-stock-context-cache";
 import { cn } from "@/lib/utils";
 
 type DraftFormState = {
@@ -194,6 +200,7 @@ export function TransferDrawerForm({
   const [detail, setDetail] = useState<StockTransferRow | null>(peekTransfer);
   const [detailLoading, setDetailLoading] = useState(false);
   const submitRef = useRef<() => void>(() => {});
+  const quantityPrefillSignatureRef = useRef("");
 
   const activeTransferId = surface === "edit" ? editTransferId : peekTransfer?.id ?? null;
 
@@ -208,6 +215,7 @@ export function TransferDrawerForm({
     setIsDirty(false);
 
     if (surface === "create") {
+      quantityPrefillSignatureRef.current = "";
       setForm(defaultDraftForm(locations, createPrefill));
       setDetail(null);
       return;
@@ -215,6 +223,54 @@ export function TransferDrawerForm({
 
     setDetail(peekTransfer);
   }, [open, surface, peekTransfer?.id, locations, createPrefillSignature, createPrefill]);
+
+  useEffect(() => {
+    if (!open || surface !== "create") return;
+
+    const variantId = createPrefill?.variant_id?.trim() ?? "";
+    const sourceId = form.source_location_id?.trim() ?? "";
+    if (!variantId || !sourceId) return;
+
+    const signature = `${sourceId}:${variantId}`;
+    if (quantityPrefillSignatureRef.current === signature) return;
+
+    prefetchLineStockContexts(sourceId, [variantId]);
+
+    const applyPrefill = () => {
+      const context = getCachedLineStockContext(sourceId, variantId);
+      if (!context) return false;
+
+      const onHand = context.quantity_on_hand.trim();
+      if (!onHand || Number(onHand) <= 0) {
+        quantityPrefillSignatureRef.current = signature;
+        return true;
+      }
+
+      setForm((current) => {
+        const targetLine = current.lines.find((line) => line.variant_id === variantId);
+        if (!targetLine || targetLine.quantity_dispatched.trim()) {
+          return current;
+        }
+
+        quantityPrefillSignatureRef.current = signature;
+        return {
+          ...current,
+          lines: current.lines.map((line) =>
+            line.key === targetLine.key ? { ...line, quantity_dispatched: onHand } : line
+          ),
+        };
+      });
+
+      return true;
+    };
+
+    if (applyPrefill()) return;
+
+    return subscribeLineStockContextCache(() => {
+      if (quantityPrefillSignatureRef.current === signature) return;
+      applyPrefill();
+    });
+  }, [open, surface, createPrefill?.variant_id, form.source_location_id, createPrefillSignature]);
 
   useEffect(() => {
     if (!open || surface !== "edit" || !editTransferId) return;
@@ -291,6 +347,7 @@ export function TransferDrawerForm({
     setError(null);
     setErrorAction(null);
     startTransition(async () => {
+      const savableLines = filterSavableTransferLines(form.lines);
       const payload = {
         transfer_id: surface === "edit" ? editTransferId : undefined,
         source_location_id: form.source_location_id,
@@ -298,11 +355,20 @@ export function TransferDrawerForm({
         inter_company_freight_cost: form.inter_company_freight_cost,
         loading_overhead_cost: form.loading_overhead_cost,
         unloading_overhead_cost: form.unloading_overhead_cost,
-        lines: filterSavableTransferLines(form.lines).map((line) => ({
+        lines: savableLines.map((line) => ({
           variant_id: line.variant_id,
           quantity_dispatched: line.quantity_dispatched,
         })),
       };
+
+      const sourceId = form.source_location_id.trim();
+      const variantIds = [...new Set(savableLines.map((line) => line.variant_id))];
+      prefetchLineStockContexts(sourceId, variantIds);
+
+      const overOnHandCount = countTransferLinesExceedingOnHand(
+        savableLines,
+        (variantId) => getCachedLineStockContext(sourceId, variantId)
+      );
 
       const result = await saveStockTransfer(payload);
       if ("error" in result) {
@@ -311,7 +377,16 @@ export function TransferDrawerForm({
         return;
       }
 
-      toast.success(surface === "edit" ? "Transfer updated" : "Transfer draft saved");
+      if (overOnHandCount > 0) {
+        toast.warning(
+          overOnHandCount === 1
+            ? "Draft saved — one line exceeds current on-hand. Dispatch will recheck stock."
+            : `Draft saved — ${overOnHandCount} lines exceed current on-hand. Dispatch will recheck stock.`
+        );
+      } else {
+        toast.success(surface === "edit" ? "Transfer updated" : "Transfer draft saved");
+      }
+
       closeForm();
       onAfterSave(result.transferId);
     });
@@ -603,6 +678,7 @@ export function TransferDrawerForm({
               <TransferLineEntryTable
                 fillHeight={lineTableFillHeight}
                 lines={form.lines}
+                sourceLocationId={form.source_location_id}
                 disabled={isPending}
                 onChange={(linesOrUpdater) => {
                   setForm((current) => ({

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TaxTreatmentType } from "@/lib/entities/types";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesQuoteLineRow, SalesQuoteRow } from "@/lib/sales/quotes/types";
+import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
 const ORIGIN_LOCATION_EMBED =
   "origin_location:tenant_locations!sales_quotations_origin_location_tenant_fk";
@@ -35,22 +36,29 @@ async function hydrateQuoteApprovalSubmitters(
     .map((row) => row.id);
   if (pendingIds.length === 0) return;
 
-  const { data } = await supabase
-    .from("document_approval_requests")
-    .select("document_id, submitted_by")
-    .eq("tenant_id", tenantId)
-    .eq("document_type", "SALES_QUOTATION")
-    .eq("status", "PENDING")
-    .in("document_id", pendingIds);
-
-  if (!data?.length) return;
+  const [{ data }, workflowCompleteIds] = await Promise.all([
+    supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "SALES_QUOTATION")
+      .eq("status", "PENDING")
+      .in("document_id", pendingIds),
+    fetchApprovalWorkflowCompleteByDocumentId(
+      supabase,
+      tenantId,
+      "SALES_QUOTATION",
+      pendingIds
+    ),
+  ]);
 
   const submitterById = new Map(
-    data.map((row) => [row.document_id as string, (row.submitted_by as string | null) ?? null])
+    (data ?? []).map((row) => [row.document_id as string, (row.submitted_by as string | null) ?? null])
   );
 
   for (const row of rows) {
     row.approval_submitted_by = submitterById.get(row.id) ?? null;
+    row.approval_workflow_complete = workflowCompleteIds.has(row.id);
   }
 }
 
@@ -99,6 +107,10 @@ type QuoteListDbRow = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  sent_at: string | null;
+  sent_by: string | null;
+  send_channel: string | null;
+  sent_to_email: string | null;
   origin_location: { name: string; code: string } | { name: string; code: string }[] | null;
   customer: { name: string; tax_treatment?: string | null } | { name: string; tax_treatment?: string | null }[] | null;
   converted_order: { voucher_number: string } | { voucher_number: string }[] | null;
@@ -179,6 +191,11 @@ function mapQuoteListRow(row: QuoteListDbRow): SalesQuoteRow {
     created_by: row.created_by,
     created_by_name: "",
     approval_submitted_by: null,
+    approval_workflow_complete: false,
+    sent_at: row.sent_at ?? null,
+    sent_by: row.sent_by ?? null,
+    send_channel: row.send_channel ?? null,
+    sent_to_email: row.sent_to_email ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -200,6 +217,10 @@ const QUOTE_LIST_SELECT = `
   custom_fields,
   converted_to_order_id,
   converted_to_invoice_id,
+  sent_at,
+  sent_by,
+  send_channel,
+  sent_to_email,
   created_by,
   created_at,
   updated_at,
@@ -226,6 +247,10 @@ const QUOTE_DETAIL_SELECT = `
   custom_fields,
   converted_to_order_id,
   converted_to_invoice_id,
+  sent_at,
+  sent_by,
+  send_channel,
+  sent_to_email,
   created_by,
   created_at,
   updated_at,

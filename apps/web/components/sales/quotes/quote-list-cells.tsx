@@ -9,7 +9,10 @@ import {
   getSalesQuoteColumnDef,
   type SalesQuoteListColumnId,
 } from "@/lib/sales/quotes/list-columns";
-import { salesQuoteStatusLabel } from "@/lib/sales/quotes/labels";
+import {
+  salesQuoteDisplayStatusLabel,
+  salesQuoteStatusLabel,
+} from "@/lib/sales/quotes/labels";
 import {
   LIST_TABLE_CELL_AMOUNT,
   LIST_TABLE_CELL_CHIP_FALLBACK,
@@ -40,15 +43,22 @@ export function renderSalesQuoteListCell(
       return <span className={LIST_TABLE_CELL_SECONDARY}>{row.origin_location_name || "—"}</span>;
     case "status": {
       const column = getSalesQuoteColumnDef("status");
-      const label = salesQuoteStatusLabel(row.commercial_status);
+      const statusKey = row.sent_at ? "SENT" : row.commercial_status;
+      const label = salesQuoteDisplayStatusLabel(row);
       return renderChipOrText({
         column,
-        valueKey: row.commercial_status,
+        valueKey: statusKey,
         label,
         textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
         chipDisplay: options?.chipDisplay?.status,
       });
     }
+    case "sent_at":
+      return (
+        <span className={LIST_TABLE_CELL_DATE}>
+          {row.sent_at ? formatDate(row.sent_at) : "—"}
+        </span>
+      );
     case "valid_until":
       return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.valid_until)}</span>;
     case "converted_order":

@@ -47,4 +47,9 @@ export type SalesQuoteRow = {
   created_at: string;
   updated_at: string;
   lines?: SalesQuoteLineRow[];
+  sent_at?: string | null;
+  sent_by?: string | null;
+  send_channel?: string | null;
+  sent_to_email?: string | null;
+  approval_workflow_complete?: boolean;
 };

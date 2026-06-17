@@ -15,6 +15,7 @@ export const QUOTE_LIST_COLUMN_IDS = [
   "net_amount",
   "created",
   "updated",
+  "sent_at",
 ] as const;
 
 export type SalesQuoteListColumnId = (typeof QUOTE_LIST_COLUMN_IDS)[number];
@@ -26,12 +27,15 @@ const W_NUMBER = columnWidths({ default: { min: 72, max: 96 } });
 const W_AMOUNT = columnWidths({ default: { min: 96, max: 140 } });
 const W_DATE = columnWidths({ default: { min: 100, max: 140 } });
 
-const QUOTE_STATUS_CHIP_CATALOG: Array<{ value: SalesDocumentStatus; label: string }> = (
-  ["DRAFT", "PENDING_APPROVAL", "APPROVED_ACTIVE", "FULLY_COMPLETED", "CANCELLED"] as SalesDocumentStatus[]
-).map((status) => ({
-  value: status,
-  label: salesQuoteStatusLabel(status),
-}));
+const QUOTE_STATUS_CHIP_CATALOG: Array<{ value: SalesDocumentStatus | "SENT"; label: string }> = [
+  ...(["DRAFT", "PENDING_APPROVAL", "APPROVED_ACTIVE", "FULLY_COMPLETED", "CANCELLED"] as SalesDocumentStatus[]).map(
+    (status) => ({
+      value: status,
+      label: salesQuoteStatusLabel(status),
+    })
+  ),
+  { value: "SENT", label: "Sent" },
+];
 
 export const QUOTE_LIST_COLUMNS: ListColumnDef<SalesQuoteListColumnId>[] = [
   {
@@ -73,6 +77,7 @@ export const QUOTE_LIST_COLUMNS: ListColumnDef<SalesQuoteListColumnId>[] = [
       APPROVED_ACTIVE: { preset: "emerald" },
       FULLY_COMPLETED: { preset: "emerald" },
       CANCELLED: { preset: "neutral" },
+      SENT: { preset: "sky" },
       [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
     },
   },
@@ -117,6 +122,14 @@ export const QUOTE_LIST_COLUMNS: ListColumnDef<SalesQuoteListColumnId>[] = [
     group: "Details",
     valueKind: "number",
     widths: W_AMOUNT,
+  },
+  {
+    id: "sent_at",
+    label: "Sent",
+    defaultVisible: false,
+    group: "Timestamps",
+    valueKind: "date",
+    widths: W_DATE,
   },
   {
     id: "created",

@@ -11,12 +11,19 @@ import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-comme
 import { formatSalesQuoteRpcError } from "@/lib/sales/quotes/rpc-errors";
 import {
   approveSalesQuotationSchema,
+  confirmSalesQuotationSchema,
   convertQuotationSchema,
   rejectSalesQuotationSchema,
   saveSalesQuotationSchema,
+  sendSalesQuotationSchema,
   submitSalesQuotationForApprovalSchema,
 } from "@/lib/sales/quotes/schemas";
+import {
+  resolveCustomerEmailForQuote,
+  sendQuotationEmailForQuote,
+} from "@/lib/sales/quotes/send-quotation-email";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
+import { parseSalesQuotationWorkflowRpcResult } from "@/lib/documents/posting-queries";
 import { mapSalesQuoteToSoDraft } from "@/lib/sales/orders/draft-form";
 import { SALES_INVOICES_HREF, SALES_ORDERS_HREF, SALES_QUOTES_HREF } from "@/lib/sales/navigation";
 import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerce-save-extras";
@@ -150,20 +157,110 @@ export async function submitSalesQuotationForApproval(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
-  const { supabase } = await requireTenantId();
-  const { error } = await supabase.rpc("submit_sales_quotation_for_approval", {
+  return runSalesQuotationWorkflowRpc("submit_sales_quotation_for_approval", {
     p_quotation_id: parsed.data.quotation_id,
   });
+}
+
+async function runSalesQuotationWorkflowRpc(
+  rpcName:
+    | "submit_sales_quotation_for_approval"
+    | "approve_sales_quotation"
+    | "reject_sales_quotation"
+    | "confirm_sales_quotation"
+    | "send_sales_quotation",
+  args: Record<string, unknown>,
+  options?: { revalidate?: boolean }
+): Promise<
+  | { success: true; quotationId: string; pendingNextStep?: boolean }
+  | { error: string }
+> {
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc(rpcName, args);
 
   if (error) {
     if (isMissingRpcError(error)) {
-      return { error: formatRpcDeployError("submit_sales_quotation_for_approval") };
+      return { error: formatRpcDeployError(rpcName) };
     }
     return { error: formatSalesQuoteRpcError(error.message).message };
   }
 
-  revalidateQuotePaths();
-  return { success: true as const, quotationId: parsed.data.quotation_id };
+  if (options?.revalidate !== false) {
+    revalidateQuotePaths();
+    revalidatePath("/dashboard");
+  }
+
+  const parsedResult = parseSalesQuotationWorkflowRpcResult(data);
+  if (!parsedResult) {
+    return { error: "Action completed but the response was invalid." };
+  }
+
+  return {
+    success: true as const,
+    quotationId: parsedResult.quotationId,
+    pendingNextStep: parsedResult.pendingNextStep,
+  };
+}
+
+export async function confirmSalesQuotation(raw: unknown) {
+  const parsed = confirmSalesQuotationSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
+  }
+
+  return runSalesQuotationWorkflowRpc("confirm_sales_quotation", {
+    p_quotation_id: parsed.data.quotation_id,
+  });
+}
+
+export async function sendSalesQuotation(raw: unknown) {
+  const parsed = sendSalesQuotationSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
+  }
+
+  const { supabase, tenantId, email } = await requireTenantId();
+  const quotationId = parsed.data.quotation_id;
+  const sendChannel = parsed.data.send_channel ?? "EMAIL";
+
+  const quote = await fetchSalesQuotationById(supabase, tenantId, quotationId);
+  if (!quote) {
+    return { error: "Quote not found." };
+  }
+
+  let sentToEmail: string | null = null;
+
+  if (sendChannel === "EMAIL") {
+    sentToEmail =
+      parsed.data.sent_to_email?.trim() ||
+      (await resolveCustomerEmailForQuote(supabase, tenantId, quote.customer_id));
+
+    if (!sentToEmail) {
+      return { error: "Enter a recipient email or add one on the customer record." };
+    }
+
+    const senderName = quote.created_by_name?.trim() || email?.trim() || "Sales team";
+    const emailResult = await sendQuotationEmailForQuote({
+      supabase,
+      tenantId,
+      quotationId,
+      sentToEmail,
+      senderName,
+    });
+
+    if (!emailResult.success) {
+      return {
+        error: emailResult.error,
+        notConfigured: emailResult.notConfigured,
+      };
+    }
+  }
+
+  return runSalesQuotationWorkflowRpc("send_sales_quotation", {
+    p_quotation_id: quotationId,
+    p_sent_to_email: sentToEmail,
+    p_send_channel: sendChannel,
+  });
 }
 
 export async function approveSalesQuotation(raw: unknown) {
@@ -172,21 +269,10 @@ export async function approveSalesQuotation(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
-  const { supabase } = await requireTenantId();
-  const { error } = await supabase.rpc("approve_sales_quotation", {
+  return runSalesQuotationWorkflowRpc("approve_sales_quotation", {
     p_quotation_id: parsed.data.quotation_id,
     p_notes: parsed.data.notes ?? null,
   });
-
-  if (error) {
-    if (isMissingRpcError(error)) {
-      return { error: formatRpcDeployError("approve_sales_quotation") };
-    }
-    return { error: formatSalesQuoteRpcError(error.message).message };
-  }
-
-  revalidateQuotePaths();
-  return { success: true as const, quotationId: parsed.data.quotation_id };
 }
 
 export async function rejectSalesQuotation(raw: unknown) {
@@ -195,21 +281,10 @@ export async function rejectSalesQuotation(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
-  const { supabase } = await requireTenantId();
-  const { error } = await supabase.rpc("reject_sales_quotation", {
+  return runSalesQuotationWorkflowRpc("reject_sales_quotation", {
     p_quotation_id: parsed.data.quotation_id,
     p_notes: parsed.data.notes,
   });
-
-  if (error) {
-    if (isMissingRpcError(error)) {
-      return { error: formatRpcDeployError("reject_sales_quotation") };
-    }
-    return { error: formatSalesQuoteRpcError(error.message).message };
-  }
-
-  revalidateQuotePaths();
-  return { success: true as const, quotationId: parsed.data.quotation_id };
 }
 
 const bulkApproveSalesQuotationsSchema = z.object({
@@ -267,6 +342,7 @@ export async function bulkApproveSalesQuotations(raw: unknown) {
   }
 
   const approvedIds: string[] = [];
+  const pendingNextStepIds: string[] = [];
   const failures: Array<{ id: string; error: string }> = [];
 
   for (const quotationId of uniqueIds) {
@@ -313,24 +389,24 @@ export async function bulkApproveSalesQuotations(raw: unknown) {
       }
     }
 
-    const { error } = await supabase.rpc("approve_sales_quotation", {
-      p_quotation_id: quotationId,
-      p_notes: null,
-    });
+    const result = await runSalesQuotationWorkflowRpc(
+      "approve_sales_quotation",
+      {
+        p_quotation_id: quotationId,
+        p_notes: null,
+      },
+      { revalidate: false }
+    );
 
-    if (error) {
-      if (isMissingRpcError(error)) {
-        failures.push({ id: quotationId, error: formatRpcDeployError("approve_sales_quotation") });
-      } else {
-        failures.push({
-          id: quotationId,
-          error: formatSalesQuoteRpcError(error.message).message,
-        });
-      }
+    if ("error" in result) {
+      failures.push({ id: quotationId, error: result.error });
       continue;
     }
 
-    approvedIds.push(quotationId);
+    approvedIds.push(result.quotationId);
+    if (result.pendingNextStep) {
+      pendingNextStepIds.push(result.quotationId);
+    }
   }
 
   if (approvedIds.length > 0) {
@@ -347,8 +423,21 @@ export async function bulkApproveSalesQuotations(raw: unknown) {
   return {
     success: true as const,
     approvedIds,
+    pendingNextStepIds,
     failures,
   };
+}
+
+export async function resolveQuoteSendRecipientEmail(quotationId: string) {
+  const parsed = z.string().uuid().safeParse(quotationId);
+  if (!parsed.success) return { error: "Invalid quotation id." };
+
+  const { supabase, tenantId } = await requireTenantId();
+  const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
+  if (!quote) return { error: "Quote not found." };
+
+  const email = await resolveCustomerEmailForQuote(supabase, tenantId, quote.customer_id);
+  return { email };
 }
 
 export async function convertQuotationToOrder(raw: unknown) {

@@ -104,6 +104,7 @@ export async function loadStockAdjustmentDetail(
 export async function loadStockLedgerHistoryForVariants(input: {
   location_id: string;
   variant_ids: string[];
+  on_hand_by_variant?: Record<string, string>;
 }): Promise<
   { entriesByVariantId: Record<string, InventoryLedgerHistoryRow[]> } | { error: string }
 > {
@@ -118,6 +119,7 @@ export async function loadStockLedgerHistoryForVariants(input: {
     const entriesByVariantId = await fetchVariantStockLedgerHistory(supabase, tenantId, {
       location_id: locationId,
       variant_ids: variantIds,
+      on_hand_by_variant: input.on_hand_by_variant,
     });
     return { entriesByVariantId };
   } catch (error) {

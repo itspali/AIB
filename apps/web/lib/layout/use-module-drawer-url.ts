@@ -174,6 +174,9 @@ export function useModuleDrawerUrl(
   const openCreate = useCallback(
     (options?: OpenModuleDrawerCreateOptions) => {
       const variant = options?.variantId?.trim() || null;
+      if (state.surface === "create" && (state.variantId ?? null) === variant) {
+        return;
+      }
       const params = livePreserveParams(searchParams);
       if (options?.extraParams) {
         for (const [key, value] of Object.entries(options.extraParams)) {
@@ -194,7 +197,7 @@ export function useModuleDrawerUrl(
         }
       );
     },
-    [basePath, searchParams, syncHistory]
+    [basePath, searchParams, state.surface, state.variantId, syncHistory]
   );
 
   const close = useCallback(() => {
