@@ -17,6 +17,7 @@ import {
   saveSalesOrder,
   submitSalesOrderForApproval,
 } from "@/app/sales/orders/actions";
+import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { SoDocumentEditorShell } from "@/components/sales/orders/so-document-editor-shell";
@@ -704,6 +705,16 @@ export function SoDrawerForm({
               </>
             ) : null}
           </>
+        ) : null}
+        {detail.commercial_status === "APPROVED_ACTIVE" ||
+        detail.commercial_status === "PARTIALLY_SHIPPED" ||
+        detail.commercial_status === "FULLY_COMPLETED" ? (
+          <DocumentPrintButton
+            moduleKey="SALES_ORDER"
+            documentId={detail.id}
+            documentLocationId={detail.shipping_location_id}
+            label="Sales order"
+          />
         ) : null}
         {canCreateInvoice ? (
           documentConversionMode === "prefill_form" ? (

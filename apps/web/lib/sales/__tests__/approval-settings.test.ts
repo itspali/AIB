@@ -195,6 +195,33 @@ describe("sales approval-settings", () => {
     ).toBe(true);
   });
 
+  it("blocks draft confirm when line rules require approval below threshold", () => {
+    const settings: SalesApprovalSettings = {
+      ...baseSettings,
+      require_quote_approval_before_confirm: true,
+      quote_approval_threshold_amount: 50_000,
+      quote_approver_user_ids: ["approver-1"],
+      quote_approval_rules: [
+        { type: "LINE_DISCOUNT_ABOVE", enabled: true, threshold: 1 },
+      ],
+    };
+
+    expect(
+      isSalesQuoteConfirmableByUser(
+        {
+          commercial_status: "DRAFT",
+          total_net_amount: "100",
+          line_count: 1,
+          valid_until: new Date(Date.now() + 86400000).toISOString(),
+        },
+        settings,
+        "staff-1",
+        { isOwner: false, editAccessGranted: true },
+        [{ quantity: 1, unit_price_selling: 100, discount_percentage: 10 }]
+      )
+    ).toBe(false);
+  });
+
   it("allows send only for confirmed, non-expired quotes with edit access", () => {
     expect(
       isSalesQuoteSendableByUser(

@@ -36,6 +36,9 @@ Resolution order for both layout and presentation: **location override → tenan
 - [x] **Location scope** in presentation template settings (per-location appearance overrides)
 - [x] **`DocumentPrintAdapter` registry** — `document-print-registry.ts` + `resolve-document-render.ts`
 
+- [x] **GST tax invoice presentation pack** — IRN placeholder, place of supply, statutory note for GST-registered orgs on sales invoices
+- [x] **Sales invoice print** — adapter, print model, drawer Print menu
+
 **Not yet implemented:**
 
 - Multi-template picker per document

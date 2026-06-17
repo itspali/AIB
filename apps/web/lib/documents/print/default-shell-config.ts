@@ -70,6 +70,21 @@ export function normalizePresentationShellConfig(
       showTerms: raw.sections?.showTerms ?? base.sections.showTerms,
       termsText: typeof raw.sections?.termsText === "string" ? raw.sections.termsText : base.sections.termsText,
     },
+    compliance: normalizeComplianceBlock(raw.compliance),
+  };
+}
+
+function normalizeComplianceBlock(
+  raw: PresentationShellConfig["compliance"] | undefined
+): PresentationShellConfig["compliance"] | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  if (raw.pack !== "gst_tax_invoice" && raw.pack !== "standard") return undefined;
+
+  return {
+    pack: raw.pack,
+    showPlaceOfSupply: raw.showPlaceOfSupply ?? raw.pack === "gst_tax_invoice",
+    showIrnPlaceholder: raw.showIrnPlaceholder ?? raw.pack === "gst_tax_invoice",
+    statutoryNote: typeof raw.statutoryNote === "string" ? raw.statutoryNote : "",
   };
 }
 

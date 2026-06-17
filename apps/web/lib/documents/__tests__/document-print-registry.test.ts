@@ -10,12 +10,16 @@ describe("document print registry", () => {
       "GOODS_RECEIPT_NOTE",
       "PURCHASE_INVOICE",
       "PURCHASE_ORDER",
+      "SALES_INVOICE",
+      "SALES_ORDER",
       "SALES_QUOTATION",
     ]);
   });
 
-  it("returns null for unsupported modules", () => {
-    expect(getDocumentPrintAdapter("SALES_ORDER")).toBeNull();
+  it("resolves sales order adapter", () => {
+    const adapter = getDocumentPrintAdapter("SALES_ORDER");
+    expect(adapter?.moduleKey).toBe("SALES_ORDER");
+    expect(adapter?.getTitle({ voucher_number: "SO-00001" } as never)).toBe("SO-00001");
   });
 
   it("resolves purchase order adapter", () => {

@@ -268,6 +268,22 @@ export function QuoteDrawerForm({
     }
   }, []);
 
+  const applyQuotePatch = useCallback((patch: Partial<SalesQuoteRow>) => {
+    setDetail((current) =>
+      current
+        ? { ...current, ...patch, updated_at: new Date().toISOString() }
+        : current
+    );
+  }, []);
+
+  const refreshQuoteInBackground = useCallback(
+    (quoteId: string) => {
+      onAfterSave(quoteId);
+      void reloadQuoteDetail(quoteId);
+    },
+    [onAfterSave, reloadQuoteDetail]
+  );
+
   const handleSave = () => {
     startTransition(async () => {
       setError(null);
@@ -321,23 +337,33 @@ export function QuoteDrawerForm({
   const isDraftQuote = detail?.commercial_status === "DRAFT" || surface === "create";
   const isPendingApprovalQuote = detail?.commercial_status === "PENDING_APPROVAL";
   const totalNetAmount = Number(detail?.total_net_amount ?? 0);
-  const approvalRequiredBeforeIssue = isQuoteApprovalRequiredBeforeConfirm(
+  const approvalLines = mapQuoteLinesForApprovalRules(detail?.lines);
+  const approvalRequiredBeforeConfirm = isQuoteApprovalRequiredBeforeConfirm(
     approvalSettings,
     totalNetAmount,
     currentUserId,
     { isOwner },
-    mapQuoteLinesForApprovalRules(detail?.lines)
+    approvalLines
   );
+  const quoteReadyForWorkflow =
+    detail != null &&
+    detail.line_count >= 1 &&
+    new Date(detail.valid_until).getTime() > Date.now();
   const showSubmitForApproval =
-    isDraftQuote && editAccessGranted && approvalRequiredBeforeIssue && quoteId != null;
+    isDraftQuote &&
+    editAccessGranted &&
+    approvalRequiredBeforeConfirm &&
+    quoteReadyForWorkflow &&
+    quoteId != null;
   const showConfirm =
     detail != null &&
     editAccessGranted &&
+    quoteReadyForWorkflow &&
     quoteId != null &&
     isSalesQuoteConfirmableByUser(detail, approvalSettings, currentUserId, {
       isOwner,
       editAccessGranted,
-    });
+    }, approvalLines);
   const showSend =
     detail != null &&
     quoteId != null &&
@@ -345,6 +371,7 @@ export function QuoteDrawerForm({
   const showApproveReject =
     isPendingApprovalQuote &&
     detail != null &&
+    !detail.approval_workflow_complete &&
     isSalesQuoteApprovableByUser(detail, currentUserId, approvalSettings, { isOwner }) &&
     quoteId != null;
   const canConvertQuote = detail?.commercial_status === "APPROVED_ACTIVE";
@@ -359,11 +386,14 @@ export function QuoteDrawerForm({
         return;
       }
       toast.success("Submitted for approval");
-      await reloadQuoteDetail(quoteId);
-      onAfterSave(quoteId);
+      applyQuotePatch({
+        commercial_status: "PENDING_APPROVAL",
+        approval_workflow_complete: false,
+      });
       notifyApprovalAlertChanged();
+      refreshQuoteInBackground(quoteId);
     });
-  }, [onAfterSave, quoteId, reloadQuoteDetail]);
+  }, [applyQuotePatch, quoteId, refreshQuoteInBackground]);
 
   const handleConfirm = useCallback(() => {
     if (!quoteId) return;
@@ -375,10 +405,10 @@ export function QuoteDrawerForm({
         return;
       }
       toast.success("Quote confirmed");
-      await reloadQuoteDetail(quoteId);
-      onAfterSave(quoteId);
+      applyQuotePatch({ commercial_status: "APPROVED_ACTIVE" });
+      refreshQuoteInBackground(quoteId);
     });
-  }, [onAfterSave, quoteId, reloadQuoteDetail]);
+  }, [applyQuotePatch, quoteId, refreshQuoteInBackground]);
 
   const openSendDialog = useCallback(() => {
     if (!quoteId) return;
@@ -411,11 +441,15 @@ export function QuoteDrawerForm({
           detail?.sent_at ? "Quotation resent to customer." : "Quotation sent to customer."
         );
         setSendDialogOpen(false);
-        await reloadQuoteDetail(quoteId);
-        onAfterSave(quoteId);
+        applyQuotePatch({
+          sent_at: new Date().toISOString(),
+          send_channel: sendChannel,
+          sent_to_email: sendChannel === "EMAIL" ? sendToEmail.trim() : null,
+        });
+        refreshQuoteInBackground(quoteId);
       });
     },
-    [detail?.sent_at, onAfterSave, quoteId, reloadQuoteDetail, sendToEmail]
+    [applyQuotePatch, detail?.sent_at, quoteId, refreshQuoteInBackground, sendToEmail]
   );
 
   const handleApprove = useCallback(() => {
@@ -427,16 +461,19 @@ export function QuoteDrawerForm({
         setError(result.error);
         return;
       }
+      const pendingNextStep = "success" in result && result.pendingNextStep;
       toast.success(
-        "success" in result && result.pendingNextStep
+        pendingNextStep
           ? "Step approved — confirm the quote once approval is complete."
           : "Quote approved — confirm it before sending to the customer."
       );
-      await reloadQuoteDetail(quoteId);
-      onAfterSave(quoteId);
+      if (!pendingNextStep) {
+        applyQuotePatch({ approval_workflow_complete: true });
+      }
       notifyApprovalAlertChanged();
+      refreshQuoteInBackground(quoteId);
     });
-  }, [onAfterSave, quoteId, reloadQuoteDetail]);
+  }, [applyQuotePatch, quoteId, refreshQuoteInBackground]);
 
   const handleReject = useCallback(() => {
     if (!quoteId) return;
@@ -456,15 +493,19 @@ export function QuoteDrawerForm({
       toast.success("Quote rejected");
       setRejectDialogOpen(false);
       setRejectNotes("");
-      await reloadQuoteDetail(quoteId);
-      onAfterSave(quoteId);
+      applyQuotePatch({
+        commercial_status: "DRAFT",
+        approval_workflow_complete: false,
+        approval_submitted_by: null,
+      });
       notifyApprovalAlertChanged();
+      refreshQuoteInBackground(quoteId);
     });
-  }, [onAfterSave, quoteId, rejectNotes, reloadQuoteDetail]);
+  }, [applyQuotePatch, quoteId, rejectNotes, refreshQuoteInBackground]);
 
   const draftNextStepHint =
     detail?.commercial_status === "DRAFT"
-      ? approvalRequiredBeforeIssue
+      ? approvalRequiredBeforeConfirm
         ? "Submit for approval when ready. Once approved, confirm the quote, then send it to your customer or convert it."
         : "Confirm the quote when ready, then send it to your customer or convert it to an order or invoice."
       : detail?.commercial_status === "PENDING_APPROVAL" && detail.approval_workflow_complete
@@ -682,8 +723,11 @@ export function QuoteDrawerForm({
                 onApprove={async () => {
                   const result = await approveSalesQuotation({ quotation_id: detail.id });
                   if ("error" in result) throw new Error(result.error);
-                  await reloadQuoteDetail(detail.id);
-                  onAfterSave(detail.id);
+                  const pendingNextStep = "success" in result && result.pendingNextStep;
+                  if (!pendingNextStep) {
+                    applyQuotePatch({ approval_workflow_complete: true });
+                  }
+                  refreshQuoteInBackground(detail.id);
                 }}
                 onReject={async (notes) => {
                   const result = await rejectSalesQuotation({
@@ -691,8 +735,12 @@ export function QuoteDrawerForm({
                     notes,
                   });
                   if ("error" in result) throw new Error(result.error);
-                  await reloadQuoteDetail(detail.id);
-                  onAfterSave(detail.id);
+                  applyQuotePatch({
+                    commercial_status: "DRAFT",
+                    approval_workflow_complete: false,
+                    approval_submitted_by: null,
+                  });
+                  refreshQuoteInBackground(detail.id);
                 }}
               />
             }

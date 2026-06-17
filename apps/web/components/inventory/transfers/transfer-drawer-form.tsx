@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   cancelStockTransfer,
@@ -234,7 +234,7 @@ export function TransferDrawerForm({
     const signature = `${sourceId}:${variantId}`;
     if (quantityPrefillSignatureRef.current === signature) return;
 
-    prefetchLineStockContexts(sourceId, [variantId]);
+    prefetchLineStockContexts(sourceId, [variantId], { scope: "on_hand" });
 
     const applyPrefill = () => {
       const context = getCachedLineStockContext(sourceId, variantId);
@@ -271,6 +271,19 @@ export function TransferDrawerForm({
       applyPrefill();
     });
   }, [open, surface, createPrefill?.variant_id, form.source_location_id, createPrefillSignature]);
+
+  const draftLineVariantKey = useMemo(
+    () =>
+      [...new Set(form.lines.map((line) => line.variant_id.trim()).filter(Boolean))].join("\u0000"),
+    [form.lines]
+  );
+
+  useEffect(() => {
+    if (!open || surface === "peek") return;
+    const sourceId = form.source_location_id.trim();
+    if (!sourceId || !draftLineVariantKey) return;
+    prefetchLineStockContexts(sourceId, draftLineVariantKey.split("\u0000"), { scope: "on_hand" });
+  }, [open, surface, form.source_location_id, draftLineVariantKey]);
 
   useEffect(() => {
     if (!open || surface !== "edit" || !editTransferId) return;
@@ -363,7 +376,7 @@ export function TransferDrawerForm({
 
       const sourceId = form.source_location_id.trim();
       const variantIds = [...new Set(savableLines.map((line) => line.variant_id))];
-      prefetchLineStockContexts(sourceId, variantIds);
+      prefetchLineStockContexts(sourceId, variantIds, { scope: "on_hand" });
 
       const overOnHandCount = countTransferLinesExceedingOnHand(
         savableLines,

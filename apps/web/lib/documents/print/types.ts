@@ -37,6 +37,12 @@ export type PresentationShellConfig = {
     showTerms: boolean;
     termsText: string;
   };
+  compliance?: {
+    pack: "standard" | "gst_tax_invoice";
+    showPlaceOfSupply: boolean;
+    showIrnPlaceholder: boolean;
+    statutoryNote: string;
+  };
 };
 
 export type PresentationStyleConfig = {

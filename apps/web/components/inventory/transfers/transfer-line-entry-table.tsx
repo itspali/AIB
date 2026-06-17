@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { DocumentLineStockHint } from "@/components/documents/document-line-stock-hint";
 import { DocumentLineCompactInput, DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS } from "@/components/documents/document-line-entry-cells";
 import {
@@ -16,6 +16,7 @@ import { StockVariantSkuField } from "@/components/inventory/stock/stock-variant
 import { transferQuantityExceedsOnHand } from "@/lib/inventory/transfers/draft-quantity-hints";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import { useLineStockContext } from "@/lib/inventory/stock/use-line-stock-context";
+import { prefetchLineStockContexts } from "@/lib/inventory/stock/line-stock-context-cache";
 import {
   PoLineQtyValueStack,
   PoLineSublineSingleRow,
@@ -43,6 +44,10 @@ type Props = {
     lines: TransferDraftLine[] | ((current: TransferDraftLine[]) => TransferDraftLine[])
   ) => void;
 };
+
+const TRANSFER_STOCK_SCOPE = { scope: "on_hand" as const };
+
+const TRANSFER_QTY_COLUMN_WIDTH = "min-w-[8.75rem] w-[8.75rem] sm:min-w-[9.5rem] sm:w-[9.5rem]";
 
 export function createEmptyTransferLine(): TransferDraftLine {
   return {
@@ -72,13 +77,14 @@ const TRANSFER_COLUMNS: DocumentLineColumn[] = [
     id: "quantity_dispatched",
     label: "Qty to transfer",
     align: "right",
-    widthClass: "w-[5.5rem]",
+    widthClass: TRANSFER_QTY_COLUMN_WIDTH,
     editable: true,
   },
 ];
 
 function useTransferLineActions(
   lines: TransferDraftLine[],
+  sourceLocationId: string,
   onChange: (
     lines: TransferDraftLine[] | ((current: TransferDraftLine[]) => TransferDraftLine[])
   ) => void
@@ -108,12 +114,16 @@ function useTransferLineActions(
 
   const bindItemChange = useCallback(
     (lineKey: string) => (patch: Partial<TransferDraftLine>) => {
+      if (patch.variant_id?.trim() && sourceLocationId.trim()) {
+        prefetchLineStockContexts(sourceLocationId, patch.variant_id, TRANSFER_STOCK_SCOPE);
+      }
+
       onChange((current) => {
         const next = current.map((line) => (line.key === lineKey ? { ...line, ...patch } : line));
         return ensureTrailingEmptyLine(next, isDocumentLineItemSelected, createEmptyTransferLine);
       });
     },
-    [onChange]
+    [onChange, sourceLocationId]
   );
 
   return { itemRefs, patchLine, removeLine, bindItemChange };
@@ -127,13 +137,26 @@ export function TransferLineEntryTable({
   fillHeight = false,
   onChange,
 }: Props) {
-  const actions = useTransferLineActions(lines, onChange);
-  const variantIds = lines.map((line) => line.variant_id);
-  const getLineStockContext = useLineStockContext(sourceLocationId, variantIds);
+  const actions = useTransferLineActions(lines, sourceLocationId, onChange);
+  const lineVariantIds = useMemo(
+    () => lines.map((line) => line.variant_id).filter(Boolean),
+    [lines]
+  );
+  const getLineStockContext = useLineStockContext(
+    sourceLocationId,
+    lineVariantIds,
+    TRANSFER_STOCK_SCOPE
+  );
 
   useEffect(() => {
     prefetchBrowseVariants();
   }, []);
+
+  useEffect(() => {
+    const locationId = sourceLocationId.trim();
+    if (!locationId || lineVariantIds.length === 0) return;
+    prefetchLineStockContexts(locationId, lineVariantIds, TRANSFER_STOCK_SCOPE);
+  }, [sourceLocationId, lineVariantIds]);
 
   return (
     <DocumentLineEntrySection
@@ -145,10 +168,16 @@ export function TransferLineEntryTable({
         lines={lines}
         columns={TRANSFER_COLUMNS}
         fillHeight={fillHeight}
+        minTableWidth="min-w-[38rem]"
         disabled={disabled}
         canRemoveLine={(_, __, allLines) => allLines.length > 1}
         onRemoveLine={actions.removeLine}
         renderCell={(column, line) => {
+          const stockContext =
+            line.variant_id && sourceLocationId
+              ? getLineStockContext(line.variant_id)
+              : null;
+
           if (column.id === "item") {
             return (
               <div className="min-w-0 px-2 py-2 text-sm">
@@ -157,6 +186,7 @@ export function TransferLineEntryTable({
                   displayMode="item"
                   disabled={disabled}
                   stockLocationId={sourceLocationId}
+                  stockContextScope="on_hand"
                   inputClassName={DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS}
                   inputRef={(node) => {
                     actions.itemRefs.current[line.key] = node;
@@ -171,19 +201,21 @@ export function TransferLineEntryTable({
                   }}
                   onChange={actions.bindItemChange(line.key)}
                 />
+                {line.variant_id && sourceLocationId ? (
+                  <DocumentLineStockHint
+                    context={stockContext}
+                    className="mt-1 px-0.5"
+                  />
+                ) : null}
               </div>
             );
           }
 
           if (column.id === "quantity_dispatched") {
-            const stockContext = line.variant_id
-              ? getLineStockContext(line.variant_id)
-              : null;
             const exceedsOnHand = transferQuantityExceedsOnHand(
               line.quantity_dispatched,
               stockContext
             );
-            const showStockSubline = Boolean(line.variant_id && sourceLocationId);
 
             const qtyInput = (
               <DocumentLineCompactInput
@@ -199,7 +231,7 @@ export function TransferLineEntryTable({
               />
             );
 
-            if (!showStockSubline) {
+            if (!exceedsOnHand) {
               return qtyInput;
             }
 
@@ -208,29 +240,17 @@ export function TransferLineEntryTable({
                 showUnitUnderQty
                 align="right"
                 unitSlot={
-                  <div className="flex w-full flex-col gap-1">
-                    {stockContext ? (
-                      <DocumentLineStockHint
-                        variant="qty-subline"
-                        align="right"
-                        sublineMetric="on_hand"
-                        context={stockContext}
-                      />
-                    ) : null}
-                    {exceedsOnHand ? (
-                      <PoLineSublineSingleRow align="right">
-                        <span
-                          className={cn(
-                            "block w-full truncate px-2 tabular-nums text-amber-700 dark:text-amber-300",
-                            PO_LINE_SUBLINE_TEXT_CLASS
-                          )}
-                          title="Draft saves are allowed; dispatch rechecks on-hand"
-                        >
-                          Exceeds on hand
-                        </span>
-                      </PoLineSublineSingleRow>
-                    ) : null}
-                  </div>
+                  <PoLineSublineSingleRow align="right">
+                    <span
+                      className={cn(
+                        "block w-full truncate px-2 tabular-nums text-amber-700 dark:text-amber-300",
+                        PO_LINE_SUBLINE_TEXT_CLASS
+                      )}
+                      title="Draft saves are allowed; dispatch rechecks on-hand"
+                    >
+                      Exceeds on hand
+                    </span>
+                  </PoLineSublineSingleRow>
                 }
               >
                 {qtyInput}

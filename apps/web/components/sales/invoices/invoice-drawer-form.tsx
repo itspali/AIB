@@ -12,6 +12,7 @@ import {
   saveSalesInvoice,
   submitSalesInvoiceForApproval,
 } from "@/app/sales/invoices/actions";
+import { DocumentPrintButton } from "@/components/documents/document-print-button";
 import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { InvoiceDocumentEditorShell } from "@/components/sales/invoices/invoice-document-editor-shell";
@@ -483,6 +484,15 @@ export function InvoiceDrawerForm({
             </Button>
             {renderWorkflowActions()}
           </>
+        ) : null}
+        {detail.commercial_status === "APPROVED_ACTIVE" ||
+        detail.commercial_status === "FULLY_COMPLETED" ? (
+          <DocumentPrintButton
+            moduleKey="SALES_INVOICE"
+            documentId={detail.id}
+            documentLocationId={detail.origin_location_id}
+            label="Tax invoice"
+          />
         ) : null}
       </>
     ) : isMutating ? (

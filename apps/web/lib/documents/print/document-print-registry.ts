@@ -9,12 +9,18 @@ import { fetchPurchaseOrderById } from "@/lib/procurement/purchase-orders/querie
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import { fetchSalesQuotationById } from "@/lib/sales/quotes/queries";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
+import { fetchSalesInvoiceById } from "@/lib/sales/invoices/queries";
+import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
+import { fetchSalesOrderById } from "@/lib/sales/orders/queries";
+import type { SalesOrderRow } from "@/lib/sales/orders/types";
 
 export type PrintableDocumentRow =
   | PurchaseOrderRow
   | GoodsReceiptRow
   | PurchaseBillRow
-  | SalesQuoteRow;
+  | SalesQuoteRow
+  | SalesOrderRow
+  | SalesInvoiceRow;
 
 export type DocumentPrintAdapter = {
   moduleKey: DocumentModuleKey;
@@ -55,11 +61,27 @@ export const SALES_QUOTATION_PRINT_ADAPTER: DocumentPrintAdapter = {
   getLocationId: (document) => (document as SalesQuoteRow).origin_location_id ?? null,
 };
 
+export const SALES_INVOICE_PRINT_ADAPTER: DocumentPrintAdapter = {
+  moduleKey: "SALES_INVOICE",
+  fetchDocument: fetchSalesInvoiceById,
+  getTitle: (document) => (document as SalesInvoiceRow).invoice_number,
+  getLocationId: (document) => (document as SalesInvoiceRow).origin_location_id ?? null,
+};
+
+export const SALES_ORDER_PRINT_ADAPTER: DocumentPrintAdapter = {
+  moduleKey: "SALES_ORDER",
+  fetchDocument: fetchSalesOrderById,
+  getTitle: (document) => (document as SalesOrderRow).voucher_number,
+  getLocationId: (document) => (document as SalesOrderRow).shipping_location_id ?? null,
+};
+
 export const DOCUMENT_PRINT_REGISTRY: Partial<Record<DocumentModuleKey, DocumentPrintAdapter>> = {
   PURCHASE_ORDER: PURCHASE_ORDER_PRINT_ADAPTER,
   GOODS_RECEIPT_NOTE: GOODS_RECEIPT_PRINT_ADAPTER,
   PURCHASE_INVOICE: PURCHASE_INVOICE_PRINT_ADAPTER,
   SALES_QUOTATION: SALES_QUOTATION_PRINT_ADAPTER,
+  SALES_ORDER: SALES_ORDER_PRINT_ADAPTER,
+  SALES_INVOICE: SALES_INVOICE_PRINT_ADAPTER,
 };
 
 export function getDocumentPrintAdapter(
@@ -76,6 +98,12 @@ export function buildPrintModelForDocument(
   return buildDocumentPrintModel(
     moduleKey,
     layout,
-    document as PurchaseOrderRow | GoodsReceiptRow | PurchaseBillRow | SalesQuoteRow
+    document as
+      | PurchaseOrderRow
+      | GoodsReceiptRow
+      | PurchaseBillRow
+      | SalesQuoteRow
+      | SalesOrderRow
+      | SalesInvoiceRow
   );
 }

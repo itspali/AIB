@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, RotateCcw } from "lucide-react";
+import { ExternalLink, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   loadPresentationTemplate,
@@ -20,9 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  DEFAULT_PRESENTATION_SHELL_CONFIG,
-} from "@/lib/documents/print/default-shell-config";
+import { DEFAULT_PRESENTATION_SHELL_CONFIG } from "@/lib/documents/print/default-shell-config";
 import type {
   DocumentPresentationTemplate,
   PresentationShellConfig,
@@ -45,6 +43,7 @@ const textareaClassName = cn(
 type Props = {
   moduleKey: DocumentModuleKey;
   moduleLabel: string;
+  fieldLayoutHref: string;
   initialTemplates: DocumentPresentationTemplate[];
   locations?: DocumentLayoutLocationOption[];
   canEdit: boolean;
@@ -84,9 +83,10 @@ function ToggleRow({
   );
 }
 
-export function PresentationTemplatePanel({
+export function PresentationTemplateEditor({
   moduleKey,
   moduleLabel,
+  fieldLayoutHref,
   initialTemplates,
   locations = [],
   canEdit,
@@ -179,32 +179,33 @@ export function PresentationTemplatePanel({
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/settings/documents/templates">
-            <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
-            All templates
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{moduleLabel}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Appearance for print and email PDF output.
+          </p>
+          {moduleKey === "SALES_INVOICE" && gstRegistered ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              GST-registered orgs use the tax invoice pack at render time (title, place of supply,
+              IRN placeholder).
+            </p>
+          ) : null}
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={fieldLayoutHref} target="_blank" rel="noopener noreferrer">
+            Edit fields
+            <ExternalLink className="ml-1.5 h-3.5 w-3.5" aria-hidden />
           </Link>
         </Button>
       </div>
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{moduleLabel}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Appearance for print and email PDF output. Configure which sections appear and how your
-          organization branding is shown.
-        </p>
-        {moduleKey === "SALES_INVOICE" && gstRegistered ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            GST-registered organizations automatically use the tax invoice pack (title, place of
-            supply, and e-invoice IRN placeholder) at render time.
-          </p>
-        ) : null}
-      </div>
-
-      <Tabs value={viewContext} onValueChange={(value) => setViewContext(value as PresentationViewContext)}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          value={viewContext}
+          onValueChange={(value) => setViewContext(value as PresentationViewContext)}
+        >
           <TabsList>
             {VIEW_TABS.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id}>
@@ -212,53 +213,53 @@ export function PresentationTemplatePanel({
               </TabsTrigger>
             ))}
           </TabsList>
-          <DocumentLayoutScopeSelect
-            scope={scope}
-            locations={locations}
-            disabled={!canEdit || isLoadingTemplate}
-            onScopeChange={setScope}
-          />
-        </div>
-      </Tabs>
+        </Tabs>
+        <DocumentLayoutScopeSelect
+          scope={scope}
+          locations={locations}
+          disabled={!canEdit || isLoadingTemplate}
+          onScopeChange={setScope}
+        />
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <div className="space-y-4">
-          <OrgSettingsSection title="Letterhead" description="Organization branding shown at the top of the document.">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="space-y-4 overflow-y-auto pr-1">
+          <OrgSettingsSection title="Letterhead" description="Branding at the top of the document.">
             <div className="space-y-2">
               <ToggleRow
-                id="showLogo"
+                id={`${moduleKey}-showLogo`}
                 label="Show logo"
                 checked={shellConfig.header.showLogo}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ header: { showLogo: value } })}
               />
               <ToggleRow
-                id="showOrgName"
+                id={`${moduleKey}-showOrgName`}
                 label="Show organization name"
                 checked={shellConfig.header.showOrgName}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ header: { showOrgName: value } })}
               />
               <ToggleRow
-                id="showOrgAddress"
+                id={`${moduleKey}-showOrgAddress`}
                 label="Show billing address"
                 checked={shellConfig.header.showOrgAddress}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ header: { showOrgAddress: value } })}
               />
               <ToggleRow
-                id="showDocumentTitle"
+                id={`${moduleKey}-showDocumentTitle`}
                 label="Show document title"
                 checked={shellConfig.header.showDocumentTitle}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ header: { showDocumentTitle: value } })}
               />
               <div className="space-y-2 rounded-md border border-border/60 px-3 py-2.5">
-                <Label htmlFor="titleOverride" className="text-sm font-medium">
+                <Label htmlFor={`${moduleKey}-titleOverride`} className="text-sm font-medium">
                   Title override
                 </Label>
                 <Input
-                  id="titleOverride"
+                  id={`${moduleKey}-titleOverride`}
                   value={shellConfig.header.titleOverride ?? ""}
                   disabled={!canEdit}
                   placeholder="Leave blank to use document number label"
@@ -274,32 +275,32 @@ export function PresentationTemplatePanel({
             </div>
           </OrgSettingsSection>
 
-          <OrgSettingsSection title="Sections" description="Control which content blocks are included.">
+          <OrgSettingsSection title="Sections" description="Which content blocks are included.">
             <div className="space-y-2">
               <ToggleRow
-                id="showHeaderFields"
+                id={`${moduleKey}-showHeaderFields`}
                 label="Header fields"
-                hint="Configured under Module settings → Print tab"
+                hint="Field visibility is in Module settings"
                 checked={shellConfig.sections.showHeaderFields}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ sections: { showHeaderFields: value } })}
               />
               <ToggleRow
-                id="showLineTable"
+                id={`${moduleKey}-showLineTable`}
                 label="Line items table"
                 checked={shellConfig.sections.showLineTable}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ sections: { showLineTable: value } })}
               />
               <ToggleRow
-                id="showTotals"
+                id={`${moduleKey}-showTotals`}
                 label="Totals block"
                 checked={shellConfig.sections.showTotals}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ sections: { showTotals: value } })}
               />
               <ToggleRow
-                id="showTerms"
+                id={`${moduleKey}-showTerms`}
                 label="Terms & conditions"
                 checked={shellConfig.sections.showTerms}
                 disabled={!canEdit}
@@ -318,7 +319,7 @@ export function PresentationTemplatePanel({
             </div>
           </OrgSettingsSection>
 
-          <OrgSettingsSection title="Footer" description="Optional legal or compliance text at the bottom.">
+          <OrgSettingsSection title="Footer" description="Optional legal or compliance text.">
             <textarea
               value={shellConfig.footer.legalText}
               disabled={!canEdit}
@@ -347,10 +348,13 @@ export function PresentationTemplatePanel({
           ) : null}
         </div>
 
-        <OrgSettingsSection title="Preview" description="Sample document with your current organization branding.">
+        <OrgSettingsSection
+          title="Preview"
+          description="Sample document with current organization branding."
+        >
           <div
             className={cn(
-              "surface-inset min-h-[480px] overflow-hidden rounded-lg border border-border/60 bg-white",
+              "surface-inset min-h-[520px] overflow-hidden rounded-lg border border-border/60 bg-white",
               (isPreviewPending || isLoadingTemplate) && "opacity-70"
             )}
           >
@@ -358,7 +362,7 @@ export function PresentationTemplatePanel({
               <iframe
                 title="Template preview"
                 srcDoc={previewHtml}
-                className="h-[640px] w-full border-0 bg-white"
+                className="h-[min(80vh,900px)] w-full border-0 bg-white"
                 sandbox=""
               />
             ) : (

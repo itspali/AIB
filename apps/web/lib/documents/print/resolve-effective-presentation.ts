@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { applyGstPresentationOverrides } from "@/lib/documents/print/gst-presentation-compliance";
 import {
   fetchDocumentPresentationTemplate,
   fetchDocumentPresentationTemplateIfExists,
 } from "@/lib/documents/print/presentation-queries";
 import type { DocumentPresentationTemplate, PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 
 type ResolveParams = {
   supabase: SupabaseClient;
@@ -42,5 +44,10 @@ async function resolveStoredPresentationTemplate(
 export async function resolveEffectivePresentationTemplate(
   params: ResolveParams
 ): Promise<DocumentPresentationTemplate> {
-  return resolveStoredPresentationTemplate(params);
+  const [template, gstRegistered] = await Promise.all([
+    resolveStoredPresentationTemplate(params),
+    fetchOrganizationGstRegistered(params.supabase, params.tenantId),
+  ]);
+
+  return applyGstPresentationOverrides(template, gstRegistered);
 }

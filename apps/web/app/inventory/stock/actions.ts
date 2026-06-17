@@ -52,6 +52,7 @@ export async function loadStockLocations(): Promise<StockLocationOption[]> {
 export async function loadDocumentLineStockContexts(input: {
   location_id: string;
   variant_ids: string[];
+  scope?: "full" | "on_hand";
 }): Promise<
   { contexts: Record<string, DocumentLineStockContext> } | { error: string }
 > {
@@ -66,6 +67,7 @@ export async function loadDocumentLineStockContexts(input: {
     const contexts = await fetchDocumentLineStockContexts(supabase, tenantId, {
       location_id: locationId,
       variant_ids: variantIds,
+      scope: input.scope,
     });
     return { contexts };
   } catch (error) {

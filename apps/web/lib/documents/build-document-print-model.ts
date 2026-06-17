@@ -24,6 +24,10 @@ import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import type { SalesQuoteLineRow, SalesQuoteRow } from "@/lib/sales/quotes/types";
 import { salesQuoteDisplayStatusLabel } from "@/lib/sales/quotes/labels";
+import type { SalesInvoiceLineRow, SalesInvoiceRow } from "@/lib/sales/invoices/types";
+import { salesInvoiceStatusLabel } from "@/lib/sales/invoices/labels";
+import type { SalesOrderLineRow, SalesOrderRow } from "@/lib/sales/orders/types";
+import { salesOrderStatusLabel } from "@/lib/sales/orders/labels";
 import {
   getVisibleSalesHeaderFields,
   getVisibleSalesLineColumns,
@@ -230,6 +234,131 @@ function billLineValue(line: NonNullable<PurchaseBillRow["lines"]>[number], fiel
   }
 }
 
+function invoiceHeaderValue(invoice: SalesInvoiceRow, fieldId: string): string {
+  switch (fieldId) {
+    case "customer":
+      return invoice.customer_name ?? "—";
+    case "shipping_location":
+      return invoice.origin_location_name ?? "—";
+    case "tax_supply_nature":
+      return invoice.billing_state && invoice.shipping_state
+        ? invoice.billing_state === invoice.shipping_state
+          ? "Same state"
+          : "Interstate"
+        : "—";
+    case "currency":
+      return "INR";
+    case "voucher_number":
+      return invoice.invoice_number;
+    case "payment_terms_days":
+      return String(invoice.payment_terms_days ?? "—");
+    case "requisition_number":
+      return typeof invoice.custom_fields?.customer_reference === "string"
+        ? invoice.custom_fields.customer_reference
+        : "—";
+    case "expected_delivery_date":
+      return "—";
+    case "internal_notes":
+      return typeof invoice.custom_fields?.internal_notes === "string"
+        ? invoice.custom_fields.internal_notes
+        : "—";
+    case "document_status":
+      return salesInvoiceStatusLabel(invoice.commercial_status);
+    case "created_at":
+      return formatDate(invoice.created_at);
+    case "created_by":
+      return invoice.created_by_name ?? "—";
+    case "updated_at":
+      return invoice.updated_at ? formatDate(invoice.updated_at) : "—";
+    default:
+      return "—";
+  }
+}
+
+function invoiceLineValue(line: SalesInvoiceLineRow, fieldId: string): string {
+  switch (fieldId) {
+    case "item":
+      return line.item_name ?? "—";
+    case "sku":
+      return line.variant_sku ?? "—";
+    case "quantity_ordered":
+    case "quantity_invoiced":
+      return line.quantity_invoiced ?? "—";
+    case "unit":
+      return line.uom_code ?? line.base_unit_of_measure ?? "—";
+    case "unit_price":
+      return line.unit_price_selling ?? "—";
+    case "discount_pct":
+      return line.discount_percentage ?? "—";
+    case "discount_amount":
+      return line.discount_amount ?? "—";
+    case "tax_rate_pct":
+      return "—";
+    case "line_tax_amount":
+      return line.line_tax_amount ?? "—";
+    case "line_total":
+      return line.line_total_net ?? "—";
+    default:
+      return "—";
+  }
+}
+
+function buildSalesCommercePrintModel(
+  moduleKey: "SALES_QUOTATION" | "SALES_INVOICE" | "SALES_ORDER",
+  layout: DocumentLayoutTemplate,
+  headerValue: (fieldId: string) => string,
+  lines: Array<{ mapLine: (fieldId: string) => string }>,
+  totals: {
+    subtotal: string;
+    tax: string;
+    discount: string;
+    grandTotal: string;
+    lineCount: number;
+  }
+): DocumentPrintModel {
+  const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[moduleKey];
+  const normalized = adapter.normalize(layout);
+  const headerColumns = getVisibleSalesHeaderFields(normalized);
+  const lineColumns = getVisibleSalesLineColumns(normalized);
+  const totalsColumns = getVisibleSalesTotalsFields(normalized);
+
+  return {
+    moduleKey,
+    headerFields: headerColumns.map((column) => ({
+      id: column.id,
+      label: column.label,
+      value: formatCell(column, headerValue(column.id)),
+    })),
+    lineColumns,
+    lines: lines.map((line) => {
+      const row: DocumentPrintLine = {};
+      for (const column of lineColumns) {
+        row[column.id] = formatCell(column, line.mapLine(column.id));
+      }
+      return row;
+    }),
+    totalsFields: totalsColumns.map((column) => {
+      const raw =
+        column.id === "subtotal_ex_tax"
+          ? totals.subtotal
+          : column.id === "tax_amount"
+            ? totals.tax
+            : column.id === "transaction_discount"
+              ? totals.discount
+              : column.id === "grand_total"
+                ? totals.grandTotal
+                : column.id === "line_count"
+                  ? String(totals.lineCount)
+                  : "—";
+      return {
+        id: column.id,
+        label: column.label,
+        value: formatCell(column, raw),
+      };
+    }),
+  };
+}
+
 function quoteHeaderValue(quote: SalesQuoteRow, fieldId: string): string {
   switch (fieldId) {
     case "customer":
@@ -299,54 +428,141 @@ function quoteLineValue(line: SalesQuoteLineRow, fieldId: string): string {
   }
 }
 
+function orderHeaderValue(order: SalesOrderRow, fieldId: string): string {
+  switch (fieldId) {
+    case "customer":
+      return order.customer_name ?? "—";
+    case "shipping_location":
+      return order.shipping_location_name ?? "—";
+    case "tax_supply_nature":
+      return order.billing_state && order.shipping_state
+        ? order.billing_state === order.shipping_state
+          ? "Same state"
+          : "Interstate"
+        : "—";
+    case "currency":
+      return "INR";
+    case "voucher_number":
+      return order.voucher_number;
+    case "payment_terms_days":
+      return typeof order.custom_fields?.payment_terms_days === "number" ||
+        typeof order.custom_fields?.payment_terms_days === "string"
+        ? String(order.custom_fields.payment_terms_days)
+        : "—";
+    case "requisition_number":
+      return order.source_quotation_number ?? "—";
+    case "expected_delivery_date":
+      return "—";
+    case "internal_notes":
+      return typeof order.custom_fields?.internal_notes === "string"
+        ? order.custom_fields.internal_notes
+        : "—";
+    case "document_status":
+      return salesOrderStatusLabel(order.commercial_status);
+    case "created_at":
+      return formatDate(order.created_at);
+    case "created_by":
+      return order.created_by_name ?? "—";
+    case "updated_at":
+      return order.updated_at ? formatDate(order.updated_at) : "—";
+    default:
+      return "—";
+  }
+}
+
+function orderLineValue(line: SalesOrderLineRow, fieldId: string): string {
+  switch (fieldId) {
+    case "item":
+      return line.item_name ?? "—";
+    case "sku":
+      return line.variant_sku ?? "—";
+    case "quantity_ordered":
+      return line.quantity_ordered ?? "—";
+    case "unit":
+      return line.uom_code ?? line.base_unit_of_measure ?? "—";
+    case "unit_price":
+      return line.unit_price_selling ?? "—";
+    case "discount_pct":
+      return line.discount_percentage ?? "—";
+    case "discount_amount":
+      return line.discount_amount ?? "—";
+    case "tax_rate_pct":
+      return "—";
+    case "line_tax_amount":
+      return line.line_tax_amount ?? "—";
+    case "line_total":
+      return line.line_total_gross ?? "—";
+    default:
+      return "—";
+  }
+}
+
 export function buildDocumentPrintModel(
   moduleKey: DocumentModuleKey,
   layout: DocumentLayoutTemplate,
-  document: PurchaseOrderRow | GoodsReceiptRow | PurchaseBillRow | SalesQuoteRow
+  document:
+    | PurchaseOrderRow
+    | GoodsReceiptRow
+    | PurchaseBillRow
+    | SalesQuoteRow
+    | SalesOrderRow
+    | SalesInvoiceRow
 ): DocumentPrintModel {
   if (moduleKey === "SALES_QUOTATION") {
     const quote = document as SalesQuoteRow;
-    const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS.SALES_QUOTATION;
-    const normalized = adapter.normalize(layout);
-    const headerColumns = getVisibleSalesHeaderFields(normalized);
-    const lineColumns = getVisibleSalesLineColumns(normalized);
-    const totalsColumns = getVisibleSalesTotalsFields(normalized);
-
-    return {
-      moduleKey,
-      headerFields: headerColumns.map((column) => ({
-        id: column.id,
-        label: column.label,
-        value: formatCell(column, quoteHeaderValue(quote, column.id)),
+    return buildSalesCommercePrintModel(
+      "SALES_QUOTATION",
+      layout,
+      (fieldId) => quoteHeaderValue(quote, fieldId),
+      (quote.lines ?? []).map((line) => ({
+        mapLine: (fieldId) => quoteLineValue(line, fieldId),
       })),
-      lineColumns,
-      lines: (quote.lines ?? []).map((line) => {
-        const row: DocumentPrintLine = {};
-        for (const column of lineColumns) {
-          row[column.id] = formatCell(column, quoteLineValue(line, column.id));
-        }
-        return row;
-      }),
-      totalsFields: totalsColumns.map((column) => {
-        const raw =
-          column.id === "subtotal_ex_tax"
-            ? quote.total_gross_amount
-            : column.id === "tax_amount"
-              ? quote.total_tax_amount
-              : column.id === "transaction_discount"
-                ? String(quote.custom_fields?.transaction_discount_amount ?? "0")
-                : column.id === "grand_total"
-                  ? quote.total_net_amount
-                  : column.id === "line_count"
-                    ? String(quote.line_count ?? quote.lines?.length ?? 0)
-                    : "—";
-        return {
-          id: column.id,
-          label: column.label,
-          value: formatCell(column, raw),
-        };
-      }),
-    };
+      {
+        subtotal: quote.total_gross_amount,
+        tax: quote.total_tax_amount,
+        discount: String(quote.custom_fields?.transaction_discount_amount ?? "0"),
+        grandTotal: quote.total_net_amount,
+        lineCount: quote.line_count ?? quote.lines?.length ?? 0,
+      }
+    );
+  }
+
+  if (moduleKey === "SALES_INVOICE") {
+    const invoice = document as SalesInvoiceRow;
+    return buildSalesCommercePrintModel(
+      "SALES_INVOICE",
+      layout,
+      (fieldId) => invoiceHeaderValue(invoice, fieldId),
+      (invoice.lines ?? []).map((line) => ({
+        mapLine: (fieldId) => invoiceLineValue(line, fieldId),
+      })),
+      {
+        subtotal: invoice.total_gross_amount,
+        tax: invoice.total_tax_amount,
+        discount: String(invoice.custom_fields?.transaction_discount_amount ?? "0"),
+        grandTotal: invoice.total_net_amount,
+        lineCount: invoice.line_count ?? invoice.lines?.length ?? 0,
+      }
+    );
+  }
+
+  if (moduleKey === "SALES_ORDER") {
+    const order = document as SalesOrderRow;
+    return buildSalesCommercePrintModel(
+      "SALES_ORDER",
+      layout,
+      (fieldId) => orderHeaderValue(order, fieldId),
+      (order.lines ?? []).map((line) => ({
+        mapLine: (fieldId) => orderLineValue(line, fieldId),
+      })),
+      {
+        subtotal: order.total_gross_amount,
+        tax: order.total_tax_amount,
+        discount: String(order.custom_fields?.transaction_discount_amount ?? "0"),
+        grandTotal: order.total_net_amount,
+        lineCount: order.line_count ?? order.lines?.length ?? 0,
+      }
+    );
   }
 
   const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[moduleKey as "PURCHASE_ORDER" | "GOODS_RECEIPT_NOTE" | "PURCHASE_INVOICE"];

@@ -28,9 +28,14 @@ describe("module-nav-active", () => {
     expect(isModuleNavItemActive(inventoryItem, "/items")).toBe(false);
   });
 
-  it("highlights Administration on locations and uom routes", () => {
+  it("highlights Administration on locations, document templates, and uom routes", () => {
     expect(isModuleNavItemActive(administrationItem, "/settings/locations")).toBe(true);
+    expect(isModuleNavItemActive(administrationItem, "/settings/documents/templates")).toBe(true);
     expect(isModuleNavItemActive(administrationItem, "/settings/uom")).toBe(true);
+    expect(
+      getActiveModuleNavChild(administrationItem, "/settings/documents/templates/SALES_INVOICE")
+        ?.label
+    ).toBe("Document print templates");
     expect(
       getActiveModuleNavChild(administrationItem, "/settings/locations/topology")?.label
     ).toBe("Locations");

@@ -6,15 +6,18 @@ import {
   getLineStockContextCacheVersion,
   prefetchLineStockContexts,
   subscribeLineStockContextCache,
+  type LineStockContextPrefetchOptions,
 } from "@/lib/inventory/stock/line-stock-context-cache";
 import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-context";
 
 /** Resolves on-hand stock at a document location for line item hints. */
 export function useLineStockContext(
   locationId: string,
-  variantIds: string[]
+  variantIds: string[],
+  options?: LineStockContextPrefetchOptions
 ): (variantId: string) => DocumentLineStockContext | null {
   const normalizedLocation = locationId.trim();
+  const scope = options?.scope ?? "full";
   const uniqueVariantIds = useMemo(
     () => [...new Set(variantIds.map((id) => id.trim()).filter(Boolean))],
     [variantIds]
@@ -22,8 +25,8 @@ export function useLineStockContext(
   const variantKey = uniqueVariantIds.join("\u0000");
 
   useLayoutEffect(() => {
-    prefetchLineStockContexts(normalizedLocation, uniqueVariantIds);
-  }, [normalizedLocation, variantKey, uniqueVariantIds]);
+    prefetchLineStockContexts(normalizedLocation, uniqueVariantIds, { scope });
+  }, [normalizedLocation, scope, variantKey, uniqueVariantIds]);
 
   const cacheVersion = useSyncExternalStore(
     subscribeLineStockContextCache,

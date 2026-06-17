@@ -505,7 +505,8 @@ export function isSalesQuoteConfirmableByUser(
   },
   settings: SalesApprovalSettings,
   userId: string,
-  options: SalesApproverOptions & { editAccessGranted: boolean }
+  options: SalesApproverOptions & { editAccessGranted: boolean },
+  lines?: SalesApprovalRuleEvaluationLine[]
 ): boolean {
   if (!options.editAccessGranted) return false;
   if (quote.line_count < 1) return false;
@@ -516,7 +517,8 @@ export function isSalesQuoteConfirmableByUser(
       settings,
       Number(quote.total_net_amount),
       userId,
-      options
+      options,
+      lines
     );
   }
 

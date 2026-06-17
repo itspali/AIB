@@ -122,8 +122,40 @@ function renderTerms(presentation: DocumentPresentationTemplate): string {
 
 function renderFooter(presentation: DocumentPresentationTemplate): string {
   const legalText = presentation.shellConfig.footer.legalText.trim();
-  if (!legalText) return "";
-  return `<div class="footer-legal">${escapeHtml(legalText)}</div>`;
+  const statutoryNote = presentation.shellConfig.compliance?.statutoryNote?.trim() ?? "";
+  const combined = [legalText, statutoryNote].filter(Boolean).join("\n\n");
+  if (!combined) return "";
+  return `<div class="footer-legal">${escapeHtml(combined)}</div>`;
+}
+
+function renderGstComplianceBlock(
+  model: DocumentPrintModel,
+  presentation: DocumentPresentationTemplate
+): string {
+  const compliance = presentation.shellConfig.compliance;
+  if (!compliance || compliance.pack !== "gst_tax_invoice") return "";
+
+  const blocks: string[] = [];
+  const placeOfSupply = model.headerFields.find((field) => field.id === "tax_supply_nature")?.value;
+
+  if (compliance.showPlaceOfSupply && placeOfSupply && placeOfSupply !== "—") {
+    blocks.push(
+      `<div class="gst-meta-row"><span class="gst-meta-label">Place of supply</span><span class="gst-meta-value">${escapeHtml(placeOfSupply)}</span></div>`
+    );
+  }
+
+  if (compliance.showIrnPlaceholder) {
+    blocks.push(
+      `<div class="gst-irn-grid">
+        <div class="gst-irn-field"><span class="gst-meta-label">IRN</span><span class="gst-meta-placeholder">Pending e-invoice integration</span></div>
+        <div class="gst-irn-field"><span class="gst-meta-label">Ack No.</span><span class="gst-meta-placeholder">—</span></div>
+        <div class="gst-irn-field"><span class="gst-meta-label">Ack Date</span><span class="gst-meta-placeholder">—</span></div>
+      </div>`
+    );
+  }
+
+  if (blocks.length === 0) return "";
+  return `<div class="gst-compliance">${blocks.join("")}</div>`;
 }
 
 export function renderDocumentHtml(
@@ -140,6 +172,7 @@ export function renderDocumentHtml(
   const totalsHtml = renderTotals(model, presentation);
   const termsHtml = renderTerms(presentation);
   const footerHtml = renderFooter(presentation);
+  const gstComplianceHtml = renderGstComplianceBlock(model, presentation);
 
   const pageMargin = `${shellConfig.margins.top} ${shellConfig.margins.right} ${shellConfig.margins.bottom} ${shellConfig.margins.left}`;
 
@@ -176,7 +209,14 @@ export function renderDocumentHtml(
     .total-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
     .terms { margin-top: 20px; font-size: 11px; color: #444; }
     .terms h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; color: #666; }
-    .footer-legal { margin-top: 24px; padding-top: 8px; border-top: 1px solid #eee; font-size: 10px; color: #666; }
+    .footer-legal { margin-top: 24px; padding-top: 8px; border-top: 1px solid #eee; font-size: 10px; color: #666; white-space: pre-line; }
+    .gst-compliance { margin-bottom: 16px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafafa; }
+    .gst-meta-row { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; margin-bottom: 8px; }
+    .gst-meta-label { color: #666; text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; }
+    .gst-meta-value { font-weight: 600; }
+    .gst-irn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .gst-irn-field { font-size: 11px; }
+    .gst-meta-placeholder { display: block; margin-top: 2px; color: #888; font-style: italic; }
     @media print { body { padding: 0; } }
   </style>
 </head>
@@ -190,6 +230,7 @@ export function renderDocumentHtml(
     }
   </div>
   ${headerFieldsHtml ? `<div class="header-grid">${headerFieldsHtml}</div>` : ""}
+  ${gstComplianceHtml}
   ${lineTableHtml}
   ${totalsHtml ? `<div class="totals">${totalsHtml}</div>` : ""}
   ${termsHtml}

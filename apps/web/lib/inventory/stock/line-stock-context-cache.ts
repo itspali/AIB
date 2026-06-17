@@ -3,8 +3,15 @@
 import { loadDocumentLineStockContexts } from "@/app/inventory/stock/actions";
 import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-context";
 
+export type LineStockContextPrefetchScope = "full" | "on_hand";
+
+export type LineStockContextPrefetchOptions = {
+  scope?: LineStockContextPrefetchScope;
+};
+
 const cache = new Map<string, DocumentLineStockContext>();
 const inflight = new Map<string, Promise<void>>();
+const pendingKeys = new Set<string>();
 const listeners = new Set<() => void>();
 let cacheVersion = 0;
 
@@ -37,6 +44,15 @@ export function getCachedLineStockContext(
   return cache.get(key) ?? null;
 }
 
+export function isLineStockContextPending(
+  locationId: string,
+  variantId: string
+): boolean {
+  const key = cacheKey(locationId, variantId);
+  if (!key || key === ":") return false;
+  return pendingKeys.has(key);
+}
+
 export function buildLineStockContextSnapshot(
   locationId: string,
   variantIds: readonly string[]
@@ -54,9 +70,15 @@ export function buildLineStockContextSnapshot(
   return snapshot;
 }
 
-function runBatchPrefetch(locationId: string, variantIds: string[]): void {
+function runBatchPrefetch(
+  locationId: string,
+  variantIds: string[],
+  options: LineStockContextPrefetchOptions = {}
+): void {
   const loc = locationId.trim();
   if (!loc) return;
+
+  const scope = options.scope ?? "full";
 
   const missing = [
     ...new Set(
@@ -67,12 +89,18 @@ function runBatchPrefetch(locationId: string, variantIds: string[]): void {
   ];
   if (missing.length === 0) return;
 
-  const requestKey = `${loc}::${missing.join("\u0000")}`;
+  const requestKey = `${scope}::${loc}::${missing.join("\u0000")}`;
   if (inflight.has(requestKey)) return;
+
+  for (const variantId of missing) {
+    pendingKeys.add(cacheKey(loc, variantId));
+  }
+  notify();
 
   const promise = loadDocumentLineStockContexts({
     location_id: loc,
     variant_ids: missing,
+    scope,
   })
     .then((result) => {
       if ("error" in result) return;
@@ -82,7 +110,11 @@ function runBatchPrefetch(locationId: string, variantIds: string[]): void {
       notify();
     })
     .finally(() => {
+      for (const variantId of missing) {
+        pendingKeys.delete(cacheKey(loc, variantId));
+      }
       inflight.delete(requestKey);
+      notify();
     });
 
   inflight.set(requestKey, promise);
@@ -91,8 +123,9 @@ function runBatchPrefetch(locationId: string, variantIds: string[]): void {
 /** Warm stock for one or more variants at a document location. */
 export function prefetchLineStockContexts(
   locationId: string,
-  variantIds: string | readonly string[]
+  variantIds: string | readonly string[],
+  options?: LineStockContextPrefetchOptions
 ): void {
   const ids = typeof variantIds === "string" ? [variantIds] : variantIds;
-  runBatchPrefetch(locationId, [...ids]);
+  runBatchPrefetch(locationId, [...ids], options);
 }

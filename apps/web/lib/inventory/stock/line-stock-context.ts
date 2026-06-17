@@ -50,11 +50,18 @@ export function resolveDocumentLineStockBelowReorder(
 export async function fetchDocumentLineStockContexts(
   supabase: SupabaseClient,
   tenantId: string,
-  input: { location_id: string; variant_ids: string[] }
+  input: {
+    location_id: string;
+    variant_ids: string[];
+    /** Skip reservation RPC when only on-hand hints are needed (e.g. transfers). */
+    scope?: "full" | "on_hand";
+  }
 ): Promise<Record<string, DocumentLineStockContext>> {
   const locationId = input.location_id.trim();
   const variantIds = [...new Set(input.variant_ids.map((id) => id.trim()).filter(Boolean))];
   if (!locationId || variantIds.length === 0) return {};
+
+  const includeAvailability = input.scope !== "on_hand";
 
   const [variantsResult, valuationsResult] = await Promise.all([
     supabase
@@ -94,29 +101,31 @@ export async function fetchDocumentLineStockContexts(
     { quantity_on_hand: string; quantity_reserved: string; quantity_available: string }
   >();
 
-  const { data: availabilityRows, error: availabilityError } = await supabase.rpc(
-    "get_variant_availability_at_location",
-    {
-      p_location_id: locationId,
-      p_variant_ids: variantIds,
-    }
-  );
+  if (includeAvailability) {
+    const { data: availabilityRows, error: availabilityError } = await supabase.rpc(
+      "get_variant_availability_at_location",
+      {
+        p_location_id: locationId,
+        p_variant_ids: variantIds,
+      }
+    );
 
-  if (!availabilityError && availabilityRows) {
-    for (const row of availabilityRows as Array<{
-      variant_id: string;
-      quantity_on_hand: number | string;
-      quantity_reserved: number | string;
-      quantity_available: number | string;
-    }>) {
-      availabilityByVariant.set(row.variant_id, {
-        quantity_on_hand: formatDecimal(row.quantity_on_hand, "0"),
-        quantity_reserved: formatDecimal(row.quantity_reserved, "0"),
-        quantity_available: formatDecimal(row.quantity_available, "0"),
-      });
+    if (!availabilityError && availabilityRows) {
+      for (const row of availabilityRows as Array<{
+        variant_id: string;
+        quantity_on_hand: number | string;
+        quantity_reserved: number | string;
+        quantity_available: number | string;
+      }>) {
+        availabilityByVariant.set(row.variant_id, {
+          quantity_on_hand: formatDecimal(row.quantity_on_hand, "0"),
+          quantity_reserved: formatDecimal(row.quantity_reserved, "0"),
+          quantity_available: formatDecimal(row.quantity_available, "0"),
+        });
+      }
+    } else if (availabilityError && !isMissingRpcError(availabilityError)) {
+      throw new Error(availabilityError.message);
     }
-  } else if (availabilityError && !isMissingRpcError(availabilityError)) {
-    throw new Error(availabilityError.message);
   }
 
   const contexts: Record<string, DocumentLineStockContext> = {};
@@ -147,7 +156,7 @@ export async function fetchDocumentLineStockContexts(
       computeAvailableQuantity(quantityOnHand, quantityReserved);
     const reorderPoint = extractReorderPoint(item.custom_fields);
     const belowReorderPoint = resolveDocumentLineStockBelowReorder(
-      quantityAvailable,
+      includeAvailability ? quantityAvailable : quantityOnHand,
       reorderPoint
     );
 

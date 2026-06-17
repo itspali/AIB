@@ -11,6 +11,8 @@ const PRINTABLE_MODULE_KEYS = new Set<DocumentModuleKey>([
   "GOODS_RECEIPT_NOTE",
   "PURCHASE_INVOICE",
   "SALES_QUOTATION",
+  "SALES_ORDER",
+  "SALES_INVOICE",
 ]);
 
 const MODULE_DOMAINS: Record<DocumentModuleKey, "PROCUREMENT" | "SALES"> = {
