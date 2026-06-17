@@ -22,19 +22,29 @@ import {
   normalizeDesignerBundle,
   type DesignerLayoutBundle,
 } from "@/lib/documents/print/document-designer-layout-presets";
-import { defaultGstComplianceConfig } from "@/lib/documents/print/gst-presentation-compliance";
-import type { PresentationShellConfig, PresentationViewContext } from "@/lib/documents/print/types";
+import {
+  applyGstShellConfigOverrides,
+} from "@/lib/documents/print/gst-presentation-compliance";
+import { DEFAULT_PRESENTATION_SHELL_CONFIG } from "@/lib/documents/print/default-shell-config";
+import type {
+  PresentationPageSize,
+  PresentationShellConfig,
+  PresentationViewContext,
+} from "@/lib/documents/print/types";
 import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 import { cn } from "@/lib/utils";
 
 const GENERATED_PRESET_ID = "generated";
 
+type ModulePresentationShells = Record<PresentationViewContext, PresentationShellConfig>;
+
 type Props = {
   moduleKey: DocumentModuleKey;
   moduleLabel: string;
   moduleDomain: "PROCUREMENT" | "SALES";
   initialLayout: DocumentLayoutTemplate;
+  initialPresentationShells: ModulePresentationShells;
   locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
   gstRegistered: boolean;
@@ -46,11 +56,22 @@ const OUTPUT_TABS: { id: PresentationViewContext; label: string }[] = [
   { id: "EMAIL_HTML", label: "Email PDF" },
 ];
 
+function resolveShellConfig(
+  moduleKey: DocumentModuleKey,
+  viewContext: PresentationViewContext,
+  shells: ModulePresentationShells,
+  gstRegistered: boolean
+): PresentationShellConfig {
+  const base = shells[viewContext] ?? DEFAULT_PRESENTATION_SHELL_CONFIG;
+  return applyGstShellConfigOverrides(moduleKey, base, gstRegistered);
+}
+
 export function DocumentDesignerWorkspace({
   moduleKey,
   moduleLabel,
   moduleDomain,
   initialLayout,
+  initialPresentationShells,
   locations,
   canEdit,
   gstRegistered,
@@ -60,7 +81,10 @@ export function DocumentDesignerWorkspace({
   const [viewContext, setViewContext] = useState<PresentationViewContext>("PDF_PRINT");
   const [designerTab, setDesignerTab] = useState<"fields" | "appearance">("fields");
   const [layout, setLayout] = useState<DocumentLayoutTemplate>(initialLayout);
-  const [shellConfig, setShellConfig] = useState<PresentationShellConfig | null>(null);
+  const [shellConfig, setShellConfig] = useState<PresentationShellConfig>(() =>
+    resolveShellConfig(moduleKey, "PDF_PRINT", initialPresentationShells, gstRegistered)
+  );
+  const [shellLoadError, setShellLoadError] = useState<string | null>(null);
   const [activePresetId, setActivePresetId] = useState("standard");
   const [isGeneratedLayout, setIsGeneratedLayout] = useState(false);
   const [layoutSeedVersion, setLayoutSeedVersion] = useState(0);
@@ -74,35 +98,40 @@ export function DocumentDesignerWorkspace({
     setActivePresetId("standard");
     setIsGeneratedLayout(false);
     setLayoutSeedVersion((value) => value + 1);
-  }, [initialLayout, moduleKey, viewContext, scopeKey]);
+  }, [initialLayout, moduleKey]);
 
   useEffect(() => {
+    if (scope.mode !== "tenant") return;
+    setShellConfig(resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered));
+    setShellLoadError(null);
+  }, [moduleKey, viewContext, scopeKey, scope.mode, initialPresentationShells, gstRegistered]);
+
+  useEffect(() => {
+    if (scope.mode === "tenant") return;
+
     let cancelled = false;
     void loadPresentationTemplate({ moduleKey, viewContext, scope }).then((result) => {
-      if (cancelled || !("template" in result)) return;
-      let nextConfig = result.template.shellConfig;
-      if (moduleKey === "SALES_INVOICE" && gstRegistered && !nextConfig.compliance) {
-        nextConfig = {
-          ...nextConfig,
-          compliance: defaultGstComplianceConfig(),
-          header: {
-            ...nextConfig.header,
-            titleOverride: nextConfig.header.titleOverride ?? "Tax Invoice",
-          },
-        };
+      if (cancelled) return;
+      if ("template" in result) {
+        setShellLoadError(null);
+        setShellConfig(
+          applyGstShellConfigOverrides(moduleKey, result.template.shellConfig, gstRegistered)
+        );
+        return;
       }
-      setShellConfig(nextConfig);
+
+      setShellLoadError(result.error);
+      setShellConfig((current) =>
+        current ?? resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered)
+      );
+      toast.error(result.error);
     });
     return () => {
       cancelled = true;
     };
-  }, [moduleKey, viewContext, scopeKey, gstRegistered]);
+  }, [moduleKey, viewContext, scopeKey, gstRegistered, initialPresentationShells, scope]);
 
   useEffect(() => {
-    if (!shellConfig) {
-      baselineBundleRef.current = null;
-      return;
-    }
     baselineBundleRef.current = normalizeDesignerBundle(
       moduleKey,
       viewContext,
@@ -152,6 +181,12 @@ export function DocumentDesignerWorkspace({
     applyPresetById(GENERATED_PRESET_ID);
   }, [applyPresetById]);
 
+  const handlePageSizeChange = useCallback((size: PresentationPageSize) => {
+    setShellConfig((current) =>
+      current ? { ...current, page: { ...current.page, size } } : current
+    );
+  }, []);
+
   const screenLayoutHref = useMemo(
     () =>
       moduleDomain === "PROCUREMENT"
@@ -161,7 +196,12 @@ export function DocumentDesignerWorkspace({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch">
+      {shellLoadError ? (
+        <div className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100 lg:absolute lg:right-4 lg:top-4 lg:z-10 lg:max-w-sm">
+          {shellLoadError}
+        </div>
+      ) : null}
       <aside className="flex w-full shrink-0 flex-col gap-2 lg:w-[min(100%,22rem)] lg:max-w-[22rem]">
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2">
           <Tabs
@@ -254,12 +294,14 @@ export function DocumentDesignerWorkspace({
         scope={scope}
         layout={layout}
         shellConfig={shellConfig}
+        shellLoadError={shellLoadError}
         canEdit={canEdit}
         activePresetId={activePresetId}
         isGeneratedLayout={isGeneratedLayout}
         onSelectPreset={applyPresetById}
         onPreviousPreset={handlePreviousPreset}
         onNextPreset={handleNextPreset}
+        onPageSizeChange={handlePageSizeChange}
         onAutoGenerate={handleAutoGenerate}
       />
     </div>

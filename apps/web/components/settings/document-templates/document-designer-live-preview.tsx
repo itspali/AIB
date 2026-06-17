@@ -5,7 +5,12 @@ import { loadDocumentDesignerPreview } from "@/app/settings/documents/templates/
 import { DocumentDesignerPreviewToolbar } from "@/components/settings/document-templates/document-designer-preview-toolbar";
 import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import { DOCUMENT_DESIGNER_LAYOUT_PRESETS } from "@/lib/documents/print/document-designer-layout-presets";
-import type { PresentationShellConfig, PresentationViewContext } from "@/lib/documents/print/types";
+import { presentationPagePreviewDimensions } from "@/lib/documents/print/presentation-page-dimensions";
+import type {
+  PresentationPageSize,
+  PresentationShellConfig,
+  PresentationViewContext,
+} from "@/lib/documents/print/types";
 import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 import { cn } from "@/lib/utils";
 
@@ -16,14 +21,16 @@ type Props = {
   moduleKey: DocumentModuleKey;
   viewContext: PresentationViewContext;
   scope: DocumentLayoutScope;
-  layout: DocumentLayoutTemplate | null;
-  shellConfig: PresentationShellConfig | null;
+  layout: DocumentLayoutTemplate;
+  shellConfig: PresentationShellConfig;
+  shellLoadError?: string | null;
   canEdit: boolean;
   activePresetId: string;
   isGeneratedLayout: boolean;
   onSelectPreset: (presetId: string) => void;
   onPreviousPreset: () => void;
   onNextPreset: () => void;
+  onPageSizeChange: (size: PresentationPageSize) => void;
   onAutoGenerate: () => void;
 };
 
@@ -49,15 +56,18 @@ export function DocumentDesignerLivePreview({
   scope,
   layout,
   shellConfig,
+  shellLoadError,
   canEdit,
   activePresetId,
   isGeneratedLayout,
   onSelectPreset,
   onPreviousPreset,
   onNextPreset,
+  onPageSizeChange,
   onAutoGenerate,
 }: Props) {
   const [previewHtml, setPreviewHtml] = useState("");
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [refreshNonce, setRefreshNonce] = useState(0);
   const requestIdRef = useRef(0);
@@ -67,7 +77,6 @@ export function DocumentDesignerLivePreview({
   const prevStructuralKeyRef = useRef(structuralKey);
 
   const draftKey = useMemo(() => {
-    if (!layout || !shellConfig) return null;
     return previewDraftKey(moduleKey, viewContext, scope, layout, shellConfig);
   }, [moduleKey, viewContext, scope, layout, shellConfig]);
 
@@ -90,7 +99,7 @@ export function DocumentDesignerLivePreview({
   }, [structuralKey, draftKey]);
 
   useEffect(() => {
-    if (!layout || !shellConfig || !activeDraftKey) return;
+    if (!activeDraftKey) return;
 
     const requestId = ++requestIdRef.current;
     startTransition(async () => {
@@ -108,8 +117,11 @@ export function DocumentDesignerLivePreview({
 
       if (requestId !== requestIdRef.current) return;
       if ("html" in result) {
+        setPreviewError(null);
         setPreviewHtml(result.html);
+        return;
       }
+      setPreviewError(result.error);
     });
   }, [activeDraftKey, refreshNonce, moduleKey, viewContext, scope, layout, shellConfig]);
 
@@ -126,6 +138,11 @@ export function DocumentDesignerLivePreview({
     [isGeneratedLayout]
   );
 
+  const pageDimensions = useMemo(
+    () => presentationPagePreviewDimensions(shellConfig.page.size, shellConfig.page.orientation),
+    [shellConfig.page.orientation, shellConfig.page.size]
+  );
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-border bg-card">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-border px-3 py-2">
@@ -134,17 +151,20 @@ export function DocumentDesignerLivePreview({
             Live preview
           </p>
           <p className="text-[10px] text-muted-foreground">
-            Sample data · layout presets apply fields and appearance together
+            Sample data
+            {pageDimensions ? ` · ${pageDimensions.label} ${shellConfig.page.orientation}` : ""}
           </p>
         </div>
         <DocumentDesignerPreviewToolbar
           presets={presets}
           activePresetId={toolbarPresetId}
+          pageSize={shellConfig.page.size}
           canEdit={canEdit}
           isPending={isPending}
           onSelectPreset={onSelectPreset}
           onPreviousPreset={onPreviousPreset}
           onNextPreset={onNextPreset}
+          onPageSizeChange={onPageSizeChange}
           onAutoGenerate={onAutoGenerate}
           onRefresh={() => {
             if (draftKey) setActiveDraftKey(draftKey);
@@ -154,7 +174,7 @@ export function DocumentDesignerLivePreview({
       </div>
       <div
         className={cn(
-          "relative min-h-0 flex-1 overflow-auto bg-white",
+          "relative min-h-0 flex-1 overflow-auto bg-muted/35 p-4 sm:p-6",
           isPending && "opacity-90"
         )}
       >
@@ -164,15 +184,30 @@ export function DocumentDesignerLivePreview({
           </div>
         ) : null}
         {previewHtml ? (
-          <iframe
-            title="Document designer preview"
-            srcDoc={previewHtml}
-            className="h-full min-h-[min(85vh,960px)] w-full border-0 bg-white"
-            sandbox=""
-          />
+          <div
+            className="mx-auto max-w-full bg-white shadow-md ring-1 ring-border/40"
+            style={{
+              width: pageDimensions.width,
+              minHeight: pageDimensions.minHeight,
+            }}
+          >
+            <iframe
+              title="Document designer preview"
+              srcDoc={previewHtml}
+              className="block w-full border-0 bg-white"
+              style={{ minHeight: pageDimensions.minHeight }}
+              sandbox=""
+            />
+          </div>
         ) : (
-          <div className="flex h-full min-h-[360px] items-center justify-center text-sm text-muted-foreground">
-            {layout && shellConfig ? "Preparing preview…" : "Loading template…"}
+          <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
+            {previewError ? (
+              <p className="text-destructive">{previewError}</p>
+            ) : shellLoadError ? (
+              <p>{shellLoadError}</p>
+            ) : (
+              "Preparing preview…"
+            )}
           </div>
         )}
       </div>

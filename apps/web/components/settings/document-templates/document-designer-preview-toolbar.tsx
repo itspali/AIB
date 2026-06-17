@@ -10,16 +10,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { DesignerLayoutPreset } from "@/lib/documents/print/document-designer-layout-presets";
+import { PRESENTATION_PAGE_SIZE_OPTIONS } from "@/lib/documents/print/presentation-page-dimensions";
+import type { PresentationPageSize } from "@/lib/documents/print/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
   presets: DesignerLayoutPreset[];
   activePresetId: string;
+  pageSize: PresentationPageSize;
   canEdit: boolean;
   isPending?: boolean;
   onSelectPreset: (presetId: string) => void;
   onPreviousPreset: () => void;
   onNextPreset: () => void;
+  onPageSizeChange: (size: PresentationPageSize) => void;
   onAutoGenerate: () => void;
   onRefresh: () => void;
 };
@@ -27,11 +31,13 @@ type Props = {
 export function DocumentDesignerPreviewToolbar({
   presets,
   activePresetId,
+  pageSize,
   canEdit,
   isPending = false,
   onSelectPreset,
   onPreviousPreset,
   onNextPreset,
+  onPageSizeChange,
   onAutoGenerate,
   onRefresh,
 }: Props) {
@@ -40,6 +46,23 @@ export function DocumentDesignerPreviewToolbar({
 
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+      <Select
+        value={pageSize}
+        disabled={!canEdit || isPending}
+        onValueChange={(value) => onPageSizeChange(value as PresentationPageSize)}
+      >
+        <SelectTrigger className="h-7 w-[min(6.5rem,28vw)] border border-border/60 bg-muted/20 px-2 text-xs">
+          <SelectValue placeholder="Paper" />
+        </SelectTrigger>
+        <SelectContent align="end">
+          {PRESENTATION_PAGE_SIZE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
       <div className="flex items-center rounded-md border border-border/60 bg-muted/20 p-0.5">
         <Button
           type="button"

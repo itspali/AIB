@@ -7,6 +7,7 @@ import {
 } from "@/lib/documents/print/presentation-persistence";
 import type { DocumentPresentationTemplate, PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
+import { isMissingSchemaError } from "@/lib/supabase/rpc-error";
 
 type FetchPresentationOptions = {
   locationId?: string | null;
@@ -34,7 +35,10 @@ async function fetchPresentationRow(
   query = locationId ? query.eq("location_id", locationId) : query.is("location_id", null);
 
   const { data, error } = await query.maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw new Error(error.message);
+  }
   return (data as DocumentPresentationTemplateRow | null) ?? null;
 }
 
@@ -50,7 +54,10 @@ async function fetchSystemDefaultRow(
     .eq("view_context", viewContext)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw new Error(error.message);
+  }
   return (data as DocumentPresentationSystemDefaultRow | null) ?? null;
 }
 

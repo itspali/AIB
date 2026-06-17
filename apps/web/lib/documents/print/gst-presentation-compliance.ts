@@ -1,4 +1,8 @@
-import type { DocumentPresentationTemplate } from "@/lib/documents/print/types";
+import type {
+  DocumentPresentationTemplate,
+  PresentationShellConfig,
+} from "@/lib/documents/print/types";
+import type { DocumentModuleKey } from "@/lib/documents/types";
 
 export const GST_TAX_INVOICE_STATUTORY_NOTE =
   "This is a computer-generated tax invoice. E-invoice IRN will appear when integrated.";
@@ -42,5 +46,24 @@ export function defaultGstComplianceConfig() {
     showPlaceOfSupply: true,
     showIrnPlaceholder: true,
     statutoryNote: GST_TAX_INVOICE_STATUTORY_NOTE,
+  };
+}
+
+export function applyGstShellConfigOverrides(
+  moduleKey: DocumentModuleKey,
+  shellConfig: PresentationShellConfig,
+  gstRegistered: boolean
+): PresentationShellConfig {
+  if (!gstRegistered || moduleKey !== "SALES_INVOICE" || shellConfig.compliance) {
+    return shellConfig;
+  }
+
+  return {
+    ...shellConfig,
+    compliance: defaultGstComplianceConfig(),
+    header: {
+      ...shellConfig.header,
+      titleOverride: shellConfig.header.titleOverride ?? "Tax Invoice",
+    },
   };
 }

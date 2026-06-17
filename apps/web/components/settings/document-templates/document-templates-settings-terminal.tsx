@@ -12,9 +12,12 @@ import {
   groupPresentationModulesByDomain,
 } from "@/lib/documents/print/presentation-catalog";
 import type { PresentationModuleDefinition } from "@/lib/documents/print/types";
+import type { PresentationShellConfig, PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 import { cn } from "@/lib/utils";
+
+type ModulePresentationShells = Record<PresentationViewContext, PresentationShellConfig>;
 
 const DOMAIN_ORDER = ["PROCUREMENT", "SALES"] as const;
 const MODULE_QUERY = "module";
@@ -35,6 +38,7 @@ type Props = {
   deployError?: string;
   initialModuleKey?: DocumentModuleKey | null;
   initialLayouts: Record<DocumentModuleKey, DocumentLayoutTemplate>;
+  initialPresentationShells: Record<DocumentModuleKey, ModulePresentationShells>;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 };
 
@@ -45,6 +49,7 @@ export function DocumentTemplatesSettingsTerminal({
   deployError,
   initialModuleKey,
   initialLayouts,
+  initialPresentationShells,
   catalogFieldSuggestions,
 }: Props) {
   const router = useRouter();
@@ -185,6 +190,7 @@ export function DocumentTemplatesSettingsTerminal({
                   moduleLabel={selectedModule.label}
                   moduleDomain={selectedModule.domain}
                   initialLayout={initialLayouts[selectedModule.moduleKey]}
+                  initialPresentationShells={initialPresentationShells[selectedModule.moduleKey]}
                   locations={locations}
                   canEdit={canEdit}
                   gstRegistered={gstRegistered}
