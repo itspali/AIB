@@ -29,6 +29,9 @@ export const STOCK_BALANCE_SORT_OPTIONS: StockSortOption[] = [
   { field: "sku", direction: "asc", label: "SKU (A–Z)" },
   { field: "on_hand", direction: "desc", label: "Sellable (high–low)" },
   { field: "on_hand", direction: "asc", label: "Sellable (low–high)" },
+  { field: "available", direction: "desc", label: "Available (high–low)" },
+  { field: "available", direction: "asc", label: "Available (low–high)" },
+  { field: "reserved", direction: "desc", label: "Reserved (high–low)" },
   { field: "promo_on_hand", direction: "desc", label: "Promo / sample (high–low)" },
   { field: "avg_cost", direction: "desc", label: "Avg cost (high–low)" },
   { field: "reorder", direction: "desc", label: "Reorder (high–low)" },
@@ -48,7 +51,16 @@ export function stockSortOptionKey(field: string, direction: StockListSortDirect
   return `${field}:${direction}`;
 }
 
-const DESC_FIRST = new Set<string>(["on_hand", "promo_on_hand", "avg_cost", "reorder", "lines", "posted"]);
+const DESC_FIRST = new Set<string>([
+  "on_hand",
+  "available",
+  "reserved",
+  "promo_on_hand",
+  "avg_cost",
+  "reorder",
+  "lines",
+  "posted",
+]);
 
 export function getInitialStockSortDirection(field: string): StockListSortDirection {
   return DESC_FIRST.has(field) ? "desc" : "asc";
@@ -132,6 +144,12 @@ export function sortStockBalanceRows(
       case "on_hand":
         primary = compareNumbersFromString(a.total_quantity_on_hand, b.total_quantity_on_hand, direction);
         break;
+      case "available":
+        primary = compareNumbersFromString(a.quantity_available, b.quantity_available, direction);
+        break;
+      case "reserved":
+        primary = compareNumbersFromString(a.quantity_reserved, b.quantity_reserved, direction);
+        break;
       case "promo_on_hand":
         primary = compareNumbersFromString(
           a.promo_quantity_on_hand ?? "0",
@@ -188,7 +206,7 @@ export function sortStockAdjustmentRows(
 }
 
 export function isSortableStockBalanceColumn(id: string): id is StockBalanceSortField {
-  return (["location", "item", "sku", "on_hand", "promo_on_hand", "avg_cost", "reorder"] as const).includes(
+  return (["location", "item", "sku", "on_hand", "available", "reserved", "promo_on_hand", "avg_cost", "reorder"] as const).includes(
     id as StockBalanceSortField
   );
 }

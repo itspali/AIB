@@ -217,8 +217,7 @@ export function StockAdjustmentsTable({
                           LIST_TABLE_BODY_CELL,
                           sticky.className,
                           frozen.bodyCellClass(index, selected),
-                          column.align === "right" && "text-right tabular-nums",
-                          columnId === "posted" && "text-sm text-muted-foreground"
+                          column.align === "right" && "text-right tabular-nums"
                         )}
                         style={mergeColumnCellStyles(sticky.style, widthStyles)}
                       >

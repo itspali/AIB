@@ -14,6 +14,7 @@ import {
   LIST_TABLE_CELL_COUNT,
   LIST_TABLE_CELL_DATE,
   LIST_TABLE_CELL_MONO_DOC,
+  LIST_TABLE_CELL_PRIMARY,
   LIST_TABLE_CELL_SECONDARY,
   LIST_TABLE_CELL_SUBLINE,
 } from "@/lib/layout/list-table-chrome";
@@ -35,7 +36,7 @@ export function renderStockAdjustmentListCell(
     case "location":
       return (
         <>
-          <div className={LIST_TABLE_CELL_SECONDARY}>{row.location_name}</div>
+          <div className={LIST_TABLE_CELL_PRIMARY}>{row.location_name}</div>
           {row.location_code ? (
             <div className={LIST_TABLE_CELL_SUBLINE}>{row.location_code}</div>
           ) : null}

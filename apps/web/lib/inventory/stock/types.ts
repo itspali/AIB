@@ -11,6 +11,8 @@ export type StockBalanceRow = {
   variant_sku: string;
   base_unit_of_measure: string;
   total_quantity_on_hand: string;
+  quantity_reserved: string;
+  quantity_available: string;
   current_average_cost: string;
   reorder_point: string | null;
   below_reorder: boolean;
@@ -49,7 +51,18 @@ export type StockLocationOption = {
   code: string;
 };
 
-export type StockListViewMode = "balances" | "adjustments";
+export const STOCK_LIST_VIEW_MODES = [
+  "balances",
+  "adjustments",
+  "inventory_pools",
+  "promo_reclassification",
+] as const;
+
+export type StockListViewMode = (typeof STOCK_LIST_VIEW_MODES)[number];
+
+export function isStockListTableView(viewMode: StockListViewMode): boolean {
+  return viewMode === "balances" || viewMode === "adjustments";
+}
 
 export type StockVariantOption = {
   variant_id: string;

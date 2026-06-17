@@ -26,6 +26,11 @@ import { COMMERCE_DEFAULT_PURCHASE_UOM_KEY, COMMERCE_DEFAULT_SELLING_UOM_KEY } f
 import { listVariantAttributeEntries } from "@/lib/products/list-row-key";
 import { parseDefaultPurchaseUomFromCustomFields } from "@/lib/procurement/purchase-orders/po-line-uom-options";
 import { parseDefaultSellingUomFromCustomFields } from "@/lib/sales/shared/sales-line-uom-options";
+import {
+  computeAvailableQuantity,
+  fetchActiveReservationTotalsByLocationVariant,
+  locationVariantReservationKey,
+} from "@/lib/inventory/stock/reservation-totals";
 
 /** Disambiguate composite tenant FK embeds on item_valuations. */
 const VALUATION_LOCATION_EMBED = "tenant_locations!item_valuations_location_tenant_fk";
@@ -165,6 +170,11 @@ export async function fetchStockBalances(
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
+  const reservationTotals = await fetchActiveReservationTotalsByLocationVariant(
+    supabase,
+    tenantId
+  );
+
   const rows = (data ?? []) as BalanceDbRow[];
   const search = options?.search?.trim().toLowerCase() ?? "";
 
@@ -173,6 +183,10 @@ export async function fetchStockBalances(
     const item = resolveJoin(row.items);
     const variant = resolveJoin(row.item_variants);
     const onHand = formatDecimal(row.total_quantity_on_hand, "0");
+    const reserved =
+      reservationTotals.get(locationVariantReservationKey(row.location_id, row.variant_id)) ??
+      "0";
+    const available = computeAvailableQuantity(onHand, reserved);
     const reorderPoint = extractReorderPoint(
       (item?.custom_fields as Record<string, unknown> | null) ?? null
     );
@@ -195,6 +209,8 @@ export async function fetchStockBalances(
       variant_sku: variant?.sku ?? "",
       base_unit_of_measure: item?.base_unit_of_measure ?? "",
       total_quantity_on_hand: onHand,
+      quantity_reserved: reserved,
+      quantity_available: available,
       current_average_cost: formatDecimal(row.current_average_cost, "0"),
       reorder_point: reorderPoint,
       below_reorder: belowReorder,

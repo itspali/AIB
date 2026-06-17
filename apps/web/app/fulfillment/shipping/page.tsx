@@ -1,5 +1,5 @@
-import { Truck } from "lucide-react";
-import { ComingSoonModule } from "@/components/layout/coming-soon-module";
+import { Suspense } from "react";
+import { FulfillmentShippingCatalogLoader } from "@/components/fulfillment/shipping/fulfillment-shipping-catalog-loader";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
@@ -14,12 +14,9 @@ export default async function FulfillmentShippingPage() {
       operatorProfile={operatorProfile}
       tenantId={tenantId}
     >
-      <ComingSoonModule
-        title="Fulfillment & Shipping"
-        description="Pick, pack, and ship customer orders to delivery partners."
-        icon={Truck}
-        plannedSections={["Shipments", "Packing slips", "Carrier tracking"]}
-      />
+      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading shipments…</div>}>
+        <FulfillmentShippingCatalogLoader />
+      </Suspense>
     </DashboardShell>
   );
 }

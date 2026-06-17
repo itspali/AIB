@@ -27,6 +27,8 @@ import {
 import { formatSalesOrderRpcError } from "@/lib/sales/orders/rpc-errors";
 import {
   approveSalesOrderSchema,
+  amendConfirmedSalesOrderSchema,
+  cancelSalesOrderSchema,
   confirmSalesOrderSchema,
   peekSalesOrderNumberSchema,
   rejectSalesOrderSchema,
@@ -49,7 +51,13 @@ import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-erro
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
-const SO_PATHS = ["/sales/orders", "/sales", "/dashboard"] as const;
+const SO_PATHS = [
+  "/sales/orders",
+  "/sales",
+  "/dashboard",
+  "/inventory/stock",
+  "/fulfillment/shipping",
+] as const;
 
 function revalidateSalesOrderPaths() {
   for (const path of SO_PATHS) {
@@ -209,6 +217,107 @@ export async function saveSalesOrder(raw: unknown) {
 
   revalidateSalesOrderPaths();
   return { success: true as const, salesOrderId: data as string };
+}
+
+export async function amendConfirmedSalesOrder(raw: unknown) {
+  const rawRecord =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : null;
+  if (!rawRecord) {
+    return { error: "Invalid sales order." };
+  }
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
+    customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
+    originLocationId:
+      typeof rawRecord.shipping_location_id === "string" ? rawRecord.shipping_location_id : null,
+    billingState: typeof rawRecord.billing_state === "string" ? rawRecord.billing_state : "",
+    shippingState: typeof rawRecord.shipping_state === "string" ? rawRecord.shipping_state : "",
+  });
+  if ("error" in resolvedStates) {
+    return { error: resolvedStates.error };
+  }
+
+  const parsed = amendConfirmedSalesOrderSchema.safeParse({
+    ...rawRecord,
+    billing_state: resolvedStates.billing_state,
+    shipping_state: resolvedStates.shipping_state,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid sales order." };
+  }
+
+  const values = parsed.data;
+
+  const { data, error } = await supabase.rpc("amend_confirmed_sales_order", {
+    p_sales_order_id: values.sales_order_id,
+    p_customer_id: values.customer_id,
+    p_billing_state: values.billing_state,
+    p_shipping_state: values.shipping_state,
+    p_lines: values.lines.map((line) => ({
+      ...mapSalesCommerceLineToRpcPayload(line, Number(line.quantity_ordered), {
+        source_quotation_line_id: line.source_quotation_line_id ?? null,
+      }),
+      id: line.id ?? null,
+    })),
+    p_custom_fields: values.custom_fields,
+    ...mapSalesCommerceRpcExtrasInput(values),
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("amend_confirmed_sales_order") };
+    }
+
+    const locationMeta = values.shipping_location_id
+      ? await fetchSalesLocationLabel(supabase, tenantId, values.shipping_location_id)
+      : null;
+
+    const formatted = formatSalesOrderRpcError(error.message, {
+      locationId: values.shipping_location_id,
+      locationName: locationMeta?.locationName,
+      locationCode: locationMeta?.locationCode,
+    });
+
+    return {
+      error: formatted.message,
+      errorAction: formatted.action,
+    };
+  }
+
+  revalidateSalesOrderPaths();
+  return { success: true as const, salesOrderId: data as string };
+}
+
+export async function cancelSalesOrder(raw: unknown) {
+  const parsed = cancelSalesOrderSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid sales order." };
+  }
+
+  const { supabase } = await requireTenantId();
+  const { data, error } = await supabase.rpc("cancel_sales_order", {
+    p_sales_order_id: parsed.data.sales_order_id,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("cancel_sales_order") };
+    }
+    const formatted = formatSalesOrderRpcError(error.message);
+    return {
+      error: formatted.message,
+      errorAction: formatted.action,
+    };
+  }
+
+  revalidateSalesOrderPaths();
+  return {
+    success: true as const,
+    salesOrderId: (data as { sales_order_id?: string })?.sales_order_id ?? parsed.data.sales_order_id,
+  };
 }
 
 export async function updateSalesOrderVoucherNumber(raw: unknown) {

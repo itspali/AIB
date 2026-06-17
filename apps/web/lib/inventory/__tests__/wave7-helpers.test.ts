@@ -42,6 +42,8 @@ function stockRow(partial: Partial<StockBalanceRow>): StockBalanceRow {
     variant_sku: partial.variant_sku ?? "W-001",
     base_unit_of_measure: partial.base_unit_of_measure ?? "EA",
     total_quantity_on_hand: partial.total_quantity_on_hand ?? "100",
+    quantity_reserved: partial.quantity_reserved ?? "0",
+    quantity_available: partial.quantity_available ?? partial.total_quantity_on_hand ?? "100",
     current_average_cost: partial.current_average_cost ?? "10",
     reorder_point: partial.reorder_point ?? null,
     below_reorder: partial.below_reorder ?? false,

@@ -8,7 +8,9 @@ import { toast } from "sonner";
 import { convertOrderToInvoice } from "@/app/sales/invoices/actions";
 import { loadSalesOrderPrefillFromQuote } from "@/app/sales/quotes/actions";
 import {
+  amendConfirmedSalesOrder,
   approveSalesOrder,
+  cancelSalesOrder,
   confirmSalesOrder,
   loadSalesOrderDetail,
   rejectSalesOrder,
@@ -50,7 +52,13 @@ import {
   soFullPageEditHref,
 } from "@/lib/sales/navigation";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
-import { canEditSalesOrderDocument } from "@/lib/sales/access";
+import {
+  canAmendConfirmedSalesOrder,
+  canCancelConfirmedSalesOrder,
+  canEditSalesOrderDocument,
+  canShipSalesOrder,
+} from "@/lib/sales/access";
+import { fulfillmentShippingHrefWithSalesOrder } from "@/lib/fulfillment/shipping/navigation";
 import {
   copySoDraftFromOrder,
   defaultSoDraftForm,
@@ -334,10 +342,16 @@ export function SoDrawerForm({
     };
   }, [editOrderId, open, surface]);
 
+  const canAmendConfirmed =
+    detail != null && canAmendConfirmedSalesOrder(detail, editAccessGranted);
+  const canCancelConfirmed =
+    detail != null && canCancelConfirmedSalesOrder(detail, editAccessGranted);
+  const canShipOrder = detail != null && canShipSalesOrder(detail);
+
   const canEditThisOrder =
     detail != null
       ? canEditSalesOrderDocument(detail.commercial_status, {
-          allowEditConfirmed: false,
+          allowEditConfirmed: canAmendConfirmed,
           hasEditPermission: editAccessGranted,
         })
       : editAccessGranted;
@@ -389,27 +403,45 @@ export function SoDrawerForm({
         billingState: form.billing_state,
         shippingState: form.shipping_state,
       });
-      const result = await saveSalesOrder({
-        sales_order_id: editOrderId ?? detail?.id ?? null,
-        customer_id: form.customer_id,
-        shipping_location_id: form.shipping_location_id,
-        billing_state: supplyStates.billing_state,
-        shipping_state: supplyStates.shipping_state,
-        source_quotation_id: form.source_quotation_id,
-        custom_fields: form.custom_fields,
-        lines: savableLines.map((line) => ({
-          variant_id: line.variant_id,
-          quantity_ordered: line.quantity_ordered,
-          unit_price_selling: line.unit_price_selling,
-          discount_percentage: line.discount_percentage,
-          discount_amount: line.discount_amount,
-          source_quotation_line_id: line.source_quotation_line_id,
-          uom_code: resolveSalesDraftLineUomCodeForSave(line),
-        })),
-        ...buildSalesCommerceSaveExtras(form, savableLines, {
-          allowTransactionDiscounts,
-        }),
+      const linePayload = savableLines.map((line) => ({
+        id: line.key,
+        variant_id: line.variant_id,
+        quantity_ordered: line.quantity_ordered,
+        unit_price_selling: line.unit_price_selling,
+        discount_percentage: line.discount_percentage,
+        discount_amount: line.discount_amount,
+        source_quotation_line_id: line.source_quotation_line_id,
+        uom_code: resolveSalesDraftLineUomCodeForSave(line),
+      }));
+      const saveExtras = buildSalesCommerceSaveExtras(form, savableLines, {
+        allowTransactionDiscounts,
       });
+
+      const isAmendSave =
+        detail?.commercial_status === "APPROVED_ACTIVE" && canAmendConfirmed;
+
+      const result = isAmendSave
+        ? await amendConfirmedSalesOrder({
+            sales_order_id: detail!.id,
+            customer_id: form.customer_id,
+            shipping_location_id: form.shipping_location_id,
+            billing_state: supplyStates.billing_state,
+            shipping_state: supplyStates.shipping_state,
+            custom_fields: form.custom_fields,
+            lines: linePayload,
+            ...saveExtras,
+          })
+        : await saveSalesOrder({
+            sales_order_id: editOrderId ?? detail?.id ?? null,
+            customer_id: form.customer_id,
+            shipping_location_id: form.shipping_location_id,
+            billing_state: supplyStates.billing_state,
+            shipping_state: supplyStates.shipping_state,
+            source_quotation_id: form.source_quotation_id,
+            custom_fields: form.custom_fields,
+            lines: linePayload,
+            ...saveExtras,
+          });
 
       if ("error" in result) {
         setError(result.error ?? "Unable to save sales order.");
@@ -417,12 +449,40 @@ export function SoDrawerForm({
         return;
       }
 
-      toast.success("Sales order saved");
+      toast.success(isAmendSave ? "Sales order updated" : "Sales order saved");
       setIsDirty(false);
       await reloadDetail(result.salesOrderId);
       onAfterSave(result.salesOrderId);
     });
-  }, [allowTransactionDiscounts, detail?.id, editOrderId, form, onAfterSave, reloadDetail]);
+  }, [
+    allowTransactionDiscounts,
+    canAmendConfirmed,
+    customers,
+    detail,
+    editOrderId,
+    form,
+    locations,
+    onAfterSave,
+    reloadDetail,
+  ]);
+
+  const handleCancelOrder = useCallback(() => {
+    const orderId = detail?.id;
+    if (!orderId) return;
+
+    startTransition(async () => {
+      const result = await cancelSalesOrder({ sales_order_id: orderId });
+      if ("error" in result) {
+        setError(result.error ?? "Unable to cancel sales order.");
+        setErrorAction(result.errorAction ?? null);
+        return;
+      }
+      toast.success("Sales order cancelled");
+      setIsDirty(false);
+      await reloadDetail(orderId);
+      onAfterSave(orderId);
+    });
+  }, [detail?.id, onAfterSave, reloadDetail]);
 
   const handleSubmitForApproval = useCallback(() => {
     const orderId = editOrderId ?? detail?.id;
@@ -525,7 +585,9 @@ export function SoDrawerForm({
   }, [isMutating, open]);
 
   const salesOrderId = editOrderId ?? detail?.id ?? null;
-  const isDraftOrder = detail?.commercial_status === "DRAFT" || surface === "create";
+  const isDraftOrder =
+    detail?.commercial_status === "DRAFT" || surface === "create";
+  const isConfirmedAmendOrder = detail?.commercial_status === "APPROVED_ACTIVE";
   const isPendingApprovalOrder = detail?.commercial_status === "PENDING_APPROVAL";
   const totalNetAmount = Number(detail?.total_net_amount ?? 0);
   const approvalRequiredBeforeConfirm = isSoApprovalRequiredBeforeConfirm(
@@ -659,6 +721,22 @@ export function SoDrawerForm({
             </Button>
           )
         ) : null}
+        {canShipOrder ? (
+          <Button type="button" size="sm" variant="secondary" asChild>
+            <Link href={fulfillmentShippingHrefWithSalesOrder(detail.id)}>Ship</Link>
+          </Button>
+        ) : null}
+        {canCancelConfirmed ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={handleCancelOrder}
+          >
+            Cancel order
+          </Button>
+        ) : null}
         {editAccessGranted && onDuplicate ? (
           <Button
             type="button"
@@ -678,9 +756,15 @@ export function SoDrawerForm({
           size="sm"
           disabled={isPending || locations.length === 0 || customers.length === 0}
           onClick={handleSaveDraft}
-          title={`${isDraftOrder ? "Save draft" : "Save"} (Ctrl+Enter)`}
+          title={`${isDraftOrder ? "Save draft" : isConfirmedAmendOrder ? "Save changes" : "Save"} (Ctrl+Enter)`}
         >
-          {isPending ? "Saving…" : isDraftOrder ? "Save draft" : "Save"}
+          {isPending
+            ? "Saving…"
+            : isDraftOrder
+              ? "Save draft"
+              : isConfirmedAmendOrder
+                ? "Save changes"
+                : "Save"}
         </Button>
         {showSubmitForApproval ? (
           <Button

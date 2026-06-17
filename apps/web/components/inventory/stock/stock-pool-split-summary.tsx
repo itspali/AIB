@@ -10,11 +10,13 @@ import {
 } from "@/lib/inventory/stock/promo-pool-helpers";
 import type { StockBalanceRow } from "@/lib/inventory/stock/types";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type Props = {
   sellableRows: StockBalanceRow[];
   promoBalances: PromoInventoryBalanceRow[];
   qcBalances?: QcInventoryBalanceRow[];
+  className?: string;
 };
 
 function formatTotal(value: number): string {
@@ -26,6 +28,7 @@ export function StockPoolSplitSummary({
   sellableRows,
   promoBalances,
   qcBalances = [],
+  className,
 }: Props) {
   const sellableTotal = sumSellableQuantities(sellableRows);
   const promoTotal = sumPromoQuantities(promoBalances);
@@ -36,7 +39,7 @@ export function StockPoolSplitSummary({
   if (sellableTotal === 0 && !hasPromo && !hasQc) return null;
 
   return (
-    <section className="mb-4 space-y-3 rounded-lg border border-border bg-muted/20 p-4">
+    <section className={cn("mb-4 space-y-3 rounded-lg border border-border bg-muted/20 p-4", className)}>
       <div>
         <h2 className="text-sm font-semibold">Inventory pools</h2>
         <p className="text-xs text-muted-foreground">

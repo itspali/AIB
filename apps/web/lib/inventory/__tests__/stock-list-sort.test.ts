@@ -13,6 +13,8 @@ function balance(partial: Partial<StockBalanceRow> & Pick<StockBalanceRow, "id">
     variant_sku: "SKU-1",
     base_unit_of_measure: "PCS",
     total_quantity_on_hand: "10",
+    quantity_reserved: "0",
+    quantity_available: "10",
     current_average_cost: "5",
     reorder_point: "2",
     below_reorder: false,

@@ -31,6 +31,8 @@ import type { PromoInventoryBalanceRow } from "@/lib/inventory/stock/promo-balan
 import type { QcInventoryBalanceRow } from "@/lib/inventory/stock/qc-balances";
 import { fetchDocumentLineStockContexts } from "@/lib/inventory/stock/line-stock-context";
 import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-context";
+import { fetchVariantStockLedgerHistory } from "@/lib/inventory/stock/ledger-history";
+import type { InventoryLedgerHistoryRow } from "@/lib/inventory/stock/ledger-history";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
@@ -97,6 +99,32 @@ export async function loadStockAdjustmentDetail(
   const adjustment = await fetchStockAdjustmentById(supabase, tenantId, adjustmentId);
   if (!adjustment) return { error: "Adjustment not found." };
   return { adjustment };
+}
+
+export async function loadStockLedgerHistoryForVariants(input: {
+  location_id: string;
+  variant_ids: string[];
+}): Promise<
+  { entriesByVariantId: Record<string, InventoryLedgerHistoryRow[]> } | { error: string }
+> {
+  const locationId = input.location_id.trim();
+  const variantIds = input.variant_ids.map((id) => id.trim()).filter(Boolean);
+  if (!locationId || variantIds.length === 0) {
+    return { entriesByVariantId: {} };
+  }
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const entriesByVariantId = await fetchVariantStockLedgerHistory(supabase, tenantId, {
+      location_id: locationId,
+      variant_ids: variantIds,
+    });
+    return { entriesByVariantId };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load stock history.",
+    };
+  }
 }
 
 export async function searchStockVariantsForAdjustment(

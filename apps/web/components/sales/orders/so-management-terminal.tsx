@@ -32,7 +32,10 @@ import {
 } from "@/lib/sales/navigation";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import type { SalesOrderStatus } from "@/lib/sales/orders/types";
-import { canEditSalesOrderDocument } from "@/lib/sales/access";
+import {
+  canAmendConfirmedSalesOrder,
+  canEditSalesOrderDocument,
+} from "@/lib/sales/access";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
 import { useFilteredSalesOrders } from "@/lib/sales/orders/use-filtered-sales-orders";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
@@ -210,10 +213,12 @@ export function SoManagementTerminal({
   const handleOpenEdit = useCallback(
     (salesOrderId: string) => {
       const order = salesOrders.find((row) => row.id === salesOrderId);
+      const allowEditConfirmed =
+        order != null && canAmendConfirmedSalesOrder(order, editAccessGranted);
       if (
         order &&
         !canEditSalesOrderDocument(order.commercial_status, {
-          allowEditConfirmed: false,
+          allowEditConfirmed,
           hasEditPermission: editAccessGranted,
         })
       ) {

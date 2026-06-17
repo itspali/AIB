@@ -6,7 +6,7 @@ import {
 } from "@/lib/procurement/location-scope";
 import { resolveIsWorkspaceOwner } from "@/lib/procurement/workspace-owner";
 import type { UserRole } from "@/lib/user/types";
-import type { SalesOrderStatus } from "@/lib/sales/orders/types";
+import type { SalesOrderRow, SalesOrderStatus } from "@/lib/sales/orders/types";
 
 const SO_EDIT_DELEGATE_KEY = "allow_sales_order_modification";
 
@@ -25,6 +25,42 @@ export type SalesOrderAccessContext = SalesOrderEditAccess;
 
 /** Confirmed SOs editable only before any shipment activity. */
 export const CONFIRMED_SO_EDITABLE_STATUSES: readonly SalesOrderStatus[] = ["APPROVED_ACTIVE"];
+
+export function salesOrderHasShippedQuantity(
+  order: Pick<SalesOrderRow, "lines">
+): boolean {
+  return (order.lines ?? []).some((line) => Number(line.quantity_shipped) > 0);
+}
+
+export function canAmendConfirmedSalesOrder(
+  order: Pick<SalesOrderRow, "commercial_status" | "lines">,
+  hasEditPermission: boolean
+): boolean {
+  return (
+    hasEditPermission &&
+    order.commercial_status === "APPROVED_ACTIVE" &&
+    !salesOrderHasShippedQuantity(order)
+  );
+}
+
+export function canCancelConfirmedSalesOrder(
+  order: Pick<SalesOrderRow, "commercial_status" | "lines">,
+  hasEditPermission: boolean
+): boolean {
+  return canAmendConfirmedSalesOrder(order, hasEditPermission);
+}
+
+export function canShipSalesOrder(
+  order: Pick<SalesOrderRow, "commercial_status" | "lines">
+): boolean {
+  if (
+    order.commercial_status !== "APPROVED_ACTIVE" &&
+    order.commercial_status !== "PARTIALLY_SHIPPED"
+  ) {
+    return false;
+  }
+  return (order.lines ?? []).some((line) => Number(line.open_quantity) > 0);
+}
 
 function parseDelegateAllowedLocationIds(metadata: unknown): string[] | null {
   if (metadata == null || typeof metadata !== "object") return null;

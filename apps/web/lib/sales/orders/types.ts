@@ -26,6 +26,7 @@ export type SalesOrderLineRow = {
   variant_id: string;
   variant_sku: string;
   quantity_ordered: string;
+  quantity_allocated: string;
   quantity_shipped: string;
   quantity_invoiced: string;
   unit_price_selling: string;

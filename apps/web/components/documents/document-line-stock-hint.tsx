@@ -57,8 +57,13 @@ export function DocumentLineStockHint({
   if (!context) return null;
 
   const onHand = formatCompactStockQuantity(context.quantity_on_hand);
+  const available = formatCompactStockQuantity(
+    context.quantity_available ?? context.quantity_on_hand
+  );
   const unit = context.base_unit_of_measure.trim();
-  const fullLabel = unit ? `On hand: ${onHand} ${unit}` : `On hand: ${onHand}`;
+  const fullLabel = unit
+    ? `On hand: ${onHand} ${unit} · Available: ${available} ${unit}`
+    : `On hand: ${onHand} · Available: ${available}`;
 
   if (variant === "qty-subline") {
     if (context.below_reorder) {
@@ -66,7 +71,7 @@ export function DocumentLineStockHint({
         <PoLineSublineZone align={align} className={className}>
           <PoLineSublineRow align={align}>
             <span className={sublineTextClassName(align, "muted")} title={fullLabel}>
-              Avail {onHand}
+              Avail {available}
             </span>
           </PoLineSublineRow>
           <PoLineSublineRow align={align}>
@@ -81,7 +86,7 @@ export function DocumentLineStockHint({
     return (
       <PoLineSublineSingleRow align={align} className={className}>
         <span className={sublineTextClassName(align, "muted")} title={fullLabel}>
-          Avail {onHand}
+          Avail {available}
         </span>
       </PoLineSublineSingleRow>
     );

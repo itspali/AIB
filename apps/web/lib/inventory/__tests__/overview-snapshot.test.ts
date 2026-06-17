@@ -15,6 +15,8 @@ function balance(partial: Partial<StockBalanceRow>): StockBalanceRow {
     variant_sku: "W-1",
     base_unit_of_measure: "EA",
     total_quantity_on_hand: "0",
+    quantity_reserved: "0",
+    quantity_available: "0",
     current_average_cost: "0",
     reorder_point: null,
     below_reorder: false,

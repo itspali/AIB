@@ -209,11 +209,14 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 | Transfer approval workflow | Deferred | Schema exists; no UI/RPC path |
 | Incidents / discrepancy claims UI | Deferred | `stock_transfer_incidents`, `transfer_discrepancy_claims` |
 
-### Tier 3 — Outbound & platform
+### Tier 3 — Outbound & platform [PARTIAL — reservation + shipment V1]
 
-- Sales orders → shipments → stock out
-- Permissions hardening
-- FIFO layers implementation
+- **Stock reservation on SO confirm:** `confirm_sales_order` reserves inventory at `shipping_location_id` via `inventory_reservations` + `quantity_allocated` on lines.
+- **Amend / cancel:** `amend_confirmed_sales_order` (unshipped only) delta-reserves; `cancel_sales_order` releases reservations.
+- **Fulfillment UI:** `/fulfillment/shipping` — post shipments via `post_sales_shipment` (consumes reservation + `SALES_SHIPMENT` ledger).
+- **ATP display:** Stock balances show **Available** (on-hand − active reservations); document line hints use `get_variant_availability_at_location`.
+- **Migration:** `20260703120000_sales_inventory_reservation_outbound.sql`
+- Permissions hardening, FIFO layers — still deferred.
 
 ---
 

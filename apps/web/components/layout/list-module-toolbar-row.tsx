@@ -83,11 +83,11 @@ export function ListModuleToolbarRow({
       >
         <div className="min-w-0 shrink-0">
           <CountLabel
-          compactCountLabel={compactCountLabel}
-          fullCountText={fullCountText}
-          shortCountText={shortCountText}
-          ratioCountText={ratioCountText}
-        />
+            compactCountLabel={compactCountLabel}
+            fullCountText={fullCountText}
+            shortCountText={shortCountText}
+            ratioCountText={ratioCountText}
+          />
         </div>
         <div
           className={cn(

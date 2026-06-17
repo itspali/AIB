@@ -146,6 +146,67 @@ export function formatSalesOrderRpcError(
     };
   }
 
+  if (message.toLowerCase().includes("insufficient available stock")) {
+    return {
+      message:
+        "Insufficient available stock at the fulfillment location. Reduce quantities or enable negative inventory in organization settings.",
+    };
+  }
+
+  if (message.toLowerCase().includes("shipping location is required before confirming")) {
+    return {
+      message: "Select a stock-holding shipping location before confirming this order.",
+    };
+  }
+
+  if (message.toLowerCase().includes("only confirmed sales orders can be amended")) {
+    return {
+      message: "Only confirmed sales orders can be amended.",
+    };
+  }
+
+  if (message.toLowerCase().includes("cannot amend a sales order with shipped quantities")) {
+    return {
+      message: "This order has shipped quantities and cannot be amended.",
+    };
+  }
+
+  if (message.toLowerCase().includes("only confirmed sales orders can be cancelled")) {
+    return {
+      message: "Only confirmed sales orders can be cancelled.",
+    };
+  }
+
+  if (message.toLowerCase().includes("cannot cancel a sales order with shipped quantities")) {
+    return {
+      message: "Shipped quantities exist — use returns instead of cancelling this order.",
+    };
+  }
+
+  if (message.toLowerCase().includes("cannot cancel a sales order with posted invoices")) {
+    return {
+      message: "Posted invoices exist for this order. Void invoices before cancelling.",
+    };
+  }
+
+  if (message.toLowerCase().includes("ship quantity exceeds open order quantity")) {
+    return {
+      message: "Ship quantity exceeds the remaining open quantity on an order line.",
+    };
+  }
+
+  if (message.toLowerCase().includes("ship quantity exceeds reserved quantity")) {
+    return {
+      message: "Ship quantity exceeds the reserved quantity on an order line.",
+    };
+  }
+
+  if (message.toLowerCase().includes("no active reservation for sales order line")) {
+    return {
+      message: "No active stock reservation found for a shipment line. Confirm the order first.",
+    };
+  }
+
   return {
     message: replaceLocationTokens(message, context),
   };

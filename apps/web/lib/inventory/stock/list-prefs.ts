@@ -20,7 +20,10 @@ import {
   type StockBalanceSortField,
   type StockListSortDirection,
 } from "@/lib/inventory/stock/list-sort";
-import type { StockListViewMode } from "@/lib/inventory/stock/types";
+import {
+  STOCK_LIST_VIEW_MODES,
+  type StockListViewMode,
+} from "@/lib/inventory/stock/types";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
 import { AUTO_LAYOUT_PREF } from "@/lib/products/list-prefs";
@@ -38,7 +41,17 @@ export type StockListPrefs = {
 };
 
 const STORAGE_KEY = "aib-stock-list-prefs";
-const PREFS_VERSION = 3;
+const PREFS_VERSION = 4;
+
+function parseStockListViewMode(value: unknown): StockListViewMode {
+  if (
+    typeof value === "string" &&
+    (STOCK_LIST_VIEW_MODES as readonly string[]).includes(value)
+  ) {
+    return value as StockListViewMode;
+  }
+  return "balances";
+}
 
 export function getDefaultStockListPrefs(): StockListPrefs {
   return {
@@ -81,7 +94,7 @@ export function loadStockListPrefs(): StockListPrefs {
       typeof parsed.prefsVersion === "number" && Number.isFinite(parsed.prefsVersion)
         ? parsed.prefsVersion
         : 0;
-    const viewMode = parsed.viewMode === "adjustments" ? "adjustments" : "balances";
+    const viewMode = parseStockListViewMode(parsed.viewMode);
     const locationId =
       typeof parsed.locationId === "string" && parsed.locationId.trim()
         ? parsed.locationId.trim()

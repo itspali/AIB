@@ -238,6 +238,30 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     description: "This order is now confirmed and ready for fulfillment or invoicing.",
     documents: ["SO"],
   },
+  so_stock_reserved: {
+    id: "so_stock_reserved",
+    label: "Stock reserved",
+    description: "Available quantity was reserved at the fulfillment location for this order.",
+    documents: ["SO"],
+  },
+  so_stock_released: {
+    id: "so_stock_released",
+    label: "Stock reservation released",
+    description: "Previously reserved quantity was returned to available stock.",
+    documents: ["SO"],
+  },
+  so_stock_reallocated: {
+    id: "so_stock_reallocated",
+    label: "Stock reservation updated",
+    description: "Reserved quantities were adjusted to match amended order lines.",
+    documents: ["SO"],
+  },
+  sales_shipment_posted: {
+    id: "sales_shipment_posted",
+    label: "Shipment posted",
+    description: "Reserved stock was consumed and outbound inventory was posted.",
+    documents: ["SO"],
+  },
   quote_header_saved: {
     id: "quote_header_saved",
     label: "Quotation details saved",

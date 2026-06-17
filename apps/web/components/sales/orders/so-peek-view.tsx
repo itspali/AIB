@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { SoAddressBlocks } from "@/components/sales/orders/so-address-blocks";
+import { SoFulfillmentSummary } from "@/components/sales/orders/so-fulfillment-summary";
 import { SalesCustomerCreditPanel } from "@/components/sales/shared/sales-customer-credit-panel";
 import { SalesCommercePeekLinesSection } from "@/components/sales/shared/sales-commerce-peek-lines-table";
 import { formatDate } from "@/lib/dashboard/format";
@@ -113,6 +114,13 @@ export function SoPeekView({
           grandTotal={order.total_net_amount}
           allowLineItemDiscounts={allowLineItemDiscounts}
         />
+      ) : null}
+
+      {order.lines?.length &&
+      (order.commercial_status === "APPROVED_ACTIVE" ||
+        order.commercial_status === "PARTIALLY_SHIPPED" ||
+        order.commercial_status === "FULLY_COMPLETED") ? (
+        <SoFulfillmentSummary lines={order.lines} />
       ) : null}
     </div>
   );

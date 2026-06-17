@@ -82,9 +82,9 @@ const SO_DETAIL_SELECT_SHAPES: SoSelectShape[] = [
 ];
 
 function buildSoLineQuantityFields(includeQuantityInvoiced: boolean): string {
-  if (!includeQuantityInvoiced) return "";
+  const invoicedField = includeQuantityInvoiced ? "\n        quantity_invoiced," : "";
   return `
-        quantity_invoiced,`;
+        quantity_allocated,${invoicedField}`;
 }
 
 function buildSalesOrderListSelect(options: SoSelectShape): string {
@@ -324,6 +324,7 @@ type SoLineDbRow = {
   item_id: string;
   variant_id: string;
   quantity_ordered: number | string;
+  quantity_allocated?: number | string | null;
   quantity_shipped: number | string;
   quantity_invoiced?: number | string | null;
   source_quotation_line_id?: string | null;
@@ -419,6 +420,7 @@ function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
   const item = resolveJoin(row.items);
   const variant = resolveJoin(row.item_variants);
   const ordered = formatDecimal(row.quantity_ordered);
+  const allocated = formatDecimal(row.quantity_allocated ?? 0);
   const shipped = formatDecimal(row.quantity_shipped);
   const invoiced = formatDecimal(row.quantity_invoiced ?? 0);
   const openQty = Math.max(0, Number(ordered) - Number(shipped));
@@ -430,6 +432,7 @@ function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
     variant_id: row.variant_id,
     variant_sku: variant?.sku ?? "",
     quantity_ordered: ordered,
+    quantity_allocated: allocated,
     quantity_shipped: shipped,
     quantity_invoiced: invoiced,
     unit_price_selling: formatDecimal(row.unit_price_selling),

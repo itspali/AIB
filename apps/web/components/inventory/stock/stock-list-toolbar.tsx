@@ -1,10 +1,9 @@
 "use client";
 
-import { ArrowUpDown, ClipboardList, Table2 } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import { StockListColumnSettings } from "@/components/inventory/stock/stock-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -13,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDeviceClass } from "@/hooks/use-device-class";
+import { stockListViewModeLabel } from "@/lib/inventory/stock/labels";
 import type { StockListPrefs } from "@/lib/inventory/stock/list-prefs";
 import {
   getStockSortPrefs,
@@ -24,11 +24,15 @@ import {
   stockSortOptionKey,
   type StockListSortDirection,
 } from "@/lib/inventory/stock/list-sort";
-import type { StockListViewMode, StockLocationOption } from "@/lib/inventory/stock/types";
+import {
+  isStockListTableView,
+  STOCK_LIST_VIEW_MODES,
+  type StockListViewMode,
+  type StockLocationOption,
+} from "@/lib/inventory/stock/types";
 import {
   listToolbarSelectClass,
   listToolbarSortTriggerClass,
-  listToolbarViewToggleSegmentClass,
   listToolbarViewToggleShellClass,
 } from "@/lib/layout/list-toolbar-chrome";
 import { cn } from "@/lib/utils";
@@ -43,6 +47,55 @@ type Props = {
   prefsHydrated?: boolean;
 };
 
+function countLabels(prefs: StockListPrefs) {
+  switch (prefs.viewMode) {
+    case "adjustments":
+      return { countNoun: "adjustment", countNounPlural: "adjustments" };
+    case "inventory_pools":
+      return { countNoun: "pool row", countNounPlural: "pool rows" };
+    case "promo_reclassification":
+      return { countNoun: "promo item", countNounPlural: "promo items" };
+    default:
+      return { countNoun: "balance", countNounPlural: "balances" };
+  }
+}
+
+function StockViewModeSelect({
+  value,
+  disabled,
+  onValueChange,
+  triggerClassName,
+}: {
+  value: StockListViewMode;
+  disabled?: boolean;
+  onValueChange: (viewMode: StockListViewMode) => void;
+  triggerClassName?: string;
+}) {
+  const viewActive = value !== "balances";
+
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => onValueChange(next as StockListViewMode)}
+    >
+      <SelectTrigger
+        className={cn(listToolbarSelectClass(viewActive), triggerClassName)}
+        aria-label={`View: ${stockListViewModeLabel(value)}`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="end">
+        {STOCK_LIST_VIEW_MODES.map((mode) => (
+          <SelectItem key={mode} value={mode}>
+            {stockListViewModeLabel(mode)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function StockListToolbar({
   prefs,
   onPrefsChange,
@@ -55,22 +108,26 @@ export function StockListToolbar({
   const { deviceClass } = useDeviceClass();
   const controlsDisabled = !prefsHydrated;
   const locationActive = Boolean(prefs.locationId);
+  const viewActive = prefs.viewMode !== "balances";
+  const showListTableControls = isStockListTableView(prefs.viewMode);
+  const { countNoun, countNounPlural } = countLabels(prefs);
 
   const setViewMode = (viewMode: StockListViewMode) => {
-    if (controlsDisabled || prefs.viewMode === viewMode) return;
+    if (prefs.viewMode === viewMode) return;
     onPrefsChange({ ...prefs, viewMode });
   };
 
-  const countNoun = prefs.viewMode === "balances" ? "balance" : "adjustment";
-  const countNounPlural = prefs.viewMode === "balances" ? "balances" : "adjustments";
-
   const sortOptions =
-    prefs.viewMode === "balances" ? STOCK_BALANCE_SORT_OPTIONS : STOCK_ADJUSTMENT_SORT_OPTIONS;
+    prefs.viewMode === "adjustments"
+      ? STOCK_ADJUSTMENT_SORT_OPTIONS
+      : STOCK_BALANCE_SORT_OPTIONS;
   const { field: sortField, direction: sortDirection } = getStockSortPrefs(prefs);
   const sortValue = stockSortOptionKey(sortField, sortDirection);
   const activeSortLabel =
     sortOptions.find((option) => stockSortOptionKey(option.field, option.direction) === sortValue)
       ?.label ?? "Sort";
+
+  const extraFilterCount = (locationActive ? 1 : 0) + (viewActive ? 1 : 0);
 
   return (
     <ListModuleToolbarRow
@@ -83,37 +140,56 @@ export function StockListToolbar({
         <>
           <ModuleListToolbarFilters
             extras={{
-              extraFilterCount: locationActive ? 1 : 0,
-              onClearExtras: () => onPrefsChange({ ...prefs, locationId: null }),
+              extraFilterCount,
+              onClearExtras: () =>
+                onPrefsChange({ ...prefs, locationId: null, viewMode: "balances" }),
               extraDropdownContent: (
-                <div className="space-y-2 p-1">
-                  <p className="px-2 text-xs font-medium text-muted-foreground">Location</p>
-                  <Select
-                    value={prefs.locationId ?? "all"}
-                    disabled={controlsDisabled}
-                    onValueChange={(value) =>
-                      onPrefsChange({
-                        ...prefs,
-                        locationId: value === "all" ? null : value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 w-full">
-                      <SelectValue placeholder="All locations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All locations</SelectItem>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                          {location.code ? ` (${location.code})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3 p-1">
+                  <div className="space-y-2">
+                    <p className="px-2 text-xs font-medium text-muted-foreground">View</p>
+                    <StockViewModeSelect
+                      value={prefs.viewMode}
+                      disabled={controlsDisabled}
+                      onValueChange={setViewMode}
+                      triggerClassName="h-8 w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="px-2 text-xs font-medium text-muted-foreground">Location</p>
+                    <Select
+                      value={prefs.locationId ?? "all"}
+                      disabled={controlsDisabled}
+                      onValueChange={(value) =>
+                        onPrefsChange({
+                          ...prefs,
+                          locationId: value === "all" ? null : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue placeholder="All locations" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All locations</SelectItem>
+                        {locations.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                            {location.code ? ` (${location.code})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               ),
             }}
+          />
+
+          <StockViewModeSelect
+            value={prefs.viewMode}
+            disabled={controlsDisabled}
+            onValueChange={setViewMode}
+            triggerClassName="min-w-[8.5rem] max-w-[11rem] [&>span]:truncate"
           />
 
           <Select
@@ -142,74 +218,55 @@ export function StockListToolbar({
             </SelectContent>
           </Select>
 
-          <div className={cn(listToolbarViewToggleShellClass(), "inline-flex")}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={controlsDisabled}
-              className={listToolbarViewToggleSegmentClass(prefs.viewMode === "balances")}
-              onClick={() => setViewMode("balances")}
-              aria-label="Balances view"
-              title="Balances"
-            >
-              <Table2 className="h-3.5 w-3.5" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={controlsDisabled}
-              className={listToolbarViewToggleSegmentClass(prefs.viewMode === "adjustments")}
-              onClick={() => setViewMode("adjustments")}
-              aria-label="Adjustments view"
-              title="Adjustments"
-            >
-              <ClipboardList className="h-3.5 w-3.5" aria-hidden />
-            </Button>
-          </div>
-
-          <div className={cn(listToolbarViewToggleShellClass(), "inline-flex")}>
-            <Select
-              value={sortValue}
-              disabled={controlsDisabled}
-              onValueChange={(value) => {
-                const option = sortOptions.find(
-                  (entry) => stockSortOptionKey(entry.field, entry.direction) === value
-                );
-                if (!option) return;
-                onPrefsChange(
-                  setStockSortPrefs(prefs, option.field, option.direction as StockListSortDirection)
-                );
-              }}
-            >
-              <SelectTrigger
-                className={listToolbarSortTriggerClass(true)}
-                title={`Sort: ${activeSortLabel}`}
-                aria-label={`Sort: ${activeSortLabel}`}
-              >
-                <SelectValue />
-                <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {sortOptions.map((option) => (
-                  <SelectItem
-                    key={stockSortOptionKey(option.field, option.direction)}
-                    value={stockSortOptionKey(option.field, option.direction)}
+          {showListTableControls ? (
+            <>
+              <div className={cn(listToolbarViewToggleShellClass(), "inline-flex")}>
+                <Select
+                  value={sortValue}
+                  disabled={controlsDisabled}
+                  onValueChange={(value) => {
+                    const option = sortOptions.find(
+                      (entry) => stockSortOptionKey(entry.field, entry.direction) === value
+                    );
+                    if (!option) return;
+                    onPrefsChange(
+                      setStockSortPrefs(
+                        prefs,
+                        option.field,
+                        option.direction as StockListSortDirection
+                      )
+                    );
+                  }}
+                >
+                  <SelectTrigger
+                    className={listToolbarSortTriggerClass(true)}
+                    title={`Sort: ${activeSortLabel}`}
+                    aria-label={`Sort: ${activeSortLabel}`}
                   >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                    <SelectValue />
+                    <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {sortOptions.map((option) => (
+                      <SelectItem
+                        key={stockSortOptionKey(option.field, option.direction)}
+                        value={stockSortOptionKey(option.field, option.direction)}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <StockListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
-          />
+              <StockListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            </>
+          ) : null}
         </>
       }
     />

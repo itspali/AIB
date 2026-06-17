@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { loadStockAdjustmentDetail, postStockAdjustment } from "@/app/inventory/stock/actions";
+import { loadStockAdjustmentDetail, loadStockLedgerHistoryForVariants, postStockAdjustment } from "@/app/inventory/stock/actions";
 import {
   createEmptyStockAdjustmentLine,
   filterSavableStockAdjustmentLines,
   StockAdjustmentLineEntryTable,
   type StockAdjustmentDraftLine,
 } from "@/components/inventory/stock/stock-adjustment-line-entry-table";
+import { StockBalancePeekPanel } from "@/components/inventory/stock/stock-balance-peek-panel";
+import { StockLineLedgerHistorySection } from "@/components/inventory/stock/stock-line-ledger-history-section";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import {
   DocumentLinePeekItemCell,
@@ -35,8 +37,10 @@ import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawe
 import type {
   StockAdjustmentKind,
   StockAdjustmentRow,
+  StockBalanceRow,
   StockLocationOption,
 } from "@/lib/inventory/stock/types";
+import type { InventoryLedgerHistoryRow } from "@/lib/inventory/stock/ledger-history";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
 import { cn } from "@/lib/utils";
@@ -62,9 +66,11 @@ type Props = {
   surface: DrawerSurface;
   locations: StockLocationOption[];
   peekAdjustment: StockAdjustmentRow | null;
+  peekBalance?: StockBalanceRow | null;
   createPrefill?: StockDrawerCreatePrefill | null;
   onClose: () => void;
   onAfterSave: (adjustmentId: string) => void;
+  onAdjustBalance?: (row: StockBalanceRow) => void;
 };
 
 function defaultCreateForm(
@@ -94,8 +100,13 @@ function defaultCreateForm(
   };
 }
 
-function resolveDrawerTitle(surface: DrawerSurface, adjustment: StockAdjustmentRow | null): string {
+function resolveDrawerTitle(
+  surface: DrawerSurface,
+  adjustment: StockAdjustmentRow | null,
+  balance: StockBalanceRow | null
+): string {
   if (surface === "create") return "New stock adjustment";
+  if (balance) return balance.item_name;
   return adjustment?.adjustment_number ?? "Stock adjustment";
 }
 
@@ -231,9 +242,11 @@ export function StockDrawerForm({
   surface,
   locations,
   peekAdjustment,
+  peekBalance = null,
   createPrefill = null,
   onClose,
   onAfterSave,
+  onAdjustBalance,
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
@@ -249,6 +262,10 @@ export function StockDrawerForm({
   const [isPending, startTransition] = useTransition();
   const [detail, setDetail] = useState<StockAdjustmentRow | null>(peekAdjustment);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [ledgerByVariant, setLedgerByVariant] = useState<
+    Record<string, InventoryLedgerHistoryRow[]>
+  >({});
+  const [ledgerLoading, setLedgerLoading] = useState(false);
   const submitRef = useRef<() => void>(() => {});
 
   const createPrefillSignature = createPrefill
@@ -266,6 +283,8 @@ export function StockDrawerForm({
     setErrorAction(null);
     setIsDirty(false);
     setDetail(peekAdjustment);
+    setLedgerByVariant({});
+    setLedgerLoading(false);
   }, [open, surface, peekAdjustment?.id, locations, createPrefillSignature, createPrefill]);
 
   useEffect(() => {
@@ -291,6 +310,33 @@ export function StockDrawerForm({
       cancelled = true;
     };
   }, [open, surface, peekAdjustment]);
+
+  useEffect(() => {
+    if (!open || surface !== "peek" || !detail?.location_id || !detail.lines?.length) {
+      setLedgerByVariant({});
+      setLedgerLoading(false);
+      return;
+    }
+
+    const variantIds = [...new Set(detail.lines.map((line) => line.variant_id).filter(Boolean))];
+    if (variantIds.length === 0) return;
+
+    let cancelled = false;
+    setLedgerLoading(true);
+    void loadStockLedgerHistoryForVariants({
+      location_id: detail.location_id,
+      variant_ids: variantIds,
+    }).then((result) => {
+      if (cancelled) return;
+      setLedgerLoading(false);
+      if ("error" in result) return;
+      setLedgerByVariant(result.entriesByVariantId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, surface, detail?.id, detail?.location_id, detail?.lines?.length]);
 
   const patchForm = useCallback((next: Partial<CreateFormState>) => {
     setForm((current) => ({ ...current, ...next }));
@@ -366,6 +412,10 @@ export function StockDrawerForm({
     >
       {isPending ? "Posting…" : "Post adjustment"}
     </Button>
+  ) : peekBalance && onAdjustBalance ? (
+    <Button type="button" size="sm" onClick={() => onAdjustBalance(peekBalance)}>
+      Adjust
+    </Button>
   ) : null;
 
   if (!open || surface === "closed") return discardDialog;
@@ -381,7 +431,7 @@ export function StockDrawerForm({
           handleRequestClose();
         }}
         onRequestClose={handleRequestClose}
-        title={resolveDrawerTitle(surface, detail)}
+        title={resolveDrawerTitle(surface, detail, peekBalance)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
         bodyClassName={isMutating ? "module-drawer-form-body" : undefined}
@@ -405,7 +455,9 @@ export function StockDrawerForm({
           ) : null}
 
           {readOnly ? (
-            showLoadingPeek ? (
+            peekBalance ? (
+              <StockBalancePeekPanel balance={peekBalance} />
+            ) : showLoadingPeek ? (
               <p className="py-8 text-sm text-muted-foreground">Loading adjustment…</p>
             ) : detail ? (
               <DocumentPeekActivityShell
@@ -478,6 +530,13 @@ export function StockDrawerForm({
                     }}
                   />
                 </div>
+
+                <StockLineLedgerHistorySection
+                  lines={detail.lines ?? []}
+                  entriesByVariantId={ledgerByVariant}
+                  highlightReference={detail.adjustment_number}
+                  loading={ledgerLoading}
+                />
               </div>
               </DocumentPeekActivityShell>
             ) : (

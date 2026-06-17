@@ -20,6 +20,7 @@ export type SalesOrderCustomFields = z.infer<typeof salesOrderCustomFieldsSchema
 
 export const salesOrderLineSchema = z
   .object({
+    id: z.string().uuid().optional(),
     variant_id: z.string().uuid("Select a valid variant."),
     quantity_ordered: z
       .string()
@@ -92,6 +93,35 @@ export const rejectSalesOrderSchema = z.object({
 
 export const confirmSalesOrderSchema = z.object({
   sales_order_id: z.string().uuid("Sales order id is required."),
+});
+
+export const cancelSalesOrderSchema = z.object({
+  sales_order_id: z.string().uuid("Sales order id is required."),
+});
+
+export const amendConfirmedSalesOrderSchema = saveSalesOrderSchema
+  .extend({
+    sales_order_id: z.string().uuid("Sales order id is required."),
+  })
+  .omit({ source_quotation_id: true });
+
+export const salesShipmentLineSchema = z.object({
+  sales_order_item_id: z.string().uuid("Select a valid order line."),
+  quantity_shipped: z
+    .string()
+    .trim()
+    .min(1, "Ship quantity is required.")
+    .refine((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed > 0;
+    }, "Ship quantity must be greater than zero."),
+});
+
+export const postSalesShipmentSchema = z.object({
+  sales_order_id: z.string().uuid("Sales order id is required."),
+  carrier_provider: z.enum(["FEDEX", "DHL", "UPS", "BLUE_DART", "CUSTOM_FLEET"]),
+  tracking_number: z.string().trim().min(1, "Tracking number is required.").max(128),
+  lines: z.array(salesShipmentLineSchema).min(1, "Add at least one line to ship."),
 });
 
 export const peekSalesOrderNumberSchema = z.object({
