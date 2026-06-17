@@ -65,7 +65,7 @@ export async function sendQuotationEmailForQuote(input: {
   }
 
   const template = await loadQuotationEmailTemplate(input.supabase, input.tenantId);
-  const [layout, presentation, org] = await Promise.all([
+  const [layout, presentation] = await Promise.all([
     resolveEffectiveDocumentLayout({
       supabase: input.supabase,
       tenantId: input.tenantId,
@@ -80,10 +80,12 @@ export async function sendQuotationEmailForQuote(input: {
       viewContext: "EMAIL_HTML",
       documentLocationId: quote.origin_location_id,
     }),
-    fetchDocumentOrgRenderContext(input.supabase, input.tenantId),
   ]);
 
   const printModel = buildDocumentPrintModel("SALES_QUOTATION", layout, quote);
+  const org = await fetchDocumentOrgRenderContext(input.supabase, input.tenantId, {
+    locationId: quote.origin_location_id,
+  });
   const printHtml = renderDocumentHtml(quote.quotation_number, printModel, presentation, org);
 
   const context: Record<string, string> = {

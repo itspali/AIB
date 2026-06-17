@@ -10,10 +10,23 @@ function compactAddressLines(parts: Array<string | null | undefined>): string[] 
     .filter((part): part is string => Boolean(part));
 }
 
-export async function fetchDocumentOrgRenderContext(
+type FetchOrgRenderContextOptions = {
+  locationId?: string | null;
+};
+
+async function fetchTenantOrgBase(
   supabase: SupabaseClient,
   tenantId: string
-): Promise<DocumentOrgRenderContext> {
+): Promise<{
+  organizationName: string;
+  legalName: string | null;
+  tradeName: string | null;
+  taxIdentifier: string | null;
+  addressLines: string[];
+  logoUrl: string | null;
+  websiteUrl: string | null;
+  locale: string;
+}> {
   const { data: tenant, error } = await supabase
     .from("tenants")
     .select(
@@ -48,5 +61,47 @@ export async function fetchDocumentOrgRenderContext(
     logoUrl,
     websiteUrl: tenant?.website_url?.trim() || null,
     locale: tenant?.locale?.trim() || "en-US",
+  };
+}
+
+export async function fetchDocumentOrgRenderContext(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: FetchOrgRenderContextOptions
+): Promise<DocumentOrgRenderContext> {
+  const base = await fetchTenantOrgBase(supabase, tenantId);
+  const locationId = options?.locationId?.trim() || null;
+  if (!locationId) return base;
+
+  const { data: location, error } = await supabase
+    .from("tenant_locations")
+    .select(
+      "name, tax_registered_name, location_tax_identifier, address_line1, address_line2, city, state, zip_postal, country_code"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", locationId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!location) return base;
+
+  const cityStateZip = compactAddressLines([location.city, location.state, location.zip_postal]).join(
+    ", "
+  );
+
+  const locationAddressLines = compactAddressLines([
+    location.address_line1,
+    location.address_line2,
+    cityStateZip || null,
+    location.country_code,
+  ]);
+
+  const registeredName = location.tax_registered_name?.trim() || location.name?.trim() || null;
+
+  return {
+    ...base,
+    legalName: registeredName ?? base.legalName,
+    taxIdentifier: location.location_tax_identifier?.trim() || base.taxIdentifier,
+    addressLines: locationAddressLines.length > 0 ? locationAddressLines : base.addressLines,
   };
 }

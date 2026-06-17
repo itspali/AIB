@@ -5,17 +5,34 @@ import Link from "next/link";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
+  loadPresentationTemplate,
   loadPresentationTemplatePreview,
   resetPresentationTemplate,
   savePresentationTemplate,
 } from "@/app/settings/documents/templates/actions";
+import {
+  DocumentLayoutScopeSelect,
+  type DocumentLayoutLocationOption,
+} from "@/components/settings/document-layout/document-layout-scope-select";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { DocumentPresentationTemplate, PresentationShellConfig, PresentationViewContext } from "@/lib/documents/print/types";
+import {
+  DEFAULT_PRESENTATION_SHELL_CONFIG,
+} from "@/lib/documents/print/default-shell-config";
+import type {
+  DocumentPresentationTemplate,
+  PresentationShellConfig,
+  PresentationViewContext,
+} from "@/lib/documents/print/types";
+import {
+  TENANT_LAYOUT_SCOPE,
+  layoutScopeKey,
+  type DocumentLayoutScope,
+} from "@/lib/documents/layout-scope";
 import type { DocumentModuleKey } from "@/lib/documents/types";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +46,7 @@ type Props = {
   moduleKey: DocumentModuleKey;
   moduleLabel: string;
   initialTemplates: DocumentPresentationTemplate[];
+  locations?: DocumentLayoutLocationOption[];
   canEdit: boolean;
 };
 
@@ -69,28 +87,39 @@ export function PresentationTemplatePanel({
   moduleKey,
   moduleLabel,
   initialTemplates,
+  locations = [],
   canEdit,
 }: Props) {
+  const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
   const [viewContext, setViewContext] = useState<PresentationViewContext>("PDF_PRINT");
-  const [templates, setTemplates] = useState(initialTemplates);
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const [isPreviewPending, startPreviewTransition] = useTransition();
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
 
-  const activeTemplate = useMemo(
-    () => templates.find((row) => row.viewContext === viewContext) ?? templates[0],
-    [templates, viewContext]
+  const tenantTemplate = useMemo(
+    () => initialTemplates.find((row) => row.viewContext === viewContext) ?? initialTemplates[0],
+    [initialTemplates, viewContext]
   );
 
   const [shellConfig, setShellConfig] = useState<PresentationShellConfig>(
-    () => activeTemplate?.shellConfig ?? initialTemplates[0].shellConfig
+    () => tenantTemplate?.shellConfig ?? initialTemplates[0]?.shellConfig ?? DEFAULT_PRESENTATION_SHELL_CONFIG
   );
 
   useEffect(() => {
-    if (activeTemplate) {
-      setShellConfig(activeTemplate.shellConfig);
-    }
-  }, [activeTemplate]);
+    let cancelled = false;
+    setIsLoadingTemplate(true);
+    void loadPresentationTemplate({ moduleKey, viewContext, scope }).then((result) => {
+      if (cancelled) return;
+      setIsLoadingTemplate(false);
+      if ("template" in result) {
+        setShellConfig(result.template.shellConfig);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [moduleKey, viewContext, layoutScopeKey(scope)]);
 
   useEffect(() => {
     startPreviewTransition(async () => {
@@ -98,12 +127,13 @@ export function PresentationTemplatePanel({
         moduleKey,
         viewContext,
         shellConfig,
+        scope,
       });
       if ("html" in result) {
         setPreviewHtml(result.html);
       }
     });
-  }, [moduleKey, viewContext, shellConfig]);
+  }, [moduleKey, viewContext, shellConfig, scope]);
 
   const patchShell = (patch: {
     header?: Partial<PresentationShellConfig["header"]>;
@@ -124,31 +154,24 @@ export function PresentationTemplatePanel({
         moduleKey,
         viewContext,
         shellConfig,
+        scope,
       });
       if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      setTemplates((current) =>
-        current.map((row) =>
-          row.viewContext === viewContext ? { ...row, shellConfig, isCustomized: true } : row
-        )
-      );
       toast.success("Template saved.");
     });
   };
 
   const handleReset = () => {
     startTransition(async () => {
-      const result = await resetPresentationTemplate({ moduleKey, viewContext });
+      const result = await resetPresentationTemplate({ moduleKey, viewContext, scope });
       if ("error" in result) {
         toast.error(result.error);
         return;
       }
       setShellConfig(result.template.shellConfig);
-      setTemplates((current) =>
-        current.map((row) => (row.viewContext === viewContext ? result.template : row))
-      );
       toast.success("Reset to system default.");
     });
   };
@@ -173,13 +196,21 @@ export function PresentationTemplatePanel({
       </div>
 
       <Tabs value={viewContext} onValueChange={(value) => setViewContext(value as PresentationViewContext)}>
-        <TabsList>
-          {VIEW_TABS.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsList>
+            {VIEW_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <DocumentLayoutScopeSelect
+            scope={scope}
+            locations={locations}
+            disabled={!canEdit || isLoadingTemplate}
+            onScopeChange={setScope}
+          />
+        </div>
       </Tabs>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -292,10 +323,15 @@ export function PresentationTemplatePanel({
 
           {canEdit ? (
             <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={isPending} onClick={handleSave}>
+              <Button type="button" disabled={isPending || isLoadingTemplate} onClick={handleSave}>
                 {isPending ? "Saving…" : "Save template"}
               </Button>
-              <Button type="button" variant="outline" disabled={isPending} onClick={handleReset}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending || isLoadingTemplate}
+                onClick={handleReset}
+              >
                 <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden />
                 Reset to default
               </Button>
@@ -307,7 +343,7 @@ export function PresentationTemplatePanel({
           <div
             className={cn(
               "surface-inset min-h-[480px] overflow-hidden rounded-lg border border-border/60 bg-white",
-              isPreviewPending && "opacity-70"
+              (isPreviewPending || isLoadingTemplate) && "opacity-70"
             )}
           >
             {previewHtml ? (

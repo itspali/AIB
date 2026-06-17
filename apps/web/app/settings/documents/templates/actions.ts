@@ -11,6 +11,8 @@ import {
   normalizePresentationStyleConfig,
 } from "@/lib/documents/print/default-shell-config";
 import { presentationTemplateFromRow } from "@/lib/documents/print/presentation-persistence";
+import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
+import { TENANT_LAYOUT_SCOPE } from "@/lib/documents/layout-scope";
 import type { DocumentPresentationTemplate, PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
 import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-context";
@@ -62,10 +64,20 @@ const shellConfigSchema = z.object({
   }),
 });
 
+const scopeSchema = z.union([
+  z.object({ mode: z.literal("tenant") }),
+  z.object({ mode: z.literal("location"), locationId: z.string().uuid() }),
+]);
+
+function scopeLocationId(scope: z.infer<typeof scopeSchema>): string | null {
+  return scope.mode === "location" ? scope.locationId : null;
+}
+
 const saveSchema = z.object({
   moduleKey: moduleKeySchema,
   viewContext: viewContextSchema,
   shellConfig: shellConfigSchema,
+  scope: scopeSchema.optional(),
 });
 
 async function requireTemplateEditor(): Promise<
@@ -124,6 +136,7 @@ function samplePrintModel(moduleKey: DocumentModuleKey): DocumentPrintModel {
 export async function loadPresentationTemplate(input: {
   moduleKey: DocumentModuleKey;
   viewContext: PresentationViewContext;
+  scope?: DocumentLayoutScope;
 }): Promise<{ template: DocumentPresentationTemplate } | { error: string }> {
   const parsedModule = moduleKeySchema.safeParse(input.moduleKey);
   const parsedView = viewContextSchema.safeParse(input.viewContext);
@@ -131,13 +144,17 @@ export async function loadPresentationTemplate(input: {
     return { error: "Invalid template request." };
   }
 
+  const scope = input.scope ?? TENANT_LAYOUT_SCOPE;
+  const locationId = scope.mode === "location" ? scope.locationId : null;
+
   try {
     const { supabase, tenantId } = await requireTenantId();
     const template = await fetchDocumentPresentationTemplate(
       supabase,
       tenantId,
       parsedModule.data,
-      parsedView.data
+      parsedView.data,
+      { locationId }
     );
     return { template };
   } catch (error) {
@@ -156,11 +173,15 @@ export async function savePresentationTemplate(
   const editor = await requireTemplateEditor();
   if ("error" in editor) return editor;
 
+  const scope = parsed.data.scope ?? TENANT_LAYOUT_SCOPE;
+  const locationId = scopeLocationId(scope);
+
   const existing = await fetchDocumentPresentationTemplate(
     editor.supabase,
     editor.tenantId,
     parsed.data.moduleKey,
-    parsed.data.viewContext
+    parsed.data.viewContext,
+    { locationId }
   );
 
   const nextTemplate: DocumentPresentationTemplate = {
@@ -171,7 +192,9 @@ export async function savePresentationTemplate(
   };
 
   try {
-    await upsertDocumentPresentationTemplate(editor.supabase, editor.tenantId, nextTemplate);
+    await upsertDocumentPresentationTemplate(editor.supabase, editor.tenantId, nextTemplate, {
+      locationId,
+    });
     revalidateTemplatePaths(parsed.data.moduleKey);
     return { success: true };
   } catch (error) {
@@ -182,6 +205,7 @@ export async function savePresentationTemplate(
 export async function resetPresentationTemplate(input: {
   moduleKey: DocumentModuleKey;
   viewContext: PresentationViewContext;
+  scope?: DocumentLayoutScope;
 }): Promise<{ success: true; template: DocumentPresentationTemplate } | { error: string }> {
   const parsedModule = moduleKeySchema.safeParse(input.moduleKey);
   const parsedView = viewContextSchema.safeParse(input.viewContext);
@@ -191,6 +215,9 @@ export async function resetPresentationTemplate(input: {
 
   const editor = await requireTemplateEditor();
   if ("error" in editor) return editor;
+
+  const scope = input.scope ?? TENANT_LAYOUT_SCOPE;
+  const locationId = scopeLocationId(scope);
 
   const { data: systemDefault, error: systemError } = await editor.supabase
     .from("document_presentation_system_defaults")
@@ -208,7 +235,7 @@ export async function resetPresentationTemplate(input: {
     await upsertDocumentPresentationTemplate(editor.supabase, editor.tenantId, {
       ...template,
       isCustomized: false,
-    });
+    }, { locationId });
     revalidateTemplatePaths(parsedModule.data);
     return { success: true, template };
   } catch (error) {
@@ -220,17 +247,23 @@ export async function loadPresentationTemplatePreview(input: {
   moduleKey: DocumentModuleKey;
   viewContext: PresentationViewContext;
   shellConfig: z.infer<typeof shellConfigSchema>;
+  scope?: DocumentLayoutScope;
 }): Promise<{ html: string } | { error: string }> {
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) {
     return { error: "Invalid preview request." };
   }
 
+  const scope = parsed.data.scope ?? TENANT_LAYOUT_SCOPE;
+  const locationId = scopeLocationId(scope);
+
   try {
     const { supabase, tenantId } = await requireTenantId();
     const [existing, org] = await Promise.all([
-      fetchDocumentPresentationTemplate(supabase, tenantId, parsed.data.moduleKey, parsed.data.viewContext),
-      fetchDocumentOrgRenderContext(supabase, tenantId),
+      fetchDocumentPresentationTemplate(supabase, tenantId, parsed.data.moduleKey, parsed.data.viewContext, {
+        locationId,
+      }),
+      fetchDocumentOrgRenderContext(supabase, tenantId, { locationId }),
     ]);
 
     const presentation: DocumentPresentationTemplate = {

@@ -31,12 +31,15 @@ Resolution order for both layout and presentation: **location override → tenan
 - [x] Print and email flows use unified renderer with org branding (logo, legal name, address, GSTIN)
 - [x] Settings hub at `/settings/documents/templates` with per-module appearance editor
 - [x] Administration nav entry
+- [x] **PDF download** via Print menu → Download PDF (`downloadDocumentPdf` + Puppeteer)
+- [x] **Location-aware letterhead** — document origin location overrides registered name, address, GSTIN
+- [x] **Location scope** in presentation template settings (per-location appearance overrides)
+- [x] **`DocumentPrintAdapter` registry** — `document-print-registry.ts` + `resolve-document-render.ts`
 
-**Not in MVP** (planned):
+**Not yet implemented:**
 
 - Multi-template picker per document
-- PDF download server action + Storage cache
-- Location-specific letterhead (data exists; UI uses tenant scope first)
+- PDF Storage cache
 - Compliance packs (GST tax invoice layout, e-invoice IRN slot)
 - Template versioning / freeze at issue
 - Custom HTML blocks
@@ -51,8 +54,14 @@ apps/web/lib/documents/print/
   presentation-persistence.ts
   presentation-queries.ts
   resolve-effective-presentation.ts
+  document-print-registry.ts
+  resolve-document-render.ts
   org-render-context.ts
   render-document-html.ts
+
+apps/web/lib/documents/
+  document-print-actions.ts      # loadDocumentPrintPayload, downloadDocumentPdf
+  download-document-pdf.ts       # client blob download helper
 
 apps/web/app/settings/documents/templates/
   page.tsx

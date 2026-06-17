@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Printer } from "lucide-react";
+import { ChevronDown, Download, Printer } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { loadDocumentPrintPayload } from "@/lib/documents/document-print-actions";
+import {
+  downloadDocumentPdf,
+  loadDocumentPrintPayload,
+} from "@/lib/documents/document-print-actions";
+import { downloadPdfFromBase64 } from "@/lib/documents/download-document-pdf";
 import { openDocumentPrintWindow } from "@/lib/documents/open-document-print-window";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { DocumentModuleKey } from "@/lib/documents/types";
 
 type Props = {
@@ -30,7 +40,7 @@ export function DocumentPrintButton({
   const [isPending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
 
-  const handlePrint = () => {
+  const runPrint = () => {
     startTransition(async () => {
       setBusy(true);
       const result = await loadDocumentPrintPayload({
@@ -49,17 +59,53 @@ export function DocumentPrintButton({
     });
   };
 
+  const runDownload = () => {
+    startTransition(async () => {
+      setBusy(true);
+      const result = await downloadDocumentPdf({
+        moduleKey,
+        documentId,
+        documentLocationId,
+      });
+      setBusy(false);
+
+      if ("error" in result) {
+        toast.error(result.error ?? "Unable to download PDF.");
+        return;
+      }
+
+      downloadPdfFromBase64(result.filename, result.pdfBase64);
+      toast.success("PDF downloaded.");
+    });
+  };
+
+  const disabled = isPending || busy;
+
   return (
-    <Button
-      type="button"
-      size={size}
-      variant={variant}
-      className={className}
-      disabled={isPending || busy}
-      onClick={handlePrint}
-    >
-      <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-      {isPending || busy ? "Preparing…" : label}
-    </Button>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          size={size}
+          variant={variant}
+          className={className}
+          disabled={disabled}
+        >
+          <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          {disabled ? "Preparing…" : label}
+          <ChevronDown className="ml-1 h-3 w-3 opacity-70" aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem disabled={disabled} onClick={runPrint}>
+          <Printer className="mr-2 h-3.5 w-3.5" aria-hidden />
+          Print
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={disabled} onClick={runDownload}>
+          <Download className="mr-2 h-3.5 w-3.5" aria-hidden />
+          Download PDF
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
