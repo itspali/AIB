@@ -6,12 +6,25 @@ import {
   ensureTenantPresentationTemplates,
   fetchDocumentPresentationTemplate,
 } from "@/lib/documents/print/presentation-queries";
-import type { PresentationShellConfig, PresentationViewContext } from "@/lib/documents/print/types";
+import type {
+  DocumentPresentationTemplate,
+  PresentationShellConfig,
+  PresentationStyleConfig,
+  PresentationViewContext,
+} from "@/lib/documents/print/types";
 import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchLocationRows } from "@/lib/locations/queries";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
+import { TENANT_LAYOUT_SCOPE } from "@/lib/documents/layout-scope";
+import { DEFAULT_PRESENTATION_SHELL_CONFIG } from "@/lib/documents/print/default-shell-config";
+import { applyGstShellConfigOverrides } from "@/lib/documents/print/gst-presentation-compliance";
+import {
+  buildDesignerPreviewDraftKey,
+  normalizeDesignerPreviewLayout,
+} from "@/lib/documents/print/designer-preview-draft";
+import { renderDocumentDesignerPreviewHtml } from "@/lib/documents/print/render-designer-preview";
 import { fetchPoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 
 const VALID_MODULE_KEYS = new Set<DocumentModuleKey>([
@@ -25,8 +38,11 @@ const VALID_MODULE_KEYS = new Set<DocumentModuleKey>([
 
 const MODULE_KEYS = [...VALID_MODULE_KEYS] as DocumentModuleKey[];
 const PRESENTATION_VIEW_CONTEXTS: PresentationViewContext[] = ["PDF_PRINT", "EMAIL_HTML"];
+const DEFAULT_PREVIEW_MODULE: DocumentModuleKey = "PURCHASE_ORDER";
+const DEFAULT_PREVIEW_VIEW_CONTEXT: PresentationViewContext = "PDF_PRINT";
 
 type ModulePresentationShells = Record<PresentationViewContext, PresentationShellConfig>;
+type ModulePresentationStyles = Record<PresentationViewContext, PresentationStyleConfig>;
 
 type PageProps = {
   searchParams: Promise<{ module?: string }>;
@@ -57,8 +73,10 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     fetchLocationRows(supabase, tenantId),
     fetchOrganizationGstRegistered(supabase, tenantId),
     fetchPoCatalogFieldSuggestions(supabase, tenantId),
-    ...MODULE_KEYS.map((moduleKey) =>
-      fetchDocumentLayoutTemplate(supabase, tenantId, moduleKey, "PDF_PRINT")
+    ...MODULE_KEYS.flatMap((moduleKey) =>
+      PRESENTATION_VIEW_CONTEXTS.map((viewContext) =>
+        fetchDocumentLayoutTemplate(supabase, tenantId, moduleKey, viewContext)
+      )
     ),
     ...MODULE_KEYS.flatMap((moduleKey) =>
       PRESENTATION_VIEW_CONTEXTS.map((viewContext) =>
@@ -67,12 +85,23 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     ),
   ]);
 
-  const layoutRows = layoutAndPresentationRows.slice(0, MODULE_KEYS.length);
-  const presentationRows = layoutAndPresentationRows.slice(MODULE_KEYS.length);
+  const layoutRowCount = MODULE_KEYS.length * PRESENTATION_VIEW_CONTEXTS.length;
+  const layoutRows = layoutAndPresentationRows.slice(0, layoutRowCount) as DocumentLayoutTemplate[];
+  const presentationRows = layoutAndPresentationRows.slice(
+    layoutRowCount
+  ) as DocumentPresentationTemplate[];
 
-  const initialLayouts = Object.fromEntries(
-    MODULE_KEYS.map((moduleKey, index) => [moduleKey, layoutRows[index]])
-  ) as Record<DocumentModuleKey, DocumentLayoutTemplate>;
+  const initialLayoutsByModule = Object.fromEntries(
+    MODULE_KEYS.map((moduleKey, moduleIndex) => {
+      const byContext = Object.fromEntries(
+        PRESENTATION_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
+          const flatIndex = moduleIndex * PRESENTATION_VIEW_CONTEXTS.length + viewIndex;
+          return [viewContext, layoutRows[flatIndex]!];
+        })
+      ) as Record<PresentationViewContext, DocumentLayoutTemplate>;
+      return [moduleKey, byContext];
+    })
+  ) as Record<DocumentModuleKey, Record<PresentationViewContext, DocumentLayoutTemplate>>;
 
   const initialPresentationShells = Object.fromEntries(
     MODULE_KEYS.map((moduleKey, moduleIndex) => {
@@ -86,9 +115,57 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     })
   ) as Record<DocumentModuleKey, ModulePresentationShells>;
 
+  const initialPresentationStyles = Object.fromEntries(
+    MODULE_KEYS.map((moduleKey, moduleIndex) => {
+      const styles = Object.fromEntries(
+        PRESENTATION_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
+          const flatIndex = moduleIndex * PRESENTATION_VIEW_CONTEXTS.length + viewIndex;
+          return [viewContext, presentationRows[flatIndex]!.styleConfig];
+        })
+      ) as ModulePresentationStyles;
+      return [moduleKey, styles];
+    })
+  ) as Record<DocumentModuleKey, ModulePresentationStyles>;
+
   const locationOptions = locations
     .filter((row) => row.is_active)
     .map((row) => ({ id: row.id, name: row.name }));
+
+  const previewModuleKey = initialModuleKey ?? DEFAULT_PREVIEW_MODULE;
+  const previewLayout = normalizeDesignerPreviewLayout(
+    previewModuleKey,
+    DEFAULT_PREVIEW_VIEW_CONTEXT,
+    initialLayoutsByModule[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT],
+    gstRegistered
+  );
+  const previewShellBase =
+    initialPresentationShells[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT] ??
+    DEFAULT_PRESENTATION_SHELL_CONFIG;
+  const previewShell = applyGstShellConfigOverrides(
+    previewModuleKey,
+    previewShellBase,
+    gstRegistered
+  );
+  const previewStyle =
+    initialPresentationStyles[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT] ?? null;
+  const initialPreviewDraftKey = buildDesignerPreviewDraftKey({
+    moduleKey: previewModuleKey,
+    viewContext: DEFAULT_PREVIEW_VIEW_CONTEXT,
+    scope: TENANT_LAYOUT_SCOPE,
+    layout: previewLayout,
+    shellConfig: previewShell,
+    styleConfig: previewStyle ?? undefined,
+  });
+  const initialPreviewResult = await renderDocumentDesignerPreviewHtml(supabase, tenantId, {
+    moduleKey: previewModuleKey,
+    viewContext: DEFAULT_PREVIEW_VIEW_CONTEXT,
+    scope: TENANT_LAYOUT_SCOPE,
+    layout: previewLayout,
+    shellConfig: previewShell,
+    styleConfig: previewStyle ?? undefined,
+  });
+  const initialPreviewHtml =
+    "html" in initialPreviewResult ? initialPreviewResult.html : null;
 
   return (
     <DashboardShell
@@ -110,8 +187,12 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
           gstRegistered={gstRegistered}
           deployError={!ensured ? deployError : undefined}
           initialModuleKey={initialModuleKey}
-          initialLayouts={initialLayouts}
+          previewModuleKey={previewModuleKey}
+          initialPreviewDraftKey={initialPreviewDraftKey}
+          initialPreviewHtml={initialPreviewHtml}
+          initialLayoutsByModule={initialLayoutsByModule}
           initialPresentationShells={initialPresentationShells}
+          initialPresentationStyles={initialPresentationStyles}
           catalogFieldSuggestions={catalogFieldSuggestions}
         />
       </Suspense>

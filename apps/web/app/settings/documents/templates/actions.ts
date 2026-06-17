@@ -17,12 +17,11 @@ import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import { TENANT_LAYOUT_SCOPE } from "@/lib/documents/layout-scope";
 import type { DocumentPresentationTemplate, PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
+import { renderDocumentDesignerPreviewHtml } from "@/lib/documents/print/render-designer-preview";
+import type { DocumentLayoutTemplate } from "@/lib/documents/types";
+import type { DocumentPrintModel } from "@/lib/documents/build-document-print-model";
 import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-context";
 import { renderDocumentHtml } from "@/lib/documents/print/render-document-html";
-import { buildDocumentPrintModel, type DocumentPrintModel } from "@/lib/documents/build-document-print-model";
-import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
-import { getDesignerSampleDocument } from "@/lib/documents/print/designer-sample-documents";
-import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
@@ -87,10 +86,19 @@ function scopeLocationId(scope: z.infer<typeof scopeSchema>): string | null {
   return scope.mode === "location" ? scope.locationId : null;
 }
 
+const styleConfigSchema = z.object({
+  fontFamily: z.string(),
+  fontSizePx: z.number(),
+  layoutTheme: z
+    .enum(["standard", "compact", "detailed", "minimal", "formal", "branded"])
+    .optional(),
+});
+
 const saveSchema = z.object({
   moduleKey: moduleKeySchema,
   viewContext: viewContextSchema,
   shellConfig: shellConfigSchema,
+  styleConfig: styleConfigSchema.optional(),
   scope: scopeSchema.optional(),
 });
 
@@ -327,20 +335,11 @@ const designerPreviewSchema = saveSchema.extend({
   layout: z.custom<DocumentLayoutTemplate>(),
 });
 
-function designerPreviewTitle(moduleKey: DocumentModuleKey): string {
-  const sample = getDesignerSampleDocument(moduleKey);
-  if (moduleKey === "SALES_QUOTATION") return (sample as { quotation_number: string }).quotation_number;
-  if (moduleKey === "SALES_INVOICE") return (sample as { invoice_number: string }).invoice_number;
-  if (moduleKey === "PURCHASE_INVOICE") {
-    return (sample as { system_voucher_number: string }).system_voucher_number;
-  }
-  return (sample as { voucher_number: string }).voucher_number;
-}
-
 export async function loadDocumentDesignerPreview(input: {
   moduleKey: DocumentModuleKey;
   viewContext: PresentationViewContext;
   shellConfig: z.infer<typeof shellConfigSchema>;
+  styleConfig?: z.infer<typeof styleConfigSchema>;
   layout: DocumentLayoutTemplate;
   scope?: DocumentLayoutScope;
 }): Promise<{ html: string } | { error: string }> {
@@ -349,41 +348,18 @@ export async function loadDocumentDesignerPreview(input: {
     return { error: "Invalid designer preview request." };
   }
 
-  const scope = parsed.data.scope ?? TENANT_LAYOUT_SCOPE;
-  const locationId = scopeLocationId(scope);
-
   try {
     const { supabase, tenantId } = await requireTenantId();
-    const [existing, org, gstRegistered] = await Promise.all([
-      fetchDocumentPresentationTemplate(supabase, tenantId, parsed.data.moduleKey, parsed.data.viewContext, {
-        locationId,
-      }),
-      fetchDocumentOrgRenderContext(supabase, tenantId, { locationId }),
-      fetchOrganizationGstRegistered(supabase, tenantId),
-    ]);
-
-    const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[parsed.data.moduleKey];
-    const normalizedLayout = adapter.normalize({
-      ...parsed.data.layout,
+    return renderDocumentDesignerPreviewHtml(supabase, tenantId, {
       moduleKey: parsed.data.moduleKey,
       viewContext: parsed.data.viewContext,
+      scope: parsed.data.scope ?? TENANT_LAYOUT_SCOPE,
+      layout: parsed.data.layout,
+      shellConfig: normalizePresentationShellConfig(parsed.data.shellConfig),
+      styleConfig: parsed.data.styleConfig
+        ? normalizePresentationStyleConfig(parsed.data.styleConfig)
+        : undefined,
     });
-
-    const presentation: DocumentPresentationTemplate = applyGstPresentationOverrides(
-      {
-        ...existing,
-        shellConfig: normalizePresentationShellConfig(parsed.data.shellConfig),
-        styleConfig: normalizePresentationStyleConfig(existing.styleConfig),
-      },
-      gstRegistered
-    );
-
-    const sampleDocument = getDesignerSampleDocument(parsed.data.moduleKey);
-    const model = buildDocumentPrintModel(parsed.data.moduleKey, normalizedLayout, sampleDocument);
-    const title = designerPreviewTitle(parsed.data.moduleKey);
-    const html = renderDocumentHtml(title, model, presentation, org);
-
-    return { html };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to render designer preview." };
   }

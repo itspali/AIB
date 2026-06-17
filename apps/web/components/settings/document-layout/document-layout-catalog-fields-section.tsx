@@ -45,6 +45,7 @@ type Props = {
   customFieldKeys?: string[];
   variantAttributeKeys?: string[];
   catalogAdapter?: DocumentLayoutModuleAdapter["catalog"];
+  compactToolbar?: boolean;
   onLayoutChange: (layout: DocumentLayoutTemplate) => void;
 };
 
@@ -72,6 +73,7 @@ export function DocumentLayoutCatalogFieldsSection({
   customFieldKeys = [],
   variantAttributeKeys = [],
   catalogAdapter,
+  compactToolbar = false,
   onLayoutChange,
 }: Props) {
   const catalog = catalogAdapter ?? {
@@ -160,8 +162,9 @@ export function DocumentLayoutCatalogFieldsSection({
       <DocumentLayoutFieldList
         order={layout.catalogLineFieldOrder}
         getColumn={(id) => layout.columns.find((column) => column.id === id)}
-        showPresentationColumns
-        showTypographyColumns
+        showPresentationColumns={!compactToolbar}
+        showTypographyColumns={!compactToolbar}
+        compactToolbar={compactToolbar}
         getMeta={(id) => ({
           draggable: true,
           disabled: !canEdit,

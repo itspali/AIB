@@ -13,6 +13,7 @@ import {
   type DocumentLayoutScope,
   TENANT_LAYOUT_SCOPE,
 } from "@/lib/documents/layout-scope";
+import { cn } from "@/lib/utils";
 
 export type DocumentLayoutLocationOption = {
   id: string;
@@ -23,6 +24,9 @@ type Props = {
   scope: DocumentLayoutScope;
   locations?: DocumentLayoutLocationOption[];
   disabled?: boolean;
+  compact?: boolean;
+  className?: string;
+  triggerClassName?: string;
   onScopeChange?: (scope: DocumentLayoutScope) => void;
 };
 
@@ -30,6 +34,9 @@ export function DocumentLayoutScopeSelect({
   scope,
   locations = [],
   disabled = false,
+  compact = false,
+  className,
+  triggerClassName,
   onScopeChange,
 }: Props) {
   const selectDisabled = disabled || !LOCATION_LAYOUT_OVERRIDES_ENABLED || !onScopeChange;
@@ -40,8 +47,14 @@ export function DocumentLayoutScopeSelect({
       : undefined;
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-      <span className="shrink-0 text-muted-foreground">Scope</span>
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-x-1.5 text-xs",
+        compact ? "flex-1" : "flex-wrap gap-y-1",
+        className
+      )}
+    >
+      {!compact ? <span className="shrink-0 text-muted-foreground">Scope</span> : null}
       <Select
         value={value}
         disabled={selectDisabled}
@@ -54,7 +67,14 @@ export function DocumentLayoutScopeSelect({
           onScopeChange({ mode: "location", locationId: next });
         }}
       >
-        <SelectTrigger className="h-7 w-[9.5rem] text-xs">
+        <SelectTrigger
+          className={cn(
+            "h-7 text-xs",
+            compact ? "min-w-0 w-full border-border/60 bg-background/80" : "w-[9.5rem]",
+            triggerClassName
+          )}
+          aria-label="Layout scope"
+        >
           <SelectValue>{layoutScopeLabel(scope, locationName)}</SelectValue>
         </SelectTrigger>
         <SelectContent>

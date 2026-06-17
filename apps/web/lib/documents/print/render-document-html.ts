@@ -3,6 +3,10 @@ import {
   DEFAULT_PRESENTATION_SHELL_CONFIG,
   DEFAULT_PRESENTATION_STYLE_CONFIG,
 } from "@/lib/documents/print/default-shell-config";
+import {
+  normalizePresentationLayoutTheme,
+  renderPresentationLayoutThemeCss,
+} from "@/lib/documents/print/presentation-layout-themes";
 import type {
   DocumentOrgRenderContext,
   DocumentPresentationTemplate,
@@ -166,6 +170,8 @@ export function renderDocumentHtml(
 ): string {
   const title = documentTitle(voucherTitle, presentation);
   const { shellConfig, styleConfig } = presentation;
+  const layoutTheme = normalizePresentationLayoutTheme(styleConfig.layoutTheme);
+  const themeCss = renderPresentationLayoutThemeCss(layoutTheme);
   const letterheadHtml = renderOrgHeader(org, presentation);
   const headerFieldsHtml = renderHeaderFields(model, presentation);
   const lineTableHtml = renderLineTable(model, presentation);
@@ -217,10 +223,11 @@ export function renderDocumentHtml(
     .gst-irn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .gst-irn-field { font-size: 11px; }
     .gst-meta-placeholder { display: block; margin-top: 2px; color: #888; font-style: italic; }
+    ${themeCss}
     @media print { body { padding: 0; } }
   </style>
 </head>
-<body>
+<body class="theme-${layoutTheme}">
   <div class="doc-header">
     ${letterheadHtml}
     ${

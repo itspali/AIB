@@ -45,9 +45,18 @@ export type PresentationShellConfig = {
   };
 };
 
+export type PresentationLayoutTheme =
+  | "standard"
+  | "compact"
+  | "detailed"
+  | "minimal"
+  | "formal"
+  | "branded";
+
 export type PresentationStyleConfig = {
   fontFamily: string;
   fontSizePx: number;
+  layoutTheme?: PresentationLayoutTheme;
 };
 
 export type DocumentPresentationTemplate = {

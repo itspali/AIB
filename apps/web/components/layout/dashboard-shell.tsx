@@ -42,15 +42,8 @@ export function DashboardShell({
   const showModuleNav = !onboardingMode;
 
   useEffect(() => {
-    if (!showModuleNav) return;
-    let cancelled = false;
-    void fetchApprovalAlertCountAction().then((count) => {
-      if (!cancelled) setLiveApprovalAlertCount(count);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [showModuleNav]);
+    setLiveApprovalAlertCount(approvalAlertCount);
+  }, [approvalAlertCount]);
 
   useEffect(() => {
     if (!showModuleNav) return;

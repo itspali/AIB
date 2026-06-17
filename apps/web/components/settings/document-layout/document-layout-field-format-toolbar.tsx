@@ -4,16 +4,12 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
-  Bold,
-  Eye,
-  EyeOff,
-  Italic,
-  MoreHorizontal,
-  Type,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -45,6 +41,12 @@ function iconButtonClass(active?: boolean) {
   );
 }
 
+function AlignIcon({ align }: { align: NonNullable<DocumentColumnPref["align"]> }) {
+  if (align === "center") return <AlignCenter className="h-3.5 w-3.5" aria-hidden />;
+  if (align === "right") return <AlignRight className="h-3.5 w-3.5" aria-hidden />;
+  return <AlignLeft className="h-3.5 w-3.5" aria-hidden />;
+}
+
 export function DocumentLayoutFieldFormatToolbar({
   column,
   disabled = false,
@@ -60,152 +62,107 @@ export function DocumentLayoutFieldFormatToolbar({
   const align = column.align ?? "left";
   const fontWeight = typographySelectValue(column.typography?.fontWeight);
   const fontStyle = typographySelectValue(column.typography?.fontStyle);
+  const isBold = fontWeight === "bold" || fontWeight === "semibold";
+  const isItalic = fontStyle === "italic";
+  const hasFormatOptions = showTypography || showDecimalPlaces;
 
   return (
     <div className="flex items-center justify-end gap-0.5">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className={iconButtonClass(column.defaultVisible)}
-        disabled={disabled}
-        aria-label={column.defaultVisible ? `Hide ${column.label}` : `Show ${column.label}`}
-        onClick={() => onPatch({ defaultVisible: !column.defaultVisible })}
-      >
-        {column.defaultVisible ? (
-          <Eye className="h-3.5 w-3.5" aria-hidden />
-        ) : (
-          <EyeOff className="h-3.5 w-3.5" aria-hidden />
-        )}
-      </Button>
-
       {showAlign ? (
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={iconButtonClass(align === "left")}
-            disabled={disabled}
-            aria-label={`Align ${column.label} left`}
-            onClick={() => onPatch({ align: "left" })}
-          >
-            <AlignLeft className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={iconButtonClass(align === "center")}
-            disabled={disabled}
-            aria-label={`Align ${column.label} center`}
-            onClick={() => onPatch({ align: "center" })}
-          >
-            <AlignCenter className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={iconButtonClass(align === "right")}
-            disabled={disabled}
-            aria-label={`Align ${column.label} right`}
-            onClick={() => onPatch({ align: "right" })}
-          >
-            <AlignRight className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-        </>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={iconButtonClass(align !== "left")}
+              disabled={disabled}
+              aria-label={`Align ${column.label}`}
+            >
+              <AlignIcon align={align} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuLabel className="text-xs">Alignment</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={align}
+              onValueChange={(value) => onPatch({ align: value as DocumentColumnPref["align"] })}
+            >
+              <DropdownMenuRadioItem value="left">Left</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="center">Center</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="right">Right</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
 
-      {showTypography ? (
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={iconButtonClass(fontWeight === "bold" || fontWeight === "semibold")}
-            disabled={disabled}
-            aria-label={`Toggle bold for ${column.label}`}
-            onClick={() =>
-              patchTypography(
-                "fontWeight",
-                fontWeight === "bold" ? DOCUMENT_TYPOGRAPHY_DEFAULT : "bold"
-              )
-            }
-          >
-            <Bold className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={iconButtonClass(fontStyle === "italic")}
-            disabled={disabled}
-            aria-label={`Toggle italic for ${column.label}`}
-            onClick={() =>
-              patchTypography(
-                "fontStyle",
-                fontStyle === "italic" ? DOCUMENT_TYPOGRAPHY_DEFAULT : "italic"
-              )
-            }
-          >
-            <Italic className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-        </>
+      {hasFormatOptions ? (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={iconButtonClass(isBold || isItalic)}
+              disabled={disabled}
+              aria-label={`Format ${column.label}`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {showTypography ? (
+              <>
+                <DropdownMenuLabel className="text-xs">Style</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={isBold}
+                  onCheckedChange={(checked) =>
+                    patchTypography("fontWeight", checked ? "bold" : DOCUMENT_TYPOGRAPHY_DEFAULT)
+                  }
+                >
+                  Bold
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={isItalic}
+                  onCheckedChange={(checked) =>
+                    patchTypography("fontStyle", checked ? "italic" : DOCUMENT_TYPOGRAPHY_DEFAULT)
+                  }
+                >
+                  Italic
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Font size</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={typographySelectValue(column.typography?.fontSize)}
+                  onValueChange={(value) => patchTypography("fontSize", value)}
+                >
+                  <DropdownMenuRadioItem value={DOCUMENT_TYPOGRAPHY_DEFAULT}>Default</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="xs">Extra small</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="sm">Small</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="base">Base</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="lg">Large</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </>
+            ) : null}
+            {showTypography && showDecimalPlaces ? <DropdownMenuSeparator /> : null}
+            {showDecimalPlaces ? (
+              <>
+                <DropdownMenuLabel className="text-xs">Decimal places</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={String(column.decimalPlaces ?? 2)}
+                  onValueChange={(value) => onPatch({ decimalPlaces: Number.parseInt(value, 10) })}
+                >
+                  {[0, 1, 2, 3, 4].map((digits) => (
+                    <DropdownMenuRadioItem key={digits} value={String(digits)}>
+                      {digits}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
-
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 shrink-0 p-0"
-            disabled={disabled}
-            aria-label={`More formatting for ${column.label}`}
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          {showTypography ? (
-            <>
-              <DropdownMenuLabel className="text-xs">Font size</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={typographySelectValue(column.typography?.fontSize)}
-                onValueChange={(value) => patchTypography("fontSize", value)}
-              >
-                <DropdownMenuRadioItem value={DOCUMENT_TYPOGRAPHY_DEFAULT}>Default</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="xs">Extra small</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="sm">Small</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="base">Base</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="lg">Large</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-            </>
-          ) : null}
-          {showDecimalPlaces ? (
-            <>
-              <DropdownMenuLabel className="text-xs">Decimal places</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={String(column.decimalPlaces ?? 2)}
-                onValueChange={(value) => onPatch({ decimalPlaces: Number.parseInt(value, 10) })}
-              >
-                {[0, 1, 2, 3, 4].map((digits) => (
-                  <DropdownMenuRadioItem key={digits} value={String(digits)}>
-                    {digits}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </>
-          ) : (
-            <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-              <Type className="h-3.5 w-3.5" aria-hidden />
-              Field options
-            </div>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }

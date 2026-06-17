@@ -15,7 +15,8 @@ export const PRESENTATION_PAGE_SIZE_OPTIONS: PresentationPageSizeOption[] = [
 
 export type PresentationPagePreviewDimensions = {
   width: string;
-  minHeight: string;
+  height: string;
+  aspectRatio: number;
   label: string;
 };
 
@@ -25,14 +26,15 @@ export function presentationPagePreviewDimensions(
 ): PresentationPagePreviewDimensions {
   const portrait =
     size === "LETTER"
-      ? { width: "8.5in", minHeight: "11in", label: "US Letter" }
-      : { width: "210mm", minHeight: "297mm", label: "A4" };
+      ? { width: "8.5in", height: "11in", label: "US Letter", aspectRatio: 8.5 / 11 }
+      : { width: "210mm", height: "297mm", label: "A4", aspectRatio: 210 / 297 };
 
   if (orientation === "landscape") {
     return {
-      width: portrait.minHeight,
-      minHeight: portrait.width,
+      width: portrait.height,
+      height: portrait.width,
       label: portrait.label,
+      aspectRatio: 1 / portrait.aspectRatio,
     };
   }
 

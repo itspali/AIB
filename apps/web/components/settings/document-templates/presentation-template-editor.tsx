@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { ExternalLink, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -122,23 +122,40 @@ export function PresentationTemplateEditor({
   const [shellConfig, setShellConfig] = useState<PresentationShellConfig>(
     () => tenantTemplate?.shellConfig ?? initialTemplates[0]?.shellConfig ?? DEFAULT_PRESENTATION_SHELL_CONFIG
   );
+  const notifyParentOnShellCommit = useRef(false);
+  const appliedShellSeedVersionRef = useRef<number | null>(null);
+
+  const commitShellConfig = (
+    updater: PresentationShellConfig | ((current: PresentationShellConfig) => PresentationShellConfig),
+    options?: { syncParent?: boolean }
+  ) => {
+    notifyParentOnShellCommit.current = options?.syncParent !== false && onShellConfigChange != null;
+    setShellConfig((current) => (typeof updater === "function" ? updater(current) : updater));
+  };
 
   useEffect(() => {
-    if (controlledScope) setScope(controlledScope);
+    if (!controlledScope) return;
+    setScope((current) =>
+      layoutScopeKey(current) === layoutScopeKey(controlledScope) ? current : controlledScope
+    );
   }, [controlledScope]);
 
   useEffect(() => {
-    if (controlledViewContext) setViewContext(controlledViewContext);
+    if (!controlledViewContext) return;
+    setViewContext((current) => (current === controlledViewContext ? current : controlledViewContext));
   }, [controlledViewContext]);
 
   useEffect(() => {
     if (!embedded || !shellConfigSeed || shellConfigSeedVersion == null) return;
-    setShellConfig(shellConfigSeed);
+    if (appliedShellSeedVersionRef.current === shellConfigSeedVersion) return;
+    appliedShellSeedVersionRef.current = shellConfigSeedVersion;
+    commitShellConfig(shellConfigSeed, { syncParent: false });
   }, [embedded, shellConfigSeed, shellConfigSeedVersion]);
 
   useEffect(() => {
-    if (!onShellConfigChange) return;
-    onShellConfigChange(shellConfig);
+    if (!notifyParentOnShellCommit.current) return;
+    notifyParentOnShellCommit.current = false;
+    onShellConfigChange?.(shellConfig);
   }, [shellConfig, onShellConfigChange]);
 
   useEffect(() => {
@@ -198,7 +215,7 @@ export function PresentationTemplateEditor({
     sections?: Partial<PresentationShellConfig["sections"]>;
     compliance?: Partial<NonNullable<PresentationShellConfig["compliance"]>>;
   }) => {
-    setShellConfig((current) => ({
+    commitShellConfig((current) => ({
       ...current,
       header: { ...current.header, ...(patch.header ?? {}) },
       footer: { ...current.footer, ...(patch.footer ?? {}) },
@@ -240,7 +257,7 @@ export function PresentationTemplateEditor({
         toast.error(result.error);
         return;
       }
-      setShellConfig(result.template.shellConfig);
+      commitShellConfig(result.template.shellConfig);
       toast.success("Reset to system default.");
     });
   };

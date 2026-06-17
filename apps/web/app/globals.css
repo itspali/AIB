@@ -311,6 +311,80 @@
     }
   }
 
+  /* Document designer preview: respond to panel width, not viewport. */
+  .document-designer-preview-panel {
+    container-type: inline-size;
+    container-name: document-designer-preview;
+    width: 100%;
+  }
+
+  .document-designer-preview-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .document-designer-preview-header__toolbar {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .document-designer-preview-toolbar-wide {
+    display: none;
+  }
+
+  .document-designer-preview-toolbar-compact {
+    display: flex;
+  }
+
+  @container document-designer-preview (min-width: 32rem) {
+    .document-designer-preview-header {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .document-designer-preview-header__toolbar {
+      flex: 1 1 0%;
+      width: auto;
+    }
+  }
+
+  @container document-designer-preview (min-width: 40rem) {
+    .document-designer-preview-toolbar-wide {
+      display: flex;
+    }
+
+    .document-designer-preview-toolbar-compact {
+      display: none;
+    }
+  }
+
+  /* Document templates designer: respond to settings panel width, not viewport. */
+  .document-templates-shell {
+    container-type: inline-size;
+    container-name: document-templates;
+    width: 100%;
+  }
+
+  .document-templates-toolbar-wide {
+    display: none;
+  }
+
+  .document-templates-toolbar-compact {
+    display: flex;
+  }
+
+  @container document-templates (min-width: 52rem) {
+    .document-templates-toolbar-wide {
+      display: flex;
+    }
+
+    .document-templates-toolbar-compact {
+      display: none;
+    }
+  }
+
   .po-peek-lines-table {
     @apply rounded-lg border border-border bg-white shadow-sm dark:bg-[hsl(224_47%_14%)];
   }
@@ -363,7 +437,7 @@
     @apply text-sm font-medium normal-case tracking-normal text-foreground;
   }
 
-  .product-editor-panel .surface-panel > p.text-xs.text-muted-foreground {
+  .product-editor-panel .surface-panel > .text-xs.text-muted-foreground {
     @apply mt-0.5;
   }
 

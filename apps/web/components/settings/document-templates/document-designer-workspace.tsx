@@ -4,17 +4,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { loadPresentationTemplate } from "@/app/settings/documents/templates/actions";
-import {
-  DocumentLayoutScopeSelect,
-  type DocumentLayoutLocationOption,
-} from "@/components/settings/document-layout/document-layout-scope-select";
+import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
+import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
 import {
   DocumentDesignerLivePreview,
 } from "@/components/settings/document-templates/document-designer-live-preview";
 import { DocumentModuleLayoutPanel } from "@/components/settings/document-templates/document-module-layout-panel";
 import { PresentationTemplateEditor } from "@/components/settings/document-templates/presentation-template-editor";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { layoutScopeKey, TENANT_LAYOUT_SCOPE, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import {
   applyDesignerLayoutPreset,
   cycleDesignerLayoutPreset,
@@ -25,10 +23,12 @@ import {
 import {
   applyGstShellConfigOverrides,
 } from "@/lib/documents/print/gst-presentation-compliance";
-import { DEFAULT_PRESENTATION_SHELL_CONFIG } from "@/lib/documents/print/default-shell-config";
+import { DEFAULT_PRESENTATION_SHELL_CONFIG, DEFAULT_PRESENTATION_STYLE_CONFIG } from "@/lib/documents/print/default-shell-config";
+import { normalizeDesignerPreviewLayout } from "@/lib/documents/print/designer-preview-draft";
 import type {
   PresentationPageSize,
   PresentationShellConfig,
+  PresentationStyleConfig,
   PresentationViewContext,
 } from "@/lib/documents/print/types";
 import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
@@ -38,23 +38,28 @@ import { cn } from "@/lib/utils";
 const GENERATED_PRESET_ID = "generated";
 
 type ModulePresentationShells = Record<PresentationViewContext, PresentationShellConfig>;
+type ModulePresentationStyles = Record<PresentationViewContext, PresentationStyleConfig>;
 
 type Props = {
   moduleKey: DocumentModuleKey;
   moduleLabel: string;
   moduleDomain: "PROCUREMENT" | "SALES";
   initialLayout: DocumentLayoutTemplate;
+  initialLayoutsByViewContext: Record<PresentationViewContext, DocumentLayoutTemplate>;
   initialPresentationShells: ModulePresentationShells;
+  initialPresentationStyles: ModulePresentationStyles;
   locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
   gstRegistered: boolean;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
+  viewContext: PresentationViewContext;
+  scope: DocumentLayoutScope;
+  designerTab: "fields" | "appearance";
+  onDesignerTabChange: (tab: "fields" | "appearance") => void;
+  onFieldToolbarActionsChange?: (actions: DocumentLayoutEmbeddedToolbarActions | null) => void;
+  seededPreviewDraftKey?: string | null;
+  seededPreviewHtml?: string | null;
 };
-
-const OUTPUT_TABS: { id: PresentationViewContext; label: string }[] = [
-  { id: "PDF_PRINT", label: "Print" },
-  { id: "EMAIL_HTML", label: "Email PDF" },
-];
 
 function resolveShellConfig(
   moduleKey: DocumentModuleKey,
@@ -66,45 +71,109 @@ function resolveShellConfig(
   return applyGstShellConfigOverrides(moduleKey, base, gstRegistered);
 }
 
+function resolveStyleConfig(
+  viewContext: PresentationViewContext,
+  styles: ModulePresentationStyles
+): PresentationStyleConfig {
+  return styles[viewContext] ?? DEFAULT_PRESENTATION_STYLE_CONFIG;
+}
+
+function shellConfigsEqual(
+  left: PresentationShellConfig,
+  right: PresentationShellConfig
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function layoutsEqual(left: DocumentLayoutTemplate, right: DocumentLayoutTemplate): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export function DocumentDesignerWorkspace({
   moduleKey,
   moduleLabel,
   moduleDomain,
   initialLayout,
+  initialLayoutsByViewContext,
   initialPresentationShells,
+  initialPresentationStyles,
   locations,
   canEdit,
   gstRegistered,
   catalogFieldSuggestions,
+  viewContext,
+  scope,
+  designerTab,
+  onDesignerTabChange,
+  onFieldToolbarActionsChange,
+  seededPreviewDraftKey = null,
+  seededPreviewHtml = null,
 }: Props) {
-  const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
-  const [viewContext, setViewContext] = useState<PresentationViewContext>("PDF_PRINT");
-  const [designerTab, setDesignerTab] = useState<"fields" | "appearance">("fields");
-  const [layout, setLayout] = useState<DocumentLayoutTemplate>(initialLayout);
+  const [layout, setLayout] = useState<DocumentLayoutTemplate>(() =>
+    normalizeDesignerPreviewLayout(
+      moduleKey,
+      viewContext,
+      initialLayoutsByViewContext[viewContext] ?? initialLayout,
+      gstRegistered
+    )
+  );
   const [shellConfig, setShellConfig] = useState<PresentationShellConfig>(() =>
-    resolveShellConfig(moduleKey, "PDF_PRINT", initialPresentationShells, gstRegistered)
+    resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered)
+  );
+  const [styleConfig, setStyleConfig] = useState<PresentationStyleConfig>(() =>
+    resolveStyleConfig(viewContext, initialPresentationStyles)
   );
   const [shellLoadError, setShellLoadError] = useState<string | null>(null);
   const [activePresetId, setActivePresetId] = useState("standard");
   const [isGeneratedLayout, setIsGeneratedLayout] = useState(false);
   const [layoutSeedVersion, setLayoutSeedVersion] = useState(0);
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const [shellConfigRevision, setShellConfigRevision] = useState(0);
 
-  const baselineBundleRef = useRef<DesignerLayoutBundle | null>(null);
+  const presetBaselineRef = useRef<DesignerLayoutBundle | null>(null);
   const scopeKey = layoutScopeKey(scope);
   const panelKey = `${moduleKey}-${viewContext}-${scopeKey}`;
+  const contextRef = useRef({ moduleKey, viewContext });
 
   useEffect(() => {
-    setLayout(initialLayout);
+    const contextChanged =
+      contextRef.current.moduleKey !== moduleKey ||
+      contextRef.current.viewContext !== viewContext;
+    if (!contextChanged) return;
+
+    contextRef.current = { moduleKey, viewContext };
+    const seed = initialLayoutsByViewContext[viewContext];
+    setLayout(
+      normalizeDesignerPreviewLayout(moduleKey, viewContext, seed ?? initialLayout, gstRegistered)
+    );
+    setShellConfig(
+      resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered)
+    );
+    setStyleConfig(resolveStyleConfig(viewContext, initialPresentationStyles));
     setActivePresetId("standard");
     setIsGeneratedLayout(false);
+    setLayoutRevision((value) => value + 1);
+    setShellConfigRevision(0);
     setLayoutSeedVersion((value) => value + 1);
-  }, [initialLayout, moduleKey]);
+  }, [gstRegistered, initialLayout, initialLayoutsByViewContext, initialPresentationShells, initialPresentationStyles, moduleKey, viewContext]);
 
   useEffect(() => {
     if (scope.mode !== "tenant") return;
-    setShellConfig(resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered));
+    const next = resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered);
+    setShellConfig((current) => (shellConfigsEqual(current, next) ? current : next));
+    setStyleConfig(resolveStyleConfig(viewContext, initialPresentationStyles));
     setShellLoadError(null);
-  }, [moduleKey, viewContext, scopeKey, scope.mode, initialPresentationShells, gstRegistered]);
+  }, [moduleKey, viewContext, scopeKey, scope.mode, initialPresentationShells, initialPresentationStyles, gstRegistered]);
+
+  const buildPresetBaseline = useCallback(
+    (
+      nextLayout: DocumentLayoutTemplate,
+      nextShell: PresentationShellConfig,
+      nextStyle: PresentationStyleConfig
+    ) =>
+      normalizeDesignerBundle(moduleKey, viewContext, nextLayout, nextShell, nextStyle),
+    [moduleKey, viewContext]
+  );
 
   useEffect(() => {
     if (scope.mode === "tenant") return;
@@ -114,8 +183,18 @@ export function DocumentDesignerWorkspace({
       if (cancelled) return;
       if ("template" in result) {
         setShellLoadError(null);
-        setShellConfig(
-          applyGstShellConfigOverrides(moduleKey, result.template.shellConfig, gstRegistered)
+        const nextShell = applyGstShellConfigOverrides(
+          moduleKey,
+          result.template.shellConfig,
+          gstRegistered
+        );
+        setShellConfig(nextShell);
+        setStyleConfig(result.template.styleConfig);
+        const seed = initialLayoutsByViewContext[viewContext] ?? initialLayout;
+        presetBaselineRef.current = buildPresetBaseline(
+          normalizeDesignerPreviewLayout(moduleKey, viewContext, seed, gstRegistered),
+          nextShell,
+          result.template.styleConfig
         );
         return;
       }
@@ -129,27 +208,39 @@ export function DocumentDesignerWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [moduleKey, viewContext, scopeKey, gstRegistered, initialPresentationShells, scope]);
+  }, [buildPresetBaseline, gstRegistered, initialLayout, initialLayoutsByViewContext, moduleKey, viewContext, scopeKey, initialPresentationShells, scope]);
 
   useEffect(() => {
-    baselineBundleRef.current = normalizeDesignerBundle(
-      moduleKey,
-      viewContext,
-      initialLayout,
-      shellConfig
-    );
-  }, [initialLayout, moduleKey, viewContext, shellConfig]);
+    const seed = initialLayoutsByViewContext[viewContext] ?? initialLayout;
+    const nextLayout = normalizeDesignerPreviewLayout(moduleKey, viewContext, seed, gstRegistered);
+    const nextShell = resolveShellConfig(moduleKey, viewContext, initialPresentationShells, gstRegistered);
+    const nextStyle = resolveStyleConfig(viewContext, initialPresentationStyles);
+    presetBaselineRef.current = buildPresetBaseline(nextLayout, nextShell, nextStyle);
+  }, [
+    buildPresetBaseline,
+    gstRegistered,
+    initialLayout,
+    initialLayoutsByViewContext,
+    initialPresentationShells,
+    initialPresentationStyles,
+    layoutSeedVersion,
+    moduleKey,
+    scopeKey,
+    viewContext,
+  ]);
 
   const applyBundle = useCallback((bundle: DesignerLayoutBundle) => {
     setLayout(bundle.layout);
     setShellConfig(bundle.shellConfig);
-    setLayoutSeedVersion((value) => value + 1);
+    setStyleConfig(bundle.styleConfig);
+    setLayoutRevision((value) => value + 1);
+    setShellConfigRevision((value) => value + 1);
   }, []);
 
   const applyPresetById = useCallback(
     (presetId: string) => {
       if (presetId === GENERATED_PRESET_ID) {
-        const baseline = baselineBundleRef.current;
+        const baseline = presetBaselineRef.current;
         if (!baseline) return;
         const generated = generateDesignerLayout(baseline);
         applyBundle(generated);
@@ -157,7 +248,7 @@ export function DocumentDesignerWorkspace({
         toast.success("Generated a new layout. Review and save to persist.");
         return;
       }
-      const baseline = baselineBundleRef.current;
+      const baseline = presetBaselineRef.current;
       if (!baseline) return;
       const applied = applyDesignerLayoutPreset(presetId, baseline);
       applyBundle(applied);
@@ -187,6 +278,21 @@ export function DocumentDesignerWorkspace({
     );
   }, []);
 
+  const handleLayoutChange = useCallback((next: DocumentLayoutTemplate) => {
+    setLayout((current) => (layoutsEqual(current, next) ? current : next));
+  }, []);
+
+  const handleShellConfigChange = useCallback((next: PresentationShellConfig) => {
+    setShellConfig((current) => (current === next ? current : next));
+  }, []);
+
+  const handleFieldToolbarActionsChange = useCallback(
+    (actions: DocumentLayoutEmbeddedToolbarActions | null) => {
+      onFieldToolbarActionsChange?.(actions);
+    },
+    [onFieldToolbarActionsChange]
+  );
+
   const screenLayoutHref = useMemo(
     () =>
       moduleDomain === "PROCUREMENT"
@@ -202,72 +308,46 @@ export function DocumentDesignerWorkspace({
           {shellLoadError}
         </div>
       ) : null}
-      <aside className="flex w-full shrink-0 flex-col gap-2 lg:w-[min(100%,22rem)] lg:max-w-[22rem]">
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2">
+      <aside className="flex w-full shrink-0 flex-col lg:w-[min(100%,22rem)] lg:max-w-[22rem]">
+        <div className="shrink-0 space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+          <p className="text-[10px] leading-snug text-muted-foreground">
+            <Link href={screenLayoutHref} className="text-primary underline-offset-4 hover:underline">
+              Screen layout
+            </Link>
+            <span className="text-muted-foreground/75"> · module settings</span>
+          </p>
+
           <Tabs
-            value={viewContext}
-            onValueChange={(value) => setViewContext(value as PresentationViewContext)}
+            value={designerTab}
+            onValueChange={(value) => onDesignerTabChange(value as "fields" | "appearance")}
+            className="min-h-0"
           >
-            <TabsList className="h-7">
-              {OUTPUT_TABS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} className="h-6 px-2.5 text-xs">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <DocumentLayoutScopeSelect
-            scope={scope}
-            locations={locations}
-            disabled={!canEdit}
-            onScopeChange={setScope}
-          />
-        </div>
-
-        <p className="px-0.5 text-[10px] text-muted-foreground">
-          <Link href={screenLayoutHref} className="text-primary underline-offset-4 hover:underline">
-            On-screen layout
-          </Link>{" "}
-          for {moduleLabel} is in module settings.
-        </p>
-
-        <Tabs
-          value={designerTab}
-          onValueChange={(value) => setDesignerTab(value as "fields" | "appearance")}
-          className="min-h-0"
-        >
-          <TabsList className="h-7 w-full">
-            <TabsTrigger value="fields" className="flex-1 text-xs">
-              Fields
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex-1 text-xs">
-              Appearance
-            </TabsTrigger>
-          </TabsList>
-
           <TabsContent
             value="fields"
-            className={cn("mt-2 min-h-0", designerTab !== "fields" && "hidden")}
+            className={cn("mt-1.5 min-h-0", designerTab !== "fields" && "hidden")}
             forceMount
           >
             <DocumentModuleLayoutPanel
               key={`${panelKey}-${layoutSeedVersion}`}
               moduleKey={moduleKey}
-              initialLayout={layout}
+              initialLayout={initialLayout}
               locations={locations}
               canEdit={canEdit}
               gstRegistered={gstRegistered}
               catalogFieldSuggestions={catalogFieldSuggestions}
               scope={scope}
               viewContext={viewContext}
-              onLayoutChange={setLayout}
+              layoutSeeds={initialLayoutsByViewContext}
+              controlledLayout={layout}
+              controlledLayoutVersion={layoutRevision}
+              onLayoutChange={handleLayoutChange}
+              onEmbeddedToolbarActionsChange={handleFieldToolbarActionsChange}
             />
           </TabsContent>
 
           <TabsContent
             value="appearance"
-            className={cn("mt-2 min-h-0", designerTab !== "appearance" && "hidden")}
-            forceMount
+            className={cn("mt-1.5 min-h-0", designerTab !== "appearance" && "hidden")}
           >
             <PresentationTemplateEditor
               key={`${panelKey}-appearance-${layoutSeedVersion}`}
@@ -281,11 +361,12 @@ export function DocumentDesignerWorkspace({
               controlledScope={scope}
               controlledViewContext={viewContext}
               shellConfigSeed={shellConfig}
-              shellConfigSeedVersion={layoutSeedVersion}
-              onShellConfigChange={setShellConfig}
+              shellConfigSeedVersion={shellConfigRevision}
+              onShellConfigChange={handleShellConfigChange}
             />
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       </aside>
 
       <DocumentDesignerLivePreview
@@ -294,6 +375,7 @@ export function DocumentDesignerWorkspace({
         scope={scope}
         layout={layout}
         shellConfig={shellConfig}
+        styleConfig={styleConfig}
         shellLoadError={shellLoadError}
         canEdit={canEdit}
         activePresetId={activePresetId}
@@ -303,6 +385,8 @@ export function DocumentDesignerWorkspace({
         onNextPreset={handleNextPreset}
         onPageSizeChange={handlePageSizeChange}
         onAutoGenerate={handleAutoGenerate}
+        seededPreviewDraftKey={seededPreviewDraftKey}
+        seededPreviewHtml={seededPreviewHtml}
       />
     </div>
   );

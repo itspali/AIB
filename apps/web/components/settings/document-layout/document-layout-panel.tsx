@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, useCallback } from "react";
 import { toast } from "sonner";
 import { DocumentLayoutCatalogFieldsSection } from "@/components/settings/document-layout/document-layout-catalog-fields-section";
 import { DocumentLayoutFieldList } from "@/components/settings/document-layout/document-layout-field-list";
@@ -11,6 +11,12 @@ import {
   type DocumentLayoutLocationOption,
 } from "@/components/settings/document-layout/document-layout-scope-select";
 import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Select,
   SelectContent,
@@ -49,6 +55,13 @@ type SaveLayoutFn = (input: {
   layout: DocumentLayoutTemplate;
 }) => Promise<{ success: true } | { error: string }>;
 
+export type DocumentLayoutEmbeddedToolbarActions = {
+  onReset: () => void;
+  onSave: () => void;
+  disabled: boolean;
+  saveLabel: string;
+};
+
 type Props = {
   adapter: DocumentLayoutModuleAdapter;
   initialLayout: DocumentLayoutTemplate;
@@ -63,8 +76,12 @@ type Props = {
   compactFieldToolbar?: boolean;
   controlledScope?: DocumentLayoutScope;
   controlledViewContext?: DocumentViewContext;
+  controlledLayout?: DocumentLayoutTemplate;
+  controlledLayoutVersion?: number;
   onLayoutChange?: (layout: DocumentLayoutTemplate) => void;
+  onEmbeddedToolbarActionsChange?: (actions: DocumentLayoutEmbeddedToolbarActions | null) => void;
   hideChromeToolbar?: boolean;
+  layoutSeeds?: Partial<Record<DocumentViewContext, DocumentLayoutTemplate>>;
 };
 
 const VIEW_TABS: { id: DocumentViewContext; label: string; enabled: boolean }[] = [
@@ -82,12 +99,34 @@ function SectionBlock({
   hint,
   children,
   className,
+  accordionValue,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
   className?: string;
+  accordionValue?: string;
 }) {
+  if (accordionValue) {
+    return (
+      <AccordionItem value={accordionValue} className={cn("border-border/70", className)}>
+        <AccordionTrigger className="gap-2 py-2 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-muted-foreground">
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {title}
+            </span>
+            {hint ? (
+              <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/75 line-clamp-2">
+                {hint}
+              </span>
+            ) : null}
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="pb-2 pt-0">{children}</AccordionContent>
+      </AccordionItem>
+    );
+  }
+
   return (
     <section className={cn("min-w-0", className)}>
       <div className="mb-1 flex items-baseline gap-2">
@@ -96,6 +135,24 @@ function SectionBlock({
       </div>
       {children}
     </section>
+  );
+}
+
+function LayoutFieldSections({
+  embedded,
+  children,
+}: {
+  embedded: boolean;
+  children: React.ReactNode;
+}) {
+  if (!embedded) {
+    return <div className="space-y-3">{children}</div>;
+  }
+
+  return (
+    <Accordion type="single" collapsible defaultValue="header" className="w-full">
+      {children}
+    </Accordion>
   );
 }
 
@@ -112,8 +169,12 @@ export function DocumentLayoutPanel({
   compactFieldToolbar = false,
   controlledScope,
   controlledViewContext,
+  controlledLayout,
+  controlledLayoutVersion,
   onLayoutChange,
+  onEmbeddedToolbarActionsChange,
   hideChromeToolbar = false,
+  layoutSeeds,
 }: Props) {
   const applyGstCompliance = (template: DocumentLayoutTemplate) => {
     const normalized = adapter.normalize(template);
@@ -127,29 +188,68 @@ export function DocumentLayoutPanel({
     controlledViewContext ?? (embedded ? "PDF_PRINT" : initialLayout.viewContext ?? "SCREEN_GRID")
   );
   const [layout, setLayout] = useState<DocumentLayoutTemplate>(() => applyGstCompliance(initialLayout));
-  const updateLayout = (updater: DocumentLayoutTemplate | ((current: DocumentLayoutTemplate) => DocumentLayoutTemplate)) => {
-    setLayout((current) => {
-      const next = typeof updater === "function" ? updater(current) : updater;
-      onLayoutChange?.(next);
-      return next;
-    });
+  const notifyParentOnLayoutCommit = useRef(false);
+  const updateLayout = (
+    updater: DocumentLayoutTemplate | ((current: DocumentLayoutTemplate) => DocumentLayoutTemplate),
+    options?: { syncParent?: boolean }
+  ) => {
+    notifyParentOnLayoutCommit.current = options?.syncParent !== false && onLayoutChange != null;
+    setLayout((current) => (typeof updater === "function" ? updater(current) : updater));
   };
 
   useEffect(() => {
-    if (controlledScope) setScope(controlledScope);
+    if (!notifyParentOnLayoutCommit.current) return;
+    notifyParentOnLayoutCommit.current = false;
+    onLayoutChange?.(layout);
+  }, [layout, onLayoutChange]);
+
+  useEffect(() => {
+    if (!controlledScope) return;
+    setScope((current) =>
+      layoutScopeKey(current) === layoutScopeKey(controlledScope) ? current : controlledScope
+    );
   }, [controlledScope]);
 
   useEffect(() => {
-    if (controlledViewContext) setViewContext(controlledViewContext);
+    if (!controlledViewContext) return;
+    setViewContext((current) => (current === controlledViewContext ? current : controlledViewContext));
   }, [controlledViewContext]);
   const [previewMode, setPreviewMode] = useState<"drawer" | "peek">("drawer");
   const [isPending, startTransition] = useTransition();
   const [isLoadingLayout, setIsLoadingLayout] = useState(false);
   const hydratedScopeKey = useRef(layoutScopeKey(TENANT_LAYOUT_SCOPE));
-  const hydratedViewContext = useRef(initialLayout.viewContext ?? "SCREEN_GRID");
+  const hydratedViewContext = useRef<DocumentViewContext>(
+    initialLayout.viewContext ?? "SCREEN_GRID"
+  );
+  const hydrationSignatureRef = useRef<string | null>(null);
+  const appliedControlledLayoutVersionRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!embedded || !controlledLayout || controlledLayoutVersion == null) return;
+    if (appliedControlledLayoutVersionRef.current === controlledLayoutVersion) return;
+    appliedControlledLayoutVersionRef.current = controlledLayoutVersion;
+    updateLayout(applyGstCompliance(controlledLayout), { syncParent: false });
+  }, [embedded, controlledLayout, controlledLayoutVersion]);
 
   useEffect(() => {
     const scopeKey = layoutScopeKey(scope);
+    const signature = `${scopeKey}:${viewContext}`;
+    const seededLayout = scope.mode === "tenant" ? layoutSeeds?.[viewContext] : undefined;
+
+    if (seededLayout) {
+      if (hydrationSignatureRef.current !== signature) {
+        hydrationSignatureRef.current = signature;
+        hydratedScopeKey.current = scopeKey;
+        hydratedViewContext.current = viewContext;
+        updateLayout(applyGstCompliance({ ...seededLayout, viewContext }), { syncParent: false });
+      }
+      return;
+    }
+
+    if (embedded && layoutSeeds && scope.mode === "tenant") {
+      return;
+    }
+
     const isInitialHydration =
       scopeKey === hydratedScopeKey.current &&
       viewContext === hydratedViewContext.current &&
@@ -157,7 +257,7 @@ export function DocumentLayoutPanel({
 
     if (isInitialHydration) {
       const next = applyGstCompliance(initialLayout);
-      updateLayout(next);
+      updateLayout(next, { syncParent: false });
       return;
     }
 
@@ -170,6 +270,7 @@ export function DocumentLayoutPanel({
         toast.error(result.error ?? "Unable to load document layout.");
         return;
       }
+      hydrationSignatureRef.current = signature;
       hydratedScopeKey.current = scopeKey;
       hydratedViewContext.current = viewContext;
       updateLayout(applyGstCompliance(result.layout));
@@ -179,9 +280,13 @@ export function DocumentLayoutPanel({
       cancelled = true;
       setIsLoadingLayout(false);
     };
-  }, [adapter, scope, viewContext, initialLayout, loadLayout]);
+  }, [adapter, scope, viewContext, loadLayout, layoutSeeds]);
+
+  const gstRegisteredRef = useRef(gstRegistered);
 
   useEffect(() => {
+    if (gstRegisteredRef.current === gstRegistered) return;
+    gstRegisteredRef.current = gstRegistered;
     updateLayout((current) => applyGstCompliance(current));
   }, [gstRegistered]);
 
@@ -200,7 +305,7 @@ export function DocumentLayoutPanel({
     updateLayout((current) => adapter.patchColumn(current, id, patch));
   };
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     updateLayout(
       applyGstCompliance({
         ...adapter.defaultLayout,
@@ -208,7 +313,7 @@ export function DocumentLayoutPanel({
       })
     );
     toast.message("Layout reset to defaults.");
-  };
+  }, [adapter.defaultLayout, applyGstCompliance, updateLayout, viewContext]);
 
   const handleResetLocalOverrides = () => {
     if (adapter.moduleKey !== "PURCHASE_ORDER") return;
@@ -219,7 +324,7 @@ export function DocumentLayoutPanel({
   const hasLocalOverrides =
     adapter.moduleKey === "PURCHASE_ORDER" && hasPoScreenLayoutLocalOverrides();
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     startTransition(async () => {
       const compliantLayout = applyGstCompliance({
         ...layout,
@@ -241,9 +346,27 @@ export function DocumentLayoutPanel({
       hydratedViewContext.current = viewContext;
       toast.success("Document layout saved.");
     });
-  };
+  }, [adapter.moduleKey, applyGstCompliance, layout, saveLayout, scope, viewContext]);
 
   const controlsDisabled = !canEdit || isPending || isLoadingLayout;
+  const saveLabel = isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save";
+  const useExternalToolbar = embedded && hideChromeToolbar && onEmbeddedToolbarActionsChange != null;
+  const toolbarActionsRef = useRef({ onReset: handleReset, onSave: handleSave });
+  toolbarActionsRef.current = { onReset: handleReset, onSave: handleSave };
+
+  useEffect(() => {
+    if (!useExternalToolbar || !onEmbeddedToolbarActionsChange) return;
+
+    onEmbeddedToolbarActionsChange({
+      onReset: () => toolbarActionsRef.current.onReset(),
+      onSave: () => toolbarActionsRef.current.onSave(),
+      disabled: controlsDisabled,
+      saveLabel,
+    });
+
+    return () => onEmbeddedToolbarActionsChange(null);
+  }, [useExternalToolbar, onEmbeddedToolbarActionsChange, controlsDisabled, saveLabel]);
+
   const lineOrder = adapter.getLineSettingsColumnOrder(layout);
   const headerOrder = layout.headerFieldOrder;
   const totalsOrder = layout.totalsFieldOrder.filter(
@@ -255,7 +378,7 @@ export function DocumentLayoutPanel({
   );
 
   return (
-    <div className="space-y-3">
+    <div className={cn(embedded ? "space-y-2" : "space-y-3")}>
       {!hideChromeToolbar ? (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2">
         <div className="flex flex-wrap items-center gap-3">
@@ -300,20 +423,25 @@ export function DocumentLayoutPanel({
           </Button>
         </div>
       </div>
-      ) : (
+      ) : useExternalToolbar ? null : (
         <div className="flex justify-end gap-1.5">
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={controlsDisabled} onClick={handleReset}>
             Reset fields
           </Button>
           <Button type="button" size="sm" className="h-7 px-3 text-xs" disabled={controlsDisabled} onClick={handleSave}>
-            {isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save fields"}
+            {saveLabel}
           </Button>
         </div>
       )}
 
       <div className={cn("grid gap-3", embedded ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]")}>
-        <div className="min-w-0 space-y-3 rounded-md border border-border bg-card p-2.5 sm:p-3">
-          <SectionBlock title="Header" hint="Header · top row · Details · side panel">
+        <div className="min-w-0 rounded-md border border-border bg-card p-2 sm:p-2.5">
+          <LayoutFieldSections embedded={embedded}>
+          <SectionBlock
+            title="Header"
+            hint="Header · top row · Details · side panel"
+            accordionValue={embedded ? "header" : undefined}
+          >
             <DocumentLayoutFieldList
               order={headerOrder}
               getColumn={(id) => getColumn(id)}
@@ -330,7 +458,11 @@ export function DocumentLayoutPanel({
             />
           </SectionBlock>
 
-          <SectionBlock title="Lines" hint="Column · Detail">
+          <SectionBlock
+            title="Lines"
+            hint="Column · Detail"
+            accordionValue={embedded ? "lines" : undefined}
+          >
             <DocumentLayoutFieldList
               order={lineOrder}
               getColumn={(id) => getColumn(id)}
@@ -355,12 +487,13 @@ export function DocumentLayoutPanel({
 
           {adapter.showCatalogSection ? (
             <SectionBlock
-              title="Item catalog fields"
+              title="Catalog fields"
               hint={
                 gstRegistered
                   ? "HSN/SAC required · read-only · from item master · under item cell"
                   : "Read-only · from item master · under item cell"
               }
+              accordionValue={embedded ? "catalog" : undefined}
             >
               <DocumentLayoutCatalogFieldsSection
                 layout={layout}
@@ -369,13 +502,14 @@ export function DocumentLayoutPanel({
                 catalogAdapter={adapter.catalog}
                 customFieldKeys={catalogFieldSuggestions?.customFieldKeys}
                 variantAttributeKeys={catalogFieldSuggestions?.variantAttributeKeys}
+                compactToolbar={compactFieldToolbar}
                 onLayoutChange={(next) => updateLayout(next)}
               />
             </SectionBlock>
           ) : null}
 
           {adapter.showTotalsSection ? (
-            <SectionBlock title="Totals">
+            <SectionBlock title="Totals" accordionValue={embedded ? "totals" : undefined}>
               <DocumentLayoutFieldList
                 order={totalsOrder}
                 getColumn={(id) => getColumn(id)}
@@ -420,6 +554,7 @@ export function DocumentLayoutPanel({
               </Select>
             </SectionBlock>
           ) : null}
+          </LayoutFieldSections>
         </div>
 
         {!embedded ? (

@@ -1,9 +1,19 @@
 import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
 import {
   DEFAULT_PRESENTATION_SHELL_CONFIG,
+  DEFAULT_PRESENTATION_STYLE_CONFIG,
   normalizePresentationShellConfig,
+  normalizePresentationStyleConfig,
 } from "@/lib/documents/print/default-shell-config";
-import type { PresentationShellConfig } from "@/lib/documents/print/types";
+import {
+  presentationStyleForLayoutTheme,
+  PRESENTATION_LAYOUT_THEMES,
+} from "@/lib/documents/print/presentation-layout-themes";
+import type {
+  PresentationLayoutTheme,
+  PresentationShellConfig,
+  PresentationStyleConfig,
+} from "@/lib/documents/print/types";
 import type { DocumentColumnPref, DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 
 export type DesignerLayoutPreset = {
@@ -15,6 +25,7 @@ export type DesignerLayoutPreset = {
 export type DesignerLayoutBundle = {
   layout: DocumentLayoutTemplate;
   shellConfig: PresentationShellConfig;
+  styleConfig: PresentationStyleConfig;
 };
 
 const NUMERIC_COLUMN_PATTERN =
@@ -46,11 +57,11 @@ const LEGAL_SNIPPETS = [
 
 export const DOCUMENT_DESIGNER_LAYOUT_PRESETS: DesignerLayoutPreset[] = [
   { id: "standard", label: "Standard", description: "Balanced default for print and email." },
-  { id: "compact", label: "Compact", description: "Tighter margins and fewer header fields." },
-  { id: "detailed", label: "Detailed", description: "Maximum fields, terms, and footer notes." },
-  { id: "minimal", label: "Minimal", description: "Clean letterhead with essentials only." },
-  { id: "formal", label: "Formal", description: "Right-aligned figures with legal footer." },
-  { id: "branded", label: "Branded", description: "Strong letterhead and promotional terms." },
+  { id: "compact", label: "Compact", description: "Dense type, tight margins, fewer header fields." },
+  { id: "detailed", label: "Detailed", description: "Full grid borders, three-column metadata, terms block." },
+  { id: "minimal", label: "Minimal", description: "Serif type, open spacing, essentials only." },
+  { id: "formal", label: "Formal", description: "Serif letterhead, boxed totals, legal footer." },
+  { id: "branded", label: "Branded", description: "Accent header band, shaded table, promotional terms." },
 ];
 
 function cloneLayout(layout: DocumentLayoutTemplate): DocumentLayoutTemplate {
@@ -59,6 +70,13 @@ function cloneLayout(layout: DocumentLayoutTemplate): DocumentLayoutTemplate {
 
 function cloneShell(shell: PresentationShellConfig): PresentationShellConfig {
   return structuredClone(shell);
+}
+
+function withPresetStyle(
+  bundle: DesignerLayoutBundle,
+  presetId: PresentationLayoutTheme
+): PresentationStyleConfig {
+  return presentationStyleForLayoutTheme(presetId);
 }
 
 function patchColumns(
@@ -107,6 +125,7 @@ function applyStandard(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
   return {
     layout: cloneLayout(bundle.layout),
     shellConfig: normalizePresentationShellConfig(cloneShell(bundle.shellConfig)),
+    styleConfig: withPresetStyle(bundle, "standard"),
   };
 }
 
@@ -137,6 +156,7 @@ function applyCompact(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
         legalText: "",
       },
     }),
+    styleConfig: withPresetStyle(bundle, "compact"),
   };
 }
 
@@ -172,6 +192,7 @@ function applyDetailed(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
           "This document is generated electronically and is valid without signature.",
       },
     }),
+    styleConfig: withPresetStyle(bundle, "detailed"),
   };
 }
 
@@ -203,6 +224,7 @@ function applyMinimal(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
         legalText: "",
       },
     }),
+    styleConfig: withPresetStyle(bundle, "minimal"),
   };
 }
 
@@ -240,6 +262,7 @@ function applyFormal(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
           "Confidential commercial document. Unauthorized reproduction is prohibited.",
       },
     }),
+    styleConfig: withPresetStyle(bundle, "formal"),
   };
 }
 
@@ -270,6 +293,7 @@ function applyBranded(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
         legalText: bundle.shellConfig.footer.legalText,
       },
     }),
+    styleConfig: withPresetStyle(bundle, "branded"),
   };
 }
 
@@ -286,7 +310,8 @@ export function normalizeDesignerBundle(
   moduleKey: DocumentModuleKey,
   viewContext: DocumentLayoutTemplate["viewContext"],
   layout: DocumentLayoutTemplate,
-  shellConfig: PresentationShellConfig
+  shellConfig: PresentationShellConfig,
+  styleConfig: PresentationStyleConfig = DEFAULT_PRESENTATION_STYLE_CONFIG
 ): DesignerLayoutBundle {
   const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[moduleKey];
   return {
@@ -296,6 +321,7 @@ export function normalizeDesignerBundle(
       viewContext,
     }),
     shellConfig: normalizePresentationShellConfig(shellConfig),
+    styleConfig: normalizePresentationStyleConfig(styleConfig),
   };
 }
 
@@ -410,5 +436,8 @@ export function generateDesignerLayout(bundle: DesignerLayoutBundle): DesignerLa
       },
       compliance: bundle.shellConfig.compliance,
     }),
+    styleConfig: presentationStyleForLayoutTheme(
+      pickRandom(PRESENTATION_LAYOUT_THEMES)
+    ),
   };
 }

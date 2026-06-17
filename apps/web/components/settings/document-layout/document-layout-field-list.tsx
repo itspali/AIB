@@ -205,24 +205,23 @@ function DocumentLayoutFieldRow<TId extends string>({
           <GripVertical className="h-3.5 w-3.5" aria-hidden />
         </button>
       </td>
-      <td className="w-10 py-1 pl-1 pr-3 align-middle">
-        {compactToolbar ? null : (
-          <Switch
-            size="xs"
-            checked={column.defaultVisible}
-            disabled={rowDisabled || pinned}
-            onCheckedChange={(checked) => onPatch({ defaultVisible: checked })}
-            aria-label={`Show ${column.label}`}
-          />
-        )}
+      <td className="w-9 py-1 pl-1 pr-2 align-middle">
+        <Switch
+          size="xs"
+          checked={column.defaultVisible}
+          disabled={rowDisabled || pinned}
+          onCheckedChange={(checked) => onPatch({ defaultVisible: checked })}
+          aria-label={`Show ${column.label}`}
+        />
       </td>
-      <td className="min-w-[10rem] py-1 pl-1 pr-2 align-middle">
+      <td className={cn("py-1 pl-1 pr-2 align-middle", compactToolbar ? "w-auto" : "min-w-[10rem]")}>
         <Input
           value={column.label}
           disabled={rowDisabled}
           onChange={(event) => onPatch({ label: event.target.value })}
           className={cn(
-            "h-7 w-full min-w-[8rem] border-transparent bg-transparent px-1.5 text-xs shadow-none focus-visible:border-border focus-visible:bg-background",
+            "h-7 w-full border-transparent bg-transparent px-1.5 text-xs shadow-none focus-visible:border-border focus-visible:bg-background",
+            !compactToolbar && "min-w-[8rem]",
             column.typography?.fontWeight === "semibold" && "font-semibold",
             column.typography?.fontWeight === "bold" && "font-bold",
             column.typography?.fontStyle === "italic" && "italic"
@@ -366,7 +365,7 @@ function DocumentLayoutFieldRow<TId extends string>({
         )
       ) : null}
       {compactToolbar ? (
-        <td className="min-w-[11rem] px-1 py-1 align-middle">
+        <td className="w-[4.25rem] px-1 py-1 align-middle">
           <DocumentLayoutFieldFormatToolbar
             column={column}
             disabled={rowDisabled || pinned}
@@ -377,9 +376,11 @@ function DocumentLayoutFieldRow<TId extends string>({
           />
         </td>
       ) : null}
+      {compactToolbar ? null : (
       <td className="w-10 px-1 py-1 align-middle text-[10px] text-muted-foreground">
         {pinned ? "Pin" : null}
       </td>
+      )}
     </tr>
   );
 }
@@ -425,14 +426,19 @@ export function DocumentLayoutFieldList<TId extends string>({
         data-header-tone="subtle"
         className={cn(
           "table-chrome w-full border-separate border-spacing-0 text-xs",
-          isWideTable ? "min-w-[56rem] table-auto" : compactToolbar ? "min-w-[24rem] table-auto" : "min-w-[20rem] table-fixed"
+          isWideTable ? "min-w-[56rem] table-auto" : compactToolbar ? "w-full table-fixed" : "min-w-[20rem] table-fixed"
         )}
       >
         <thead>
           <tr className="border-b border-border text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <th className="w-7 px-1 py-1.5" aria-label="Reorder" />
-            {!compactToolbar ? <th className="w-11 py-1.5 pl-1 pr-3 text-left">Show</th> : null}
-            <th className={cn("py-1.5 pl-1 pr-2 text-left", isWideTable ? "min-w-[10rem]" : "min-w-[8rem]")}>
+            <th className="w-9 py-1.5 pl-1 pr-2 text-left">{compactToolbar ? "On" : "Show"}</th>
+            <th
+              className={cn(
+                "py-1.5 pl-1 pr-2 text-left",
+                compactToolbar ? "w-auto" : isWideTable ? "min-w-[10rem]" : "min-w-[8rem]"
+              )}
+            >
               Label
             </th>
             {showHeaderPlacementColumns ? (
@@ -445,17 +451,21 @@ export function DocumentLayoutFieldList<TId extends string>({
                 <th className="min-w-[5.5rem] px-1 py-1.5 text-left">Flow</th>
               </>
             ) : null}
-            {showAlignColumn ? <th className="min-w-[5rem] px-1 py-1.5 text-left">Align</th> : null}
-            {showDecimalsColumn ? <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Dec</th> : null}
-            {showTypographyColumns ? (
+            {showAlignColumn && !compactToolbar ? (
+              <th className="min-w-[5rem] px-1 py-1.5 text-left">Align</th>
+            ) : null}
+            {showDecimalsColumn && !compactToolbar ? (
+              <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Dec</th>
+            ) : null}
+            {showTypographyColumns && !compactToolbar ? (
               <>
                 <th className="min-w-[4rem] px-1 py-1.5 text-left">Size</th>
                 <th className="min-w-[4.25rem] px-1 py-1.5 text-left">Wt</th>
                 <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Ital</th>
               </>
             ) : null}
-            {compactToolbar ? <th className="min-w-[11rem] px-1 py-1.5 text-right">Format</th> : null}
-            <th className="w-10 px-1 py-1.5" />
+            {compactToolbar ? <th className="w-[4.25rem] px-1 py-1.5 text-right">Fmt</th> : null}
+            {!compactToolbar ? <th className="w-10 px-1 py-1.5" /> : null}
           </tr>
         </thead>
         <tbody>

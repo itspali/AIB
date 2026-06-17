@@ -1,4 +1,5 @@
 import type { PresentationShellConfig, PresentationStyleConfig } from "@/lib/documents/print/types";
+import { normalizePresentationLayoutTheme } from "@/lib/documents/print/presentation-layout-themes";
 
 export const DEFAULT_PRESENTATION_SHELL_CONFIG: PresentationShellConfig = {
   version: 1,
@@ -27,6 +28,7 @@ export const DEFAULT_PRESENTATION_SHELL_CONFIG: PresentationShellConfig = {
 export const DEFAULT_PRESENTATION_STYLE_CONFIG: PresentationStyleConfig = {
   fontFamily: "system-ui, sans-serif",
   fontSizePx: 12,
+  layoutTheme: "standard",
 };
 
 export function normalizePresentationShellConfig(
@@ -100,5 +102,6 @@ export function normalizePresentationStyleConfig(
       typeof raw.fontSizePx === "number" && Number.isFinite(raw.fontSizePx)
         ? raw.fontSizePx
         : base.fontSizePx,
+    layoutTheme: normalizePresentationLayoutTheme(raw.layoutTheme ?? base.layoutTheme),
   };
 }

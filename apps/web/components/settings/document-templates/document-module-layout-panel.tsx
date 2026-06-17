@@ -7,6 +7,7 @@ import { SalesInvoiceDocumentLayoutPanel } from "@/components/settings/document-
 import { SalesOrderDocumentLayoutPanel } from "@/components/settings/document-layout/sales-order-document-layout-panel";
 import { SalesQuotationDocumentLayoutPanel } from "@/components/settings/document-layout/sales-quotation-document-layout-panel";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
+import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
 import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
@@ -20,7 +21,11 @@ type Props = {
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
   scope: DocumentLayoutScope;
   viewContext: DocumentViewContext;
+  layoutSeeds?: Partial<Record<DocumentViewContext, DocumentLayoutTemplate>>;
   onLayoutChange: (layout: DocumentLayoutTemplate) => void;
+  controlledLayout?: DocumentLayoutTemplate;
+  controlledLayoutVersion?: number;
+  onEmbeddedToolbarActionsChange?: (actions: DocumentLayoutEmbeddedToolbarActions | null) => void;
 };
 
 const sharedEmbeddedProps = (props: Props) => ({
@@ -33,7 +38,11 @@ const sharedEmbeddedProps = (props: Props) => ({
   hideChromeToolbar: true as const,
   controlledScope: props.scope,
   controlledViewContext: props.viewContext,
+  controlledLayout: props.controlledLayout,
+  controlledLayoutVersion: props.controlledLayoutVersion,
+  layoutSeeds: props.layoutSeeds,
   onLayoutChange: props.onLayoutChange,
+  onEmbeddedToolbarActionsChange: props.onEmbeddedToolbarActionsChange,
 });
 
 export function DocumentModuleLayoutPanel(props: Props) {

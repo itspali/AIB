@@ -2,24 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileOutput, FileText, Printer } from "lucide-react";
+import { FileOutput } from "lucide-react";
 import { DocumentDesignerWorkspace } from "@/components/settings/document-templates/document-designer-workspace";
+import { DocumentTemplatesContextToolbar } from "@/components/settings/document-templates/document-templates-context-toolbar";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
 import {
   PRESENTATION_MODULE_DEFINITIONS,
   groupPresentationModulesByDomain,
 } from "@/lib/documents/print/presentation-catalog";
 import type { PresentationModuleDefinition } from "@/lib/documents/print/types";
-import type { PresentationShellConfig, PresentationViewContext } from "@/lib/documents/print/types";
+import type { PresentationShellConfig, PresentationStyleConfig, PresentationViewContext } from "@/lib/documents/print/types";
+import { TENANT_LAYOUT_SCOPE, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
 import type { PoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
-import { cn } from "@/lib/utils";
 
 type ModulePresentationShells = Record<PresentationViewContext, PresentationShellConfig>;
+type ModulePresentationStyles = Record<PresentationViewContext, PresentationStyleConfig>;
 
-const DOMAIN_ORDER = ["PROCUREMENT", "SALES"] as const;
 const MODULE_QUERY = "module";
 
 const VALID_MODULE_KEYS = new Set<DocumentModuleKey>(
@@ -37,8 +37,15 @@ type Props = {
   gstRegistered: boolean;
   deployError?: string;
   initialModuleKey?: DocumentModuleKey | null;
-  initialLayouts: Record<DocumentModuleKey, DocumentLayoutTemplate>;
+  previewModuleKey: DocumentModuleKey;
+  initialPreviewDraftKey: string;
+  initialPreviewHtml: string | null;
+  initialLayoutsByModule: Record<
+    DocumentModuleKey,
+    Record<PresentationViewContext, DocumentLayoutTemplate>
+  >;
   initialPresentationShells: Record<DocumentModuleKey, ModulePresentationShells>;
+  initialPresentationStyles: Record<DocumentModuleKey, ModulePresentationStyles>;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 };
 
@@ -48,8 +55,12 @@ export function DocumentTemplatesSettingsTerminal({
   gstRegistered,
   deployError,
   initialModuleKey,
-  initialLayouts,
+  previewModuleKey,
+  initialPreviewDraftKey,
+  initialPreviewHtml,
+  initialLayoutsByModule,
   initialPresentationShells,
+  initialPresentationStyles,
   catalogFieldSuggestions,
 }: Props) {
   const router = useRouter();
@@ -63,6 +74,11 @@ export function DocumentTemplatesSettingsTerminal({
     const definition = PRESENTATION_MODULE_DEFINITIONS.find((row) => row.moduleKey === key);
     return definition?.domain ?? "PROCUREMENT";
   });
+  const [viewContext, setViewContext] = useState<PresentationViewContext>("PDF_PRINT");
+  const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
+  const [designerTab, setDesignerTab] = useState<"fields" | "appearance">("fields");
+  const [fieldToolbarActions, setFieldToolbarActions] =
+    useState<DocumentLayoutEmbeddedToolbarActions | null>(null);
 
   useEffect(() => {
     if (!queryModule) return;
@@ -86,6 +102,13 @@ export function DocumentTemplatesSettingsTerminal({
     [selectedModuleKey]
   );
 
+  useEffect(() => {
+    setViewContext("PDF_PRINT");
+    setScope(TENANT_LAYOUT_SCOPE);
+    setDesignerTab("fields");
+    setFieldToolbarActions(null);
+  }, [selectedModuleKey]);
+
   const selectModule = useCallback(
     (module: PresentationModuleDefinition) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -104,8 +127,13 @@ export function DocumentTemplatesSettingsTerminal({
     if (first) selectModule(first);
   };
 
+  const handleModuleChange = (moduleKey: DocumentModuleKey) => {
+    const module = PRESENTATION_MODULE_DEFINITIONS.find((row) => row.moduleKey === moduleKey);
+    if (module) selectModule(module);
+  };
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3">
+    <div className="document-templates-shell flex h-full min-h-0 w-full flex-col gap-3">
       <header className="shrink-0">
         <div className="flex items-center gap-2">
           <FileOutput className="h-6 w-6 text-primary" aria-hidden />
@@ -129,80 +157,60 @@ export function DocumentTemplatesSettingsTerminal({
         </div>
       ) : null}
 
-      <Tabs
-        value={domain}
-        onValueChange={(value) => handleDomainChange(value as "PROCUREMENT" | "SALES")}
-        className="flex min-h-0 flex-1 flex-col gap-3"
-      >
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <TabsList className="h-8 shrink-0 bg-muted/50 p-0.5">
-            {DOMAIN_ORDER.map((domainKey) => (
-              <TabsTrigger key={domainKey} value={domainKey} className="h-7 px-3 text-xs">
-                {domainKey === "PROCUREMENT" ? "Procurement" : "Sales"}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+      {selectedModule ? (
+        <>
+          <DocumentTemplatesContextToolbar
+            domain={domain}
+            onDomainChange={handleDomainChange}
+            modules={groups[domain]}
+            selectedModuleKey={selectedModuleKey}
+            onModuleChange={handleModuleChange}
+            viewContext={viewContext}
+            onViewContextChange={setViewContext}
+            scope={scope}
+            locations={locations}
+            canEdit={canEdit}
+            onScopeChange={setScope}
+            designerTab={designerTab}
+            onDesignerTabChange={setDesignerTab}
+            fieldToolbarActions={fieldToolbarActions}
+          />
 
-        {DOMAIN_ORDER.map((domainKey) => (
-          <TabsContent
-            key={domainKey}
-            value={domainKey}
-            className="mt-0 flex min-h-0 flex-1 flex-col gap-3 data-[state=inactive]:hidden"
-          >
-            <Tabs
-              value={selectedModuleKey}
-              onValueChange={(value) => {
-                const module = groups[domainKey].find((row) => row.moduleKey === value);
-                if (module) selectModule(module);
-              }}
-            >
-              <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
-                {groups[domainKey].map((module) => (
-                  <TabsTrigger
-                    key={module.moduleKey}
-                    value={module.moduleKey}
-                    className={cn(
-                      "h-8 shrink-0 gap-1.5 rounded-md border border-transparent px-3 text-xs data-[state=active]:border-primary/30 data-[state=active]:bg-primary/5"
-                    )}
-                  >
-                    {module.printable ? (
-                      <Printer className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    ) : (
-                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    )}
-                    {module.label}
-                    {!module.printable ? (
-                      <Badge variant="administrative" className="ml-0.5 text-[9px]">
-                        Layout
-                      </Badge>
-                    ) : null}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-
-            <div className="min-h-0 min-w-0 flex-1">
-              {selectedModule && selectedModule.domain === domainKey ? (
-                <DocumentDesignerWorkspace
-                  key={selectedModule.moduleKey}
-                  moduleKey={selectedModule.moduleKey}
-                  moduleLabel={selectedModule.label}
-                  moduleDomain={selectedModule.domain}
-                  initialLayout={initialLayouts[selectedModule.moduleKey]}
-                  initialPresentationShells={initialPresentationShells[selectedModule.moduleKey]}
-                  locations={locations}
-                  canEdit={canEdit}
-                  gstRegistered={gstRegistered}
-                  catalogFieldSuggestions={
-                    selectedModule.domain === "PROCUREMENT" ? catalogFieldSuggestions : undefined
-                  }
-                />
-              ) : null}
-            </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+          <div className="min-h-0 min-w-0 flex-1">
+            <DocumentDesignerWorkspace
+              key={selectedModule.moduleKey}
+              moduleKey={selectedModule.moduleKey}
+              moduleLabel={selectedModule.label}
+              moduleDomain={selectedModule.domain}
+              initialLayout={initialLayoutsByModule[selectedModule.moduleKey][viewContext]}
+              initialLayoutsByViewContext={initialLayoutsByModule[selectedModule.moduleKey]}
+              initialPresentationShells={initialPresentationShells[selectedModule.moduleKey]}
+              initialPresentationStyles={initialPresentationStyles[selectedModule.moduleKey]}
+              locations={locations}
+              canEdit={canEdit}
+              gstRegistered={gstRegistered}
+              catalogFieldSuggestions={
+                selectedModule.domain === "PROCUREMENT" ? catalogFieldSuggestions : undefined
+              }
+              viewContext={viewContext}
+              scope={scope}
+              designerTab={designerTab}
+              onDesignerTabChange={setDesignerTab}
+              onFieldToolbarActionsChange={setFieldToolbarActions}
+              seededPreviewDraftKey={
+                selectedModuleKey === previewModuleKey && viewContext === "PDF_PRINT"
+                  ? initialPreviewDraftKey
+                  : null
+              }
+              seededPreviewHtml={
+                selectedModuleKey === previewModuleKey && viewContext === "PDF_PRINT"
+                  ? initialPreviewHtml
+                  : null
+              }
+            />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
