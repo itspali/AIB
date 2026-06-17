@@ -36,4 +36,23 @@ describe("applyGstPresentationOverrides", () => {
     expect(result.shellConfig.compliance?.pack).toBe("gst_tax_invoice");
     expect(result.shellConfig.compliance?.showIrnPlaceholder).toBe(true);
   });
+
+  it("preserves saved compliance toggles for registered orgs", () => {
+    const template = {
+      ...baseTemplate("SALES_INVOICE"),
+      shellConfig: {
+        ...DEFAULT_PRESENTATION_SHELL_CONFIG,
+        compliance: {
+          pack: "gst_tax_invoice" as const,
+          showPlaceOfSupply: false,
+          showIrnPlaceholder: false,
+          statutoryNote: "Custom statutory note",
+        },
+      },
+    };
+    const result = applyGstPresentationOverrides(template, true);
+    expect(result.shellConfig.compliance?.showPlaceOfSupply).toBe(false);
+    expect(result.shellConfig.compliance?.showIrnPlaceholder).toBe(false);
+    expect(result.shellConfig.compliance?.statutoryNote).toBe("Custom statutory note");
+  });
 });

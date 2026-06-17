@@ -5,6 +5,10 @@ import {
   buildPrintModelForDocument,
   getDocumentPrintAdapter,
 } from "@/lib/documents/print/document-print-registry";
+import {
+  computeDocumentRenderFingerprint,
+  readDocumentSourceUpdatedAt,
+} from "@/lib/documents/print/document-pdf-cache";
 import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-context";
 import { resolveEffectivePresentationTemplate } from "@/lib/documents/print/resolve-effective-presentation";
 import { renderDocumentHtml } from "@/lib/documents/print/render-document-html";
@@ -16,6 +20,8 @@ export type DocumentRenderPayload = {
   title: string;
   html: string;
   locationId: string | null;
+  sourceUpdatedAt: string;
+  renderFingerprint: string;
 };
 
 export async function resolveDocumentRenderPayload(input: {
@@ -60,12 +66,17 @@ export async function resolveDocumentRenderPayload(input: {
 
   const title = adapter.getTitle(document);
   const model = buildPrintModelForDocument(input.moduleKey, layout, document);
+  const renderFingerprint = computeDocumentRenderFingerprint(presentation, layout);
 
   return {
     payload: {
       title,
       html: renderDocumentHtml(title, model, presentation, org),
       locationId,
+      sourceUpdatedAt: readDocumentSourceUpdatedAt(
+        document as unknown as Record<string, unknown>
+      ),
+      renderFingerprint,
     },
   };
 }

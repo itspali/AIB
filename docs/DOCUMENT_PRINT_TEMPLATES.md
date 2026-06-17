@@ -38,12 +38,14 @@ Resolution order for both layout and presentation: **location override → tenan
 
 - [x] **GST tax invoice presentation pack** — IRN placeholder, place of supply, statutory note for GST-registered orgs on sales invoices
 - [x] **Sales invoice print** — adapter, print model, drawer Print menu
+- [x] **Unified settings terminal** — full-width module rail at `/settings/documents/templates?module=…`
+- [x] **Sales order print** — adapter, print model, drawer Print menu
+- [x] **PDF Storage cache** — `document-pdfs` bucket + `document_pdf_cache` metadata; reused on Download PDF
+- [x] **Editable GST compliance toggles** — place of supply, IRN placeholder, statutory note on sales invoice templates
 
 **Not yet implemented:**
 
 - Multi-template picker per document
-- PDF Storage cache
-- Compliance packs (GST tax invoice layout, e-invoice IRN slot)
 - Template versioning / freeze at issue
 - Custom HTML blocks
 
@@ -58,24 +60,27 @@ apps/web/lib/documents/print/
   presentation-queries.ts
   resolve-effective-presentation.ts
   document-print-registry.ts
+  document-pdf-cache.ts
   resolve-document-render.ts
   org-render-context.ts
   render-document-html.ts
+  gst-presentation-compliance.ts
 
 apps/web/lib/documents/
-  document-print-actions.ts      # loadDocumentPrintPayload, downloadDocumentPdf
+  document-print-actions.ts      # loadDocumentPrintPayload, downloadDocumentPdf (with cache)
   download-document-pdf.ts       # client blob download helper
 
 apps/web/app/settings/documents/templates/
   page.tsx
-  [moduleKey]/page.tsx
+  [moduleKey]/page.tsx           # redirects to ?module=
   actions.ts
 
 apps/web/components/settings/document-templates/
-  document-templates-hub.tsx
-  presentation-template-panel.tsx
+  document-templates-settings-terminal.tsx
+  presentation-template-editor.tsx
 
 supabase/migrations/20260717160000_document_presentation_templates.sql
+supabase/migrations/20260717180000_document_pdf_cache.sql
 ```
 
 ## `shell_config` schema (v1)
@@ -102,6 +107,12 @@ supabase/migrations/20260717160000_document_presentation_templates.sql
     "showTotals": true,
     "showTerms": false,
     "termsText": ""
+  },
+  "compliance": {
+    "pack": "gst_tax_invoice",
+    "showPlaceOfSupply": true,
+    "showIrnPlaceholder": true,
+    "statutoryNote": ""
   }
 }
 ```

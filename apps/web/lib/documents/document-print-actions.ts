@@ -1,6 +1,11 @@
 "use server";
 
 import { resolveDocumentRenderPayload } from "@/lib/documents/print/resolve-document-render";
+import {
+  getCachedDocumentPdf,
+  putCachedDocumentPdf,
+  type DocumentPdfCacheLookup,
+} from "@/lib/documents/print/document-pdf-cache";
 import { generatePdfFromHtml } from "@/lib/email/generate-document-pdf";
 import type { PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
@@ -37,32 +42,56 @@ export async function downloadDocumentPdf(input: {
   moduleKey: DocumentModuleKey;
   documentId: string;
   documentLocationId?: string | null;
-}): Promise<{ filename: string; pdfBase64: string } | { error: string }> {
+}): Promise<{ filename: string; pdfBase64: string; cached?: boolean } | { error: string }> {
   try {
     const { supabase, tenantId } = await requireTenantId();
+    const viewContext: PresentationViewContext = "PDF_PRINT";
     const result = await resolveDocumentRenderPayload({
       supabase,
       tenantId,
       moduleKey: input.moduleKey,
       documentId: input.documentId,
       documentLocationId: input.documentLocationId,
-      viewContext: "PDF_PRINT",
+      viewContext,
     });
 
     if ("error" in result) return result;
 
-    const pdfBuffer = await generatePdfFromHtml(result.payload.html);
+    const cacheLookup: DocumentPdfCacheLookup = {
+      tenantId,
+      moduleKey: input.moduleKey,
+      documentId: input.documentId,
+      viewContext,
+      locationId: result.payload.locationId,
+      sourceUpdatedAt: result.payload.sourceUpdatedAt,
+      renderFingerprint: result.payload.renderFingerprint,
+    };
+
+    let pdfBuffer = await getCachedDocumentPdf(supabase, cacheLookup);
+    let cached = pdfBuffer != null;
+
     if (!pdfBuffer) {
-      return {
-        error:
-          "PDF generation is unavailable. Configure Puppeteer locally or use Print instead.",
-      };
+      pdfBuffer = await generatePdfFromHtml(result.payload.html);
+      if (!pdfBuffer) {
+        return {
+          error:
+            "PDF generation is unavailable. Configure Puppeteer locally or use Print instead.",
+        };
+      }
+
+      try {
+        await putCachedDocumentPdf(supabase, cacheLookup, pdfBuffer);
+      } catch {
+        // Cache write failures should not block download.
+      }
+      cached = false;
     }
 
     const safeTitle = result.payload.title.replace(/[^\w.-]+/g, "_");
     return {
       filename: `${safeTitle}.pdf`,
       pdfBase64: pdfBuffer.toString("base64"),
+      cached,
     };
   } catch (error) {
     return {

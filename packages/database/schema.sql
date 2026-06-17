@@ -694,6 +694,21 @@ CREATE TABLE document_presentation_templates (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE document_pdf_cache (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    module_key          TEXT NOT NULL,
+    document_id         UUID NOT NULL,
+    view_context        TEXT NOT NULL DEFAULT 'PDF_PRINT',
+    location_id         UUID NULL REFERENCES tenant_locations (id) ON DELETE CASCADE,
+    location_scope      TEXT NOT NULL DEFAULT 'tenant',
+    storage_path        TEXT NOT NULL,
+    source_updated_at   TIMESTAMPTZ NOT NULL,
+    render_fingerprint  TEXT NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Notification templates (Email / SMS / WhatsApp — delivery providers wired separately)
 -- Full RPCs and seed catalog: supabase/migrations/20260625100000_notification_templates_foundation.sql
 CREATE TYPE notification_channel AS ENUM ('EMAIL', 'SMS', 'WHATSAPP');

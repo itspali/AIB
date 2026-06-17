@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DEFAULT_PRESENTATION_SHELL_CONFIG } from "@/lib/documents/print/default-shell-config";
+import { defaultGstComplianceConfig } from "@/lib/documents/print/gst-presentation-compliance";
 import type {
   DocumentPresentationTemplate,
   PresentationShellConfig,
@@ -115,47 +116,79 @@ export function PresentationTemplateEditor({
       if (cancelled) return;
       setIsLoadingTemplate(false);
       if ("template" in result) {
-        setShellConfig(result.template.shellConfig);
+        let nextConfig = result.template.shellConfig;
+        if (moduleKey === "SALES_INVOICE" && gstRegistered && !nextConfig.compliance) {
+          nextConfig = {
+            ...nextConfig,
+            compliance: defaultGstComplianceConfig(),
+            header: {
+              ...nextConfig.header,
+              titleOverride: nextConfig.header.titleOverride ?? "Tax Invoice",
+            },
+          };
+        }
+        setShellConfig(nextConfig);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [moduleKey, viewContext, layoutScopeKey(scope)]);
+  }, [moduleKey, viewContext, layoutScopeKey(scope), gstRegistered]);
+
+  const showGstCompliance = moduleKey === "SALES_INVOICE" && gstRegistered;
+  const complianceConfig =
+    shellConfig.compliance ?? (showGstCompliance ? defaultGstComplianceConfig() : undefined);
 
   useEffect(() => {
+    const previewShellConfig =
+      showGstCompliance && !shellConfig.compliance
+        ? { ...shellConfig, compliance: complianceConfig }
+        : shellConfig;
+
     startPreviewTransition(async () => {
       const result = await loadPresentationTemplatePreview({
         moduleKey,
         viewContext,
-        shellConfig,
+        shellConfig: previewShellConfig,
         scope,
       });
       if ("html" in result) {
         setPreviewHtml(result.html);
       }
     });
-  }, [moduleKey, viewContext, shellConfig, scope]);
+  }, [moduleKey, viewContext, shellConfig, scope, showGstCompliance, complianceConfig]);
 
   const patchShell = (patch: {
     header?: Partial<PresentationShellConfig["header"]>;
     footer?: Partial<PresentationShellConfig["footer"]>;
     sections?: Partial<PresentationShellConfig["sections"]>;
+    compliance?: Partial<NonNullable<PresentationShellConfig["compliance"]>>;
   }) => {
     setShellConfig((current) => ({
       ...current,
       header: { ...current.header, ...(patch.header ?? {}) },
       footer: { ...current.footer, ...(patch.footer ?? {}) },
       sections: { ...current.sections, ...(patch.sections ?? {}) },
+      compliance: patch.compliance
+        ? {
+            ...(current.compliance ?? defaultGstComplianceConfig()),
+            ...patch.compliance,
+          }
+        : current.compliance,
     }));
   };
 
   const handleSave = () => {
     startTransition(async () => {
+      const payloadConfig =
+        showGstCompliance && !shellConfig.compliance
+          ? { ...shellConfig, compliance: complianceConfig }
+          : shellConfig;
+
       const result = await savePresentationTemplate({
         moduleKey,
         viewContext,
-        shellConfig,
+        shellConfig: payloadConfig,
         scope,
       });
       if ("error" in result) {
@@ -188,8 +221,8 @@ export function PresentationTemplateEditor({
           </p>
           {moduleKey === "SALES_INVOICE" && gstRegistered ? (
             <p className="mt-1 text-xs text-muted-foreground">
-              GST-registered orgs use the tax invoice pack at render time (title, place of supply,
-              IRN placeholder).
+              GST tax invoice compliance blocks can be tuned below. Title defaults to Tax Invoice
+              when blank.
             </p>
           ) : null}
         </div>
@@ -318,6 +351,46 @@ export function PresentationTemplateEditor({
               ) : null}
             </div>
           </OrgSettingsSection>
+
+          {showGstCompliance && complianceConfig ? (
+            <OrgSettingsSection
+              title="GST compliance"
+              description="Statutory blocks shown on tax invoices for GST-registered organizations."
+            >
+              <div className="space-y-2">
+                <ToggleRow
+                  id={`${moduleKey}-showPlaceOfSupply`}
+                  label="Show place of supply"
+                  checked={complianceConfig.showPlaceOfSupply}
+                  disabled={!canEdit}
+                  onCheckedChange={(value) => patchShell({ compliance: { showPlaceOfSupply: value } })}
+                />
+                <ToggleRow
+                  id={`${moduleKey}-showIrnPlaceholder`}
+                  label="Show e-invoice IRN placeholder"
+                  checked={complianceConfig.showIrnPlaceholder}
+                  disabled={!canEdit}
+                  onCheckedChange={(value) => patchShell({ compliance: { showIrnPlaceholder: value } })}
+                />
+                <div className="space-y-2 rounded-md border border-border/60 px-3 py-2.5">
+                  <Label htmlFor={`${moduleKey}-statutoryNote`} className="text-sm font-medium">
+                    Statutory note
+                  </Label>
+                  <textarea
+                    id={`${moduleKey}-statutoryNote`}
+                    value={complianceConfig.statutoryNote}
+                    disabled={!canEdit}
+                    rows={3}
+                    placeholder="Footer disclaimer for tax invoices…"
+                    className={textareaClassName}
+                    onChange={(event) =>
+                      patchShell({ compliance: { statutoryNote: event.target.value } })
+                    }
+                  />
+                </div>
+              </div>
+            </OrgSettingsSection>
+          ) : null}
 
           <OrgSettingsSection title="Footer" description="Optional legal or compliance text.">
             <textarea

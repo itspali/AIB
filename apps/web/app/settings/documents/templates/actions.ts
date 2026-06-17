@@ -10,6 +10,8 @@ import {
   normalizePresentationShellConfig,
   normalizePresentationStyleConfig,
 } from "@/lib/documents/print/default-shell-config";
+import { invalidateDocumentPdfCacheForModule } from "@/lib/documents/print/document-pdf-cache";
+import { applyGstPresentationOverrides } from "@/lib/documents/print/gst-presentation-compliance";
 import { presentationTemplateFromRow } from "@/lib/documents/print/presentation-persistence";
 import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import { TENANT_LAYOUT_SCOPE } from "@/lib/documents/layout-scope";
@@ -19,6 +21,7 @@ import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-
 import { renderDocumentHtml } from "@/lib/documents/print/render-document-html";
 import type { DocumentPrintModel } from "@/lib/documents/build-document-print-model";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
+import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 const moduleKeySchema = z.enum([
@@ -62,6 +65,14 @@ const shellConfigSchema = z.object({
     showTerms: z.boolean(),
     termsText: z.string(),
   }),
+  compliance: z
+    .object({
+      pack: z.enum(["standard", "gst_tax_invoice"]),
+      showPlaceOfSupply: z.boolean(),
+      showIrnPlaceholder: z.boolean(),
+      statutoryNote: z.string(),
+    })
+    .optional(),
 });
 
 const scopeSchema = z.union([
@@ -98,13 +109,23 @@ function revalidateTemplatePaths(moduleKey: DocumentModuleKey) {
 }
 
 function samplePrintModel(moduleKey: DocumentModuleKey): DocumentPrintModel {
+  const headerFields =
+    moduleKey === "SALES_INVOICE"
+      ? [
+          { id: "customer", label: "Customer", value: "Acme Retail Pvt Ltd" },
+          { id: "voucher_number", label: "Invoice no.", value: "INV-00001" },
+          { id: "tax_supply_nature", label: "Place of supply", value: "Same state" },
+          { id: "created_at", label: "Date", value: "17 Jun 2026" },
+        ]
+      : [
+          { id: "supplier", label: "Supplier", value: "Acme Supplies Pvt Ltd" },
+          { id: "voucher_number", label: "Document no.", value: "DOC-00001" },
+          { id: "created_at", label: "Date", value: "17 Jun 2026" },
+        ];
+
   return {
     moduleKey,
-    headerFields: [
-      { id: "supplier", label: "Supplier", value: "Acme Supplies Pvt Ltd" },
-      { id: "voucher_number", label: "Document no.", value: "DOC-00001" },
-      { id: "created_at", label: "Date", value: "17 Jun 2026" },
-    ],
+    headerFields,
     lineColumns: [
       { id: "item", label: "Item", defaultVisible: true },
       { id: "quantity_ordered", label: "Qty", defaultVisible: true, align: "right" },
@@ -195,6 +216,11 @@ export async function savePresentationTemplate(
     await upsertDocumentPresentationTemplate(editor.supabase, editor.tenantId, nextTemplate, {
       locationId,
     });
+    await invalidateDocumentPdfCacheForModule(
+      editor.supabase,
+      editor.tenantId,
+      parsed.data.moduleKey
+    );
     revalidateTemplatePaths(parsed.data.moduleKey);
     return { success: true };
   } catch (error) {
@@ -236,6 +262,11 @@ export async function resetPresentationTemplate(input: {
       ...template,
       isCustomized: false,
     }, { locationId });
+    await invalidateDocumentPdfCacheForModule(
+      editor.supabase,
+      editor.tenantId,
+      parsedModule.data
+    );
     revalidateTemplatePaths(parsedModule.data);
     return { success: true, template };
   } catch (error) {
@@ -259,18 +290,22 @@ export async function loadPresentationTemplatePreview(input: {
 
   try {
     const { supabase, tenantId } = await requireTenantId();
-    const [existing, org] = await Promise.all([
+    const [existing, org, gstRegistered] = await Promise.all([
       fetchDocumentPresentationTemplate(supabase, tenantId, parsed.data.moduleKey, parsed.data.viewContext, {
         locationId,
       }),
       fetchDocumentOrgRenderContext(supabase, tenantId, { locationId }),
+      fetchOrganizationGstRegistered(supabase, tenantId),
     ]);
 
-    const presentation: DocumentPresentationTemplate = {
-      ...existing,
-      shellConfig: normalizePresentationShellConfig(parsed.data.shellConfig),
-      styleConfig: normalizePresentationStyleConfig(existing.styleConfig),
-    };
+    const presentation: DocumentPresentationTemplate = applyGstPresentationOverrides(
+      {
+        ...existing,
+        shellConfig: normalizePresentationShellConfig(parsed.data.shellConfig),
+        styleConfig: normalizePresentationStyleConfig(existing.styleConfig),
+      },
+      gstRegistered
+    );
 
     const html = renderDocumentHtml(
       "DOC-00001",
