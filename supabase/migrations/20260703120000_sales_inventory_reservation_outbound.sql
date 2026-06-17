@@ -440,6 +440,87 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION private.sales_order_reservation_feasible(
+    p_tenant_id UUID,
+    p_sales_order_id UUID,
+    p_allow_oversell BOOLEAN
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, private
+AS $$
+DECLARE
+    v_so RECORD;
+    v_line RECORD;
+    v_target NUMERIC(15, 4);
+    v_available NUMERIC(15, 4);
+    v_planned NUMERIC(15, 4);
+    v_variant_key TEXT;
+    v_planned_by_variant JSONB := '{}'::jsonb;
+BEGIN
+    IF p_allow_oversell THEN
+        RETURN TRUE;
+    END IF;
+
+    SELECT *
+    INTO v_so
+    FROM public.sales_orders
+    WHERE id = p_sales_order_id
+      AND tenant_id = p_tenant_id;
+
+    IF NOT FOUND OR v_so.shipping_location_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    FOR v_line IN
+        SELECT soi.*
+        FROM public.sales_order_items soi
+        WHERE soi.tenant_id = p_tenant_id
+          AND soi.sales_order_id = p_sales_order_id
+        ORDER BY soi.id
+    LOOP
+        IF NOT private.sales_line_tracks_inventory(p_tenant_id, v_line.item_id) THEN
+            CONTINUE;
+        END IF;
+
+        IF v_line.variant_id IS NULL THEN
+            RETURN FALSE;
+        END IF;
+
+        v_target := GREATEST(v_line.quantity_ordered - v_line.quantity_shipped, 0);
+        IF v_target <= 0 THEN
+            CONTINUE;
+        END IF;
+
+        v_available := private.get_item_available_quantity(
+            p_tenant_id,
+            v_so.shipping_location_id,
+            v_line.item_id,
+            v_line.variant_id
+        );
+
+        v_variant_key := v_line.variant_id::TEXT;
+        v_planned := COALESCE((v_planned_by_variant ->> v_variant_key)::NUMERIC(15, 4), 0);
+        v_available := v_available - v_planned;
+
+        IF v_target > v_available + 0.0001 THEN
+            RETURN FALSE;
+        END IF;
+
+        v_planned_by_variant := jsonb_set(
+            v_planned_by_variant,
+            ARRAY[v_variant_key],
+            to_jsonb(v_planned + v_target),
+            TRUE
+        );
+    END LOOP;
+
+    RETURN TRUE;
+END;
+$$;
+
 -- --------------------------------------------------------------------
 -- 3. confirm_sales_order (with reservation)
 -- --------------------------------------------------------------------
@@ -1046,6 +1127,8 @@ $$;
 
 -- --------------------------------------------------------------------
 -- 8. Backfill reservations for existing confirmed orders
+-- Skips orders that cannot be fully reserved when oversell is disabled
+-- (legacy confirms before reservation existed may exceed current ATP).
 -- --------------------------------------------------------------------
 DO $$
 DECLARE
@@ -1066,7 +1149,10 @@ BEGIN
           )
     LOOP
         v_allow := private.get_inventory_control_flag(v_so.tenant_id, 'allow_negative_inventory');
-        PERFORM private.reserve_sales_order_inventory(v_so.tenant_id, v_so.id, v_allow);
+
+        IF private.sales_order_reservation_feasible(v_so.tenant_id, v_so.id, v_allow) THEN
+            PERFORM private.reserve_sales_order_inventory(v_so.tenant_id, v_so.id, v_allow);
+        END IF;
     END LOOP;
 END;
 $$;
