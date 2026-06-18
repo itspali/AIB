@@ -17,14 +17,14 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PresentationModuleDefinition } from "@/lib/documents/print/types";
-import type { PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
-import type { DocumentModuleKey } from "@/lib/documents/types";
+import type { DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 import { cn } from "@/lib/utils";
 
-const DOMAIN_ORDER = ["PROCUREMENT", "SALES"] as const;
+export type TemplateDesignerViewContext = DocumentViewContext;
 
-export const OUTPUT_CONTEXT_TABS: { id: PresentationViewContext; label: string }[] = [
+const OUTPUT_CONTEXT_TABS: { id: TemplateDesignerViewContext; label: string }[] = [
+  { id: "SCREEN_GRID", label: "On-screen" },
   { id: "PDF_PRINT", label: "Print" },
   { id: "EMAIL_HTML", label: "Email PDF" },
 ];
@@ -43,22 +43,16 @@ const TOOLBAR_SEGMENT_TRIGGER =
 const TOOLBAR_SELECT_TRIGGER =
   "border-primary/35 bg-primary/10 font-medium text-primary shadow-none hover:bg-primary/15 focus:border-primary/45 focus:ring-primary/20 disabled:border-border/60 disabled:bg-muted/30 disabled:font-normal disabled:text-muted-foreground";
 
-function domainLabel(domain: "PROCUREMENT" | "SALES"): string {
-  return domain === "PROCUREMENT" ? "Procurement" : "Sales";
-}
-
 function ToolbarDivider() {
   return <div className="h-5 w-px shrink-0 bg-border/80" aria-hidden />;
 }
 
 type Props = {
-  domain: "PROCUREMENT" | "SALES";
-  onDomainChange: (domain: "PROCUREMENT" | "SALES") => void;
   modules: PresentationModuleDefinition[];
   selectedModuleKey: DocumentModuleKey;
   onModuleChange: (moduleKey: DocumentModuleKey) => void;
-  viewContext: PresentationViewContext;
-  onViewContextChange: (viewContext: PresentationViewContext) => void;
+  viewContext: TemplateDesignerViewContext;
+  onViewContextChange: (viewContext: TemplateDesignerViewContext) => void;
   scope: DocumentLayoutScope;
   locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
@@ -105,30 +99,6 @@ function FieldToolbarButtons({
         {actions.saveLabel}
       </Button>
     </div>
-  );
-}
-
-function DomainTabs({
-  domain,
-  onDomainChange,
-}: {
-  domain: "PROCUREMENT" | "SALES";
-  onDomainChange: (domain: "PROCUREMENT" | "SALES") => void;
-}) {
-  return (
-    <Tabs
-      value={domain}
-      onValueChange={(value) => onDomainChange(value as "PROCUREMENT" | "SALES")}
-      className="shrink-0"
-    >
-      <TabsList className={TOOLBAR_SEGMENT_LIST}>
-        {DOMAIN_ORDER.map((domainKey) => (
-          <TabsTrigger key={domainKey} value={domainKey} className={TOOLBAR_SEGMENT_TRIGGER}>
-            {domainLabel(domainKey)}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
   );
 }
 
@@ -183,13 +153,13 @@ function OutputContextTabs({
   viewContext,
   onViewContextChange,
 }: {
-  viewContext: PresentationViewContext;
-  onViewContextChange: (viewContext: PresentationViewContext) => void;
+  viewContext: TemplateDesignerViewContext;
+  onViewContextChange: (viewContext: TemplateDesignerViewContext) => void;
 }) {
   return (
     <Tabs
       value={viewContext}
-      onValueChange={(value) => onViewContextChange(value as PresentationViewContext)}
+      onValueChange={(value) => onViewContextChange(value as TemplateDesignerViewContext)}
       className="shrink-0"
     >
       <TabsList className={cn(TOOLBAR_SEGMENT_LIST, "bg-background/60")}>
@@ -228,8 +198,6 @@ function DesignerTabs({
 }
 
 export function DocumentTemplatesContextToolbar({
-  domain,
-  onDomainChange,
   modules,
   selectedModuleKey,
   onModuleChange,
@@ -243,13 +211,13 @@ export function DocumentTemplatesContextToolbar({
   onDesignerTabChange,
   fieldToolbarActions,
 }: Props) {
+  const isScreenLayout = viewContext === "SCREEN_GRID";
   const showFieldActions = designerTab === "fields";
+  const showAppearanceTab = !isScreenLayout;
 
   return (
     <div className="shrink-0 space-y-2">
       <div className="document-templates-toolbar-wide min-w-0 flex-nowrap items-center gap-2 rounded-lg border border-border/50 bg-muted/15 px-2 py-1.5">
-        <DomainTabs domain={domain} onDomainChange={onDomainChange} />
-        <ToolbarDivider />
         <ModuleSelect
           modules={modules}
           selectedModuleKey={selectedModuleKey}
@@ -268,7 +236,9 @@ export function DocumentTemplatesContextToolbar({
           onScopeChange={onScopeChange}
         />
         <ToolbarDivider />
-        <DesignerTabs designerTab={designerTab} onDesignerTabChange={onDesignerTabChange} />
+        {showAppearanceTab ? (
+          <DesignerTabs designerTab={designerTab} onDesignerTabChange={onDesignerTabChange} />
+        ) : null}
         {showFieldActions ? (
           <FieldToolbarButtons actions={fieldToolbarActions} />
         ) : null}
@@ -276,37 +246,27 @@ export function DocumentTemplatesContextToolbar({
 
       <div className="document-templates-toolbar-compact min-w-0 flex-col gap-2 rounded-lg border border-border/50 bg-muted/15 p-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Select
-            value={domain}
-            onValueChange={(value) => onDomainChange(value as "PROCUREMENT" | "SALES")}
-          >
-            <SelectTrigger
-              className={cn("h-8 min-w-0 flex-1 text-xs", TOOLBAR_SELECT_TRIGGER)}
-              aria-label="Document domain"
-            >
-              <SelectValue>{domainLabel(domain)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {DOMAIN_ORDER.map((domainKey) => (
-                <SelectItem key={domainKey} value={domainKey}>
-                  {domainLabel(domainKey)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
+          <DocumentLayoutScopeSelect
+            scope={scope}
+            locations={locations}
+            disabled={!canEdit}
+            compact
+            className="min-w-0 flex-1"
+            triggerClassName={cn(TOOLBAR_SELECT_TRIGGER, "h-8")}
+            onScopeChange={onScopeChange}
+          />
           <ModuleSelect
             modules={modules}
             selectedModuleKey={selectedModuleKey}
             onModuleChange={onModuleChange}
-            className="min-w-0 flex-[1.4]"
+            className="min-w-0 flex-1"
           />
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Select
             value={viewContext}
-            onValueChange={(value) => onViewContextChange(value as PresentationViewContext)}
+            onValueChange={(value) => onViewContextChange(value as TemplateDesignerViewContext)}
           >
             <SelectTrigger
               className={cn("h-8 w-[6.75rem] shrink-0 text-xs", TOOLBAR_SELECT_TRIGGER)}
@@ -325,36 +285,28 @@ export function DocumentTemplatesContextToolbar({
             </SelectContent>
           </Select>
 
-          <DocumentLayoutScopeSelect
-            scope={scope}
-            locations={locations}
-            disabled={!canEdit}
-            compact
-            className="min-w-0 flex-1"
-            triggerClassName={cn(TOOLBAR_SELECT_TRIGGER, "h-8")}
-            onScopeChange={onScopeChange}
-          />
-
-          <Select
-            value={designerTab}
-            onValueChange={(value) => onDesignerTabChange(value as "fields" | "appearance")}
-          >
-            <SelectTrigger
-              className={cn("h-8 w-[7.5rem] shrink-0 text-xs", TOOLBAR_SELECT_TRIGGER)}
-              aria-label="Designer panel"
+          {showAppearanceTab ? (
+            <Select
+              value={designerTab}
+              onValueChange={(value) => onDesignerTabChange(value as "fields" | "appearance")}
             >
-              <SelectValue>
-                {DESIGNER_TABS.find((tab) => tab.id === designerTab)?.label ?? "Fields"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {DESIGNER_TABS.map((tab) => (
-                <SelectItem key={tab.id} value={tab.id}>
-                  {tab.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                className={cn("h-8 w-[7.5rem] shrink-0 text-xs", TOOLBAR_SELECT_TRIGGER)}
+                aria-label="Designer panel"
+              >
+                <SelectValue>
+                  {DESIGNER_TABS.find((tab) => tab.id === designerTab)?.label ?? "Fields"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {DESIGNER_TABS.map((tab) => (
+                  <SelectItem key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
 
           {showFieldActions ? (
             <FieldToolbarButtons actions={fieldToolbarActions} />

@@ -7,6 +7,7 @@ import {
   DOCUMENT_DESIGNER_LAYOUT_PRESETS,
   generateDesignerLayout,
   normalizeDesignerBundle,
+  presetIdFromStyleConfig,
 } from "@/lib/documents/print/document-designer-layout-presets";
 
 describe("document designer layout presets", () => {
@@ -26,6 +27,23 @@ describe("document designer layout presets", () => {
     const next = cycleDesignerLayoutPreset(first, 1).id;
     const previous = cycleDesignerLayoutPreset(next, -1).id;
     expect(previous).toBe(first);
+  });
+
+  it("resolves preset id from saved layout theme", () => {
+    expect(presetIdFromStyleConfig({ fontFamily: "system-ui", fontSizePx: 12, layoutTheme: "branded" })).toBe(
+      "branded"
+    );
+    expect(presetIdFromStyleConfig({ fontFamily: "system-ui", fontSizePx: 12, layoutTheme: "modern" })).toBe(
+      "modern"
+    );
+    expect(presetIdFromStyleConfig({ fontFamily: "system-ui", fontSizePx: 12 })).toBe("standard");
+  });
+
+  it("applies modern preset with modern theme and visible terms", () => {
+    const result = applyDesignerLayoutPreset("modern", baseBundle);
+    expect(result.styleConfig.layoutTheme).toBe("modern");
+    expect(result.shellConfig.sections.showTerms).toBe(true);
+    expect(result.shellConfig.header.showOrgAddress).toBe(true);
   });
 
   it("applies compact preset with tighter shell and compact theme", () => {

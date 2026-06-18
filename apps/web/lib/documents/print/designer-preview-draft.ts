@@ -2,12 +2,12 @@ import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout
 import { applyGstRegisteredDocumentLayoutOverrides } from "@/lib/documents/gst-document-layout-compliance";
 import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import type { PresentationShellConfig, PresentationStyleConfig, PresentationViewContext } from "@/lib/documents/print/types";
-import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
+import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 
 /** Match document-layout-panel hydration so SSR preview seeds hit client cache. */
 export function normalizeDesignerPreviewLayout(
   moduleKey: DocumentModuleKey,
-  viewContext: PresentationViewContext,
+  viewContext: DocumentViewContext,
   layout: DocumentLayoutTemplate,
   gstRegistered: boolean
 ): DocumentLayoutTemplate {

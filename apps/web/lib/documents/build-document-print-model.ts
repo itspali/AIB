@@ -2,16 +2,19 @@ import { formatDocumentDecimal, resolveColumnDecimalPlaces } from "@/lib/documen
 import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
 import {
   getVisibleHeaderFields as getVisibleGrnHeaderFields,
-  getVisibleGrnLineColumns,
+  getColumnLineFields as getGrnColumnLineFields,
+  getItemDetailLineFields as getGrnItemDetailLineFields,
 } from "@/lib/documents/goods-receipt-layout";
 import {
   getVisibleHeaderFields as getVisibleBillHeaderFields,
-  getVisibleBillLineColumns,
+  getColumnLineFields as getBillColumnLineFields,
+  getItemDetailLineFields as getBillItemDetailLineFields,
   getVisibleTotalsFields as getVisibleBillTotalsFields,
 } from "@/lib/documents/purchase-invoice-layout";
 import {
   getVisibleHeaderFields as getVisiblePoHeaderFields,
-  getFlatPoLineColumns,
+  getColumnLineFields as getPoColumnLineFields,
+  getItemDetailLineFields as getPoItemDetailLineFields,
   getVisibleTotalsFields as getVisiblePoTotalsFields,
 } from "@/lib/documents/purchase-order-layout";
 import type { DocumentColumnPref, DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
@@ -29,10 +32,22 @@ import { salesInvoiceStatusLabel } from "@/lib/sales/invoices/labels";
 import type { SalesOrderLineRow, SalesOrderRow } from "@/lib/sales/orders/types";
 import { salesOrderStatusLabel } from "@/lib/sales/orders/labels";
 import {
+  getColumnSalesLineFields,
+  getSalesItemDetailLineFields,
   getVisibleSalesHeaderFields,
-  getVisibleSalesLineColumns,
   getVisibleSalesTotalsFields,
 } from "@/lib/sales/shared/sales-commerce-layout";
+import { resolveLineDetailFieldDisplay, type PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
+import { isCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import { resolvePrintLayoutHints, type DocumentPrintLayoutHints } from "@/lib/documents/print/print-layout-hints";
+import { resolveSoAddressBlocks } from "@/lib/sales/orders/address-blocks";
+
+export type { DocumentPrintLayoutHints };
+
+type PrintLineSource = {
+  mapLine: (fieldId: string) => string;
+  catalogContext?: PoLineCatalogContext | null;
+};
 
 export type DocumentPrintField = {
   id: string;
@@ -42,13 +57,90 @@ export type DocumentPrintField = {
 
 export type DocumentPrintLine = Record<string, string>;
 
+export type DocumentPrintAddressBlock = {
+  kind: "bill_to" | "ship_to";
+  title: string;
+  name: string;
+  lines: string[];
+  taxIdentifier: string | null;
+};
+
 export type DocumentPrintModel = {
   moduleKey: DocumentModuleKey;
   headerFields: DocumentPrintField[];
+  /** Table header columns (excludes item-detail fields rendered under the item cell). */
   lineColumns: DocumentColumnPref[];
+  /** Optional fields rendered as sublines under each item name. */
+  itemDetailColumns?: DocumentColumnPref[];
   lines: DocumentPrintLine[];
   totalsFields: DocumentPrintField[];
+  statusBadge?: string | null;
+  addressBlocks?: DocumentPrintAddressBlock[];
+  printLayoutHints?: DocumentPrintLayoutHints;
 };
+
+function uniquePrintLineColumns(columns: readonly DocumentColumnPref[]): DocumentColumnPref[] {
+  const seen = new Set<string>();
+  const unique: DocumentColumnPref[] = [];
+  for (const column of columns) {
+    if (seen.has(column.id)) continue;
+    seen.add(column.id);
+    unique.push(column);
+  }
+  return unique;
+}
+
+function resolvePrintLineColumnValue(
+  column: DocumentColumnPref,
+  line: PrintLineSource,
+  detailColumnIds: ReadonlySet<string>
+): string {
+  const commercial = line.mapLine(column.id);
+  if (detailColumnIds.has(column.id) || isCatalogFieldId(column.id)) {
+    const resolved = resolveLineDetailFieldDisplay(column, line.catalogContext ?? null, commercial);
+    if (resolved != null && resolved.trim() !== "" && resolved !== "—") {
+      return formatCell(column, resolved);
+    }
+  }
+  return formatCell(column, commercial);
+}
+
+function buildPrintLineRows(
+  tableColumns: DocumentColumnPref[],
+  detailColumns: DocumentColumnPref[],
+  sourceLines: PrintLineSource[],
+  layoutHints?: DocumentPrintLayoutHints
+): Pick<DocumentPrintModel, "lineColumns" | "itemDetailColumns" | "lines"> {
+  const valueColumns = uniquePrintLineColumns([...tableColumns, ...detailColumns]);
+  const detailColumnIds = new Set(detailColumns.map((column) => column.id));
+  const embedUnitUnderQty =
+    layoutHints?.showUnitUnderQty === true &&
+    layoutHints.unitFieldId &&
+    !valueColumns.some((column) => column.id === layoutHints.unitFieldId);
+  const columnsForValues =
+    embedUnitUnderQty && layoutHints
+      ? [
+          ...valueColumns,
+          {
+            id: layoutHints.unitFieldId,
+            label: "Unit",
+            defaultVisible: true,
+          } satisfies DocumentColumnPref,
+        ]
+      : valueColumns;
+
+  return {
+    lineColumns: tableColumns,
+    itemDetailColumns: detailColumns.length > 0 ? detailColumns : undefined,
+    lines: sourceLines.map((line) => {
+      const row: DocumentPrintLine = {};
+      for (const column of columnsForValues) {
+        row[column.id] = resolvePrintLineColumnValue(column, line, detailColumnIds);
+      }
+      return row;
+    }),
+  };
+}
 
 function formatCell(column: DocumentColumnPref, raw: string | number | boolean | null | undefined): string {
   if (raw == null || raw === "") return "—";
@@ -307,20 +399,29 @@ function buildSalesCommercePrintModel(
   moduleKey: "SALES_QUOTATION" | "SALES_INVOICE" | "SALES_ORDER",
   layout: DocumentLayoutTemplate,
   headerValue: (fieldId: string) => string,
-  lines: Array<{ mapLine: (fieldId: string) => string }>,
+  lines: PrintLineSource[],
   totals: {
     subtotal: string;
     tax: string;
     discount: string;
     grandTotal: string;
     lineCount: number;
-  }
+  },
+  extras?: Pick<DocumentPrintModel, "statusBadge" | "addressBlocks">
 ): DocumentPrintModel {
   const adapter = DOCUMENT_LAYOUT_MODULE_ADAPTERS[moduleKey];
   const normalized = adapter.normalize(layout);
   const headerColumns = getVisibleSalesHeaderFields(normalized);
-  const lineColumns = getVisibleSalesLineColumns(normalized);
+  const tableLineColumns = getColumnSalesLineFields(normalized);
+  const itemDetailColumns = getSalesItemDetailLineFields(normalized);
   const totalsColumns = getVisibleSalesTotalsFields(normalized);
+  const printLayoutHints = resolvePrintLayoutHints(moduleKey, layout);
+  const lineSection = buildPrintLineRows(
+    tableLineColumns,
+    itemDetailColumns,
+    lines,
+    printLayoutHints
+  );
 
   return {
     moduleKey,
@@ -329,14 +430,7 @@ function buildSalesCommercePrintModel(
       label: column.label,
       value: formatCell(column, headerValue(column.id)),
     })),
-    lineColumns,
-    lines: lines.map((line) => {
-      const row: DocumentPrintLine = {};
-      for (const column of lineColumns) {
-        row[column.id] = formatCell(column, line.mapLine(column.id));
-      }
-      return row;
-    }),
+    ...lineSection,
     totalsFields: totalsColumns.map((column) => {
       const raw =
         column.id === "subtotal_ex_tax"
@@ -356,6 +450,8 @@ function buildSalesCommercePrintModel(
         value: formatCell(column, raw),
       };
     }),
+    printLayoutHints,
+    ...extras,
   };
 }
 
@@ -497,6 +593,12 @@ function orderLineValue(line: SalesOrderLineRow, fieldId: string): string {
   }
 }
 
+function lineCatalogContext(line: unknown): PoLineCatalogContext | null {
+  if (!line || typeof line !== "object") return null;
+  const context = (line as { catalog_context?: PoLineCatalogContext | null }).catalog_context;
+  return context ?? null;
+}
+
 export function buildDocumentPrintModel(
   moduleKey: DocumentModuleKey,
   layout: DocumentLayoutTemplate,
@@ -516,6 +618,7 @@ export function buildDocumentPrintModel(
       (fieldId) => quoteHeaderValue(quote, fieldId),
       (quote.lines ?? []).map((line) => ({
         mapLine: (fieldId) => quoteLineValue(line, fieldId),
+        catalogContext: lineCatalogContext(line),
       })),
       {
         subtotal: quote.total_gross_amount,
@@ -535,6 +638,7 @@ export function buildDocumentPrintModel(
       (fieldId) => invoiceHeaderValue(invoice, fieldId),
       (invoice.lines ?? []).map((line) => ({
         mapLine: (fieldId) => invoiceLineValue(line, fieldId),
+        catalogContext: lineCatalogContext(line),
       })),
       {
         subtotal: invoice.total_gross_amount,
@@ -548,12 +652,21 @@ export function buildDocumentPrintModel(
 
   if (moduleKey === "SALES_ORDER") {
     const order = document as SalesOrderRow;
+    const addressBlocks = resolveSoAddressBlocks(order).map((block) => ({
+      kind: block.kind,
+      title: block.title,
+      name: block.name,
+      lines: block.lines,
+      taxIdentifier: block.tax_identifier,
+    }));
+
     return buildSalesCommercePrintModel(
       "SALES_ORDER",
       layout,
       (fieldId) => orderHeaderValue(order, fieldId),
       (order.lines ?? []).map((line) => ({
         mapLine: (fieldId) => orderLineValue(line, fieldId),
+        catalogContext: lineCatalogContext(line),
       })),
       {
         subtotal: order.total_gross_amount,
@@ -561,6 +674,10 @@ export function buildDocumentPrintModel(
         discount: String(order.custom_fields?.transaction_discount_amount ?? "0"),
         grandTotal: order.total_net_amount,
         lineCount: order.line_count ?? order.lines?.length ?? 0,
+      },
+      {
+        statusBadge: salesOrderStatusLabel(order.commercial_status),
+        addressBlocks: addressBlocks.length > 0 ? addressBlocks : undefined,
       }
     );
   }
@@ -571,8 +688,19 @@ export function buildDocumentPrintModel(
   if (moduleKey === "PURCHASE_ORDER") {
     const order = document as PurchaseOrderRow;
     const headerColumns = getVisiblePoHeaderFields(normalized);
-    const lineColumns = getFlatPoLineColumns(normalized);
+    const tableLineColumns = getPoColumnLineFields(normalized);
+    const itemDetailColumns = getPoItemDetailLineFields(normalized);
     const totalsColumns = getVisiblePoTotalsFields(normalized);
+    const printLayoutHints = resolvePrintLayoutHints(moduleKey, layout);
+    const lineSection = buildPrintLineRows(
+      tableLineColumns,
+      itemDetailColumns,
+      (order.lines ?? []).map((line) => ({
+        mapLine: (fieldId) => poLineValue(line, fieldId),
+        catalogContext: lineCatalogContext(line),
+      })),
+      printLayoutHints
+    );
 
     return {
       moduleKey,
@@ -581,14 +709,8 @@ export function buildDocumentPrintModel(
         label: column.label,
         value: formatCell(column, poHeaderValue(order, column.id)),
       })),
-      lineColumns,
-      lines: (order.lines ?? []).map((line) => {
-        const row: DocumentPrintLine = {};
-        for (const column of lineColumns) {
-          row[column.id] = formatCell(column, poLineValue(line, column.id));
-        }
-        return row;
-      }),
+      ...lineSection,
+      printLayoutHints,
       totalsFields: totalsColumns.map((column) => {
         const raw =
           column.id === "subtotal_ex_tax"
@@ -622,7 +744,18 @@ export function buildDocumentPrintModel(
   if (moduleKey === "GOODS_RECEIPT_NOTE") {
     const receipt = document as GoodsReceiptRow;
     const headerColumns = getVisibleGrnHeaderFields(normalized);
-    const lineColumns = getVisibleGrnLineColumns(normalized);
+    const tableLineColumns = getGrnColumnLineFields(normalized);
+    const itemDetailColumns = getGrnItemDetailLineFields(normalized);
+    const printLayoutHints = resolvePrintLayoutHints(moduleKey, layout);
+    const lineSection = buildPrintLineRows(
+      tableLineColumns,
+      itemDetailColumns,
+      (receipt.lines ?? []).map((line) => ({
+        mapLine: (fieldId) => grnLineValue(line, fieldId),
+        catalogContext: lineCatalogContext(line),
+      })),
+      printLayoutHints
+    );
 
     return {
       moduleKey,
@@ -631,22 +764,27 @@ export function buildDocumentPrintModel(
         label: column.label,
         value: formatCell(column, grnHeaderValue(receipt, column.id)),
       })),
-      lineColumns,
-      lines: (receipt.lines ?? []).map((line) => {
-        const row: DocumentPrintLine = {};
-        for (const column of lineColumns) {
-          row[column.id] = formatCell(column, grnLineValue(line, column.id));
-        }
-        return row;
-      }),
+      ...lineSection,
+      printLayoutHints,
       totalsFields: [],
     };
   }
 
   const bill = document as PurchaseBillRow;
   const headerColumns = getVisibleBillHeaderFields(normalized);
-  const lineColumns = getVisibleBillLineColumns(normalized);
+  const tableLineColumns = getBillColumnLineFields(normalized);
+  const itemDetailColumns = getBillItemDetailLineFields(normalized);
   const totalsColumns = getVisibleBillTotalsFields(normalized);
+  const printLayoutHints = resolvePrintLayoutHints(moduleKey, layout);
+  const lineSection = buildPrintLineRows(
+    tableLineColumns,
+    itemDetailColumns,
+    (bill.lines ?? []).map((line) => ({
+      mapLine: (fieldId) => billLineValue(line, fieldId),
+      catalogContext: lineCatalogContext(line),
+    })),
+    printLayoutHints
+  );
 
   return {
     moduleKey,
@@ -655,14 +793,8 @@ export function buildDocumentPrintModel(
       label: column.label,
       value: formatCell(column, billHeaderValue(bill, column.id)),
     })),
-    lineColumns,
-    lines: (bill.lines ?? []).map((line) => {
-      const row: DocumentPrintLine = {};
-      for (const column of lineColumns) {
-        row[column.id] = formatCell(column, billLineValue(line, column.id));
-      }
-      return row;
-    }),
+    ...lineSection,
+    printLayoutHints,
     totalsFields: totalsColumns.map((column) => {
       const raw =
         column.id === "total_gross_amount"

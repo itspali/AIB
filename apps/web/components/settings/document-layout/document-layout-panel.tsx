@@ -81,6 +81,8 @@ type Props = {
   onLayoutChange?: (layout: DocumentLayoutTemplate) => void;
   onEmbeddedToolbarActionsChange?: (actions: DocumentLayoutEmbeddedToolbarActions | null) => void;
   hideChromeToolbar?: boolean;
+  /** Hide On-screen / Print / Email tabs when the parent toolbar owns view context. */
+  hideViewContextTabs?: boolean;
   layoutSeeds?: Partial<Record<DocumentViewContext, DocumentLayoutTemplate>>;
 };
 
@@ -100,29 +102,61 @@ function SectionBlock({
   children,
   className,
   accordionValue,
+  embeddedSection = false,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
   className?: string;
   accordionValue?: string;
+  embeddedSection?: boolean;
 }) {
   if (accordionValue) {
     return (
-      <AccordionItem value={accordionValue} className={cn("border-border/70", className)}>
-        <AccordionTrigger className="gap-2 py-2 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-muted-foreground">
+      <AccordionItem
+        value={accordionValue}
+        className={cn(
+          embeddedSection ? "border-b border-border" : "border-border/70",
+          className
+        )}
+      >
+        <AccordionTrigger
+          className={cn(
+            "gap-2 hover:no-underline [&>svg]:text-muted-foreground",
+            embeddedSection
+              ? "px-1.5 py-3 [&>svg]:h-4 [&>svg]:w-4"
+              : "py-2 [&>svg]:h-3.5 [&>svg]:w-3.5"
+          )}
+        >
           <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span
+              className={cn(
+                embeddedSection
+                  ? "text-xs font-bold uppercase tracking-wide text-foreground"
+                  : "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              )}
+            >
               {title}
             </span>
             {hint ? (
-              <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/75 line-clamp-2">
+              <span
+                className={cn(
+                  "font-normal normal-case tracking-normal line-clamp-2",
+                  embeddedSection
+                    ? "text-[11px] text-muted-foreground"
+                    : "text-[10px] text-muted-foreground/75"
+                )}
+              >
                 {hint}
               </span>
             ) : null}
           </span>
         </AccordionTrigger>
-        <AccordionContent className="pb-2 pt-0">{children}</AccordionContent>
+        <AccordionContent
+          className={cn("pt-0", embeddedSection ? "px-1.5 pb-3" : "pb-2")}
+        >
+          {children}
+        </AccordionContent>
       </AccordionItem>
     );
   }
@@ -150,7 +184,12 @@ function LayoutFieldSections({
   }
 
   return (
-    <Accordion type="single" collapsible defaultValue="header" className="w-full">
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue="header"
+      className="w-full border-t border-border"
+    >
       {children}
     </Accordion>
   );
@@ -174,6 +213,7 @@ export function DocumentLayoutPanel({
   onLayoutChange,
   onEmbeddedToolbarActionsChange,
   hideChromeToolbar = false,
+  hideViewContextTabs = false,
   layoutSeeds,
 }: Props) {
   const applyGstCompliance = (template: DocumentLayoutTemplate) => {
@@ -373,9 +413,10 @@ export function DocumentLayoutPanel({
     (id) => !adapter.totalsInternalFieldIds.includes(id)
   );
 
-  const visibleViewTabs = VIEW_TABS.filter((tab) =>
-    embedded ? tab.id !== "SCREEN_GRID" && tab.enabled : tab.enabled
-  );
+  const visibleViewTabs = VIEW_TABS.filter((tab) => {
+    if (hideViewContextTabs) return false;
+    return embedded ? tab.id !== "SCREEN_GRID" && tab.enabled : tab.enabled;
+  });
 
   return (
     <div className={cn(embedded ? "space-y-2" : "space-y-3")}>
@@ -388,19 +429,21 @@ export function DocumentLayoutPanel({
             disabled={!canEdit || controlledScope != null}
             onScopeChange={setScope}
           />
-          <Tabs
-            value={viewContext}
-            onValueChange={(value) => setViewContext(value as DocumentViewContext)}
-          >
-            <TabsList className="h-7">
-              {visibleViewTabs.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} disabled={!tab.enabled || (controlledViewContext != null && tab.id !== controlledViewContext)} className="h-6 px-2 text-xs">
-                  {tab.label}
-                  {!tab.enabled ? "*" : null}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          {visibleViewTabs.length > 0 ? (
+            <Tabs
+              value={viewContext}
+              onValueChange={(value) => setViewContext(value as DocumentViewContext)}
+            >
+              <TabsList className="h-7">
+                {visibleViewTabs.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id} disabled={!tab.enabled || (controlledViewContext != null && tab.id !== controlledViewContext)} className="h-6 px-2 text-xs">
+                    {tab.label}
+                    {!tab.enabled ? "*" : null}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          ) : null}
         </div>
         <div className="flex items-center gap-1.5">
           {!embedded && viewContext === "SCREEN_GRID" && hasLocalOverrides ? (
@@ -435,19 +478,26 @@ export function DocumentLayoutPanel({
       )}
 
       <div className={cn("grid gap-3", embedded ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]")}>
-        <div className="min-w-0 rounded-md border border-border bg-card p-2 sm:p-2.5">
+        <div
+          className={cn(
+            "min-w-0 w-full",
+            embedded ? "bg-white dark:bg-card" : "rounded-md border border-border bg-card p-2 sm:p-2.5"
+          )}
+        >
           <LayoutFieldSections embedded={embedded}>
           <SectionBlock
             title="Header"
             hint="Header · top row · Details · side panel"
             accordionValue={embedded ? "header" : undefined}
+            embeddedSection={embedded}
           >
             <DocumentLayoutFieldList
               order={headerOrder}
               getColumn={(id) => getColumn(id)}
-              showHeaderPlacementColumns={!embedded}
+              showHeaderPlacementColumns
               showTypographyColumns={!compactFieldToolbar}
               compactToolbar={compactFieldToolbar}
+              flush={embedded}
               getMeta={(id) => ({
                 showHeaderPlacement: adapter.isFormHeaderPlaceableField(id),
               })}
@@ -462,15 +512,17 @@ export function DocumentLayoutPanel({
             title="Lines"
             hint="Column · Detail"
             accordionValue={embedded ? "lines" : undefined}
+            embeddedSection={embedded}
           >
             <DocumentLayoutFieldList
               order={lineOrder}
               getColumn={(id) => getColumn(id)}
-              showPresentationColumns={!embedded}
+              showPresentationColumns
               showAlignColumn
               showDecimalsColumn
               showTypographyColumns={!compactFieldToolbar}
               compactToolbar={compactFieldToolbar}
+              flush={embedded}
               getMeta={(id) => ({
                 pinned: id === "item",
                 draggable: id !== "item",
@@ -494,6 +546,7 @@ export function DocumentLayoutPanel({
                   : "Read-only · from item master · under item cell"
               }
               accordionValue={embedded ? "catalog" : undefined}
+              embeddedSection={embedded}
             >
               <DocumentLayoutCatalogFieldsSection
                 layout={layout}
@@ -503,13 +556,14 @@ export function DocumentLayoutPanel({
                 customFieldKeys={catalogFieldSuggestions?.customFieldKeys}
                 variantAttributeKeys={catalogFieldSuggestions?.variantAttributeKeys}
                 compactToolbar={compactFieldToolbar}
+                flush={embedded}
                 onLayoutChange={(next) => updateLayout(next)}
               />
             </SectionBlock>
           ) : null}
 
           {adapter.showTotalsSection ? (
-            <SectionBlock title="Totals" accordionValue={embedded ? "totals" : undefined}>
+            <SectionBlock title="Totals" accordionValue={embedded ? "totals" : undefined} embeddedSection={embedded}>
               <DocumentLayoutFieldList
                 order={totalsOrder}
                 getColumn={(id) => getColumn(id)}
@@ -517,6 +571,7 @@ export function DocumentLayoutPanel({
                 showDecimalsColumn
                 showTypographyColumns={!compactFieldToolbar}
                 compactToolbar={compactFieldToolbar}
+                flush={embedded}
                 getMeta={(id) => ({
                   showAlign: true,
                   showDecimalPlaces: hasDecimalPlaces(id),
@@ -531,8 +586,13 @@ export function DocumentLayoutPanel({
             </SectionBlock>
           ) : null}
 
-          {adapter.showImageSection && !embedded ? (
-            <SectionBlock title="Line images" hint="On-screen drawer · print">
+          {adapter.showImageSection ? (
+            <SectionBlock
+              title="Line images"
+              hint={embedded ? "Print layout" : "On-screen drawer · print"}
+              accordionValue={embedded ? "images" : undefined}
+              embeddedSection={embedded}
+            >
               <Select
                 value={layout.imageDisplayMode}
                 disabled={controlsDisabled}

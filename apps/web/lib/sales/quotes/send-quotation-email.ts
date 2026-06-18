@@ -120,9 +120,9 @@ export async function sendQuotationEmailForQuote(input: {
     };
   }
 
-  const pdfBuffer = await generatePdfFromHtml(printHtml);
-  const attachments = pdfBuffer
-    ? [{ filename: `${quote.quotation_number}.pdf`, content: pdfBuffer }]
+  const pdfResult = await generatePdfFromHtml(printHtml);
+  const attachments = pdfResult.ok
+    ? [{ filename: `${quote.quotation_number}.pdf`, content: pdfResult.buffer }]
     : undefined;
 
   const emailResult = await sendTransactionalEmail({

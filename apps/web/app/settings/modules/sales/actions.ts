@@ -18,6 +18,8 @@ import {
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 
+const DOCUMENT_TEMPLATES_SETTINGS_PATH = "/settings/documents/templates";
+
 export type SaveDocumentLayoutInput = {
   scope: DocumentLayoutScope;
   viewContext: DocumentViewContext;
@@ -122,7 +124,7 @@ export async function saveSalesQuotationDocumentLayout(
   return saveDocumentLayoutForModule(
     "SALES_QUOTATION",
     normalizeSalesQuotationLayoutTemplate,
-    ["/settings/modules/sales", "/sales/quotes"],
+    ["/settings/modules/sales", DOCUMENT_TEMPLATES_SETTINGS_PATH, "/sales/quotes"],
     input
   );
 }
@@ -133,7 +135,7 @@ export async function saveSalesOrderDocumentLayout(
   return saveDocumentLayoutForModule(
     "SALES_ORDER",
     normalizeSalesOrderLayoutTemplate,
-    ["/settings/modules/sales", "/sales/orders"],
+    ["/settings/modules/sales", DOCUMENT_TEMPLATES_SETTINGS_PATH, "/sales/orders"],
     input
   );
 }
@@ -144,7 +146,7 @@ export async function saveSalesInvoiceDocumentLayout(
   return saveDocumentLayoutForModule(
     "SALES_INVOICE",
     normalizeSalesInvoiceLayoutTemplate,
-    ["/settings/modules/sales", "/sales/invoices"],
+    ["/settings/modules/sales", DOCUMENT_TEMPLATES_SETTINGS_PATH, "/sales/invoices"],
     input
   );
 }

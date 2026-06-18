@@ -16,12 +16,12 @@ export default async function ModuleSettingsPage() {
     >
       <ModuleOverview
         title="Module settings"
-        description="Configure how operational modules behave and how documents are presented — layouts, policies, and module-specific options."
+        description="Configure how operational modules behave — policies, approvals, and module-specific options."
         cards={[
           {
             href: "/settings/modules/procurement",
             label: "Procurement",
-            description: "Purchase order document layout, print templates, and procurement policies.",
+            description: "Purchase order policies, approvals, and financial account defaults.",
             icon: ShoppingCart,
           },
           {
@@ -34,7 +34,7 @@ export default async function ModuleSettingsPage() {
           {
             href: "/settings/modules/sales",
             label: "Sales",
-            description: "Quotations, orders, invoices — layout and commercial presentation.",
+            description: "Quotation, order, and invoice policies and approval rules.",
             icon: FileText,
           },
           {

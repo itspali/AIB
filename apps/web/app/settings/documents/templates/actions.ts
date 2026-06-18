@@ -90,7 +90,7 @@ const styleConfigSchema = z.object({
   fontFamily: z.string(),
   fontSizePx: z.number(),
   layoutTheme: z
-    .enum(["standard", "compact", "detailed", "minimal", "formal", "branded"])
+    .enum(["standard", "compact", "detailed", "minimal", "formal", "branded", "modern"])
     .optional(),
 });
 
@@ -219,7 +219,9 @@ export async function savePresentationTemplate(
   const nextTemplate: DocumentPresentationTemplate = {
     ...existing,
     shellConfig: normalizePresentationShellConfig(parsed.data.shellConfig),
-    styleConfig: existing.styleConfig,
+    styleConfig: normalizePresentationStyleConfig(
+      parsed.data.styleConfig ?? existing.styleConfig
+    ),
     isCustomized: true,
   };
 

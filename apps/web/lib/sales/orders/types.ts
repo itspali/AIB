@@ -1,4 +1,5 @@
 import type { TaxTreatmentType } from "@/lib/entities/types";
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 
 export type SalesOrderStatus =
   | "DRAFT"
@@ -39,6 +40,7 @@ export type SalesOrderLineRow = {
   uom_code?: string | null;
   uom_conversion_factor?: string | null;
   source_quotation_line_id?: string | null;
+  catalog_context?: PoLineCatalogContext | null;
 };
 
 export type SalesOrderPartyAddress = {

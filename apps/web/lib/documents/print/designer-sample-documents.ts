@@ -5,6 +5,7 @@ import type { SalesInvoiceRow } from "@/lib/sales/invoices/types";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
+import { buildPrintLineCatalogContext } from "@/lib/documents/print/print-line-catalog-context";
 
 export type DesignerSampleDocument =
   | PurchaseOrderRow
@@ -64,6 +65,66 @@ const SAMPLE_LINES = {
     },
   ],
 };
+
+const SAMPLE_SALES_ADDRESS = {
+  name: "J S Food",
+  address_line1: "Plot 18, Industrial Area Phase II",
+  address_line2: "Peenya",
+  city: "Bengaluru",
+  state: "Karnataka",
+  zip_postal: "560058",
+  country_code: "India",
+  tax_identifier: "29AABCU9603R1ZX",
+};
+
+const SAMPLE_SALES_LINES: SalesOrderRow["lines"] = [
+  {
+    id: "line-1",
+    item_id: "item-1",
+    item_name: 'Frozen Dough Sheet (Spring Roll) 7.5" / 50 Sheets',
+    variant_id: "variant-1",
+    variant_sku: "FDS-75-50",
+    quantity_ordered: "120",
+    unit_price_selling: "145.00",
+    discount_percentage: "0",
+    discount_amount: "0",
+    line_total_gross: "17,400.00",
+    line_tax_amount: "3,132.00",
+    line_total_net: "20,532.00",
+    open_quantity: "120",
+    uom_code: "Pcs",
+    catalog_context: buildPrintLineCatalogContext({
+      hsn_sac_code: "19059090",
+      description: "Ready-to-use frozen dough sheets for spring rolls",
+      base_unit_of_measure: "Pcs",
+      uom_code: "Pcs",
+      variant_attributes: { Pack: "50 Sheets", Size: '7.5"' },
+    }),
+  },
+  {
+    id: "line-2",
+    item_id: "item-2",
+    item_name: "Puff Pastry Block 1 kg",
+    variant_id: "variant-2",
+    variant_sku: "PPB-1KG",
+    quantity_ordered: "80",
+    unit_price_selling: "210.00",
+    discount_percentage: "0",
+    discount_amount: "0",
+    line_total_gross: "16,800.00",
+    line_tax_amount: "3,024.00",
+    line_total_net: "19,824.00",
+    open_quantity: "80",
+    uom_code: "Pcs",
+    catalog_context: buildPrintLineCatalogContext({
+      hsn_sac_code: "19059020",
+      description: "Butter puff pastry block for commercial baking",
+      base_unit_of_measure: "Pcs",
+      uom_code: "Pcs",
+      variant_attributes: { Weight: "1 kg" },
+    }),
+  },
+] as unknown as SalesOrderRow["lines"];
 
 export function getDesignerSampleDocument(moduleKey: DocumentModuleKey): DesignerSampleDocument {
   switch (moduleKey) {
@@ -155,21 +216,25 @@ export function getDesignerSampleDocument(moduleKey: DocumentModuleKey): Designe
         id: "sample-so",
         voucher_number: "SO-00001",
         customer_id: "customer-1",
-        customer_name: "Acme Retail Pvt Ltd",
-        customer_address: null,
+        customer_name: "J S Food",
+        customer_address: SAMPLE_SALES_ADDRESS,
         shipping_location_id: "loc-1",
-        shipping_location_name: "Main store",
+        shipping_location_name: "Peenya Outlet",
         shipping_location_code: "ST01",
-        shipping_address: null,
+        shipping_address: {
+          ...SAMPLE_SALES_ADDRESS,
+          name: "J S Food — Peenya Outlet",
+          address_line2: "Peenya Industrial Area",
+        },
         commercial_status: "APPROVED_ACTIVE",
         fulfillment_status: "NOT_FULFILLED",
         payment_status: "UNPAID",
         billing_state: "Karnataka",
         shipping_state: "Karnataka",
-        total_gross_amount: "1,000.00",
-        total_tax_amount: "180.00",
-        line_count: 1,
-        total_net_amount: "1,180.00",
+        total_gross_amount: "34,200.00",
+        total_tax_amount: "6,156.00",
+        line_count: 2,
+        total_net_amount: "40,356.00",
         customer_tax_treatment: "REGULAR_B2B",
         custom_fields: {},
         source_quotation_id: null,
@@ -177,7 +242,7 @@ export function getDesignerSampleDocument(moduleKey: DocumentModuleKey): Designe
         created_by_name: "Sample User",
         created_at: "2026-06-17T10:00:00.000Z",
         updated_at: "2026-06-17T10:00:00.000Z",
-        lines: SAMPLE_LINES.sales as unknown as SalesOrderRow["lines"],
+        lines: SAMPLE_SALES_LINES,
       } as unknown as SalesOrderRow;
     case "SALES_INVOICE":
       return {

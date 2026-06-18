@@ -30,6 +30,7 @@ export type DocumentLayoutFieldRowMeta = {
   disabled?: boolean;
   disabledReason?: string;
   pinned?: boolean;
+  removable?: boolean;
   showDecimalPlaces?: boolean;
   showAlign?: boolean;
   showTypography?: boolean;
@@ -50,6 +51,7 @@ type RowProps<TId extends string> = {
   compactToolbar?: boolean;
   onPatch: (patch: Partial<DocumentColumnPref>) => void;
   onMove: (fromId: TId, toId: TId) => void;
+  onRemove?: (id: TId) => void;
 };
 
 function TypographySelectCells({
@@ -134,6 +136,7 @@ function DocumentLayoutFieldRow<TId extends string>({
   compactToolbar = false,
   onPatch,
   onMove,
+  onRemove,
 }: RowProps<TId>) {
   const dragIdRef = useRef<TId | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -143,6 +146,7 @@ function DocumentLayoutFieldRow<TId extends string>({
     disabled = false,
     disabledReason,
     pinned = false,
+    removable = false,
     showDecimalPlaces = false,
     showAlign = false,
     showTypography = true,
@@ -152,6 +156,7 @@ function DocumentLayoutFieldRow<TId extends string>({
   } = meta;
 
   const rowDisabled = disabled || !!meta.disabled;
+  const fieldEnabled = column.defaultVisible !== false;
   const canDrag = draggable && !pinned && !rowDisabled;
   const lineSlot = lockLineSlot ?? column.lineSlot ?? "column";
   const isItemDetail = lineSlot === "item_detail";
@@ -228,9 +233,9 @@ function DocumentLayoutFieldRow<TId extends string>({
           )}
         />
       </td>
-      {showHeaderPlacementColumns ? (
+      {showHeaderPlacementColumns && !compactToolbar ? (
         <td className="min-w-[5.5rem] px-1 py-1 align-middle">
-          {showHeaderPlacement ? (
+          {showHeaderPlacement && fieldEnabled ? (
             <Select
               value={headerSlot}
               disabled={rowDisabled || lockHeaderSlot != null}
@@ -246,14 +251,17 @@ function DocumentLayoutFieldRow<TId extends string>({
                 <SelectItem value="details">Details</SelectItem>
               </SelectContent>
             </Select>
+          ) : showHeaderPlacement ? (
+            <span className="block px-1 text-[10px] text-muted-foreground/50">—</span>
           ) : (
             <span className="block px-1 text-[10px] text-muted-foreground/50">Peek</span>
           )}
         </td>
       ) : null}
-      {showPresentationColumns ? (
+      {showPresentationColumns && !compactToolbar ? (
         <>
           <td className="min-w-[5.5rem] px-1 py-1 align-middle">
+            {fieldEnabled ? (
             <Select
               value={lineSlot}
               disabled={rowDisabled || pinned || lockLineSlot != null}
@@ -272,11 +280,15 @@ function DocumentLayoutFieldRow<TId extends string>({
                 <SelectItem value="item_detail">Detail</SelectItem>
               </SelectContent>
             </Select>
+            ) : (
+              <span className="block px-1 text-[10px] text-muted-foreground/50">—</span>
+            )}
           </td>
           <td className="min-w-[3.5rem] px-1 py-1 align-middle">
+            {fieldEnabled && isItemDetail ? (
             <Select
               value={column.showLabel === false ? "off" : "on"}
-              disabled={rowDisabled || !isItemDetail}
+              disabled={rowDisabled}
               onValueChange={(value) => onPatch({ showLabel: value === "on" })}
             >
               <SelectTrigger className="h-7 w-full min-w-[3rem] border-transparent bg-transparent px-1.5 text-[11px] shadow-none focus:ring-1">
@@ -287,11 +299,15 @@ function DocumentLayoutFieldRow<TId extends string>({
                 <SelectItem value="off">Off</SelectItem>
               </SelectContent>
             </Select>
+            ) : (
+              <span className="block px-1 text-[10px] text-muted-foreground/50">—</span>
+            )}
           </td>
           <td className="min-w-[5.5rem] px-1 py-1 align-middle">
+            {fieldEnabled && isItemDetail ? (
             <Select
               value={column.itemDetailFlow ?? "new_line"}
-              disabled={rowDisabled || !isItemDetail}
+              disabled={rowDisabled}
               onValueChange={(value) =>
                 onPatch({ itemDetailFlow: value as DocumentItemDetailFlow })
               }
@@ -304,12 +320,15 @@ function DocumentLayoutFieldRow<TId extends string>({
                 <SelectItem value="inline_previous">Inline</SelectItem>
               </SelectContent>
             </Select>
+            ) : (
+              <span className="block px-1 text-[10px] text-muted-foreground/50">—</span>
+            )}
           </td>
         </>
       ) : null}
       {showAlignColumn && !compactToolbar ? (
         <td className="min-w-[5rem] px-1 py-1 align-middle">
-          {showAlign ? (
+          {showAlign && fieldEnabled ? (
             <Select
               value={column.align ?? "left"}
               disabled={rowDisabled}
@@ -331,7 +350,7 @@ function DocumentLayoutFieldRow<TId extends string>({
       ) : null}
       {showDecimalsColumn && !compactToolbar ? (
         <td className="min-w-[3.5rem] px-1 py-1 align-middle">
-          {showDecimalPlaces ? (
+          {showDecimalPlaces && fieldEnabled ? (
             <Select
               value={String(column.decimalPlaces ?? 2)}
               disabled={rowDisabled}
@@ -354,7 +373,7 @@ function DocumentLayoutFieldRow<TId extends string>({
         </td>
       ) : null}
       {showTypographyColumns && !compactToolbar ? (
-        showTypography ? (
+        showTypography && fieldEnabled ? (
           <TypographySelectCells column={column} disabled={rowDisabled} onPatch={onPatch} />
         ) : (
           <>
@@ -365,15 +384,25 @@ function DocumentLayoutFieldRow<TId extends string>({
         )
       ) : null}
       {compactToolbar ? (
-        <td className="w-[4.25rem] px-1 py-1 align-middle">
-          <DocumentLayoutFieldFormatToolbar
-            column={column}
-            disabled={rowDisabled || pinned}
-            showAlign={showAlign}
-            showDecimalPlaces={showDecimalPlaces}
-            showTypography={showTypography}
-            onPatch={onPatch}
-          />
+        <td className="w-[7rem] px-1 py-1 align-middle">
+          {fieldEnabled || (removable && onRemove) ? (
+            <DocumentLayoutFieldFormatToolbar
+              column={column}
+              disabled={rowDisabled}
+              formatDisabled={!fieldEnabled}
+              pinned={pinned}
+              showAlign={showAlign}
+              showDecimalPlaces={showDecimalPlaces}
+              showTypography={showTypography}
+              showHeaderPlacement={showHeaderPlacementColumns && showHeaderPlacement}
+              showPresentation={showPresentationColumns}
+              showRemove={removable && !pinned}
+              lockLineSlot={lockLineSlot}
+              lockHeaderSlot={lockHeaderSlot}
+              onPatch={onPatch}
+              onRemove={removable && !pinned && onRemove ? () => onRemove(columnId) : undefined}
+            />
+          ) : null}
         </td>
       ) : null}
       {compactToolbar ? null : (
@@ -391,12 +420,14 @@ type ListProps<TId extends string> = {
   getMeta?: (id: TId, column: DocumentColumnPref) => DocumentLayoutFieldRowMeta;
   onPatch: (id: TId, patch: Partial<DocumentColumnPref>) => void;
   onMove: (fromId: TId, toId: TId) => void;
+  onRemove?: (id: TId) => void;
   showAlignColumn?: boolean;
   showDecimalsColumn?: boolean;
   showPresentationColumns?: boolean;
   showHeaderPlacementColumns?: boolean;
   showTypographyColumns?: boolean;
   compactToolbar?: boolean;
+  flush?: boolean;
 };
 
 export function DocumentLayoutFieldList<TId extends string>({
@@ -405,30 +436,48 @@ export function DocumentLayoutFieldList<TId extends string>({
   getMeta,
   onPatch,
   onMove,
+  onRemove,
   showAlignColumn = false,
   showDecimalsColumn = false,
   showPresentationColumns = false,
   showHeaderPlacementColumns = false,
   showTypographyColumns = false,
   compactToolbar = false,
+  flush = false,
 }: ListProps<TId>) {
+  const hasStructuralColumns =
+    !compactToolbar && (showPresentationColumns || showHeaderPlacementColumns);
   const isWideTable =
-    !compactToolbar &&
-    (showPresentationColumns ||
-      showHeaderPlacementColumns ||
-      showAlignColumn ||
-      showDecimalsColumn ||
-      showTypographyColumns);
+    !flush &&
+    (hasStructuralColumns ||
+      (!compactToolbar && (showAlignColumn || showDecimalsColumn || showTypographyColumns)));
 
   return (
-    <div className="table-chrome-frame overflow-x-auto rounded-md border border-border">
+    <div
+      className={cn(
+        "min-w-0 overflow-x-auto",
+        flush ? "w-full bg-white dark:bg-card" : "table-chrome-frame rounded-md border border-border"
+      )}
+    >
       <table
         data-header-tone="subtle"
         className={cn(
           "table-chrome w-full border-separate border-spacing-0 text-xs",
-          isWideTable ? "min-w-[56rem] table-auto" : compactToolbar ? "w-full table-fixed" : "min-w-[20rem] table-fixed"
+          flush || compactToolbar ? "table-fixed" : isWideTable ? "table-auto" : "table-fixed",
+          flush &&
+            "bg-white dark:bg-card [&_tbody_td]:bg-white dark:[&_tbody_td]:bg-card [&_thead_tr:first-child_th]:bg-white dark:[&_thead_tr:first-child_th]:bg-card [&_thead_tr:first-child_th:first-child]:rounded-none [&_thead_tr:first-child_th:last-child]:rounded-none",
+          !flush && isWideTable && (compactToolbar ? "min-w-[34rem]" : "min-w-[56rem]"),
+          !flush && !isWideTable && !compactToolbar && "min-w-[20rem]"
         )}
       >
+        {flush && compactToolbar ? (
+          <colgroup>
+            <col className="w-7" />
+            <col className="w-9" />
+            <col />
+            <col className="w-[7rem]" />
+          </colgroup>
+        ) : null}
         <thead>
           <tr className="border-b border-border text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <th className="w-7 px-1 py-1.5" aria-label="Reorder" />
@@ -441,10 +490,10 @@ export function DocumentLayoutFieldList<TId extends string>({
             >
               Label
             </th>
-            {showHeaderPlacementColumns ? (
+            {showHeaderPlacementColumns && !compactToolbar ? (
               <th className="min-w-[5.5rem] px-1 py-1.5 text-left">Place</th>
             ) : null}
-            {showPresentationColumns ? (
+            {showPresentationColumns && !compactToolbar ? (
               <>
                 <th className="min-w-[5.5rem] px-1 py-1.5 text-left">Place</th>
                 <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Lbl</th>
@@ -464,7 +513,9 @@ export function DocumentLayoutFieldList<TId extends string>({
                 <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Ital</th>
               </>
             ) : null}
-            {compactToolbar ? <th className="w-[4.25rem] px-1 py-1.5 text-right">Fmt</th> : null}
+            {compactToolbar ? (
+              <th className="w-[7rem] px-1 py-1.5 text-right">Tools</th>
+            ) : null}
             {!compactToolbar ? <th className="w-10 px-1 py-1.5" /> : null}
           </tr>
         </thead>
@@ -486,6 +537,7 @@ export function DocumentLayoutFieldList<TId extends string>({
                 compactToolbar={compactToolbar}
                 onPatch={(patch) => onPatch(columnId, patch)}
                 onMove={onMove}
+                onRemove={onRemove}
               />
             );
           })}

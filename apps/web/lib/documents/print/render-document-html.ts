@@ -1,4 +1,7 @@
-import type { DocumentPrintModel } from "@/lib/documents/build-document-print-model";
+import type { DocumentPrintLine, DocumentPrintModel } from "@/lib/documents/build-document-print-model";
+import type { DocumentColumnPref } from "@/lib/documents/types";
+import type { DocumentPrintLayoutHints } from "@/lib/documents/print/print-layout-hints";
+import { renderPrintLineItemDetailsHtml } from "@/lib/documents/print/render-print-line-details";
 import {
   DEFAULT_PRESENTATION_SHELL_CONFIG,
   DEFAULT_PRESENTATION_STYLE_CONFIG,
@@ -10,6 +13,7 @@ import {
 import type {
   DocumentOrgRenderContext,
   DocumentPresentationTemplate,
+  PresentationLayoutTheme,
 } from "@/lib/documents/print/types";
 
 function escapeHtml(value: string): string {
@@ -65,17 +69,86 @@ function renderOrgHeader(org: DocumentOrgRenderContext, presentation: DocumentPr
   return `<div class="letterhead">${blocks.join("")}</div>`;
 }
 
-function renderHeaderFields(model: DocumentPrintModel, presentation: DocumentPresentationTemplate): string {
-  if (!presentation.shellConfig.sections.showHeaderFields || model.headerFields.length === 0) {
-    return "";
+function filteredHeaderFields(model: DocumentPrintModel) {
+  return model.headerFields.filter((field) => {
+    if (model.statusBadge && field.id === "document_status") return false;
+    if (model.addressBlocks?.length && field.id === "customer") return false;
+    return true;
+  });
+}
+
+function renderHeaderFields(
+  model: DocumentPrintModel,
+  presentation: DocumentPresentationTemplate,
+  layoutTheme: PresentationLayoutTheme
+): string {
+  if (!presentation.shellConfig.sections.showHeaderFields) return "";
+
+  const fields = filteredHeaderFields(model);
+  if (fields.length === 0) return "";
+
+  if (layoutTheme === "modern") {
+    const rows = fields
+      .map(
+        (field) =>
+          `<div class="meta-row"><span class="meta-label">${escapeHtml(field.label)}</span><span class="meta-value">${escapeHtml(field.value)}</span></div>`
+      )
+      .join("");
+    return `<div class="metadata-panel">${rows}</div>`;
   }
 
-  return model.headerFields
+  return `<div class="header-grid">${fields
     .map(
       (field) =>
         `<div class="field"><div class="label">${escapeHtml(field.label)}</div><div class="value">${escapeHtml(field.value)}</div></div>`
     )
-    .join("");
+    .join("")}</div>`;
+}
+
+function renderPartyBlocks(model: DocumentPrintModel): string {
+  if (!model.addressBlocks?.length) return "";
+
+  return `<div class="party-blocks">${model.addressBlocks
+    .map(
+      (block) =>
+        `<div class="party-block party-block--${escapeHtml(block.kind)}">
+          <div class="party-block__title">${escapeHtml(block.title)}</div>
+          <div class="party-block__name">${escapeHtml(block.name)}</div>
+          ${block.lines.map((line) => `<div class="party-block__line">${escapeHtml(line)}</div>`).join("")}
+          ${
+            block.taxIdentifier
+              ? `<div class="party-block__tax">GSTIN: ${escapeHtml(block.taxIdentifier)}</div>`
+              : ""
+          }
+        </div>`
+    )
+    .join("")}</div>`;
+}
+
+function renderPrintQtyCellHtml(
+  column: DocumentColumnPref,
+  line: DocumentPrintLine,
+  hints: DocumentPrintLayoutHints | undefined
+): string {
+  const align = column.align === "right" ? "right" : column.align === "center" ? "center" : "left";
+  const weight =
+    column.typography?.fontWeight === "bold" || column.typography?.fontWeight === "semibold"
+      ? "font-weight:600;"
+      : "";
+  const qtyValue = escapeHtml(line[column.id] ?? "—");
+  const showUnit =
+    hints?.showUnitUnderQty === true && hints.quantityColumnIds.includes(column.id);
+  if (!showUnit) {
+    return `<td style="text-align:${align};${weight}">${qtyValue}</td>`;
+  }
+
+  const unitRaw = line[hints.unitFieldId];
+  const unitValue = unitRaw && unitRaw !== "—" ? escapeHtml(unitRaw) : "";
+  if (!unitValue) {
+    return `<td style="text-align:${align};${weight}">${qtyValue}</td>`;
+  }
+
+  return `<td class="line-qty-cell" style="text-align:${align};${weight}"><div class="line-qty-value">${qtyValue}</div><div class="line-qty-unit">${unitValue}</div></td>`;
 }
 
 function renderLineTable(model: DocumentPrintModel, presentation: DocumentPresentationTemplate): string {
@@ -83,6 +156,7 @@ function renderLineTable(model: DocumentPrintModel, presentation: DocumentPresen
     return "";
   }
 
+  const itemDetailColumns = model.itemDetailColumns ?? [];
   const lineHeader = model.lineColumns
     .map((column) => {
       const align = column.align === "right" ? "right" : column.align === "center" ? "center" : "left";
@@ -95,7 +169,23 @@ function renderLineTable(model: DocumentPrintModel, presentation: DocumentPresen
       const cells = model.lineColumns
         .map((column) => {
           const align = column.align === "right" ? "right" : column.align === "center" ? "center" : "left";
-          return `<td style="text-align:${align}">${escapeHtml(line[column.id] ?? "—")}</td>`;
+          const weight =
+            column.typography?.fontWeight === "bold" || column.typography?.fontWeight === "semibold"
+              ? "font-weight:600;"
+              : "";
+          const rawValue = line[column.id] ?? "—";
+
+          if (column.id === "item" && itemDetailColumns.length > 0) {
+            const detailHtml = renderPrintLineItemDetailsHtml(itemDetailColumns, line);
+            const itemHtml = `<div class="line-item-name">${escapeHtml(rawValue)}</div>${detailHtml}`;
+            return `<td class="line-item-cell" style="text-align:${align};${weight}">${itemHtml}</td>`;
+          }
+
+          if (model.printLayoutHints?.quantityColumnIds.includes(column.id)) {
+            return renderPrintQtyCellHtml(column, line, model.printLayoutHints);
+          }
+
+          return `<td style="text-align:${align};${weight}">${escapeHtml(rawValue)}</td>`;
         })
         .join("");
       return `<tr>${cells}</tr>`;
@@ -110,12 +200,12 @@ function renderTotals(model: DocumentPrintModel, presentation: DocumentPresentat
     return "";
   }
 
-  return model.totalsFields
+  return `<div class="totals">${model.totalsFields
     .map(
       (field) =>
         `<div class="total-row"><span>${escapeHtml(field.label)}</span><span>${escapeHtml(field.value)}</span></div>`
     )
-    .join("");
+    .join("")}</div>`;
 }
 
 function renderTerms(presentation: DocumentPresentationTemplate): string {
@@ -173,12 +263,16 @@ export function renderDocumentHtml(
   const layoutTheme = normalizePresentationLayoutTheme(styleConfig.layoutTheme);
   const themeCss = renderPresentationLayoutThemeCss(layoutTheme);
   const letterheadHtml = renderOrgHeader(org, presentation);
-  const headerFieldsHtml = renderHeaderFields(model, presentation);
+  const headerFieldsHtml = renderHeaderFields(model, presentation, layoutTheme);
+  const partyBlocksHtml = renderPartyBlocks(model);
   const lineTableHtml = renderLineTable(model, presentation);
   const totalsHtml = renderTotals(model, presentation);
   const termsHtml = renderTerms(presentation);
   const footerHtml = renderFooter(presentation);
   const gstComplianceHtml = renderGstComplianceBlock(model, presentation);
+  const statusBadgeHtml = model.statusBadge
+    ? `<div class="doc-status-badge">${escapeHtml(model.statusBadge)}</div>`
+    : "";
 
   const pageMargin = `${shellConfig.margins.top} ${shellConfig.margins.right} ${shellConfig.margins.bottom} ${shellConfig.margins.left}`;
 
@@ -205,12 +299,24 @@ export function renderDocumentHtml(
     .doc-title-block { text-align: right; min-width: 180px; }
     .doc-title { font-size: 20px; font-weight: 700; margin: 0; text-transform: uppercase; letter-spacing: 0.04em; }
     .doc-number { font-size: 13px; font-weight: 600; margin-top: 6px; color: #333; }
+    .doc-status-badge { display: none; }
     .header-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin-bottom: 20px; }
     .field .label { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
     .field .value { font-size: 13px; font-weight: 600; margin-top: 2px; }
+    .party-blocks { display: none; }
     table { width: 100%; border-collapse: collapse; margin-top: 8px; }
     th, td { border-bottom: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
     th { color: #666; font-size: 10px; text-transform: uppercase; }
+    .line-item-name { font-weight: 600; line-height: 1.35; }
+    .line-detail { margin-top: 4px; padding-top: 4px; border-top: 1px solid #eee; font-size: 9px; line-height: 1.45; color: #64748b; }
+    .line-detail__row + .line-detail__row { margin-top: 2px; }
+    .line-detail__row--inline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+    .line-detail__label { color: #94a3b8; font-weight: 500; }
+    .line-detail__value { color: #334155; }
+    .line-detail__sep { color: #cbd5e1; }
+    .line-qty-cell { vertical-align: top; }
+    .line-qty-value { line-height: 1.35; }
+    .line-qty-unit { margin-top: 2px; font-size: 8px; line-height: 1.3; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
     .totals { margin-top: 16px; border-top: 1px solid #ddd; padding-top: 8px; max-width: 360px; margin-left: auto; }
     .total-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
     .terms { margin-top: 20px; font-size: 11px; color: #444; }
@@ -232,14 +338,15 @@ export function renderDocumentHtml(
     ${letterheadHtml}
     ${
       presentation.shellConfig.header.showDocumentTitle
-        ? `<div class="doc-title-block"><h1 class="doc-title">${escapeHtml(title)}</h1><div class="doc-number">${escapeHtml(voucherTitle)}</div></div>`
-        : ""
+        ? `<div class="doc-title-block"><h1 class="doc-title">${escapeHtml(title)}</h1><div class="doc-number">${escapeHtml(voucherTitle)}</div>${statusBadgeHtml}</div>`
+        : statusBadgeHtml
     }
   </div>
-  ${headerFieldsHtml ? `<div class="header-grid">${headerFieldsHtml}</div>` : ""}
+  ${headerFieldsHtml}
+  ${partyBlocksHtml}
   ${gstComplianceHtml}
   ${lineTableHtml}
-  ${totalsHtml ? `<div class="totals">${totalsHtml}</div>` : ""}
+  ${totalsHtml}
   ${termsHtml}
   ${footerHtml}
 </body>

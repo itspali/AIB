@@ -164,7 +164,7 @@ export const moduleNavItems: ModuleNavItem[] = [
       { href: "/settings/locations", label: "Locations", icon: MapPin },
       {
         href: "/settings/documents/templates",
-        label: "Document print templates",
+        label: "Document templates",
         icon: FileOutput,
       },
       { href: "/settings/modules", label: "Module settings", icon: LayoutTemplate },

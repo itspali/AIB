@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { BillDocumentLayoutPanel } from "@/components/settings/document-layout/bill-document-layout-panel";
 import { GrnDocumentLayoutPanel } from "@/components/settings/document-layout/grn-document-layout-panel";
 import { PurchaseOrderDocumentLayoutPanel } from "@/components/settings/document-layout/purchase-order-document-layout-panel";
@@ -45,7 +46,7 @@ const sharedEmbeddedProps = (props: Props) => ({
   onEmbeddedToolbarActionsChange: props.onEmbeddedToolbarActionsChange,
 });
 
-export function DocumentModuleLayoutPanel(props: Props) {
+function DocumentModuleLayoutPanelInner(props: Props) {
   const shared = sharedEmbeddedProps(props);
   const catalog = props.catalogFieldSuggestions
     ? { catalogFieldSuggestions: props.catalogFieldSuggestions }
@@ -68,3 +69,5 @@ export function DocumentModuleLayoutPanel(props: Props) {
       return null;
   }
 }
+
+export const DocumentModuleLayoutPanel = memo(DocumentModuleLayoutPanelInner);

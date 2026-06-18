@@ -55,7 +55,18 @@ const LEGAL_SNIPPETS = [
   "Subject to applicable local tax and commercial laws.",
 ];
 
+export function presetIdFromStyleConfig(
+  styleConfig: PresentationStyleConfig | null | undefined
+): string {
+  const theme = styleConfig?.layoutTheme;
+  if (theme && DOCUMENT_DESIGNER_LAYOUT_PRESETS.some((preset) => preset.id === theme)) {
+    return theme;
+  }
+  return "standard";
+}
+
 export const DOCUMENT_DESIGNER_LAYOUT_PRESETS: DesignerLayoutPreset[] = [
+  { id: "modern", label: "Modern", description: "Commercial layout with metadata panel, Bill/Ship blocks, and styled table." },
   { id: "standard", label: "Standard", description: "Balanced default for print and email." },
   { id: "compact", label: "Compact", description: "Dense type, tight margins, fewer header fields." },
   { id: "detailed", label: "Detailed", description: "Full grid borders, three-column metadata, terms block." },
@@ -297,6 +308,43 @@ function applyBranded(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
   };
 }
 
+function applyModern(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
+  const numericIds = numericColumnIds(bundle.layout);
+  let layout = patchColumnIds(bundle.layout, numericIds, { align: "right" });
+  layout = patchColumnIds(layout, allColumnIds(layout), { defaultVisible: true });
+
+  return {
+    layout,
+    shellConfig: normalizePresentationShellConfig({
+      ...bundle.shellConfig,
+      margins: { top: "10mm", bottom: "12mm", left: "10mm", right: "10mm" },
+      header: {
+        ...bundle.shellConfig.header,
+        showLogo: true,
+        showOrgName: true,
+        showOrgAddress: true,
+        showDocumentTitle: true,
+      },
+      sections: {
+        showHeaderFields: true,
+        showLineTable: true,
+        showTotals: true,
+        showTerms: true,
+        termsText:
+          bundle.shellConfig.sections.termsText.trim() ||
+          "Payment due within agreed credit terms. Please quote the document number on all remittances.",
+      },
+      footer: {
+        showPageNumbers: false,
+        legalText:
+          bundle.shellConfig.footer.legalText.trim() ||
+          "This is a computer-generated document. Subject to applicable commercial and tax laws.",
+      },
+    }),
+    styleConfig: withPresetStyle(bundle, "modern"),
+  };
+}
+
 const PRESET_APPLIERS: Record<string, (bundle: DesignerLayoutBundle) => DesignerLayoutBundle> = {
   standard: applyStandard,
   compact: applyCompact,
@@ -304,6 +352,7 @@ const PRESET_APPLIERS: Record<string, (bundle: DesignerLayoutBundle) => Designer
   minimal: applyMinimal,
   formal: applyFormal,
   branded: applyBranded,
+  modern: applyModern,
 };
 
 export function normalizeDesignerBundle(

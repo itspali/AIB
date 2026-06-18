@@ -19,6 +19,8 @@ import {
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 
+const DOCUMENT_TEMPLATES_SETTINGS_PATH = "/settings/documents/templates";
+
 export type SavePurchaseOrderDocumentLayoutInput = {
   scope: DocumentLayoutScope;
   viewContext: DocumentViewContext;
@@ -129,7 +131,7 @@ export async function savePurchaseOrderDocumentLayout(
   return saveDocumentLayoutForModule(
     "PURCHASE_ORDER",
     normalizePoLayoutTemplate,
-    ["/settings/modules/procurement", "/procurement/purchase-orders"],
+    ["/settings/modules/procurement", DOCUMENT_TEMPLATES_SETTINGS_PATH, "/procurement/purchase-orders"],
     input
   );
 }
@@ -140,7 +142,7 @@ export async function saveGoodsReceiptDocumentLayout(
   return saveDocumentLayoutForModule(
     "GOODS_RECEIPT_NOTE",
     normalizeGrnLayoutTemplate,
-    ["/settings/modules/procurement", "/procurement/goods-receipts"],
+    ["/settings/modules/procurement", DOCUMENT_TEMPLATES_SETTINGS_PATH, "/procurement/goods-receipts"],
     input
   );
 }
@@ -151,7 +153,7 @@ export async function savePurchaseInvoiceDocumentLayout(
   return saveDocumentLayoutForModule(
     "PURCHASE_INVOICE",
     normalizeBillLayoutTemplate,
-    ["/settings/modules/procurement", "/procurement/bills"],
+    ["/settings/modules/procurement", DOCUMENT_TEMPLATES_SETTINGS_PATH, "/procurement/bills"],
     input
   );
 }

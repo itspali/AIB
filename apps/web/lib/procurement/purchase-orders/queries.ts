@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildPrintLineCatalogContext } from "@/lib/documents/print/print-line-catalog-context";
 import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 import { parsePoLineTaxComponentsJson } from "@/lib/procurement/purchase-orders/po-line-tax-components";
 import type { TaxTreatmentType } from "@/lib/entities/types";
@@ -187,8 +188,8 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
         tax_rate_percentage,
         line_tax_amount,${buildPoLineTaxFields(options.includeTaxColumns)}
         line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
-        item_variants!purchase_order_items_variant_tenant_fk (sku)
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields, hsn_sac_code, description),
+        item_variants!purchase_order_items_variant_tenant_fk (sku, variant_attributes)
       )
     `;
 }
@@ -220,8 +221,8 @@ function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string 
         tax_rate_percentage,
         line_tax_amount,${buildPoLineTaxFields(includeTaxColumns)}
         line_total_gross,
-        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
-        item_variants!purchase_order_items_variant_tenant_fk (sku)
+        items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields, hsn_sac_code, description),
+        item_variants!purchase_order_items_variant_tenant_fk (sku, variant_attributes)
       )
     `;
 }
@@ -398,14 +399,21 @@ type PoLineDbRow = {
         name: string;
         base_unit_of_measure?: string | null;
         custom_fields?: Record<string, unknown> | null;
+        hsn_sac_code?: string | null;
+        description?: string | null;
       }
     | {
         name: string;
         base_unit_of_measure?: string | null;
         custom_fields?: Record<string, unknown> | null;
+        hsn_sac_code?: string | null;
+        description?: string | null;
       }[]
     | null;
-  item_variants: { sku: string } | { sku: string }[] | null;
+  item_variants:
+    | { sku: string; variant_attributes?: Record<string, unknown> | null }
+    | { sku: string; variant_attributes?: Record<string, unknown> | null }[]
+    | null;
 };
 
 type ReceivablePoDbRow = {
@@ -511,6 +519,16 @@ function mapPoLine(row: PoLineDbRow): PurchaseOrderLineRow {
     tax_components: parsePoLineTaxComponentsJson(row.tax_components_json),
     line_total_gross: formatDecimal(row.line_total_gross),
     open_quantity: String(openQty),
+    catalog_context: buildPrintLineCatalogContext({
+      description: item?.description ?? null,
+      hsn_sac_code: item?.hsn_sac_code ?? null,
+      base_unit_of_measure: item?.base_unit_of_measure,
+      uom_code: row.uom_code,
+      mrp: extractMrpFromCustomFieldsRecord(item?.custom_fields) || null,
+      tax_rate_percentage: formatDecimal(row.tax_rate_percentage ?? 0),
+      variant_attributes: variant?.variant_attributes ?? null,
+      custom_fields: item?.custom_fields ?? null,
+    }),
   };
 }
 
@@ -752,8 +770,8 @@ export async function fetchBillablePurchaseOrders(
             tax_rate_percentage,
             line_tax_amount,${buildPoLineTaxFields(shape.includeTaxColumns)}
             line_total_gross,
-            items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields),
-            item_variants!purchase_order_items_variant_tenant_fk (sku)
+            items!purchase_order_items_item_tenant_fk (name, base_unit_of_measure, custom_fields, hsn_sac_code, description),
+            item_variants!purchase_order_items_variant_tenant_fk (sku, variant_attributes)
           )
         `
         )

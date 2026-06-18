@@ -8,7 +8,10 @@ import {
   loadDocumentPrintPayload,
 } from "@/lib/documents/document-print-actions";
 import { downloadPdfFromBase64 } from "@/lib/documents/download-document-pdf";
-import { openDocumentPrintWindow } from "@/lib/documents/open-document-print-window";
+import {
+  prepareDocumentPrintWindow,
+  renderDocumentPrintWindow,
+} from "@/lib/documents/open-document-print-window";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -41,6 +44,17 @@ export function DocumentPrintButton({
   const [busy, setBusy] = useState(false);
 
   const runPrint = () => {
+    let printWindow: Window | null = null;
+
+    try {
+      printWindow = prepareDocumentPrintWindow();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to open print preview."
+      );
+      return;
+    }
+
     startTransition(async () => {
       setBusy(true);
       const result = await loadDocumentPrintPayload({
@@ -51,11 +65,23 @@ export function DocumentPrintButton({
       setBusy(false);
 
       if ("error" in result) {
+        printWindow?.close();
         toast.error(result.error ?? "Unable to print document.");
         return;
       }
 
-      openDocumentPrintWindow(result.payload.title, result.payload.html);
+      try {
+        renderDocumentPrintWindow(
+          printWindow!,
+          result.payload.title,
+          result.payload.html
+        );
+      } catch (error) {
+        printWindow?.close();
+        toast.error(
+          error instanceof Error ? error.message : "Unable to open print preview."
+        );
+      }
     });
   };
 

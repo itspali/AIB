@@ -12,13 +12,16 @@ import type {
   PresentationStyleConfig,
   PresentationViewContext,
 } from "@/lib/documents/print/types";
-import type { DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
+import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchLocationRows } from "@/lib/locations/queries";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import { TENANT_LAYOUT_SCOPE } from "@/lib/documents/layout-scope";
-import { DEFAULT_PRESENTATION_SHELL_CONFIG } from "@/lib/documents/print/default-shell-config";
+import {
+  DEFAULT_PRESENTATION_SHELL_CONFIG,
+  DEFAULT_PRESENTATION_STYLE_CONFIG,
+} from "@/lib/documents/print/default-shell-config";
 import { applyGstShellConfigOverrides } from "@/lib/documents/print/gst-presentation-compliance";
 import {
   buildDesignerPreviewDraftKey,
@@ -37,6 +40,7 @@ const VALID_MODULE_KEYS = new Set<DocumentModuleKey>([
 ]);
 
 const MODULE_KEYS = [...VALID_MODULE_KEYS] as DocumentModuleKey[];
+const LAYOUT_VIEW_CONTEXTS: DocumentViewContext[] = ["SCREEN_GRID", "PDF_PRINT", "EMAIL_HTML"];
 const PRESENTATION_VIEW_CONTEXTS: PresentationViewContext[] = ["PDF_PRINT", "EMAIL_HTML"];
 const DEFAULT_PREVIEW_MODULE: DocumentModuleKey = "PURCHASE_ORDER";
 const DEFAULT_PREVIEW_VIEW_CONTEXT: PresentationViewContext = "PDF_PRINT";
@@ -74,7 +78,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     fetchOrganizationGstRegistered(supabase, tenantId),
     fetchPoCatalogFieldSuggestions(supabase, tenantId),
     ...MODULE_KEYS.flatMap((moduleKey) =>
-      PRESENTATION_VIEW_CONTEXTS.map((viewContext) =>
+      LAYOUT_VIEW_CONTEXTS.map((viewContext) =>
         fetchDocumentLayoutTemplate(supabase, tenantId, moduleKey, viewContext)
       )
     ),
@@ -85,7 +89,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     ),
   ]);
 
-  const layoutRowCount = MODULE_KEYS.length * PRESENTATION_VIEW_CONTEXTS.length;
+  const layoutRowCount = MODULE_KEYS.length * LAYOUT_VIEW_CONTEXTS.length;
   const layoutRows = layoutAndPresentationRows.slice(0, layoutRowCount) as DocumentLayoutTemplate[];
   const presentationRows = layoutAndPresentationRows.slice(
     layoutRowCount
@@ -94,14 +98,14 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
   const initialLayoutsByModule = Object.fromEntries(
     MODULE_KEYS.map((moduleKey, moduleIndex) => {
       const byContext = Object.fromEntries(
-        PRESENTATION_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
-          const flatIndex = moduleIndex * PRESENTATION_VIEW_CONTEXTS.length + viewIndex;
+        LAYOUT_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
+          const flatIndex = moduleIndex * LAYOUT_VIEW_CONTEXTS.length + viewIndex;
           return [viewContext, layoutRows[flatIndex]!];
         })
-      ) as Record<PresentationViewContext, DocumentLayoutTemplate>;
+      ) as Record<DocumentViewContext, DocumentLayoutTemplate>;
       return [moduleKey, byContext];
     })
-  ) as Record<DocumentModuleKey, Record<PresentationViewContext, DocumentLayoutTemplate>>;
+  ) as Record<DocumentModuleKey, Record<DocumentViewContext, DocumentLayoutTemplate>>;
 
   const initialPresentationShells = Object.fromEntries(
     MODULE_KEYS.map((moduleKey, moduleIndex) => {
@@ -135,7 +139,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
   const previewLayout = normalizeDesignerPreviewLayout(
     previewModuleKey,
     DEFAULT_PREVIEW_VIEW_CONTEXT,
-    initialLayoutsByModule[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT],
+    initialLayoutsByModule[previewModuleKey].PDF_PRINT,
     gstRegistered
   );
   const previewShellBase =
@@ -147,14 +151,15 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     gstRegistered
   );
   const previewStyle =
-    initialPresentationStyles[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT] ?? null;
+    initialPresentationStyles[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT] ??
+    DEFAULT_PRESENTATION_STYLE_CONFIG;
   const initialPreviewDraftKey = buildDesignerPreviewDraftKey({
     moduleKey: previewModuleKey,
     viewContext: DEFAULT_PREVIEW_VIEW_CONTEXT,
     scope: TENANT_LAYOUT_SCOPE,
     layout: previewLayout,
     shellConfig: previewShell,
-    styleConfig: previewStyle ?? undefined,
+    styleConfig: previewStyle,
   });
   const initialPreviewResult = await renderDocumentDesignerPreviewHtml(supabase, tenantId, {
     moduleKey: previewModuleKey,
@@ -162,7 +167,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     scope: TENANT_LAYOUT_SCOPE,
     layout: previewLayout,
     shellConfig: previewShell,
-    styleConfig: previewStyle ?? undefined,
+    styleConfig: previewStyle,
   });
   const initialPreviewHtml =
     "html" in initialPreviewResult ? initialPreviewResult.html : null;

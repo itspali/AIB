@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildPrintLineCatalogContext } from "@/lib/documents/print/print-line-catalog-context";
 import type { TaxTreatmentType } from "@/lib/entities/types";
 import type {
   SalesFulfillmentStatus,
@@ -163,8 +164,8 @@ function buildSalesOrderDetailSelect(options: SoSelectShape): string {
         source_quotation_line_id,
         uom_code,
         uom_conversion_factor,
-        items!sales_order_items_item_tenant_fk (name, base_unit_of_measure),
-        item_variants!sales_order_items_variant_tenant_fk (sku)
+        items!sales_order_items_item_tenant_fk (name, base_unit_of_measure, hsn_sac_code, description),
+        item_variants!sales_order_items_variant_tenant_fk (sku, variant_attributes)
       )
     `;
 }
@@ -339,13 +340,20 @@ type SoLineDbRow = {
     | {
         name: string;
         base_unit_of_measure?: string | null;
+        hsn_sac_code?: string | null;
+        description?: string | null;
       }
     | {
         name: string;
         base_unit_of_measure?: string | null;
+        hsn_sac_code?: string | null;
+        description?: string | null;
       }[]
     | null;
-  item_variants: { sku: string } | { sku: string }[] | null;
+  item_variants:
+    | { sku: string; variant_attributes?: Record<string, unknown> | null }
+    | { sku: string; variant_attributes?: Record<string, unknown> | null }[]
+    | null;
 };
 
 function mapCustomerAddress(
@@ -445,6 +453,13 @@ function mapSoLine(row: SoLineDbRow): SalesOrderLineRow {
     base_unit_of_measure: item?.base_unit_of_measure?.trim() || null,
     uom_code: row.uom_code?.trim() || item?.base_unit_of_measure?.trim() || null,
     uom_conversion_factor: formatDecimal(row.uom_conversion_factor ?? 1),
+    catalog_context: buildPrintLineCatalogContext({
+      description: item?.description ?? null,
+      hsn_sac_code: item?.hsn_sac_code ?? null,
+      base_unit_of_measure: item?.base_unit_of_measure,
+      uom_code: row.uom_code,
+      variant_attributes: variant?.variant_attributes ?? null,
+    }),
   };
 }
 

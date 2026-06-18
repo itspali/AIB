@@ -51,7 +51,8 @@ export type PresentationLayoutTheme =
   | "detailed"
   | "minimal"
   | "formal"
-  | "branded";
+  | "branded"
+  | "modern";
 
 export type PresentationStyleConfig = {
   fontFamily: string;

@@ -71,14 +71,12 @@ export async function downloadDocumentPdf(input: {
     let cached = pdfBuffer != null;
 
     if (!pdfBuffer) {
-      pdfBuffer = await generatePdfFromHtml(result.payload.html);
-      if (!pdfBuffer) {
-        return {
-          error:
-            "PDF generation is unavailable. Configure Puppeteer locally or use Print instead.",
-        };
+      const pdfResult = await generatePdfFromHtml(result.payload.html);
+      if (!pdfResult.ok) {
+        return { error: pdfResult.error };
       }
 
+      pdfBuffer = pdfResult.buffer;
       try {
         await putCachedDocumentPdf(supabase, cacheLookup, pdfBuffer);
       } catch {

@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Check } from "lucide-react";
 import { loadDocumentDesignerPreview } from "@/app/settings/documents/templates/actions";
 import { DocumentDesignerPreviewToolbar } from "@/components/settings/document-templates/document-designer-preview-toolbar";
+import { Badge } from "@/components/ui/badge";
 import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";
-import { DOCUMENT_DESIGNER_LAYOUT_PRESETS } from "@/lib/documents/print/document-designer-layout-presets";
+import {
+  DOCUMENT_DESIGNER_LAYOUT_PRESETS,
+  type DesignerLayoutBundle,
+} from "@/lib/documents/print/document-designer-layout-presets";
 import {
   buildDesignerPreviewDraftKey,
   type DesignerPreviewDraftInput,
@@ -37,11 +42,14 @@ type Props = {
   styleConfig: PresentationStyleConfig;
   shellLoadError?: string | null;
   canEdit: boolean;
-  activePresetId: string;
+  appliedPresetId: string;
+  previewPresetId: string;
+  previewBundleOverride: DesignerLayoutBundle | null;
   isGeneratedLayout: boolean;
   seededPreviewDraftKey?: string | null;
   seededPreviewHtml?: string | null;
   onSelectPreset: (presetId: string) => void;
+  onApplyPreviewPreset: () => void;
   onPreviousPreset: () => void;
   onNextPreset: () => void;
   onPageSizeChange: (size: PresentationPageSize) => void;
@@ -63,17 +71,20 @@ export function DocumentDesignerLivePreview({
   styleConfig,
   shellLoadError,
   canEdit,
-  activePresetId,
+  appliedPresetId,
+  previewPresetId,
+  previewBundleOverride,
   isGeneratedLayout,
   seededPreviewDraftKey = null,
   seededPreviewHtml = null,
   onSelectPreset,
+  onApplyPreviewPreset,
   onPreviousPreset,
   onNextPreset,
   onPageSizeChange,
   onAutoGenerate,
 }: Props) {
-  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewHtml, setPreviewHtml] = useState(() => seededPreviewHtml ?? "");
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -84,27 +95,33 @@ export function DocumentDesignerLivePreview({
   const scopeKey = layoutScopeKey(scope);
   const structuralKey = `${moduleKey}:${viewContext}:${scopeKey}`;
 
+  const effectiveLayout = previewBundleOverride?.layout ?? layout;
+  const effectiveShellConfig = previewBundleOverride?.shellConfig ?? shellConfig;
+  const effectiveStyleConfig = previewBundleOverride?.styleConfig ?? styleConfig;
+
   const currentDraft = useMemo<PreviewDraft>(
     () => ({
       moduleKey,
       viewContext,
       scope,
       layout: {
-        ...layout,
+        ...effectiveLayout,
         moduleKey,
         viewContext,
       },
-      shellConfig,
-      styleConfig,
+      shellConfig: effectiveShellConfig,
+      styleConfig: effectiveStyleConfig,
     }),
-    [moduleKey, viewContext, scope, layout, shellConfig, styleConfig]
+    [moduleKey, viewContext, scope, effectiveLayout, effectiveShellConfig, effectiveStyleConfig]
   );
 
   currentDraftRef.current = currentDraft;
 
   const draftKey = useMemo(() => previewDraftKey(currentDraft), [currentDraft]);
 
-  const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null);
+  const [activeDraftKey, setActiveDraftKey] = useState<string | null>(() =>
+    seededPreviewDraftKey && seededPreviewHtml ? seededPreviewDraftKey : null
+  );
   const seededPreviewRef = useRef(seededPreviewDraftKey);
 
   useEffect(() => {
@@ -192,7 +209,7 @@ export function DocumentDesignerLivePreview({
   }, [activeDraftKey, refreshNonce]);
 
   const isStale = draftKey != null && activeDraftKey !== draftKey;
-  const toolbarPresetId = isGeneratedLayout ? GENERATED_PRESET_ID : activePresetId;
+  const isViewingAppliedPreset = previewBundleOverride === null;
   const presets = useMemo(
     () =>
       isGeneratedLayout
@@ -205,9 +222,18 @@ export function DocumentDesignerLivePreview({
   );
 
   const pageDimensions = useMemo(
-    () => presentationPagePreviewDimensions(shellConfig.page.size, shellConfig.page.orientation),
-    [shellConfig.page.orientation, shellConfig.page.size]
+    () =>
+      presentationPagePreviewDimensions(
+        effectiveShellConfig.page.size,
+        effectiveShellConfig.page.orientation
+      ),
+    [effectiveShellConfig.page.orientation, effectiveShellConfig.page.size]
   );
+
+  const appliedPreset =
+    presets.find((preset) => preset.id === appliedPresetId) ?? presets[0] ?? null;
+  const previewPreset =
+    presets.find((preset) => preset.id === previewPresetId) ?? appliedPreset;
 
   return (
     <div className="document-designer-preview-panel flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-border bg-card">
@@ -218,17 +244,23 @@ export function DocumentDesignerLivePreview({
           </p>
           <p className="text-[10px] text-muted-foreground">
             Sample data
-            {pageDimensions ? ` · ${pageDimensions.label} ${shellConfig.page.orientation}` : ""}
+            {pageDimensions
+              ? ` · ${pageDimensions.label} ${effectiveShellConfig.page.orientation}`
+              : ""}
+            {appliedPreset ? ` · Applied: ${appliedPreset.label}` : ""}
           </p>
         </div>
         <div className="document-designer-preview-header__toolbar">
           <DocumentDesignerPreviewToolbar
           presets={presets}
-          activePresetId={toolbarPresetId}
+          activePresetId={appliedPresetId}
+          previewPresetId={previewPresetId}
+          isViewingAppliedPreset={isViewingAppliedPreset}
           pageSize={shellConfig.page.size}
           canEdit={canEdit}
           isPending={isPending}
           onSelectPreset={onSelectPreset}
+          onApplyPreviewPreset={onApplyPreviewPreset}
           onPreviousPreset={onPreviousPreset}
           onNextPreset={onNextPreset}
           onPageSizeChange={onPageSizeChange}
@@ -255,19 +287,32 @@ export function DocumentDesignerLivePreview({
         ) : null}
         {previewHtml ? (
           <div
-            className="mx-auto w-full overflow-hidden bg-white shadow-md ring-1 ring-border/40"
-            style={{
-              width: pageDimensions.width,
-              maxWidth: "100%",
-              aspectRatio: pageDimensions.aspectRatio,
-            }}
+            className="mx-auto w-full max-w-full"
+            style={{ width: pageDimensions.width }}
           >
-            <iframe
-              title="Document designer preview"
-              srcDoc={previewHtml}
-              className="block h-full w-full border-0 bg-white"
-              sandbox=""
-            />
+            {previewPreset && isViewingAppliedPreset ? (
+              <div className="mb-1.5 flex justify-end">
+                <Badge
+                  variant="active"
+                  className="gap-1 rounded-md px-2 py-0.5 text-[10px] shadow-sm"
+                  aria-label={`${previewPreset.label} layout applied`}
+                >
+                  <Check className="h-3 w-3 shrink-0" aria-hidden />
+                  Applied
+                </Badge>
+              </div>
+            ) : null}
+            <div
+              className="relative w-full overflow-hidden bg-white shadow-md ring-1 ring-border/40"
+              style={{ aspectRatio: pageDimensions.aspectRatio }}
+            >
+              <iframe
+                title="Document designer preview"
+                srcDoc={previewHtml}
+                className="absolute inset-0 block h-full w-full border-0 bg-white"
+                sandbox="allow-same-origin"
+              />
+            </div>
           </div>
         ) : (
           <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">

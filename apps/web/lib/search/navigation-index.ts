@@ -152,24 +152,24 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["group", "enterprise", "holding", "subsidiary", "multi-org"],
   },
   {
-    label: "Document print templates",
+    label: "Document templates",
     href: "/settings/documents/templates",
-    keywords: ["print", "pdf", "document template", "letterhead", "appearance", "presentation"],
+    keywords: ["print", "pdf", "document template", "letterhead", "appearance", "presentation", "on-screen", "drawer", "peek", "screen layout"],
   },
   {
     label: "Module settings",
     href: "/settings/modules",
-    keywords: ["module", "document layout", "purchase order layout", "procurement settings", "preferences"],
+    keywords: ["module", "procurement settings", "sales settings", "policies", "approvals", "preferences"],
   },
   {
-    label: "Procurement document layout",
+    label: "Procurement policies",
     href: "/settings/modules/procurement",
-    keywords: ["procurement", "purchase order", "po columns", "document layout", "print"],
+    keywords: ["procurement", "purchase order", "policies", "approvals", "grn", "matching"],
   },
   {
-    label: "Sales document layout",
+    label: "Sales policies",
     href: "/settings/modules/sales",
-    keywords: ["sales", "quotation", "quote", "sales order", "invoice", "document layout", "columns"],
+    keywords: ["sales", "quotation", "quote", "sales order", "invoice", "policies", "approvals"],
   },
   {
     label: "Tax Settings",

@@ -25,10 +25,13 @@ import { cn } from "@/lib/utils";
 type Props = {
   presets: DesignerLayoutPreset[];
   activePresetId: string;
+  previewPresetId: string;
+  isViewingAppliedPreset: boolean;
   pageSize: PresentationPageSize;
   canEdit: boolean;
   isPending?: boolean;
   onSelectPreset: (presetId: string) => void;
+  onApplyPreviewPreset: () => void;
   onPreviousPreset: () => void;
   onNextPreset: () => void;
   onPageSizeChange: (size: PresentationPageSize) => void;
@@ -41,10 +44,13 @@ const iconButtonClass = "h-7 w-7 shrink-0 p-0";
 export function DocumentDesignerPreviewToolbar({
   presets,
   activePresetId,
+  previewPresetId,
+  isViewingAppliedPreset,
   pageSize,
   canEdit,
   isPending = false,
   onSelectPreset,
+  onApplyPreviewPreset,
   onPreviousPreset,
   onNextPreset,
   onPageSizeChange,
@@ -53,6 +59,9 @@ export function DocumentDesignerPreviewToolbar({
 }: Props) {
   const activePreset =
     presets.find((preset) => preset.id === activePresetId) ?? presets[0] ?? null;
+  const previewPreset =
+    presets.find((preset) => preset.id === previewPresetId) ?? activePreset;
+  const displayPreset = previewPreset ?? activePreset;
   const controlsDisabled = !canEdit || isPending;
 
   return (
@@ -93,7 +102,7 @@ export function DocumentDesignerPreviewToolbar({
             size="sm"
             className={iconButtonClass}
             disabled={controlsDisabled}
-            aria-label="Previous layout"
+            aria-label="Preview previous layout"
             onClick={onPreviousPreset}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -104,19 +113,31 @@ export function DocumentDesignerPreviewToolbar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className={iconButtonClass}
+                className={cn(
+                  "h-7 min-w-[5rem] max-w-[8.5rem] shrink-0 gap-1 px-2 text-xs",
+                  displayPreset &&
+                    (isViewingAppliedPreset
+                      ? "bg-primary/10 font-medium text-primary ring-1 ring-inset ring-primary/25"
+                      : "font-medium text-foreground")
+                )}
                 disabled={controlsDisabled}
-                aria-label={`Layout: ${activePreset?.label ?? "Layout"}`}
+                aria-label={
+                  isViewingAppliedPreset
+                    ? `Applied layout: ${displayPreset?.label ?? "Layout"}`
+                    : `Previewing ${displayPreset?.label ?? "Layout"} (applied: ${activePreset?.label ?? "Layout"})`
+                }
               >
-                <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
+                <LayoutTemplate className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{displayPreset?.label ?? "Layout"}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel className="text-xs">Layout preset</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={activePresetId} onValueChange={onSelectPreset}>
+              <DropdownMenuLabel className="text-xs">Layout template</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={previewPresetId} onValueChange={onSelectPreset}>
                 {presets.map((preset) => (
                   <DropdownMenuRadioItem key={preset.id} value={preset.id}>
                     {preset.label}
+                    {preset.id === activePresetId ? " · applied" : ""}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -128,12 +149,24 @@ export function DocumentDesignerPreviewToolbar({
             size="sm"
             className={iconButtonClass}
             disabled={controlsDisabled}
-            aria-label="Next layout"
+            aria-label="Preview next layout"
             onClick={onNextPreset}
           >
             <ChevronRight className="h-4 w-4" aria-hidden />
           </Button>
         </div>
+
+        {!isViewingAppliedPreset ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-xs"
+            disabled={controlsDisabled}
+            onClick={onApplyPreviewPreset}
+          >
+            Use layout
+          </Button>
+        ) : null}
 
         <Button
           type="button"
@@ -185,23 +218,32 @@ export function DocumentDesignerPreviewToolbar({
             size="sm"
             className={iconButtonClass}
             disabled={controlsDisabled}
-            aria-label="Previous layout"
+            aria-label="Preview previous layout"
             onClick={onPreviousPreset}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Button>
           <Select
-            value={activePresetId}
+            value={previewPresetId}
             disabled={controlsDisabled}
             onValueChange={onSelectPreset}
           >
-            <SelectTrigger className="h-7 min-w-[5.5rem] max-w-[9rem] flex-1 border-0 bg-transparent px-2 text-xs shadow-none focus:ring-0">
-              <SelectValue placeholder="Layout">{activePreset?.label ?? "Layout"}</SelectValue>
+            <SelectTrigger
+              className={cn(
+                "h-7 min-w-[5.5rem] max-w-[9rem] flex-1 border-0 bg-transparent px-2 text-xs shadow-none focus:ring-0",
+                displayPreset &&
+                  (isViewingAppliedPreset
+                    ? "font-medium text-primary"
+                    : "font-medium text-foreground")
+              )}
+            >
+              <SelectValue placeholder="Layout">{displayPreset?.label ?? "Layout"}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end">
               {presets.map((preset) => (
                 <SelectItem key={preset.id} value={preset.id}>
                   {preset.label}
+                  {preset.id === activePresetId ? " · applied" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -212,12 +254,24 @@ export function DocumentDesignerPreviewToolbar({
             size="sm"
             className={iconButtonClass}
             disabled={controlsDisabled}
-            aria-label="Next layout"
+            aria-label="Preview next layout"
             onClick={onNextPreset}
           >
             <ChevronRight className="h-4 w-4" aria-hidden />
           </Button>
         </div>
+
+        {!isViewingAppliedPreset ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-xs"
+            disabled={controlsDisabled}
+            onClick={onApplyPreviewPreset}
+          >
+            Use layout
+          </Button>
+        ) : null}
 
         <Button
           type="button"

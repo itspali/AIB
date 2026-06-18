@@ -1,4 +1,5 @@
 import type { TaxTreatmentType } from "@/lib/entities/types";
+import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import type { PoTaxSupplyNature } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { GstTaxMechanism } from "@/lib/tax/gst-supply-context";
 
@@ -39,6 +40,7 @@ export type PurchaseOrderLineRow = {
   linked_parent_line_id?: string | null;
   promo_group_id?: string | null;
   promotional_category?: string | null;
+  catalog_context?: PoLineCatalogContext | null;
 };
 
 export type PurchaseOrderPartyAddress = {

@@ -25,6 +25,7 @@ import { defaultGstComplianceConfig } from "@/lib/documents/print/gst-presentati
 import type {
   DocumentPresentationTemplate,
   PresentationShellConfig,
+  PresentationStyleConfig,
   PresentationViewContext,
 } from "@/lib/documents/print/types";
 import {
@@ -54,7 +55,9 @@ type Props = {
   controlledViewContext?: PresentationViewContext;
   shellConfigSeed?: PresentationShellConfig | null;
   shellConfigSeedVersion?: number;
+  styleConfigSeed?: PresentationStyleConfig | null;
   onShellConfigChange?: (config: PresentationShellConfig) => void;
+  onStyleConfigChange?: (config: PresentationStyleConfig) => void;
 };
 
 const VIEW_TABS: { id: PresentationViewContext; label: string }[] = [
@@ -103,7 +106,9 @@ export function PresentationTemplateEditor({
   controlledViewContext,
   shellConfigSeed,
   shellConfigSeedVersion,
+  styleConfigSeed,
   onShellConfigChange,
+  onStyleConfigChange,
 }: Props) {
   const [scope, setScope] = useState<DocumentLayoutScope>(controlledScope ?? TENANT_LAYOUT_SCOPE);
   const [viewContext, setViewContext] = useState<PresentationViewContext>(
@@ -240,6 +245,7 @@ export function PresentationTemplateEditor({
         moduleKey,
         viewContext,
         shellConfig: payloadConfig,
+        styleConfig: embedded ? styleConfigSeed ?? undefined : undefined,
         scope,
       });
       if ("error" in result) {
@@ -257,7 +263,9 @@ export function PresentationTemplateEditor({
         toast.error(result.error);
         return;
       }
-      commitShellConfig(result.template.shellConfig);
+      commitShellConfig(result.template.shellConfig, { syncParent: false });
+      onShellConfigChange?.(result.template.shellConfig);
+      onStyleConfigChange?.(result.template.styleConfig);
       toast.success("Reset to system default.");
     });
   };

@@ -7,6 +7,7 @@ export const PRESENTATION_LAYOUT_THEMES: PresentationLayoutTheme[] = [
   "minimal",
   "formal",
   "branded",
+  "modern",
 ];
 
 const PRESET_STYLE_BY_THEME: Record<PresentationLayoutTheme, PresentationStyleConfig> = {
@@ -39,6 +40,11 @@ const PRESET_STYLE_BY_THEME: Record<PresentationLayoutTheme, PresentationStyleCo
     fontFamily: "system-ui, sans-serif",
     fontSizePx: 12,
     layoutTheme: "branded",
+  },
+  modern: {
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+    fontSizePx: 11,
+    layoutTheme: "modern",
   },
 };
 
@@ -120,6 +126,97 @@ export function renderPresentationLayoutThemeCss(theme: PresentationLayoutTheme)
     body.theme-branded .total-row:last-child { color: #1d4ed8; font-weight: 700; }
     body.theme-branded .terms { background: #eff6ff; border-left: 3px solid #2563eb; padding: 10px 12px; margin-top: 22px; }
     body.theme-branded .terms h2 { color: #1d4ed8; }
+      `.trim();
+    case "modern":
+      return `
+    body.theme-modern {
+      --doc-accent: #475569;
+      --doc-accent-soft: #f1f5f9;
+      --doc-border: #cbd5e1;
+      --doc-muted: #64748b;
+      --doc-text: #0f172a;
+      color: var(--doc-text);
+      padding: 18px 20px;
+    }
+    body.theme-modern .doc-header {
+      align-items: flex-start;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--doc-border);
+    }
+    body.theme-modern .brand-logo img { max-height: 52px; max-width: 160px; margin-bottom: 6px; }
+    body.theme-modern .brand-name { font-size: 15px; font-weight: 700; color: var(--doc-text); }
+    body.theme-modern .brand-address, body.theme-modern .brand-tax, body.theme-modern .brand-website {
+      font-size: 10px; line-height: 1.5; color: var(--doc-muted); margin-top: 3px;
+    }
+    body.theme-modern .doc-title-block { min-width: 200px; }
+    body.theme-modern .doc-title {
+      font-size: 22px; font-weight: 700; color: #94a3b8; letter-spacing: 0.06em;
+    }
+    body.theme-modern .doc-number { font-size: 14px; font-weight: 700; color: var(--doc-text); margin-top: 4px; }
+    body.theme-modern .doc-status-badge {
+      display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 999px;
+      background: var(--doc-accent-soft); border: 1px solid var(--doc-border);
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--doc-muted);
+    }
+    body.theme-modern .metadata-panel {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0;
+      border: 1px solid var(--doc-border); border-radius: 4px; overflow: hidden; margin-bottom: 16px;
+    }
+    body.theme-modern .meta-row {
+      display: grid; grid-template-columns: minmax(7rem, 42%) 1fr; gap: 8px;
+      padding: 6px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px;
+    }
+    body.theme-modern .meta-row:nth-child(odd) { background: #fafafa; }
+    body.theme-modern .meta-label { color: var(--doc-muted); font-weight: 500; }
+    body.theme-modern .meta-value { font-weight: 600; color: var(--doc-text); text-align: right; }
+    body.theme-modern .party-blocks {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0;
+      border: 1px solid var(--doc-border); border-radius: 4px; overflow: hidden; margin-bottom: 16px;
+    }
+    body.theme-modern .party-block { padding: 10px 12px; min-height: 88px; }
+    body.theme-modern .party-block + .party-block { border-left: 1px solid var(--doc-border); }
+    body.theme-modern .party-block__title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--doc-muted); margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0;
+    }
+    body.theme-modern .party-block__name { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+    body.theme-modern .party-block__line { font-size: 10px; line-height: 1.45; color: #334155; }
+    body.theme-modern .party-block__tax { font-size: 10px; margin-top: 4px; color: var(--doc-muted); }
+    body.theme-modern table { margin-top: 0; border: 1px solid var(--doc-border); border-radius: 4px; overflow: hidden; }
+    body.theme-modern th {
+      background: #e2e8f0; color: #334155; border-bottom: 1px solid var(--doc-border);
+      font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 7px 8px;
+    }
+    body.theme-modern td { border-bottom: 1px solid #e2e8f0; padding: 7px 8px; font-size: 10px; vertical-align: top; }
+    body.theme-modern tbody tr:last-child td { border-bottom: none; }
+    body.theme-modern .line-item-name { font-size: 10px; font-weight: 700; color: var(--doc-text); }
+    body.theme-modern .line-detail {
+      margin-top: 5px; padding-top: 5px; border-top: 1px dashed #e2e8f0; font-size: 9px; color: var(--doc-muted);
+    }
+    body.theme-modern .line-detail__label { font-weight: 600; color: #64748b; }
+    body.theme-modern .line-detail__value { color: #334155; }
+    body.theme-modern .line-detail__sep { color: #cbd5e1; }
+    body.theme-modern .line-qty-unit { font-size: 8px; color: #64748b; }
+    body.theme-modern .totals {
+      margin-top: 14px; max-width: 320px; border: 1px solid var(--doc-border); border-radius: 4px;
+      padding: 0; overflow: hidden; background: #fff;
+    }
+    body.theme-modern .total-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 6px 10px;
+      border-bottom: 1px solid #e2e8f0; font-size: 10px;
+    }
+    body.theme-modern .total-row:last-child {
+      border-bottom: none; background: var(--doc-accent-soft); font-weight: 700; font-size: 11px;
+    }
+    body.theme-modern .terms {
+      margin-top: 18px; padding: 10px 12px; border: 1px solid var(--doc-border); border-radius: 4px;
+      background: #fafafa; font-size: 10px;
+    }
+    body.theme-modern .terms h2 { font-size: 10px; margin-bottom: 4px; color: var(--doc-muted); }
+    body.theme-modern .footer-legal {
+      margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--doc-border); font-size: 9px; color: var(--doc-muted);
+    }
       `.trim();
     default:
       return "";

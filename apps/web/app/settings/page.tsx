@@ -49,7 +49,7 @@ export default async function AdministrationPage() {
           },
           {
             href: "/settings/documents/templates",
-            label: "Document print templates",
+            label: "Document templates",
             description: "Letterhead, PDF appearance, and print layout shells for all modules.",
             icon: FileOutput,
           },

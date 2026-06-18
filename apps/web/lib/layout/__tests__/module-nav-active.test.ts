@@ -35,7 +35,7 @@ describe("module-nav-active", () => {
     expect(
       getActiveModuleNavChild(administrationItem, "/settings/documents/templates/SALES_INVOICE")
         ?.label
-    ).toBe("Document print templates");
+    ).toBe("Document templates");
     expect(
       getActiveModuleNavChild(administrationItem, "/settings/locations/topology")?.label
     ).toBe("Locations");
