@@ -3,14 +3,17 @@
 -- Migration: 20260618120000_gst_compliance_foundation.sql
 -- ====================================================================
 
-CREATE TYPE public.gst_tax_mechanism AS ENUM (
-    'FORWARD',
-    'REVERSE_CHARGE',
-    'IMPORT_IGST',
-    'ZERO_RATED',
-    'EXEMPT',
-    'COMPOSITION'
-);
+DO $$ BEGIN
+    CREATE TYPE public.gst_tax_mechanism AS ENUM (
+        'FORWARD',
+        'REVERSE_CHARGE',
+        'IMPORT_IGST',
+        'ZERO_RATED',
+        'EXEMPT',
+        'COMPOSITION'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Extend PO supply nature for import paths
 ALTER TABLE public.purchase_orders
