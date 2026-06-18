@@ -1,6 +1,6 @@
 -- ====================================================================
 -- GST compliance foundation: supply context resolver, document columns
--- Migration: 20260618120000_gst_compliance_foundation.sql
+-- Migration: 20260618120100_gst_compliance_foundation.sql
 -- ====================================================================
 
 DO $$ BEGIN
