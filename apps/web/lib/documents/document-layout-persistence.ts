@@ -1,4 +1,8 @@
 import { normalizeDocumentLayoutTemplate } from "@/lib/documents/normalize-document-layout";
+import {
+  normalizeDocumentColumnTypography,
+  parseDocumentColumnTypographyFields,
+} from "@/lib/documents/document-typography-classes";
 import type {
   DocumentColumnPref,
   DocumentImageDisplayMode,
@@ -73,37 +77,12 @@ function parseColumnPref(raw: unknown): DocumentColumnPref | null {
   if (typeof record.catalogSourceKey === "string") {
     column.catalogSourceKey = record.catalogSourceKey;
   }
-  if (record.typography && typeof record.typography === "object") {
-    const typography = record.typography as Record<string, unknown>;
-    column.typography = {
-      fontSize:
-        typography.fontSize === "xs" ||
-        typography.fontSize === "sm" ||
-        typography.fontSize === "base" ||
-        typography.fontSize === "lg"
-          ? typography.fontSize
-          : undefined,
-      fontWeight:
-        typography.fontWeight === "normal" ||
-        typography.fontWeight === "semibold" ||
-        typography.fontWeight === "bold"
-          ? typography.fontWeight
-          : undefined,
-      fontStyle:
-        typography.fontStyle === "normal" || typography.fontStyle === "italic"
-          ? typography.fontStyle
-          : undefined,
-    };
-    if (
-      !column.typography.fontSize &&
-      !column.typography.fontWeight &&
-      !column.typography.fontStyle
-    ) {
-      delete column.typography;
-    }
-  }
 
-  return column;
+  const typographyFields = parseDocumentColumnTypographyFields(record);
+  if (typographyFields.labelTypography) column.labelTypography = typographyFields.labelTypography;
+  if (typographyFields.valueTypography) column.valueTypography = typographyFields.valueTypography;
+
+  return normalizeDocumentColumnTypography(column);
 }
 
 function parseColumnPrefs(raw: unknown): DocumentColumnPref[] | null {

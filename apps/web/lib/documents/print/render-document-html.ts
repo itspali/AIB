@@ -1,15 +1,29 @@
-import type { DocumentPrintLine, DocumentPrintModel } from "@/lib/documents/build-document-print-model";
+import type { DocumentPrintLine, DocumentPrintField, DocumentPrintModel } from "@/lib/documents/build-document-print-model";
+import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
+import {
+  documentColumnTypographyStyleAttr,
+  printColumnCellStyle,
+  printColumnHeaderStyle,
+} from "@/lib/documents/document-typography-classes";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { DocumentPrintLayoutHints } from "@/lib/documents/print/print-layout-hints";
+import { amountInWordsInr } from "@/lib/documents/print/amount-in-words";
 import { renderPrintLineItemDetailsHtml } from "@/lib/documents/print/render-print-line-details";
 import {
   DEFAULT_PRESENTATION_SHELL_CONFIG,
   DEFAULT_PRESENTATION_STYLE_CONFIG,
+  presentationSpacingToCss,
 } from "@/lib/documents/print/default-shell-config";
 import {
   normalizePresentationLayoutTheme,
   renderPresentationLayoutThemeCss,
 } from "@/lib/documents/print/presentation-layout-themes";
+import {
+  defaultClosingMessage,
+  themeShowsAmountInWords,
+  themeShowsPartyBlocks,
+  themeUsesTitleBlockMetadata,
+} from "@/lib/documents/print/presentation-theme-behavior";
 import type {
   DocumentOrgRenderContext,
   DocumentPresentationTemplate,
@@ -30,51 +44,95 @@ function documentTitle(
 ): string {
   const override = presentation.shellConfig.header.titleOverride?.trim();
   if (override) return override;
-  return voucherTitle;
+  return DOCUMENT_LAYOUT_MODULE_ADAPTERS[presentation.moduleKey]?.label ?? voucherTitle;
 }
 
 function renderOrgHeader(org: DocumentOrgRenderContext, presentation: DocumentPresentationTemplate): string {
   const { header } = presentation.shellConfig;
-  const blocks: string[] = [];
-
-  if (header.showLogo && org.logoUrl) {
-    blocks.push(
-      `<div class="brand-logo"><img src="${escapeHtml(org.logoUrl)}" alt="" /></div>`
-    );
-  }
+  const orgBlocks: string[] = [];
 
   if (header.showOrgName) {
     const name = org.legalName || org.tradeName || org.organizationName;
-    blocks.push(`<div class="brand-name">${escapeHtml(name)}</div>`);
+    orgBlocks.push(`<div class="brand-name">${escapeHtml(name)}</div>`);
     if (org.tradeName && org.legalName && org.tradeName !== org.legalName) {
-      blocks.push(`<div class="brand-trade">${escapeHtml(org.tradeName)}</div>`);
+      orgBlocks.push(`<div class="brand-trade">${escapeHtml(org.tradeName)}</div>`);
     }
   }
 
   if (header.showOrgAddress && org.addressLines.length > 0) {
-    blocks.push(
+    orgBlocks.push(
       `<div class="brand-address">${org.addressLines.map((line) => escapeHtml(line)).join("<br />")}</div>`
     );
   }
 
   if (org.taxIdentifier) {
-    blocks.push(`<div class="brand-tax">GSTIN / Tax ID: ${escapeHtml(org.taxIdentifier)}</div>`);
+    orgBlocks.push(`<div class="brand-tax">GSTIN / Tax ID: ${escapeHtml(org.taxIdentifier)}</div>`);
   }
 
   if (org.websiteUrl) {
-    blocks.push(`<div class="brand-website">${escapeHtml(org.websiteUrl)}</div>`);
+    orgBlocks.push(`<div class="brand-website">${escapeHtml(org.websiteUrl)}</div>`);
   }
 
-  if (blocks.length === 0) return "";
-  return `<div class="letterhead">${blocks.join("")}</div>`;
+  const logoHtml =
+    header.showLogo && org.logoUrl
+      ? `<div class="brand-logo"><img src="${escapeHtml(org.logoUrl)}" alt="" style="max-height:${header.logoMaxHeightPx}px;max-width:${header.logoMaxWidthPx}px;object-fit:contain;" /></div>`
+      : "";
+
+  if (!logoHtml && orgBlocks.length === 0) return "";
+
+  const placementClass = header.logoPlacement === "left" ? "letterhead--left" : "letterhead--top";
+  const orgHtml = orgBlocks.length > 0 ? `<div class="brand-org">${orgBlocks.join("")}</div>` : "";
+
+  return `<div class="letterhead ${placementClass}">${logoHtml}${orgHtml}</div>`;
 }
 
-function filteredHeaderFields(model: DocumentPrintModel) {
+function filteredHeaderFields(model: DocumentPrintModel, keepStatusField = false) {
   return model.headerFields.filter((field) => {
-    if (model.statusBadge && field.id === "document_status") return false;
+    if (!keepStatusField && model.statusBadge && field.id === "document_status") return false;
     if (model.addressBlocks?.length && field.id === "customer") return false;
     return true;
   });
+}
+
+function renderTitleBlockMetadata(fields: DocumentPrintField[]): string {
+  if (fields.length === 0) return "";
+  const rows = fields
+    .map(
+      (field) =>
+        `<div class="title-meta-row"><span class="title-meta-label"${documentColumnTypographyStyleAttr(field, "label")}>${escapeHtml(field.label)}</span><span class="title-meta-value"${documentColumnTypographyStyleAttr(field, "value")}>${escapeHtml(field.value)}</span></div>`
+    )
+    .join("");
+  return `<div class="title-meta">${rows}</div>`;
+}
+
+function renderDocTitleBlock(
+  title: string,
+  voucherTitle: string,
+  model: DocumentPrintModel,
+  presentation: DocumentPresentationTemplate,
+  layoutTheme: PresentationLayoutTheme
+): string {
+  if (!presentation.shellConfig.header.showDocumentTitle) {
+    return model.statusBadge
+      ? `<div class="doc-status-badge">${escapeHtml(model.statusBadge)}</div>`
+      : "";
+  }
+
+  const useTitleMeta = themeUsesTitleBlockMetadata(layoutTheme);
+  const headerFields = filteredHeaderFields(model, useTitleMeta);
+  const titleMetaHtml =
+    useTitleMeta && presentation.shellConfig.sections.showHeaderFields
+      ? renderTitleBlockMetadata(headerFields)
+      : "";
+
+  const statusBadgeHtml =
+    !useTitleMeta && model.statusBadge
+      ? `<div class="doc-status-badge">${escapeHtml(model.statusBadge)}</div>`
+      : "";
+
+  const docNumberHtml = useTitleMeta ? "" : `<div class="doc-number">${escapeHtml(voucherTitle)}</div>`;
+
+  return `<div class="doc-title-block"><h1 class="doc-title">${escapeHtml(title)}</h1>${docNumberHtml}${titleMetaHtml}${statusBadgeHtml}</div>`;
 }
 
 function renderHeaderFields(
@@ -84,14 +142,16 @@ function renderHeaderFields(
 ): string {
   if (!presentation.shellConfig.sections.showHeaderFields) return "";
 
-  const fields = filteredHeaderFields(model);
+  const fields = filteredHeaderFields(model, themeUsesTitleBlockMetadata(layoutTheme));
   if (fields.length === 0) return "";
+
+  if (themeUsesTitleBlockMetadata(layoutTheme)) return "";
 
   if (layoutTheme === "modern") {
     const rows = fields
       .map(
         (field) =>
-          `<div class="meta-row"><span class="meta-label">${escapeHtml(field.label)}</span><span class="meta-value">${escapeHtml(field.value)}</span></div>`
+          `<div class="meta-row"><span class="meta-label"${documentColumnTypographyStyleAttr(field, "label")}>${escapeHtml(field.label)}</span><span class="meta-value"${documentColumnTypographyStyleAttr(field, "value")}>${escapeHtml(field.value)}</span></div>`
       )
       .join("");
     return `<div class="metadata-panel">${rows}</div>`;
@@ -100,13 +160,13 @@ function renderHeaderFields(
   return `<div class="header-grid">${fields
     .map(
       (field) =>
-        `<div class="field"><div class="label">${escapeHtml(field.label)}</div><div class="value">${escapeHtml(field.value)}</div></div>`
+        `<div class="field"><div class="label"${documentColumnTypographyStyleAttr(field, "label")}>${escapeHtml(field.label)}</div><div class="value"${documentColumnTypographyStyleAttr(field, "value")}>${escapeHtml(field.value)}</div></div>`
     )
     .join("")}</div>`;
 }
 
-function renderPartyBlocks(model: DocumentPrintModel): string {
-  if (!model.addressBlocks?.length) return "";
+function renderPartyBlocks(model: DocumentPrintModel, layoutTheme: PresentationLayoutTheme): string {
+  if (!themeShowsPartyBlocks(layoutTheme) || !model.addressBlocks?.length) return "";
 
   return `<div class="party-blocks">${model.addressBlocks
     .map(
@@ -130,25 +190,21 @@ function renderPrintQtyCellHtml(
   line: DocumentPrintLine,
   hints: DocumentPrintLayoutHints | undefined
 ): string {
-  const align = column.align === "right" ? "right" : column.align === "center" ? "center" : "left";
-  const weight =
-    column.typography?.fontWeight === "bold" || column.typography?.fontWeight === "semibold"
-      ? "font-weight:600;"
-      : "";
+  const cellStyle = printColumnCellStyle(column);
   const qtyValue = escapeHtml(line[column.id] ?? "—");
   const showUnit =
     hints?.showUnitUnderQty === true && hints.quantityColumnIds.includes(column.id);
   if (!showUnit) {
-    return `<td style="text-align:${align};${weight}">${qtyValue}</td>`;
+    return `<td style="${cellStyle}">${qtyValue}</td>`;
   }
 
   const unitRaw = line[hints.unitFieldId];
   const unitValue = unitRaw && unitRaw !== "—" ? escapeHtml(unitRaw) : "";
   if (!unitValue) {
-    return `<td style="text-align:${align};${weight}">${qtyValue}</td>`;
+    return `<td style="${cellStyle}">${qtyValue}</td>`;
   }
 
-  return `<td class="line-qty-cell" style="text-align:${align};${weight}"><div class="line-qty-value">${qtyValue}</div><div class="line-qty-unit">${unitValue}</div></td>`;
+  return `<td class="line-qty-cell" style="${cellStyle}"><div class="line-qty-value">${qtyValue}</div><div class="line-qty-unit">${unitValue}</div></td>`;
 }
 
 function renderLineTable(model: DocumentPrintModel, presentation: DocumentPresentationTemplate): string {
@@ -158,34 +214,27 @@ function renderLineTable(model: DocumentPrintModel, presentation: DocumentPresen
 
   const itemDetailColumns = model.itemDetailColumns ?? [];
   const lineHeader = model.lineColumns
-    .map((column) => {
-      const align = column.align === "right" ? "right" : column.align === "center" ? "center" : "left";
-      return `<th style="text-align:${align}">${escapeHtml(column.label)}</th>`;
-    })
+    .map((column) => `<th style="${printColumnHeaderStyle(column)}">${escapeHtml(column.label)}</th>`)
     .join("");
 
   const lineBody = model.lines
     .map((line) => {
       const cells = model.lineColumns
         .map((column) => {
-          const align = column.align === "right" ? "right" : column.align === "center" ? "center" : "left";
-          const weight =
-            column.typography?.fontWeight === "bold" || column.typography?.fontWeight === "semibold"
-              ? "font-weight:600;"
-              : "";
+          const cellStyle = printColumnCellStyle(column);
           const rawValue = line[column.id] ?? "—";
 
           if (column.id === "item" && itemDetailColumns.length > 0) {
             const detailHtml = renderPrintLineItemDetailsHtml(itemDetailColumns, line);
-            const itemHtml = `<div class="line-item-name">${escapeHtml(rawValue)}</div>${detailHtml}`;
-            return `<td class="line-item-cell" style="text-align:${align};${weight}">${itemHtml}</td>`;
+            const itemHtml = `<div class="line-item-name"${documentColumnTypographyStyleAttr(column, "value")}>${escapeHtml(rawValue)}</div>${detailHtml}`;
+            return `<td class="line-item-cell" style="${cellStyle}">${itemHtml}</td>`;
           }
 
           if (model.printLayoutHints?.quantityColumnIds.includes(column.id)) {
             return renderPrintQtyCellHtml(column, line, model.printLayoutHints);
           }
 
-          return `<td style="text-align:${align};${weight}">${escapeHtml(rawValue)}</td>`;
+          return `<td style="${cellStyle}">${escapeHtml(rawValue)}</td>`;
         })
         .join("");
       return `<tr>${cells}</tr>`;
@@ -195,17 +244,44 @@ function renderLineTable(model: DocumentPrintModel, presentation: DocumentPresen
   return `<table><thead><tr>${lineHeader}</tr></thead><tbody>${lineBody}</tbody></table>`;
 }
 
-function renderTotals(model: DocumentPrintModel, presentation: DocumentPresentationTemplate): string {
+function renderTotals(
+  model: DocumentPrintModel,
+  presentation: DocumentPresentationTemplate,
+  layoutTheme: PresentationLayoutTheme
+): string {
   if (!presentation.shellConfig.sections.showTotals || model.totalsFields.length === 0) {
     return "";
   }
 
-  return `<div class="totals">${model.totalsFields
+  const rows = model.totalsFields
     .map(
       (field) =>
-        `<div class="total-row"><span>${escapeHtml(field.label)}</span><span>${escapeHtml(field.value)}</span></div>`
+        `<div class="total-row"><span${documentColumnTypographyStyleAttr(field, "label")}>${escapeHtml(field.label)}</span><span${documentColumnTypographyStyleAttr(field, "value")}>${escapeHtml(field.value)}</span></div>`
     )
-    .join("")}</div>`;
+    .join("");
+
+  let amountWordsHtml = "";
+  if (themeShowsAmountInWords(layoutTheme)) {
+    const grandTotalField = model.totalsFields.find((field) => field.id === "grand_total");
+    const words = grandTotalField ? amountInWordsInr(grandTotalField.value) : null;
+    if (words) {
+      amountWordsHtml = `<div class="total-row total-row--words"><span>Amount in words</span><span>${escapeHtml(words)}</span></div>`;
+    }
+  }
+
+  return `<div class="totals">${rows}${amountWordsHtml}</div>`;
+}
+
+function renderClosingMessage(
+  presentation: DocumentPresentationTemplate,
+  layoutTheme: PresentationLayoutTheme,
+  org: DocumentOrgRenderContext
+): string {
+  const orgName = org.legalName || org.tradeName || org.organizationName;
+  const message = defaultClosingMessage(layoutTheme, orgName);
+  if (!message) return "";
+  if (presentation.shellConfig.footer.legalText.trim()) return "";
+  return `<div class="closing-message">${escapeHtml(message)}</div>`;
 }
 
 function renderTerms(presentation: DocumentPresentationTemplate): string {
@@ -264,17 +340,17 @@ export function renderDocumentHtml(
   const themeCss = renderPresentationLayoutThemeCss(layoutTheme);
   const letterheadHtml = renderOrgHeader(org, presentation);
   const headerFieldsHtml = renderHeaderFields(model, presentation, layoutTheme);
-  const partyBlocksHtml = renderPartyBlocks(model);
+  const partyBlocksHtml = renderPartyBlocks(model, layoutTheme);
   const lineTableHtml = renderLineTable(model, presentation);
-  const totalsHtml = renderTotals(model, presentation);
+  const totalsHtml = renderTotals(model, presentation, layoutTheme);
   const termsHtml = renderTerms(presentation);
+  const closingMessageHtml = renderClosingMessage(presentation, layoutTheme, org);
   const footerHtml = renderFooter(presentation);
   const gstComplianceHtml = renderGstComplianceBlock(model, presentation);
-  const statusBadgeHtml = model.statusBadge
-    ? `<div class="doc-status-badge">${escapeHtml(model.statusBadge)}</div>`
-    : "";
+  const docTitleBlockHtml = renderDocTitleBlock(title, voucherTitle, model, presentation, layoutTheme);
 
-  const pageMargin = `${shellConfig.margins.top} ${shellConfig.margins.right} ${shellConfig.margins.bottom} ${shellConfig.margins.left}`;
+  const pageMargin = presentationSpacingToCss(shellConfig.margins);
+  const bodyPadding = presentationSpacingToCss(shellConfig.padding);
 
   return `<!DOCTYPE html>
 <html>
@@ -288,11 +364,16 @@ export function renderDocumentHtml(
       font-size: ${styleConfig.fontSizePx}px;
       color: #111;
       margin: 0;
-      padding: 24px;
+      padding: ${bodyPadding};
     }
     .doc-header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
     .letterhead { flex: 1; min-width: 0; }
-    .brand-logo img { max-height: 48px; max-width: 180px; object-fit: contain; margin-bottom: 8px; }
+    .letterhead--top { display: flex; flex-direction: column; align-items: flex-start; }
+    .letterhead--top .brand-logo img { margin-bottom: 8px; }
+    .letterhead--left { display: flex; flex-direction: row; align-items: flex-start; gap: 12px; }
+    .letterhead--left .brand-logo { flex-shrink: 0; }
+    .letterhead--left .brand-org { flex: 1; min-width: 0; }
+    .brand-logo img { display: block; object-fit: contain; }
     .brand-name { font-size: 16px; font-weight: 700; line-height: 1.3; }
     .brand-trade { font-size: 12px; color: #444; margin-top: 2px; }
     .brand-address, .brand-tax, .brand-website { font-size: 11px; color: #555; margin-top: 4px; line-height: 1.45; }
@@ -336,11 +417,7 @@ export function renderDocumentHtml(
 <body class="theme-${layoutTheme}">
   <div class="doc-header">
     ${letterheadHtml}
-    ${
-      presentation.shellConfig.header.showDocumentTitle
-        ? `<div class="doc-title-block"><h1 class="doc-title">${escapeHtml(title)}</h1><div class="doc-number">${escapeHtml(voucherTitle)}</div>${statusBadgeHtml}</div>`
-        : statusBadgeHtml
-    }
+    ${docTitleBlockHtml}
   </div>
   ${headerFieldsHtml}
   ${partyBlocksHtml}
@@ -348,6 +425,7 @@ export function renderDocumentHtml(
   ${lineTableHtml}
   ${totalsHtml}
   ${termsHtml}
+  ${closingMessageHtml}
   ${footerHtml}
 </body>
 </html>`;

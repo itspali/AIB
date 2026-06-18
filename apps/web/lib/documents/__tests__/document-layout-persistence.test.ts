@@ -13,7 +13,8 @@ describe("document-layout-persistence", () => {
     const layout = patchPoLayoutColumn(DEFAULT_PO_SCREEN_LAYOUT, "supplier", {
       label: "Vendor",
       defaultVisible: true,
-      typography: { fontSize: "sm", fontWeight: "semibold" },
+      labelTypography: { fontSize: "sm", fontWeight: "semibold" },
+      valueTypography: { fontSize: "sm", fontWeight: "semibold" },
     });
 
     const row = serializeDocumentLayoutTemplate(layout);
@@ -21,11 +22,28 @@ describe("document-layout-persistence", () => {
 
     expect(restored.columns.find((column) => column.id === "supplier")).toMatchObject({
       label: "Vendor",
-      typography: { fontSize: "sm", fontWeight: "semibold" },
+      labelTypography: { fontSize: "sm", fontWeight: "semibold" },
+      valueTypography: { fontSize: "sm", fontWeight: "semibold" },
     });
     expect(restored.lineColumnOrder).toEqual(layout.lineColumnOrder);
     expect(restored.headerFieldOrder).toEqual(layout.headerFieldOrder);
     expect(restored.imageDisplayMode).toBe(layout.imageDisplayMode);
+  });
+
+  it("migrates legacy typography when loading rows", () => {
+    const row = serializeDocumentLayoutTemplate(
+      patchPoLayoutColumn(DEFAULT_PO_SCREEN_LAYOUT, "supplier", {
+        label: "Vendor",
+        defaultVisible: true,
+        typography: { fontSize: "sm", fontWeight: "semibold" },
+      })
+    );
+    const restored = documentLayoutFromRow(row, "PURCHASE_ORDER", "SCREEN_GRID");
+
+    expect(restored.columns.find((column) => column.id === "supplier")).toMatchObject({
+      labelTypography: { fontSize: "sm", fontWeight: "semibold" },
+      valueTypography: { fontSize: "sm", fontWeight: "semibold" },
+    });
   });
 
   it("falls back to code defaults when row is missing", () => {

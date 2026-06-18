@@ -17,7 +17,7 @@ import {
   getItemDetailLineFields as getPoItemDetailLineFields,
   getVisibleTotalsFields as getVisiblePoTotalsFields,
 } from "@/lib/documents/purchase-order-layout";
-import type { DocumentColumnPref, DocumentLayoutTemplate, DocumentModuleKey } from "@/lib/documents/types";
+import type { DocumentColumnPref, DocumentLayoutTemplate, DocumentModuleKey, DocumentTypography } from "@/lib/documents/types";
 import { formatDate } from "@/lib/dashboard/format";
 import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
 import { poTaxSupplyNatureLabel } from "@/lib/procurement/purchase-orders/po-tax-supply";
@@ -53,7 +53,19 @@ export type DocumentPrintField = {
   id: string;
   label: string;
   value: string;
+  labelTypography?: DocumentTypography;
+  valueTypography?: DocumentTypography;
 };
+
+function printFieldFromColumn(column: DocumentColumnPref, value: string): DocumentPrintField {
+  return {
+    id: column.id,
+    label: column.label,
+    value,
+    labelTypography: column.labelTypography,
+    valueTypography: column.valueTypography,
+  };
+}
 
 export type DocumentPrintLine = Record<string, string>;
 
@@ -425,11 +437,9 @@ function buildSalesCommercePrintModel(
 
   return {
     moduleKey,
-    headerFields: headerColumns.map((column) => ({
-      id: column.id,
-      label: column.label,
-      value: formatCell(column, headerValue(column.id)),
-    })),
+    headerFields: headerColumns.map((column) =>
+      printFieldFromColumn(column, formatCell(column, headerValue(column.id)))
+    ),
     ...lineSection,
     totalsFields: totalsColumns.map((column) => {
       const raw =
@@ -444,11 +454,7 @@ function buildSalesCommercePrintModel(
                 : column.id === "line_count"
                   ? String(totals.lineCount)
                   : "—";
-      return {
-        id: column.id,
-        label: column.label,
-        value: formatCell(column, raw),
-      };
+      return printFieldFromColumn(column, formatCell(column, raw));
     }),
     printLayoutHints,
     ...extras,
@@ -704,11 +710,9 @@ export function buildDocumentPrintModel(
 
     return {
       moduleKey,
-      headerFields: headerColumns.map((column) => ({
-        id: column.id,
-        label: column.label,
-        value: formatCell(column, poHeaderValue(order, column.id)),
-      })),
+      headerFields: headerColumns.map((column) =>
+        printFieldFromColumn(column, formatCell(column, poHeaderValue(order, column.id)))
+      ),
       ...lineSection,
       printLayoutHints,
       totalsFields: totalsColumns.map((column) => {
@@ -732,11 +736,7 @@ export function buildDocumentPrintModel(
                           : column.id === "line_count"
                             ? String(order.line_count ?? order.lines?.length ?? 0)
                             : "—";
-        return {
-          id: column.id,
-          label: column.label,
-          value: formatCell(column, raw),
-        };
+        return printFieldFromColumn(column, formatCell(column, raw));
       }),
     };
   }
@@ -759,11 +759,9 @@ export function buildDocumentPrintModel(
 
     return {
       moduleKey,
-      headerFields: headerColumns.map((column) => ({
-        id: column.id,
-        label: column.label,
-        value: formatCell(column, grnHeaderValue(receipt, column.id)),
-      })),
+      headerFields: headerColumns.map((column) =>
+        printFieldFromColumn(column, formatCell(column, grnHeaderValue(receipt, column.id)))
+      ),
       ...lineSection,
       printLayoutHints,
       totalsFields: [],
@@ -788,11 +786,9 @@ export function buildDocumentPrintModel(
 
   return {
     moduleKey,
-    headerFields: headerColumns.map((column) => ({
-      id: column.id,
-      label: column.label,
-      value: formatCell(column, billHeaderValue(bill, column.id)),
-    })),
+    headerFields: headerColumns.map((column) =>
+      printFieldFromColumn(column, formatCell(column, billHeaderValue(bill, column.id)))
+    ),
     ...lineSection,
     printLayoutHints,
     totalsFields: totalsColumns.map((column) => {
@@ -804,11 +800,7 @@ export function buildDocumentPrintModel(
             : column.id === "total_liability_amount"
               ? bill.total_liability_amount
               : "—";
-      return {
-        id: column.id,
-        label: column.label,
-        value: formatCell(column, raw),
-      };
+      return printFieldFromColumn(column, formatCell(column, raw));
     }),
   };
 }

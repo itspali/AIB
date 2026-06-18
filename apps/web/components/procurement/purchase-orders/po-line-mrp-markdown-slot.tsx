@@ -2,7 +2,6 @@
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { DocumentLineCompactInput } from "@/components/documents/document-line-entry-cells";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { normalizeDocumentDecimalInput } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import type { PoDraftLine } from "@/lib/procurement/purchase-orders/draft-form";
@@ -118,7 +117,6 @@ export function PoLineMrpMarkdownSlot({
             className={cn(
               PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
               "!w-[3.75rem]",
-              documentFieldTypographyClassName(column, ""),
               column.align === "right" && "text-right"
             )}
             value={markdownValue}

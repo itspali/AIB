@@ -66,7 +66,27 @@ export function presetIdFromStyleConfig(
 }
 
 export const DOCUMENT_DESIGNER_LAYOUT_PRESETS: DesignerLayoutPreset[] = [
+  {
+    id: "trade",
+    label: "Trade & wholesale",
+    description: "Trading, textile, and distribution — Bill/Ship blocks, order metadata, amount in words.",
+  },
+  {
+    id: "classic",
+    label: "Classic tax invoice",
+    description: "Statutory invoice style with bordered blocks, party addresses, and amount in words.",
+  },
   { id: "modern", label: "Modern", description: "Commercial layout with metadata panel, Bill/Ship blocks, and styled table." },
+  {
+    id: "industrial",
+    label: "Industrial",
+    description: "Manufacturing and warehouse — monospace refs, dense header grid, bold table band.",
+  },
+  {
+    id: "retail",
+    label: "Retail receipt",
+    description: "Centered letterhead and clean receipt-style totals for storefront sales.",
+  },
   { id: "standard", label: "Standard", description: "Balanced default for print and email." },
   { id: "compact", label: "Compact", description: "Dense type, tight margins, fewer header fields." },
   { id: "detailed", label: "Detailed", description: "Full grid borders, three-column metadata, terms block." },
@@ -153,6 +173,7 @@ function applyCompact(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
     shellConfig: normalizePresentationShellConfig({
       ...bundle.shellConfig,
       margins: { top: "8mm", bottom: "8mm", left: "8mm", right: "8mm" },
+      padding: { top: "14px", bottom: "14px", left: "14px", right: "14px" },
       header: {
         ...bundle.shellConfig.header,
         showOrgAddress: false,
@@ -243,7 +264,7 @@ function applyFormal(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
   const numericIds = numericColumnIds(bundle.layout);
   let layout = patchColumnIds(bundle.layout, numericIds, { align: "right" });
   layout = patchColumnIds(layout, ["item"], {
-    typography: { fontWeight: "semibold" },
+    valueTypography: { fontWeight: "semibold" },
   });
 
   return {
@@ -308,6 +329,139 @@ function applyBranded(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
   };
 }
 
+function applyTrade(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
+  const numericIds = numericColumnIds(bundle.layout);
+  let layout = patchColumnIds(bundle.layout, numericIds, { align: "right" });
+  layout = patchColumnIds(layout, allColumnIds(layout), { defaultVisible: true });
+
+  return {
+    layout,
+    shellConfig: normalizePresentationShellConfig({
+      ...bundle.shellConfig,
+      margins: { top: "10mm", bottom: "12mm", left: "10mm", right: "10mm" },
+      header: {
+        ...bundle.shellConfig.header,
+        showLogo: true,
+        showOrgName: true,
+        showOrgAddress: true,
+        showDocumentTitle: true,
+      },
+      sections: {
+        showHeaderFields: true,
+        showLineTable: true,
+        showTotals: true,
+        showTerms: false,
+        termsText: "",
+      },
+      footer: {
+        showPageNumbers: false,
+        legalText: "",
+      },
+    }),
+    styleConfig: withPresetStyle(bundle, "trade"),
+  };
+}
+
+function applyClassic(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
+  const numericIds = numericColumnIds(bundle.layout);
+  let layout = patchColumnIds(bundle.layout, numericIds, { align: "right" });
+  layout = patchColumnIds(layout, allColumnIds(layout), { defaultVisible: true });
+
+  return {
+    layout,
+    shellConfig: normalizePresentationShellConfig({
+      ...bundle.shellConfig,
+      header: {
+        ...bundle.shellConfig.header,
+        showLogo: true,
+        showOrgName: true,
+        showOrgAddress: true,
+        showDocumentTitle: true,
+      },
+      sections: {
+        showHeaderFields: true,
+        showLineTable: true,
+        showTotals: true,
+        showTerms: true,
+        termsText:
+          bundle.shellConfig.sections.termsText.trim() ||
+          "Payment due as per agreed credit terms. Interest may apply on overdue amounts.",
+      },
+      footer: {
+        showPageNumbers: false,
+        legalText:
+          bundle.shellConfig.footer.legalText.trim() ||
+          "This is a computer-generated tax document.",
+      },
+    }),
+    styleConfig: withPresetStyle(bundle, "classic"),
+  };
+}
+
+function applyIndustrial(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
+  const layout = patchColumnIds(bundle.layout, allColumnIds(bundle.layout), { defaultVisible: true });
+
+  return {
+    layout,
+    shellConfig: normalizePresentationShellConfig({
+      ...bundle.shellConfig,
+      margins: { top: "8mm", bottom: "10mm", left: "8mm", right: "8mm" },
+      header: {
+        ...bundle.shellConfig.header,
+        showLogo: false,
+        showOrgName: true,
+        showOrgAddress: true,
+        showDocumentTitle: true,
+      },
+      sections: {
+        showHeaderFields: true,
+        showLineTable: true,
+        showTotals: true,
+        showTerms: false,
+        termsText: "",
+      },
+      footer: {
+        showPageNumbers: true,
+        legalText: bundle.shellConfig.footer.legalText,
+      },
+    }),
+    styleConfig: withPresetStyle(bundle, "industrial"),
+  };
+}
+
+function applyRetail(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
+  const layout = patchColumnIds(bundle.layout, optionalHeaderIds(bundle.layout), {
+    defaultVisible: false,
+  });
+
+  return {
+    layout,
+    shellConfig: normalizePresentationShellConfig({
+      ...bundle.shellConfig,
+      margins: { top: "8mm", bottom: "8mm", left: "8mm", right: "8mm" },
+      header: {
+        ...bundle.shellConfig.header,
+        showLogo: true,
+        showOrgName: true,
+        showOrgAddress: true,
+        showDocumentTitle: true,
+      },
+      sections: {
+        showHeaderFields: true,
+        showLineTable: true,
+        showTotals: true,
+        showTerms: false,
+        termsText: "",
+      },
+      footer: {
+        showPageNumbers: false,
+        legalText: "",
+      },
+    }),
+    styleConfig: withPresetStyle(bundle, "retail"),
+  };
+}
+
 function applyModern(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
   const numericIds = numericColumnIds(bundle.layout);
   let layout = patchColumnIds(bundle.layout, numericIds, { align: "right" });
@@ -346,6 +500,10 @@ function applyModern(bundle: DesignerLayoutBundle): DesignerLayoutBundle {
 }
 
 const PRESET_APPLIERS: Record<string, (bundle: DesignerLayoutBundle) => DesignerLayoutBundle> = {
+  trade: applyTrade,
+  classic: applyClassic,
+  industrial: applyIndustrial,
+  retail: applyRetail,
   standard: applyStandard,
   compact: applyCompact,
   detailed: applyDetailed,
@@ -466,6 +624,7 @@ export function generateDesignerLayout(bundle: DesignerLayoutBundle): DesignerLa
       },
       margins: pickRandom(marginSets),
       header: {
+        ...bundle.shellConfig.header,
         showLogo: Math.random() > 0.2,
         showOrgName: Math.random() > 0.1,
         showOrgAddress: Math.random() > 0.35,

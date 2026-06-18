@@ -7,7 +7,7 @@ import {
   normalizeSalesCommerceLayoutTemplate,
   SALES_EDITABLE_TOTALS_FIELD_IDS,
 } from "@/lib/sales/shared/sales-commerce-layout";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import { documentFieldLabelTypographyClassName } from "@/lib/documents/document-typography-classes";
 import { resolveColumnDecimalPlaces, normalizeDocumentDecimalInput } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import { Input } from "@/components/ui/input";
@@ -89,7 +89,7 @@ function TotalsLabel({
   const styles = resolveTotalsStyles(density);
   const label = children ?? (density === "compact" ? resolveCompactTotalsLabel(field) : field.label);
   return (
-    <dt className={documentFieldTypographyClassName(field, cn(styles.labelClass, className))}>
+    <dt className={documentFieldLabelTypographyClassName(field, cn(styles.labelClass, className))}>
       {label}
     </dt>
   );

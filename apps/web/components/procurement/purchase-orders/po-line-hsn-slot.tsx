@@ -1,7 +1,7 @@
 "use client";
 
 import { DocumentLineCompactInput } from "@/components/documents/document-line-entry-cells";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import { documentFieldLabelTypographyClassName } from "@/lib/documents/document-typography-classes";
 import type { PoLineCatalogContext } from "@/lib/documents/catalog-line-values";
 import { patchCatalogLineHsnSacCode } from "@/lib/documents/gst-document-layout-compliance";
 import type { DocumentColumnPref } from "@/lib/documents/types";
@@ -30,21 +30,16 @@ export function DocumentLineHsnSacSlot<T extends LineWithCatalog>({
   const value = line.catalog_context?.hsn_sac_code ?? "";
 
   return (
-    <div
-      className={documentFieldTypographyClassName(
-        column,
-        cn("flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground")
-      )}
-    >
+    <div className="flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground">
       {column.showLabel !== false ? (
-        <span className="shrink-0">{column.label}:</span>
+        <span className={documentFieldLabelTypographyClassName(column, "shrink-0")}>
+          {column.label}:
+        </span>
       ) : null}
       <DocumentLineCompactInput
         className={cn(
           PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
-          "!w-[5.5rem] font-mono",
-          documentFieldTypographyClassName(column, ""),
-          "text-foreground"
+          "!w-[5.5rem] font-mono text-foreground"
         )}
         value={value}
         disabled={disabled || !line.variant_id}

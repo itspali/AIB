@@ -27,6 +27,7 @@ type Props = {
   controlledLayout?: DocumentLayoutTemplate;
   controlledLayoutVersion?: number;
   onEmbeddedToolbarActionsChange?: (actions: DocumentLayoutEmbeddedToolbarActions | null) => void;
+  afterSaveLayout?: () => Promise<{ error?: string } | void>;
 };
 
 const sharedEmbeddedProps = (props: Props) => ({
@@ -44,6 +45,7 @@ const sharedEmbeddedProps = (props: Props) => ({
   layoutSeeds: props.layoutSeeds,
   onLayoutChange: props.onLayoutChange,
   onEmbeddedToolbarActionsChange: props.onEmbeddedToolbarActionsChange,
+  afterSaveLayout: props.afterSaveLayout,
 });
 
 function DocumentModuleLayoutPanelInner(props: Props) {

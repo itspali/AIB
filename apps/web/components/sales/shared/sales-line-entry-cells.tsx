@@ -42,7 +42,10 @@ import {
   buildSalesDraftLineUomChangePatch,
 } from "@/lib/sales/shared/sales-line-uom-options";
 import { getCachedVariantBaseUnit, getCachedVariantImageUrl } from "@/lib/inventory/stock/variant-suggestion-cache";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  documentFieldLabelTypographyClassName,
+  documentFieldValueTypographyClassName,
+} from "@/lib/documents/document-typography-classes";
 import { resolveLineDetailFieldDisplay } from "@/lib/documents/catalog-line-values";
 import { isCatalogFieldId } from "@/lib/documents/catalog-field-ids";
 import { HSN_CATALOG_FIELD_ID } from "@/lib/documents/gst-document-layout-compliance";
@@ -287,10 +290,7 @@ function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
               return (
                 <span
                   key={column.id}
-                  className={documentFieldTypographyClassName(
-                    column,
-                    "inline-flex min-w-0 items-baseline gap-1 text-muted-foreground"
-                  )}
+                  className="inline-flex min-w-0 items-baseline gap-1 text-muted-foreground"
                 >
                   {columnIndex > 0 ? (
                     <span className="text-muted-foreground/45" aria-hidden>
@@ -316,10 +316,7 @@ function SalesLineNestedUnderItemFields<T extends SalesCommerceLineBase>({
             return (
               <div
                 key={column.id}
-                className={documentFieldTypographyClassName(
-                  column,
-                  "flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
-                )}
+                className="flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
               >
                 {content}
               </div>
@@ -391,10 +388,7 @@ export function SalesLineItemCell<T extends SalesCommerceLineBase>({
             wrapSelectedItemName
             disabled={disabled}
             stockLocationId={stockLocationId}
-            inputClassName={documentFieldTypographyClassName(
-              itemColumn,
-              cn(DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")
-            )}
+            inputClassName={cn(DOCUMENT_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")}
             showSecondaryText={!hideFieldSecondary}
             inputRef={(node) => {
               itemRefs.current[line.key] = node;
@@ -455,7 +449,7 @@ export function SalesLineUnitCell<T extends SalesCommerceLineBase>({
         onUnitChange={(code) => patchSalesLineUomChange(ctx, code)}
         conversionHint={conversionHint}
         standaloneColumn
-        primaryClassName={documentFieldTypographyClassName(column, "")}
+        primaryClassName={documentFieldLabelTypographyClassName(column, "")}
         className="w-full"
       />
     </div>
@@ -502,7 +496,7 @@ export function SalesLineQtyCell<T extends SalesCommerceLineBase>({
         qtyRefs.current[line.key] = node;
       }}
       align={column.align}
-      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      className={DOCUMENT_LINE_COMPACT_INPUT_CLASS}
       value={quantity}
       disabled={disabled}
       inputMode="decimal"
@@ -573,7 +567,7 @@ export function SalesLinePriceCell<T extends SalesCommerceLineBase>({
         priceRefs.current[line.key] = node;
       }}
       align={column.align}
-      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      className={DOCUMENT_LINE_COMPACT_INPUT_CLASS}
       value={unitPrice}
       disabled={disabled}
       inputMode="decimal"
@@ -635,12 +629,9 @@ export function SalesLineDiscountPctCell<T extends SalesCommerceLineBase>({
   const discountEntryInput = (
     <DocumentLineCompactInput
       align={column.align}
-      className={documentFieldTypographyClassName(
-        showAmountPrimary ? undefined : column,
-        cn(
-          showAmountPrimary ? PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS : DOCUMENT_LINE_COMPACT_INPUT_CLASS,
-          showAmountPrimary && "!w-full max-w-full"
-        )
+      className={cn(
+        showAmountPrimary ? PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS : DOCUMENT_LINE_COMPACT_INPUT_CLASS,
+        showAmountPrimary && "!w-full max-w-full"
       )}
       value={inputValue}
       disabled={disabled}
@@ -707,7 +698,7 @@ export function SalesLineDiscountPctCell<T extends SalesCommerceLineBase>({
         }
       >
         <span
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             column,
             cn(
               DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
@@ -755,7 +746,7 @@ export function SalesLineDiscountAmountCell<T extends SalesCommerceLineBase>({
 
   return (
     <div
-      className={documentFieldTypographyClassName(
+      className={documentFieldValueTypographyClassName(
         column,
         cn(
           DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -854,7 +845,7 @@ export function SalesLineTaxAmountCell<T extends SalesCommerceLineBase>({
   if (!showStack) {
     return (
       <div
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -883,7 +874,7 @@ export function SalesLineTaxAmountCell<T extends SalesCommerceLineBase>({
       }
     >
       <span
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
@@ -914,7 +905,7 @@ export function SalesLineTotalCell<T extends SalesCommerceLineBase>({
   if (!line.variant_id) {
     return (
       <div
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -944,7 +935,7 @@ export function SalesLineTotalCell<T extends SalesCommerceLineBase>({
   if (!showStack) {
     return (
       <div
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -989,7 +980,7 @@ export function SalesLineTotalCell<T extends SalesCommerceLineBase>({
       }
     >
       <span
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
@@ -1090,7 +1081,7 @@ export function renderSalesLineColumnCell<T extends SalesCommerceLineBase>(
 
   return (
     <div
-      className={documentFieldTypographyClassName(
+      className={documentFieldValueTypographyClassName(
         column,
         cn(
           DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,

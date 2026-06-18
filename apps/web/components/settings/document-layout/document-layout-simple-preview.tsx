@@ -1,6 +1,10 @@
 "use client";
 
-import { documentTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  documentFieldLabelTypographyClassName,
+  documentFieldValueTypographyClassName,
+  resolveColumnTypography,
+} from "@/lib/documents/document-typography-classes";
 import { formatDocumentDecimal, resolveColumnDecimalPlaces } from "@/lib/documents/decimal-format";
 import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";
 import { getVisibleHeaderFields as getVisibleGrnHeaderFields, getVisibleGrnLineColumns } from "@/lib/documents/goods-receipt-layout";
@@ -30,6 +34,43 @@ const SALES_MODULE_KEYS = new Set<DocumentModuleKey>([
   "SALES_ORDER",
   "SALES_INVOICE",
 ]);
+
+function previewHeaderLabelClass(field: DocumentColumnPref) {
+  return documentFieldLabelTypographyClassName(field, "truncate text-xs text-muted-foreground");
+}
+
+function previewHeaderValueClass(field: DocumentColumnPref) {
+  return documentFieldValueTypographyClassName(
+    field,
+    cn("truncate text-sm text-foreground", !resolveColumnTypography(field, "value")?.fontWeight && "font-medium")
+  );
+}
+
+function previewLineHeaderClass(column: DocumentColumnPref) {
+  return documentFieldLabelTypographyClassName(
+    column,
+    cn(
+      "px-1 py-1",
+      !resolveColumnTypography(column, "label")?.fontWeight && "font-medium",
+      column.align === "right" && "text-right",
+      column.align === "center" && "text-center"
+    )
+  );
+}
+
+function previewLineCellClass(column: DocumentColumnPref) {
+  return documentFieldValueTypographyClassName(
+    column,
+    cn(
+      "px-1 py-1.5",
+      column.align === "right" && "text-right tabular-nums",
+      column.align === "center" && "text-center",
+      column.id === "item" && !resolveColumnTypography(column, "value")?.fontWeight && "font-medium text-foreground",
+      column.id === "item" && resolveColumnTypography(column, "value")?.fontWeight && "text-foreground",
+      column.id !== "item" && "text-muted-foreground"
+    )
+  );
+}
 
 function previewHeaderValue(field: DocumentColumnPref): string {
   const samples: Record<string, string> = {
@@ -62,10 +103,8 @@ function previewHeaderValue(field: DocumentColumnPref): string {
 function PreviewHeaderField({ field }: { field: DocumentColumnPref }) {
   return (
     <div className="min-w-0 space-y-0.5">
-      <p className={documentTypographyClassName(field.typography, "truncate text-xs text-muted-foreground")}>
-        {field.label}
-      </p>
-      <p className="truncate text-sm font-medium text-foreground">{previewHeaderValue(field)}</p>
+      <p className={previewHeaderLabelClass(field)}>{field.label}</p>
+      <p className={previewHeaderValueClass(field)}>{previewHeaderValue(field)}</p>
     </div>
   );
 }
@@ -78,14 +117,7 @@ function PreviewLineTable({ columns }: { columns: DocumentColumnPref[] }) {
       <thead>
         <tr className="border-b border-border/60 text-muted-foreground">
           {columns.map((column) => (
-            <th
-              key={column.id}
-              className={cn(
-                "px-1 py-1 font-medium",
-                column.align === "right" && "text-right",
-                column.align === "center" && "text-center"
-              )}
-            >
+            <th key={column.id} className={previewLineHeaderClass(column)}>
               {column.label}
             </th>
           ))}
@@ -94,15 +126,7 @@ function PreviewLineTable({ columns }: { columns: DocumentColumnPref[] }) {
       <tbody>
         <tr className="border-b border-border/40">
           {columns.map((column) => (
-            <td
-              key={column.id}
-              className={cn(
-                "px-1 py-1.5 text-muted-foreground",
-                column.align === "right" && "text-right tabular-nums",
-                column.align === "center" && "text-center",
-                column.id === "item" && "font-medium text-foreground"
-              )}
-            >
+            <td key={column.id} className={previewLineCellClass(column)}>
               {column.id === "item" ? "Sample item" : formatDocumentDecimal("1", resolveColumnDecimalPlaces(column))}
             </td>
           ))}
@@ -188,8 +212,8 @@ export function DocumentLayoutSimplePreview({ layout, previewMode, onPreviewMode
         <div className="space-y-1 border-t border-border/60 pt-2">
           {totalsFields.map((field) => (
             <div key={field.id} className="flex justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">{field.label}</span>
-              <span className="font-medium tabular-nums">
+              <span className={previewHeaderLabelClass(field)}>{field.label}</span>
+              <span className={cn(previewHeaderValueClass(field), "tabular-nums")}>
                 {formatDocumentDecimal("100.00", resolveColumnDecimalPlaces(field))}
               </span>
             </div>

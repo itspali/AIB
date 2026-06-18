@@ -11,6 +11,8 @@ import {
 import type { DocumentOrgRenderContext, DocumentPresentationTemplate } from "@/lib/documents/print/types";
 import { patchSalesLayoutColumn } from "@/lib/sales/shared/sales-commerce-layout";
 import { buildCatalogFieldId } from "@/lib/documents/catalog-field-ids";
+import { patchDocumentTypography } from "@/lib/documents/document-typography-classes";
+import { patchPoLayoutColumn } from "@/lib/documents/purchase-order-layout";
 
 function salesOrderLayoutWithPrintExtras() {
   let layout = patchSalesLayoutColumn(
@@ -115,5 +117,122 @@ describe("renderDocumentHtml line detail rendering", () => {
 
     expect(html).toContain('class="line-qty-unit"');
     expect(html).toContain("Pcs");
+  });
+
+  it("shows module document title and voucher number separately", () => {
+    const layout = DOCUMENT_LAYOUT_MODULE_ADAPTERS.PURCHASE_ORDER.defaultLayout;
+    const sample = getDesignerSampleDocument("PURCHASE_ORDER");
+    const model = buildDocumentPrintModel("PURCHASE_ORDER", layout, sample);
+    const poPresentation: DocumentPresentationTemplate = {
+      templateKey: "test",
+      moduleKey: "PURCHASE_ORDER",
+      viewContext: "PDF_PRINT",
+      label: "Test",
+      description: null,
+      shellConfig: DEFAULT_PRESENTATION_SHELL_CONFIG,
+      styleConfig: DEFAULT_PRESENTATION_STYLE_CONFIG,
+      isDefault: true,
+      isActive: true,
+      isCustomized: false,
+    };
+    const html = renderDocumentHtml("PO-00001", model, poPresentation, org);
+
+    expect(html).toContain('<h1 class="doc-title">Purchase order</h1>');
+    expect(html).toContain('<div class="doc-number">PO-00001</div>');
+  });
+
+  it("applies header field typography in the preview html", () => {
+    const layout = patchPoLayoutColumn(
+      DOCUMENT_LAYOUT_MODULE_ADAPTERS.PURCHASE_ORDER.defaultLayout,
+      "voucher_number",
+      { labelTypography: patchDocumentTypography(undefined, "fontWeight", "bold") }
+    );
+    const sample = getDesignerSampleDocument("PURCHASE_ORDER");
+    const model = buildDocumentPrintModel("PURCHASE_ORDER", layout, sample);
+    const poPresentation: DocumentPresentationTemplate = {
+      ...presentation,
+      moduleKey: "PURCHASE_ORDER",
+      styleConfig: { ...DEFAULT_PRESENTATION_STYLE_CONFIG, layoutTheme: "compact" },
+    };
+    const html = renderDocumentHtml("PO-00001", model, poPresentation, org);
+    const poField = model.headerFields.find((field) => field.id === "voucher_number");
+
+    expect(poField?.labelTypography?.fontWeight).toBe("bold");
+    expect(html).toContain('style="font-weight:700"');
+    expect(html).toContain("PO-00001");
+  });
+});
+
+describe("renderDocumentHtml letterhead logo", () => {
+  const org: DocumentOrgRenderContext = {
+    organizationName: "Acme Corp",
+    legalName: "Acme Corp Pvt Ltd",
+    tradeName: null,
+    taxIdentifier: "29ABCDE1234F1Z5",
+    addressLines: ["123 Main Street", "Bengaluru"],
+    logoUrl: "https://example.com/logo.png",
+    websiteUrl: "https://acme.example",
+    locale: "en-IN",
+  };
+
+  it("renders logo above organization details by default", () => {
+    const presentation: DocumentPresentationTemplate = {
+      templateKey: "test",
+      moduleKey: "PURCHASE_ORDER",
+      viewContext: "PDF_PRINT",
+      label: "Test",
+      description: null,
+      shellConfig: DEFAULT_PRESENTATION_SHELL_CONFIG,
+      styleConfig: DEFAULT_PRESENTATION_STYLE_CONFIG,
+      isDefault: true,
+      isActive: true,
+      isCustomized: false,
+    };
+    const layout = DOCUMENT_LAYOUT_MODULE_ADAPTERS.PURCHASE_ORDER.defaultLayout;
+    const model = buildDocumentPrintModel(
+      "PURCHASE_ORDER",
+      layout,
+      getDesignerSampleDocument("PURCHASE_ORDER")
+    );
+
+    const html = renderDocumentHtml("PO-00001", model, presentation, org);
+
+    expect(html).toContain('class="letterhead letterhead--top"');
+    expect(html).toContain('max-height:48px;max-width:180px');
+  });
+
+  it("renders logo left of organization when configured", () => {
+    const presentation: DocumentPresentationTemplate = {
+      templateKey: "test",
+      moduleKey: "PURCHASE_ORDER",
+      viewContext: "PDF_PRINT",
+      label: "Test",
+      description: null,
+      shellConfig: {
+        ...DEFAULT_PRESENTATION_SHELL_CONFIG,
+        header: {
+          ...DEFAULT_PRESENTATION_SHELL_CONFIG.header,
+          logoPlacement: "left",
+          logoMaxHeightPx: 64,
+          logoMaxWidthPx: 200,
+        },
+      },
+      styleConfig: DEFAULT_PRESENTATION_STYLE_CONFIG,
+      isDefault: true,
+      isActive: true,
+      isCustomized: false,
+    };
+    const layout = DOCUMENT_LAYOUT_MODULE_ADAPTERS.PURCHASE_ORDER.defaultLayout;
+    const model = buildDocumentPrintModel(
+      "PURCHASE_ORDER",
+      layout,
+      getDesignerSampleDocument("PURCHASE_ORDER")
+    );
+
+    const html = renderDocumentHtml("PO-00001", model, presentation, org);
+
+    expect(html).toContain('class="letterhead letterhead--left"');
+    expect(html).toContain('class="brand-org"');
+    expect(html).toContain('max-height:64px;max-width:200px');
   });
 });

@@ -1,3 +1,4 @@
+import { documentColumnTypographyStyleAttr } from "@/lib/documents/document-typography-classes";
 import type { DocumentPrintLine } from "@/lib/documents/build-document-print-model";
 import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import type { DocumentColumnPref } from "@/lib/documents/types";
@@ -31,11 +32,11 @@ export function renderPrintLineItemDetailsHtml(
             const value = line[column.id] ?? "—";
             const label =
               column.showLabel !== false
-                ? `<span class="line-detail__label">${escapeHtml(column.label)}:</span> `
+                ? `<span class="line-detail__label"${documentColumnTypographyStyleAttr(column, "label")}>${escapeHtml(column.label)}:</span> `
                 : "";
             const separator =
               columnIndex > 0 ? `<span class="line-detail__sep" aria-hidden="true">·</span> ` : "";
-            return `${separator}${label}<span class="line-detail__value">${escapeHtml(value)}</span>`;
+            return `${separator}${label}<span class="line-detail__value"${documentColumnTypographyStyleAttr(column, "value")}>${escapeHtml(value)}</span>`;
           })
           .join("");
         return `<div class="line-detail__row line-detail__row--inline">${parts}</div>`;
@@ -45,9 +46,9 @@ export function renderPrintLineItemDetailsHtml(
       const value = line[column.id] ?? "—";
       const label =
         column.showLabel !== false
-          ? `<span class="line-detail__label">${escapeHtml(column.label)}:</span> `
+          ? `<span class="line-detail__label"${documentColumnTypographyStyleAttr(column, "label")}>${escapeHtml(column.label)}:</span> `
           : "";
-      return `<div class="line-detail__row">${label}<span class="line-detail__value">${escapeHtml(value)}</span></div>`;
+      return `<div class="line-detail__row">${label}<span class="line-detail__value"${documentColumnTypographyStyleAttr(column, "value")}>${escapeHtml(value)}</span></div>`;
     })
     .join("");
 

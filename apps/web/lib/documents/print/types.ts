@@ -6,6 +6,14 @@ export const PRESENTATION_VIEW_CONTEXTS: PresentationViewContext[] = ["PDF_PRINT
 
 export type PresentationPageSize = "A4" | "LETTER";
 export type PresentationPageOrientation = "portrait" | "landscape";
+export type PresentationLogoPlacement = "top" | "left";
+
+export type PresentationSpacingValues = {
+  top: string;
+  bottom: string;
+  left: string;
+  right: string;
+};
 
 export type PresentationShellConfig = {
   version: 1;
@@ -13,14 +21,13 @@ export type PresentationShellConfig = {
     size: PresentationPageSize;
     orientation: PresentationPageOrientation;
   };
-  margins: {
-    top: string;
-    bottom: string;
-    left: string;
-    right: string;
-  };
+  margins: PresentationSpacingValues;
+  padding: PresentationSpacingValues;
   header: {
     showLogo: boolean;
+    logoPlacement: PresentationLogoPlacement;
+    logoMaxHeightPx: number;
+    logoMaxWidthPx: number;
     showOrgName: boolean;
     showOrgAddress: boolean;
     showDocumentTitle: boolean;
@@ -52,7 +59,11 @@ export type PresentationLayoutTheme =
   | "minimal"
   | "formal"
   | "branded"
-  | "modern";
+  | "modern"
+  | "trade"
+  | "classic"
+  | "industrial"
+  | "retail";
 
 export type PresentationStyleConfig = {
   fontFamily: string;

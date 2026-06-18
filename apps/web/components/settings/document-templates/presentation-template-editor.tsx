@@ -14,6 +14,8 @@ import {
   DocumentLayoutScopeSelect,
   type DocumentLayoutLocationOption,
 } from "@/components/settings/document-layout/document-layout-scope-select";
+import { PresentationLetterheadLogoControls } from "@/components/settings/document-templates/presentation-letterhead-logo-controls";
+import { PresentationPageSpacingSection } from "@/components/settings/document-templates/presentation-page-spacing-section";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +60,8 @@ type Props = {
   styleConfigSeed?: PresentationStyleConfig | null;
   onShellConfigChange?: (config: PresentationShellConfig) => void;
   onStyleConfigChange?: (config: PresentationStyleConfig) => void;
+  /** Embedded designer: persist field layout when appearance is saved. */
+  companionLayoutSave?: () => Promise<{ error?: string } | void>;
 };
 
 const VIEW_TABS: { id: PresentationViewContext; label: string }[] = [
@@ -109,6 +113,7 @@ export function PresentationTemplateEditor({
   styleConfigSeed,
   onShellConfigChange,
   onStyleConfigChange,
+  companionLayoutSave,
 }: Props) {
   const [scope, setScope] = useState<DocumentLayoutScope>(controlledScope ?? TENANT_LAYOUT_SCOPE);
   const [viewContext, setViewContext] = useState<PresentationViewContext>(
@@ -215,6 +220,8 @@ export function PresentationTemplateEditor({
   }, [moduleKey, viewContext, shellConfig, scope, showGstCompliance, complianceConfig, embedded]);
 
   const patchShell = (patch: {
+    margins?: Partial<PresentationShellConfig["margins"]>;
+    padding?: Partial<PresentationShellConfig["padding"]>;
     header?: Partial<PresentationShellConfig["header"]>;
     footer?: Partial<PresentationShellConfig["footer"]>;
     sections?: Partial<PresentationShellConfig["sections"]>;
@@ -222,6 +229,8 @@ export function PresentationTemplateEditor({
   }) => {
     commitShellConfig((current) => ({
       ...current,
+      margins: patch.margins ? { ...current.margins, ...patch.margins } : current.margins,
+      padding: patch.padding ? { ...current.padding, ...patch.padding } : current.padding,
       header: { ...current.header, ...(patch.header ?? {}) },
       footer: { ...current.footer, ...(patch.footer ?? {}) },
       sections: { ...current.sections, ...(patch.sections ?? {}) },
@@ -252,6 +261,17 @@ export function PresentationTemplateEditor({
         toast.error(result.error);
         return;
       }
+
+      if (companionLayoutSave) {
+        const companionResult = await companionLayoutSave();
+        if (companionResult?.error) {
+          toast.error(companionResult.error);
+          return;
+        }
+        toast.success("Document template saved.");
+        return;
+      }
+
       toast.success("Template saved.");
     });
   };
@@ -327,6 +347,15 @@ export function PresentationTemplateEditor({
         )}
       >
         <div className={cn("space-y-4", embedded ? "" : "overflow-y-auto pr-1")}>
+          <PresentationPageSpacingSection
+            moduleKey={moduleKey}
+            margins={shellConfig.margins}
+            padding={shellConfig.padding}
+            disabled={!canEdit}
+            onMarginsChange={(side, value) => patchShell({ margins: { [side]: value } })}
+            onPaddingChange={(side, value) => patchShell({ padding: { [side]: value } })}
+          />
+
           <OrgSettingsSection title="Letterhead" description="Branding at the top of the document.">
             <div className="space-y-2">
               <ToggleRow
@@ -335,6 +364,12 @@ export function PresentationTemplateEditor({
                 checked={shellConfig.header.showLogo}
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ header: { showLogo: value } })}
+              />
+              <PresentationLetterheadLogoControls
+                idPrefix={moduleKey}
+                header={shellConfig.header}
+                disabled={!canEdit}
+                onPatch={(patch) => patchShell({ header: patch })}
               />
               <ToggleRow
                 id={`${moduleKey}-showOrgName`}
@@ -365,7 +400,7 @@ export function PresentationTemplateEditor({
                   id={`${moduleKey}-titleOverride`}
                   value={shellConfig.header.titleOverride ?? ""}
                   disabled={!canEdit}
-                  placeholder="Leave blank to use document number label"
+                  placeholder="Leave blank for default document title"
                   onChange={(event) =>
                     patchShell({
                       header: {

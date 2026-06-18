@@ -49,8 +49,19 @@ const shellConfigSchema = z.object({
     left: z.string(),
     right: z.string(),
   }),
+  padding: z
+    .object({
+      top: z.string(),
+      bottom: z.string(),
+      left: z.string(),
+      right: z.string(),
+    })
+    .optional(),
   header: z.object({
     showLogo: z.boolean(),
+    logoPlacement: z.enum(["top", "left"]).optional(),
+    logoMaxHeightPx: z.number().optional(),
+    logoMaxWidthPx: z.number().optional(),
     showOrgName: z.boolean(),
     showOrgAddress: z.boolean(),
     showDocumentTitle: z.boolean(),
@@ -90,7 +101,19 @@ const styleConfigSchema = z.object({
   fontFamily: z.string(),
   fontSizePx: z.number(),
   layoutTheme: z
-    .enum(["standard", "compact", "detailed", "minimal", "formal", "branded", "modern"])
+    .enum([
+      "standard",
+      "compact",
+      "detailed",
+      "minimal",
+      "formal",
+      "branded",
+      "modern",
+      "trade",
+      "classic",
+      "industrial",
+      "retail",
+    ])
     .optional(),
 });
 

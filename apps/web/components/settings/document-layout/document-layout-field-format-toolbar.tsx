@@ -22,7 +22,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   DOCUMENT_TYPOGRAPHY_DEFAULT,
-  patchDocumentTypography,
+  patchColumnTypographyRole,
+  resolveColumnTypography,
+  type DocumentTypographyRole,
   typographySelectValue,
 } from "@/lib/documents/document-typography-classes";
 import type {
@@ -63,6 +65,59 @@ function AlignIcon({ align }: { align: NonNullable<DocumentColumnPref["align"]> 
   return <AlignLeft className="h-3.5 w-3.5" aria-hidden />;
 }
 
+function TypographyStyleSection({
+  column,
+  role,
+  onPatch,
+}: {
+  column: DocumentColumnPref;
+  role: DocumentTypographyRole;
+  onPatch: (patch: Partial<DocumentColumnPref>) => void;
+}) {
+  const typography = resolveColumnTypography(column, role);
+  const patchTypography = (key: "fontSize" | "fontWeight" | "fontStyle", value: string) => {
+    onPatch(patchColumnTypographyRole(column, role, key, value));
+  };
+  const fontWeight = typographySelectValue(typography?.fontWeight);
+  const fontStyle = typographySelectValue(typography?.fontStyle);
+  const isBold = fontWeight === "bold" || fontWeight === "semibold";
+  const isItalic = fontStyle === "italic";
+  const roleLabel = role === "label" ? "Label" : "Value";
+
+  return (
+    <>
+      <DropdownMenuLabel className="text-xs">{roleLabel} style</DropdownMenuLabel>
+      <DropdownMenuCheckboxItem
+        checked={isBold}
+        onCheckedChange={(checked) =>
+          patchTypography("fontWeight", checked ? "bold" : DOCUMENT_TYPOGRAPHY_DEFAULT)
+        }
+      >
+        Bold
+      </DropdownMenuCheckboxItem>
+      <DropdownMenuCheckboxItem
+        checked={isItalic}
+        onCheckedChange={(checked) =>
+          patchTypography("fontStyle", checked ? "italic" : DOCUMENT_TYPOGRAPHY_DEFAULT)
+        }
+      >
+        Italic
+      </DropdownMenuCheckboxItem>
+      <DropdownMenuLabel className="text-xs">{roleLabel} font size</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={typographySelectValue(typography?.fontSize)}
+        onValueChange={(value) => patchTypography("fontSize", value)}
+      >
+        <DropdownMenuRadioItem value={DOCUMENT_TYPOGRAPHY_DEFAULT}>Default</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="xs">Extra small</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="sm">Small</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="base">Base</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="lg">Large</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+    </>
+  );
+}
+
 export function DocumentLayoutFieldFormatToolbar({
   column,
   disabled = false,
@@ -79,18 +134,18 @@ export function DocumentLayoutFieldFormatToolbar({
   onPatch,
   onRemove,
 }: Props) {
-  const patchTypography = (key: "fontSize" | "fontWeight" | "fontStyle", value: string) => {
-    onPatch({ typography: patchDocumentTypography(column.typography, key, value) });
-  };
-
-  const align = column.align ?? "left";
-  const fontWeight = typographySelectValue(column.typography?.fontWeight);
-  const fontStyle = typographySelectValue(column.typography?.fontStyle);
-  const isBold = fontWeight === "bold" || fontWeight === "semibold";
-  const isItalic = fontStyle === "italic";
+  const labelTypography = resolveColumnTypography(column, "label");
+  const valueTypography = resolveColumnTypography(column, "value");
+  const isBold =
+    labelTypography?.fontWeight === "bold" ||
+    labelTypography?.fontWeight === "semibold" ||
+    valueTypography?.fontWeight === "bold" ||
+    valueTypography?.fontWeight === "semibold";
+  const isItalic = labelTypography?.fontStyle === "italic" || valueTypography?.fontStyle === "italic";
   const hasFormatOptions = showTypography || showDecimalPlaces;
   const showFormatControls = !formatDisabled;
 
+  const align = column.align ?? "left";
   const lineSlot = lockLineSlot ?? column.lineSlot ?? "column";
   const isItemDetail = lineSlot === "item_detail";
   const headerSlot = lockHeaderSlot ?? column.headerSlot ?? "primary";
@@ -264,38 +319,12 @@ export function DocumentLayoutFieldFormatToolbar({
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-48">
             {showTypography ? (
               <>
-                <DropdownMenuLabel className="text-xs">Style</DropdownMenuLabel>
-                <DropdownMenuCheckboxItem
-                  checked={isBold}
-                  onCheckedChange={(checked) =>
-                    patchTypography("fontWeight", checked ? "bold" : DOCUMENT_TYPOGRAPHY_DEFAULT)
-                  }
-                >
-                  Bold
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={isItalic}
-                  onCheckedChange={(checked) =>
-                    patchTypography("fontStyle", checked ? "italic" : DOCUMENT_TYPOGRAPHY_DEFAULT)
-                  }
-                >
-                  Italic
-                </DropdownMenuCheckboxItem>
+                <TypographyStyleSection column={column} role="label" onPatch={onPatch} />
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs">Font size</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={typographySelectValue(column.typography?.fontSize)}
-                  onValueChange={(value) => patchTypography("fontSize", value)}
-                >
-                  <DropdownMenuRadioItem value={DOCUMENT_TYPOGRAPHY_DEFAULT}>Default</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="xs">Extra small</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="sm">Small</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="base">Base</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="lg">Large</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
+                <TypographyStyleSection column={column} role="value" onPatch={onPatch} />
               </>
             ) : null}
             {showTypography && showDecimalPlaces ? <DropdownMenuSeparator /> : null}

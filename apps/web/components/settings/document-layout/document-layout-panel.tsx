@@ -80,6 +80,8 @@ type Props = {
   controlledLayoutVersion?: number;
   onLayoutChange?: (layout: DocumentLayoutTemplate) => void;
   onEmbeddedToolbarActionsChange?: (actions: DocumentLayoutEmbeddedToolbarActions | null) => void;
+  /** After layout save succeeds (embedded designer: also persist appearance). */
+  afterSaveLayout?: () => Promise<{ error?: string } | void>;
   hideChromeToolbar?: boolean;
   /** Hide On-screen / Print / Email tabs when the parent toolbar owns view context. */
   hideViewContextTabs?: boolean;
@@ -212,6 +214,7 @@ export function DocumentLayoutPanel({
   controlledLayoutVersion,
   onLayoutChange,
   onEmbeddedToolbarActionsChange,
+  afterSaveLayout,
   hideChromeToolbar = false,
   hideViewContextTabs = false,
   layoutSeeds,
@@ -384,9 +387,20 @@ export function DocumentLayoutPanel({
       }
 
       hydratedViewContext.current = viewContext;
+
+      if (afterSaveLayout) {
+        const companionResult = await afterSaveLayout();
+        if (companionResult && "error" in companionResult && companionResult.error) {
+          toast.error(companionResult.error);
+          return;
+        }
+        toast.success("Document template saved.");
+        return;
+      }
+
       toast.success("Document layout saved.");
     });
-  }, [adapter.moduleKey, applyGstCompliance, layout, saveLayout, scope, viewContext]);
+  }, [adapter.moduleKey, afterSaveLayout, applyGstCompliance, layout, saveLayout, scope, viewContext]);
 
   const controlsDisabled = !canEdit || isPending || isLoadingLayout;
   const saveLabel = isPending ? "Saving…" : isLoadingLayout ? "Loading…" : "Save";

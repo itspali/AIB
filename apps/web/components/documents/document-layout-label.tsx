@@ -1,7 +1,7 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import { documentFieldLabelTypographyClassName } from "@/lib/documents/document-typography-classes";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ export function DocumentLayoutLabel({
   return (
     <Label
       className={cn(
-        documentFieldTypographyClassName(field, defaultClassName ?? ""),
+        documentFieldLabelTypographyClassName(field, defaultClassName ?? ""),
         className
       )}
       {...props}

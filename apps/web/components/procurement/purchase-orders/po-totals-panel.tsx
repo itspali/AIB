@@ -8,7 +8,10 @@ import {
   normalizePoLayoutTemplate,
   PO_EDITABLE_TOTALS_FIELD_IDS,
 } from "@/lib/documents/purchase-order-layout";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  documentFieldLabelTypographyClassName,
+  documentFieldValueTypographyClassName,
+} from "@/lib/documents/document-typography-classes";
 import { resolveColumnDecimalPlaces, normalizeDocumentDecimalInput } from "@/lib/documents/decimal-format";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
 import { Input } from "@/components/ui/input";
@@ -102,7 +105,7 @@ function TotalsLabel({
   const label = children ?? (density === "compact" ? resolveCompactTotalsLabel(field) : field.label);
 
   return (
-    <dt className={documentFieldTypographyClassName(field, cn(styles.labelClass, className))}>
+    <dt className={documentFieldLabelTypographyClassName(field, cn(styles.labelClass, className))}>
       {label}
     </dt>
   );
@@ -212,7 +215,7 @@ function TransactionDiscountEditableRow({
       <div className={styles.row} data-totals-row>
         <TotalsLabel field={field} density={density} />
         <dd
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             field,
             cn(TOTALS_VALUE_CLASS, "font-medium text-foreground")
           )}
@@ -228,7 +231,7 @@ function TransactionDiscountEditableRow({
       <div className={styles.row} data-totals-row>
         <TotalsLabel field={field} density={density} />
         <dd
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             field,
             cn(TOTALS_VALUE_CLASS, "font-medium text-foreground")
           )}
@@ -287,7 +290,7 @@ function ShippingTaxEditableRow({
       <div className={styles.row} data-totals-row>
         <TotalsLabel field={field} density={density} />
         <dd
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             field,
             cn(TOTALS_VALUE_CLASS, "font-medium text-foreground")
           )}
@@ -304,7 +307,7 @@ function ShippingTaxEditableRow({
         <TotalsLabel field={field} density={density} />
         <dd className="flex shrink-0 items-center justify-end gap-1">
           <span
-            className={documentFieldTypographyClassName(
+            className={documentFieldValueTypographyClassName(
               field,
               cn(TOTALS_VALUE_CLASS, "font-medium text-foreground")
             )}
@@ -331,7 +334,7 @@ function ShippingTaxEditableRow({
       <div className={styles.row} data-totals-row>
         <TotalsLabel field={field} density={density} />
         <dd
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             field,
             cn(TOTALS_VALUE_CLASS, "font-medium text-foreground")
           )}
@@ -431,7 +434,7 @@ function TotalsFieldRow({
         className={isGrandTotal ? "font-semibold text-foreground" : undefined}
       />
       <dd
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           field,
           cn("shrink-0", isEditable ? "" : TOTALS_VALUE_CLASS)
         )}

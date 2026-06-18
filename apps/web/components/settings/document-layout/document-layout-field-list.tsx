@@ -14,7 +14,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   DOCUMENT_TYPOGRAPHY_DEFAULT,
-  patchDocumentTypography,
+  patchColumnTypographyRole,
+  resolveColumnTypography,
+  type DocumentTypographyRole,
   typographySelectValue,
 } from "@/lib/documents/document-typography-classes";
 import type {
@@ -57,21 +59,24 @@ type RowProps<TId extends string> = {
 function TypographySelectCells({
   column,
   disabled,
+  role,
   onPatch,
 }: {
   column: DocumentColumnPref;
   disabled: boolean;
+  role: DocumentTypographyRole;
   onPatch: (patch: Partial<DocumentColumnPref>) => void;
 }) {
+  const typography = resolveColumnTypography(column, role);
   const patchTypography = (key: "fontSize" | "fontWeight" | "fontStyle", value: string) => {
-    onPatch({ typography: patchDocumentTypography(column.typography, key, value) });
+    onPatch(patchColumnTypographyRole(column, role, key, value));
   };
 
   return (
     <>
       <td className="min-w-[4rem] px-1 py-1 align-middle">
         <Select
-          value={typographySelectValue(column.typography?.fontSize)}
+          value={typographySelectValue(typography?.fontSize)}
           disabled={disabled}
           onValueChange={(value) => patchTypography("fontSize", value)}
         >
@@ -89,7 +94,7 @@ function TypographySelectCells({
       </td>
       <td className="min-w-[4.25rem] px-1 py-1 align-middle">
         <Select
-          value={typographySelectValue(column.typography?.fontWeight)}
+          value={typographySelectValue(typography?.fontWeight)}
           disabled={disabled}
           onValueChange={(value) => patchTypography("fontWeight", value)}
         >
@@ -106,7 +111,7 @@ function TypographySelectCells({
       </td>
       <td className="min-w-[3.5rem] px-1 py-1 align-middle">
         <Select
-          value={typographySelectValue(column.typography?.fontStyle)}
+          value={typographySelectValue(typography?.fontStyle)}
           disabled={disabled}
           onValueChange={(value) => patchTypography("fontStyle", value)}
         >
@@ -226,10 +231,7 @@ function DocumentLayoutFieldRow<TId extends string>({
           onChange={(event) => onPatch({ label: event.target.value })}
           className={cn(
             "h-7 w-full border-transparent bg-transparent px-1.5 text-xs shadow-none focus-visible:border-border focus-visible:bg-background",
-            !compactToolbar && "min-w-[8rem]",
-            column.typography?.fontWeight === "semibold" && "font-semibold",
-            column.typography?.fontWeight === "bold" && "font-bold",
-            column.typography?.fontStyle === "italic" && "italic"
+            !compactToolbar && "min-w-[8rem]"
           )}
         />
       </td>
@@ -374,9 +376,15 @@ function DocumentLayoutFieldRow<TId extends string>({
       ) : null}
       {showTypographyColumns && !compactToolbar ? (
         showTypography && fieldEnabled ? (
-          <TypographySelectCells column={column} disabled={rowDisabled} onPatch={onPatch} />
+          <>
+            <TypographySelectCells column={column} disabled={rowDisabled} role="label" onPatch={onPatch} />
+            <TypographySelectCells column={column} disabled={rowDisabled} role="value" onPatch={onPatch} />
+          </>
         ) : (
           <>
+            <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
+            <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
+            <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
             <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
             <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
             <td className="px-1 py-1 text-[10px] text-muted-foreground/50">—</td>
@@ -508,9 +516,12 @@ export function DocumentLayoutFieldList<TId extends string>({
             ) : null}
             {showTypographyColumns && !compactToolbar ? (
               <>
-                <th className="min-w-[4rem] px-1 py-1.5 text-left">Size</th>
-                <th className="min-w-[4.25rem] px-1 py-1.5 text-left">Wt</th>
-                <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Ital</th>
+                <th className="min-w-[4rem] px-1 py-1.5 text-left">Lbl sz</th>
+                <th className="min-w-[4.25rem] px-1 py-1.5 text-left">Lbl wt</th>
+                <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Lbl it</th>
+                <th className="min-w-[4rem] px-1 py-1.5 text-left">Val sz</th>
+                <th className="min-w-[4.25rem] px-1 py-1.5 text-left">Val wt</th>
+                <th className="min-w-[3.5rem] px-1 py-1.5 text-left">Val it</th>
               </>
             ) : null}
             {compactToolbar ? (

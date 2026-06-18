@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { loadPresentationTemplate } from "@/app/settings/documents/templates/actions";
+import { loadPresentationTemplate, savePresentationTemplate } from "@/app/settings/documents/templates/actions";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
 import {
@@ -23,7 +23,9 @@ import {
 } from "@/lib/documents/print/document-designer-layout-presets";
 import {
   applyGstShellConfigOverrides,
+  defaultGstComplianceConfig,
 } from "@/lib/documents/print/gst-presentation-compliance";
+import { getDocumentLayoutSaveFn } from "@/lib/documents/document-designer-persist";
 import { DEFAULT_PRESENTATION_SHELL_CONFIG, DEFAULT_PRESENTATION_STYLE_CONFIG } from "@/lib/documents/print/default-shell-config";
 import { normalizeDesignerPreviewLayout } from "@/lib/documents/print/designer-preview-draft";
 import type {
@@ -85,6 +87,18 @@ function shellConfigsEqual(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function resolveShellForSave(
+  moduleKey: DocumentModuleKey,
+  shell: PresentationShellConfig,
+  gstRegistered: boolean
+): PresentationShellConfig {
+  const showGstCompliance = moduleKey === "SALES_INVOICE" && gstRegistered;
+  if (showGstCompliance && !shell.compliance) {
+    return { ...shell, compliance: defaultGstComplianceConfig() };
+  }
+  return shell;
+}
+
 export function DocumentDesignerWorkspace({
   moduleKey,
   moduleLabel,
@@ -139,6 +153,7 @@ export function DocumentDesignerWorkspace({
   const [layoutSeedVersion, setLayoutSeedVersion] = useState(0);
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [shellConfigRevision, setShellConfigRevision] = useState(0);
+  const [, startApplyPresetTransition] = useTransition();
 
   const presetBaselineRef = useRef<DesignerLayoutBundle | null>(null);
   const layoutDraftListenerRef = useRef<(layout: DocumentLayoutTemplate) => void>(() => {});
@@ -253,6 +268,7 @@ export function DocumentDesignerWorkspace({
   ]);
 
   const applyBundle = useCallback((bundle: DesignerLayoutBundle) => {
+    layoutDraftListenerRef.current(bundle.layout);
     setLayout(bundle.layout);
     setShellConfig(bundle.shellConfig);
     setStyleConfig(bundle.styleConfig);
@@ -307,7 +323,106 @@ export function DocumentDesignerWorkspace({
 
   const handleLayoutChange = useCallback((next: DocumentLayoutTemplate) => {
     layoutDraftListenerRef.current(next);
+    setLayout(next);
   }, []);
+
+  const persistDocumentLayout = useCallback(
+    async (layoutOverride?: DocumentLayoutTemplate): Promise<{ error?: string } | void> => {
+      if (!canEdit) return;
+      const saveFn = getDocumentLayoutSaveFn(moduleKey);
+      if (!saveFn) {
+        return { error: "Unable to save document layout for this module." };
+      }
+      const normalized = normalizeDesignerPreviewLayout(
+        moduleKey,
+        viewContext,
+        layoutOverride ?? layout,
+        gstRegistered
+      );
+      const result = await saveFn({
+        scope,
+        viewContext,
+        layout: { ...normalized, viewContext, moduleKey },
+      });
+      if ("error" in result) {
+        return { error: result.error ?? "Unable to save document layout." };
+      }
+    },
+    [canEdit, gstRegistered, layout, moduleKey, scope, viewContext]
+  );
+
+  const persistPresentationTemplate = useCallback(
+    async (
+      shellOverride?: PresentationShellConfig,
+      styleOverride?: PresentationStyleConfig,
+      layoutForBaseline?: DocumentLayoutTemplate
+    ): Promise<{ error?: string } | void> => {
+      if (!canEdit || isScreenLayout || !presentationViewContext) return;
+      const shell = resolveShellForSave(
+        moduleKey,
+        shellOverride ?? shellConfig,
+        gstRegistered
+      );
+      const style = styleOverride ?? styleConfig;
+      const result = await savePresentationTemplate({
+        moduleKey,
+        viewContext: presentationViewContext,
+        shellConfig: shell,
+        styleConfig: style,
+        scope,
+      });
+      if ("error" in result) {
+        return { error: result.error ?? "Unable to save document appearance." };
+      }
+      const baselineLayout = normalizeDesignerPreviewLayout(
+        moduleKey,
+        viewContext,
+        layoutForBaseline ?? layout,
+        gstRegistered
+      );
+      presetBaselineRef.current = buildPresetBaseline(baselineLayout, shell, style);
+    },
+    [
+      buildPresetBaseline,
+      canEdit,
+      gstRegistered,
+      isScreenLayout,
+      layout,
+      moduleKey,
+      presentationViewContext,
+      scope,
+      shellConfig,
+      styleConfig,
+      viewContext,
+    ]
+  );
+
+  const persistDesignerBundle = useCallback(
+    async (bundle: DesignerLayoutBundle): Promise<{ error?: string } | void> => {
+      const layoutResult = await persistDocumentLayout(bundle.layout);
+      if (layoutResult?.error) return layoutResult;
+      return persistPresentationTemplate(
+        bundle.shellConfig,
+        bundle.styleConfig,
+        bundle.layout
+      );
+    },
+    [persistDocumentLayout, persistPresentationTemplate]
+  );
+
+  const afterSaveLayout = useCallback(async () => {
+    const result = await persistPresentationTemplate();
+    if (result?.error) {
+      return { error: `Layout saved, but appearance failed: ${result.error}` };
+    }
+  }, [persistPresentationTemplate]);
+
+  const companionLayoutSave = useCallback(async () => {
+    const result = await persistDocumentLayout();
+    if (result?.error) {
+      return { error: `Appearance saved, but layout failed: ${result.error}` };
+    }
+  }, [persistDocumentLayout]);
 
   const handlePreviewPresetIdChange = useCallback((presetId: string) => {
     setPreviewPresetId(presetId);
@@ -338,8 +453,40 @@ export function DocumentDesignerWorkspace({
   }, [appliedPresetId, previewPresetId, layoutSeedVersion]);
 
   const handleApplyPreviewPreset = useCallback(() => {
-    applyPresetById(previewPresetId);
-  }, [applyPresetById, previewPresetId]);
+    if (previewPresetId === GENERATED_PRESET_ID) {
+      applyPresetById(GENERATED_PRESET_ID);
+      return;
+    }
+
+    const baseline = presetBaselineRef.current;
+    if (!baseline) return;
+    const applied = applyDesignerLayoutPreset(previewPresetId, baseline);
+    applyBundle(applied);
+    setActivePresetId(previewPresetId);
+    setPreviewPresetId(previewPresetId);
+    setIsGeneratedLayout(false);
+
+    if (!canEdit || isScreenLayout) {
+      toast.success("Template applied.");
+      return;
+    }
+
+    startApplyPresetTransition(async () => {
+      const result = await persistDesignerBundle(applied);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Template applied and saved.");
+    });
+  }, [
+    applyBundle,
+    applyPresetById,
+    canEdit,
+    isScreenLayout,
+    persistDesignerBundle,
+    previewPresetId,
+  ]);
 
   const handleFieldToolbarActionsChange = useCallback(
     (actions: DocumentLayoutEmbeddedToolbarActions | null) => {
@@ -382,6 +529,7 @@ export function DocumentDesignerWorkspace({
               controlledLayoutVersion={layoutRevision}
               onLayoutChange={handleLayoutChange}
               onEmbeddedToolbarActionsChange={handleFieldToolbarActionsChange}
+              afterSaveLayout={!isScreenLayout ? afterSaveLayout : undefined}
             />
           </TabsContent>
 
@@ -406,6 +554,7 @@ export function DocumentDesignerWorkspace({
               styleConfigSeed={styleConfig}
               onShellConfigChange={handleShellConfigChange}
               onStyleConfigChange={handleStyleConfigChange}
+              companionLayoutSave={companionLayoutSave}
             />
             ) : null}
           </TabsContent>
@@ -438,7 +587,7 @@ export function DocumentDesignerWorkspace({
         isGeneratedLayout={isGeneratedLayout}
         activePresetId={activePresetId}
         onPreviewPresetIdChange={handlePreviewPresetIdChange}
-        onSelectPreset={applyPresetById}
+        onSelectPreset={handlePreviewPresetIdChange}
         onApplyPreviewPreset={handleApplyPreviewPreset}
         onPreviousPreset={handlePreviousPreset}
         onNextPreset={handleNextPreset}

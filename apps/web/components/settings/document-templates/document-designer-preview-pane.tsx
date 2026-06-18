@@ -18,6 +18,20 @@ function layoutsEqual(left: DocumentLayoutTemplate, right: DocumentLayoutTemplat
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function layoutWithoutTypography(layout: DocumentLayoutTemplate): DocumentLayoutTemplate {
+  return {
+    ...layout,
+    columns: layout.columns.map(
+      ({ typography: _typography, labelTypography: _labelTypography, valueTypography: _valueTypography, ...column }) =>
+        column
+    ),
+  };
+}
+
+function layoutStructureEqual(left: DocumentLayoutTemplate, right: DocumentLayoutTemplate): boolean {
+  return JSON.stringify(layoutWithoutTypography(left)) === JSON.stringify(layoutWithoutTypography(right));
+}
+
 type Props = {
   layoutDraftListenerRef: MutableRefObject<(layout: DocumentLayoutTemplate) => void>;
   syncLayout: DocumentLayoutTemplate;
@@ -56,19 +70,28 @@ export function DocumentDesignerPreviewPane({
 }: Props) {
   const [previewLayout, setPreviewLayout] = useState(syncLayout);
   const appliedSyncRevisionRef = useRef(syncLayoutRevision);
+  const draftEditPendingPresetSyncRef = useRef(false);
 
   useEffect(() => {
     layoutDraftListenerRef.current = (next) => {
       setPreviewLayout((current) => {
         if (layoutsEqual(current, next)) return current;
-        onPreviewPresetIdChange(isGeneratedLayout ? GENERATED_PRESET_ID : activePresetId);
+        if (!layoutStructureEqual(current, next)) {
+          draftEditPendingPresetSyncRef.current = true;
+        }
         return next;
       });
     };
     return () => {
       layoutDraftListenerRef.current = () => {};
     };
-  }, [activePresetId, isGeneratedLayout, layoutDraftListenerRef, onPreviewPresetIdChange]);
+  }, [layoutDraftListenerRef]);
+
+  useEffect(() => {
+    if (!draftEditPendingPresetSyncRef.current) return;
+    draftEditPendingPresetSyncRef.current = false;
+    onPreviewPresetIdChange(isGeneratedLayout ? GENERATED_PRESET_ID : activePresetId);
+  }, [previewLayout, activePresetId, isGeneratedLayout, onPreviewPresetIdChange]);
 
   useEffect(() => {
     if (appliedSyncRevisionRef.current === syncLayoutRevision) return;

@@ -39,6 +39,25 @@ describe("document designer layout presets", () => {
     expect(presetIdFromStyleConfig({ fontFamily: "system-ui", fontSizePx: 12 })).toBe("standard");
   });
 
+  it("applies trade preset with trade theme and visible header fields", () => {
+    const result = applyDesignerLayoutPreset("trade", baseBundle);
+    expect(result.styleConfig.layoutTheme).toBe("trade");
+    expect(result.shellConfig.sections.showHeaderFields).toBe(true);
+    expect(result.shellConfig.header.showOrgAddress).toBe(true);
+  });
+
+  it("applies classic preset with classic theme", () => {
+    const result = applyDesignerLayoutPreset("classic", baseBundle);
+    expect(result.styleConfig.layoutTheme).toBe("classic");
+    expect(result.shellConfig.sections.showTerms).toBe(true);
+  });
+
+  it("applies industrial preset with industrial theme", () => {
+    const result = applyDesignerLayoutPreset("industrial", baseBundle);
+    expect(result.styleConfig.layoutTheme).toBe("industrial");
+    expect(result.shellConfig.footer.showPageNumbers).toBe(true);
+  });
+
   it("applies modern preset with modern theme and visible terms", () => {
     const result = applyDesignerLayoutPreset("modern", baseBundle);
     expect(result.styleConfig.layoutTheme).toBe("modern");

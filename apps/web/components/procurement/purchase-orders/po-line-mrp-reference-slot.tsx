@@ -4,7 +4,6 @@ import {
   DOCUMENT_LINE_COMPACT_INPUT_CLASS,
   DocumentLineCompactInput,
 } from "@/components/documents/document-line-entry-cells";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
 import {
   normalizeDocumentDecimalInput,
   resolveColumnDecimalPlaces,
@@ -62,14 +61,10 @@ export function PoLineMrpReferenceSlot({
     <DocumentLineCompactInput
       className={cn(
         layout === "column"
-          ? cn(
-              documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS),
-              column.align === "right" && "text-right"
-            )
+          ? cn(DOCUMENT_LINE_COMPACT_INPUT_CLASS, column.align === "right" && "text-right")
           : cn(
               PO_LINE_SUBLINE_EDITABLE_INPUT_CLASS,
               "!w-[5.5rem]",
-              documentFieldTypographyClassName(column, ""),
               column.align === "right" && "text-right"
             )
       )}

@@ -19,7 +19,10 @@ import {
   PoLineSublineSingleRow,
   PoLineSublineZone,
 } from "@/components/procurement/purchase-orders/po-line-qty-unit-slot";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  documentFieldLabelTypographyClassName,
+  documentFieldValueTypographyClassName,
+} from "@/lib/documents/document-typography-classes";
 import { resolveColumnDecimalPlaces } from "@/lib/documents/decimal-format";
 import { groupItemDetailRows } from "@/lib/documents/item-detail-rows";
 import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents/types";
@@ -59,18 +62,15 @@ type Props<TLine extends SalesCommercePeekLineRow> = {
 };
 
 function peekLineCellClass(column: DocumentColumnPref, extra?: string) {
-  return documentFieldTypographyClassName(
-    column,
-    cn(
-      "p-0 align-top",
-      column.align === "right"
-        ? "text-right"
-        : column.align === "center"
-          ? "text-center"
-          : "text-left",
-      DOCUMENT_LINE_ROW_CELL_HOVER,
-      extra
-    )
+  return cn(
+    "p-0 align-top",
+    column.align === "right"
+      ? "text-right"
+      : column.align === "center"
+        ? "text-center"
+        : "text-left",
+    DOCUMENT_LINE_ROW_CELL_HOVER,
+    extra
   );
 }
 
@@ -108,10 +108,7 @@ function PeekLineNestedDetailFields<TLine extends SalesCommercePeekLineRow>({
               return (
                 <span
                   key={column.id}
-                  className={documentFieldTypographyClassName(
-                    column,
-                    "inline-flex min-w-0 items-baseline gap-1"
-                  )}
+                  className="inline-flex min-w-0 items-baseline gap-1"
                 >
                   {columnIndex > 0 ? (
                     <span className="text-muted-foreground/45" aria-hidden>
@@ -119,12 +116,14 @@ function PeekLineNestedDetailFields<TLine extends SalesCommercePeekLineRow>({
                     </span>
                   ) : null}
                   {column.showLabel !== false ? (
-                    <span className="shrink-0">{column.label}:</span>
+                    <span className={documentFieldLabelTypographyClassName(column, "shrink-0")}>
+                      {column.label}:
+                    </span>
                   ) : null}
                   <span
-                    className={cn(
-                      "min-w-0 truncate text-foreground",
-                      column.id === "sku" && "font-mono"
+                    className={documentFieldValueTypographyClassName(
+                      column,
+                      cn("min-w-0 truncate text-foreground", column.id === "sku" && "font-mono")
                     )}
                   >
                     {displayValue}
@@ -141,18 +140,17 @@ function PeekLineNestedDetailFields<TLine extends SalesCommercePeekLineRow>({
             return (
               <div
                 key={column.id}
-                className={documentFieldTypographyClassName(
-                  column,
-                  "flex min-w-0 items-baseline gap-1"
-                )}
+                className="flex min-w-0 items-baseline gap-1"
               >
                 {column.showLabel !== false ? (
-                  <span className="shrink-0">{column.label}:</span>
+                  <span className={documentFieldLabelTypographyClassName(column, "shrink-0")}>
+                    {column.label}:
+                  </span>
                 ) : null}
                 <span
-                  className={cn(
-                    "min-w-0 truncate text-foreground",
-                    column.id === "sku" && "font-mono"
+                  className={documentFieldValueTypographyClassName(
+                    column,
+                    cn("min-w-0 truncate text-foreground", column.id === "sku" && "font-mono")
                   )}
                 >
                   {displayValue}
@@ -234,7 +232,7 @@ function PeekLineQtyCell<TLine extends SalesCommercePeekLineRow>({
         }
       >
         <span
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             column,
             cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
           )}
@@ -260,7 +258,7 @@ function PeekLineValueCell<TLine extends SalesCommercePeekLineRow>({
   return (
     <td className={peekLineCellClass(column, "tabular-nums")}>
       <div
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
         )}
@@ -298,7 +296,7 @@ function PeekLineTaxCell<TLine extends SalesCommercePeekLineRow>({
     return (
       <td className={peekLineCellClass(column, "tabular-nums")}>
         <div
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             column,
             cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
           )}
@@ -329,7 +327,7 @@ function PeekLineTaxCell<TLine extends SalesCommercePeekLineRow>({
         }
       >
         <span
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             column,
             cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
           )}
@@ -364,7 +362,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
       return (
         <td className={peekLineCellClass(column, "tabular-nums")}>
           <div
-            className={documentFieldTypographyClassName(
+            className={documentFieldValueTypographyClassName(
               column,
               cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
             )}
@@ -408,7 +406,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
           }
         >
           <span
-            className={documentFieldTypographyClassName(
+            className={documentFieldValueTypographyClassName(
               column,
               cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
             )}
@@ -432,7 +430,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
     return (
       <td className={peekLineCellClass(column, "tabular-nums")}>
         <div
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             column,
             cn(DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS, peekPrimaryAlignClass(column.align))
           )}
@@ -476,7 +474,7 @@ function PeekLineTotalCell<TLine extends SalesCommercePeekLineRow>({
         }
       >
         <span
-          className={documentFieldTypographyClassName(
+          className={documentFieldValueTypographyClassName(
             column,
             cn(DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS, peekPrimaryAlignClass(column.align))
           )}
@@ -561,7 +559,7 @@ export function SalesCommercePeekLinesSection<TLine extends SalesCommercePeekLin
               {lineColumns.map((column) => (
                 <th
                   key={column.id}
-                  className={documentFieldTypographyClassName(
+                  className={documentFieldLabelTypographyClassName(
                     column,
                     cn(
                       "sticky top-0 z-[5] bg-muted/95 p-2 backdrop-blur-sm shadow-[inset_0_-1px_0_0_hsl(var(--border))] dark:bg-[hsl(224_47%_16%)]",

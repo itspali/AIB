@@ -1,12 +1,71 @@
-import type { PresentationShellConfig, PresentationStyleConfig } from "@/lib/documents/print/types";
+import type {
+  PresentationShellConfig,
+  PresentationSpacingValues,
+  PresentationStyleConfig,
+} from "@/lib/documents/print/types";
 import { normalizePresentationLayoutTheme } from "@/lib/documents/print/presentation-layout-themes";
+
+export const DEFAULT_PRESENTATION_PAGE_MARGINS: PresentationSpacingValues = {
+  top: "12mm",
+  bottom: "12mm",
+  left: "10mm",
+  right: "10mm",
+};
+
+export const DEFAULT_PRESENTATION_CONTENT_PADDING: PresentationSpacingValues = {
+  top: "24px",
+  bottom: "24px",
+  left: "24px",
+  right: "24px",
+};
+
+export function presentationSpacingToCss(values: PresentationSpacingValues): string {
+  return `${values.top} ${values.right} ${values.bottom} ${values.left}`;
+}
+
+function normalizeSpacingValues(
+  raw: Partial<PresentationSpacingValues> | null | undefined,
+  fallback: PresentationSpacingValues
+): PresentationSpacingValues {
+  return {
+    top: typeof raw?.top === "string" ? raw.top : fallback.top,
+    bottom: typeof raw?.bottom === "string" ? raw.bottom : fallback.bottom,
+    left: typeof raw?.left === "string" ? raw.left : fallback.left,
+    right: typeof raw?.right === "string" ? raw.right : fallback.right,
+  };
+}
+
+export const DEFAULT_PRESENTATION_LOGO_MAX_HEIGHT_PX = 48;
+export const DEFAULT_PRESENTATION_LOGO_MAX_WIDTH_PX = 180;
+export const PRESENTATION_LOGO_HEIGHT_MIN_PX = 24;
+export const PRESENTATION_LOGO_HEIGHT_MAX_PX = 120;
+export const PRESENTATION_LOGO_WIDTH_MIN_PX = 60;
+export const PRESENTATION_LOGO_WIDTH_MAX_PX = 320;
+
+function normalizeLogoDimension(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function normalizeLogoPlacement(value: unknown): PresentationShellConfig["header"]["logoPlacement"] {
+  return value === "left" ? "left" : "top";
+}
 
 export const DEFAULT_PRESENTATION_SHELL_CONFIG: PresentationShellConfig = {
   version: 1,
   page: { size: "A4", orientation: "portrait" },
-  margins: { top: "12mm", bottom: "12mm", left: "10mm", right: "10mm" },
+  margins: DEFAULT_PRESENTATION_PAGE_MARGINS,
+  padding: DEFAULT_PRESENTATION_CONTENT_PADDING,
   header: {
     showLogo: true,
+    logoPlacement: "top",
+    logoMaxHeightPx: DEFAULT_PRESENTATION_LOGO_MAX_HEIGHT_PX,
+    logoMaxWidthPx: DEFAULT_PRESENTATION_LOGO_MAX_WIDTH_PX,
     showOrgName: true,
     showOrgAddress: true,
     showDocumentTitle: true,
@@ -31,8 +90,12 @@ export const DEFAULT_PRESENTATION_STYLE_CONFIG: PresentationStyleConfig = {
   layoutTheme: "standard",
 };
 
+export type PresentationShellConfigInput = Partial<Omit<PresentationShellConfig, "header">> & {
+  header?: Partial<PresentationShellConfig["header"]>;
+};
+
 export function normalizePresentationShellConfig(
-  raw: Partial<PresentationShellConfig> | null | undefined
+  raw: PresentationShellConfigInput | null | undefined
 ): PresentationShellConfig {
   const base = DEFAULT_PRESENTATION_SHELL_CONFIG;
   if (!raw || typeof raw !== "object") return base;
@@ -43,14 +106,23 @@ export function normalizePresentationShellConfig(
       size: raw.page?.size === "LETTER" ? "LETTER" : base.page.size,
       orientation: raw.page?.orientation === "landscape" ? "landscape" : base.page.orientation,
     },
-    margins: {
-      top: typeof raw.margins?.top === "string" ? raw.margins.top : base.margins.top,
-      bottom: typeof raw.margins?.bottom === "string" ? raw.margins.bottom : base.margins.bottom,
-      left: typeof raw.margins?.left === "string" ? raw.margins.left : base.margins.left,
-      right: typeof raw.margins?.right === "string" ? raw.margins.right : base.margins.right,
-    },
+    margins: normalizeSpacingValues(raw.margins, base.margins),
+    padding: normalizeSpacingValues(raw.padding, base.padding),
     header: {
       showLogo: raw.header?.showLogo ?? base.header.showLogo,
+      logoPlacement: normalizeLogoPlacement(raw.header?.logoPlacement),
+      logoMaxHeightPx: normalizeLogoDimension(
+        raw.header?.logoMaxHeightPx,
+        base.header.logoMaxHeightPx,
+        PRESENTATION_LOGO_HEIGHT_MIN_PX,
+        PRESENTATION_LOGO_HEIGHT_MAX_PX
+      ),
+      logoMaxWidthPx: normalizeLogoDimension(
+        raw.header?.logoMaxWidthPx,
+        base.header.logoMaxWidthPx,
+        PRESENTATION_LOGO_WIDTH_MIN_PX,
+        PRESENTATION_LOGO_WIDTH_MAX_PX
+      ),
       showOrgName: raw.header?.showOrgName ?? base.header.showOrgName,
       showOrgAddress: raw.header?.showOrgAddress ?? base.header.showOrgAddress,
       showDocumentTitle: raw.header?.showDocumentTitle ?? base.header.showDocumentTitle,

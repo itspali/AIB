@@ -36,7 +36,10 @@ export type DocumentColumnPref = {
   showLabel?: boolean;
   group?: "line" | "header" | "totals" | "catalog";
   align?: "left" | "right" | "center";
+  /** @deprecated Migrated to labelTypography/valueTypography on read. */
   typography?: DocumentTypography;
+  labelTypography?: DocumentTypography;
+  valueTypography?: DocumentTypography;
   /** Display decimal places for numeric fields (Phase 2 layout settings). */
   decimalPlaces?: number;
   /** Header fields: top row vs details rail / stacked panel (create/edit form). */

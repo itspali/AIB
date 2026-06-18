@@ -15,6 +15,7 @@ import {
   type DocumentLayoutLocationOption,
 } from "@/components/settings/document-layout/document-layout-scope-select";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
+import { PresentationLetterheadLogoControls } from "@/components/settings/document-templates/presentation-letterhead-logo-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -232,6 +233,12 @@ export function PresentationTemplatePanel({
                 disabled={!canEdit}
                 onCheckedChange={(value) => patchShell({ header: { showLogo: value } })}
               />
+              <PresentationLetterheadLogoControls
+                idPrefix="presentation-template"
+                header={shellConfig.header}
+                disabled={!canEdit}
+                onPatch={(patch) => patchShell({ header: patch })}
+              />
               <ToggleRow
                 id="showOrgName"
                 label="Show organization name"
@@ -261,7 +268,7 @@ export function PresentationTemplatePanel({
                   id="titleOverride"
                   value={shellConfig.header.titleOverride ?? ""}
                   disabled={!canEdit}
-                  placeholder="Leave blank to use document number label"
+                  placeholder="Leave blank for default document title"
                   onChange={(event) =>
                     patchShell({
                       header: {

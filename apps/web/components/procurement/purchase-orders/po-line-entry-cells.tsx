@@ -12,7 +12,10 @@ import {
   DocumentLineRemoveButton,
 } from "@/components/documents/document-line-entry-cells";
 import { DocumentLineImage } from "@/components/documents/document-line-image";
-import { documentFieldTypographyClassName } from "@/lib/documents/document-typography-classes";
+import {
+  documentFieldLabelTypographyClassName,
+  documentFieldValueTypographyClassName,
+} from "@/lib/documents/document-typography-classes";
 import {
   normalizeDocumentDecimalInput,
   resolveColumnDecimalPlaces,
@@ -296,10 +299,7 @@ export function PoLineNestedUnderItemFields({
               return (
                 <span
                   key={column.id}
-                  className={documentFieldTypographyClassName(
-                    column,
-                    "inline-flex min-w-0 items-baseline gap-1 text-muted-foreground"
-                  )}
+                  className="inline-flex min-w-0 items-baseline gap-1 text-muted-foreground"
                 >
                   {columnIndex > 0 ? (
                     <span className="text-muted-foreground/45" aria-hidden>
@@ -327,10 +327,7 @@ export function PoLineNestedUnderItemFields({
             return (
               <div
                 key={column.id}
-                className={documentFieldTypographyClassName(
-                  column,
-                  "flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
-                )}
+                className="flex min-w-0 items-baseline gap-1 text-xs leading-snug text-muted-foreground"
               >
                 {content}
               </div>
@@ -416,10 +413,7 @@ export function PoLineItemCell({
               wrapSelectedItemName
               disabled={disabled}
               stockLocationId={destinationLocationId}
-              inputClassName={documentFieldTypographyClassName(
-                itemColumn,
-                cn(PO_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")
-              )}
+              inputClassName={cn(PO_LINE_ITEM_CELL_INPUT_CLASS, "font-medium")}
               showSecondaryText={!hideFieldSecondary}
               inputRef={(node) => {
                 itemRefs.current[line.key] = node;
@@ -507,7 +501,7 @@ export function PoLineUnitCell({
         onUnitChange={(code) => patchPoLineUomChange(ctx, code)}
         conversionHint={conversionHint}
         standaloneColumn
-        primaryClassName={documentFieldTypographyClassName(column, "")}
+        primaryClassName={documentFieldLabelTypographyClassName(column, "")}
         className="w-full"
       />
     </div>
@@ -545,7 +539,7 @@ export function PoLineQtyCell({
         qtyRefs.current[line.key] = node;
       }}
       align={column.align}
-      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      className={DOCUMENT_LINE_COMPACT_INPUT_CLASS}
       value={line.quantity_ordered}
       disabled={disabled}
       inputMode="decimal"
@@ -637,7 +631,7 @@ export function PoLinePriceCell({
         priceRefs.current[line.key] = node;
       }}
       align={column.align}
-      className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+      className={DOCUMENT_LINE_COMPACT_INPUT_CLASS}
       value={line.unit_price_contractual}
       disabled={disabled}
       inputMode="decimal"
@@ -822,7 +816,7 @@ export function PoLineDiscountPctCell({
     >
       <DocumentLineCompactInput
         align={column.align}
-        className={documentFieldTypographyClassName(column, DOCUMENT_LINE_COMPACT_INPUT_CLASS)}
+        className={DOCUMENT_LINE_COMPACT_INPUT_CLASS}
         value={inputValue}
         disabled={disabled}
         inputMode="decimal"
@@ -863,7 +857,7 @@ export function PoLineDiscountAmountCell({
 
   return (
     <div
-      className={documentFieldTypographyClassName(
+      className={documentFieldValueTypographyClassName(
         column,
         cn(
           DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -972,7 +966,7 @@ export function PoLineTaxAmountCell({
   if (!showStack || !taxRateColumn) {
     return (
       <div
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -1003,7 +997,7 @@ export function PoLineTaxAmountCell({
       }
     >
       <span
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
@@ -1041,7 +1035,7 @@ export function PoLineTaxComponentAmountCell({
 
   return (
     <div
-      className={documentFieldTypographyClassName(
+      className={documentFieldValueTypographyClassName(
         column,
         cn(
           DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -1081,7 +1075,7 @@ export function PoLineTotalCell({
   if (!showStack) {
     return (
       <div
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,
@@ -1126,7 +1120,7 @@ export function PoLineTotalCell({
       }
     >
       <span
-        className={documentFieldTypographyClassName(
+        className={documentFieldValueTypographyClassName(
           column,
           cn(
             DOCUMENT_LINE_PRIMARY_AMOUNT_STACK_CLASS,
@@ -1156,7 +1150,7 @@ export function PoLineReadOnlyCell({
 
   return (
     <div
-      className={documentFieldTypographyClassName(
+      className={documentFieldValueTypographyClassName(
         column,
         cn(
           DOCUMENT_LINE_PRIMARY_AMOUNT_CLASS,

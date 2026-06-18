@@ -26,5 +26,10 @@ describe("presentation layout themes", () => {
     expect(renderPresentationLayoutThemeCss("formal")).toContain("theme-formal");
     expect(renderPresentationLayoutThemeCss("modern")).toContain("theme-modern");
     expect(renderPresentationLayoutThemeCss("modern")).toContain("metadata-panel");
+    expect(renderPresentationLayoutThemeCss("trade")).toContain("theme-trade");
+    expect(renderPresentationLayoutThemeCss("trade")).toContain("title-meta");
+    expect(renderPresentationLayoutThemeCss("classic")).toContain("theme-classic");
+    expect(renderPresentationLayoutThemeCss("industrial")).toContain("theme-industrial");
+    expect(renderPresentationLayoutThemeCss("retail")).toContain("theme-retail");
   });
 });
