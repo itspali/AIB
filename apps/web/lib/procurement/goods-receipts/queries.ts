@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import type { GoodsReceiptLineRow, GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import {
   fetchAllSupabaseRows,
@@ -175,36 +181,45 @@ async function hydrateGrnLineCounts(
   return counts;
 }
 
-export async function fetchGoodsReceipts(
+export async function fetchGoodsReceiptsPage(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: { locationId?: string | null }
-): Promise<GoodsReceiptRow[]> {
-  const rows = await fetchAllSupabaseRows<GrnListDbRow>(async (from, to) => {
-    let query = supabase
-      .from("goods_receipts")
-      .select(GRN_LIST_HEADER_SELECT)
-      .eq("tenant_id", tenantId)
-      .order("received_at", { ascending: false })
-      .range(from, to);
+  options?: DocumentListFetchOptions & { locationId?: string | null }
+): Promise<DocumentListPage<GoodsReceiptRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
 
-    if (options?.locationId) {
-      query = query.eq("destination_location_id", options.locationId);
-    }
+  let query = supabase
+    .from("goods_receipts")
+    .select(GRN_LIST_HEADER_SELECT, { count: "exact" })
+    .eq("tenant_id", tenantId)
+    .order("received_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
-    return query as unknown as Promise<{
-      data: GrnListDbRow[] | null;
-      error: import("@supabase/supabase-js").PostgrestError | null;
-    }>;
-  });
+  if (options?.locationId) {
+    query = query.eq("destination_location_id", options.locationId);
+  }
 
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as GrnListDbRow[];
   const lineCounts = await hydrateGrnLineCounts(
     supabase,
     tenantId,
     rows.map((row) => row.id)
   );
+  const mapped = rows.map((row) => mapGrnListRow(row, lineCounts.get(row.id) ?? 0));
 
-  return rows.map((row) => mapGrnListRow(row, lineCounts.get(row.id) ?? 0));
+  return buildDocumentListPage(mapped, count ?? mapped.length, offset, limit);
+}
+
+export async function fetchGoodsReceipts(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { locationId?: string | null }
+): Promise<GoodsReceiptRow[]> {
+  const page = await fetchGoodsReceiptsPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchGoodsReceiptById(

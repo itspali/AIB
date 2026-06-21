@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildPrintLineCatalogContext } from "@/lib/documents/print/print-line-catalog-context";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import { extractMrpFromCustomFieldsRecord } from "@/lib/products/catalog-reserved-fields";
 import { parsePoLineTaxComponentsJson } from "@/lib/procurement/purchase-orders/po-line-tax-components";
 import type { TaxTreatmentType } from "@/lib/entities/types";
@@ -599,23 +605,29 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
   };
 }
 
-export async function fetchPurchaseOrders(
+export type PurchaseOrdersFetchOptions = DocumentListFetchOptions & {
+  locationId?: string | null;
+  locationIds?: string[] | null;
+  status?: PurchaseOrderStatus | null;
+};
+
+export async function fetchPurchaseOrdersPage(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: {
-    locationId?: string | null;
-    locationIds?: string[] | null;
-    status?: PurchaseOrderStatus | null;
-  }
-): Promise<PurchaseOrderRow[]> {
+  options?: PurchaseOrdersFetchOptions
+): Promise<DocumentListPage<PurchaseOrderRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+  let totalCount = 0;
+
   const { data, error } = await runPoSelectWithFallback<PoListDbRow[]>(
     PO_LIST_SELECT_SHAPES,
-    (shape) => {
+    async (shape) => {
       let query = supabase
         .from("purchase_orders")
-        .select(buildPurchaseOrderListSelect(shape))
+        .select(buildPurchaseOrderListSelect(shape), { count: "exact" })
         .eq("tenant_id", tenantId)
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (options?.locationId) {
         query = query.eq("destination_location_id", options.locationId);
@@ -627,7 +639,12 @@ export async function fetchPurchaseOrders(
         query = query.eq("document_status", options.status);
       }
 
-      return query as unknown as Promise<{ data: PoListDbRow[] | null; error: { message: string } | null }>;
+      const result = await query;
+      totalCount = result.count ?? 0;
+      return {
+        data: result.data as PoListDbRow[] | null,
+        error: result.error,
+      };
     }
   );
 
@@ -638,7 +655,17 @@ export async function fetchPurchaseOrders(
     hydratePurchaseOrderCreatorNames(supabase, rows),
     hydratePurchaseOrderApprovalSubmitters(supabase, tenantId, rows),
   ]);
-  return rows;
+
+  return buildDocumentListPage(rows, totalCount || rows.length, offset, limit);
+}
+
+export async function fetchPurchaseOrders(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: Omit<PurchaseOrdersFetchOptions, "offset" | "limit">
+): Promise<PurchaseOrderRow[]> {
+  const page = await fetchPurchaseOrdersPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchPurchaseOrderById(

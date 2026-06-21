@@ -13,7 +13,7 @@ import {
 import type { BillAdvanceApplicationRow, VendorAdvancePaymentRow } from "@/lib/procurement/advances/types";
 import {
   fetchPurchaseBillById,
-  fetchPurchaseBills,
+  fetchPurchaseBillsPage,
 } from "@/lib/procurement/bills/queries";
 import { savePurchaseBillSchema } from "@/lib/procurement/bills/schemas";
 import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
@@ -41,9 +41,14 @@ function revalidateBillPaths() {
   }
 }
 
-export async function loadPurchaseBills(): Promise<PurchaseBillRow[]> {
+export async function fetchMorePurchaseBills(offset: number) {
   const { supabase, tenantId } = await requireTenantId();
-  return fetchPurchaseBills(supabase, tenantId);
+  return fetchPurchaseBillsPage(supabase, tenantId, { offset });
+}
+
+export async function loadPurchaseBills(): Promise<PurchaseBillRow[]> {
+  const page = await fetchMorePurchaseBills(0);
+  return page.rows;
 }
 
 export async function loadBillablePurchaseOrders(

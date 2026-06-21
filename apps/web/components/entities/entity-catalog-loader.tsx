@@ -1,13 +1,20 @@
-import { EntityManagementTerminal } from "@/components/entities/entity-management-terminal";
-import { fetchResolvedEntityCustomFieldDefinitions } from "@/lib/entities/custom-field-queries";
+import dynamic from "next/dynamic";
+import { EntityCatalogPageSkeleton } from "@/components/entities/entity-catalog-page-skeleton";
 import { fetchEntityListPage } from "@/lib/entities/list-queries";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityWorkspace } from "@/lib/entities/types";
-import { fetchEntityCategoryRows } from "@/lib/entity-categories/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchDefaultCustomModuleView } from "@/lib/search/views/queries";
 import { toSavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
+
+const EntityManagementTerminal = dynamic(
+  () =>
+    import("@/components/entities/entity-management-terminal").then(
+      (module) => module.EntityManagementTerminal
+    ),
+  { loading: () => <EntityCatalogPageSkeleton /> }
+);
 
 type Props = {
   workspace: EntityWorkspace;
@@ -17,11 +24,9 @@ export async function EntityCatalogLoader({ workspace }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [page, defaultView, customFieldDefinitions, categoryRows] = await Promise.all([
+  const [page, defaultView] = await Promise.all([
     fetchEntityListPage(supabase, workspace),
     fetchDefaultCustomModuleView(supabase, tenantId, userId, config.savedViewModuleKey),
-    fetchResolvedEntityCustomFieldDefinitions(supabase, tenantId, workspace),
-    fetchEntityCategoryRows(supabase, tenantId, workspace),
   ]);
 
   const initialSavedView: SavedViewSnapshot | null = defaultView
@@ -32,10 +37,9 @@ export async function EntityCatalogLoader({ workspace }: Props) {
     <EntityManagementTerminal
       workspace={workspace}
       tenantId={tenantId}
-      customFieldDefinitions={customFieldDefinitions}
-      categoryRows={categoryRows}
       initialRows={page.rows}
       initialTotalCount={page.totalCount}
+      initialHasMore={page.hasMore}
       initialSavedView={initialSavedView}
     />
   );

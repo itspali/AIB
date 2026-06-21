@@ -1,5 +1,6 @@
-import { BillManagementTerminal } from "@/components/procurement/bills/bill-management-terminal";
-import { fetchPurchaseBills } from "@/lib/procurement/bills/queries";
+import dynamic from "next/dynamic";
+import { BillCatalogPageSkeleton } from "@/components/procurement/bills/bill-catalog-page-skeleton";
+import { fetchPurchaseBillsPage } from "@/lib/procurement/bills/queries";
 import { fetchBillablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import {
@@ -8,11 +9,19 @@ import {
 } from "@/lib/procurement/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
+const BillManagementTerminal = dynamic(
+  () =>
+    import("@/components/procurement/bills/bill-management-terminal").then(
+      (module) => module.BillManagementTerminal
+    ),
+  { loading: () => <BillCatalogPageSkeleton /> }
+);
+
 export async function BillCatalogLoader() {
   const { supabase, tenantId } = await getModulePageContext();
 
-  const [bills, suppliers, locations, billableOrders, procurementSettings] = await Promise.all([
-    fetchPurchaseBills(supabase, tenantId),
+  const [billsPage, suppliers, locations, billableOrders, procurementSettings] = await Promise.all([
+    fetchPurchaseBillsPage(supabase, tenantId),
     fetchProcurementSuppliers(supabase, tenantId),
     fetchProcurementLocations(supabase, tenantId),
     fetchBillablePurchaseOrders(supabase, tenantId),
@@ -24,7 +33,9 @@ export async function BillCatalogLoader() {
 
   return (
     <BillManagementTerminal
-      initialBills={bills}
+      initialBills={billsPage.rows}
+      listTotalCount={billsPage.totalCount}
+      listHasMore={billsPage.hasMore}
       suppliers={suppliers}
       locations={locations}
       billableOrders={billableOrders}

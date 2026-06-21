@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import type {
   StockTransferRow,
   StockTransferStatus,
@@ -126,15 +132,7 @@ function mapTransferListRow(row: TransferListDbRow): StockTransferRow {
   };
 }
 
-export async function fetchStockTransfers(
-  supabase: SupabaseClient,
-  tenantId: string,
-  options?: { status?: StockTransferStatus | null; sourceLocationId?: string | null }
-): Promise<StockTransferRow[]> {
-  let query = supabase
-    .from("stock_transfers")
-    .select(
-      `
+const TRANSFER_LIST_HEADER_SELECT = `
       id,
       transfer_number,
       source_location_id,
@@ -149,8 +147,20 @@ export async function fetchStockTransfers(
       ${SOURCE_LOCATION_EMBED} (name, code),
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${TRANSFER_ITEMS_EMBED} (id)
-    `
-    )
+    `;
+
+function buildStockTransfersQuery(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: {
+    status?: StockTransferStatus | null;
+    sourceLocationId?: string | null;
+  },
+  listOptions?: { count?: "exact" }
+) {
+  let query = supabase
+    .from("stock_transfers")
+    .select(TRANSFER_LIST_HEADER_SELECT, listOptions)
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -162,10 +172,39 @@ export async function fetchStockTransfers(
     query = query.eq("source_location_id", options.sourceLocationId);
   }
 
-  const { data, error } = await query.limit(200);
+  return query;
+}
+
+export async function fetchStockTransfersPage(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: DocumentListFetchOptions & {
+    status?: StockTransferStatus | null;
+    sourceLocationId?: string | null;
+  }
+): Promise<DocumentListPage<StockTransferRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+
+  const { data, error, count } = await buildStockTransfersQuery(
+    supabase,
+    tenantId,
+    options,
+    { count: "exact" }
+  ).range(offset, offset + limit - 1);
+
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as TransferListDbRow[]).map(mapTransferListRow);
+  const mapped = ((data ?? []) as TransferListDbRow[]).map(mapTransferListRow);
+  return buildDocumentListPage(mapped, count ?? mapped.length, offset, limit);
+}
+
+export async function fetchStockTransfers(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { status?: StockTransferStatus | null; sourceLocationId?: string | null }
+): Promise<StockTransferRow[]> {
+  const page = await fetchStockTransfersPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchStockTransferById(

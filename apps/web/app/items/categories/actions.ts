@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { finalizeAttributeTemplateRows } from "@/lib/categories/attribute-key";
 import { attributeTypeNeedsOptions } from "@/lib/categories/attribute-types";
-import { fetchCategoryItemCounts, fetchCategoryRowById } from "@/lib/categories/queries";
+import { fetchCategoryItemCounts, fetchCategoryRowById, fetchCategoryRows } from "@/lib/categories/queries";
 import type { AttributeTemplateEntry, CategoryRow, SystemCategoryFormValues } from "@/lib/categories/types";
 import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
 import { validateCategoryParentAssignment } from "@/lib/categories/validate-parent";
@@ -14,6 +14,11 @@ const CATEGORY_PATHS = ["/items/categories", "/items"] as const;
 export async function loadCategoryItemCounts(): Promise<Record<string, number>> {
   const { supabase, tenantId } = await requireTenantId();
   return fetchCategoryItemCounts(supabase, tenantId);
+}
+
+export async function loadCategoryRows(): Promise<CategoryRow[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchCategoryRows(supabase, tenantId);
 }
 
 function revalidateCategoryPaths() {

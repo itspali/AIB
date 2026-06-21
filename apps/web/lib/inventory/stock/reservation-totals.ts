@@ -28,11 +28,51 @@ export async function fetchActiveReservationTotalsByLocationVariant(
 
   if (error) throw new Error(error.message);
 
+  return aggregateReservationTotals(data ?? []);
+}
+
+export async function fetchActiveReservationTotalsForLocationVariants(
+  supabase: SupabaseClient,
+  tenantId: string,
+  pairs: ReadonlyArray<{ locationId: string; variantId: string }>
+): Promise<Map<LocationVariantReservationKey, string>> {
+  if (pairs.length === 0) return new Map();
+
+  const variantIds = [...new Set(pairs.map((pair) => pair.variantId))];
+  const { data, error } = await supabase
+    .from("inventory_reservations")
+    .select("location_id, variant_id, quantity_reserved")
+    .eq("tenant_id", tenantId)
+    .eq("status", "ACTIVE")
+    .in("variant_id", variantIds);
+
+  if (error) throw new Error(error.message);
+
+  const allowed = new Set(
+    pairs.map((pair) => locationVariantReservationKey(pair.locationId, pair.variantId))
+  );
+
+  const filtered = (data ?? []).filter((row) =>
+    allowed.has(
+      locationVariantReservationKey(row.location_id as string, row.variant_id as string)
+    )
+  );
+
+  return aggregateReservationTotals(filtered);
+}
+
+function aggregateReservationTotals(
+  rows: ReadonlyArray<{
+    location_id: string;
+    variant_id: string;
+    quantity_reserved: number | string | null;
+  }>
+): Map<LocationVariantReservationKey, string> {
   const totals = new Map<LocationVariantReservationKey, number>();
 
-  for (const row of data ?? []) {
-    const locationId = row.location_id as string;
-    const variantId = row.variant_id as string;
+  for (const row of rows) {
+    const locationId = row.location_id;
+    const variantId = row.variant_id;
     const key = locationVariantReservationKey(locationId, variantId);
     const qty = Number(row.quantity_reserved ?? 0);
     totals.set(key, (totals.get(key) ?? 0) + (Number.isFinite(qty) ? qty : 0));

@@ -1,22 +1,11 @@
 import { Suspense } from "react";
 import { FulfillmentShippingCatalogLoader } from "@/components/fulfillment/shipping/fulfillment-shipping-catalog-loader";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { getModulePageContext } from "@/lib/layout/module-page";
+import { FulfillmentShippingCatalogPageSkeleton } from "@/components/fulfillment/shipping/fulfillment-shipping-catalog-page-skeleton";
 
-export default async function FulfillmentShippingPage() {
-  const { orgName, approvalAlertCount, operatorProfile, tenantId } =
-    await getModulePageContext();
-
+export default function FulfillmentShippingPage() {
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
-      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading shipments…</div>}>
-        <FulfillmentShippingCatalogLoader />
-      </Suspense>
-    </DashboardShell>
+    <Suspense fallback={<FulfillmentShippingCatalogPageSkeleton />}>
+      <FulfillmentShippingCatalogLoader />
+    </Suspense>
   );
 }

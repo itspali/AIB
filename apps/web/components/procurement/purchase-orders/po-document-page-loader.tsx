@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { PoDocumentPageShell } from "@/components/procurement/purchase-orders/po-document-page-shell";
+import { PoDocumentPageShellLazy } from "@/components/procurement/purchase-orders/po-document-page-shell-lazy";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolvePurchaseOrderEditAccess } from "@/lib/procurement/access";
 import {
@@ -91,7 +91,7 @@ export async function PoDocumentCreateLoader({
         : null;
 
   return (
-    <PoDocumentPageShell
+    <PoDocumentPageShellLazy
       mode="create"
       copyFromId={copyFromId}
       locations={context.locations}
@@ -125,7 +125,7 @@ export async function PoDocumentEditLoader({
   }
 
   return (
-    <PoDocumentPageShell
+    <PoDocumentPageShellLazy
       mode="edit"
       editOrderId={id}
       locations={context.locations}

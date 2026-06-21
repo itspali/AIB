@@ -1,60 +1,25 @@
-import { redirect } from "next/navigation";
-import { ProfileSettingsTerminal } from "@/components/settings/profile-settings-terminal";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { ProfileSettingsTerminalLazy } from "@/components/settings/profile-settings-terminal-lazy";
 import { getAvatarSignedUrl } from "@/lib/settings/avatar";
 import { fetchProfileSettingsSnapshot } from "@/lib/settings/queries";
-import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
-import { fetchOperatorProfileForSession } from "@/lib/user/queries";
-import { getSessionClaims } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getModulePageContext } from "@/lib/layout/module-page";
 
 export default async function ProfileSettingsPage() {
-  const [supabase, claims] = await Promise.all([createClient(), getSessionClaims()]);
+  const { supabase, tenantId, userId } = await getModulePageContext();
 
-  if (!claims?.tenantId) redirect("/signup");
-  const tenantId = claims.tenantId;
-
-  const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
-  if (!onboardingSnapshot) redirect("/signup");
-
-  if (!hasWorkspaceAccess(onboardingSnapshot)) redirect("/onboarding");
-
-  const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
-
-  const [operatorProfile, approvalAlertCount, profileSnapshot] = await Promise.all([
-    fetchOperatorProfileForSession(supabase, orgName),
-    fetchApprovalAlertCount(supabase, tenantId),
-    fetchProfileSettingsSnapshot(supabase, claims.userId, tenantId),
-  ]);
-
+  const profileSnapshot = await fetchProfileSettingsSnapshot(supabase, userId, tenantId);
   if (!profileSnapshot) {
     return (
-      <DashboardShell
-        orgName={orgName}
-        approvalAlertCount={approvalAlertCount}
-        operatorProfile={operatorProfile}
-        tenantId={tenantId}
-      >
-        <p className="text-sm text-muted-foreground">Unable to load your profile settings.</p>
-      </DashboardShell>
+      <p className="text-sm text-muted-foreground">Unable to load your profile settings.</p>
     );
   }
 
   const avatarPreviewUrl = await getAvatarSignedUrl(supabase, profileSnapshot.avatar_url);
 
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
+    <ProfileSettingsTerminalLazy
+      snapshot={profileSnapshot}
       tenantId={tenantId}
-    >
-      <ProfileSettingsTerminal
-        snapshot={profileSnapshot}
-        tenantId={tenantId}
-        avatarPreviewUrl={avatarPreviewUrl}
-      />
-    </DashboardShell>
+      avatarPreviewUrl={avatarPreviewUrl}
+    />
   );
 }

@@ -22,7 +22,7 @@ import {
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
 import {
   fetchSalesOrderById,
-  fetchSalesOrders,
+  fetchSalesOrdersPage,
 } from "@/lib/sales/orders/queries";
 import { formatSalesOrderRpcError } from "@/lib/sales/orders/rpc-errors";
 import {
@@ -75,14 +75,19 @@ export async function loadSalesCustomers(): Promise<CustomerOption[]> {
   return fetchSalesCustomers(supabase, tenantId);
 }
 
-export async function loadSalesOrders(): Promise<SalesOrderRow[]> {
+export async function fetchMoreSalesOrders(offset: number) {
   const { supabase, tenantId, userId } = await requireTenantId();
   const access = await resolveSalesOrderEditAccess(supabase, userId, tenantId);
-  return fetchSalesOrders(
+  return fetchSalesOrdersPage(
     supabase,
     tenantId,
-    salesOrderFetchOptionsForScope(access.locationScope)
+    { offset, ...salesOrderFetchOptionsForScope(access.locationScope) }
   );
+}
+
+export async function loadSalesOrders(): Promise<SalesOrderRow[]> {
+  const page = await fetchMoreSalesOrders(0);
+  return page.rows;
 }
 
 export async function loadSalesOrderDetail(

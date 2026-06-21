@@ -54,7 +54,7 @@ import {
 import { scrollElementInDashboardRoot } from "@/lib/settings/form-section-spy";
 import { cn } from "@/lib/utils";
 
-type Props = {
+type OrganizationSettingsTerminalProps = {
   snapshot: OrganizationSettingsSnapshot;
   access: OrganizationSettingsAccess;
   tenantId: string;
@@ -62,6 +62,8 @@ type Props = {
   groupInvitations?: GroupInvitationRow[];
   reportingLines?: TenantReportingLine[];
 };
+
+export type { OrganizationSettingsTerminalProps };
 
 function SectionAnchor({
   id,
@@ -91,7 +93,7 @@ export function OrganizationSettingsTerminal({
   logoPreviewUrl,
   groupInvitations = [],
   reportingLines = [],
-}: Props) {
+}: OrganizationSettingsTerminalProps) {
   const router = useRouter();
   const omnibar = useOptionalOmnibarContext();
   const formRef = useRef<HTMLFormElement | null>(null);

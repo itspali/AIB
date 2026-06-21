@@ -7,7 +7,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopUtilityStrip } from "@/components/layout/top-utility-strip";
-import { OmnibarProvider } from "@/components/search/omnibar-provider";
+import { OmnibarProviderLazy } from "@/components/search/omnibar-provider-lazy";
 import type { OperatorProfile } from "@/lib/user/types";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +53,7 @@ export function DashboardShell({
   }, [refreshApprovalAlertCount, showModuleNav]);
 
   return (
-    <OmnibarProvider operatorProfile={operatorProfile} tenantId={tenantId}>
+    <OmnibarProviderLazy operatorProfile={operatorProfile} tenantId={tenantId}>
       <div className="flex h-screen flex-col overflow-hidden bg-background">
         <div className="relative z-20 w-full shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
           <TopUtilityStrip
@@ -101,6 +101,6 @@ export function DashboardShell({
           />
         ) : null}
       </div>
-    </OmnibarProvider>
+    </OmnibarProviderLazy>
   );
 }

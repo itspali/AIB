@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TaxTreatmentType } from "@/lib/entities/types";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesQuoteLineRow, SalesQuoteRow } from "@/lib/sales/quotes/types";
 import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
@@ -275,22 +281,29 @@ const QUOTE_DETAIL_SELECT = `
   )
 `;
 
-export async function fetchSalesQuotations(
+export type SalesQuotationsFetchOptions = DocumentListFetchOptions & {
+  status?: SalesDocumentStatus | null;
+};
+
+export async function fetchSalesQuotationsPage(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: { status?: SalesDocumentStatus | null }
-): Promise<SalesQuoteRow[]> {
+  options?: SalesQuotationsFetchOptions
+): Promise<DocumentListPage<SalesQuoteRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+
   let query = supabase
     .from("sales_quotations")
-    .select(QUOTE_LIST_SELECT)
+    .select(QUOTE_LIST_SELECT, { count: "exact" })
     .eq("tenant_id", tenantId)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (options?.status) {
     query = query.eq("commercial_status", options.status);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []).map((row) => mapQuoteListRow(row as QuoteListDbRow));
@@ -298,7 +311,17 @@ export async function fetchSalesQuotations(
     hydrateQuoteCreatorNames(supabase, rows),
     hydrateQuoteApprovalSubmitters(supabase, tenantId, rows),
   ]);
-  return rows;
+
+  return buildDocumentListPage(rows, count ?? rows.length, offset, limit);
+}
+
+export async function fetchSalesQuotations(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: SalesQuotationsFetchOptions
+): Promise<SalesQuoteRow[]> {
+  const page = await fetchSalesQuotationsPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchSalesQuotationById(

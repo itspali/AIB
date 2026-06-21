@@ -11,6 +11,7 @@ import { entityCategoriesHref } from "@/lib/entity-categories/navigation";
 import {
   fetchEntityCategoryCounts,
   fetchEntityCategoryRowById,
+  fetchEntityCategoryRows,
 } from "@/lib/entity-categories/queries";
 import type {
   EntityCategoryFormValues,
@@ -62,6 +63,13 @@ export async function loadEntityCategoryCounts(
 ): Promise<Record<string, number>> {
   const { supabase, tenantId } = await requireTenantId();
   return fetchEntityCategoryCounts(supabase, tenantId, workspace);
+}
+
+export async function loadEntityCategoryRows(
+  workspace: EntityCategoryWorkspace
+): Promise<EntityCategoryRow[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchEntityCategoryRows(supabase, tenantId, workspace);
 }
 
 export async function saveEntityCategory(

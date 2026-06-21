@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fetchGoodsReceiptById, fetchGoodsReceipts } from "@/lib/procurement/goods-receipts/queries";
+import { fetchGoodsReceiptById, fetchGoodsReceiptsPage } from "@/lib/procurement/goods-receipts/queries";
 import { formatGoodsReceiptRpcError } from "@/lib/procurement/goods-receipts/rpc-errors";
 import { validateGrnLinesAgainstOpenQty } from "@/lib/procurement/goods-receipts/schemas";
 import {
@@ -41,9 +41,15 @@ function revalidateGoodsReceiptPaths() {
   }
 }
 
+export async function fetchMoreGoodsReceipts(offset: number) {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchGoodsReceiptsPage(supabase, tenantId, { offset });
+}
+
 export async function loadGoodsReceipts(): Promise<GoodsReceiptRow[]> {
   const { supabase, tenantId } = await requireTenantId();
-  return fetchGoodsReceipts(supabase, tenantId);
+  const page = await fetchGoodsReceiptsPage(supabase, tenantId);
+  return page.rows;
 }
 
 export async function loadGoodsReceiptDetail(

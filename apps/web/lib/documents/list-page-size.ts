@@ -1,0 +1,1 @@
+export const DOCUMENT_LIST_PAGE_SIZE = 50;

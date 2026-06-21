@@ -1,53 +1,37 @@
-import { redirect } from "next/navigation";
 import { AdministrativeAccessDeniedView } from "@/components/settings/administrative-access-denied-view";
-import { GroupSettingsTerminal } from "@/components/settings/group/group-settings-terminal";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { GroupSettingsTerminalLazy } from "@/components/settings/group/group-settings-terminal-lazy";
 import { resolveGroupSettingsAccess } from "@/lib/group/access";
 import {
   fetchGroupSettingsSnapshot,
   fetchPendingGroupInvitationsForGroup,
   fetchUserPrimaryGroupId,
 } from "@/lib/group/queries";
-import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
+import { getModulePageContext } from "@/lib/layout/module-page";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
-import { fetchOperatorProfileForSession } from "@/lib/user/queries";
 import { getSessionClaims } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function GroupSettingsPage() {
-  const [supabase, claims] = await Promise.all([createClient(), getSessionClaims()]);
+  const { supabase, tenantId, userId } = await getModulePageContext();
+  const claims = await getSessionClaims();
 
-  if (!claims?.tenantId) redirect("/signup");
-  const tenantId = claims.tenantId;
-
-  const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
-  if (!onboardingSnapshot) redirect("/signup");
-  if (!hasWorkspaceAccess(onboardingSnapshot)) redirect("/onboarding");
-
-  const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
-
-  const [operatorProfile, approvalAlertCount, orgAccess] = await Promise.all([
-    fetchOperatorProfileForSession(supabase, orgName),
-    fetchApprovalAlertCount(supabase, tenantId),
-    resolveOrganizationSettingsAccess(supabase, claims.userId, tenantId),
+  const [orgAccess, { data: tenantRow }] = await Promise.all([
+    resolveOrganizationSettingsAccess(supabase, userId, tenantId),
+    supabase
+      .from("tenants")
+      .select("group_id, primary_email")
+      .eq("id", tenantId)
+      .maybeSingle(),
   ]);
-
-  const { data: tenantRow } = await supabase
-    .from("tenants")
-    .select("group_id, primary_email")
-    .eq("id", tenantId)
-    .maybeSingle();
 
   const groupId = await fetchUserPrimaryGroupId(
     supabase,
-    claims.userId,
+    userId,
     (tenantRow?.group_id as string | null) ?? null,
-    claims.groupId
+    claims?.groupId ?? null
   );
 
   const access = groupId
-    ? await resolveGroupSettingsAccess(supabase, claims.userId, groupId)
+    ? await resolveGroupSettingsAccess(supabase, userId, groupId)
     : null;
 
   const [snapshot, pendingInvitations] = groupId
@@ -58,32 +42,16 @@ export default async function GroupSettingsPage() {
     : [null, []];
 
   if (groupId && access && !access.granted && snapshot) {
-    return (
-      <DashboardShell
-        orgName={orgName}
-        approvalAlertCount={approvalAlertCount}
-        operatorProfile={operatorProfile}
-        tenantId={tenantId}
-      >
-        <AdministrativeAccessDeniedView />
-      </DashboardShell>
-    );
+    return <AdministrativeAccessDeniedView />;
   }
 
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
-      <GroupSettingsTerminal
-        snapshot={snapshot}
-        access={access}
-        canCreateGroup={orgAccess.isOwner}
-        defaultEmail={claims.email ?? tenantRow?.primary_email ?? ""}
-        pendingInvitations={pendingInvitations}
-      />
-    </DashboardShell>
+    <GroupSettingsTerminalLazy
+      snapshot={snapshot}
+      access={access}
+      canCreateGroup={orgAccess.isOwner}
+      defaultEmail={claims?.email ?? tenantRow?.primary_email ?? ""}
+      pendingInvitations={pendingInvitations}
+    />
   );
 }

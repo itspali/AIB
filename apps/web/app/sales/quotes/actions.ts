@@ -5,7 +5,7 @@ import { lookupStockVariantBySku } from "@/app/inventory/stock/actions";
 import { fetchSalesLocationLabel } from "@/lib/sales/shared/queries";
 import {
   fetchSalesQuotationById,
-  fetchSalesQuotations,
+  fetchSalesQuotationsPage,
 } from "@/lib/sales/quotes/queries";
 import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 import { formatSalesQuoteRpcError } from "@/lib/sales/quotes/rpc-errors";
@@ -49,9 +49,14 @@ function revalidateQuotePaths() {
   }
 }
 
-export async function loadSalesQuotations(): Promise<SalesQuoteRow[]> {
+export async function fetchMoreSalesQuotations(offset: number) {
   const { supabase, tenantId } = await requireTenantId();
-  return fetchSalesQuotations(supabase, tenantId);
+  return fetchSalesQuotationsPage(supabase, tenantId, { offset });
+}
+
+export async function loadSalesQuotations(): Promise<SalesQuoteRow[]> {
+  const page = await fetchMoreSalesQuotations(0);
+  return page.rows;
 }
 
 export async function loadSalesQuotationDetail(

@@ -1,63 +1,25 @@
-import { redirect } from "next/navigation";
 import { OrgSettingsReviewTracker } from "@/components/dashboard/org-settings-review-tracker";
 import { AdministrativeAccessDeniedView } from "@/components/settings/administrative-access-denied-view";
-import { OrganizationSettingsTerminal } from "@/components/settings/organization-settings-terminal";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { OrganizationSettingsTerminalLazy } from "@/components/settings/organization-settings-terminal-lazy";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { getTenantLogoSignedUrl } from "@/lib/organization/logo";
 import { fetchPendingGroupInvitationsForTenant } from "@/lib/group/invitations";
 import { fetchOrganizationSettingsSnapshot } from "@/lib/organization/queries";
 import { fetchTenantReportingLines } from "@/lib/organization/reporting-lines";
-import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
-import { fetchOnboardingSnapshot, hasWorkspaceAccess } from "@/lib/onboarding/status";
-import { fetchOperatorProfileForSession } from "@/lib/user/queries";
-import { getSessionClaims } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getModulePageContext } from "@/lib/layout/module-page";
 
 export default async function OrganizationSettingsPage() {
-  const [supabase, claims] = await Promise.all([createClient(), getSessionClaims()]);
+  const { supabase, tenantId, userId } = await getModulePageContext();
 
-  if (!claims?.tenantId) redirect("/signup");
-  const tenantId = claims.tenantId;
-
-  const onboardingSnapshot = await fetchOnboardingSnapshot(supabase, tenantId);
-  if (!onboardingSnapshot) redirect("/signup");
-
-  if (!hasWorkspaceAccess(onboardingSnapshot)) redirect("/onboarding");
-
-  const orgName = onboardingSnapshot.tenant.trade_name || onboardingSnapshot.tenant.name;
-
-  const [access, operatorProfile, approvalAlertCount] = await Promise.all([
-    resolveOrganizationSettingsAccess(supabase, claims.userId, tenantId),
-    fetchOperatorProfileForSession(supabase, orgName),
-    fetchApprovalAlertCount(supabase, tenantId),
-  ]);
-
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
-    return (
-      <DashboardShell
-        orgName={orgName}
-        approvalAlertCount={approvalAlertCount}
-        operatorProfile={operatorProfile}
-        tenantId={tenantId}
-      >
-        <AdministrativeAccessDeniedView />
-      </DashboardShell>
-    );
+    return <AdministrativeAccessDeniedView />;
   }
 
   const snapshot = await fetchOrganizationSettingsSnapshot(supabase, tenantId);
-
   if (!snapshot) {
     return (
-      <DashboardShell
-        orgName={orgName}
-        approvalAlertCount={approvalAlertCount}
-        operatorProfile={operatorProfile}
-        tenantId={tenantId}
-      >
-        <p className="text-sm text-muted-foreground">Unable to load organization settings.</p>
-      </DashboardShell>
+      <p className="text-sm text-muted-foreground">Unable to load organization settings.</p>
     );
   }
 
@@ -70,14 +32,9 @@ export default async function OrganizationSettingsPage() {
   ]);
 
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
+    <>
       <OrgSettingsReviewTracker />
-      <OrganizationSettingsTerminal
+      <OrganizationSettingsTerminalLazy
         snapshot={snapshot}
         access={access}
         tenantId={tenantId}
@@ -85,6 +42,6 @@ export default async function OrganizationSettingsPage() {
         groupInvitations={groupInvitations}
         reportingLines={reportingLines}
       />
-    </DashboardShell>
+    </>
   );
 }

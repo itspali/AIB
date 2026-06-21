@@ -1,15 +1,19 @@
-import { fetchEntityCategoryRows } from "@/lib/entity-categories/queries";
+import dynamic from "next/dynamic";
+import { EntityCategoryCatalogPageSkeleton } from "@/components/entity-categories/entity-category-catalog-page-skeleton";
 import type { EntityCategoryWorkspace } from "@/lib/entity-categories/types";
-import { getModulePageContext } from "@/lib/layout/module-page";
-import { EntityCategoryManagementTerminal } from "@/components/entity-categories/entity-category-management-terminal";
+
+const EntityCategoryManagementTerminal = dynamic(
+  () =>
+    import("@/components/entity-categories/entity-category-management-terminal").then(
+      (module) => module.EntityCategoryManagementTerminal
+    ),
+  { loading: () => <EntityCategoryCatalogPageSkeleton /> }
+);
 
 type Props = {
   workspace: EntityCategoryWorkspace;
 };
 
 export async function EntityCategoryCatalogLoader({ workspace }: Props) {
-  const { supabase, tenantId } = await getModulePageContext();
-  const rows = await fetchEntityCategoryRows(supabase, tenantId, workspace);
-
-  return <EntityCategoryManagementTerminal workspace={workspace} initialRows={rows} />;
+  return <EntityCategoryManagementTerminal workspace={workspace} initialRows={[]} />;
 }

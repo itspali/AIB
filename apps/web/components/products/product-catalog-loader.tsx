@@ -1,16 +1,23 @@
-import { fetchCategoryRows } from "@/lib/categories/queries";
+import dynamic from "next/dynamic";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { resolveProductCatalogInitialState } from "@/lib/products/catalog-initial-state";
 import { loadUserProductListPrefs } from "@/lib/products/list-prefs-server";
-import { ProductCatalogTerminal } from "@/components/products/product-catalog-terminal";
+import { ProductCatalogPageSkeleton } from "@/components/products/product-catalog-page-skeleton";
+
+const ProductCatalogTerminal = dynamic(
+  () =>
+    import("@/components/products/product-catalog-terminal").then(
+      (module) => module.ProductCatalogTerminal
+    ),
+  { loading: () => <ProductCatalogPageSkeleton /> }
+);
 
 export async function ProductCatalogLoader() {
   const { supabase, tenantId, userId, operatorRole } = await getModulePageContext();
   const prefsPromise = loadUserProductListPrefs(supabase, userId, tenantId);
 
-  const [initialListPrefs, categories, catalogState] = await Promise.all([
+  const [initialListPrefs, catalogState] = await Promise.all([
     prefsPromise,
-    fetchCategoryRows(supabase, tenantId),
     prefsPromise.then((prefs) =>
       resolveProductCatalogInitialState(supabase, tenantId, userId, operatorRole, prefs)
     ),
@@ -24,7 +31,6 @@ export async function ProductCatalogLoader() {
       listHasMore={catalogState.hasMore}
       initialSavedView={catalogState.initialSavedView}
       initialFilteredItemIds={catalogState.initialFilteredItemIds}
-      categories={categories}
       fieldPermissions={catalogState.fieldPermissions}
       initialListPrefs={initialListPrefs}
     />

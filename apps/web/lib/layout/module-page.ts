@@ -3,9 +3,9 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { tenantHasLocations } from "@/lib/auth/post-login-route";
 import { createClient } from "@/lib/supabase/server";
 import { claimsToUserShape, getSessionClaims } from "@/lib/supabase/auth";
+import { getAppShellBootstrap } from "@/lib/layout/app-shell-bootstrap";
 import { fetchOperatorProfile } from "@/lib/user/queries";
 import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile";
 import type { OperatorProfile } from "@/lib/user/types";
@@ -26,28 +26,22 @@ export type ModulePageContext = {
  * and shell data in parallel (avoids fetchOnboardingSnapshot on every navigation).
  */
 export async function loadModulePageContext(): Promise<ModulePageContext> {
-  const supabase = await createClient();
-  const claims = await getSessionClaims();
+  const [supabase, claims, bootstrap] = await Promise.all([
+    createClient(),
+    getSessionClaims(),
+    getAppShellBootstrap(),
+  ]);
 
   if (!claims) redirect("/signup");
 
   const tenantId = claims.tenantId;
   if (!tenantId) redirect("/signup");
 
-  const [{ data: tenant, error: tenantError }, hasLocations, operatorProfile] =
-    await Promise.all([
-      supabase
-        .from("tenants")
-        .select("name, trade_name, onboarding_status")
-        .eq("id", tenantId)
-        .single(),
-      tenantHasLocations(supabase, tenantId),
-      fetchOperatorProfile(supabase, claims.userId, tenantId),
-    ]);
+  if (!bootstrap.tenant) redirect("/signup");
+  if (!bootstrap.hasWorkspaceAccess) redirect("/onboarding");
 
-  if (tenantError || !tenant) redirect("/signup");
-
-  if (!hasLocations) redirect("/onboarding");
+  const tenant = bootstrap.tenant;
+  const operatorProfile = await fetchOperatorProfile(supabase, claims.userId, tenantId);
 
   const orgName = tenant.trade_name || tenant.name;
 

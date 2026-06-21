@@ -3,21 +3,19 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  fetchMoreStockAdjustments,
+  fetchMoreStockBalances,
   loadPromoInventoryBalances,
   loadPromotionalReclassificationBatches,
   loadQcInventoryBalances,
-  loadStockAdjustments,
-  loadStockBalances,
 } from "@/app/inventory/stock/actions";
-import { StockAdjustmentsTable } from "@/components/inventory/stock/stock-adjustments-table";
-import { StockBalancesTable } from "@/components/inventory/stock/stock-balances-table";
-import { StockDrawerForm } from "@/components/inventory/stock/stock-drawer-form";
 import { StockEmptyState } from "@/components/inventory/stock/stock-empty-state";
-import { StockInventoryPoolsView } from "@/components/inventory/stock/stock-inventory-pools-view";
 import { StockListToolbar } from "@/components/inventory/stock/stock-list-toolbar";
-import { StockPromoReclassificationView } from "@/components/inventory/stock/stock-promo-reclassification-view";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import {
   getDefaultStockListPrefs,
   loadStockListPrefs,
@@ -26,6 +24,7 @@ import {
   setStockSortPrefs,
   type StockListPrefs,
 } from "@/lib/inventory/stock/list-prefs";
+import type { StockAdjustmentColumnId, StockBalanceColumnId } from "@/lib/inventory/stock/list-columns";
 import {
   sortStockAdjustmentRows,
   sortStockBalanceRows,
@@ -56,9 +55,38 @@ import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 const STOCK_PAGE_DESCRIPTION =
   "Review on-hand balances by location and post location-scoped stock adjustments.";
 
+const StockDrawerForm = lazyClientExport(
+  () => import("@/components/inventory/stock/stock-drawer-form"),
+  "StockDrawerForm"
+);
+
+const StockInventoryPoolsView = lazyClientExport(
+  () => import("@/components/inventory/stock/stock-inventory-pools-view"),
+  "StockInventoryPoolsView"
+);
+
+const StockPromoReclassificationView = lazyClientExport(
+  () => import("@/components/inventory/stock/stock-promo-reclassification-view"),
+  "StockPromoReclassificationView"
+);
+
+const StockBalancesTable = lazyClientExport(
+  () => import("@/components/inventory/stock/stock-balances-table"),
+  "StockBalancesTable"
+);
+
+const StockAdjustmentsTable = lazyClientExport(
+  () => import("@/components/inventory/stock/stock-adjustments-table"),
+  "StockAdjustmentsTable"
+);
+
 type Props = {
   initialBalances: StockBalanceRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   initialAdjustments: StockAdjustmentRow[];
+  adjustmentsTotalCount?: number;
+  adjustmentsHasMore?: boolean;
   initialPromoBalances?: PromoInventoryBalanceRow[];
   initialQcBalances?: QcInventoryBalanceRow[];
   initialDraftBatches?: PromotionalBatchRow[];
@@ -67,7 +95,11 @@ type Props = {
 
 export function StockManagementTerminal({
   initialBalances,
+  listTotalCount = initialBalances.length,
+  listHasMore = false,
   initialAdjustments,
+  adjustmentsTotalCount = initialAdjustments.length,
+  adjustmentsHasMore = false,
   initialPromoBalances = [],
   initialQcBalances = [],
   initialDraftBatches = [],
@@ -77,11 +109,44 @@ export function StockManagementTerminal({
   const drawer = useModuleDrawerUrl(STOCK_HREF, {
     clearParamsOnClose: [STOCK_DRAWER_LOCATION_PARAM],
   });
-  const [balances, setBalances] = useState(initialBalances);
-  const [adjustments, setAdjustments] = useState(initialAdjustments);
+  const {
+    rows: balances,
+    totalCount: balanceServerTotalCount,
+    hasMore: balanceHasMore,
+    isLoadingMore: balanceLoadingMore,
+    refreshList: refreshBalances,
+    loadMore: loadMoreBalances,
+  } = useDocumentListPagination(
+    initialBalances,
+    listTotalCount,
+    listHasMore,
+    fetchMoreStockBalances,
+    "balances"
+  );
+  const {
+    rows: adjustments,
+    totalCount: adjustmentServerTotalCount,
+    hasMore: adjustmentHasMore,
+    isLoadingMore: adjustmentLoadingMore,
+    refreshList: refreshAdjustments,
+    loadMore: loadMoreAdjustments,
+  } = useDocumentListPagination(
+    initialAdjustments,
+    adjustmentsTotalCount,
+    adjustmentsHasMore,
+    fetchMoreStockAdjustments,
+    "adjustments"
+  );
   const [promoBalances, setPromoBalances] = useState(initialPromoBalances);
   const [qcBalances, setQcBalances] = useState(initialQcBalances);
   const [draftBatches, setDraftBatches] = useState(initialDraftBatches);
+  const [promoDataLoaded, setPromoDataLoaded] = useState(initialPromoBalances.length > 0);
+  const [poolDataLoaded, setPoolDataLoaded] = useState(
+    initialPromoBalances.length > 0 && initialQcBalances.length > 0
+  );
+  const [reclassificationDataLoaded, setReclassificationDataLoaded] = useState(
+    initialDraftBatches.length > 0
+  );
   const [prefs, setPrefs] = useState<StockListPrefs>(getDefaultStockListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [, startRefreshTransition] = useTransition();
@@ -96,34 +161,65 @@ export function StockManagementTerminal({
     saveStockListPrefs(prefs);
   }, [prefs, prefsHydrated]);
 
-  const refreshLists = useCallback(() => {
+  useEffect(() => {
+    if (promoDataLoaded) return;
     startRefreshTransition(async () => {
-      const [nextBalances, nextAdjustments] = await Promise.all([
-        loadStockBalances(),
-        loadStockAdjustments(),
-      ]);
-      setBalances(nextBalances);
-      setAdjustments(nextAdjustments);
+      const nextPromoBalances = await loadPromoInventoryBalances();
+      setPromoBalances(nextPromoBalances);
+      setPromoDataLoaded(true);
     });
-  }, []);
+  }, [promoDataLoaded]);
+
+  const refreshLists = useCallback(() => {
+    refreshBalances();
+    refreshAdjustments();
+  }, [refreshAdjustments, refreshBalances]);
 
   const refreshPromoData = useCallback(() => {
+    refreshBalances();
+    refreshAdjustments();
     startRefreshTransition(async () => {
-      const [nextBalances, nextAdjustments, nextPromoBalances, nextQcBalances, nextDraftBatches] =
-        await Promise.all([
-          loadStockBalances(),
-          loadStockAdjustments(),
-          loadPromoInventoryBalances(),
-          loadQcInventoryBalances(),
-          loadPromotionalReclassificationBatches(),
-        ]);
-      setBalances(nextBalances);
-      setAdjustments(nextAdjustments);
+      const [nextPromoBalances, nextQcBalances, nextDraftBatches] = await Promise.all([
+        loadPromoInventoryBalances(),
+        loadQcInventoryBalances(),
+        loadPromotionalReclassificationBatches(),
+      ]);
       setPromoBalances(nextPromoBalances);
       setQcBalances(nextQcBalances);
       setDraftBatches(nextDraftBatches);
+      setPromoDataLoaded(true);
+      setPoolDataLoaded(true);
+      setReclassificationDataLoaded(true);
     });
-  }, []);
+  }, [refreshAdjustments, refreshBalances]);
+
+  useEffect(() => {
+    if (prefs.viewMode !== "inventory_pools" || poolDataLoaded) return;
+    startRefreshTransition(async () => {
+      const [nextPromoBalances, nextQcBalances] = await Promise.all([
+        loadPromoInventoryBalances(),
+        loadQcInventoryBalances(),
+      ]);
+      setPromoBalances(nextPromoBalances);
+      setQcBalances(nextQcBalances);
+      setPromoDataLoaded(true);
+      setPoolDataLoaded(true);
+    });
+  }, [poolDataLoaded, prefs.viewMode]);
+
+  useEffect(() => {
+    if (prefs.viewMode !== "promo_reclassification" || reclassificationDataLoaded) return;
+    startRefreshTransition(async () => {
+      const [nextPromoBalances, nextDraftBatches] = await Promise.all([
+        loadPromoInventoryBalances(),
+        loadPromotionalReclassificationBatches(),
+      ]);
+      setPromoBalances(nextPromoBalances);
+      setDraftBatches(nextDraftBatches);
+      setPromoDataLoaded(true);
+      setReclassificationDataLoaded(true);
+    });
+  }, [prefs.viewMode, reclassificationDataLoaded]);
 
   const balancesView = useFilteredStockBalances(balances, prefs.locationId);
   const adjustmentsView = useFilteredStockAdjustments(adjustments, prefs.locationId);
@@ -166,9 +262,9 @@ export function StockManagementTerminal({
         ? inventoryPoolsCount
         : promoReclassificationCount;
   const totalCount = isBalancesView
-    ? balancesView.totalCount
+    ? balanceServerTotalCount
     : isAdjustmentsView
-      ? adjustmentsView.totalCount
+      ? adjustmentServerTotalCount
       : isInventoryPoolsView
         ? inventoryPoolsCount
         : promoReclassificationCount;
@@ -318,20 +414,30 @@ export function StockManagementTerminal({
           </div>
         </div>
       ) : (
-        <StockBalancesTable
-          rows={sortedBalanceRows}
-          columnPrefs={prefs.balanceColumnPrefs}
-          sortField={prefs.balanceSortField}
-          sortDirection={prefs.balanceSortDirection}
-          frozenColumnCount={prefs.frozenColumnCount}
-          onSortChange={handleBalanceSortChange}
-          onColumnWidthChange={(columnId, width) =>
-            setPrefs((current) => setStockColumnWidth(current, columnId, width))
-          }
-          selectedId={peekBalance?.id ?? null}
-          onSelect={(row) => handleSelectBalance(row.id)}
-          onAdjust={handleAdjustBalance}
-        />
+        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+          <StockBalancesTable
+            rows={sortedBalanceRows}
+            columnPrefs={prefs.balanceColumnPrefs}
+            sortField={prefs.balanceSortField}
+            sortDirection={prefs.balanceSortDirection}
+            frozenColumnCount={prefs.frozenColumnCount}
+            onSortChange={handleBalanceSortChange}
+            onColumnWidthChange={(columnId: StockBalanceColumnId, width: number | null) =>
+              setPrefs((current) => setStockColumnWidth(current, columnId, width))
+            }
+            selectedId={peekBalance?.id ?? null}
+            onSelect={(row: StockBalanceRow) => handleSelectBalance(row.id)}
+            onAdjust={handleAdjustBalance}
+          />
+          <ListLoadMoreFooter
+            visibleCount={balances.length}
+            totalCount={balanceServerTotalCount}
+            hasMore={balanceHasMore}
+            isLoadingMore={balanceLoadingMore}
+            onLoadMore={loadMoreBalances}
+            noun="balances"
+          />
+        </div>
       )
     ) : sortedAdjustmentRows.length === 0 ? (
       <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
@@ -340,19 +446,29 @@ export function StockManagementTerminal({
         </div>
       </div>
     ) : (
-      <StockAdjustmentsTable
-        rows={sortedAdjustmentRows}
-        columnPrefs={prefs.adjustmentColumnPrefs}
-        sortField={prefs.adjustmentSortField}
-        sortDirection={prefs.adjustmentSortDirection}
-        frozenColumnCount={prefs.frozenColumnCount}
-        onSortChange={handleAdjustmentSortChange}
-        onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setStockColumnWidth(current, columnId, width))
-        }
-        selectedId={selectedDrawerId}
-        onSelect={handleSelectAdjustment}
-      />
+      <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+        <StockAdjustmentsTable
+          rows={sortedAdjustmentRows}
+          columnPrefs={prefs.adjustmentColumnPrefs}
+          sortField={prefs.adjustmentSortField}
+          sortDirection={prefs.adjustmentSortDirection}
+          frozenColumnCount={prefs.frozenColumnCount}
+          onSortChange={handleAdjustmentSortChange}
+          onColumnWidthChange={(columnId: StockAdjustmentColumnId, width: number | null) =>
+            setPrefs((current) => setStockColumnWidth(current, columnId, width))
+          }
+          selectedId={selectedDrawerId}
+          onSelect={handleSelectAdjustment}
+        />
+        <ListLoadMoreFooter
+          visibleCount={adjustments.length}
+          totalCount={adjustmentServerTotalCount}
+          hasMore={adjustmentHasMore}
+          isLoadingMore={adjustmentLoadingMore}
+          onLoadMore={loadMoreAdjustments}
+          noun="adjustments"
+        />
+      </div>
     );
 
   return (
@@ -386,17 +502,19 @@ export function StockManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <StockDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        locations={locations}
-        peekAdjustment={peekAdjustment}
-        peekBalance={peekBalance}
-        onAdjustBalance={handleAdjustBalance}
-        createPrefill={createPrefill}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-      />
+      {drawer.isOpen ? (
+        <StockDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          locations={locations}
+          peekAdjustment={peekAdjustment}
+          peekBalance={peekBalance}
+          onAdjustBalance={handleAdjustBalance}
+          createPrefill={createPrefill}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+        />
+      ) : null}
     </>
   );
 }

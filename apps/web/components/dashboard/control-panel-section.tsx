@@ -1,5 +1,5 @@
-import { ControlPanel } from "@/components/dashboard/control-panel";
+import { ControlPanelLazy } from "@/components/dashboard/control-panel-lazy";
 
 export async function ControlPanelSection() {
-  return <ControlPanel />;
+  return <ControlPanelLazy />;
 }

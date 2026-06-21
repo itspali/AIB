@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   fetchStockTransferById,
   fetchStockTransfers,
+  fetchStockTransfersPage,
   fetchTransferLocationLabel,
   fetchTransferLocations,
 } from "@/lib/inventory/transfers/queries";
@@ -64,9 +65,15 @@ export async function loadTransferLocations(): Promise<TransferLocationOption[]>
   return fetchTransferLocations(supabase, tenantId);
 }
 
+export async function fetchMoreStockTransfers(offset: number) {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchStockTransfersPage(supabase, tenantId, { offset });
+}
+
 export async function loadStockTransfers(): Promise<StockTransferRow[]> {
   const { supabase, tenantId } = await requireTenantId();
-  return fetchStockTransfers(supabase, tenantId);
+  const page = await fetchStockTransfersPage(supabase, tenantId);
+  return page.rows;
 }
 
 export async function loadStockTransferDetail(

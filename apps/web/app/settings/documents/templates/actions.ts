@@ -17,7 +17,12 @@ import type { DocumentLayoutScope } from "@/lib/documents/layout-scope";
 import { TENANT_LAYOUT_SCOPE } from "@/lib/documents/layout-scope";
 import type { DocumentPresentationTemplate, PresentationViewContext } from "@/lib/documents/print/types";
 import type { DocumentModuleKey } from "@/lib/documents/types";
+import {
+  fetchDocumentTemplatesModuleBundle,
+  type DocumentTemplatesModuleBundle,
+} from "@/lib/documents/document-templates-module-bundle";
 import { renderDocumentDesignerPreviewHtml } from "@/lib/documents/print/render-designer-preview";
+import { fetchPoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { DocumentPrintModel } from "@/lib/documents/build-document-print-model";
 import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-context";
@@ -359,6 +364,35 @@ export async function loadPresentationTemplatePreview(input: {
 const designerPreviewSchema = saveSchema.extend({
   layout: z.custom<DocumentLayoutTemplate>(),
 });
+
+export async function loadDocumentTemplatesModuleBundle(
+  moduleKey: DocumentModuleKey
+): Promise<DocumentTemplatesModuleBundle | { error: string }> {
+  const parsed = moduleKeySchema.safeParse(moduleKey);
+  if (!parsed.success) {
+    return { error: "Invalid document module." };
+  }
+
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    return fetchDocumentTemplatesModuleBundle(supabase, tenantId, parsed.data);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to load template module." };
+  }
+}
+
+export async function loadDocumentTemplateCatalogFieldSuggestions():
+  Promise<{ suggestions: Awaited<ReturnType<typeof fetchPoCatalogFieldSuggestions>> } | { error: string }> {
+  try {
+    const { supabase, tenantId } = await requireTenantId();
+    const suggestions = await fetchPoCatalogFieldSuggestions(supabase, tenantId);
+    return { suggestions };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to load catalog field suggestions.",
+    };
+  }
+}
 
 export async function loadDocumentDesignerPreview(input: {
   moduleKey: DocumentModuleKey;

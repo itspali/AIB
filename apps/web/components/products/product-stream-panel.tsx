@@ -6,13 +6,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { hydrateProductListImageUrls, saveProductListUserPrefs } from "@/app/items/actions";
-import { ProductListCompact } from "@/components/products/product-list-compact";
-import { ProductListImageGallery } from "@/components/products/product-list-image-gallery";
 import { ProductListSkeleton } from "@/components/products/product-list-skeleton";
-import { ProductListTable } from "@/components/products/product-list-table";
-import { ProductListToolbar } from "@/components/products/product-list-toolbar";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import {
-  ProductBulkActionToolbar,
   type BulkToolbarAction,
 } from "@/components/products/product-bulk-action-toolbar";
 import { useDeviceClass } from "@/hooks/use-device-class";
@@ -48,13 +44,34 @@ import {
   productListRowKey,
   injectVariantParentRows,
 } from "@/lib/products/list-row-key";
-import { sortProductListRows } from "@/lib/products/list-sort";
+import { sortProductListRows, type ProductListSortDirection, type ProductListSortField } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
 import { resolveListPaneLayoutOverrides } from "@/lib/products/list-pane-layout";
 import { useElementWidth } from "@/lib/layout/use-element-width";
 import { applyFallbackTextFilter } from "@/lib/search/executor/apply-fallback-text";
 import { ITEMS_HREF } from "@/lib/products/item-navigation";
 import { isItemsRouteSessionActive } from "@/lib/products/items-route-generation";
+
+const ProductListCompact = lazyClientExport(
+  () => import("@/components/products/product-list-compact"),
+  "ProductListCompact"
+);
+const ProductListImageGallery = lazyClientExport(
+  () => import("@/components/products/product-list-image-gallery"),
+  "ProductListImageGallery"
+);
+const ProductListTable = lazyClientExport(
+  () => import("@/components/products/product-list-table"),
+  "ProductListTable"
+);
+const ProductListToolbar = lazyClientExport(
+  () => import("@/components/products/product-list-toolbar"),
+  "ProductListToolbar"
+);
+const ProductBulkActionToolbar = lazyClientExport(
+  () => import("@/components/products/product-bulk-action-toolbar"),
+  "ProductBulkActionToolbar"
+);
 
 const PREFS_SAVE_DEBOUNCE_MS = 500;
 /** One hydration request per list load; avoids menu navigation POST storms. */
@@ -619,7 +636,7 @@ export function ProductStreamPanel({
       sortDirection={prefs.sortDirection}
       frozenColumnCount={listPaneLayout.frozenColumnCount}
       freezeColumnsAuto={listPaneLayout.freezeColumnsAuto}
-      onSortChange={(sortField, sortDirection) =>
+      onSortChange={(sortField: ProductListSortField, sortDirection: ProductListSortDirection) =>
         handlePrefsChange((current) => ({ ...current, sortField, sortDirection }))
       }
       onColumnWidthChange={handleColumnWidthChange}
@@ -627,7 +644,7 @@ export function ProductStreamPanel({
       onProductHover={onProductHover}
       onProductPointerEnter={onProductPointerEnter}
       onBulkRowToggle={onBulkRowToggle}
-      onBulkPageToggle={(checked) => onBulkPageToggle(displayedRowKeys, checked)}
+      onBulkPageToggle={(checked: boolean) => onBulkPageToggle(displayedRowKeys, checked)}
       onImageClick={handleImageClick}
     />
   );
@@ -635,18 +652,18 @@ export function ProductStreamPanel({
   const toolbar = (
     <ProductListToolbar
       categoryFilter={categoryFilter}
-      onCategoryFilterChange={(value) => {
+      onCategoryFilterChange={(value: string) => {
         setCategoryFilter(value);
         onCategoryFilterChange?.(value);
       }}
       categoryOptions={categoryOptions}
       prefs={prefs}
       onPrefsChange={handlePrefsChange}
-      onShowVariantsChange={(checked) => {
+      onShowVariantsChange={(checked: boolean) => {
         const nextExpand = resolveProductListExpandVariants(checked, displayViewMode);
         onExpandVariantsChange?.(nextExpand, "user");
       }}
-      onExpandVariantsChange={(nextExpand) => {
+      onExpandVariantsChange={(nextExpand: boolean) => {
         onExpandVariantsChange?.(nextExpand, "user");
       }}
       fieldPermissions={fieldPermissions}

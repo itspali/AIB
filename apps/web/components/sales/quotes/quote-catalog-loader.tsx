@@ -1,4 +1,5 @@
-import { QuoteManagementTerminal } from "@/components/sales/quotes/quote-management-terminal";
+import dynamic from "next/dynamic";
+import { QuoteCatalogPageSkeleton } from "@/components/sales/quotes/quote-catalog-page-skeleton";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
@@ -6,17 +7,25 @@ import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
 } from "@/lib/procurement/location-scope";
-import { fetchSalesQuotations } from "@/lib/sales/quotes/queries";
+import { fetchSalesQuotationsPage } from "@/lib/sales/quotes/queries";
 import { fetchSalesSettings } from "@/lib/sales/settings";
 import { fetchSalesCustomers, fetchSalesLocations } from "@/lib/sales/shared/queries";
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 
+const QuoteManagementTerminal = dynamic(
+  () =>
+    import("@/components/sales/quotes/quote-management-terminal").then(
+      (module) => module.QuoteManagementTerminal
+    ),
+  { loading: () => <QuoteCatalogPageSkeleton /> }
+);
+
 export async function QuoteCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, gstRegistered] =
+  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, gstRegistered, quotesPage] =
     await Promise.all([
       fetchSalesLocations(supabase, tenantId),
       fetchSalesCustomers(supabase, tenantId),
@@ -36,6 +45,7 @@ export async function QuoteCatalogLoader() {
       }),
       fetchActivePoLineTaxCodeOptions(supabase, tenantId),
       fetchOrganizationGstRegistered(supabase, tenantId),
+      fetchSalesQuotationsPage(supabase, tenantId),
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
@@ -43,14 +53,15 @@ export async function QuoteCatalogLoader() {
     scopedLocations,
     editAccess.locationScope
   );
-  const quotes = await fetchSalesQuotations(supabase, tenantId);
 
   const defaultCurrency = (tenantRow.data?.base_currency as string | undefined) ?? "USD";
   const tenantCountry = (tenantRow.data?.billing_country_code as string | undefined) ?? null;
 
   return (
     <QuoteManagementTerminal
-      initialQuotes={quotes}
+      initialQuotes={quotesPage.rows}
+      listTotalCount={quotesPage.totalCount}
+      listHasMore={quotesPage.hasMore}
       customers={customers}
       locations={scopedLocations}
       editAccessGranted={editAccess.granted}

@@ -23,7 +23,7 @@ import {
   type GroupSettingsSnapshot,
 } from "@/lib/group/types";
 
-type Props = {
+export type GroupSettingsTerminalProps = {
   snapshot: GroupSettingsSnapshot | null;
   access: GroupSettingsAccess | null;
   canCreateGroup: boolean;
@@ -37,7 +37,7 @@ export function GroupSettingsTerminal({
   canCreateGroup,
   defaultEmail,
   pendingInvitations = [],
-}: Props) {
+}: GroupSettingsTerminalProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [createName, setCreateName] = useState("");

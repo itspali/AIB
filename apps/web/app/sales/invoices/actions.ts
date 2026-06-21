@@ -8,7 +8,7 @@ import { mapSalesOrderToInvoiceDraft, mapSalesQuoteToInvoiceDraft } from "@/lib/
 import {
   fetchInvoicePaymentApplications,
   fetchSalesInvoiceById,
-  fetchSalesInvoices,
+  fetchSalesInvoicesPage,
 } from "@/lib/sales/invoices/queries";
 import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-commerce-line-rpc";
 import { formatSalesInvoiceRpcError } from "@/lib/sales/invoices/rpc-errors";
@@ -55,9 +55,14 @@ function revalidateInvoicePaths() {
   }
 }
 
-export async function loadSalesInvoices(): Promise<SalesInvoiceRow[]> {
+export async function fetchMoreSalesInvoices(offset: number) {
   const { supabase, tenantId } = await requireTenantId();
-  return fetchSalesInvoices(supabase, tenantId);
+  return fetchSalesInvoicesPage(supabase, tenantId, { offset });
+}
+
+export async function loadSalesInvoices(): Promise<SalesInvoiceRow[]> {
+  const page = await fetchMoreSalesInvoices(0);
+  return page.rows;
 }
 
 export async function loadSalesInvoiceDetail(

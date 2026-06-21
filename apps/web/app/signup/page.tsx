@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import SignupPageClient from "./signup-client";
+import { SignupPageClientLazy } from "@/components/auth/signup-page-client-lazy";
 import { Card, CardContent } from "@/components/ui/card";
 import { SignupProgressSteps } from "@/components/auth/signup-progress-steps";
 
@@ -18,7 +18,7 @@ function SignupFallback() {
 export default function SignupPage() {
   return (
     <Suspense fallback={<SignupFallback />}>
-      <SignupPageClient />
+      <SignupPageClientLazy />
     </Suspense>
   );
 }

@@ -3,10 +3,10 @@
 import { useCallback, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadSalesShipments } from "@/app/fulfillment/shipping/actions";
-import { FulfillmentShippingDrawerForm } from "@/components/fulfillment/shipping/fulfillment-shipping-drawer-form";
 import { FulfillmentShippingListTable } from "@/components/fulfillment/shipping/fulfillment-shipping-list-table";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import {
   FULFILLMENT_SHIPPING_HREF,
   SHIPMENT_DRAWER_SO_PARAM,
@@ -16,6 +16,11 @@ import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 
 const PAGE_DESCRIPTION =
   "Post customer shipments against confirmed sales orders and move reserved stock out of inventory.";
+
+const FulfillmentShippingDrawerForm = lazyClientExport(
+  () => import("@/components/fulfillment/shipping/fulfillment-shipping-drawer-form"),
+  "FulfillmentShippingDrawerForm"
+);
 
 type Props = {
   initialShipments: SalesShipmentRow[];
@@ -68,14 +73,16 @@ export function FulfillmentShippingManagementTerminal({ initialShipments }: Prop
         </div>
       </ListModuleShell>
 
-      <FulfillmentShippingDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface === "create" ? "create" : "peek"}
-        shipmentId={drawer.surface === "peek" ? drawer.recordId : null}
-        prefillSalesOrderId={drawer.surface === "create" ? prefillSalesOrderId : null}
-        onClose={drawer.close}
-        onAfterPost={handleAfterPost}
-      />
+      {drawer.isOpen ? (
+        <FulfillmentShippingDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface === "create" ? "create" : "peek"}
+          shipmentId={drawer.surface === "peek" ? drawer.recordId : null}
+          prefillSalesOrderId={drawer.surface === "create" ? prefillSalesOrderId : null}
+          onClose={drawer.close}
+          onAfterPost={handleAfterPost}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,3 @@
-import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ProcurementModuleSettingsTerminal } from "@/components/settings/modules/procurement-module-settings-terminal";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
@@ -15,8 +14,7 @@ import {
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 
 export default async function ProcurementModuleSettingsPage() {
-  const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
-    await getModulePageContext();
+  const { supabase, tenantId, userId } = await getModulePageContext();
 
   const [
     access,
@@ -42,22 +40,15 @@ export default async function ProcurementModuleSettingsPage() {
   );
 
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
-      <ProcurementModuleSettingsTerminal
-        canEdit={access.granted}
-        procurementSettings={procurementSettings}
-        approvalSettings={approvalSettings}
-        eligibleUsers={eligibleUsers}
-        approverProfiles={approverProfiles}
-        financialSettings={financialSettings}
-        expenseAccounts={expenseAccounts}
-        liabilityAccounts={liabilityAccounts}
-      />
-    </DashboardShell>
+    <ProcurementModuleSettingsTerminal
+      canEdit={access.granted}
+      procurementSettings={procurementSettings}
+      approvalSettings={approvalSettings}
+      eligibleUsers={eligibleUsers}
+      approverProfiles={approverProfiles}
+      financialSettings={financialSettings}
+      expenseAccounts={expenseAccounts}
+      liabilityAccounts={liabilityAccounts}
+    />
   );
 }

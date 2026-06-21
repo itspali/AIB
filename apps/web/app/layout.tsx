@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { cookies } from "next/headers";
+import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-context";
-import { createClient } from "@/lib/supabase/server";
-import { getSessionClaims, getSessionTenantId } from "@/lib/supabase/auth";
-import { fetchThemePolicyForSession } from "@/lib/theme/queries";
+import { getAppShellBootstrap } from "@/lib/layout/app-shell-bootstrap";
 import { buildThemeInitScript, normalizeStoredTheme, themeToHtmlClass } from "@/lib/theme/themes";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
 
 const themeInitScript = buildThemeInitScript();
 
@@ -18,37 +22,12 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [tenantId, themeCookie, claims] = await Promise.all([
-    getSessionTenantId(),
-    cookies().then((store) => store.get("aib-theme")?.value),
-    getSessionClaims(),
-  ]);
+  const bootstrap = await getAppShellBootstrap();
 
-  let themePolicy = null;
-  let initialComplete = false;
-  let initialWorkspaceAccess = false;
-
-  if (tenantId) {
-    const supabase = await createClient();
-    const [{ data }, { count: locationCount }, resolvedThemePolicy] = await Promise.all([
-      supabase.from("tenants").select("onboarding_status").eq("id", tenantId).single(),
-      supabase
-        .from("tenant_locations")
-        .select("*", { count: "exact", head: true })
-        .eq("tenant_id", tenantId),
-      claims?.userId
-        ? fetchThemePolicyForSession(supabase, tenantId, claims.userId)
-        : Promise.resolve(null),
-    ]);
-    themePolicy = resolvedThemePolicy;
-    initialComplete = data?.onboarding_status === "GO_LIVE_READY";
-    initialWorkspaceAccess = (locationCount ?? 0) > 0;
-  }
-
-  const storedTheme = normalizeStoredTheme(themeCookie);
-  const ssrTheme = themePolicy?.canChangeTheme
+  const storedTheme = normalizeStoredTheme(bootstrap.themeCookie);
+  const ssrTheme = bootstrap.themePolicy?.canChangeTheme
     ? storedTheme
-    : (themePolicy?.enforcedTheme ?? storedTheme);
+    : (bootstrap.themePolicy?.enforcedTheme ?? storedTheme);
   const themeClass = themeToHtmlClass(ssrTheme);
 
   return (
@@ -57,14 +36,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={themeClass}
       suppressHydrationWarning
     >
-      <body className="min-h-screen font-sans antialiased" suppressHydrationWarning>
+      <body
+        className={`${inter.variable} min-h-screen font-sans antialiased`}
+        suppressHydrationWarning
+      >
         <Script id="aib-theme-init" strategy="beforeInteractive">
           {themeInitScript}
         </Script>
-        <Providers themePolicy={themePolicy}>
+        <Providers themePolicy={bootstrap.themePolicy}>
           <OnboardingProvider
-            initialComplete={initialComplete}
-            initialWorkspaceAccess={initialWorkspaceAccess}
+            initialComplete={bootstrap.onboardingComplete}
+            initialWorkspaceAccess={bootstrap.hasWorkspaceAccess}
           >
             {children}
             <Toaster

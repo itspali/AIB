@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTenantIdFromSession } from "@/lib/onboarding/status";
 import { fetchTaxRateRegistry } from "@/lib/dashboard/queries";
-import { TaxPolicyGrid } from "@/components/dashboard/tax-policy-grid";
+import { TaxPolicyGridLazy } from "@/components/dashboard/tax-policy-grid-lazy";
 
 export async function TaxPolicySection() {
   const supabase = await createClient();
@@ -9,5 +9,5 @@ export async function TaxPolicySection() {
   if (!tenantId) return null;
 
   const rows = await fetchTaxRateRegistry(supabase, tenantId);
-  return <TaxPolicyGrid rows={rows} />;
+  return <TaxPolicyGridLazy rows={rows} />;
 }

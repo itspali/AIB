@@ -1,4 +1,3 @@
-import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { SalesModuleSettingsTerminal } from "@/components/settings/modules/sales-module-settings-terminal";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import {
@@ -10,8 +9,7 @@ import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server
 import { fetchSalesSettings } from "@/lib/sales/settings";
 
 export default async function SalesModuleSettingsPage() {
-  const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
-    await getModulePageContext();
+  const { supabase, tenantId, userId } = await getModulePageContext();
 
   const [access, approvalSettings, salesSettings, eligibleUsers] = await Promise.all([
     resolveOrganizationSettingsAccess(supabase, userId, tenantId),
@@ -31,19 +29,12 @@ export default async function SalesModuleSettingsPage() {
   const approverProfiles = await fetchWorkspaceUserProfiles(supabase, approverUserIds);
 
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
-      <SalesModuleSettingsTerminal
-        canEdit={access.granted}
-        approvalSettings={approvalSettings}
-        documentConversionMode={salesSettings.document_conversion_mode}
-        eligibleUsers={eligibleUsers}
-        approverProfiles={approverProfiles}
-      />
-    </DashboardShell>
+    <SalesModuleSettingsTerminal
+      canEdit={access.granted}
+      approvalSettings={approvalSettings}
+      documentConversionMode={salesSettings.document_conversion_mode}
+      eligibleUsers={eligibleUsers}
+      approverProfiles={approverProfiles}
+    />
   );
 }

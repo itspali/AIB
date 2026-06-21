@@ -35,6 +35,7 @@ import {
   resolveBulkTargetItemIds,
   type ResolveBulkTargetInput,
 } from "@/app/items/actions";
+import { loadCategoryRows } from "@/app/items/categories/actions";
 import {
   enrichProductDetailSnapshot,
   peekItemCacheKey,
@@ -50,20 +51,9 @@ import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider"
 import {
   type BulkToolbarAction,
 } from "@/components/products/product-bulk-action-toolbar";
-import { ProductBulkArchiveAlert } from "@/components/products/product-bulk-archive-alert";
-import { ProductBulkJurisdictionDialog } from "@/components/products/product-bulk-jurisdiction-dialog";
-import { ProductBulkPricingDialog } from "@/components/products/product-bulk-pricing-dialog";
-import {
-  ProductBulkCategoryDialog,
-  ProductBulkClassificationDialog,
-  ProductBulkFlagsDialog,
-  ProductBulkStorefrontDialog,
-  ProductBulkTagsDialog,
-  ProductBulkTaxCategoryDialog,
-} from "@/components/products/product-bulk-secondary-dialogs";
-import { NewItemLinkContent } from "@/components/products/new-item-link-content";
-import { ProductItemDrawer } from "@/components/products/product-item-drawer";
-import { ProductStreamPanel } from "@/components/products/product-stream-panel";
+import dynamic from "next/dynamic";
+import { ProductListSkeleton } from "@/components/products/product-list-skeleton";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { Button } from "@/components/ui/button";
 import {
   buildModuleHref,
@@ -127,6 +117,19 @@ import { ITEMS_HREF } from "@/lib/products/item-navigation";
 const ITEMS_PAGE_DESCRIPTION =
   "Manage products, classifications, variants, and stock balances.";
 
+const ProductStreamPanel = dynamic(
+  () =>
+    import("@/components/products/product-stream-panel").then(
+      (module) => module.ProductStreamPanel
+    ),
+  { ssr: false, loading: () => <ProductListSkeleton viewMode="table" /> }
+);
+
+const NewItemLinkContent = lazyClientExport(
+  () => import("@/components/products/new-item-link-content"),
+  "NewItemLinkContent"
+);
+
 function ItemsPageTitleHeader({ onNewItem }: { onNewItem: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2.5">
@@ -159,6 +162,47 @@ function filterItemIdsKey(ids: Iterable<string> | null | undefined): string {
   return [...ids].sort().join(",");
 }
 
+const ProductItemDrawer = lazyClientExport(
+  () => import("@/components/products/product-item-drawer"),
+  "ProductItemDrawer"
+);
+const ProductBulkPricingDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-pricing-dialog"),
+  "ProductBulkPricingDialog"
+);
+const ProductBulkJurisdictionDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-jurisdiction-dialog"),
+  "ProductBulkJurisdictionDialog"
+);
+const ProductBulkArchiveAlert = lazyClientExport(
+  () => import("@/components/products/product-bulk-archive-alert"),
+  "ProductBulkArchiveAlert"
+);
+const ProductBulkCategoryDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-secondary-dialogs"),
+  "ProductBulkCategoryDialog"
+);
+const ProductBulkClassificationDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-secondary-dialogs"),
+  "ProductBulkClassificationDialog"
+);
+const ProductBulkTaxCategoryDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-secondary-dialogs"),
+  "ProductBulkTaxCategoryDialog"
+);
+const ProductBulkFlagsDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-secondary-dialogs"),
+  "ProductBulkFlagsDialog"
+);
+const ProductBulkTagsDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-secondary-dialogs"),
+  "ProductBulkTagsDialog"
+);
+const ProductBulkStorefrontDialog = lazyClientExport(
+  () => import("@/components/products/product-bulk-secondary-dialogs"),
+  "ProductBulkStorefrontDialog"
+);
+
 type Props = {
   tenantId: string;
   initialProducts: ProductListRow[];
@@ -166,7 +210,7 @@ type Props = {
   listHasMore?: boolean;
   initialSavedView?: SavedViewSnapshot | null;
   initialFilteredItemIds?: string[] | null;
-  categories: CategoryRow[];
+  categories?: CategoryRow[];
   fieldPermissions: ProductFieldPermissions;
   initialListPrefs?: ProductListPrefs | null;
   initialCatalogContext?: ProductCatalogContext | null;
@@ -201,7 +245,7 @@ export function ProductCatalogTerminal({
   listHasMore = false,
   initialSavedView = null,
   initialFilteredItemIds = null,
-  categories,
+  categories: initialCategories = [],
   fieldPermissions,
   initialListPrefs,
   initialCatalogContext = null,
@@ -225,6 +269,15 @@ export function ProductCatalogTerminal({
   const itemsRouteSessionRef = useRef(allocateItemsRouteSession());
 
   useListModuleScrollLock();
+
+  const [categories, setCategories] = useState(initialCategories);
+  const categoriesRequestedRef = useRef(initialCategories.length > 0);
+
+  useEffect(() => {
+    if (categoriesRequestedRef.current) return;
+    categoriesRequestedRef.current = true;
+    void loadCategoryRows().then(setCategories);
+  }, []);
 
   const hasServerFilteredView =
     initialSavedView != null && initialFilteredItemIds != null;
@@ -1784,105 +1837,125 @@ export function ProductCatalogTerminal({
         />
       </div>
 
-      <ProductBulkPricingDialog
-        open={pricingDialogOpen}
-        onOpenChange={setPricingDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        canAdjustSelling={fieldPermissions.allowedFields.includes("selling_price")}
-        canAdjustPurchase={fieldPermissions.allowedFields.includes("purchase_price")}
-        onSubmit={runBulkPricing}
-      />
+      {pricingDialogOpen ? (
+        <ProductBulkPricingDialog
+          open={pricingDialogOpen}
+          onOpenChange={setPricingDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          canAdjustSelling={fieldPermissions.allowedFields.includes("selling_price")}
+          canAdjustPurchase={fieldPermissions.allowedFields.includes("purchase_price")}
+          onSubmit={runBulkPricing}
+        />
+      ) : null}
 
-      <ProductBulkJurisdictionDialog
-        open={jurisdictionDialogOpen}
-        onOpenChange={setJurisdictionDialogOpen}
-        categories={categories}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkJurisdiction}
-      />
+      {jurisdictionDialogOpen ? (
+        <ProductBulkJurisdictionDialog
+          open={jurisdictionDialogOpen}
+          onOpenChange={setJurisdictionDialogOpen}
+          categories={categories}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkJurisdiction}
+        />
+      ) : null}
 
-      <ProductBulkArchiveAlert
-        open={archiveDialogOpen}
-        onOpenChange={setArchiveDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onConfirm={runBulkArchive}
-      />
+      {archiveDialogOpen ? (
+        <ProductBulkArchiveAlert
+          open={archiveDialogOpen}
+          onOpenChange={setArchiveDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onConfirm={runBulkArchive}
+        />
+      ) : null}
 
-      <ProductBulkCategoryDialog
-        open={categoryDialogOpen}
-        onOpenChange={setCategoryDialogOpen}
-        categories={categories}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkCategory}
-      />
+      {categoryDialogOpen ? (
+        <ProductBulkCategoryDialog
+          open={categoryDialogOpen}
+          onOpenChange={setCategoryDialogOpen}
+          categories={categories}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkCategory}
+        />
+      ) : null}
 
-      <ProductBulkClassificationDialog
-        open={classificationDialogOpen}
-        onOpenChange={setClassificationDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkClassification}
-      />
+      {classificationDialogOpen ? (
+        <ProductBulkClassificationDialog
+          open={classificationDialogOpen}
+          onOpenChange={setClassificationDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkClassification}
+        />
+      ) : null}
 
-      <ProductBulkTaxCategoryDialog
-        open={taxCategoryDialogOpen}
-        onOpenChange={setTaxCategoryDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkTaxCategory}
-      />
+      {taxCategoryDialogOpen ? (
+        <ProductBulkTaxCategoryDialog
+          open={taxCategoryDialogOpen}
+          onOpenChange={setTaxCategoryDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkTaxCategory}
+        />
+      ) : null}
 
-      <ProductBulkFlagsDialog
-        open={flagsDialogOpen}
-        onOpenChange={setFlagsDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkFlags}
-      />
+      {flagsDialogOpen ? (
+        <ProductBulkFlagsDialog
+          open={flagsDialogOpen}
+          onOpenChange={setFlagsDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkFlags}
+        />
+      ) : null}
 
-      <ProductBulkTagsDialog
-        open={tagsDialogOpen}
-        onOpenChange={setTagsDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkTags}
-      />
+      {tagsDialogOpen ? (
+        <ProductBulkTagsDialog
+          open={tagsDialogOpen}
+          onOpenChange={setTagsDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkTags}
+        />
+      ) : null}
 
-      <ProductBulkStorefrontDialog
-        open={storefrontDialogOpen}
-        onOpenChange={setStorefrontDialogOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onSubmit={runBulkStorefront}
-      />
+      {storefrontDialogOpen ? (
+        <ProductBulkStorefrontDialog
+          open={storefrontDialogOpen}
+          onOpenChange={setStorefrontDialogOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onSubmit={runBulkStorefront}
+        />
+      ) : null}
 
-      <ProductItemDrawer
-        open={drawerOpen}
-        surface={drawer.surface}
-        tenantId={tenantId}
-        categories={categories}
-        catalogContext={catalogContext}
-        detail={drawerDetail}
-        fieldPermissions={fieldPermissions}
-        isLoading={drawerIsLoading}
-        isDetailRefreshing={isDetailRefreshing}
-        urlNavigation={urlNavigation}
-        onExtensionsChanged={refreshDetail}
-        onRequestFullDetail={handleRequestFullDetail}
-        onVariantPatch={patchVariantInDetail}
-        onVariantsReload={reloadVariantsQuietly}
-        onCreatePersisted={handleCreatePersisted}
-        onDetailSaved={handleSaved}
-        onItemArchived={handleItemArchived}
-        peekPanel={drawer.surface === "peek" ? peekPanel : undefined}
-        onPeekPanelChange={drawer.surface === "peek" ? handlePeekPanelChange : undefined}
-        peekPanelLoading={drawer.surface === "peek" ? peekPanelLoading : null}
-        isValuationsLoading={isValuationsLoading}
-      />
+      {drawerOpen ? (
+        <ProductItemDrawer
+          open={drawerOpen}
+          surface={drawer.surface}
+          tenantId={tenantId}
+          categories={categories}
+          catalogContext={catalogContext}
+          detail={drawerDetail}
+          fieldPermissions={fieldPermissions}
+          isLoading={drawerIsLoading}
+          isDetailRefreshing={isDetailRefreshing}
+          urlNavigation={urlNavigation}
+          onExtensionsChanged={refreshDetail}
+          onRequestFullDetail={handleRequestFullDetail}
+          onVariantPatch={patchVariantInDetail}
+          onVariantsReload={reloadVariantsQuietly}
+          onCreatePersisted={handleCreatePersisted}
+          onDetailSaved={handleSaved}
+          onItemArchived={handleItemArchived}
+          peekPanel={drawer.surface === "peek" ? peekPanel : undefined}
+          onPeekPanelChange={drawer.surface === "peek" ? handlePeekPanelChange : undefined}
+          peekPanelLoading={drawer.surface === "peek" ? peekPanelLoading : null}
+          isValuationsLoading={isValuationsLoading}
+        />
+      ) : null}
     </>
   );
 }

@@ -25,6 +25,18 @@ type Props = {
   className?: string;
 };
 
+let notificationInboxInflight: Promise<Awaited<ReturnType<typeof loadNotificationInbox>>> | null =
+  null;
+
+function loadNotificationInboxDeduped() {
+  if (!notificationInboxInflight) {
+    notificationInboxInflight = loadNotificationInbox().finally(() => {
+      notificationInboxInflight = null;
+    });
+  }
+  return notificationInboxInflight;
+}
+
 export function NotificationInboxSheet({ className }: Props) {
   const mounted = useClientMounted();
   const [open, setOpen] = useState(false);
@@ -33,7 +45,7 @@ export function NotificationInboxSheet({ className }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const reload = useCallback(async () => {
-    const feed = await loadNotificationInbox();
+    const feed = await loadNotificationInboxDeduped();
     setItems(feed.items);
     setUnreadCount(feed.unread_count);
   }, []);

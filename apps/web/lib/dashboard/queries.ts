@@ -11,8 +11,15 @@ import {
   buildUtcDayKeys,
   bucketDailyCount,
   bucketDailySum,
+  SPARKLINE_DAYS,
   toCumulativeSeries,
 } from "@/lib/dashboard/sparkline";
+
+function sparklineHistoryCutoffIso(): string {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - (SPARKLINE_DAYS + 1));
+  return cutoff.toISOString();
+}
 
 async function countRows(
   supabase: SupabaseClient,
@@ -129,6 +136,7 @@ export async function fetchDashboardMetrics(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<DashboardMetrics> {
+  const sparklineCutoff = sparklineHistoryCutoffIso();
   const [glResult, apResult, valuationResult, fullyPaid, dispatched, creditHold, glHistory, invHistory, orderHistory] =
     await Promise.all([
     supabase
@@ -153,16 +161,19 @@ export async function fetchDashboardMetrics(
       .select("debit_amount, credit_amount, created_at, accounts!inner(account_code)")
       .eq("tenant_id", tenantId)
       .eq("accounts.account_code", "1200-AR")
+      .gte("created_at", sparklineCutoff)
       .order("created_at", { ascending: true }),
     supabase
       .from("inventory_ledger")
       .select("quantity, cost_at_transaction, created_at")
       .eq("tenant_id", tenantId)
+      .gte("created_at", sparklineCutoff)
       .order("created_at", { ascending: true }),
     supabase
       .from("sales_orders")
       .select("created_at")
       .eq("tenant_id", tenantId)
+      .gte("created_at", sparklineCutoff)
       .order("created_at", { ascending: true }),
   ]);
 

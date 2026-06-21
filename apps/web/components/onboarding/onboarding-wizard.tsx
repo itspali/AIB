@@ -1,12 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { AdvancedParametersPanel } from "@/components/onboarding/advanced-parameters-panel";
-import { StepCorporateProfile } from "@/components/onboarding/steps/step-corporate-profile";
-import { StepCoa } from "@/components/onboarding/steps/step-coa";
-import { StepTaxRegistry } from "@/components/onboarding/steps/step-tax-registry";
-import { StepChannels } from "@/components/onboarding/steps/step-channels";
+import { OnboardingStepSkeleton } from "@/components/onboarding/onboarding-step-skeleton";
 import { WizardFooter } from "@/components/onboarding/wizard-footer";
 import { WizardStepNav } from "@/components/onboarding/wizard-step-nav";
 import { useOnboardingDraftSaver } from "@/components/onboarding/use-onboarding-draft";
@@ -19,6 +16,42 @@ import type {
 } from "@/lib/onboarding/types";
 
 const STEP_ORDER: WizardStepId[] = ["locations", "coa", "tax", "channels"];
+
+const stepLoading = () => <OnboardingStepSkeleton />;
+
+const StepCorporateProfile = dynamic(
+  () =>
+    import("@/components/onboarding/steps/step-corporate-profile").then(
+      (module) => module.StepCorporateProfile
+    ),
+  { ssr: false, loading: stepLoading }
+);
+
+const StepCoa = dynamic(
+  () => import("@/components/onboarding/steps/step-coa").then((module) => module.StepCoa),
+  { ssr: false, loading: stepLoading }
+);
+
+const StepTaxRegistry = dynamic(
+  () =>
+    import("@/components/onboarding/steps/step-tax-registry").then(
+      (module) => module.StepTaxRegistry
+    ),
+  { ssr: false, loading: stepLoading }
+);
+
+const StepChannels = dynamic(
+  () => import("@/components/onboarding/steps/step-channels").then((module) => module.StepChannels),
+  { ssr: false, loading: stepLoading }
+);
+
+const AdvancedParametersPanel = dynamic(
+  () =>
+    import("@/components/onboarding/advanced-parameters-panel").then(
+      (module) => module.AdvancedParametersPanel
+    ),
+  { ssr: false }
+);
 
 type Props = {
   snapshot: OnboardingSnapshot;

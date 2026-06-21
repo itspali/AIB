@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildPrintLineCatalogContext } from "@/lib/documents/print/print-line-catalog-context";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import type { TaxTreatmentType } from "@/lib/entities/types";
 import type {
   SalesFulfillmentStatus,
@@ -500,23 +506,29 @@ function mapSoListRow(row: SoListDbRow): SalesOrderRow {
   };
 }
 
-export async function fetchSalesOrders(
+export type SalesOrdersFetchOptions = DocumentListFetchOptions & {
+  locationId?: string | null;
+  locationIds?: string[] | null;
+  status?: SalesOrderStatus | null;
+};
+
+export async function fetchSalesOrdersPage(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: {
-    locationId?: string | null;
-    locationIds?: string[] | null;
-    status?: SalesOrderStatus | null;
-  }
-): Promise<SalesOrderRow[]> {
+  options?: SalesOrdersFetchOptions
+): Promise<DocumentListPage<SalesOrderRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+  let totalCount = 0;
+
   const { data, error } = await runSoSelectWithFallback<SoListDbRow[]>(
     SO_LIST_SELECT_SHAPES,
-    (shape) => {
+    async (shape) => {
       let query = supabase
         .from("sales_orders")
-        .select(buildSalesOrderListSelect(shape))
+        .select(buildSalesOrderListSelect(shape), { count: "exact" })
         .eq("tenant_id", tenantId)
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (options?.locationId) {
         query = query.eq("shipping_location_id", options.locationId);
@@ -528,7 +540,12 @@ export async function fetchSalesOrders(
         query = query.eq("commercial_status", options.status);
       }
 
-      return query as unknown as Promise<{ data: SoListDbRow[] | null; error: { message: string } | null }>;
+      const result = await query;
+      totalCount = result.count ?? 0;
+      return {
+        data: result.data as SoListDbRow[] | null,
+        error: result.error,
+      };
     }
   );
 
@@ -539,7 +556,17 @@ export async function fetchSalesOrders(
     hydrateSalesOrderCreatorNames(supabase, rows),
     hydrateSalesOrderApprovalSubmitters(supabase, tenantId, rows),
   ]);
-  return rows;
+
+  return buildDocumentListPage(rows, totalCount || rows.length, offset, limit);
+}
+
+export async function fetchSalesOrders(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: SalesOrdersFetchOptions
+): Promise<SalesOrderRow[]> {
+  const page = await fetchSalesOrdersPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchSalesOrderById(

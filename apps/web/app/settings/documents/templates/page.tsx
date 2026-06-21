@@ -1,18 +1,9 @@
 import { Suspense } from "react";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { DocumentTemplatesSettingsTerminal } from "@/components/settings/document-templates/document-templates-settings-terminal";
-import { fetchDocumentLayoutTemplate } from "@/lib/documents/document-layout-queries";
-import {
-  ensureTenantPresentationTemplates,
-  fetchDocumentPresentationTemplate,
-} from "@/lib/documents/print/presentation-queries";
-import type {
-  DocumentPresentationTemplate,
-  PresentationShellConfig,
-  PresentationStyleConfig,
-  PresentationViewContext,
-} from "@/lib/documents/print/types";
-import type { DocumentLayoutTemplate, DocumentModuleKey, DocumentViewContext } from "@/lib/documents/types";
+import { DocumentTemplatesSettingsTerminalLazy } from "@/components/settings/document-templates/document-templates-settings-terminal-lazy";
+import { fetchDocumentTemplatesModuleBundle } from "@/lib/documents/document-templates-module-bundle";
+import { ensureTenantPresentationTemplates } from "@/lib/documents/print/presentation-queries";
+import type { PresentationViewContext } from "@/lib/documents/print/types";
+import type { DocumentModuleKey } from "@/lib/documents/types";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchLocationRows } from "@/lib/locations/queries";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
@@ -29,24 +20,14 @@ import {
 } from "@/lib/documents/print/designer-preview-draft";
 import { renderDocumentDesignerPreviewHtml } from "@/lib/documents/print/render-designer-preview";
 import { fetchPoCatalogFieldSuggestions } from "@/lib/procurement/purchase-orders/catalog-field-suggestions";
+import { PRESENTATION_MODULE_DEFINITIONS } from "@/lib/documents/print/presentation-catalog";
 
-const VALID_MODULE_KEYS = new Set<DocumentModuleKey>([
-  "PURCHASE_ORDER",
-  "GOODS_RECEIPT_NOTE",
-  "PURCHASE_INVOICE",
-  "SALES_QUOTATION",
-  "SALES_ORDER",
-  "SALES_INVOICE",
-]);
+const VALID_MODULE_KEYS = new Set<DocumentModuleKey>(
+  PRESENTATION_MODULE_DEFINITIONS.map((row) => row.moduleKey)
+);
 
-const MODULE_KEYS = [...VALID_MODULE_KEYS] as DocumentModuleKey[];
-const LAYOUT_VIEW_CONTEXTS: DocumentViewContext[] = ["SCREEN_GRID", "PDF_PRINT", "EMAIL_HTML"];
-const PRESENTATION_VIEW_CONTEXTS: PresentationViewContext[] = ["PDF_PRINT", "EMAIL_HTML"];
 const DEFAULT_PREVIEW_MODULE: DocumentModuleKey = "PURCHASE_ORDER";
 const DEFAULT_PREVIEW_VIEW_CONTEXT: PresentationViewContext = "PDF_PRINT";
-
-type ModulePresentationShells = Record<PresentationViewContext, PresentationShellConfig>;
-type ModulePresentationStyles = Record<PresentationViewContext, PresentationStyleConfig>;
 
 type PageProps = {
   searchParams: Promise<{ module?: string }>;
@@ -57,93 +38,50 @@ function parseModuleKey(raw: string | undefined): DocumentModuleKey | null {
   return raw as DocumentModuleKey;
 }
 
+function isProcurementModule(moduleKey: DocumentModuleKey): boolean {
+  return (
+    PRESENTATION_MODULE_DEFINITIONS.find((row) => row.moduleKey === moduleKey)?.domain ===
+    "PROCUREMENT"
+  );
+}
+
 export default async function DocumentTemplatesPage({ searchParams }: PageProps) {
   const { module: rawModule } = await searchParams;
   const initialModuleKey = parseModuleKey(rawModule);
+  const previewModuleKey = initialModuleKey ?? DEFAULT_PREVIEW_MODULE;
 
-  const { supabase, tenantId, userId, orgName, approvalAlertCount, operatorProfile } =
-    await getModulePageContext();
+  const { supabase, tenantId, userId } = await getModulePageContext();
 
   const [
     { ensured, error: deployError },
     access,
     locations,
     gstRegistered,
+    initialModuleBundle,
     catalogFieldSuggestions,
-    ...layoutAndPresentationRows
   ] = await Promise.all([
     ensureTenantPresentationTemplates(supabase),
     resolveOrganizationSettingsAccess(supabase, userId, tenantId),
     fetchLocationRows(supabase, tenantId),
     fetchOrganizationGstRegistered(supabase, tenantId),
-    fetchPoCatalogFieldSuggestions(supabase, tenantId),
-    ...MODULE_KEYS.flatMap((moduleKey) =>
-      LAYOUT_VIEW_CONTEXTS.map((viewContext) =>
-        fetchDocumentLayoutTemplate(supabase, tenantId, moduleKey, viewContext)
-      )
-    ),
-    ...MODULE_KEYS.flatMap((moduleKey) =>
-      PRESENTATION_VIEW_CONTEXTS.map((viewContext) =>
-        fetchDocumentPresentationTemplate(supabase, tenantId, moduleKey, viewContext)
-      )
-    ),
+    fetchDocumentTemplatesModuleBundle(supabase, tenantId, previewModuleKey),
+    isProcurementModule(previewModuleKey)
+      ? fetchPoCatalogFieldSuggestions(supabase, tenantId)
+      : Promise.resolve(undefined),
   ]);
-
-  const layoutRowCount = MODULE_KEYS.length * LAYOUT_VIEW_CONTEXTS.length;
-  const layoutRows = layoutAndPresentationRows.slice(0, layoutRowCount) as DocumentLayoutTemplate[];
-  const presentationRows = layoutAndPresentationRows.slice(
-    layoutRowCount
-  ) as DocumentPresentationTemplate[];
-
-  const initialLayoutsByModule = Object.fromEntries(
-    MODULE_KEYS.map((moduleKey, moduleIndex) => {
-      const byContext = Object.fromEntries(
-        LAYOUT_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
-          const flatIndex = moduleIndex * LAYOUT_VIEW_CONTEXTS.length + viewIndex;
-          return [viewContext, layoutRows[flatIndex]!];
-        })
-      ) as Record<DocumentViewContext, DocumentLayoutTemplate>;
-      return [moduleKey, byContext];
-    })
-  ) as Record<DocumentModuleKey, Record<DocumentViewContext, DocumentLayoutTemplate>>;
-
-  const initialPresentationShells = Object.fromEntries(
-    MODULE_KEYS.map((moduleKey, moduleIndex) => {
-      const shells = Object.fromEntries(
-        PRESENTATION_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
-          const flatIndex = moduleIndex * PRESENTATION_VIEW_CONTEXTS.length + viewIndex;
-          return [viewContext, presentationRows[flatIndex]!.shellConfig];
-        })
-      ) as ModulePresentationShells;
-      return [moduleKey, shells];
-    })
-  ) as Record<DocumentModuleKey, ModulePresentationShells>;
-
-  const initialPresentationStyles = Object.fromEntries(
-    MODULE_KEYS.map((moduleKey, moduleIndex) => {
-      const styles = Object.fromEntries(
-        PRESENTATION_VIEW_CONTEXTS.map((viewContext, viewIndex) => {
-          const flatIndex = moduleIndex * PRESENTATION_VIEW_CONTEXTS.length + viewIndex;
-          return [viewContext, presentationRows[flatIndex]!.styleConfig];
-        })
-      ) as ModulePresentationStyles;
-      return [moduleKey, styles];
-    })
-  ) as Record<DocumentModuleKey, ModulePresentationStyles>;
 
   const locationOptions = locations
     .filter((row) => row.is_active)
     .map((row) => ({ id: row.id, name: row.name }));
 
-  const previewModuleKey = initialModuleKey ?? DEFAULT_PREVIEW_MODULE;
   const previewLayout = normalizeDesignerPreviewLayout(
     previewModuleKey,
     DEFAULT_PREVIEW_VIEW_CONTEXT,
-    initialLayoutsByModule[previewModuleKey].PDF_PRINT,
+    initialModuleBundle.layoutsByViewContext.PDF_PRINT,
     gstRegistered
   );
   const previewShellBase =
-    initialPresentationShells[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT] ??
+    initialModuleBundle.presentationShells[DEFAULT_PREVIEW_VIEW_CONTEXT] ??
     DEFAULT_PRESENTATION_SHELL_CONFIG;
   const previewShell = applyGstShellConfigOverrides(
     previewModuleKey,
@@ -151,7 +89,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     gstRegistered
   );
   const previewStyle =
-    initialPresentationStyles[previewModuleKey][DEFAULT_PREVIEW_VIEW_CONTEXT] ??
+    initialModuleBundle.presentationStyles[DEFAULT_PREVIEW_VIEW_CONTEXT] ??
     DEFAULT_PRESENTATION_STYLE_CONFIG;
   const initialPreviewDraftKey = buildDesignerPreviewDraftKey({
     moduleKey: previewModuleKey,
@@ -173,34 +111,33 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     "html" in initialPreviewResult ? initialPreviewResult.html : null;
 
   return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-[480px] w-full items-center justify-center text-sm text-muted-foreground">
+          Loading templates…
+        </div>
+      }
     >
-      <Suspense
-        fallback={
-          <div className="flex h-full min-h-[480px] w-full items-center justify-center text-sm text-muted-foreground">
-            Loading templates…
-          </div>
-        }
-      >
-        <DocumentTemplatesSettingsTerminal
-          locations={locationOptions}
-          canEdit={access.granted}
-          gstRegistered={gstRegistered}
-          deployError={!ensured ? deployError : undefined}
-          initialModuleKey={initialModuleKey}
-          previewModuleKey={previewModuleKey}
-          initialPreviewDraftKey={initialPreviewDraftKey}
-          initialPreviewHtml={initialPreviewHtml}
-          initialLayoutsByModule={initialLayoutsByModule}
-          initialPresentationShells={initialPresentationShells}
-          initialPresentationStyles={initialPresentationStyles}
-          catalogFieldSuggestions={catalogFieldSuggestions}
-        />
-      </Suspense>
-    </DashboardShell>
+      <DocumentTemplatesSettingsTerminalLazy
+        locations={locationOptions}
+        canEdit={access.granted}
+        gstRegistered={gstRegistered}
+        deployError={!ensured ? deployError : undefined}
+        initialModuleKey={initialModuleKey}
+        previewModuleKey={previewModuleKey}
+        initialPreviewDraftKey={initialPreviewDraftKey}
+        initialPreviewHtml={initialPreviewHtml}
+        initialLayoutsByModule={{
+          [previewModuleKey]: initialModuleBundle.layoutsByViewContext,
+        }}
+        initialPresentationShells={{
+          [previewModuleKey]: initialModuleBundle.presentationShells,
+        }}
+        initialPresentationStyles={{
+          [previewModuleKey]: initialModuleBundle.presentationStyles,
+        }}
+        catalogFieldSuggestions={catalogFieldSuggestions}
+      />
+    </Suspense>
   );
 }

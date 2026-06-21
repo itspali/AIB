@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { bulkApproveSalesOrders, bulkConfirmSalesOrders, loadSalesOrders } from "@/app/sales/orders/actions";
+import { bulkApproveSalesOrders, bulkConfirmSalesOrders, fetchMoreSalesOrders } from "@/app/sales/orders/actions";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
-import { SoDrawerForm } from "@/components/sales/orders/so-drawer-form";
 import { SoEmptyState } from "@/components/sales/orders/so-empty-state";
 import { SoListTable } from "@/components/sales/orders/so-list-table";
 import { SoListToolbar } from "@/components/sales/orders/so-list-toolbar";
@@ -47,11 +48,17 @@ import {
   isSalesOrderApprovableByUser,
   isSalesOrderConfirmableByUser,
 } from "@/lib/sales/approval-settings";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 
 const SO_PAGE_DESCRIPTION =
   "Capture sales orders, route them through approval when required, and confirm for fulfilment.";
+
+const SoDrawerForm = lazyClientExport(
+  () => import("@/components/sales/orders/so-drawer-form"),
+  "SoDrawerForm"
+);
 
 function liveSearchParams(fallback: ReturnType<typeof useSearchParams>): URLSearchParams {
   if (typeof window === "undefined") return new URLSearchParams(fallback.toString());
@@ -69,6 +76,8 @@ function resolveBulkSalesOrderIds(
 
 type Props = {
   initialSalesOrders: SalesOrderRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   locations: SalesLocationOption[];
   customers: CustomerOption[];
   editAccessGranted: boolean;
@@ -88,6 +97,8 @@ type Props = {
 
 export function SoManagementTerminal({
   initialSalesOrders,
+  listTotalCount = initialSalesOrders.length,
+  listHasMore = false,
   locations,
   customers,
   editAccessGranted,
@@ -116,10 +127,23 @@ export function SoManagementTerminal({
     if (drawer.surface !== "create") return null;
     return searchParams.get(SO_DRAWER_QUOTE_PARAM)?.trim() || null;
   }, [drawer.surface, searchParams]);
-  const [salesOrders, setSalesOrders] = useState(initialSalesOrders);
+  const {
+    rows: salesOrders,
+    setRows: setSalesOrders,
+    totalCount,
+    hasMore,
+    isLoadingMore,
+    refreshList,
+    loadMore,
+  } = useDocumentListPagination(
+    initialSalesOrders,
+    listTotalCount,
+    listHasMore,
+    fetchMoreSalesOrders,
+    "sales orders"
+  );
   const [prefs, setPrefs] = useState<SalesOrderListPrefs>(getDefaultSalesOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const [, startRefreshTransition] = useTransition();
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -173,17 +197,10 @@ export function SoManagementTerminal({
     saveSalesOrderListPrefs(prefs);
   }, [prefs, prefsHydrated]);
 
-  const refreshList = useCallback(() => {
-    startRefreshTransition(async () => {
-      try {
-        const nextOrders = await loadSalesOrders();
-        setSalesOrders(nextOrders);
-      } catch (error) {
-        console.error("[SoManagementTerminal] refresh failed", error);
-        toast.error(error instanceof Error ? error.message : "Unable to refresh sales orders.");
-      }
-    });
-  }, []);
+  useEffect(() => {
+    if (!prefsHydrated) return;
+    saveSalesOrderListPrefs(prefs);
+  }, [prefs, prefsHydrated]);
 
   const ordersView = useFilteredSalesOrders(salesOrders, prefs);
 
@@ -453,26 +470,36 @@ export function SoManagementTerminal({
       </div>
     </div>
   ) : (
-    <SoListTable
-      rows={sortedRows}
-      columnPrefs={prefs.columnPrefs}
-      sortField={prefs.sortField}
-      sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
-      onSortChange={handleSortChange}
-      onColumnWidthChange={(columnId, width) =>
-        setPrefs((current) => setSalesOrderColumnWidth(current, columnId, width))
-      }
-      selectedId={selectedId}
-      onSelect={handleSelect}
-      bulkSelectionEnabled={canBulkApprove || canBulkConfirm}
-      bulkSelectedIds={bulkSelectedIds}
-      pageAllSelected={pageAllSelected}
-      pageSomeSelected={pageSomeSelected}
-      isRowBulkSelectable={isRowBulkSelectable}
-      onBulkRowToggle={handleBulkRowToggle}
-      onBulkPageToggle={handleBulkPageToggle}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+      <SoListTable
+        rows={sortedRows}
+        columnPrefs={prefs.columnPrefs}
+        sortField={prefs.sortField}
+        sortDirection={prefs.sortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setSalesOrderColumnWidth(current, columnId, width))
+        }
+        selectedId={selectedId}
+        onSelect={handleSelect}
+        bulkSelectionEnabled={canBulkApprove || canBulkConfirm}
+        bulkSelectedIds={bulkSelectedIds}
+        pageAllSelected={pageAllSelected}
+        pageSomeSelected={pageSomeSelected}
+        isRowBulkSelectable={isRowBulkSelectable}
+        onBulkRowToggle={handleBulkRowToggle}
+        onBulkPageToggle={handleBulkPageToggle}
+      />
+      <ListLoadMoreFooter
+        visibleCount={salesOrders.length}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        noun="sales orders"
+      />
+    </div>
   );
 
   const bulkToolbar =
@@ -534,35 +561,37 @@ export function SoManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <SoDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        locations={locations}
-        customers={customers}
-        peekOrder={peekOrder}
-        peekRecordId={selectedId}
-        editOrderId={editOrderId}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-        onOpenEdit={handleOpenEdit}
-        onEditNotAllowed={handleEditNotAllowed}
-        editAccessGranted={editAccessGranted}
-        allowLineItemDiscounts={allowLineItemDiscounts}
-        allowTransactionDiscounts={allowTransactionDiscounts}
-        defaultCurrency={defaultCurrency}
-        documentLayout={documentLayout}
-        taxCodeOptions={taxCodeOptions}
-        tenantCountry={tenantCountry}
-        gstRegistered={gstRegistered}
-        preferredShippingLocationId={preferredShippingLocationId}
-        copyFromId={copyFromId}
-        createPrefillQuoteId={createPrefillQuoteId}
-        documentConversionMode={documentConversionMode}
-        onDuplicate={editAccessGranted ? handleDuplicate : undefined}
-        approvalSettings={approvalSettings}
-        currentUserId={currentUserId}
-        isOwner={isOwner}
-      />
+      {drawer.isOpen ? (
+        <SoDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          locations={locations}
+          customers={customers}
+          peekOrder={peekOrder}
+          peekRecordId={selectedId}
+          editOrderId={editOrderId}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+          onOpenEdit={handleOpenEdit}
+          onEditNotAllowed={handleEditNotAllowed}
+          editAccessGranted={editAccessGranted}
+          allowLineItemDiscounts={allowLineItemDiscounts}
+          allowTransactionDiscounts={allowTransactionDiscounts}
+          defaultCurrency={defaultCurrency}
+          documentLayout={documentLayout}
+          taxCodeOptions={taxCodeOptions}
+          tenantCountry={tenantCountry}
+          gstRegistered={gstRegistered}
+          preferredShippingLocationId={preferredShippingLocationId}
+          copyFromId={copyFromId}
+          createPrefillQuoteId={createPrefillQuoteId}
+          documentConversionMode={documentConversionMode}
+          onDuplicate={editAccessGranted ? handleDuplicate : undefined}
+          approvalSettings={approvalSettings}
+          currentUserId={currentUserId}
+          isOwner={isOwner}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileOutput } from "lucide-react";
-import { DocumentDesignerWorkspace } from "@/components/settings/document-templates/document-designer-workspace";
+import {
+  loadDocumentTemplateCatalogFieldSuggestions,
+  loadDocumentTemplatesModuleBundle,
+} from "@/app/settings/documents/templates/actions";
 import {
   DocumentTemplatesContextToolbar,
   type TemplateDesignerViewContext,
 } from "@/components/settings/document-templates/document-templates-context-toolbar";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
+import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PRESENTATION_MODULE_DEFINITIONS } from "@/lib/documents/print/presentation-catalog";
 import type { PresentationModuleDefinition } from "@/lib/documents/print/types";
 import type {
@@ -26,6 +31,27 @@ type ModulePresentationStyles = Record<PresentationViewContext, PresentationStyl
 
 const MODULE_QUERY = "module";
 
+const DocumentDesignerWorkspace = dynamic(
+  () =>
+    import("@/components/settings/document-templates/document-designer-workspace").then(
+      (module) => module.DocumentDesignerWorkspace
+    ),
+  { ssr: false, loading: () => <DocumentDesignerSkeleton /> }
+);
+
+function DocumentDesignerSkeleton() {
+  return (
+    <div
+      className="flex h-full min-h-[480px] w-full flex-col gap-3 rounded-lg border border-border p-4"
+      aria-busy="true"
+      aria-label="Loading designer"
+    >
+      <Skeleton className="h-9 w-full max-w-md" />
+      <Skeleton className="min-h-0 flex-1" />
+    </div>
+  );
+}
+
 const VALID_MODULE_KEYS = new Set<DocumentModuleKey>(
   PRESENTATION_MODULE_DEFINITIONS.map((row) => row.moduleKey)
 );
@@ -35,7 +61,7 @@ function parseModuleKey(raw: string | null): DocumentModuleKey | null {
   return raw as DocumentModuleKey;
 }
 
-type Props = {
+export type DocumentTemplatesSettingsTerminalProps = {
   locations: DocumentLayoutLocationOption[];
   canEdit: boolean;
   gstRegistered: boolean;
@@ -44,12 +70,11 @@ type Props = {
   previewModuleKey: DocumentModuleKey;
   initialPreviewDraftKey: string;
   initialPreviewHtml: string | null;
-  initialLayoutsByModule: Record<
-    DocumentModuleKey,
-    Record<DocumentViewContext, DocumentLayoutTemplate>
+  initialLayoutsByModule: Partial<
+    Record<DocumentModuleKey, Record<DocumentViewContext, DocumentLayoutTemplate>>
   >;
-  initialPresentationShells: Record<DocumentModuleKey, ModulePresentationShells>;
-  initialPresentationStyles: Record<DocumentModuleKey, ModulePresentationStyles>;
+  initialPresentationShells: Partial<Record<DocumentModuleKey, ModulePresentationShells>>;
+  initialPresentationStyles: Partial<Record<DocumentModuleKey, ModulePresentationStyles>>;
   catalogFieldSuggestions?: PoCatalogFieldSuggestions;
 };
 
@@ -66,11 +91,23 @@ export function DocumentTemplatesSettingsTerminal({
   initialPresentationShells,
   initialPresentationStyles,
   catalogFieldSuggestions,
-}: Props) {
+}: DocumentTemplatesSettingsTerminalProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryModule = parseModuleKey(searchParams.get(MODULE_QUERY));
+  const [layoutsByModule, setLayoutsByModule] = useState(initialLayoutsByModule);
+  const [presentationShellsByModule, setPresentationShellsByModule] =
+    useState(initialPresentationShells);
+  const [presentationStylesByModule, setPresentationStylesByModule] =
+    useState(initialPresentationStyles);
+  const [catalogSuggestions, setCatalogSuggestions] = useState(catalogFieldSuggestions);
+  const [moduleLoading, setModuleLoading] = useState(false);
+  const loadedModulesRef = useRef(
+    new Set<DocumentModuleKey>(
+      Object.keys(initialLayoutsByModule) as DocumentModuleKey[]
+    )
+  );
   const [viewContext, setViewContext] = useState<TemplateDesignerViewContext>("PDF_PRINT");
   const [scope, setScope] = useState<DocumentLayoutScope>(TENANT_LAYOUT_SCOPE);
   const [designerTab, setDesignerTab] = useState<"fields" | "appearance">("fields");
@@ -97,6 +134,52 @@ export function DocumentTemplatesSettingsTerminal({
   }, [selectedModuleKey]);
 
   useEffect(() => {
+    if (loadedModulesRef.current.has(selectedModuleKey)) return;
+
+    let cancelled = false;
+    setModuleLoading(true);
+    void loadDocumentTemplatesModuleBundle(selectedModuleKey).then((result) => {
+      if (cancelled || "error" in result) return;
+      loadedModulesRef.current.add(result.moduleKey);
+      setLayoutsByModule((current) => ({
+        ...current,
+        [result.moduleKey]: result.layoutsByViewContext,
+      }));
+      setPresentationShellsByModule((current) => ({
+        ...current,
+        [result.moduleKey]: result.presentationShells,
+      }));
+      setPresentationStylesByModule((current) => ({
+        ...current,
+        [result.moduleKey]: result.presentationStyles,
+      }));
+    }).finally(() => {
+      if (!cancelled) setModuleLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedModuleKey]);
+
+  useEffect(() => {
+    const module = PRESENTATION_MODULE_DEFINITIONS.find(
+      (row) => row.moduleKey === selectedModuleKey
+    );
+    if (module?.domain !== "PROCUREMENT" || catalogSuggestions) return;
+
+    let cancelled = false;
+    void loadDocumentTemplateCatalogFieldSuggestions().then((result) => {
+      if (cancelled || "error" in result) return;
+      setCatalogSuggestions(result.suggestions);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogSuggestions, selectedModuleKey]);
+
+  useEffect(() => {
     if (isScreenLayout) {
       setDesignerTab("fields");
     }
@@ -118,7 +201,8 @@ export function DocumentTemplatesSettingsTerminal({
     if (module) selectModule(module);
   };
 
-  const layoutsByViewContext = initialLayoutsByModule[selectedModuleKey];
+  const layoutsByViewContext = layoutsByModule[selectedModuleKey];
+  const moduleBundleReady = Boolean(layoutsByViewContext);
 
   return (
     <div className="document-templates-shell flex h-full min-h-0 w-full flex-col gap-3">
@@ -163,36 +247,40 @@ export function DocumentTemplatesSettingsTerminal({
           />
 
           <div className="min-h-0 min-w-0 flex-1">
-            <DocumentDesignerWorkspace
-              key={`${selectedModule.moduleKey}-${viewContext}`}
-              moduleKey={selectedModule.moduleKey}
-              moduleLabel={selectedModule.label}
-              initialLayout={layoutsByViewContext[viewContext]}
-              initialLayoutsByViewContext={layoutsByViewContext}
-              initialPresentationShells={initialPresentationShells[selectedModule.moduleKey]}
-              initialPresentationStyles={initialPresentationStyles[selectedModule.moduleKey]}
-              locations={locations}
-              canEdit={canEdit}
-              gstRegistered={gstRegistered}
-              catalogFieldSuggestions={
-                selectedModule.domain === "PROCUREMENT" ? catalogFieldSuggestions : undefined
-              }
-              viewContext={viewContext}
-              scope={scope}
-              designerTab={designerTab}
-              onDesignerTabChange={setDesignerTab}
-              onFieldToolbarActionsChange={setFieldToolbarActions}
-              seededPreviewDraftKey={
-                selectedModuleKey === previewModuleKey && viewContext === "PDF_PRINT"
-                  ? initialPreviewDraftKey
-                  : null
-              }
-              seededPreviewHtml={
-                selectedModuleKey === previewModuleKey && viewContext === "PDF_PRINT"
-                  ? initialPreviewHtml
-                  : null
-              }
-            />
+            {moduleLoading || !moduleBundleReady ? (
+              <DocumentDesignerSkeleton />
+            ) : (
+              <DocumentDesignerWorkspace
+                key={`${selectedModule.moduleKey}-${viewContext}`}
+                moduleKey={selectedModule.moduleKey}
+                moduleLabel={selectedModule.label}
+                initialLayout={layoutsByViewContext![viewContext]}
+                initialLayoutsByViewContext={layoutsByViewContext!}
+                initialPresentationShells={presentationShellsByModule[selectedModule.moduleKey]!}
+                initialPresentationStyles={presentationStylesByModule[selectedModule.moduleKey]!}
+                locations={locations}
+                canEdit={canEdit}
+                gstRegistered={gstRegistered}
+                catalogFieldSuggestions={
+                  selectedModule.domain === "PROCUREMENT" ? catalogSuggestions : undefined
+                }
+                viewContext={viewContext}
+                scope={scope}
+                designerTab={designerTab}
+                onDesignerTabChange={setDesignerTab}
+                onFieldToolbarActionsChange={setFieldToolbarActions}
+                seededPreviewDraftKey={
+                  selectedModuleKey === previewModuleKey && viewContext === "PDF_PRINT"
+                    ? initialPreviewDraftKey
+                    : null
+                }
+                seededPreviewHtml={
+                  selectedModuleKey === previewModuleKey && viewContext === "PDF_PRINT"
+                    ? initialPreviewHtml
+                    : null
+                }
+              />
+            )}
           </div>
         </>
       ) : null}

@@ -15,17 +15,13 @@ import {
   bulkDeactivateEntityCategories,
   bulkDeleteEntityCategories,
   loadEntityCategoryCounts,
+  loadEntityCategoryRows,
 } from "@/app/entities/category-actions";
-import { CategoryBulkActionToolbar } from "@/components/categories/category-bulk-action-toolbar";
-import type { CategoryBulkToolbarAction } from "@/components/categories/category-bulk-action-toolbar";
-import { EntityCategoryBulkDeleteAlert } from "@/components/entity-categories/entity-category-bulk-delete-alert";
-import { EntityCategoryDeleteDialog } from "@/components/entity-categories/entity-category-delete-dialog";
-import { EntityCategoryDrawerForm } from "@/components/entity-categories/entity-category-drawer-form";
 import { EntityCategoryEmptyState } from "@/components/entity-categories/entity-category-empty-state";
-import { EntityCategoryListTable } from "@/components/entity-categories/entity-category-list-table";
-import { EntityCategoryListToolbar } from "@/components/entity-categories/entity-category-list-toolbar";
-import { EntityCategoryTreePanel } from "@/components/entity-categories/entity-category-tree-panel";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,7 +33,6 @@ import {
   entityCategoryPageDescription,
   getEntityCategoryWorkspaceConfig,
 } from "@/lib/entity-categories/config";
-import { downloadEntityCategoryListCsv } from "@/lib/entity-categories/bulk-export";
 import { enrichEntityCategoryListRows } from "@/lib/entity-categories/list-row";
 import {
   getColumnPrefsSlice,
@@ -51,7 +46,8 @@ import {
   type EntityCategoryListPrefs,
   type EntityCategoryTableViewMode,
 } from "@/lib/entity-categories/list-prefs";
-import { sortEntityCategoryListRows } from "@/lib/entity-categories/list-sort";
+import type { EntityCategoryListColumnId } from "@/lib/entity-categories/list-columns";
+import { sortEntityCategoryListRows, type EntityCategoryListSortDirection, type EntityCategoryListSortField } from "@/lib/entity-categories/list-sort";
 import { entityCategoriesHref } from "@/lib/entity-categories/navigation";
 import {
   patchEntityCategoryActiveState,
@@ -62,6 +58,47 @@ import type { EntityCategoryRow, EntityCategoryWorkspace } from "@/lib/entity-ca
 import { flattenEntityCategoryTree } from "@/lib/entity-categories/tree";
 import { useFilteredEntityCategories } from "@/lib/entity-categories/use-filtered-entity-categories";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+
+const EntityCategoryDrawerForm = lazyClientExport(
+  () => import("@/components/entity-categories/entity-category-drawer-form"),
+  "EntityCategoryDrawerForm"
+);
+const EntityCategoryDeleteDialogLazy = lazyClientExport(
+  () => import("@/components/entity-categories/entity-category-delete-dialog"),
+  "EntityCategoryDeleteDialog"
+);
+const EntityCategoryBulkDeleteAlertLazy = lazyClientExport(
+  () => import("@/components/entity-categories/entity-category-bulk-delete-alert"),
+  "EntityCategoryBulkDeleteAlert"
+);
+
+const EntityCategoryListTable = lazyClientExport(
+  () => import("@/components/entity-categories/entity-category-list-table"),
+  "EntityCategoryListTable"
+);
+
+const EntityCategoryListToolbar = lazyClientExport(
+  () => import("@/components/entity-categories/entity-category-list-toolbar"),
+  "EntityCategoryListToolbar"
+);
+
+const CategoryBulkActionToolbar = lazyClientExport(
+  () => import("@/components/categories/category-bulk-action-toolbar"),
+  "CategoryBulkActionToolbar"
+);
+
+type CategoryBulkToolbarAction = import("@/components/categories/category-bulk-action-toolbar").CategoryBulkToolbarAction;
+
+const EntityCategoryTreePanel = dynamic(
+  () =>
+    import("@/components/entity-categories/entity-category-tree-panel").then(
+      (module) => module.EntityCategoryTreePanel
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-full min-h-[240px] w-full" />,
+  }
+);
 
 type Props = {
   workspace: EntityCategoryWorkspace;
@@ -124,6 +161,7 @@ export function EntityCategoryManagementTerminal({
   const drawer = useModuleDrawerUrl(baseHref, { canonicalizeLegacy: true });
   const { deviceClass } = useDeviceClass();
   const [rows, setRows] = useState(initialRows);
+  const [rowsLoading, setRowsLoading] = useState(initialRows.length === 0);
   const [entityCountByCategoryId, setEntityCountByCategoryId] = useState(
     initialEntityCountByCategoryId
   );
@@ -139,6 +177,19 @@ export function EntityCategoryManagementTerminal({
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+
+  useEffect(() => {
+    if (initialRows.length > 0) return;
+    let cancelled = false;
+    void loadEntityCategoryRows(workspace).then((nextRows) => {
+      if (cancelled) return;
+      setRows(nextRows);
+      setRowsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialRows.length, workspace]);
 
   useEffect(() => {
     if (entityCountsRequestedRef.current) return;
@@ -381,17 +432,19 @@ export function EntityCategoryManagementTerminal({
     }
     const idSet = new Set(ids);
     const exportRows = listRows.filter((row) => idSet.has(row.id));
-    if (exportRows.length === 0) {
-      const enriched = enrichEntityCategoryListRows(
-        filteredRows.filter((row) => idSet.has(row.id)),
-        rows,
-        entityCountByCategoryId
-      );
-      downloadEntityCategoryListCsv(workspace, enriched);
-    } else {
-      downloadEntityCategoryListCsv(workspace, exportRows);
-    }
-    toast.success(`Exported ${ids.length} categor${ids.length === 1 ? "y" : "ies"}.`);
+    void import("@/lib/entity-categories/bulk-export").then(({ downloadEntityCategoryListCsv }) => {
+      if (exportRows.length === 0) {
+        const enriched = enrichEntityCategoryListRows(
+          filteredRows.filter((row) => idSet.has(row.id)),
+          rows,
+          entityCountByCategoryId
+        );
+        downloadEntityCategoryListCsv(workspace, enriched);
+      } else {
+        downloadEntityCategoryListCsv(workspace, exportRows);
+      }
+      toast.success(`Exported ${ids.length} categor${ids.length === 1 ? "y" : "ies"}.`);
+    });
   }, [filteredRows, rows, entityCountByCategoryId, listRows, resolveSelectedIds, workspace]);
 
   const handleBulkToolbarAction = useCallback(
@@ -428,8 +481,9 @@ export function EntityCategoryManagementTerminal({
     setPendingDelete(category);
   };
 
-  const listPrimary =
-    rows.length === 0 ? (
+  const listPrimary = rowsLoading ? (
+    <Skeleton className="h-full min-h-[240px] w-full" />
+  ) : rows.length === 0 ? (
       <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
         <EntityCategoryEmptyState workspace={workspace} onCreate={drawer.openCreate} />
       </div>
@@ -451,10 +505,10 @@ export function EntityCategoryManagementTerminal({
         frozenColumnCount={frozenColumnCount}
         freezeColumnsAuto
         compactRows={prefs.viewMode === "compact"}
-        onSortChange={(sortField, sortDirection) =>
+        onSortChange={(sortField: EntityCategoryListSortField, sortDirection: EntityCategoryListSortDirection) =>
           setPrefs((current) => ({ ...current, sortField, sortDirection }))
         }
-        onColumnWidthChange={(columnId, width) =>
+        onColumnWidthChange={(columnId: EntityCategoryListColumnId, width: number | null) =>
           setPrefs((current) =>
             setColumnWidthSlice(current, tableViewMode, deviceClass, columnId, width)
           )
@@ -530,37 +584,43 @@ export function EntityCategoryManagementTerminal({
         {body}
       </ListModuleShell>
 
-      <EntityCategoryDrawerForm
-        workspace={workspace}
-        open={drawerOpen}
-        surface={drawer.surface}
-        rows={rows}
-        peekCategory={peekCategory}
-        onClose={drawer.close}
-        onOpenEdit={drawer.openEdit}
-        onAfterSave={handleCategorySaved}
-        onDelete={openDelete}
-      />
+      {drawerOpen ? (
+        <EntityCategoryDrawerForm
+          workspace={workspace}
+          open={drawerOpen}
+          surface={drawer.surface}
+          rows={rows}
+          peekCategory={peekCategory}
+          onClose={drawer.close}
+          onOpenEdit={drawer.openEdit}
+          onAfterSave={handleCategorySaved}
+          onDelete={openDelete}
+        />
+      ) : null}
 
-      <EntityCategoryDeleteDialog
-        workspace={workspace}
-        category={pendingDelete}
-        rows={rows}
-        entityCountByCategoryId={entityCountByCategoryId}
-        open={Boolean(pendingDelete)}
-        onOpenChange={(next) => !next && setPendingDelete(null)}
-        onDeleted={handleCategoryDeleted}
-        onDeactivated={handleCategoryDeactivated}
-      />
+      {pendingDelete ? (
+        <EntityCategoryDeleteDialogLazy
+          workspace={workspace}
+          category={pendingDelete}
+          rows={rows}
+          entityCountByCategoryId={entityCountByCategoryId}
+          open={Boolean(pendingDelete)}
+          onOpenChange={(next: boolean) => !next && setPendingDelete(null)}
+          onDeleted={handleCategoryDeleted}
+          onDeactivated={handleCategoryDeactivated}
+        />
+      ) : null}
 
-      <EntityCategoryBulkDeleteAlert
-        workspace={workspace}
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onConfirm={runBulkDelete}
-      />
+      {bulkDeleteOpen ? (
+        <EntityCategoryBulkDeleteAlertLazy
+          workspace={workspace}
+          open={bulkDeleteOpen}
+          onOpenChange={setBulkDeleteOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onConfirm={runBulkDelete}
+        />
+      ) : null}
     </>
   );
 }

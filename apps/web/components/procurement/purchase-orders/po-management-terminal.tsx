@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { bulkApprovePurchaseOrders, loadPurchaseOrders } from "@/app/procurement/purchase-orders/actions";
+import { bulkApprovePurchaseOrders, fetchMorePurchaseOrders } from "@/app/procurement/purchase-orders/actions";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { PoBulkActionToolbar } from "@/components/procurement/purchase-orders/po-bulk-action-toolbar";
-import { PoDrawerForm } from "@/components/procurement/purchase-orders/po-drawer-form";
 import { PoEmptyState } from "@/components/procurement/purchase-orders/po-empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PoListTable } from "@/components/procurement/purchase-orders/po-list-table";
 import { PoListToolbar } from "@/components/procurement/purchase-orders/po-list-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
@@ -35,6 +37,7 @@ import type {
 } from "@/lib/procurement/shared/types";
 import { buildModuleHref } from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
@@ -47,6 +50,11 @@ import {
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
+
+const PoDrawerForm = lazyClientExport(
+  () => import("@/components/procurement/purchase-orders/po-drawer-form"),
+  "PoDrawerForm"
+);
 
 function liveSearchParams(fallback: ReturnType<typeof useSearchParams>): URLSearchParams {
   if (typeof window === "undefined") return new URLSearchParams(fallback.toString());
@@ -64,6 +72,8 @@ function resolveBulkPurchaseOrderIds(
 
 type Props = {
   initialPurchaseOrders: PurchaseOrderRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   locations: ProcurementLocationOption[];
   suppliers: ProcurementSupplierOption[];
   editAccessGranted: boolean;
@@ -86,6 +96,8 @@ type Props = {
 
 export function PoManagementTerminal({
   initialPurchaseOrders,
+  listTotalCount = initialPurchaseOrders.length,
+  listHasMore = false,
   locations,
   suppliers,
   editAccessGranted,
@@ -113,10 +125,23 @@ export function PoManagementTerminal({
     if (drawer.surface !== "create") return null;
     return searchParams.get(PO_COPY_FROM_PARAM)?.trim() || null;
   }, [drawer.surface, searchParams]);
-  const [purchaseOrders, setPurchaseOrders] = useState(initialPurchaseOrders);
+  const {
+    rows: purchaseOrders,
+    totalCount,
+    hasMore,
+    isLoadingMore,
+    isListBootstrapping,
+    refreshList,
+    loadMore,
+  } = useDocumentListPagination(
+    initialPurchaseOrders,
+    listTotalCount,
+    listHasMore,
+    fetchMorePurchaseOrders,
+    "purchase orders"
+  );
   const [prefs, setPrefs] = useState<PurchaseOrderListPrefs>(getDefaultPurchaseOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const [, startRefreshTransition] = useTransition();
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -152,20 +177,6 @@ export function PoManagementTerminal({
     if (!prefsHydrated) return;
     savePurchaseOrderListPrefs(prefs);
   }, [prefs, prefsHydrated]);
-
-  const refreshList = useCallback(() => {
-    startRefreshTransition(async () => {
-      try {
-        const nextOrders = await loadPurchaseOrders();
-        setPurchaseOrders(nextOrders);
-      } catch (error) {
-        console.error("[PoManagementTerminal] refresh failed", error);
-        toast.error(
-          error instanceof Error ? error.message : "Unable to refresh purchase orders."
-        );
-      }
-    });
-  }, []);
 
   const ordersView = useFilteredPurchaseOrders(purchaseOrders, prefs);
 
@@ -376,7 +387,15 @@ export function PoManagementTerminal({
     ]
   );
 
-  const listPrimary = !hasAnyData ? (
+  const listPrimary = isListBootstrapping ? (
+    <div
+      className="flex h-full min-h-0 flex-1 flex-col p-1"
+      aria-busy="true"
+      aria-label="Loading purchase orders"
+    >
+      <Skeleton className="h-full min-h-[240px] w-full shimmer" />
+    </div>
+  ) : !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <PoEmptyState
         onCreate={editAccessGranted ? drawer.openCreate : undefined}
@@ -391,26 +410,36 @@ export function PoManagementTerminal({
       </div>
     </div>
   ) : (
-    <PoListTable
-      rows={sortedRows}
-      columnPrefs={prefs.columnPrefs}
-      sortField={prefs.sortField}
-      sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
-      onSortChange={handleSortChange}
-      onColumnWidthChange={(columnId, width) =>
-        setPrefs((current) => setPurchaseOrderColumnWidth(current, columnId, width))
-      }
-      selectedId={selectedId}
-      onSelect={handleSelect}
-      bulkSelectionEnabled={canBulkApprove}
-      bulkSelectedIds={bulkSelectedIds}
-      pageAllSelected={pageAllSelected}
-      pageSomeSelected={pageSomeSelected}
-      isRowBulkSelectable={isRowBulkApprovable}
-      onBulkRowToggle={handleBulkRowToggle}
-      onBulkPageToggle={handleBulkPageToggle}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+      <PoListTable
+        rows={sortedRows}
+        columnPrefs={prefs.columnPrefs}
+        sortField={prefs.sortField}
+        sortDirection={prefs.sortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setPurchaseOrderColumnWidth(current, columnId, width))
+        }
+        selectedId={selectedId}
+        onSelect={handleSelect}
+        bulkSelectionEnabled={canBulkApprove}
+        bulkSelectedIds={bulkSelectedIds}
+        pageAllSelected={pageAllSelected}
+        pageSomeSelected={pageSomeSelected}
+        isRowBulkSelectable={isRowBulkApprovable}
+        onBulkRowToggle={handleBulkRowToggle}
+        onBulkPageToggle={handleBulkPageToggle}
+      />
+      <ListLoadMoreFooter
+        visibleCount={purchaseOrders.length}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        noun="purchase orders"
+      />
+    </div>
   );
 
   const bulkToolbar =
@@ -465,37 +494,39 @@ export function PoManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <PoDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        locations={locations}
-        suppliers={suppliers}
-        peekOrder={peekOrder}
-        peekRecordId={selectedId}
-        editOrderId={editOrderId}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-        onOpenEdit={handleOpenEdit}
-        onEditNotAllowed={handleEditNotAllowed}
-        editAccessGranted={editAccessGranted}
-        allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
-        allowLineItemDiscounts={allowLineItemDiscounts}
-        allowTransactionDiscounts={allowTransactionDiscounts}
-        enableMrpTradeTerms={enableMrpTradeTerms}
-        promoDefaultCategory={promoDefaultCategory}
-        autoRoundOffPolicy={autoRoundOffPolicy}
-        defaultPricesTaxInclusive={defaultPricesTaxInclusive}
-        defaultCurrency={defaultCurrency}
-        preferredDestinationLocationId={preferredDestinationLocationId}
-        documentLayout={documentLayout}
-        organizationBillTo={organizationBillTo}
-        copyFromId={copyFromId}
-        onDuplicate={editAccessGranted ? handleDuplicate : undefined}
-        taxCodeOptions={taxCodeOptions}
-        approvalSettings={approvalSettings}
-        currentUserId={currentUserId}
-        isOwner={isOwner}
-      />
+      {drawer.isOpen ? (
+        <PoDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          locations={locations}
+          suppliers={suppliers}
+          peekOrder={peekOrder}
+          peekRecordId={selectedId}
+          editOrderId={editOrderId}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+          onOpenEdit={handleOpenEdit}
+          onEditNotAllowed={handleEditNotAllowed}
+          editAccessGranted={editAccessGranted}
+          allowEditIssuedPurchaseOrders={allowEditIssuedPurchaseOrders}
+          allowLineItemDiscounts={allowLineItemDiscounts}
+          allowTransactionDiscounts={allowTransactionDiscounts}
+          enableMrpTradeTerms={enableMrpTradeTerms}
+          promoDefaultCategory={promoDefaultCategory}
+          autoRoundOffPolicy={autoRoundOffPolicy}
+          defaultPricesTaxInclusive={defaultPricesTaxInclusive}
+          defaultCurrency={defaultCurrency}
+          preferredDestinationLocationId={preferredDestinationLocationId}
+          documentLayout={documentLayout}
+          organizationBillTo={organizationBillTo}
+          copyFromId={copyFromId}
+          onDuplicate={editAccessGranted ? handleDuplicate : undefined}
+          taxCodeOptions={taxCodeOptions}
+          approvalSettings={approvalSettings}
+          currentUserId={currentUserId}
+          isOwner={isOwner}
+        />
+      ) : null}
     </>
   );
 }

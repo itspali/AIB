@@ -6,9 +6,10 @@ import { toast } from "sonner";
 import {
   bulkApproveSalesInvoices,
   bulkPostSalesInvoices,
-  loadSalesInvoices,
+  fetchMoreSalesInvoices,
 } from "@/app/sales/invoices/actions";
-import { InvoiceDrawerForm } from "@/components/sales/invoices/invoice-drawer-form";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { InvoiceEmptyState } from "@/components/sales/invoices/invoice-empty-state";
 import { InvoiceListTable } from "@/components/sales/invoices/invoice-list-table";
 import { InvoiceListToolbar } from "@/components/sales/invoices/invoice-list-toolbar";
@@ -37,6 +38,7 @@ import {
   SALES_INVOICES_HREF,
 } from "@/lib/sales/navigation";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
@@ -52,6 +54,11 @@ import {
 const INVOICE_PAGE_DESCRIPTION =
   "Issue customer invoices, post to accounts receivable, and track payment status.";
 
+const InvoiceDrawerForm = lazyClientExport(
+  () => import("@/components/sales/invoices/invoice-drawer-form"),
+  "InvoiceDrawerForm"
+);
+
 function resolveBulkInvoiceIds(
   bulkSelectAllMatching: boolean,
   bulkSelectedIds: Set<string>,
@@ -63,6 +70,8 @@ function resolveBulkInvoiceIds(
 
 type Props = {
   initialInvoices: SalesInvoiceRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   customers: CustomerOption[];
   locations: SalesLocationOption[];
   editAccessGranted: boolean;
@@ -80,6 +89,8 @@ type Props = {
 
 export function InvoiceManagementTerminal({
   initialInvoices,
+  listTotalCount = initialInvoices.length,
+  listHasMore = false,
   customers,
   locations,
   editAccessGranted,
@@ -102,10 +113,22 @@ export function InvoiceManagementTerminal({
       INVOICE_STATUS_FILTER_PARAM,
     ],
   });
-  const [invoices, setInvoices] = useState(initialInvoices);
+  const {
+    rows: invoices,
+    totalCount,
+    hasMore,
+    isLoadingMore,
+    refreshList,
+    loadMore,
+  } = useDocumentListPagination(
+    initialInvoices,
+    listTotalCount,
+    listHasMore,
+    fetchMoreSalesInvoices,
+    "invoices"
+  );
   const [prefs, setPrefs] = useState<SalesInvoiceListPrefs>(getDefaultSalesInvoiceListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const [, startRefreshTransition] = useTransition();
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -157,17 +180,10 @@ export function InvoiceManagementTerminal({
     saveSalesInvoiceListPrefs(prefs);
   }, [prefs, prefsHydrated]);
 
-  const refreshList = useCallback(() => {
-    startRefreshTransition(async () => {
-      try {
-        const nextInvoices = await loadSalesInvoices();
-        setInvoices(nextInvoices);
-      } catch (error) {
-        console.error("[InvoiceManagementTerminal] refresh failed", error);
-        toast.error(error instanceof Error ? error.message : "Unable to refresh invoices.");
-      }
-    });
-  }, []);
+  useEffect(() => {
+    if (!prefsHydrated) return;
+    saveSalesInvoiceListPrefs(prefs);
+  }, [prefs, prefsHydrated]);
 
   const invoicesView = useFilteredInvoices(invoices, prefs);
   const selectedId = drawer.recordId;
@@ -378,26 +394,36 @@ export function InvoiceManagementTerminal({
       </div>
     </div>
   ) : (
-    <InvoiceListTable
-      rows={sortedRows}
-      columnPrefs={prefs.columnPrefs}
-      sortField={prefs.sortField}
-      sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
-      onSortChange={handleSortChange}
-      onColumnWidthChange={(columnId, width) =>
-        setPrefs((current) => setSalesInvoiceColumnWidth(current, columnId, width))
-      }
-      selectedId={selectedId}
-      onSelect={handleSelect}
-      bulkSelectionEnabled={canBulkApprove || canBulkPost}
-      bulkSelectedIds={bulkSelectedIds}
-      pageAllSelected={pageAllSelected}
-      pageSomeSelected={pageSomeSelected}
-      isRowBulkSelectable={isRowBulkSelectable}
-      onBulkRowToggle={handleBulkRowToggle}
-      onBulkPageToggle={handleBulkPageToggle}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+      <InvoiceListTable
+        rows={sortedRows}
+        columnPrefs={prefs.columnPrefs}
+        sortField={prefs.sortField}
+        sortDirection={prefs.sortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setSalesInvoiceColumnWidth(current, columnId, width))
+        }
+        selectedId={selectedId}
+        onSelect={handleSelect}
+        bulkSelectionEnabled={canBulkApprove || canBulkPost}
+        bulkSelectedIds={bulkSelectedIds}
+        pageAllSelected={pageAllSelected}
+        pageSomeSelected={pageSomeSelected}
+        isRowBulkSelectable={isRowBulkSelectable}
+        onBulkRowToggle={handleBulkRowToggle}
+        onBulkPageToggle={handleBulkPageToggle}
+      />
+      <ListLoadMoreFooter
+        visibleCount={invoices.length}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        noun="invoices"
+      />
+    </div>
   );
 
   const bulkToolbar =
@@ -459,31 +485,33 @@ export function InvoiceManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <InvoiceDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        customers={customers}
-        locations={locations}
-        peekInvoice={peekInvoice}
-        peekRecordId={selectedId}
-        editInvoiceId={editInvoiceId}
-        createPrefillSoId={createPrefillSoId}
-        createPrefillQuoteId={createPrefillQuoteId}
-        editAccessGranted={editAccessGranted}
-        defaultCurrency={defaultCurrency}
-        documentLayout={documentLayout}
-        allowLineItemDiscounts={allowLineItemDiscounts}
-        allowTransactionDiscounts={allowTransactionDiscounts}
-        taxCodeOptions={taxCodeOptions}
-        tenantCountry={tenantCountry}
-        gstRegistered={gstRegistered}
-        approvalSettings={approvalSettings}
-        currentUserId={currentUserId}
-        isOwner={isOwner}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-        onOpenEdit={handleOpenEdit}
-      />
+      {drawer.isOpen ? (
+        <InvoiceDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          customers={customers}
+          locations={locations}
+          peekInvoice={peekInvoice}
+          peekRecordId={selectedId}
+          editInvoiceId={editInvoiceId}
+          createPrefillSoId={createPrefillSoId}
+          createPrefillQuoteId={createPrefillQuoteId}
+          editAccessGranted={editAccessGranted}
+          defaultCurrency={defaultCurrency}
+          documentLayout={documentLayout}
+          allowLineItemDiscounts={allowLineItemDiscounts}
+          allowTransactionDiscounts={allowTransactionDiscounts}
+          taxCodeOptions={taxCodeOptions}
+          tenantCountry={tenantCountry}
+          gstRegistered={gstRegistered}
+          approvalSettings={approvalSettings}
+          currentUserId={currentUserId}
+          isOwner={isOwner}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+          onOpenEdit={handleOpenEdit}
+        />
+      ) : null}
     </>
   );
 }

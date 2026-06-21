@@ -8,7 +8,7 @@ import { LocationTopologyExplorer } from "@/components/locations/location-topolo
 import type { DomRoutingConfig } from "@/lib/locations/dom-routing";
 import type { LocationModuleContext, LocationRow, LocationTopologyRow } from "@/lib/locations/types";
 
-type Props = {
+export type LocationTopologyTerminalProps = {
   topologyRows: LocationTopologyRow[];
   locationRows: LocationRow[];
   domRouting: DomRoutingConfig;
@@ -20,7 +20,7 @@ export function LocationTopologyTerminal({
   locationRows,
   domRouting,
   moduleContext,
-}: Props) {
+}: LocationTopologyTerminalProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (

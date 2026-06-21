@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import type { TaxTreatmentType } from "@/lib/entities/types";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesPaymentStatus } from "@/lib/sales/orders/types";
@@ -271,22 +277,29 @@ const INVOICE_DETAIL_SELECT = `
   )
 `;
 
-export async function fetchSalesInvoices(
+export type SalesInvoicesFetchOptions = DocumentListFetchOptions & {
+  status?: SalesDocumentStatus | null;
+};
+
+export async function fetchSalesInvoicesPage(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: { status?: SalesDocumentStatus | null }
-): Promise<SalesInvoiceRow[]> {
+  options?: SalesInvoicesFetchOptions
+): Promise<DocumentListPage<SalesInvoiceRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+
   let query = supabase
     .from("sales_invoices")
-    .select(INVOICE_LIST_SELECT)
+    .select(INVOICE_LIST_SELECT, { count: "exact" })
     .eq("tenant_id", tenantId)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (options?.status) {
     query = query.eq("commercial_status", options.status);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []).map((row) => mapInvoiceListRow(row as InvoiceListDbRow));
@@ -294,7 +307,17 @@ export async function fetchSalesInvoices(
     hydrateInvoiceCreatorNames(supabase, rows),
     hydrateInvoiceApprovalSubmitters(supabase, tenantId, rows),
   ]);
-  return rows;
+
+  return buildDocumentListPage(rows, count ?? rows.length, offset, limit);
+}
+
+export async function fetchSalesInvoices(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: SalesInvoicesFetchOptions
+): Promise<SalesInvoiceRow[]> {
+  const page = await fetchSalesInvoicesPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchSalesInvoiceById(

@@ -1,4 +1,5 @@
-import { SoManagementTerminal } from "@/components/sales/orders/so-management-terminal";
+import dynamic from "next/dynamic";
+import { SoCatalogPageSkeleton } from "@/components/sales/orders/so-catalog-page-skeleton";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import {
   filterProcurementLocationsByScope,
@@ -6,7 +7,7 @@ import {
 } from "@/lib/procurement/location-scope";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
 import { salesOrderFetchOptionsForScope } from "@/lib/sales/orders/fetch-scope";
-import { fetchSalesOrders } from "@/lib/sales/orders/queries";
+import { fetchSalesOrdersPage } from "@/lib/sales/orders/queries";
 import { fetchSalesSettings } from "@/lib/sales/settings";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
 import {
@@ -16,6 +17,14 @@ import {
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
+
+const SoManagementTerminal = dynamic(
+  () =>
+    import("@/components/sales/orders/so-management-terminal").then(
+      (module) => module.SoManagementTerminal
+    ),
+  { loading: () => <SoCatalogPageSkeleton /> }
+);
 
 export async function SoCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
@@ -43,7 +52,7 @@ export async function SoCatalogLoader() {
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
-  const salesOrders = await fetchSalesOrders(
+  const salesOrdersPage = await fetchSalesOrdersPage(
     supabase,
     tenantId,
     salesOrderFetchOptionsForScope(editAccess.locationScope)
@@ -58,7 +67,9 @@ export async function SoCatalogLoader() {
 
   return (
     <SoManagementTerminal
-      initialSalesOrders={salesOrders}
+      initialSalesOrders={salesOrdersPage.rows}
+      listTotalCount={salesOrdersPage.totalCount}
+      listHasMore={salesOrdersPage.hasMore}
       locations={scopedLocations}
       customers={customers}
       editAccessGranted={editAccess.granted}

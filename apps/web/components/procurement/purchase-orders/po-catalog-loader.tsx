@@ -9,7 +9,7 @@ import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-set
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
 import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
-import { fetchPurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
+import { fetchPurchaseOrdersPage } from "@/lib/procurement/purchase-orders/queries";
 import { mapOrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
 import {
   fetchProcurementLocations,
@@ -45,7 +45,7 @@ export async function PoCatalogLoader() {
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
-  const purchaseOrders = await fetchPurchaseOrders(
+  const purchaseOrdersPage = await fetchPurchaseOrdersPage(
     supabase,
     tenantId,
     purchaseOrderFetchOptionsForScope(editAccess.locationScope)
@@ -60,7 +60,9 @@ export async function PoCatalogLoader() {
 
   return (
     <PoManagementTerminal
-      initialPurchaseOrders={purchaseOrders}
+      initialPurchaseOrders={purchaseOrdersPage.rows}
+      listTotalCount={purchaseOrdersPage.totalCount}
+      listHasMore={purchaseOrdersPage.hasMore}
       locations={scopedLocations}
       suppliers={suppliers}
       editAccessGranted={editAccess.granted}

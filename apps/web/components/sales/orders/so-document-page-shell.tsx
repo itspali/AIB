@@ -15,7 +15,7 @@ import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-l
 import { cn } from "@/lib/utils";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 
-type Props = {
+export type SoDocumentPageShellProps = {
   mode: "create" | "edit";
   editOrderId?: string | null;
   copyFromId?: string | null;
@@ -45,7 +45,7 @@ export function SoDocumentPageShell({
   tenantCountry = null,
   gstRegistered = false,
   preferredShippingLocationId = null,
-}: Props) {
+}: SoDocumentPageShellProps) {
   const router = useRouter();
   const returnHref = soListReturnHref(editOrderId);
 

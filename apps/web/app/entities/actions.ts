@@ -1,10 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { fetchResolvedEntityCustomFieldDefinitions } from "@/lib/entities/custom-field-queries";
+import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
 import { fetchEntityDetailById } from "@/lib/entities/queries";
+import { fetchEntityListPage } from "@/lib/entities/list-queries";
 import { entityListHref } from "@/lib/entities/entity-navigation";
 import { buildEntityLogoStoragePath, ENTITY_LOGO_BUCKET } from "@/lib/entities/logo";
 import type { EntityDetailSnapshot, EntityWorkspace } from "@/lib/entities/types";
+import { fetchEntityCategoryRows } from "@/lib/entity-categories/queries";
+import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 const ENTITY_PATHS = [
@@ -77,6 +82,25 @@ export async function loadEntityDetail(
 ): Promise<EntityDetailSnapshot | null> {
   const { supabase, tenantId } = await requireTenantId();
   return fetchEntityDetailById(supabase, tenantId, entityId);
+}
+
+export async function fetchMoreEntities(workspace: EntityWorkspace, offset: number) {
+  const { supabase } = await requireTenantId();
+  return fetchEntityListPage(supabase, workspace, { offset });
+}
+
+export async function loadEntityListCategoryRows(
+  workspace: EntityWorkspace
+): Promise<EntityCategoryRow[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchEntityCategoryRows(supabase, tenantId, workspace);
+}
+
+export async function loadEntityCustomFieldDefinitions(
+  workspace: EntityWorkspace
+): Promise<EntityCustomFieldDefinition[]> {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchResolvedEntityCustomFieldDefinitions(supabase, tenantId, workspace);
 }
 
 type EntitySavePayload = {

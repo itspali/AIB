@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 import type {
   LinkedGoodsReceiptSummary,
   PurchaseBillLineRow,
@@ -14,26 +20,33 @@ function formatDecimal(value: number | string | null | undefined): string {
   return Number.isFinite(parsed) ? String(parsed) : "0";
 }
 
-export async function fetchPurchaseBills(
+export type PurchaseBillsFetchOptions = DocumentListFetchOptions;
+
+export async function fetchPurchaseBillsPage(
   supabase: SupabaseClient,
-  tenantId: string
-): Promise<PurchaseBillRow[]> {
-  const { data, error } = await supabase
+  tenantId: string,
+  options?: PurchaseBillsFetchOptions
+): Promise<DocumentListPage<PurchaseBillRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+
+  const { data, error, count } = await supabase
     .from("purchase_invoices")
     .select(
       `id, invoice_number_vendor, system_voucher_number, supplier_id, purchase_order_id,
        tax_treatment, tax_supply_nature, tax_mechanism, rcm_applicable,
        total_gross_amount, total_tax_amount, total_liability_amount, match_status, document_status, is_paid, created_at,
        supplier:entities!purchase_invoices_supplier_tenant_fk (name),
-       purchase_order:purchase_orders!purchase_invoices_po_tenant_fk (voucher_number)`
+       purchase_order:purchase_orders!purchase_invoices_po_tenant_fk (voucher_number)`,
+      { count: "exact" }
     )
     .eq("tenant_id", tenantId)
     .eq("document_status", "ACTIVE")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((row) => {
+  const rows = (data ?? []).map((row) => {
     const supplier = Array.isArray(row.supplier) ? row.supplier[0] : row.supplier;
     const purchaseOrder = Array.isArray(row.purchase_order)
       ? row.purchase_order[0]
@@ -64,6 +77,17 @@ export async function fetchPurchaseBills(
       created_at: row.created_at as string,
     };
   });
+
+  return buildDocumentListPage(rows, count ?? rows.length, offset, limit);
+}
+
+export async function fetchPurchaseBills(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: PurchaseBillsFetchOptions
+): Promise<PurchaseBillRow[]> {
+  const page = await fetchPurchaseBillsPage(supabase, tenantId, options);
+  return page.rows;
 }
 
 export async function fetchPurchaseBillById(

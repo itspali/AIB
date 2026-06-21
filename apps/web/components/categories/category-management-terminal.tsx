@@ -16,17 +16,13 @@ import {
   bulkDeactivateCategories,
   bulkDeleteCategories,
   loadCategoryItemCounts,
+  loadCategoryRows,
 } from "@/app/items/categories/actions";
-import { CategoryBulkActionToolbar } from "@/components/categories/category-bulk-action-toolbar";
-import type { CategoryBulkToolbarAction } from "@/components/categories/category-bulk-action-toolbar";
-import { CategoryBulkDeleteAlert } from "@/components/categories/category-bulk-delete-alert";
-import { CategoryDeleteDialog } from "@/components/categories/category-delete-dialog";
-import { CategoryDrawerForm } from "@/components/categories/category-drawer-form";
 import { CategoryEmptyState } from "@/components/categories/category-empty-state";
-import { CategoryListTable } from "@/components/categories/category-list-table";
-import { CategoryListToolbar } from "@/components/categories/category-list-toolbar";
-import { CategoryTreePanel } from "@/components/categories/category-tree-panel";
+import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,7 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { CATEGORIES_HREF } from "@/lib/categories/category-navigation";
-import { downloadCategoryListCsv } from "@/lib/categories/bulk-export";
 import { enrichCategoryListRows } from "@/lib/categories/list-row";
 import {
   getColumnPrefsSlice,
@@ -49,7 +44,8 @@ import {
   type CategoryListPrefs,
   type CategoryTableViewMode,
 } from "@/lib/categories/list-prefs";
-import { sortCategoryListRows } from "@/lib/categories/list-sort";
+import type { CategoryListColumnId } from "@/lib/categories/list-columns";
+import { sortCategoryListRows, type CategoryListSortDirection, type CategoryListSortField } from "@/lib/categories/list-sort";
 import {
   patchCategoryActiveState,
   removeCategoryRow,
@@ -64,6 +60,47 @@ import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 
 const CATEGORIES_PAGE_DESCRIPTION =
   "Configure hierarchical item categories and inherited attribute templates.";
+
+const CategoryDrawerForm = lazyClientExport(
+  () => import("@/components/categories/category-drawer-form"),
+  "CategoryDrawerForm"
+);
+const CategoryDeleteDialogLazy = lazyClientExport(
+  () => import("@/components/categories/category-delete-dialog"),
+  "CategoryDeleteDialog"
+);
+const CategoryBulkDeleteAlertLazy = lazyClientExport(
+  () => import("@/components/categories/category-bulk-delete-alert"),
+  "CategoryBulkDeleteAlert"
+);
+
+const CategoryListTable = lazyClientExport(
+  () => import("@/components/categories/category-list-table"),
+  "CategoryListTable"
+);
+
+const CategoryListToolbar = lazyClientExport(
+  () => import("@/components/categories/category-list-toolbar"),
+  "CategoryListToolbar"
+);
+
+const CategoryBulkActionToolbar = lazyClientExport(
+  () => import("@/components/categories/category-bulk-action-toolbar"),
+  "CategoryBulkActionToolbar"
+);
+
+type CategoryBulkToolbarAction = import("@/components/categories/category-bulk-action-toolbar").CategoryBulkToolbarAction;
+
+const CategoryTreePanel = dynamic(
+  () =>
+    import("@/components/categories/category-tree-panel").then(
+      (module) => module.CategoryTreePanel
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-full min-h-[240px] w-full" />,
+  }
+);
 
 type Props = {
   initialRows: CategoryRow[];
@@ -120,6 +157,7 @@ export function CategoryManagementTerminal({
   const serverViewHydratedRef = useRef(false);
   const { deviceClass } = useDeviceClass();
   const [rows, setRows] = useState(initialRows);
+  const [rowsLoading, setRowsLoading] = useState(initialRows.length === 0);
   const [itemCountByCategoryId, setItemCountByCategoryId] = useState(
     initialItemCountByCategoryId
   );
@@ -133,6 +171,19 @@ export function CategoryManagementTerminal({
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+
+  useEffect(() => {
+    if (initialRows.length > 0) return;
+    let cancelled = false;
+    void loadCategoryRows().then((nextRows) => {
+      if (cancelled) return;
+      setRows(nextRows);
+      setRowsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialRows.length]);
 
   useEffect(() => {
     if (itemCountsRequestedRef.current) return;
@@ -371,18 +422,20 @@ export function CategoryManagementTerminal({
       return;
     }
     const idSet = new Set(ids);
-    const rows = listRows.filter((row) => idSet.has(row.id));
-    if (rows.length === 0) {
-      const enriched = enrichCategoryListRows(
-        filteredRows.filter((row) => idSet.has(row.id)),
-        rows,
-        itemCountByCategoryId
-      );
-      downloadCategoryListCsv(enriched);
-    } else {
-      downloadCategoryListCsv(rows);
-    }
-    toast.success(`Exported ${ids.length} categor${ids.length === 1 ? "y" : "ies"}.`);
+    const exportRows = listRows.filter((row) => idSet.has(row.id));
+    void import("@/lib/categories/bulk-export").then(({ downloadCategoryListCsv }) => {
+      if (exportRows.length === 0) {
+        const enriched = enrichCategoryListRows(
+          filteredRows.filter((row) => idSet.has(row.id)),
+          rows,
+          itemCountByCategoryId
+        );
+        downloadCategoryListCsv(enriched);
+      } else {
+        downloadCategoryListCsv(exportRows);
+      }
+      toast.success(`Exported ${ids.length} categor${ids.length === 1 ? "y" : "ies"}.`);
+    });
   }, [filteredRows, rows, itemCountByCategoryId, listRows, resolveSelectedIds]);
 
   const handleBulkToolbarAction = useCallback(
@@ -429,8 +482,9 @@ export function CategoryManagementTerminal({
     setPendingDelete(category);
   };
 
-  const listPrimary =
-    rows.length === 0 ? (
+  const listPrimary = rowsLoading ? (
+    <Skeleton className="h-full min-h-[240px] w-full" />
+  ) : rows.length === 0 ? (
       <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
         <CategoryEmptyState onCreate={drawer.openCreate} hasExistingCategories={false} />
       </div>
@@ -451,10 +505,10 @@ export function CategoryManagementTerminal({
         frozenColumnCount={frozenColumnCount}
         freezeColumnsAuto
         compactRows={prefs.viewMode === "compact"}
-        onSortChange={(sortField, sortDirection) =>
+        onSortChange={(sortField: CategoryListSortField, sortDirection: CategoryListSortDirection) =>
           setPrefs((current) => ({ ...current, sortField, sortDirection }))
         }
-        onColumnWidthChange={(columnId, width) =>
+        onColumnWidthChange={(columnId: CategoryListColumnId, width: number | null) =>
           setPrefs((current) =>
             setColumnWidthSlice(current, tableViewMode, deviceClass, columnId, width)
           )
@@ -524,34 +578,40 @@ export function CategoryManagementTerminal({
         {body}
       </ListModuleShell>
 
-      <CategoryDrawerForm
-        open={drawerOpen}
-        surface={drawer.surface}
-        rows={rows}
-        peekCategory={peekCategory}
-        onClose={drawer.close}
-        onOpenEdit={drawer.openEdit}
-        onAfterSave={handleCategorySaved}
-        onDelete={openDelete}
-      />
+      {drawerOpen ? (
+        <CategoryDrawerForm
+          open={drawerOpen}
+          surface={drawer.surface}
+          rows={rows}
+          peekCategory={peekCategory}
+          onClose={drawer.close}
+          onOpenEdit={drawer.openEdit}
+          onAfterSave={handleCategorySaved}
+          onDelete={openDelete}
+        />
+      ) : null}
 
-      <CategoryDeleteDialog
-        category={pendingDelete}
-        rows={rows}
-        itemCountByCategoryId={itemCountByCategoryId}
-        open={Boolean(pendingDelete)}
-        onOpenChange={(next) => !next && setPendingDelete(null)}
-        onDeleted={handleCategoryDeleted}
-        onDeactivated={handleCategoryDeactivated}
-      />
+      {pendingDelete ? (
+        <CategoryDeleteDialogLazy
+          category={pendingDelete}
+          rows={rows}
+          itemCountByCategoryId={itemCountByCategoryId}
+          open={Boolean(pendingDelete)}
+          onOpenChange={(next: boolean) => !next && setPendingDelete(null)}
+          onDeleted={handleCategoryDeleted}
+          onDeactivated={handleCategoryDeactivated}
+        />
+      ) : null}
 
-      <CategoryBulkDeleteAlert
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        selectedCount={bulkSelectionCount}
-        isPending={isBulkPending}
-        onConfirm={runBulkDelete}
-      />
+      {bulkDeleteOpen ? (
+        <CategoryBulkDeleteAlertLazy
+          open={bulkDeleteOpen}
+          onOpenChange={setBulkDeleteOpen}
+          selectedCount={bulkSelectionCount}
+          isPending={isBulkPending}
+          onConfirm={runBulkDelete}
+        />
+      ) : null}
     </>
   );
 }

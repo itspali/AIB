@@ -26,7 +26,7 @@ import type {
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 
-type Props = {
+export type PoDocumentPageShellProps = {
   mode: "create" | "edit";
   editOrderId?: string | null;
   copyFromId?: string | null;
@@ -64,7 +64,7 @@ export function PoDocumentPageShell({
   preferredDestinationLocationId = null,
   organizationBillTo,
   taxCodeOptions,
-}: Props) {
+}: PoDocumentPageShellProps) {
   const router = useRouter();
   const returnHref = poListReturnHref(editOrderId);
 

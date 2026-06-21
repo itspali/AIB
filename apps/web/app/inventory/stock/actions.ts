@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import {
   fetchStockAdjustmentById,
   fetchStockAdjustments,
+  fetchStockAdjustmentsPage,
   fetchStockBalances,
+  fetchStockBalancesPage,
   fetchStockLocationLabel,
   fetchStockLocations,
   listStockVariantsForBrowse,
@@ -75,6 +77,16 @@ export async function loadDocumentLineStockContexts(input: {
       error: error instanceof Error ? error.message : "Unable to load stock for line items.",
     };
   }
+}
+
+export async function fetchMoreStockBalances(offset: number) {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchStockBalancesPage(supabase, tenantId, { offset });
+}
+
+export async function fetchMoreStockAdjustments(offset: number) {
+  const { supabase, tenantId } = await requireTenantId();
+  return fetchStockAdjustmentsPage(supabase, tenantId, { offset });
 }
 
 export async function loadStockBalances(options?: {

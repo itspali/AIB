@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildDocumentListPage,
+  resolveDocumentListPaging,
+  type DocumentListFetchOptions,
+  type DocumentListPage,
+} from "@/lib/documents/list-page";
 
 function formatDecimal(value: number | string | null | undefined, fallback = "0"): string {
   if (value == null || value === "") return fallback;
@@ -29,6 +35,7 @@ import { parseDefaultSellingUomFromCustomFields } from "@/lib/sales/shared/sales
 import {
   computeAvailableQuantity,
   fetchActiveReservationTotalsByLocationVariant,
+  fetchActiveReservationTotalsForLocationVariants,
   locationVariantReservationKey,
 } from "@/lib/inventory/stock/reservation-totals";
 
@@ -138,47 +145,11 @@ export async function fetchStockLocations(
   }));
 }
 
-export async function fetchStockBalances(
-  supabase: SupabaseClient,
-  tenantId: string,
-  options?: { locationId?: string | null; search?: string }
-): Promise<StockBalanceRow[]> {
-  let query = supabase
-    .from("item_valuations")
-    .select(
-      `
-      id,
-      location_id,
-      item_id,
-      variant_id,
-      total_quantity_on_hand,
-      current_average_cost,
-      ${VALUATION_LOCATION_EMBED} (name, code),
-      ${VALUATION_ITEM_EMBED}!inner (name, base_unit_of_measure, custom_fields, track_inventory),
-      ${VALUATION_VARIANT_EMBED}!inner (sku, is_active)
-    `
-    )
-    .eq("tenant_id", tenantId)
-    .eq("items.track_inventory", true)
-    .eq("item_variants.is_active", true)
-    .order("tenant_locations(name)", { ascending: true });
-
-  if (options?.locationId) {
-    query = query.eq("location_id", options.locationId);
-  }
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
-  const reservationTotals = await fetchActiveReservationTotalsByLocationVariant(
-    supabase,
-    tenantId
-  );
-
-  const rows = (data ?? []) as BalanceDbRow[];
-  const search = options?.search?.trim().toLowerCase() ?? "";
-
-  const mapped = rows.map((row) => {
+function mapBalanceDbRows(
+  rows: BalanceDbRow[],
+  reservationTotals: Map<`${string}:${string}`, string>
+): StockBalanceRow[] {
+  return rows.map((row) => {
     const location = resolveJoin(row.tenant_locations);
     const item = resolveJoin(row.items);
     const variant = resolveJoin(row.item_variants);
@@ -216,6 +187,84 @@ export async function fetchStockBalances(
       below_reorder: belowReorder,
     } satisfies StockBalanceRow;
   });
+}
+
+const STOCK_BALANCE_LIST_SELECT = `
+      id,
+      location_id,
+      item_id,
+      variant_id,
+      total_quantity_on_hand,
+      current_average_cost,
+      ${VALUATION_LOCATION_EMBED} (name, code),
+      ${VALUATION_ITEM_EMBED}!inner (name, base_unit_of_measure, custom_fields, track_inventory),
+      ${VALUATION_VARIANT_EMBED}!inner (sku, is_active)
+    `;
+
+function buildStockBalancesQuery(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { locationId?: string | null },
+  listOptions?: { count?: "exact" }
+) {
+  let query = supabase
+    .from("item_valuations")
+    .select(STOCK_BALANCE_LIST_SELECT, listOptions)
+    .eq("tenant_id", tenantId)
+    .eq("items.track_inventory", true)
+    .eq("item_variants.is_active", true)
+    .order("tenant_locations(name)", { ascending: true });
+
+  if (options?.locationId) {
+    query = query.eq("location_id", options.locationId);
+  }
+
+  return query;
+}
+
+export async function fetchStockBalancesPage(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: DocumentListFetchOptions & { locationId?: string | null }
+): Promise<DocumentListPage<StockBalanceRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+
+  const { data, error, count } = await buildStockBalancesQuery(
+    supabase,
+    tenantId,
+    options,
+    { count: "exact" }
+  ).range(offset, offset + limit - 1);
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as BalanceDbRow[];
+  const reservationTotals = await fetchActiveReservationTotalsForLocationVariants(
+    supabase,
+    tenantId,
+    rows.map((row) => ({ locationId: row.location_id, variantId: row.variant_id }))
+  );
+  const mapped = mapBalanceDbRows(rows, reservationTotals);
+
+  return buildDocumentListPage(mapped, count ?? mapped.length, offset, limit);
+}
+
+export async function fetchStockBalances(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { locationId?: string | null; search?: string }
+): Promise<StockBalanceRow[]> {
+  const { data, error } = await buildStockBalancesQuery(supabase, tenantId, options);
+  if (error) throw new Error(error.message);
+
+  const reservationTotals = await fetchActiveReservationTotalsByLocationVariant(
+    supabase,
+    tenantId
+  );
+
+  const rows = (data ?? []) as BalanceDbRow[];
+  const search = options?.search?.trim().toLowerCase() ?? "";
+  const mapped = mapBalanceDbRows(rows, reservationTotals);
 
   if (!search) return mapped;
 
@@ -232,11 +281,29 @@ export async function fetchStockBalances(
   });
 }
 
-export async function fetchStockAdjustments(
+function mapStockAdjustmentRow(row: AdjustmentDbRow): StockAdjustmentRow {
+  const location = resolveJoin(row.tenant_locations);
+  const lineCount = row.stock_adjustment_lines?.length ?? 0;
+  return {
+    id: row.id,
+    location_id: row.location_id,
+    location_name: location?.name ?? "",
+    location_code: location?.code ?? "",
+    adjustment_number: row.adjustment_number,
+    kind: row.kind as StockAdjustmentRow["kind"],
+    reason: row.reason,
+    notes: row.notes,
+    posted_at: row.posted_at,
+    line_count: lineCount,
+  };
+}
+
+function buildStockAdjustmentsQuery(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: { locationId?: string | null; search?: string }
-): Promise<StockAdjustmentRow[]> {
+  options?: { locationId?: string | null },
+  count?: "exact"
+) {
   let query = supabase
     .from("stock_adjustments")
     .select(
@@ -250,7 +317,8 @@ export async function fetchStockAdjustments(
       posted_at,
       tenant_locations!inner (name, code),
       stock_adjustment_lines (id)
-    `
+    `,
+      count ? { count } : undefined
     )
     .eq("tenant_id", tenantId)
     .order("posted_at", { ascending: false });
@@ -259,31 +327,17 @@ export async function fetchStockAdjustments(
     query = query.eq("location_id", options.locationId);
   }
 
-  const { data, error } = await query.limit(200);
-  if (error) throw new Error(error.message);
+  return query;
+}
 
-  const search = options?.search?.trim().toLowerCase() ?? "";
+function filterStockAdjustmentRowsBySearch(
+  rows: StockAdjustmentRow[],
+  search?: string
+): StockAdjustmentRow[] {
+  const normalizedSearch = search?.trim().toLowerCase() ?? "";
+  if (!normalizedSearch) return rows;
 
-  const mapped = ((data ?? []) as AdjustmentDbRow[]).map((row) => {
-    const location = resolveJoin(row.tenant_locations);
-    const lineCount = row.stock_adjustment_lines?.length ?? 0;
-    return {
-      id: row.id,
-      location_id: row.location_id,
-      location_name: location?.name ?? "",
-      location_code: location?.code ?? "",
-      adjustment_number: row.adjustment_number,
-      kind: row.kind as StockAdjustmentRow["kind"],
-      reason: row.reason,
-      notes: row.notes,
-      posted_at: row.posted_at,
-      line_count: lineCount,
-    } satisfies StockAdjustmentRow;
-  });
-
-  if (!search) return mapped;
-
-  return mapped.filter((row) => {
+  return rows.filter((row) => {
     const haystack = [
       row.adjustment_number,
       row.location_name,
@@ -293,8 +347,40 @@ export async function fetchStockAdjustments(
     ]
       .join(" ")
       .toLowerCase();
-    return haystack.includes(search);
+    return haystack.includes(normalizedSearch);
   });
+}
+
+export async function fetchStockAdjustmentsPage(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: DocumentListFetchOptions & { locationId?: string | null }
+): Promise<DocumentListPage<StockAdjustmentRow>> {
+  const { offset, limit } = resolveDocumentListPaging(options);
+
+  const { data, error, count } = await buildStockAdjustmentsQuery(
+    supabase,
+    tenantId,
+    options,
+    "exact"
+  ).range(offset, offset + limit - 1);
+
+  if (error) throw new Error(error.message);
+
+  const mapped = ((data ?? []) as AdjustmentDbRow[]).map(mapStockAdjustmentRow);
+  return buildDocumentListPage(mapped, count ?? mapped.length, offset, limit);
+}
+
+export async function fetchStockAdjustments(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options?: { locationId?: string | null; search?: string }
+): Promise<StockAdjustmentRow[]> {
+  const page = await fetchStockAdjustmentsPage(supabase, tenantId, {
+    locationId: options?.locationId,
+    limit: 200,
+  });
+  return filterStockAdjustmentRowsBySearch(page.rows, options?.search);
 }
 
 export async function fetchStockAdjustmentById(

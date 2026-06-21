@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { loadStockTransfers } from "@/app/inventory/transfers/actions";
-import { TransferDrawerForm } from "@/components/inventory/transfers/transfer-drawer-form";
+import { fetchMoreStockTransfers } from "@/app/inventory/transfers/actions";
 import { TransferEmptyState } from "@/components/inventory/transfers/transfer-empty-state";
 import { TransferListTable } from "@/components/inventory/transfers/transfer-list-table";
 import { TransferListToolbar } from "@/components/inventory/transfers/transfer-list-toolbar";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import {
   getDefaultTransferListPrefs,
   loadTransferListPrefs,
@@ -38,6 +40,11 @@ import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 const TRANSFERS_PAGE_DESCRIPTION =
   "Move quantity-tracked stock between locations — draft, dispatch, and confirm receipt.";
 
+const TransferDrawerForm = lazyClientExport(
+  () => import("@/components/inventory/transfers/transfer-drawer-form"),
+  "TransferDrawerForm"
+);
+
 const TRANSFER_STATUS_FILTER_VALUES = new Set<StockTransferStatus>([
   "DRAFT",
   "PENDING_APPROVAL",
@@ -57,10 +64,17 @@ function parseTransferStatusFilterParam(value: string | null): StockTransferStat
 
 type Props = {
   initialTransfers: StockTransferRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   locations: TransferLocationOption[];
 };
 
-export function TransferManagementTerminal({ initialTransfers, locations }: Props) {
+export function TransferManagementTerminal({
+  initialTransfers,
+  listTotalCount = initialTransfers.length,
+  listHasMore = false,
+  locations,
+}: Props) {
   const searchParams = useSearchParams();
   const initialStatusFilterRef = useRef(
     parseTransferStatusFilterParam(searchParams.get(TRANSFER_STATUS_FILTER_PARAM))
@@ -68,10 +82,22 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
   const drawer = useModuleDrawerUrl(TRANSFERS_HREF, {
     clearParamsOnClose: [TRANSFER_DRAWER_SOURCE_PARAM, TRANSFER_DRAWER_DEST_PARAM],
   });
-  const [transfers, setTransfers] = useState(initialTransfers);
+  const {
+    rows: transfers,
+    totalCount,
+    hasMore,
+    isLoadingMore,
+    refreshList,
+    loadMore,
+  } = useDocumentListPagination(
+    initialTransfers,
+    listTotalCount,
+    listHasMore,
+    fetchMoreStockTransfers,
+    "transfers"
+  );
   const [prefs, setPrefs] = useState<TransferListPrefs>(getDefaultTransferListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const [, startRefreshTransition] = useTransition();
 
   useEffect(() => {
     const loaded = loadTransferListPrefs();
@@ -84,13 +110,6 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
     if (!prefsHydrated) return;
     saveTransferListPrefs(prefs);
   }, [prefs, prefsHydrated]);
-
-  const refreshList = useCallback(() => {
-    startRefreshTransition(async () => {
-      const nextTransfers = await loadStockTransfers();
-      setTransfers(nextTransfers);
-    });
-  }, []);
 
   const transfersView = useFilteredTransfers(transfers, prefs);
 
@@ -176,19 +195,29 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
       </div>
     </div>
   ) : (
-    <TransferListTable
-      rows={sortedRows}
-      columnPrefs={prefs.columnPrefs}
-      sortField={prefs.sortField}
-      sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
-      onSortChange={handleSortChange}
-      onColumnWidthChange={(columnId, width) =>
-        setPrefs((current) => setTransferColumnWidth(current, columnId, width))
-      }
-      selectedId={selectedTransferId}
-      onSelect={handleSelectTransfer}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+      <TransferListTable
+        rows={sortedRows}
+        columnPrefs={prefs.columnPrefs}
+        sortField={prefs.sortField}
+        sortDirection={prefs.sortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setTransferColumnWidth(current, columnId, width))
+        }
+        selectedId={selectedTransferId}
+        onSelect={handleSelectTransfer}
+      />
+      <ListLoadMoreFooter
+        visibleCount={transfers.length}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        noun="transfers"
+      />
+    </div>
   );
 
   return (
@@ -210,7 +239,7 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
               onPrefsChange={setPrefs}
               locations={locations}
               resultCount={transfersView.resultCount}
-              totalCount={transfersView.totalCount}
+              totalCount={totalCount}
               compactCountLabel={drawer.isOpen}
               prefsHydrated={prefsHydrated}
             />
@@ -222,17 +251,19 @@ export function TransferManagementTerminal({ initialTransfers, locations }: Prop
         </div>
       </ListModuleShell>
 
-      <TransferDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        locations={locations}
-        peekTransfer={peekTransfer}
-        editTransferId={editTransferId}
-        createPrefill={createPrefill}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-        onOpenEdit={handleOpenEdit}
-      />
+      {drawer.isOpen ? (
+        <TransferDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          locations={locations}
+          peekTransfer={peekTransfer}
+          editTransferId={editTransferId}
+          createPrefill={createPrefill}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+          onOpenEdit={handleOpenEdit}
+        />
+      ) : null}
     </>
   );
 }

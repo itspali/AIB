@@ -15,7 +15,7 @@ import {
   soListReturnHref,
 } from "@/lib/sales/navigation";
 
-type Props = {
+export type ApprovalCommandCenterProps = {
   tasks: ApprovalTaskRow[];
 };
 
@@ -64,7 +64,7 @@ export function ApprovalTaskCard({ task }: { task: ApprovalTaskRow }) {
   );
 }
 
-export function ApprovalCommandCenter({ tasks }: Props) {
+export function ApprovalCommandCenter({ tasks }: ApprovalCommandCenterProps) {
   return (
     <div className="mx-auto w-full max-w-5xl">
       <div className="mb-6">

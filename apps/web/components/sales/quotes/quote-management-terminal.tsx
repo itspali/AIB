@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { bulkApproveSalesQuotations, loadSalesQuotations } from "@/app/sales/quotes/actions";
-import { QuoteDrawerForm } from "@/components/sales/quotes/quote-drawer-form";
+import { bulkApproveSalesQuotations, fetchMoreSalesQuotations } from "@/app/sales/quotes/actions";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { QuoteEmptyState } from "@/components/sales/quotes/quote-empty-state";
 import { QuoteListTable } from "@/components/sales/quotes/quote-list-table";
 import { QuoteListToolbar } from "@/components/sales/quotes/quote-list-toolbar";
 import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultSalesQuoteListPrefs,
@@ -43,6 +45,11 @@ import {
 const QUOTE_PAGE_DESCRIPTION =
   "Create sales quotations, route them through approval, and convert to orders or invoices.";
 
+const QuoteDrawerForm = lazyClientExport(
+  () => import("@/components/sales/quotes/quote-drawer-form"),
+  "QuoteDrawerForm"
+);
+
 function resolveBulkQuoteIds(
   bulkSelectAllMatching: boolean,
   bulkSelectedIds: Set<string>,
@@ -54,6 +61,8 @@ function resolveBulkQuoteIds(
 
 type Props = {
   initialQuotes: SalesQuoteRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   customers: CustomerOption[];
   locations: SalesLocationOption[];
   editAccessGranted: boolean;
@@ -73,6 +82,8 @@ type Props = {
 
 export function QuoteManagementTerminal({
   initialQuotes,
+  listTotalCount = initialQuotes.length,
+  listHasMore = false,
   customers,
   locations,
   editAccessGranted,
@@ -93,10 +104,22 @@ export function QuoteManagementTerminal({
   const drawer = useModuleDrawerUrl(SALES_QUOTES_HREF, {
     clearParamsOnClose: [QUOTE_STATUS_FILTER_PARAM],
   });
-  const [quotes, setQuotes] = useState(initialQuotes);
+  const {
+    rows: quotes,
+    totalCount,
+    hasMore,
+    isLoadingMore,
+    refreshList,
+    loadMore,
+  } = useDocumentListPagination(
+    initialQuotes,
+    listTotalCount,
+    listHasMore,
+    fetchMoreSalesQuotations,
+    "quotes"
+  );
   const [prefs, setPrefs] = useState<SalesQuoteListPrefs>(getDefaultSalesQuoteListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const [, startRefreshTransition] = useTransition();
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -131,18 +154,6 @@ export function QuoteManagementTerminal({
     if (!prefsHydrated) return;
     saveSalesQuoteListPrefs(prefs);
   }, [prefs, prefsHydrated]);
-
-  const refreshList = useCallback(() => {
-    startRefreshTransition(async () => {
-      try {
-        const nextQuotes = await loadSalesQuotations();
-        setQuotes(nextQuotes);
-      } catch (error) {
-        console.error("[QuoteManagementTerminal] refresh failed", error);
-        toast.error(error instanceof Error ? error.message : "Unable to refresh quotes.");
-      }
-    });
-  }, []);
 
   const quotesView = useFilteredQuotes(quotes, prefs);
   const selectedId = drawer.recordId;
@@ -304,26 +315,36 @@ export function QuoteManagementTerminal({
       </div>
     </div>
   ) : (
-    <QuoteListTable
-      rows={sortedRows}
-      columnPrefs={prefs.columnPrefs}
-      sortField={prefs.sortField}
-      sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
-      onSortChange={handleSortChange}
-      onColumnWidthChange={(columnId, width) =>
-        setPrefs((current) => setSalesQuoteColumnWidth(current, columnId, width))
-      }
-      selectedId={selectedId}
-      onSelect={handleSelect}
-      bulkSelectionEnabled={canBulkApprove}
-      bulkSelectedIds={bulkSelectedIds}
-      pageAllSelected={pageAllSelected}
-      pageSomeSelected={pageSomeSelected}
-      isRowBulkSelectable={isRowBulkApprovable}
-      onBulkRowToggle={handleBulkRowToggle}
-      onBulkPageToggle={handleBulkPageToggle}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+      <QuoteListTable
+        rows={sortedRows}
+        columnPrefs={prefs.columnPrefs}
+        sortField={prefs.sortField}
+        sortDirection={prefs.sortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setSalesQuoteColumnWidth(current, columnId, width))
+        }
+        selectedId={selectedId}
+        onSelect={handleSelect}
+        bulkSelectionEnabled={canBulkApprove}
+        bulkSelectedIds={bulkSelectedIds}
+        pageAllSelected={pageAllSelected}
+        pageSomeSelected={pageSomeSelected}
+        isRowBulkSelectable={isRowBulkApprovable}
+        onBulkRowToggle={handleBulkRowToggle}
+        onBulkPageToggle={handleBulkPageToggle}
+      />
+      <ListLoadMoreFooter
+        visibleCount={quotes.length}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        noun="quotes"
+      />
+    </div>
   );
 
   const bulkToolbar =
@@ -383,31 +404,33 @@ export function QuoteManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <QuoteDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        customers={customers}
-        locations={locations}
-        peekQuote={peekQuote}
-        peekRecordId={selectedId}
-        editQuoteId={editQuoteId}
-        editAccessGranted={editAccessGranted}
-        defaultCurrency={defaultCurrency}
-        documentLayout={documentLayout}
-        allowLineItemDiscounts={allowLineItemDiscounts}
-        allowTransactionDiscounts={allowTransactionDiscounts}
-        taxCodeOptions={taxCodeOptions}
-        tenantCountry={tenantCountry}
-        gstRegistered={gstRegistered}
-        preferredOriginLocationId={preferredOriginLocationId}
-        documentConversionMode={documentConversionMode}
-        approvalSettings={approvalSettings}
-        currentUserId={currentUserId}
-        isOwner={isOwner}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-        onOpenEdit={handleOpenEdit}
-      />
+      {drawer.isOpen ? (
+        <QuoteDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          customers={customers}
+          locations={locations}
+          peekQuote={peekQuote}
+          peekRecordId={selectedId}
+          editQuoteId={editQuoteId}
+          editAccessGranted={editAccessGranted}
+          defaultCurrency={defaultCurrency}
+          documentLayout={documentLayout}
+          allowLineItemDiscounts={allowLineItemDiscounts}
+          allowTransactionDiscounts={allowTransactionDiscounts}
+          taxCodeOptions={taxCodeOptions}
+          tenantCountry={tenantCountry}
+          gstRegistered={gstRegistered}
+          preferredOriginLocationId={preferredOriginLocationId}
+          documentConversionMode={documentConversionMode}
+          approvalSettings={approvalSettings}
+          currentUserId={currentUserId}
+          isOwner={isOwner}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+          onOpenEdit={handleOpenEdit}
+        />
+      ) : null}
     </>
   );
 }

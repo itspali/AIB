@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { loadGoodsReceipts } from "@/app/procurement/goods-receipts/actions";
-import { GrnDrawerForm } from "@/components/procurement/goods-receipts/grn-drawer-form";
+import { fetchMoreGoodsReceipts } from "@/app/procurement/goods-receipts/actions";
 import { GrnEmptyState } from "@/components/procurement/goods-receipts/grn-empty-state";
 import { GrnListTable } from "@/components/procurement/goods-receipts/grn-list-table";
 import { GrnListToolbar } from "@/components/procurement/goods-receipts/grn-list-toolbar";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import {
   getDefaultGoodsReceiptListPrefs,
   loadGoodsReceiptListPrefs,
@@ -32,8 +34,15 @@ import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 const GRN_PAGE_DESCRIPTION =
   "Post goods receipts to increase on-hand stock — against purchase orders or as standalone receipts.";
 
+const GrnDrawerForm = lazyClientExport(
+  () => import("@/components/procurement/goods-receipts/grn-drawer-form"),
+  "GrnDrawerForm"
+);
+
 type Props = {
   initialGoodsReceipts: GoodsReceiptRow[];
+  listTotalCount?: number;
+  listHasMore?: boolean;
   initialReceivableOrders: ReceivablePurchaseOrderOption[];
   locations: ProcurementLocationOption[];
   defaultLandedCostAllocationMethod?: LandedCostAllocationMethod;
@@ -45,6 +54,8 @@ type Props = {
 
 export function GrnManagementTerminal({
   initialGoodsReceipts,
+  listTotalCount = initialGoodsReceipts.length,
+  listHasMore = false,
   initialReceivableOrders,
   locations,
   defaultLandedCostAllocationMethod = "BY_VALUE",
@@ -54,11 +65,23 @@ export function GrnManagementTerminal({
   const drawer = useModuleDrawerUrl(PROCUREMENT_GRN_HREF, {
     clearParamsOnClose: [GRN_DRAWER_PO_PARAM],
   });
-  const [goodsReceipts, setGoodsReceipts] = useState(initialGoodsReceipts);
+  const {
+    rows: goodsReceipts,
+    totalCount,
+    hasMore,
+    isLoadingMore,
+    refreshList,
+    loadMore,
+  } = useDocumentListPagination(
+    initialGoodsReceipts,
+    listTotalCount,
+    listHasMore,
+    fetchMoreGoodsReceipts,
+    "goods receipts"
+  );
   const [receivableOrders, setReceivableOrders] = useState(initialReceivableOrders);
   const [prefs, setPrefs] = useState<GoodsReceiptListPrefs>(getDefaultGoodsReceiptListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
-  const [, startRefreshTransition] = useTransition();
 
   useEffect(() => {
     const loaded = loadGoodsReceiptListPrefs();
@@ -73,10 +96,6 @@ export function GrnManagementTerminal({
   }, [locations]);
 
   useEffect(() => {
-    setGoodsReceipts(initialGoodsReceipts);
-  }, [initialGoodsReceipts]);
-
-  useEffect(() => {
     setReceivableOrders(initialReceivableOrders);
   }, [initialReceivableOrders]);
 
@@ -84,13 +103,6 @@ export function GrnManagementTerminal({
     if (!prefsHydrated) return;
     saveGoodsReceiptListPrefs(prefs);
   }, [prefs, prefsHydrated]);
-
-  const refreshList = useCallback(() => {
-    startRefreshTransition(async () => {
-      const nextReceipts = await loadGoodsReceipts();
-      setGoodsReceipts(nextReceipts);
-    });
-  }, []);
 
   const receiptsView = useFilteredGoodsReceipts(goodsReceipts, prefs);
 
@@ -146,19 +158,29 @@ export function GrnManagementTerminal({
       </div>
     </div>
   ) : (
-    <GrnListTable
-      rows={sortedRows}
-      columnPrefs={prefs.columnPrefs}
-      sortField={prefs.sortField}
-      sortDirection={prefs.sortDirection}
-      frozenColumnCount={prefs.frozenColumnCount}
-      onSortChange={handleSortChange}
-      onColumnWidthChange={(columnId, width) =>
-        setPrefs((current) => setGoodsReceiptColumnWidth(current, columnId, width))
-      }
-      selectedId={selectedId}
-      onSelect={handleSelect}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+      <GrnListTable
+        rows={sortedRows}
+        columnPrefs={prefs.columnPrefs}
+        sortField={prefs.sortField}
+        sortDirection={prefs.sortDirection}
+        frozenColumnCount={prefs.frozenColumnCount}
+        onSortChange={handleSortChange}
+        onColumnWidthChange={(columnId, width) =>
+          setPrefs((current) => setGoodsReceiptColumnWidth(current, columnId, width))
+        }
+        selectedId={selectedId}
+        onSelect={handleSelect}
+      />
+      <ListLoadMoreFooter
+        visibleCount={sortedRows.length}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        noun="goods receipts"
+      />
+    </div>
   );
 
   return (
@@ -192,19 +214,21 @@ export function GrnManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <GrnDrawerForm
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        locations={locations}
-        receivableOrders={receivableOrders}
-        peekReceipt={peekReceipt}
-        prefillPurchaseOrderId={createPrefillPoId}
-        defaultLandedCostAllocationMethod={defaultLandedCostAllocationMethod}
-        procurementSettings={procurementSettings}
-        onClose={drawer.close}
-        onAfterSave={handleAfterSave}
-        onReceiptUpdated={refreshList}
-      />
+      {drawer.isOpen ? (
+        <GrnDrawerForm
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          locations={locations}
+          receivableOrders={receivableOrders}
+          peekReceipt={peekReceipt}
+          prefillPurchaseOrderId={createPrefillPoId}
+          defaultLandedCostAllocationMethod={defaultLandedCostAllocationMethod}
+          procurementSettings={procurementSettings}
+          onClose={drawer.close}
+          onAfterSave={handleAfterSave}
+          onReceiptUpdated={refreshList}
+        />
+      ) : null}
     </>
   );
 }

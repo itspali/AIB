@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   fetchPurchaseOrderById,
-  fetchPurchaseOrders,
+  fetchPurchaseOrdersPage,
 } from "@/lib/procurement/purchase-orders/queries";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
@@ -112,14 +112,19 @@ export async function loadEffectivePoDocumentLayout(
   }
 }
 
-export async function loadPurchaseOrders(): Promise<PurchaseOrderRow[]> {
+export async function fetchMorePurchaseOrders(offset: number) {
   const { supabase, tenantId, userId } = await requireTenantId();
   const access = await resolvePurchaseOrderEditAccess(supabase, userId, tenantId);
-  return fetchPurchaseOrders(
+  return fetchPurchaseOrdersPage(
     supabase,
     tenantId,
-    purchaseOrderFetchOptionsForScope(access.locationScope)
+    { offset, ...purchaseOrderFetchOptionsForScope(access.locationScope) }
   );
+}
+
+export async function loadPurchaseOrders(): Promise<PurchaseOrderRow[]> {
+  const page = await fetchMorePurchaseOrders(0);
+  return page.rows;
 }
 
 export async function loadPurchaseOrderDetail(

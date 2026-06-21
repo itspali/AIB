@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTenantIdFromSession } from "@/lib/onboarding/status";
 import { fetchDashboardMetrics } from "@/lib/dashboard/queries";
-import { MetricGaugeCards } from "@/components/dashboard/metric-gauge-cards";
+import { MetricGaugeCardsLazy } from "@/components/dashboard/metric-gauge-cards-lazy";
 
 export async function MetricGaugeGrid() {
   const supabase = await createClient();
@@ -10,5 +10,5 @@ export async function MetricGaugeGrid() {
 
   const metrics = await fetchDashboardMetrics(supabase, tenantId);
 
-  return <MetricGaugeCards metrics={metrics} />;
+  return <MetricGaugeCardsLazy metrics={metrics} />;
 }

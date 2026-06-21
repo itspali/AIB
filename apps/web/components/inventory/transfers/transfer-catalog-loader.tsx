@@ -1,19 +1,33 @@
-import { TransferManagementTerminal } from "@/components/inventory/transfers/transfer-management-terminal";
+import dynamic from "next/dynamic";
+import { TransferCatalogPageSkeleton } from "@/components/inventory/transfers/transfer-catalog-page-skeleton";
 import {
-  fetchStockTransfers,
+  fetchStockTransfersPage,
   fetchTransferLocations,
 } from "@/lib/inventory/transfers/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
+const TransferManagementTerminal = dynamic(
+  () =>
+    import("@/components/inventory/transfers/transfer-management-terminal").then(
+      (module) => module.TransferManagementTerminal
+    ),
+  { loading: () => <TransferCatalogPageSkeleton /> }
+);
+
 export async function TransferCatalogLoader() {
   const { supabase, tenantId } = await getModulePageContext();
 
-  const [locations, transfers] = await Promise.all([
+  const [locations, transfersPage] = await Promise.all([
     fetchTransferLocations(supabase, tenantId),
-    fetchStockTransfers(supabase, tenantId),
+    fetchStockTransfersPage(supabase, tenantId),
   ]);
 
   return (
-    <TransferManagementTerminal initialTransfers={transfers} locations={locations} />
+    <TransferManagementTerminal
+      initialTransfers={transfersPage.rows}
+      listTotalCount={transfersPage.totalCount}
+      listHasMore={transfersPage.hasMore}
+      locations={locations}
+    />
   );
 }

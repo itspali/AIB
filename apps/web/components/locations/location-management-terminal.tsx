@@ -24,14 +24,14 @@ import {
 import type { LocationModuleContext, LocationRow } from "@/lib/locations/types";
 import { cn } from "@/lib/utils";
 
-type Props = {
+export type LocationManagementTerminalProps = {
   initialRows: LocationRow[];
   moduleContext: LocationModuleContext;
 };
 
 type CanvasMode = "empty" | "detail" | "form";
 
-export function LocationManagementTerminal({ initialRows, moduleContext }: Props) {
+export function LocationManagementTerminal({ initialRows, moduleContext }: LocationManagementTerminalProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("empty");
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);

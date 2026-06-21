@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { SoDocumentPageShell } from "@/components/sales/orders/so-document-page-shell";
+import { SoDocumentPageShellLazy } from "@/components/sales/orders/so-document-page-shell-lazy";
 import {
   filterProcurementLocationsByScope,
   preferredPurchaseOrderDestinationId,
@@ -78,7 +78,7 @@ export async function SoDocumentCreateLoader({
         : null;
 
   return (
-    <SoDocumentPageShell
+    <SoDocumentPageShellLazy
       mode="create"
       copyFromId={copyFromId}
       locations={context.locations}
@@ -108,7 +108,7 @@ export async function SoDocumentEditLoader({
   }
 
   return (
-    <SoDocumentPageShell
+    <SoDocumentPageShellLazy
       mode="edit"
       editOrderId={id}
       locations={context.locations}

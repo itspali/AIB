@@ -20,13 +20,13 @@ import {
 } from "@/lib/settings/types";
 import { createClient } from "@/lib/supabase/client";
 
-type Props = {
+export type ProfileSettingsTerminalProps = {
   snapshot: ProfileSettingsSnapshot;
   tenantId: string;
   avatarPreviewUrl?: string | null;
 };
 
-export function ProfileSettingsTerminal({ snapshot, tenantId, avatarPreviewUrl }: Props) {
+export function ProfileSettingsTerminal({ snapshot, tenantId, avatarPreviewUrl }: ProfileSettingsTerminalProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [sessionFingerprint, setSessionFingerprint] = useState<string | null>(null);

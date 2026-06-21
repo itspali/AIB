@@ -10,25 +10,30 @@ import {
   useTransition,
 } from "react";
 import { toast } from "sonner";
-import { bulkActivateEntities, bulkDeactivateEntities } from "@/app/entities/actions";
+import {
+  bulkActivateEntities,
+  bulkDeactivateEntities,
+  fetchMoreEntities,
+  loadEntityCustomFieldDefinitions,
+  loadEntityListCategoryRows,
+} from "@/app/entities/actions";
 import { listRowFromDetail } from "@/lib/entities/list-row";
 import { EntityBulkActionToolbar } from "@/components/entities/entity-bulk-action-toolbar";
 import type { EntityBulkToolbarAction } from "@/components/entities/entity-bulk-action-toolbar";
 import { EntityDeleteDialog } from "@/components/entities/entity-delete-dialog";
 import { EntityEmptyState } from "@/components/entities/entity-empty-state";
-import { EntityItemDrawer } from "@/components/entities/entity-item-drawer";
-import { EntityListCompact } from "@/components/entities/entity-list-compact";
-import { EntityListTable } from "@/components/entities/entity-list-table";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import {
   EntityListToolbar,
   type EntityActiveStatusFilter,
   type EntityPartyNatureFilter,
 } from "@/components/entities/entity-list-toolbar";
+import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { useDeviceClass } from "@/hooks/use-device-class";
-import type { EntityListColumnRegistryKey } from "@/lib/entities/list-columns";
+import type { EntityListColumnRegistryKey, EntityListColumnId } from "@/lib/entities/list-columns";
 import {
   getColumnPrefsSlice,
   getDefaultEntityListPrefs,
@@ -41,7 +46,7 @@ import {
   setColumnWidthSlice,
   type EntityListPrefs,
 } from "@/lib/entities/list-prefs";
-import { sortEntityListRows } from "@/lib/entities/list-sort";
+import { sortEntityListRows, type EntityListSortDirection, type EntityListSortField } from "@/lib/entities/list-sort";
 import {
   patchEntityActiveState,
   removeEntityRow,
@@ -52,16 +57,33 @@ import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-de
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { filterEntitiesByAst } from "@/lib/search/executor/client-scopes";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
+
+const EntityItemDrawer = lazyClientExport(
+  () => import("@/components/entities/entity-item-drawer"),
+  "EntityItemDrawer"
+);
+
+const EntityListCompact = lazyClientExport(
+  () => import("@/components/entities/entity-list-compact"),
+  "EntityListCompact"
+);
+
+const EntityListTable = lazyClientExport(
+  () => import("@/components/entities/entity-list-table"),
+  "EntityListTable"
+);
 
 type Props = {
   workspace: EntityWorkspace;
   tenantId: string;
-  customFieldDefinitions: EntityCustomFieldDefinition[];
-  categoryRows: EntityCategoryRow[];
+  customFieldDefinitions?: EntityCustomFieldDefinition[];
+  categoryRows?: EntityCategoryRow[];
   initialRows: EntityListRow[];
   initialTotalCount?: number;
+  initialHasMore?: boolean;
   initialSavedView?: SavedViewSnapshot | null;
 };
 
@@ -137,10 +159,11 @@ function useFilteredEntityRows(
 export function EntityManagementTerminal({
   workspace,
   tenantId,
-  customFieldDefinitions,
-  categoryRows,
+  customFieldDefinitions: initialCustomFieldDefinitions = [],
+  categoryRows: initialCategoryRows = [],
   initialRows,
-  initialTotalCount,
+  initialTotalCount = initialRows.length,
+  initialHasMore = false,
   initialSavedView = null,
 }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
@@ -149,8 +172,30 @@ export function EntityManagementTerminal({
   const omnibar = useOptionalOmnibarContext();
   const serverViewHydratedRef = useRef(false);
   const { deviceClass } = useDeviceClass();
+  const fetchEntityPage = useCallback(
+    (offset: number) => fetchMoreEntities(workspace, offset),
+    [workspace]
+  );
 
-  const [rows, setRows] = useState(initialRows);
+  const {
+    rows,
+    setRows,
+    totalCount: entityServerTotalCount,
+    hasMore: entityHasMore,
+    isLoadingMore: entityLoadingMore,
+    loadMore: loadMoreEntities,
+  } = useDocumentListPagination(
+    initialRows,
+    initialTotalCount,
+    initialHasMore,
+    fetchEntityPage,
+    config.title.toLowerCase()
+  );
+  const [categoryRows, setCategoryRows] = useState(initialCategoryRows);
+  const [customFieldDefinitions, setCustomFieldDefinitions] = useState(
+    initialCustomFieldDefinitions
+  );
+  const auxiliaryDataRequestedRef = useRef(false);
   const [activeStatusFilter, setActiveStatusFilter] =
     useState<EntityActiveStatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -164,6 +209,18 @@ export function EntityManagementTerminal({
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+
+  useEffect(() => {
+    if (auxiliaryDataRequestedRef.current) return;
+    auxiliaryDataRequestedRef.current = true;
+    void Promise.all([
+      loadEntityListCategoryRows(workspace),
+      loadEntityCustomFieldDefinitions(workspace),
+    ]).then(([nextCategoryRows, nextCustomFieldDefinitions]) => {
+      setCategoryRows(nextCategoryRows);
+      setCustomFieldDefinitions(nextCustomFieldDefinitions);
+    });
+  }, [workspace]);
 
   const { filteredRows, totalCount, resultCount } = useFilteredEntityRows(
     workspace,
@@ -389,41 +446,61 @@ export function EntityManagementTerminal({
         </div>
       </div>
     ) : prefs.viewMode === "compact" ? (
-      <EntityListCompact
-        rows={listRows}
-        columns={visibleColumns}
-        columnChipDisplay={columnPrefsSlice.columnChipDisplay}
-        selectedId={selectedId}
-        bulkSelectedIds={bulkSelectedIds}
-        onSelect={handleSelectEntity}
-        onBulkRowToggle={handleBulkRowToggle}
-      />
+      <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+        <EntityListCompact
+          rows={listRows}
+          columns={visibleColumns}
+          columnChipDisplay={columnPrefsSlice.columnChipDisplay}
+          selectedId={selectedId}
+          bulkSelectedIds={bulkSelectedIds}
+          onSelect={handleSelectEntity}
+          onBulkRowToggle={handleBulkRowToggle}
+        />
+        <ListLoadMoreFooter
+          visibleCount={rows.length}
+          totalCount={entityServerTotalCount}
+          hasMore={entityHasMore}
+          isLoadingMore={entityLoadingMore}
+          onLoadMore={loadMoreEntities}
+          noun={config.title.toLowerCase()}
+        />
+      </div>
     ) : (
-      <EntityListTable
-        rows={listRows}
-        columns={visibleColumns}
-        columnWidths={columnPrefsSlice.columnWidths}
-        columnChipDisplay={columnPrefsSlice.columnChipDisplay}
-        selectedId={selectedId}
-        bulkSelectedIds={bulkSelectedIds}
-        pageAllSelected={pageAllSelected}
-        pageSomeSelected={pageSomeSelected}
-        sortField={prefs.sortField}
-        sortDirection={prefs.sortDirection}
-        frozenColumnCount={resolvedFrozenColumnCount}
-        freezeColumnsAuto={freezeColumnsAuto}
-        onSortChange={(sortField, sortDirection) =>
-          setPrefs((current) => ({ ...current, sortField, sortDirection }))
-        }
-        onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) =>
-            setColumnWidthSlice(current, tableViewMode, deviceClass, columnId, width)
-          )
-        }
-        onSelect={handleSelectEntity}
-        onBulkRowToggle={handleBulkRowToggle}
-        onBulkPageToggle={handleBulkPageToggle}
-      />
+      <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+        <EntityListTable
+          rows={listRows}
+          columns={visibleColumns}
+          columnWidths={columnPrefsSlice.columnWidths}
+          columnChipDisplay={columnPrefsSlice.columnChipDisplay}
+          selectedId={selectedId}
+          bulkSelectedIds={bulkSelectedIds}
+          pageAllSelected={pageAllSelected}
+          pageSomeSelected={pageSomeSelected}
+          sortField={prefs.sortField}
+          sortDirection={prefs.sortDirection}
+          frozenColumnCount={resolvedFrozenColumnCount}
+          freezeColumnsAuto={freezeColumnsAuto}
+          onSortChange={(sortField: EntityListSortField, sortDirection: EntityListSortDirection) =>
+            setPrefs((current) => ({ ...current, sortField, sortDirection }))
+          }
+          onColumnWidthChange={(columnId: EntityListColumnId, width: number | null) =>
+            setPrefs((current) =>
+              setColumnWidthSlice(current, tableViewMode, deviceClass, columnId, width)
+            )
+          }
+          onSelect={handleSelectEntity}
+          onBulkRowToggle={handleBulkRowToggle}
+          onBulkPageToggle={handleBulkPageToggle}
+        />
+        <ListLoadMoreFooter
+          visibleCount={rows.length}
+          totalCount={entityServerTotalCount}
+          hasMore={entityHasMore}
+          isLoadingMore={entityLoadingMore}
+          onLoadMore={loadMoreEntities}
+          noun={config.title.toLowerCase()}
+        />
+      </div>
     );
 
   const bulkToolbar =
@@ -475,7 +552,7 @@ export function EntityManagementTerminal({
               onPartyNatureFilterChange={setPartyNatureFilter}
               detectedDeviceClass={deviceClass}
               resultCount={resultCount}
-              totalCount={initialTotalCount ?? totalCount}
+              totalCount={entityServerTotalCount}
               compactCountLabel={drawer.isOpen}
               prefsHydrated={prefsHydrated}
             />
@@ -488,20 +565,22 @@ export function EntityManagementTerminal({
         </div>
       </ListModuleShell>
 
-      <EntityItemDrawer
-        workspace={workspace}
-        tenantId={tenantId}
-        customFieldDefinitions={customFieldDefinitions}
-        categoryRows={categoryRows}
-        open={drawer.isOpen}
-        surface={drawer.surface}
-        recordId={drawer.recordId}
-        peekListRow={peekListRow}
-        onClose={drawer.close}
-        onOpenEdit={drawer.openEdit}
-        onAfterSave={handleEntitySaved}
-        onDelete={(entity) => openDelete(entity)}
-      />
+      {drawer.isOpen ? (
+        <EntityItemDrawer
+          workspace={workspace}
+          tenantId={tenantId}
+          customFieldDefinitions={customFieldDefinitions}
+          categoryRows={categoryRows}
+          open={drawer.isOpen}
+          surface={drawer.surface}
+          recordId={drawer.recordId}
+          peekListRow={peekListRow}
+          onClose={drawer.close}
+          onOpenEdit={drawer.openEdit}
+          onAfterSave={handleEntitySaved}
+          onDelete={(entity: EntityListRow) => openDelete(entity)}
+        />
+      ) : null}
 
       <EntityDeleteDialog
         workspace={workspace}

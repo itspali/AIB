@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import LoginPageClient from "./login-client";
+import { LoginPageClientLazy } from "@/components/auth/login-page-client-lazy";
 import { Card, CardContent } from "@/components/ui/card";
 
 function LoginFallback() {
@@ -17,7 +17,7 @@ function LoginFallback() {
 export default function LoginPage() {
   return (
     <Suspense fallback={<LoginFallback />}>
-      <LoginPageClient />
+      <LoginPageClientLazy />
     </Suspense>
   );
 }
