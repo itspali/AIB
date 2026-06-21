@@ -13,6 +13,7 @@ import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-erro
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 const FULFILLMENT_PATHS = [
+  "/fulfillment",
   "/fulfillment/shipping",
   "/sales/orders",
   "/inventory/stock",

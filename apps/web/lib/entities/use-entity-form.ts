@@ -42,19 +42,7 @@ function entityFormHasAdvancedProfileData(
       values.website_url.trim() ||
       values.base_currency_override.trim() ||
       values.internal_notes.trim() ||
-      values.billing_address_line1.trim() ||
-      values.billing_address_line2.trim() ||
-      values.billing_city.trim() ||
-      values.billing_state.trim() ||
-      values.billing_zip_postal.trim() ||
-      values.billing_country_code.trim() ||
-      (!values.same_as_billing &&
-        (values.shipping_address_line1.trim() ||
-          values.shipping_address_line2.trim() ||
-          values.shipping_city.trim() ||
-          values.shipping_state.trim() ||
-          values.shipping_zip_postal.trim() ||
-          values.shipping_country_code.trim())) ||
+      values.logo_url.trim() ||
       values.incoterms_code.trim() ||
       values.default_shipping_method.trim() ||
       values.extended_contacts.length ||

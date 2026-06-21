@@ -426,6 +426,9 @@ export async function saveOrganizationEntityCustomFields(
 
   for (const path of [
     ...ORGANIZATION_PATHS,
+    "/sales",
+    "/sales/customers",
+    "/procurement/suppliers",
     "/entities",
     "/entities/customers",
     "/entities/suppliers",

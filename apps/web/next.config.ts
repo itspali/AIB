@@ -20,8 +20,8 @@ const nextConfig: NextConfig = {
         destination: "/items/categories/:path*",
         permanent: true,
       },
-      { source: "/logistics", destination: "/fulfillment/shipping", permanent: true },
-      { source: "/logistics/:path*", destination: "/fulfillment/shipping/:path*", permanent: true },
+      { source: "/logistics", destination: "/fulfillment", permanent: true },
+      { source: "/logistics/:path*", destination: "/fulfillment/:path*", permanent: true },
       { source: "/inventory/locations", destination: "/settings/locations", permanent: true },
       {
         source: "/inventory/locations/topology",

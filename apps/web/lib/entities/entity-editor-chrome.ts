@@ -44,3 +44,17 @@ export function entityToggleRowClass() {
 export function entityGridFullSpanClass() {
   return "col-span-full";
 }
+
+/** Side-by-side columns for wide entity create forms (identity left, addresses right). */
+export function entityTwoPanelGridClass() {
+  return "grid grid-cols-2 items-start gap-6 md:gap-8";
+}
+
+export function entityTwoPanelColumnClass() {
+  return "min-w-0 space-y-6";
+}
+
+/** Inline helper callout under primary identity fields. */
+export function entityFieldHelperCalloutClass() {
+  return "rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground";
+}

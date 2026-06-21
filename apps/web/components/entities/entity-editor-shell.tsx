@@ -2,8 +2,9 @@
 
 import { useCallback, useMemo, useState, type RefObject } from "react";
 import { toast } from "sonner";
-import { Landmark, SlidersHorizontal, UserRound } from "lucide-react";
+import { Landmark, MapPin, SlidersHorizontal, UserRound } from "lucide-react";
 import { EntityBankAccountsSection } from "@/components/entities/entity-bank-accounts-section";
+import { EntityAddressFields } from "@/components/entities/form/entity-address-fields";
 import { EntityAdvancedDisclosure } from "@/components/entities/form/entity-advanced-disclosure";
 import { EntityAdvancedFields } from "@/components/entities/form/entity-advanced-fields";
 import { EntityCoreFields } from "@/components/entities/form/entity-core-fields";
@@ -19,9 +20,12 @@ import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-de
 import {
   entitySectionCardClass,
   entitySectionStackClass,
+  entityTwoPanelColumnClass,
+  entityTwoPanelGridClass,
 } from "@/lib/entities/entity-editor-chrome";
 import { ENTITY_TYPE_LABELS } from "@/lib/entities/labels";
 import { ENTITY_COMMERCIAL_TYPES, type EntityWorkspace } from "@/lib/entities/types";
+import { useEntityFormTwoPanelLayout } from "@/lib/entities/use-entity-form-layout";
 import {
   resolveWorkspaceEffectiveFieldDefinitions,
   workspaceCategoryIdField,
@@ -37,6 +41,7 @@ type FormApi = ReturnType<typeof useEntityForm>;
 export const ENTITY_SECTION_CORE_ID = "entity-core";
 /** @deprecated Use ENTITY_SECTION_CORE_ID */
 export const ENTITY_SECTION_ESSENTIALS_ID = ENTITY_SECTION_CORE_ID;
+export const ENTITY_SECTION_ADDRESSES_ID = "entity-addresses";
 export const ENTITY_SECTION_BANKING_ID = "entity-banking";
 export const ENTITY_SECTION_ADVANCED_ID = "entity-advanced";
 
@@ -52,6 +57,13 @@ const ENTITY_DRAWER_SECTION_DEFS = [
     label: "Core",
     shortLabel: "Core",
     icon: UserRound,
+  },
+  {
+    id: ENTITY_SECTION_ADDRESSES_ID,
+    label: "Addresses",
+    shortLabel: "Addr",
+    icon: MapPin,
+    organizationOnly: true,
   },
   {
     id: ENTITY_SECTION_BANKING_ID,
@@ -137,6 +149,7 @@ export function EntityEditorShell({
   chipBarRef,
 }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
+  const twoPanel = useEntityFormTwoPanelLayout();
   const {
     form,
     setForm,
@@ -199,12 +212,7 @@ export function EntityEditorShell({
 
         setForm((current) => applyGstinLookupToEntityForm(current, lookup));
 
-        if (
-          lookup.legalName ||
-          lookup.billingAddressLine1 ||
-          lookup.tradeName ||
-          lookup.billingCity
-        ) {
+        if (lookup.legalName || lookup.tradeName) {
           setShowAdvanced(true);
         }
 
@@ -242,6 +250,31 @@ export function EntityEditorShell({
     [config.typeFilter]
   );
 
+  const coreFieldProps = {
+    workspace,
+    form,
+    categoryField,
+    categoryRows,
+    typeOptions,
+    fieldsDisabled,
+    gstinLookupPending,
+    onPartyNatureChange: setPartyNature,
+    onEntityNameChange: setEntityName,
+    onCategoryChange: setCategoryId,
+    onFormChange: setForm,
+    onPrimaryContactChange: setPrimaryContact,
+    onWhatsappSameAsMobileChange: setPrimaryContactWhatsappSameAsMobile,
+    onGstinBlur: (raw: string) => void handleGstinBlur(raw),
+  };
+
+  const addressFieldProps = {
+    form,
+    fieldsDisabled,
+    onFormChange: setForm,
+    onFormChangeWithBillingMirror: setFormWithBillingMirror,
+    onSameAsBillingChange: setSameAsBilling,
+  };
+
   const handleSectionSelect = useCallback(
     (sectionId: string) => {
       if (sectionId === ENTITY_SECTION_ADVANCED_ID && isOrganization && !showAdvanced) {
@@ -252,6 +285,27 @@ export function EntityEditorShell({
     },
     [isOrganization, onActiveSectionChange, onAdvancedSectionRequest, setShowAdvanced, showAdvanced]
   );
+
+  const organizationCoreBody =
+    twoPanel && isOrganization ? (
+      <div className={entityTwoPanelGridClass()}>
+        <div className={entityTwoPanelColumnClass()}>
+          <EntityCoreFields {...coreFieldProps} />
+        </div>
+        <div id={ENTITY_SECTION_ADDRESSES_ID} className={cn(entityTwoPanelColumnClass(), "scroll-mt-24")}>
+          <EntityAddressFields {...addressFieldProps} />
+        </div>
+      </div>
+    ) : (
+      <div className="space-y-6">
+        <EntityCoreFields {...coreFieldProps} />
+        {isOrganization ? (
+          <div id={ENTITY_SECTION_ADDRESSES_ID} className="scroll-mt-24">
+            <EntityAddressFields {...addressFieldProps} />
+          </div>
+        ) : null}
+      </div>
+    );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -284,27 +338,9 @@ export function EntityEditorShell({
         <SectionCard
           id={ENTITY_SECTION_CORE_ID}
           title="Core"
-          help="Identity, primary contact, commercial terms, status, and optional branding."
+          help="Identity, contact, tax IDs, billing and shipping addresses, commercial terms, and status."
         >
-          <EntityCoreFields
-            workspace={workspace}
-            tenantId={tenantId}
-            form={form}
-            categoryField={categoryField}
-            categoryRows={categoryRows}
-            typeOptions={typeOptions}
-            logoPreviewUrl={logoPreviewUrl}
-            fieldsDisabled={fieldsDisabled}
-            gstinLookupPending={gstinLookupPending}
-            onPartyNatureChange={setPartyNature}
-            onEntityNameChange={setEntityName}
-            onCategoryChange={setCategoryId}
-            onFormChange={setForm}
-            onPrimaryContactChange={setPrimaryContact}
-            onWhatsappSameAsMobileChange={setPrimaryContactWhatsappSameAsMobile}
-            onLogoUploaded={setLogoUrl}
-            onGstinBlur={(raw) => void handleGstinBlur(raw)}
-          />
+          {organizationCoreBody}
         </SectionCard>
 
         {showBankAccounts ? (
@@ -329,13 +365,14 @@ export function EntityEditorShell({
               disabled={fieldsDisabled}
             >
               <EntityAdvancedFields
+                tenantId={tenantId}
                 form={form}
+                logoPreviewUrl={logoPreviewUrl}
                 customFieldBucket={customFieldBucket}
                 effectiveFieldDefinitions={effectiveFieldDefinitions}
                 fieldsDisabled={fieldsDisabled}
                 onFormChange={setForm}
-                onFormChangeWithBillingMirror={setFormWithBillingMirror}
-                onSameAsBillingChange={setSameAsBilling}
+                onLogoUploaded={setLogoUrl}
               />
             </EntityAdvancedDisclosure>
           </section>

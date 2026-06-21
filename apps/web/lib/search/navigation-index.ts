@@ -17,29 +17,29 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["categories", "taxonomy", "classification", "items", "new category"],
   },
   {
-    label: "Entities",
-    href: "/entities",
-    keywords: ["entities", "partners", "customers", "suppliers", "commercial partners"],
+    label: "Sales Overview",
+    href: "/sales",
+    keywords: ["sales", "overview", "customers", "receivables"],
   },
   {
     label: "Customers",
-    href: "/entities/customers",
-    keywords: ["customers", "accounts", "crm", "sales", "entities"],
+    href: "/sales/customers",
+    keywords: ["customers", "accounts", "crm", "sales", "partners"],
   },
   {
     label: "Customer Categories",
-    href: "/entities/customers/categories",
-    keywords: ["customer categories", "customer taxonomy", "entities", "partners"],
+    href: "/sales/customers/categories",
+    keywords: ["customer categories", "customer taxonomy", "partners", "sales"],
   },
   {
     label: "Suppliers",
-    href: "/entities/suppliers",
-    keywords: ["suppliers", "vendors", "procurement", "entities"],
+    href: "/procurement/suppliers",
+    keywords: ["suppliers", "vendors", "procurement", "partners"],
   },
   {
     label: "Supplier Categories",
-    href: "/entities/suppliers/categories",
-    keywords: ["supplier categories", "vendor categories", "entities", "partners"],
+    href: "/procurement/suppliers/categories",
+    keywords: ["supplier categories", "vendor categories", "partners", "procurement"],
   },
   {
     label: "Inventory",
@@ -88,8 +88,13 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Suppliers",
-    href: "/entities/suppliers",
+    href: "/procurement/suppliers",
     keywords: ["suppliers", "vendors", "procurement"],
+  },
+  {
+    label: "Supplier Categories",
+    href: "/procurement/suppliers/categories",
+    keywords: ["supplier categories", "vendor categories", "procurement"],
   },
   {
     label: "Bills",
@@ -98,13 +103,8 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Sales",
-    href: "/sales/customers",
-    keywords: ["sales", "orders", "customers"],
-  },
-  {
-    label: "Customers",
-    href: "/entities/customers",
-    keywords: ["customers", "accounts", "crm", "sales"],
+    href: "/sales",
+    keywords: ["sales", "orders", "customers", "overview"],
   },
   {
     label: "Quotes",
@@ -127,9 +127,14 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["payments", "receipts", "customer payments", "sales"],
   },
   {
-    label: "Fulfillment & Shipping",
+    label: "Fulfillment",
+    href: "/fulfillment",
+    keywords: ["fulfillment", "logistics", "warehouse", "shipping", "pick pack"],
+  },
+  {
+    label: "Shipments",
     href: "/fulfillment/shipping",
-    keywords: ["fulfillment", "shipping", "shipments", "delivery", "carrier"],
+    keywords: ["shipments", "shipping", "delivery", "carrier", "dispatch", "fulfillment"],
   },
   {
     label: "Financials",

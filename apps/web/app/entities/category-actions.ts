@@ -8,6 +8,7 @@ import { validateAttributeTemplates } from "@/lib/categories/validate-templates"
 import { validateCategoryParentAssignment } from "@/lib/categories/validate-parent";
 import { getEntityCategoryWorkspaceConfig } from "@/lib/entity-categories/config";
 import { entityCategoriesHref } from "@/lib/entity-categories/navigation";
+import { entityListHref } from "@/lib/entities/entity-navigation";
 import {
   fetchEntityCategoryCounts,
   fetchEntityCategoryRowById,
@@ -21,10 +22,8 @@ import type {
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 function revalidateEntityCategoryPaths(workspace: EntityCategoryWorkspace) {
-  const base = entityCategoriesHref(workspace);
-  const listHref =
-    workspace === "customer" ? "/entities/customers" : "/entities/suppliers";
-  for (const path of [base, listHref] as const) {
+  const listWorkspace = workspace === "customer" ? "customer" : "supplier";
+  for (const path of [entityCategoriesHref(workspace), entityListHref(listWorkspace)] as const) {
     revalidatePath(path);
   }
 }

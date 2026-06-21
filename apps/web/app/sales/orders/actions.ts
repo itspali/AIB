@@ -56,6 +56,7 @@ const SO_PATHS = [
   "/sales",
   "/dashboard",
   "/inventory/stock",
+  "/fulfillment",
   "/fulfillment/shipping",
 ] as const;
 

@@ -13,11 +13,14 @@ import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 
 const ENTITY_PATHS = [
+  "/sales",
+  "/sales/customers",
+  "/sales/customers/categories",
+  "/procurement/suppliers",
+  "/procurement/suppliers/categories",
   "/entities",
   "/entities/customers",
   "/entities/suppliers",
-  "/sales/customers",
-  "/procurement/suppliers",
 ] as const;
 
 function revalidateEntityPaths(workspace?: EntityWorkspace) {

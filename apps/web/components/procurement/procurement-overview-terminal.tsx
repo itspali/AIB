@@ -1,7 +1,18 @@
 import Link from "next/link";
-import { ClipboardList, PackageCheck, ScrollText, Building2, Ship } from "lucide-react";
+import {
+  Building2,
+  ClipboardList,
+  FolderTree,
+  PackageCheck,
+  ScrollText,
+  Ship,
+  Truck,
+} from "lucide-react";
 import { ModuleOverview, type ModuleOverviewCard } from "@/components/layout/module-overview";
 import { ProcurementPolicySummary } from "@/components/procurement/procurement-policy-summary";
+import { SUPPLIERS_HREF } from "@/lib/entities/entity-navigation";
+import { supplierCategoriesHref } from "@/lib/entity-categories/navigation";
+import type { EntityOverviewStats } from "@/lib/entities/types";
 import type { ProcurementSettings } from "@/lib/procurement/settings";
 
 type Props = {
@@ -15,6 +26,7 @@ type Props = {
     | "matching_tolerance_percentage"
     | "po_auto_round_off_enabled"
   >;
+  supplierStats: Pick<EntityOverviewStats, "supplier_count" | "active_supplier_count">;
 };
 
 const CARDS: ModuleOverviewCard[] = [
@@ -40,13 +52,19 @@ const CARDS: ModuleOverviewCard[] = [
     href: "/procurement/subcontract",
     label: "Subcontracting",
     description: "Vendor job work locations and BOM backflush for finished goods receipts.",
-    icon: Building2,
+    icon: Truck,
   },
   {
-    href: "/entities/suppliers",
+    href: SUPPLIERS_HREF,
     label: "Suppliers",
     description: "Vendor master profiles, contacts, and purchasing terms.",
     icon: Building2,
+  },
+  {
+    href: supplierCategoriesHref(),
+    label: "Supplier Categories",
+    description: "Hierarchical supplier taxonomy and inherited attribute templates.",
+    icon: FolderTree,
   },
   {
     href: "/procurement/bills",
@@ -56,7 +74,7 @@ const CARDS: ModuleOverviewCard[] = [
   },
 ];
 
-export function ProcurementOverviewTerminal({ procurementSettings }: Props) {
+export function ProcurementOverviewTerminal({ procurementSettings, supplierStats }: Props) {
   return (
     <div className="canvas-scroll-endpad space-y-5">
       <header>
@@ -71,6 +89,18 @@ export function ProcurementOverviewTerminal({ procurementSettings }: Props) {
           </Link>
         </p>
       </header>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="surface-panel p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Suppliers
+          </p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">{supplierStats.supplier_count}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {supplierStats.active_supplier_count} active
+          </p>
+        </div>
+      </div>
 
       <ProcurementPolicySummary settings={procurementSettings} />
 

@@ -3,7 +3,6 @@
 import { Loader2 } from "lucide-react";
 import { EntityCategoryCombobox } from "@/components/entities/entity-category-combobox";
 import { EntityFormSubsection } from "@/components/entities/form/entity-form-subsection";
-import { EntityLogoUploader } from "@/components/entities/entity-logo-uploader";
 import { DrawerFormField, DrawerFormGrid } from "@/components/layout/drawer-form-grid";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,20 +14,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  entityFieldHelperCalloutClass,
+  entityToggleRowClass,
+} from "@/lib/entities/entity-editor-chrome";
 import { PARTY_NATURE_LABELS, TAX_TREATMENT_LABELS } from "@/lib/entities/labels";
-import { entityToggleRowClass } from "@/lib/entities/entity-editor-chrome";
 import { PARTY_NATURE_TYPES, taxRegistrationRequired } from "@/lib/entities/types";
 import type { EntityFormValues, EntityWorkspace } from "@/lib/entities/types";
 import type { EntityCategoryRow } from "@/lib/entity-categories/types";
+import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 
 type Props = {
   workspace: EntityWorkspace;
-  tenantId: string;
   form: EntityFormValues;
   categoryField: "customer_category_id" | "supplier_category_id";
   categoryRows: EntityCategoryRow[];
   typeOptions: { value: string; label: string }[];
-  logoPreviewUrl: string | null;
   fieldsDisabled: boolean;
   gstinLookupPending: boolean;
   onPartyNatureChange: (value: EntityFormValues["party_nature"]) => void;
@@ -39,18 +40,15 @@ type Props = {
     updater: (contact: EntityFormValues["primary_contact"]) => EntityFormValues["primary_contact"]
   ) => void;
   onWhatsappSameAsMobileChange: (checked: boolean) => void;
-  onLogoUploaded: (storagePath: string) => void;
   onGstinBlur: (rawGstin: string) => void;
 };
 
 export function EntityCoreFields({
   workspace,
-  tenantId,
   form,
   categoryField,
   categoryRows,
   typeOptions,
-  logoPreviewUrl,
   fieldsDisabled,
   gstinLookupPending,
   onPartyNatureChange,
@@ -59,9 +57,9 @@ export function EntityCoreFields({
   onFormChange,
   onPrimaryContactChange,
   onWhatsappSameAsMobileChange,
-  onLogoUploaded,
   onGstinBlur,
 }: Props) {
+  const config = getEntityWorkspaceConfig(workspace);
   const isOrganization = form.party_nature === "ORGANIZATION";
   const showTaxId = taxRegistrationRequired(form.tax_treatment);
 
@@ -124,8 +122,15 @@ export function EntityCoreFields({
               id="entity-name"
               value={form.name}
               disabled={fieldsDisabled}
+              placeholder={isOrganization ? "Business / company name" : "Full legal name"}
               onChange={(event) => onEntityNameChange(event.target.value)}
             />
+            {isOrganization ? (
+              <p className={entityFieldHelperCalloutClass()}>
+                Enter the business or company name. This is shown in {config.title.toLowerCase()}{" "}
+                lists and on documents.
+              </p>
+            ) : null}
           </DrawerFormField>
 
           <DrawerFormField>
@@ -162,10 +167,76 @@ export function EntityCoreFields({
               </SelectContent>
             </Select>
           </DrawerFormField>
+        </DrawerFormGrid>
+      </EntityFormSubsection>
+
+      <EntityFormSubsection
+        title={isOrganization ? "Contact & tax IDs" : "Contact details"}
+      >
+        <DrawerFormGrid maxColumns={2}>
+          {isOrganization ? (
+            <>
+              <DrawerFormField span="full">
+                <Label htmlFor="primary-contact-person">Contact person</Label>
+                <Input
+                  id="primary-contact-person"
+                  value={[form.primary_contact.first_name, form.primary_contact.last_name]
+                    .filter(Boolean)
+                    .join(" ")}
+                  disabled={fieldsDisabled}
+                  placeholder="Primary contact name"
+                  onChange={(event) => {
+                    const parts = event.target.value.trim().split(/\s+/);
+                    const first_name = parts[0] ?? "";
+                    const last_name = parts.slice(1).join(" ");
+                    onPrimaryContactChange((contact) => ({
+                      ...contact,
+                      first_name,
+                      last_name,
+                    }));
+                  }}
+                />
+              </DrawerFormField>
+            </>
+          ) : null}
+
+          <DrawerFormField>
+            <Label htmlFor="primary-mobile">Mobile</Label>
+            <Input
+              id="primary-mobile"
+              value={form.primary_contact.mobile}
+              disabled={fieldsDisabled}
+              onChange={(event) =>
+                onPrimaryContactChange((contact) => ({
+                  ...contact,
+                  mobile: event.target.value,
+                  whatsapp_number: contact.use_mobile_for_whatsapp
+                    ? event.target.value
+                    : contact.whatsapp_number,
+                }))
+              }
+            />
+          </DrawerFormField>
+
+          <DrawerFormField>
+            <Label htmlFor="primary-email">Email</Label>
+            <Input
+              id="primary-email"
+              type="email"
+              value={form.primary_contact.email}
+              disabled={fieldsDisabled}
+              onChange={(event) =>
+                onPrimaryContactChange((contact) => ({
+                  ...contact,
+                  email: event.target.value,
+                }))
+              }
+            />
+          </DrawerFormField>
 
           {showTaxId ? (
             <DrawerFormField span="full">
-              <Label htmlFor="entity-tax-id">Tax registration number (GSTIN)</Label>
+              <Label htmlFor="entity-tax-id">GST number (GSTIN)</Label>
               <div className="relative">
                 <Input
                   id="entity-tax-id"
@@ -195,77 +266,6 @@ export function EntityCoreFields({
               </p>
             </DrawerFormField>
           ) : null}
-        </DrawerFormGrid>
-      </EntityFormSubsection>
-
-      <EntityFormSubsection title={isOrganization ? "Primary contact" : "Contact details"}>
-        <DrawerFormGrid maxColumns={2}>
-          {isOrganization ? (
-            <>
-              <DrawerFormField>
-                <Label htmlFor="primary-first-name">First name</Label>
-                <Input
-                  id="primary-first-name"
-                  value={form.primary_contact.first_name}
-                  disabled={fieldsDisabled}
-                  onChange={(event) =>
-                    onPrimaryContactChange((contact) => ({
-                      ...contact,
-                      first_name: event.target.value,
-                    }))
-                  }
-                />
-              </DrawerFormField>
-              <DrawerFormField>
-                <Label htmlFor="primary-last-name">Last name</Label>
-                <Input
-                  id="primary-last-name"
-                  value={form.primary_contact.last_name}
-                  disabled={fieldsDisabled}
-                  onChange={(event) =>
-                    onPrimaryContactChange((contact) => ({
-                      ...contact,
-                      last_name: event.target.value,
-                    }))
-                  }
-                />
-              </DrawerFormField>
-            </>
-          ) : null}
-
-          <DrawerFormField>
-            <Label htmlFor="primary-email">Email</Label>
-            <Input
-              id="primary-email"
-              type="email"
-              value={form.primary_contact.email}
-              disabled={fieldsDisabled}
-              onChange={(event) =>
-                onPrimaryContactChange((contact) => ({
-                  ...contact,
-                  email: event.target.value,
-                }))
-              }
-            />
-          </DrawerFormField>
-
-          <DrawerFormField>
-            <Label htmlFor="primary-mobile">Mobile</Label>
-            <Input
-              id="primary-mobile"
-              value={form.primary_contact.mobile}
-              disabled={fieldsDisabled}
-              onChange={(event) =>
-                onPrimaryContactChange((contact) => ({
-                  ...contact,
-                  mobile: event.target.value,
-                  whatsapp_number: contact.use_mobile_for_whatsapp
-                    ? event.target.value
-                    : contact.whatsapp_number,
-                }))
-              }
-            />
-          </DrawerFormField>
 
           <DrawerFormField span="full">
             <div className={entityToggleRowClass()}>
@@ -340,18 +340,6 @@ export function EntityCoreFields({
             }
           />
         </div>
-      </EntityFormSubsection>
-
-      <EntityFormSubsection title="Branding">
-        <EntityLogoUploader
-          tenantId={tenantId}
-          entityId={form.entity_id}
-          draftStorageKey={form.draft_storage_key}
-          value={form.logo_url}
-          previewUrl={logoPreviewUrl}
-          disabled={fieldsDisabled}
-          onUploaded={onLogoUploaded}
-        />
       </EntityFormSubsection>
     </div>
   );

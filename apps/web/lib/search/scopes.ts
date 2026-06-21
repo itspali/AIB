@@ -65,13 +65,18 @@ export const SCOPE_DEFINITIONS: Record<FilterScope, ScopeDefinition> = {
 };
 
 const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
+  { prefix: "/fulfillment/shipping", scope: "all" },
+  { prefix: "/fulfillment", scope: "all" },
+  { prefix: "/sales/customers/categories", scope: "customers" },
+  { prefix: "/procurement/suppliers/categories", scope: "suppliers" },
+  { prefix: "/sales/customers", scope: "customers" },
+  { prefix: "/procurement/suppliers", scope: "suppliers" },
+  { prefix: "/sales", scope: "all" },
   { prefix: "/entities/customers/categories", scope: "customers" },
   { prefix: "/entities/suppliers/categories", scope: "suppliers" },
   { prefix: "/entities/customers", scope: "customers" },
   { prefix: "/entities/suppliers", scope: "suppliers" },
   { prefix: "/entities", scope: "all" },
-  { prefix: "/sales/customers", scope: "customers" },
-  { prefix: "/procurement/suppliers", scope: "suppliers" },
   { prefix: "/items/categories", scope: "categories" },
   { prefix: "/items", scope: "items" },
   { prefix: "/inventory/categories", scope: "categories" },

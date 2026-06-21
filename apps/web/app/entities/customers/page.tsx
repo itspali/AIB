@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-import { EntityCatalogLoader } from "@/components/entities/entity-catalog-loader";
-import { EntityCatalogPageSkeleton } from "@/components/entities/entity-catalog-page-skeleton";
+import { redirect } from "next/navigation";
 
-export default function EntityCustomersPage() {
-  return (
-    <Suspense fallback={<EntityCatalogPageSkeleton workspace="customer" />}>
-      <EntityCatalogLoader workspace="customer" />
-    </Suspense>
-  );
+export default function EntityCustomersRedirect() {
+  redirect("/sales/customers");
 }

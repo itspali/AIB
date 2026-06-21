@@ -85,7 +85,12 @@ export const moduleNavItems: ModuleNavItem[] = [
         label: "Subcontracting",
         icon: Truck,
       },
-      { href: "/entities/suppliers", label: "Suppliers", icon: Building2 },
+      { href: "/procurement/suppliers", label: "Suppliers", icon: Building2 },
+      {
+        href: "/procurement/suppliers/categories",
+        label: "Supplier Categories",
+        icon: FolderTree,
+      },
       { href: "/procurement/bills", label: "Bills", icon: ScrollText },
     ],
   },
@@ -98,19 +103,6 @@ export const moduleNavItems: ModuleNavItem[] = [
     children: [
       { href: "/items", label: "Catalog", icon: Package },
       { href: "/items/categories", label: "Categories", icon: FolderTree },
-    ],
-  },
-  {
-    href: "/entities",
-    label: "Entities",
-    shortLabel: "Entities",
-    icon: Users,
-    children: [
-      { href: "/entities", label: "Overview", icon: LayoutDashboard },
-      { href: "/entities/customers", label: "Customers", icon: Users },
-      { href: "/entities/customers/categories", label: "Customer Categories", icon: FolderTree },
-      { href: "/entities/suppliers", label: "Suppliers", icon: Building2 },
-      { href: "/entities/suppliers/categories", label: "Supplier Categories", icon: FolderTree },
     ],
   },
   {
@@ -131,7 +123,13 @@ export const moduleNavItems: ModuleNavItem[] = [
     icon: CreditCard,
     mobilePrimary: true,
     children: [
-      { href: "/entities/customers", label: "Customers", icon: Users },
+      { href: "/sales", label: "Overview", icon: LayoutDashboard },
+      { href: "/sales/customers", label: "Customers", icon: Users },
+      {
+        href: "/sales/customers/categories",
+        label: "Customer Categories",
+        icon: FolderTree,
+      },
       { href: "/sales/quotes", label: "Quotes", icon: FileText },
       { href: "/sales/orders", label: "Orders", icon: ClipboardList },
       { href: "/sales/invoices", label: "Invoices", icon: Receipt },
@@ -139,11 +137,14 @@ export const moduleNavItems: ModuleNavItem[] = [
     ],
   },
   {
-    href: "/fulfillment/shipping",
-    label: "Fulfillment & Shipping",
-    shortLabel: "Ship",
+    href: "/fulfillment",
+    label: "Fulfillment",
+    shortLabel: "Fulfill",
     icon: Truck,
-    comingSoon: true,
+    children: [
+      { href: "/fulfillment", label: "Overview", icon: LayoutDashboard },
+      { href: "/fulfillment/shipping", label: "Shipments", icon: Truck },
+    ],
   },
   {
     href: "/financials",

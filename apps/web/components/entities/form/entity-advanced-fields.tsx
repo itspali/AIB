@@ -3,6 +3,7 @@
 import type { ChangeEvent } from "react";
 import { EntityCustomFieldsSection } from "@/components/entities/entity-custom-fields-section";
 import { EntityFormSubsection } from "@/components/entities/form/entity-form-subsection";
+import { EntityLogoUploader } from "@/components/entities/entity-logo-uploader";
 import { DrawerFormField, DrawerFormGrid } from "@/components/layout/drawer-form-grid";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-definitions";
-import { entityToggleRowClass } from "@/lib/entities/entity-editor-chrome";
 import type { EntityFormValues } from "@/lib/entities/types";
 import {
   CURRENCY_OPTIONS,
@@ -24,242 +23,28 @@ import {
 } from "@/lib/organization/currency-options";
 
 type Props = {
+  tenantId: string;
   form: EntityFormValues;
+  logoPreviewUrl: string | null;
   customFieldBucket: "customer_custom_fields" | "supplier_custom_fields";
   effectiveFieldDefinitions: EntityCustomFieldDefinition[];
   fieldsDisabled: boolean;
   onFormChange: (updater: (current: EntityFormValues) => EntityFormValues) => void;
-  onFormChangeWithBillingMirror: (
-    updater: (current: EntityFormValues) => EntityFormValues
-  ) => void;
-  onSameAsBillingChange: (checked: boolean) => void;
+  onLogoUploaded: (storagePath: string) => void;
 };
 
-function AddressBlock({
-  prefix,
-  line1Id,
-  line2Id,
-  cityId,
-  stateId,
-  postalId,
-  countryId,
-  form,
-  fieldsDisabled,
-  onLine1Change,
-  onLine2Change,
-  onCityChange,
-  onStateChange,
-  onPostalChange,
-  onCountryChange,
-}: {
-  prefix: "Billing" | "Shipping";
-  line1Id: string;
-  line2Id: string;
-  cityId: string;
-  stateId: string;
-  postalId: string;
-  countryId: string;
-  form: EntityFormValues;
-  fieldsDisabled: boolean;
-  onLine1Change: (value: string) => void;
-  onLine2Change: (value: string) => void;
-  onCityChange: (value: string) => void;
-  onStateChange: (value: string) => void;
-  onPostalChange: (value: string) => void;
-  onCountryChange: (value: string) => void;
-}) {
-  const line1Key =
-    prefix === "Billing" ? "billing_address_line1" : "shipping_address_line1";
-  const line2Key =
-    prefix === "Billing" ? "billing_address_line2" : "shipping_address_line2";
-  const cityKey = prefix === "Billing" ? "billing_city" : "shipping_city";
-  const stateKey = prefix === "Billing" ? "billing_state" : "shipping_state";
-  const postalKey = prefix === "Billing" ? "billing_zip_postal" : "shipping_zip_postal";
-  const countryKey =
-    prefix === "Billing" ? "billing_country_code" : "shipping_country_code";
-
-  return (
-    <DrawerFormGrid maxColumns={2}>
-      <DrawerFormField span="full">
-        <Label htmlFor={line1Id}>{prefix} address line 1</Label>
-        <Input
-          id={line1Id}
-          value={form[line1Key]}
-          disabled={fieldsDisabled}
-          onChange={(event) => onLine1Change(event.target.value)}
-        />
-      </DrawerFormField>
-      <DrawerFormField span="full">
-        <Label htmlFor={line2Id}>{prefix} address line 2</Label>
-        <Input
-          id={line2Id}
-          value={form[line2Key]}
-          disabled={fieldsDisabled}
-          onChange={(event) => onLine2Change(event.target.value)}
-        />
-      </DrawerFormField>
-      <DrawerFormField>
-        <Label htmlFor={cityId}>{prefix} city</Label>
-        <Input
-          id={cityId}
-          value={form[cityKey]}
-          disabled={fieldsDisabled}
-          onChange={(event) => onCityChange(event.target.value)}
-        />
-      </DrawerFormField>
-      <DrawerFormField>
-        <Label htmlFor={stateId}>{prefix} state</Label>
-        <Input
-          id={stateId}
-          value={form[stateKey]}
-          disabled={fieldsDisabled}
-          onChange={(event) => onStateChange(event.target.value)}
-        />
-      </DrawerFormField>
-      <DrawerFormField>
-        <Label htmlFor={postalId}>{prefix} postal code</Label>
-        <Input
-          id={postalId}
-          value={form[postalKey]}
-          disabled={fieldsDisabled}
-          onChange={(event) => onPostalChange(event.target.value)}
-        />
-      </DrawerFormField>
-      <DrawerFormField>
-        <Label htmlFor={countryId}>{prefix} country code</Label>
-        <Input
-          id={countryId}
-          value={form[countryKey]}
-          disabled={fieldsDisabled}
-          placeholder="IN"
-          onChange={(event) => onCountryChange(event.target.value.toUpperCase())}
-        />
-      </DrawerFormField>
-    </DrawerFormGrid>
-  );
-}
-
 export function EntityAdvancedFields({
+  tenantId,
   form,
+  logoPreviewUrl,
   customFieldBucket,
   effectiveFieldDefinitions,
   fieldsDisabled,
   onFormChange,
-  onFormChangeWithBillingMirror,
-  onSameAsBillingChange,
+  onLogoUploaded,
 }: Props) {
   return (
     <>
-      <EntityFormSubsection title="Addresses">
-        <AddressBlock
-          prefix="Billing"
-          line1Id="billing-line1"
-          line2Id="billing-line2"
-          cityId="billing-city"
-          stateId="billing-state"
-          postalId="billing-postal"
-          countryId="billing-country"
-          form={form}
-          fieldsDisabled={fieldsDisabled}
-          onLine1Change={(value) =>
-            onFormChangeWithBillingMirror((current) => ({
-              ...current,
-              billing_address_line1: value,
-            }))
-          }
-          onLine2Change={(value) =>
-            onFormChangeWithBillingMirror((current) => ({
-              ...current,
-              billing_address_line2: value,
-            }))
-          }
-          onCityChange={(value) =>
-            onFormChangeWithBillingMirror((current) => ({
-              ...current,
-              billing_city: value,
-            }))
-          }
-          onStateChange={(value) =>
-            onFormChangeWithBillingMirror((current) => ({
-              ...current,
-              billing_state: value,
-            }))
-          }
-          onPostalChange={(value) =>
-            onFormChangeWithBillingMirror((current) => ({
-              ...current,
-              billing_zip_postal: value,
-            }))
-          }
-          onCountryChange={(value) =>
-            onFormChangeWithBillingMirror((current) => ({
-              ...current,
-              billing_country_code: value,
-            }))
-          }
-        />
-
-        <div className={entityToggleRowClass()}>
-          <Label htmlFor="shipping-same-as-billing">Shipping same as billing</Label>
-          <Switch
-            id="shipping-same-as-billing"
-            checked={form.same_as_billing}
-            disabled={fieldsDisabled}
-            onCheckedChange={onSameAsBillingChange}
-          />
-        </div>
-
-        {!form.same_as_billing ? (
-          <AddressBlock
-            prefix="Shipping"
-            line1Id="shipping-line1"
-            line2Id="shipping-line2"
-            cityId="shipping-city"
-            stateId="shipping-state"
-            postalId="shipping-postal"
-            countryId="shipping-country"
-            form={form}
-            fieldsDisabled={fieldsDisabled}
-            onLine1Change={(value) =>
-              onFormChange((current) => ({
-                ...current,
-                shipping_address_line1: value,
-              }))
-            }
-            onLine2Change={(value) =>
-              onFormChange((current) => ({
-                ...current,
-                shipping_address_line2: value,
-              }))
-            }
-            onCityChange={(value) =>
-              onFormChange((current) => ({
-                ...current,
-                shipping_city: value,
-              }))
-            }
-            onStateChange={(value) =>
-              onFormChange((current) => ({
-                ...current,
-                shipping_state: value,
-              }))
-            }
-            onPostalChange={(value) =>
-              onFormChange((current) => ({
-                ...current,
-                shipping_zip_postal: value,
-              }))
-            }
-            onCountryChange={(value) =>
-              onFormChange((current) => ({
-                ...current,
-                shipping_country_code: value,
-              }))
-            }
-          />
-        ) : null}
-      </EntityFormSubsection>
-
       <EntityFormSubsection title="Company profile">
         <DrawerFormGrid maxColumns={2}>
           <DrawerFormField>
@@ -369,6 +154,18 @@ export function EntityAdvancedFields({
           />
         </EntityFormSubsection>
       ) : null}
+
+      <EntityFormSubsection title="Branding">
+        <EntityLogoUploader
+          tenantId={tenantId}
+          entityId={form.entity_id}
+          draftStorageKey={form.draft_storage_key}
+          value={form.logo_url}
+          previewUrl={logoPreviewUrl}
+          disabled={fieldsDisabled}
+          onUploaded={onLogoUploaded}
+        />
+      </EntityFormSubsection>
 
       <EntityFormSubsection title="Internal notes">
         <DrawerFormGrid maxColumns={2}>

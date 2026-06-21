@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { entityCreateHref } from "@/lib/entities/entity-navigation";
 
 export type GettingStartedTaskId =
   | "first_product"
@@ -92,14 +93,14 @@ export async function fetchGettingStartedSnapshot(
       id: "first_supplier",
       title: "Add your first supplier",
       description: "Create a supplier profile for purchase orders and goods receipts.",
-      href: "/entities/suppliers?action=new",
+      href: entityCreateHref("supplier"),
       completed: supplierCount >= 1,
     },
     {
       id: "first_customer",
       title: "Add your first customer",
       description: "Create a customer account for sales orders and invoicing.",
-      href: "/entities/customers?action=new",
+      href: entityCreateHref("customer"),
       completed: customerCount >= 1,
     },
     {

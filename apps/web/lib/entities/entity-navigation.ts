@@ -5,9 +5,9 @@ import {
   moduleDrawerPeekHref,
 } from "@/lib/layout/module-drawer-url";
 
-export const ENTITIES_HREF = "/entities";
-export const CUSTOMERS_HREF = "/entities/customers";
-export const SUPPLIERS_HREF = "/entities/suppliers";
+export const ENTITIES_HREF = "/sales";
+export const CUSTOMERS_HREF = "/sales/customers";
+export const SUPPLIERS_HREF = "/procurement/suppliers";
 
 export function entityListHref(workspace: EntityWorkspace): string {
   return workspace === "customer" ? CUSTOMERS_HREF : SUPPLIERS_HREF;

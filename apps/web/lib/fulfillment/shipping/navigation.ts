@@ -1,3 +1,4 @@
+export const FULFILLMENT_HREF = "/fulfillment";
 export const FULFILLMENT_SHIPPING_HREF = "/fulfillment/shipping";
 
 export const SHIPMENT_DRAWER_SO_PARAM = "so";

@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-import { EntityCatalogLoader } from "@/components/entities/entity-catalog-loader";
-import { EntityCatalogPageSkeleton } from "@/components/entities/entity-catalog-page-skeleton";
+import { redirect } from "next/navigation";
 
-export default function EntitySuppliersPage() {
-  return (
-    <Suspense fallback={<EntityCatalogPageSkeleton workspace="supplier" />}>
-      <EntityCatalogLoader workspace="supplier" />
-    </Suspense>
-  );
+export default function EntitySuppliersRedirect() {
+  redirect("/procurement/suppliers");
 }

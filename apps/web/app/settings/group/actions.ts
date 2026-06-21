@@ -272,6 +272,9 @@ export async function saveGroupEntityCustomFields(
   for (const path of GROUP_PATHS) {
     revalidatePath(path);
   }
+  revalidatePath("/sales");
+  revalidatePath("/sales/customers");
+  revalidatePath("/procurement/suppliers");
   revalidatePath("/entities");
   revalidatePath("/entities/customers");
   revalidatePath("/entities/suppliers");
