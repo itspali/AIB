@@ -1,5 +1,4 @@
-import dynamic from "next/dynamic";
-import { SoCatalogPageSkeleton } from "@/components/sales/orders/so-catalog-page-skeleton";
+import { SoManagementTerminal } from "@/components/sales/orders/so-management-terminal";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import {
   filterProcurementLocationsByScope,
@@ -18,45 +17,51 @@ import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 
-const SoManagementTerminal = dynamic(
-  () =>
-    import("@/components/sales/orders/so-management-terminal").then(
-      (module) => module.SoManagementTerminal
-    ),
-  { loading: () => <SoCatalogPageSkeleton /> }
-);
-
 export async function SoCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, gstRegistered] =
-    await Promise.all([
-      fetchSalesLocations(supabase, tenantId),
-      fetchSalesCustomers(supabase, tenantId),
-      resolveSalesOrderEditAccess(supabase, userId, tenantId),
-      fetchSalesSettings(supabase, tenantId),
-      fetchSalesApprovalSettings(supabase, tenantId),
-      supabase
-        .from("tenants")
-        .select("base_currency, billing_country_code")
-        .eq("id", tenantId)
-        .maybeSingle(),
-      resolveEffectiveDocumentLayout({
+  const editAccessPromise = resolveSalesOrderEditAccess(supabase, userId, tenantId);
+
+  const [
+    locations,
+    customers,
+    editAccess,
+    salesSettings,
+    approvalSettings,
+    tenantRow,
+    documentLayout,
+    taxCodeOptions,
+    gstRegistered,
+    salesOrdersPage,
+  ] = await Promise.all([
+    fetchSalesLocations(supabase, tenantId),
+    fetchSalesCustomers(supabase, tenantId),
+    editAccessPromise,
+    fetchSalesSettings(supabase, tenantId),
+    fetchSalesApprovalSettings(supabase, tenantId),
+    supabase
+      .from("tenants")
+      .select("base_currency, billing_country_code")
+      .eq("id", tenantId)
+      .maybeSingle(),
+    resolveEffectiveDocumentLayout({
+      supabase,
+      tenantId,
+      moduleKey: "SALES_ORDER",
+      viewContext: "SCREEN_GRID",
+    }),
+    fetchActivePoLineTaxCodeOptions(supabase, tenantId),
+    fetchOrganizationGstRegistered(supabase, tenantId),
+    editAccessPromise.then((access) =>
+      fetchSalesOrdersPage(
         supabase,
         tenantId,
-        moduleKey: "SALES_ORDER",
-        viewContext: "SCREEN_GRID",
-      }),
-      fetchActivePoLineTaxCodeOptions(supabase, tenantId),
-      fetchOrganizationGstRegistered(supabase, tenantId),
-    ]);
+        salesOrderFetchOptionsForScope(access.locationScope)
+      )
+    ),
+  ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
-  const salesOrdersPage = await fetchSalesOrdersPage(
-    supabase,
-    tenantId,
-    salesOrderFetchOptionsForScope(editAccess.locationScope)
-  );
 
   const defaultCurrency = (tenantRow.data?.base_currency as string | undefined) ?? "USD";
   const tenantCountry = (tenantRow.data?.billing_country_code as string | undefined) ?? null;

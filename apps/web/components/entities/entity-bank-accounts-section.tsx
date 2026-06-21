@@ -167,7 +167,7 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
             ) : null}
           </div>
 
-          <DrawerFormGrid>
+          <DrawerFormGrid maxColumns={2}>
             <DrawerFormField span="full">
               <Label>Account holder name</Label>
               <Input
@@ -198,7 +198,7 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
                 onBlur={(event) => void handleIfscBlur(index, event.target.value)}
               />
             </DrawerFormField>
-            <DrawerFormField span="full">
+            <DrawerFormField>
               <Label>Branch</Label>
               <Input
                 value={account.branch_name}
@@ -206,7 +206,7 @@ export function EntityBankAccountsSection({ accounts, disabled = false, onChange
                 onChange={(event) => updateAccount(index, { branch_name: event.target.value })}
               />
             </DrawerFormField>
-            <DrawerFormField span="full">
+            <DrawerFormField>
               <Label>UPI ID</Label>
               <Input
                 value={account.upi_id}

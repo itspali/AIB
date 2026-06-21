@@ -12,6 +12,7 @@ import { SoListTable } from "@/components/sales/orders/so-list-table";
 import { SoListToolbar } from "@/components/sales/orders/so-list-toolbar";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultSalesOrderListPrefs,
@@ -133,6 +134,7 @@ export function SoManagementTerminal({
     totalCount,
     hasMore,
     isLoadingMore,
+    isListBootstrapping,
     refreshList,
     loadMore,
   } = useDocumentListPagination(
@@ -191,11 +193,6 @@ export function SoManagementTerminal({
         : { ...current, status: statusParam as SalesOrderStatus | "all" }
     );
   }, [searchParams]);
-
-  useEffect(() => {
-    if (!prefsHydrated) return;
-    saveSalesOrderListPrefs(prefs);
-  }, [prefs, prefsHydrated]);
 
   useEffect(() => {
     if (!prefsHydrated) return;
@@ -455,7 +452,15 @@ export function SoManagementTerminal({
     [drawer.action, drawer.recordId, drawer.replaceDrawerHref, drawer.variantId, prefs.status, searchParams]
   );
 
-  const listPrimary = !hasAnyData ? (
+  const listPrimary = isListBootstrapping ? (
+    <div
+      className="flex h-full min-h-0 flex-1 flex-col p-1"
+      aria-busy="true"
+      aria-label="Loading sales orders"
+    >
+      <Skeleton className="h-full min-h-[240px] w-full shimmer" />
+    </div>
+  ) : !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <SoEmptyState
         onCreate={editAccessGranted ? drawer.openCreate : undefined}

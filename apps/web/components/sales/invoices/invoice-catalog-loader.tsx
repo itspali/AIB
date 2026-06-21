@@ -1,5 +1,4 @@
-import dynamic from "next/dynamic";
-import { InvoiceCatalogPageSkeleton } from "@/components/sales/invoices/invoice-catalog-page-skeleton";
+import { InvoiceManagementTerminal } from "@/components/sales/invoices/invoice-management-terminal";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
@@ -13,14 +12,6 @@ import { fetchSalesCustomers, fetchSalesLocations } from "@/lib/sales/shared/que
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
-
-const InvoiceManagementTerminal = dynamic(
-  () =>
-    import("@/components/sales/invoices/invoice-management-terminal").then(
-      (module) => module.InvoiceManagementTerminal
-    ),
-  { loading: () => <InvoiceCatalogPageSkeleton /> }
-);
 
 export async function InvoiceCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();

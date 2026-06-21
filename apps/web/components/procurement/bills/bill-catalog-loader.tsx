@@ -1,5 +1,4 @@
-import dynamic from "next/dynamic";
-import { BillCatalogPageSkeleton } from "@/components/procurement/bills/bill-catalog-page-skeleton";
+import { BillManagementTerminal } from "@/components/procurement/bills/bill-management-terminal";
 import { fetchPurchaseBillsPage } from "@/lib/procurement/bills/queries";
 import { fetchBillablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
@@ -8,14 +7,6 @@ import {
   fetchProcurementSuppliers,
 } from "@/lib/procurement/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
-
-const BillManagementTerminal = dynamic(
-  () =>
-    import("@/components/procurement/bills/bill-management-terminal").then(
-      (module) => module.BillManagementTerminal
-    ),
-  { loading: () => <BillCatalogPageSkeleton /> }
-);
 
 export async function BillCatalogLoader() {
   const { supabase, tenantId } = await getModulePageContext();

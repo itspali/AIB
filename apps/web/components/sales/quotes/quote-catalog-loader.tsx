@@ -1,5 +1,4 @@
-import dynamic from "next/dynamic";
-import { QuoteCatalogPageSkeleton } from "@/components/sales/quotes/quote-catalog-page-skeleton";
+import { QuoteManagementTerminal } from "@/components/sales/quotes/quote-management-terminal";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
@@ -13,14 +12,6 @@ import { fetchSalesCustomers, fetchSalesLocations } from "@/lib/sales/shared/que
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
-
-const QuoteManagementTerminal = dynamic(
-  () =>
-    import("@/components/sales/quotes/quote-management-terminal").then(
-      (module) => module.QuoteManagementTerminal
-    ),
-  { loading: () => <QuoteCatalogPageSkeleton /> }
-);
 
 export async function QuoteCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();

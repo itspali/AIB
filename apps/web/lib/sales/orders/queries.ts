@@ -77,9 +77,9 @@ type SoSelectShape = {
 };
 
 const SO_LIST_SELECT_SHAPES: SoSelectShape[] = [
-  { includeAddresses: true, includeLineIds: true, includeQuantityInvoiced: true },
   { includeAddresses: false, includeLineIds: true, includeQuantityInvoiced: true },
   { includeAddresses: false, includeLineIds: true, includeQuantityInvoiced: false },
+  { includeAddresses: true, includeLineIds: true, includeQuantityInvoiced: true },
 ];
 
 const SO_DETAIL_SELECT_SHAPES: SoSelectShape[] = [

@@ -37,19 +37,32 @@ type DrawerFormGridProps = {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
+  /** Cap responsive columns (e.g. `2` for compact partner forms). */
+  maxColumns?: DrawerFormColumnCount;
 };
 
 /** Responsive field grid sized to the active drawer content width. */
-export function DrawerFormGrid({ children, className, style }: DrawerFormGridProps) {
+export function DrawerFormGrid({
+  children,
+  className,
+  style,
+  maxColumns,
+}: DrawerFormGridProps) {
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const drawerLayout = useRightDrawerLayout();
 
   const columnCount = useMemo(() => {
-    if (width != null) {
-      return resolveDrawerFormColumnCount(width);
+    const measured =
+      width != null
+        ? resolveDrawerFormColumnCount(width)
+        : resolveDrawerFormColumnCount(estimateDrawerContentWidthPx(drawerLayout));
+
+    if (maxColumns != null) {
+      return Math.min(measured, maxColumns) as DrawerFormColumnCount;
     }
-    return resolveDrawerFormColumnCount(estimateDrawerContentWidthPx(drawerLayout));
-  }, [drawerLayout, width]);
+
+    return measured;
+  }, [drawerLayout, maxColumns, width]);
 
   const value = useMemo(() => ({ columnCount }), [columnCount]);
 

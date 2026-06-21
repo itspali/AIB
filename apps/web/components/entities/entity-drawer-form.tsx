@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import {
   EntityEditorShell,
-  ENTITY_SECTION_ESSENTIALS_ID,
+  ENTITY_SECTION_ADVANCED_ID,
+  ENTITY_SECTION_CORE_ID,
 } from "@/components/entities/entity-editor-shell";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
@@ -79,20 +80,52 @@ export function EntityDrawerForm({
     onPersist: (payload) => saveEntity(workspace, payload),
   });
 
-  const { isPending, submit, resetFromEditing, isDirty } = formApi;
+  const { isPending, submit, resetFromEditing, isDirty, showAdvanced, setShowAdvanced } = formApi;
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
   const paneRef = useRef<HTMLDivElement | null>(null);
-  const [activeSection, setActiveSection] = useState(ENTITY_SECTION_ESSENTIALS_ID);
+  const [activeSection, setActiveSection] = useState(ENTITY_SECTION_CORE_ID);
   const submitRef = useRef(submit);
   submitRef.current = submit;
+
+  const scrollToSection = useCallback((sectionId: string) => {
+    requestAnimationFrame(() => {
+      const root = paneRef.current;
+      if (!root) return;
+      const target = root.querySelector<HTMLElement>(`#${sectionId}`);
+      if (!target) return;
+      const chipBarHeight = chipBarRef.current?.offsetHeight ?? 0;
+      root.scrollTo({
+        top: Math.max(0, target.offsetTop - chipBarHeight - 12),
+        behavior: "smooth",
+      });
+    });
+  }, []);
 
   useEffect(() => {
     if (open) {
       resetFromEditing();
-      setActiveSection(ENTITY_SECTION_ESSENTIALS_ID);
+      setActiveSection(ENTITY_SECTION_CORE_ID);
     }
   }, [open, resetFromEditing, surface, editingEntity?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (activeSection === ENTITY_SECTION_ADVANCED_ID) {
+      scrollToSection(ENTITY_SECTION_ADVANCED_ID);
+    }
+  }, [activeSection, open, scrollToSection, showAdvanced]);
+
+  const handleActiveSectionChange = useCallback(
+    (sectionId: string) => {
+      setActiveSection(sectionId);
+      if (sectionId === ENTITY_SECTION_ADVANCED_ID && !showAdvanced) {
+        setShowAdvanced(true);
+      }
+      scrollToSection(sectionId);
+    },
+    [scrollToSection, setShowAdvanced, showAdvanced]
+  );
 
   const closeForm = useCallback(() => {
     resetFromEditing();
@@ -212,7 +245,8 @@ export function EntityDrawerForm({
                 categoryRows={categoryRows}
                 readOnly={readOnly}
                 activeSection={activeSection}
-                onActiveSectionChange={setActiveSection}
+                onActiveSectionChange={handleActiveSectionChange}
+                onAdvancedSectionRequest={() => scrollToSection(ENTITY_SECTION_ADVANCED_ID)}
                 scrollRootRef={paneRef}
                 chipBarRef={chipBarRef}
               />

@@ -23,6 +23,7 @@ import { serializeCriterionDraft } from "@/lib/search/compiler/clause-serialize"
 import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
 import { validateFilterAst } from "@/lib/search/executor/validate-ast";
+import { resolveSearchFieldPermissionsDeduped } from "@/lib/search/permissions/resolve-permissions-client";
 import {
   getCachedSearchPermissions,
   invalidateSearchPermissions,
@@ -194,7 +195,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       return;
     }
 
-    void resolveSearchFieldPermissions().then((resolved) => {
+    void resolveSearchFieldPermissionsDeduped(userId, cacheTenantId).then((resolved) => {
       setPermissions(resolved);
       setCachedSearchPermissions(userId, cacheTenantId, resolved);
       if (cached?.throttled) {

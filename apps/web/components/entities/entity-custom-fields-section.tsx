@@ -18,6 +18,7 @@ type Props = {
   definitions: EntityCustomFieldDefinition[];
   values: Record<string, string>;
   disabled?: boolean;
+  hideIntro?: boolean;
   onChange: (values: Record<string, string>) => void;
 };
 
@@ -25,6 +26,7 @@ export function EntityCustomFieldsSection({
   definitions,
   values,
   disabled = false,
+  hideIntro = false,
   onChange,
 }: Props) {
   if (definitions.length === 0) return null;
@@ -35,13 +37,15 @@ export function EntityCustomFieldsSection({
 
   return (
     <div className="space-y-3">
-      <div>
-        <p className="text-sm font-medium">Custom fields</p>
-        <p className="text-xs text-muted-foreground">
-          Category and organization-defined profile fields for this workspace.
-        </p>
-      </div>
-      <DrawerFormGrid>
+      {hideIntro ? null : (
+        <div>
+          <p className="text-sm font-medium">Custom fields</p>
+          <p className="text-xs text-muted-foreground">
+            Category and organization-defined profile fields for this workspace.
+          </p>
+        </div>
+      )}
+      <DrawerFormGrid maxColumns={2}>
         {definitions.map((definition) => (
           <DrawerFormField key={definition.key}>
             <div className="flex items-center gap-1.5">

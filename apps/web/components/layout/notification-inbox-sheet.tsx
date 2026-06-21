@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import {
-  markNotificationsRead,
   loadNotificationInbox,
+  loadNotificationUnreadCount,
+  markNotificationsRead,
 } from "@/app/approvals/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ type Props = {
 
 let notificationInboxInflight: Promise<Awaited<ReturnType<typeof loadNotificationInbox>>> | null =
   null;
+let notificationUnreadInflight: Promise<number> | null = null;
 
 function loadNotificationInboxDeduped() {
   if (!notificationInboxInflight) {
@@ -37,6 +39,15 @@ function loadNotificationInboxDeduped() {
   return notificationInboxInflight;
 }
 
+function loadNotificationUnreadCountDeduped() {
+  if (!notificationUnreadInflight) {
+    notificationUnreadInflight = loadNotificationUnreadCount().finally(() => {
+      notificationUnreadInflight = null;
+    });
+  }
+  return notificationUnreadInflight;
+}
+
 export function NotificationInboxSheet({ className }: Props) {
   const mounted = useClientMounted();
   const [open, setOpen] = useState(false);
@@ -44,32 +55,35 @@ export function NotificationInboxSheet({ className }: Props) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isPending, startTransition] = useTransition();
 
-  const reload = useCallback(async () => {
+  const reloadUnreadCount = useCallback(async () => {
+    const count = await loadNotificationUnreadCountDeduped();
+    setUnreadCount(count);
+  }, []);
+
+  const reloadFullInbox = useCallback(async () => {
     const feed = await loadNotificationInboxDeduped();
     setItems(feed.items);
     setUnreadCount(feed.unread_count);
   }, []);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
     const onChanged = () => {
-      void reload();
+      void reloadUnreadCount();
+      if (open) void reloadFullInbox();
     };
     window.addEventListener(NOTIFICATION_INBOX_CHANGED_EVENT, onChanged);
     return () => window.removeEventListener(NOTIFICATION_INBOX_CHANGED_EVENT, onChanged);
-  }, [reload]);
+  }, [open, reloadFullInbox, reloadUnreadCount]);
 
   useEffect(() => {
-    if (open) void reload();
-  }, [open, reload]);
+    if (!open) return;
+    void reloadFullInbox();
+  }, [open, reloadFullInbox]);
 
   const handleMarkAllRead = () => {
     startTransition(async () => {
       await markNotificationsRead(null);
-      await reload();
+      await reloadFullInbox();
     });
   };
 

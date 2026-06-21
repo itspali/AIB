@@ -8,6 +8,12 @@ export async function loadNotificationInbox() {
   return fetchUserNotificationFeed(supabase, { limit: 30 });
 }
 
+export async function loadNotificationUnreadCount(): Promise<number> {
+  const { supabase } = await requireTenantId();
+  const feed = await fetchUserNotificationFeed(supabase, { limit: 1 });
+  return feed.unread_count;
+}
+
 export async function markNotificationsRead(notificationIds: string[] | null) {
   const { supabase } = await requireTenantId();
   const { error } = await supabase.rpc("mark_user_notifications_read", {
