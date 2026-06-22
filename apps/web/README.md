@@ -20,39 +20,40 @@ Open [http://localhost:3000](http://localhost:3000).
 
 `/` — marketing landing for visitors; authenticated users route to onboarding or dashboard.
 
-`/login` and `/signup` — B2B authentication and workspace registration.
+`/login` and `/signup` — authentication and workspace registration.
 
 ## Public Signup
 
-`/signup` — B2B organization registration (unauthenticated):
+`/signup` — registration (unauthenticated):
 
-1. Organization name, administrator name, country, work email, password
+1. Business name, your name, country, work email, password
 2. Terms acceptance (links to `/legal/terms` and `/legal/privacy`)
 3. Supabase Auth sign-up with deferred provisioning (`signup_pending`)
 4. RPC `initialize_new_tenant` seeds `tenants` + OWNER `users` row
-5. Post-login routing: incomplete onboarding → `/onboarding`; live tenant → `/dashboard`
+5. Post-login routing: incomplete profile → `/onboarding`; live tenant → `/dashboard`
 
-**Note:** Signup supports email confirmation via `/auth/callback`. Users without a tenant are sent to `/signup?resume=1` to finish workspace setup. For local dev, `SUPABASE_SERVICE_ROLE_KEY` avoids auth rate limits.
+**Note:** Signup supports email confirmation via `/auth/callback`. Users without a tenant are sent to `/signup?resume=1` to finish setup. For local dev, `SUPABASE_SERVICE_ROLE_KEY` avoids auth rate limits.
 
 ## Onboarding Flow
 
-`/onboarding` — four-step milestone checklist wired to Supabase:
+`/onboarding` — two-step checklist:
 
-1. Company & location
-2. Chart of accounts (country-specific template: India GST, US sales tax, or international VAT)
-3. Tax rates (country presets from signup/location)
-4. Sales channels & return policies
+1. **Business profile** — business name, primary location (Headquarters), optional address line 2; compliance fields in a collapsible panel
+2. **Finance setup** — choose main selling focus (consumers, businesses, or both), then one-click apply of country-specific chart of accounts, tax rates, and sales channel(s)
 
-Saving the final step auto-launches the workspace (`complete_onboarding` RPC → `GO_LIVE_READY`).
+Selling focus can be changed later in **Settings → Organization**.
 
-`onboarding_status` progresses: `ORGANIZATION_CONFIGURED` → `DATABASE_SEEDED` → `COMPLIANCE_VERIFIED` → `GO_LIVE_READY`.
+Applying finance setup calls `complete_onboarding` RPC → `GO_LIVE_READY`.
 
-After launch, the dashboard shows a dismissible **Getting started** checklist (first product, categories, org review, locations).
+Users can open the dashboard after step 1; new purchase orders and invoices are blocked until finance setup completes (dashboard banner links back to onboarding).
+
+After launch, the dashboard shows a dismissible **Getting started** checklist.
 
 ## Smoke test checklist
 
-1. Visit `/` logged out — marketing landing with Sign in / Create workspace CTAs
-2. US signup → onboarding Step 2 deploys US COA (no IGST/CGST/SGST accounts)
-3. IN signup → India COA + GST tax presets
-4. Complete Step 4 — redirects to dashboard without a separate launch click
-5. Dashboard shows Getting started checklist until dismissed
+1. Visit `/` logged out — marketing landing with Sign in / Get started CTAs
+2. Signup with neutral form (no selling-focus question) → profile with HQ default → dashboard → setup banner → blocked new invoice/PO
+3. Finance step: select selling focus → apply → correct channel count; metadata stores `business_model`
+4. **Settings → Organization → Selling focus:** save preference; suggestions shown when channels are missing (no auto-create)
+5. Email confirm path: confirm → resume → tenant init without re-entering password
+6. Dashboard shows Getting started checklist after go-live until dismissed

@@ -11,10 +11,14 @@ import { fetchSalesSettings } from "@/lib/sales/settings";
 import { fetchSalesCustomers, fetchSalesLocations } from "@/lib/sales/shared/queries";
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
+import { getAppShellBootstrap } from "@/lib/layout/app-shell-bootstrap";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
 
 export async function InvoiceCatalogLoader() {
-  const { supabase, tenantId, userId } = await getModulePageContext();
+  const [{ supabase, tenantId, userId }, bootstrap] = await Promise.all([
+    getModulePageContext(),
+    getAppShellBootstrap(),
+  ]);
 
   const [locations, customers, editAccess, salesSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, gstRegistered, invoicesPage] =
     await Promise.all([
@@ -63,6 +67,7 @@ export async function InvoiceCatalogLoader() {
       approvalSettings={approvalSettings}
       currentUserId={userId}
       isOwner={editAccess.isOwner}
+      financeSetupComplete={bootstrap.financeSetupComplete}
     />
   );
 }

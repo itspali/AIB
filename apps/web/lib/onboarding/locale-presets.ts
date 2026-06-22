@@ -92,9 +92,9 @@ export function usesIndiaCoaTemplate(countryCode: string): boolean {
 
 export function humanOnboardingStatus(status: string, progressPercent: number): string {
   if (status === "GO_LIVE_READY") return "Ready to operate";
-  if (status === "COMPLIANCE_VERIFIED") return "Final step — sales channels";
-  if (status === "DATABASE_SEEDED") return "Tax and compliance setup";
-  if (status === "ORGANIZATION_CONFIGURED") return "Financial setup in progress";
-  if (progressPercent >= 100) return "Launching workspace";
-  return "Workspace setup in progress";
+  if (status === "COMPLIANCE_VERIFIED") return "Finance setup in progress";
+  if (status === "DATABASE_SEEDED") return "Finance setup in progress";
+  if (status === "ORGANIZATION_CONFIGURED") return "Finance setup next";
+  if (progressPercent >= 100) return "Setup complete";
+  return "Setup in progress";
 }

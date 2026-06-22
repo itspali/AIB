@@ -37,6 +37,7 @@ import type {
 } from "@/lib/procurement/shared/types";
 import { buildModuleHref } from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { useFinanceSetupCreateGate } from "@/lib/onboarding/use-finance-setup-create-gate";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { OrganizationBillToSnapshot } from "@/lib/procurement/purchase-orders/organization-bill-to";
@@ -92,6 +93,7 @@ type Props = {
   approvalSettings: ProcurementApprovalSettings;
   currentUserId: string;
   isOwner: boolean;
+  financeSetupComplete: boolean;
 };
 
 export function PoManagementTerminal({
@@ -116,10 +118,17 @@ export function PoManagementTerminal({
   approvalSettings,
   currentUserId,
   isOwner,
+  financeSetupComplete,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF, {
     clearParamsOnClose: [PO_COPY_FROM_PARAM, PO_STATUS_FILTER_PARAM],
+  });
+  const guardedOpenCreate = useFinanceSetupCreateGate({
+    financeSetupComplete,
+    openCreate: drawer.openCreate,
+    closeDrawer: drawer.close,
+    drawerSurface: drawer.surface,
   });
   const copyFromId = useMemo(() => {
     if (drawer.surface !== "create") return null;
@@ -231,11 +240,11 @@ export function PoManagementTerminal({
 
   const handleDuplicate = useCallback(
     (purchaseOrderId: string) => {
-      drawer.openCreate({
+      guardedOpenCreate({
         extraParams: { [PO_COPY_FROM_PARAM]: purchaseOrderId },
       });
     },
-    [drawer]
+    [guardedOpenCreate]
   );
 
   useEffect(() => {
@@ -398,7 +407,7 @@ export function PoManagementTerminal({
   ) : !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
       <PoEmptyState
-        onCreate={editAccessGranted ? drawer.openCreate : undefined}
+        onCreate={editAccessGranted ? guardedOpenCreate : undefined}
         hasLocations={locations.length > 0}
         hasSuppliers={suppliers.length > 0}
       />
@@ -470,7 +479,7 @@ export function PoManagementTerminal({
             title="Purchase Orders"
             description={PO_PAGE_DESCRIPTION}
             createLabel="New purchase order"
-            onCreate={editAccessGranted ? drawer.openCreate : undefined}
+            onCreate={editAccessGranted ? guardedOpenCreate : undefined}
             aboutAriaLabel="About Purchase Orders"
           />
         }

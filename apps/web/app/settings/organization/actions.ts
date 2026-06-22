@@ -25,6 +25,12 @@ import {
 } from "@/lib/products/field-permissions";
 import type { UserRole } from "@/lib/user/types";
 import { buildTenantThemeSettingsPayload, THEME_SETTINGS_REGISTRY_KEY } from "@/lib/theme/governance";
+import {
+  getMissingChannelSuggestions,
+  parseBusinessModel,
+  type BusinessModel,
+  type ChannelSuggestion,
+} from "@/lib/onboarding/business-model";
 
 const ORGANIZATION_PATHS = ["/settings/organization", "/dashboard"];
 
@@ -468,4 +474,57 @@ export async function saveTenantReportingLines(
       error: error instanceof Error ? error.message : "Unable to save reporting lines.",
     };
   }
+}
+
+export async function saveSellingFocus(
+  raw: unknown
+): Promise<{ success: true; suggestions: ChannelSuggestion[] } | { error: string }> {
+  const businessModel = parseBusinessModel(raw);
+  const { supabase, tenantId, userId } = await requireTenantId();
+
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+  if (!access.granted) {
+    return { error: "Administrative privileges required." };
+  }
+
+  const { data: tenant, error: tenantError } = await supabase
+    .from("tenants")
+    .select("name, metadata_json")
+    .eq("id", tenantId)
+    .single();
+
+  if (tenantError || !tenant) {
+    return { error: tenantError?.message ?? "Unable to load organization." };
+  }
+
+  const metadata = (tenant.metadata_json as Record<string, unknown> | null) ?? {};
+  const { error: updateError } = await supabase
+    .from("tenants")
+    .update({
+      metadata_json: { ...metadata, business_model: businessModel },
+    })
+    .eq("id", tenantId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  const { data: channels } = await supabase
+    .from("storefront_channels")
+    .select("channel_type")
+    .eq("tenant_id", tenantId);
+
+  const existingTypes = (channels ?? []).map((row) => String(row.channel_type));
+  const brandName =
+    (typeof tenant.name === "string" && tenant.name.trim()) ||
+    (typeof metadata.trade_name === "string" && metadata.trade_name.trim()) ||
+    "Main";
+
+  const suggestions = getMissingChannelSuggestions(businessModel, existingTypes, brandName);
+
+  for (const path of ORGANIZATION_PATHS) {
+    revalidatePath(path);
+  }
+
+  return { success: true as const, suggestions };
 }

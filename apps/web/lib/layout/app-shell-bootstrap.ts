@@ -6,6 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionClaims, getSessionTenantId } from "@/lib/supabase/auth";
 import { fetchThemePolicyForSession } from "@/lib/theme/queries";
 import type { ResolvedThemePolicy } from "@/lib/theme/governance";
+import {
+  parseBusinessModel,
+  type BusinessModel,
+} from "@/lib/onboarding/business-model";
+import { isFinanceSetupComplete } from "@/lib/onboarding/finance-setup-gate";
 
 export type AppShellBootstrap = {
   tenantId: string | null;
@@ -16,9 +21,12 @@ export type AppShellBootstrap = {
     name: string;
     trade_name: string | null;
     onboarding_status: string;
+    metadata_json: Record<string, unknown> | null;
   } | null;
+  businessModel: BusinessModel;
   locationCount: number;
   onboardingComplete: boolean;
+  financeSetupComplete: boolean;
   hasWorkspaceAccess: boolean;
 };
 
@@ -36,8 +44,10 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
       themeCookie,
       themePolicy: null,
       tenant: null,
+      businessModel: "B2B",
       locationCount: 0,
       onboardingComplete: false,
+      financeSetupComplete: false,
       hasWorkspaceAccess: false,
     };
   }
@@ -46,7 +56,7 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
   const [{ data: tenant }, { count: locationCount }, themePolicy] = await Promise.all([
     supabase
       .from("tenants")
-      .select("name, trade_name, onboarding_status")
+      .select("name, trade_name, onboarding_status, metadata_json")
       .eq("id", tenantId)
       .single(),
     supabase
@@ -59,15 +69,27 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
   ]);
 
   const resolvedLocationCount = locationCount ?? 0;
+  const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
+  const businessModel = parseBusinessModel(metadata.business_model);
+  const financeSetupComplete = isFinanceSetupComplete(tenant?.onboarding_status);
 
   return {
     tenantId,
     userId: claims?.userId ?? null,
     themeCookie,
     themePolicy,
-    tenant: tenant ?? null,
+    tenant: tenant
+      ? {
+          name: tenant.name,
+          trade_name: tenant.trade_name,
+          onboarding_status: tenant.onboarding_status,
+          metadata_json: metadata,
+        }
+      : null,
+    businessModel,
     locationCount: resolvedLocationCount,
-    onboardingComplete: tenant?.onboarding_status === "GO_LIVE_READY",
+    onboardingComplete: financeSetupComplete,
+    financeSetupComplete,
     hasWorkspaceAccess: resolvedLocationCount > 0,
   };
 }

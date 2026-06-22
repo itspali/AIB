@@ -43,6 +43,7 @@ import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import { useFinanceSetupCreateGate } from "@/lib/onboarding/use-finance-setup-create-gate";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import {
@@ -85,6 +86,7 @@ type Props = {
   approvalSettings: SalesApprovalSettings;
   currentUserId: string;
   isOwner: boolean;
+  financeSetupComplete: boolean;
 };
 
 export function InvoiceManagementTerminal({
@@ -104,6 +106,7 @@ export function InvoiceManagementTerminal({
   approvalSettings,
   currentUserId,
   isOwner,
+  financeSetupComplete,
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(SALES_INVOICES_HREF, {
@@ -112,6 +115,12 @@ export function InvoiceManagementTerminal({
       INVOICE_DRAWER_QUOTE_PARAM,
       INVOICE_STATUS_FILTER_PARAM,
     ],
+  });
+  const guardedOpenCreate = useFinanceSetupCreateGate({
+    financeSetupComplete,
+    openCreate: drawer.openCreate,
+    closeDrawer: drawer.close,
+    drawerSurface: drawer.surface,
   });
   const {
     rows: invoices,
@@ -385,7 +394,7 @@ export function InvoiceManagementTerminal({
 
   const listPrimary = !hasAnyData ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
-      <InvoiceEmptyState onCreate={drawer.openCreate} hasCustomers={customers.length > 0} />
+      <InvoiceEmptyState onCreate={guardedOpenCreate} hasCustomers={customers.length > 0} />
     </div>
   ) : sortedRows.length === 0 ? (
     <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
@@ -461,7 +470,7 @@ export function InvoiceManagementTerminal({
             title="Invoices"
             description={INVOICE_PAGE_DESCRIPTION}
             createLabel="New invoice"
-            onCreate={editAccessGranted ? drawer.openCreate : undefined}
+            onCreate={editAccessGranted ? guardedOpenCreate : undefined}
             aboutAriaLabel="About Sales Invoices"
           />
         }

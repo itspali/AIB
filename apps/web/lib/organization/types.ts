@@ -1,3 +1,4 @@
+import type { BusinessModel } from "@/lib/onboarding/business-model";
 import type { DomRoutingConfig } from "@/lib/locations/dom-routing";
 import { parseDomRoutingConfig } from "@/lib/locations/dom-routing";
 import type { CreditControlEnforcement } from "@/lib/organization/credit-control-options";
@@ -142,6 +143,8 @@ export type OrganizationSettingsSnapshot = {
   }>;
   group_id: string | null;
   parent_group_name: string | null;
+  business_model: BusinessModel;
+  storefront_channel_types: string[];
 };
 
 export type OrganizationSettingsFormValues = {

@@ -24,6 +24,7 @@ import { OrganizationPolicySummary } from "@/components/settings/organization-po
 import { SectionScrollChipBar } from "@/components/layout/section-scroll-chip-bar";
 import { GroupInvitationBanner } from "@/components/settings/group/group-invitation-banner";
 import { OrganizationIdentitySection } from "@/components/settings/organization-identity-section";
+import { OrganizationSellingFocusSection } from "@/components/settings/organization-selling-focus-section";
 import { OrganizationLocalizationSection } from "@/components/settings/organization-localization-section";
 import { OrganizationLocationSection } from "@/components/settings/organization-location-section";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
@@ -398,6 +399,15 @@ export function OrganizationSettingsTerminal({
               parentGroupName={snapshot.parent_group_name}
               organizationCode={snapshot.organization_code}
             />
+            <div className="mt-4">
+              <OrganizationSellingFocusSection
+                businessModel={snapshot.business_model}
+                storefrontChannelTypes={snapshot.storefront_channel_types}
+                brandName={snapshot.trade_name?.trim() || snapshot.legal_name?.trim() || snapshot.name}
+                onboardingStatus={snapshot.onboarding_status}
+                disabled={fieldsDisabled}
+              />
+            </div>
           </SectionAnchor>
 
           <SectionAnchor id={ORG_SETTINGS_TAB_IDS.regional} registerRef={registerSection(ORG_SETTINGS_TAB_IDS.regional)}>

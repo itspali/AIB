@@ -16,10 +16,14 @@ import {
   fetchProcurementSuppliers,
 } from "@/lib/procurement/shared/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
+import { getAppShellBootstrap } from "@/lib/layout/app-shell-bootstrap";
 import { fetchActivePoLineTaxCodeOptions } from "@/lib/tax/queries";
 
 export async function PoCatalogLoader() {
-  const { supabase, tenantId, userId } = await getModulePageContext();
+  const [{ supabase, tenantId, userId }, bootstrap] = await Promise.all([
+    getModulePageContext(),
+    getAppShellBootstrap(),
+  ]);
 
   const [locations, suppliers, editAccess, procurementSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
     await Promise.all([
@@ -83,6 +87,7 @@ export async function PoCatalogLoader() {
       approvalSettings={approvalSettings}
       currentUserId={userId}
       isOwner={editAccess.isOwner}
+      financeSetupComplete={bootstrap.financeSetupComplete}
     />
   );
 }

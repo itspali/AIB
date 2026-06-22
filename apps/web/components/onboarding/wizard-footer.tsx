@@ -4,7 +4,6 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { completeOnboarding } from "@/app/onboarding/actions";
 import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import type { StepSubmitHandle, WizardStepId } from "@/lib/onboarding/types";
 
@@ -29,19 +28,24 @@ export function WizardFooter({
   const router = useRouter();
   const { setOnboardingComplete, setHasWorkspaceAccess } = useOnboardingContext();
 
-  const isChannelsStep = activeStepId === "channels";
-  const showLaunchOnly = isChannelsStep && stepCompleted && canLaunch;
+  const isFinanceStep = activeStepId === "finance_setup";
+  const showLaunchOnly = isFinanceStep && stepCompleted && canLaunch;
 
-  const launchWorkspace = () => {
+  const finishSetup = () => {
     startTransition(async () => {
-      const result = await completeOnboarding();
+      const handler = stepRef.current;
+      if (!handler) {
+        toast.error("Step handler unavailable");
+        return;
+      }
+      const result = await handler.submit();
       if (result.error) {
         toast.error(result.error);
         return;
       }
       setOnboardingComplete(true);
       setHasWorkspaceAccess(true);
-      toast.success("Welcome to your live AIB Smart ERP workspace!");
+      toast.success("Your business setup is complete!");
       router.push("/dashboard");
       router.refresh();
     });
@@ -49,12 +53,18 @@ export function WizardFooter({
 
   const handlePrimary = () => {
     if (showLaunchOnly) {
-      launchWorkspace();
+      router.push("/dashboard");
+      router.refresh();
       return;
     }
 
-    if (stepCompleted) {
+    if (stepCompleted && !isFinanceStep) {
       onContinue();
+      return;
+    }
+
+    if (stepCompleted && isFinanceStep) {
+      finishSetup();
       return;
     }
 
@@ -70,12 +80,16 @@ export function WizardFooter({
         return;
       }
 
-      if (activeStepId === "locations") {
+      if (activeStepId === "profile") {
         setHasWorkspaceAccess(true);
       }
 
-      if (isChannelsStep) {
-        launchWorkspace();
+      if (isFinanceStep) {
+        setOnboardingComplete(true);
+        setHasWorkspaceAccess(true);
+        toast.success("Your business setup is complete!");
+        router.push("/dashboard");
+        router.refresh();
         return;
       }
 
@@ -85,16 +99,18 @@ export function WizardFooter({
   };
 
   const primaryLabel = showLaunchOnly
-    ? "Launch workspace"
+    ? "Go to dashboard"
     : stepCompleted
-      ? "Continue"
-      : isChannelsStep
-        ? "Save & launch workspace"
-        : "Save & Continue";
+      ? isFinanceStep
+        ? "Go to dashboard"
+        : "Continue"
+      : isFinanceStep
+        ? "Apply recommended setup"
+        : "Save and continue";
 
   return (
     <div className="mt-6 flex flex-col-reverse gap-3 border-t pt-4 md:mt-8 md:flex-row md:items-center md:justify-between md:pt-6">
-      {activeStepId !== "locations" ? (
+      {activeStepId !== "profile" ? (
         <Button
           type="button"
           variant="ghost"
@@ -109,7 +125,7 @@ export function WizardFooter({
       )}
       <Button
         type="button"
-        disabled={pending || (showLaunchOnly && !canLaunch)}
+        disabled={pending}
         size="lg"
         onClick={handlePrimary}
         className="w-full md:ml-auto md:w-auto"

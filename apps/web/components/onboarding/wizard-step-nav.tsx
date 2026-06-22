@@ -4,13 +4,6 @@ import { cn } from "@/lib/utils";
 import { WizardStepBadge } from "@/components/onboarding/wizard-step-badge";
 import type { OnboardingStepState, WizardNavStatus, WizardStepId } from "@/lib/onboarding/types";
 
-const STEP_SHORT_LABELS: Record<WizardStepId, string> = {
-  locations: "Company & location",
-  coa: "Chart of accounts",
-  tax: "Tax rates",
-  channels: "Sales channels",
-};
-
 type Props = {
   steps: OnboardingStepState[];
   activeStepId: WizardStepId;
@@ -68,9 +61,7 @@ function StepNavButton({
         {index + 1}
       </span>
       <span className="min-w-0 flex-1 space-y-1">
-        <span className="block text-sm font-medium leading-snug break-words">
-          {compact ? STEP_SHORT_LABELS[step.id] : step.title}
-        </span>
+        <span className="block text-sm font-medium leading-snug break-words">{step.title}</span>
         <WizardStepBadge status={navStatus} />
       </span>
     </button>
@@ -84,7 +75,6 @@ export function WizardStepNav({ steps, activeStepId, onStepSelect }: Props) {
 
   return (
     <nav aria-label="Onboarding steps" className="space-y-1">
-      {/* Mobile: compact progress stepper — full-width stack, no horizontal scroll */}
       <div className="space-y-4 md:hidden">
         <div>
           <div className="mb-2 flex items-center justify-between gap-2 text-sm">
@@ -115,7 +105,7 @@ export function WizardStepNav({ steps, activeStepId, onStepSelect }: Props) {
             ))}
           </div>
           {activeStep && (
-            <p className="mt-2 text-sm font-medium leading-snug">{STEP_SHORT_LABELS[activeStep.id]}</p>
+            <p className="mt-2 text-sm font-medium leading-snug">{activeStep.title}</p>
           )}
         </div>
 
@@ -141,11 +131,10 @@ export function WizardStepNav({ steps, activeStepId, onStepSelect }: Props) {
         )}
       </div>
 
-      {/* Desktop: vertical step rail */}
       <div className="hidden md:block">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold tracking-tight">Setup Checklist</h2>
-          <p className="text-sm text-muted-foreground">Complete each milestone to launch your workspace.</p>
+          <h2 className="text-lg font-semibold tracking-tight">Setup checklist</h2>
+          <p className="text-sm text-muted-foreground">Two quick steps to get your business ready.</p>
         </div>
 
         <div className="flex flex-col gap-3">

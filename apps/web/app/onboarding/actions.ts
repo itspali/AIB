@@ -4,7 +4,16 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { coaTemplateForCountry } from "@/lib/onboarding/locale-presets";
+import {
+  getDefaultChannelConfigs,
+  parseBusinessModel,
+  type BusinessModel,
+} from "@/lib/onboarding/business-model";
+import {
+  coaTemplateForCountry,
+  defaultTaxRatesForCountry,
+} from "@/lib/onboarding/locale-presets";
+import { isFinanceSetupComplete } from "@/lib/onboarding/finance-setup-gate";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import type {
   ChannelFormValues,
@@ -69,24 +78,68 @@ async function updateOnboardingStatus(
   await supabase.from("tenants").update({ onboarding_status: status }).eq("id", tenantId);
 }
 
+function normalizeCorporateProfile(values: CorporateProfileFormValues): CorporateProfileFormValues {
+  const city = values.city.trim();
+  return {
+    ...values,
+    company_name: values.company_name.trim(),
+    legal_registration_number: values.legal_registration_number?.trim() ?? "",
+    tax_identifier: values.tax_identifier?.trim() ?? "",
+    name: values.name.trim(),
+    code: values.code?.trim() || "MAIN",
+    address_line1: values.address_line1?.trim() || city || "—",
+    address_line2: values.address_line2?.trim() ?? "",
+    city,
+    state: values.state.trim(),
+    zip_postal: values.zip_postal?.trim() || "00000",
+    country_code: values.country_code.toUpperCase(),
+    billing_state: values.billing_state?.trim() ?? "",
+    shipping_state: values.shipping_state?.trim() ?? "",
+    tax_registered_name: values.tax_registered_name?.trim() ?? "",
+    location_tax_identifier: values.location_tax_identifier?.trim() ?? "",
+  };
+}
+
+export async function assertFinanceSetupReady(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<{ error?: string }> {
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("onboarding_status")
+    .eq("id", tenantId)
+    .single();
+
+  if (!isFinanceSetupComplete(tenant?.onboarding_status)) {
+    return {
+      error:
+        "Complete finance setup in onboarding before creating purchase orders or invoices.",
+    };
+  }
+
+  return {};
+}
+
 export async function saveCorporateProfile(values: CorporateProfileFormValues) {
   const { supabase } = await requireTenantId();
+  const normalized = normalizeCorporateProfile(values);
 
   const { error } = await supabase.rpc("save_onboarding_corporate_profile", {
-    p_company_name: values.company_name,
-    p_legal_registration_number: values.legal_registration_number,
-    p_tax_identifier: values.tax_identifier,
-    p_location_name: values.name,
-    p_location_code: values.code,
-    p_address_line1: values.address_line1,
-    p_city: values.city,
-    p_state: values.state,
-    p_zip_postal: values.zip_postal,
-    p_country_code: values.country_code,
-    p_billing_state: values.billing_state || null,
-    p_shipping_state: values.shipping_state || null,
-    p_tax_registered_name: values.tax_registered_name || null,
-    p_location_tax_identifier: values.location_tax_identifier || null,
+    p_company_name: normalized.company_name,
+    p_legal_registration_number: normalized.legal_registration_number,
+    p_tax_identifier: normalized.tax_identifier,
+    p_location_name: normalized.name,
+    p_location_code: normalized.code,
+    p_address_line1: normalized.address_line1,
+    p_address_line2: normalized.address_line2 || null,
+    p_city: normalized.city,
+    p_state: normalized.state,
+    p_zip_postal: normalized.zip_postal,
+    p_country_code: normalized.country_code,
+    p_billing_state: normalized.billing_state || null,
+    p_shipping_state: normalized.shipping_state || null,
+    p_tax_registered_name: normalized.tax_registered_name || null,
+    p_location_tax_identifier: normalized.location_tax_identifier || null,
   });
 
   if (error) return { error: error.message };
@@ -203,15 +256,22 @@ export async function saveChannel(values: ChannelFormValues) {
   }
 
   const { supabase, tenantId } = await requireTenantId();
-  const data = parsed.data;
+  return ensureChannel(supabase, tenantId, parsed.data);
+}
 
-  const { count, error: countError } = await supabase
+async function ensureChannel(
+  supabase: SupabaseClient,
+  tenantId: string,
+  data: z.infer<typeof channelSchema>
+) {
+  const { data: existing } = await supabase
     .from("storefront_channels")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("slug", data.slug)
+    .maybeSingle();
 
-  if (countError) return { error: countError.message };
-  if ((count ?? 0) > 0) {
+  if (existing) {
     revalidatePath("/onboarding");
     return { success: true as const, alreadySaved: true as const };
   }
@@ -250,6 +310,67 @@ export async function saveChannel(values: ChannelFormValues) {
 
   revalidatePath("/onboarding");
   return { success: true as const };
+}
+
+async function persistBusinessModel(
+  supabase: SupabaseClient,
+  tenantId: string,
+  businessModel: BusinessModel
+) {
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("metadata_json")
+    .eq("id", tenantId)
+    .single();
+
+  const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
+  const draft = (metadata.onboarding_draft as OnboardingDraft | undefined) ?? {};
+
+  const { error } = await supabase
+    .from("tenants")
+    .update({
+      metadata_json: {
+        ...metadata,
+        business_model: businessModel,
+        onboarding_draft: { ...draft, business_model: businessModel },
+      },
+    })
+    .eq("id", tenantId);
+
+  if (error) return { error: error.message };
+  return { success: true as const };
+}
+
+export async function applyRecommendedFinanceSetup(businessModelInput?: BusinessModel) {
+  const { supabase, tenantId } = await requireTenantId();
+
+  const businessModel = parseBusinessModel(businessModelInput);
+  const persistResult = await persistBusinessModel(supabase, tenantId, businessModel);
+  if (persistResult.error) return { error: persistResult.error };
+
+  const coaResult = await deployCoaTemplate();
+  if (coaResult.error) return { error: coaResult.error };
+
+  const countryCode = await resolveTenantCountryCode(supabase, tenantId);
+  const taxResult = await saveTaxRates(defaultTaxRatesForCountry(countryCode));
+  if (taxResult.error) return { error: taxResult.error };
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .single();
+
+  const brandName = tenant?.name ?? "";
+  const channelConfigs = getDefaultChannelConfigs(businessModel, brandName);
+
+  for (const config of channelConfigs) {
+    const { key: _key, ...channelValues } = config;
+    const channelResult = await ensureChannel(supabase, tenantId, channelValues);
+    if (channelResult.error) return { error: channelResult.error };
+  }
+
+  return completeOnboarding();
 }
 
 export async function saveDraft(draft: OnboardingDraft) {

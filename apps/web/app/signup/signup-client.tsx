@@ -12,6 +12,7 @@ import { formatAuthError } from "@/lib/auth/format-auth-error";
 import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
 import { getTenantIdFromSession } from "@/lib/onboarding/status";
 import { COUNTRY_OPTIONS } from "@/lib/onboarding/locale-presets";
+import { NEUTRAL_SIGNUP_COPY } from "@/lib/onboarding/business-model";
 import { SignupProgressSteps } from "@/components/auth/signup-progress-steps";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +29,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const signupSchema = z
   .object({
-    companyName: z.string().min(1, "Organization name is required"),
-    adminName: z.string().min(1, "Administrator name is required"),
+    companyName: z.string().min(1, "Business name is required"),
+    adminName: z.string().min(1, "Your name is required"),
     email: z.string().email("Enter a valid work email address"),
     countryCode: z.string().length(2, "Select a country"),
     password: z
@@ -62,7 +63,13 @@ async function createAuthAccountSilent(
     const response = await fetch("/api/signup/silent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, companyName, adminName, countryCode }),
+      body: JSON.stringify({
+        email,
+        password,
+        companyName,
+        adminName,
+        countryCode,
+      }),
     });
 
     if (!response.ok) {
@@ -227,6 +234,8 @@ export default function SignupPageClient() {
     },
   });
 
+  const signupCopy = NEUTRAL_SIGNUP_COPY;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -335,7 +344,7 @@ export default function SignupPageClient() {
       const adminName = form.getValues("adminName").trim();
       const countryCode = form.getValues("countryCode");
       if (!companyName || !adminName || !countryCode) {
-        setError("Organization name, administrator name, and country are required.");
+        setError("Business name, your name, and country are required.");
         return;
       }
       runSetup(form.getValues(), resumeEmail || form.getValues("email"));
@@ -370,13 +379,13 @@ export default function SignupPageClient() {
             <CardTitle className="text-2xl font-bold tracking-tight">Confirm your email</CardTitle>
             <CardDescription>
               We sent a confirmation link to{" "}
-              <span className="font-medium text-foreground">{checkEmailAddress}</span>. After
-              confirming, return here to finish workspace setup.
+              <span className="font-medium text-foreground">{checkEmailAddress}</span>. After you
+              confirm, we will continue setup automatically.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
-              <Link href="/login">Go to sign in</Link>
+              <Link href="/login">Continue after confirming</Link>
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Wrong address?{" "}
@@ -399,12 +408,10 @@ export default function SignupPageClient() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold tracking-tight">
-            {isResume ? "Finish Workspace Setup" : "Create Your Company Workspace"}
+            {isResume ? signupCopy.resumeTitle : signupCopy.title}
           </CardTitle>
           <CardDescription>
-            {isResume
-              ? "Your account is ready. Complete organization details to continue onboarding."
-              : "Initialize your secure, dedicated organization environment."}
+            {isResume ? signupCopy.resumeDescription : signupCopy.description}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -414,12 +421,9 @@ export default function SignupPageClient() {
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-muted-foreground">
-                  Organization Name
+                  {signupCopy.businessNameLabel}
                 </Label>
-                <Input
-                  {...form.register("companyName")}
-                  placeholder="e.g., Global Trading Corp"
-                />
+                <Input {...form.register("companyName")} placeholder="e.g., Acme Corporation" />
                 {form.formState.errors.companyName && (
                   <p className="text-sm text-destructive">
                     {form.formState.errors.companyName.message}
@@ -429,7 +433,7 @@ export default function SignupPageClient() {
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-muted-foreground">
-                  Administrator Name
+                  {signupCopy.nameFieldLabel}
                 </Label>
                 <Input {...form.register("adminName")} placeholder="Jane Smith" />
                 {form.formState.errors.adminName && (
@@ -463,6 +467,7 @@ export default function SignupPageClient() {
                     {form.formState.errors.countryCode.message}
                   </p>
                 )}
+                <p className="text-xs text-muted-foreground">{signupCopy.countryHelper}</p>
               </div>
 
               {!isResume && (
@@ -567,7 +572,7 @@ export default function SignupPageClient() {
               {error && <p className="text-sm text-destructive">{error}</p>}
 
               <Button type="submit" className="w-full">
-                {isResume ? "Complete Workspace Setup" : "Create Workspace & Begin Setup"}
+                {isResume ? "Continue setup" : signupCopy.submitLabel}
               </Button>
             </form>
           )}

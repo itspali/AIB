@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readSessionClaims } from "@/lib/supabase/session-claims";
+import {
+  NEUTRAL_FINANCE_SETUP_COPY,
+  NEUTRAL_PROFILE_COPY,
+  resolveBusinessModelFromMetadata,
+} from "@/lib/onboarding/business-model";
 import type {
   MilestoneStatus,
   OnboardingSnapshot,
@@ -120,34 +125,24 @@ export async function fetchOnboardingSnapshot(
     policiesRlsDenied;
 
   const step1Complete = (locationCount ?? 0) >= 1;
-  const step2Complete = accountResult.count >= 1;
-  const step3Complete = taxResult.count >= 1;
-  const step4Complete = channelResult.count >= 1;
+  const financeComplete =
+    accountResult.count >= 1 && taxResult.count >= 1 && channelResult.count >= 1;
+
+  const metadata = (tenant.metadata_json as Record<string, unknown> | null) ?? {};
+  const businessModel = resolveBusinessModelFromMetadata(metadata);
 
   const steps: OnboardingStepState[] = [
     {
-      id: "locations",
-      title: "Company & location",
+      id: "profile",
+      title: NEUTRAL_PROFILE_COPY.stepTitle,
       status: stepStatus(step1Complete),
       completed: step1Complete,
     },
     {
-      id: "coa",
-      title: "Chart of accounts",
-      status: stepStatus(step2Complete),
-      completed: step2Complete,
-    },
-    {
-      id: "tax",
-      title: "Tax rates",
-      status: stepStatus(step3Complete, !step2Complete),
-      completed: step3Complete,
-    },
-    {
-      id: "channels",
-      title: "Sales channels",
-      status: stepStatus(step4Complete, !step3Complete),
-      completed: step4Complete,
+      id: "finance_setup",
+      title: NEUTRAL_FINANCE_SETUP_COPY.stepTitle,
+      status: stepStatus(financeComplete, !step1Complete),
+      completed: financeComplete,
     },
   ];
 
@@ -157,13 +152,14 @@ export async function fetchOnboardingSnapshot(
   return {
     tenant: tenant as TenantProfile,
     primaryLocation: (locations?.[0] as PrimaryLocation | undefined) ?? null,
+    businessModel,
     accountCount: accountResult.count,
     taxRateCount: taxResult.count,
     channelCount: channelResult.count,
     returnPolicies,
     steps,
-    progressPercent: Math.round((completedSteps / 4) * 100),
-    canLaunch: step1Complete && step2Complete && step3Complete && step4Complete,
+    progressPercent: Math.round((completedSteps / 2) * 100),
+    canLaunch: step1Complete && financeComplete,
     isOnboardingComplete,
     schemaWarning,
     rlsWarning,
@@ -171,18 +167,18 @@ export async function fetchOnboardingSnapshot(
 }
 
 export function hasWorkspaceAccess(snapshot: Pick<OnboardingSnapshot, "steps">): boolean {
-  return snapshot.steps.find((step) => step.id === "locations")?.completed ?? false;
+  return snapshot.steps.find((step) => step.id === "profile")?.completed ?? false;
 }
 
 export function getFirstIncompleteStepId(steps: OnboardingStepState[]): WizardStepId {
-  const order: WizardStepId[] = ["locations", "coa", "tax", "channels"];
+  const order: WizardStepId[] = ["profile", "finance_setup"];
   for (const id of order) {
     const step = steps.find((s) => s.id === id);
     if (step && !step.completed && step.status !== "LOCKED") {
       return id;
     }
   }
-  return "channels";
+  return "finance_setup";
 }
 
 export async function getTenantIdFromSession(supabase: SupabaseClient): Promise<string | null> {

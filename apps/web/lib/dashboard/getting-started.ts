@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { entityCreateHref } from "@/lib/entities/entity-navigation";
+import { orderGettingStartedTasks } from "@/lib/onboarding/business-model";
 
 export type GettingStartedTaskId =
   | "first_product"
@@ -56,6 +57,48 @@ async function countEntitiesForTenant(
   return count ?? 0;
 }
 
+const BASE_TASKS: Record<
+  GettingStartedTaskId,
+  Omit<GettingStartedTask, "completed">
+> = {
+  first_product: {
+    id: "first_product",
+    title: "Add your first product",
+    description: "Create a catalog item to start inventory and sales workflows.",
+    href: "/items?action=new",
+  },
+  categories: {
+    id: "categories",
+    title: "Set up product categories",
+    description: "Group items for reporting, pricing, and storefront merchandising.",
+    href: "/items/categories",
+  },
+  first_supplier: {
+    id: "first_supplier",
+    title: "Add your first supplier",
+    description: "Create a supplier profile for purchase orders and goods receipts.",
+    href: entityCreateHref("supplier"),
+  },
+  first_customer: {
+    id: "first_customer",
+    title: "Add your first customer",
+    description: "Create a customer account for sales orders and invoicing.",
+    href: entityCreateHref("customer"),
+  },
+  org_settings: {
+    id: "org_settings",
+    title: "Review organization settings",
+    description: "Confirm billing identity, fiscal profile, and governance defaults.",
+    href: "/settings/organization",
+  },
+  locations: {
+    id: "locations",
+    title: "Configure warehouse locations",
+    description: "Add or refine stock-holding sites beyond your onboarding home location.",
+    href: "/settings/locations",
+  },
+};
+
 export async function fetchGettingStartedSnapshot(
   supabase: SupabaseClient,
   tenantId: string
@@ -74,50 +117,22 @@ export async function fetchGettingStartedSnapshot(
   const dismissed = metadata.getting_started_dismissed === true;
   const orgSettingsReviewed = metadata.getting_started_org_reviewed === true;
 
-  const tasks: GettingStartedTask[] = [
-    {
-      id: "first_product",
-      title: "Add your first product",
-      description: "Create a catalog item to start inventory and sales workflows.",
-      href: "/items?action=new",
-      completed: itemCount >= 1,
-    },
-    {
-      id: "categories",
-      title: "Set up product categories",
-      description: "Group items for reporting, pricing, and storefront merchandising.",
-      href: "/items/categories",
-      completed: categoryCount >= 1,
-    },
-    {
-      id: "first_supplier",
-      title: "Add your first supplier",
-      description: "Create a supplier profile for purchase orders and goods receipts.",
-      href: entityCreateHref("supplier"),
-      completed: supplierCount >= 1,
-    },
-    {
-      id: "first_customer",
-      title: "Add your first customer",
-      description: "Create a customer account for sales orders and invoicing.",
-      href: entityCreateHref("customer"),
-      completed: customerCount >= 1,
-    },
-    {
-      id: "org_settings",
-      title: "Review organization settings",
-      description: "Confirm billing identity, fiscal profile, and governance defaults.",
-      href: "/settings/organization",
-      completed: orgSettingsReviewed,
-    },
-    {
-      id: "locations",
-      title: "Configure warehouse locations",
-      description: "Add or refine stock-holding sites beyond your onboarding home location.",
-      href: "/settings/locations",
-      completed: locationCount >= 2,
-    },
-  ];
+  const completionById: Record<GettingStartedTaskId, boolean> = {
+    first_product: itemCount >= 1,
+    categories: categoryCount >= 1,
+    first_supplier: supplierCount >= 1,
+    first_customer: customerCount >= 1,
+    org_settings: orgSettingsReviewed,
+    locations: locationCount >= 2,
+  };
+
+  const tasks: GettingStartedTask[] = orderGettingStartedTasks().map((id) => {
+    const base = BASE_TASKS[id];
+    return {
+      ...base,
+      completed: completionById[id],
+    };
+  });
 
   const completedCount = tasks.filter((task) => task.completed).length;
   const isLive = tenant?.onboarding_status === "GO_LIVE_READY";

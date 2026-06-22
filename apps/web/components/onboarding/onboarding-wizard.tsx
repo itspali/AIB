@@ -15,7 +15,7 @@ import type {
   WizardStepId,
 } from "@/lib/onboarding/types";
 
-const STEP_ORDER: WizardStepId[] = ["locations", "coa", "tax", "channels"];
+const STEP_ORDER: WizardStepId[] = ["profile", "finance_setup"];
 
 const stepLoading = () => <OnboardingStepSkeleton />;
 
@@ -27,21 +27,11 @@ const StepCorporateProfile = dynamic(
   { ssr: false, loading: stepLoading }
 );
 
-const StepCoa = dynamic(
-  () => import("@/components/onboarding/steps/step-coa").then((module) => module.StepCoa),
-  { ssr: false, loading: stepLoading }
-);
-
-const StepTaxRegistry = dynamic(
+const StepFinanceSetup = dynamic(
   () =>
-    import("@/components/onboarding/steps/step-tax-registry").then(
-      (module) => module.StepTaxRegistry
+    import("@/components/onboarding/steps/step-finance-setup").then(
+      (module) => module.StepFinanceSetup
     ),
-  { ssr: false, loading: stepLoading }
-);
-
-const StepChannels = dynamic(
-  () => import("@/components/onboarding/steps/step-channels").then((module) => module.StepChannels),
   { ssr: false, loading: stepLoading }
 );
 
@@ -62,14 +52,15 @@ export function OnboardingWizard({ snapshot }: Props) {
     getFirstIncompleteStepId(snapshot.steps)
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [editingLocations, setEditingLocations] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
 
-  const corporateRef = useRef<StepSubmitHandle>(null);
-  const coaRef = useRef<StepSubmitHandle>(null);
-  const taxRef = useRef<StepSubmitHandle>(null);
-  const channelsRef = useRef<StepSubmitHandle>(null);
+  const profileRef = useRef<StepSubmitHandle>(null);
+  const financeRef = useRef<StepSubmitHandle>(null);
 
-  const draft = (snapshot.tenant.metadata_json?.onboarding_draft as OnboardingDraft | undefined) ?? {};
+  const draft: OnboardingDraft = {
+    business_model: snapshot.businessModel,
+    ...((snapshot.tenant.metadata_json?.onboarding_draft as OnboardingDraft | undefined) ?? {}),
+  };
   const { queueSave } = useOnboardingDraftSaver(draft);
   const resolvedCountryCode =
     draft.corporateProfile?.country_code ||
@@ -81,14 +72,11 @@ export function OnboardingWizard({ snapshot }: Props) {
   const activeStep = stepMap[activeStepId];
 
   const stepRefMap: Record<WizardStepId, React.RefObject<StepSubmitHandle | null>> = {
-    locations: corporateRef,
-    coa: coaRef,
-    tax: taxRef,
-    channels: channelsRef,
+    profile: profileRef,
+    finance_setup: financeRef,
   };
 
-  const showAdvancedPanel =
-    activeStepId === "locations" || activeStepId === "tax" || activeStepId === "channels";
+  const showAdvancedPanel = activeStepId === "profile";
 
   const advanceStep = () => {
     const currentIndex = STEP_ORDER.indexOf(activeStepId);
@@ -150,49 +138,30 @@ export function OnboardingWizard({ snapshot }: Props) {
         </div>
 
         <div className="space-y-6">
-          {activeStepId === "locations" && (
+          {activeStepId === "profile" && (
             <StepCorporateProfile
-              ref={corporateRef}
-              completed={stepMap.locations.completed}
+              ref={profileRef}
+              completed={stepMap.profile?.completed ?? false}
               tenant={snapshot.tenant}
               primaryLocation={snapshot.primaryLocation}
               defaultValues={draft.corporateProfile ?? draft.location}
               showAdvanced={showAdvanced}
               onDraftChange={(corporateProfile) => queueSave({ corporateProfile })}
-              onEditingChange={setEditingLocations}
+              onEditingChange={setEditingProfile}
             />
           )}
 
-          {activeStepId === "coa" && (
-            <StepCoa
-              ref={coaRef}
-              completed={stepMap.coa.completed}
+          {activeStepId === "finance_setup" && (
+            <StepFinanceSetup
+              ref={financeRef}
+              initialBusinessModel={draft.business_model ?? snapshot.businessModel}
+              brandName={snapshot.tenant.name}
+              countryCode={resolvedCountryCode}
+              completed={stepMap.finance_setup?.completed ?? false}
               accountCount={snapshot.accountCount}
-              countryCode={resolvedCountryCode}
-            />
-          )}
-
-          {activeStepId === "tax" && (
-            <StepTaxRegistry
-              ref={taxRef}
-              completed={stepMap.tax.completed}
               taxRateCount={snapshot.taxRateCount}
-              initialRows={draft.taxRates}
-              countryCode={resolvedCountryCode}
-              showAdvanced={showAdvanced}
-              onDraftChange={(taxRates) => queueSave({ taxRates })}
-            />
-          )}
-
-          {activeStepId === "channels" && (
-            <StepChannels
-              ref={channelsRef}
-              completed={stepMap.channels.completed}
               channelCount={snapshot.channelCount}
-              returnPolicies={snapshot.returnPolicies}
-              defaultValues={draft.channel}
-              showAdvanced={showAdvanced}
-              onDraftChange={(channel) => queueSave({ channel })}
+              onBusinessModelChange={(business_model) => queueSave({ business_model })}
             />
           )}
 
@@ -204,8 +173,8 @@ export function OnboardingWizard({ snapshot }: Props) {
         <WizardFooter
           activeStepId={activeStepId}
           stepCompleted={
-            activeStepId === "locations"
-              ? (stepMap.locations?.completed ?? false) && !editingLocations
+            activeStepId === "profile"
+              ? (stepMap.profile?.completed ?? false) && !editingProfile
               : (activeStep?.completed ?? false)
           }
           canLaunch={snapshot.canLaunch}

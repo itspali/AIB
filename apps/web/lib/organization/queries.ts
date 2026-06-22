@@ -18,6 +18,7 @@ import {
   parseTenantThemeSettings,
   THEME_SETTINGS_REGISTRY_KEY,
 } from "@/lib/theme/governance";
+import { resolveBusinessModelFromMetadata } from "@/lib/onboarding/business-model";
 
 const DELEGATE_REGISTRY_KEY = "allow_organization_settings_modification";
 const PO_EDIT_DELEGATE_REGISTRY_KEY = "allow_purchase_order_modification";
@@ -42,6 +43,7 @@ export async function fetchOrganizationSettingsSnapshot(
     { data: eligibleUsers },
     inventoryLedgerProbe,
     itemValuationsProbe,
+    { data: storefrontChannels },
   ] = await Promise.all([
     supabase.from("tenants").select("*").eq("id", tenantId).maybeSingle(),
     supabase
@@ -88,6 +90,7 @@ export async function fetchOrganizationSettingsSnapshot(
       .eq("is_active", true),
     supabase.from("inventory_ledger").select("id").eq("tenant_id", tenantId).limit(1),
     supabase.from("item_valuations").select("id").eq("tenant_id", tenantId).limit(1),
+    supabase.from("storefront_channels").select("channel_type").eq("tenant_id", tenantId),
   ]);
 
   if (tenantError || !tenant) return null;
@@ -368,6 +371,10 @@ export async function fetchOrganizationSettingsSnapshot(
       (user) => !poApprovalDelegatorIdSet.has(user.id)
     ),
     po_approval_eligible_delegate_users: eligibleDelegateUsers,
+    business_model: resolveBusinessModelFromMetadata(tenantMetadata),
+    storefront_channel_types: (storefrontChannels ?? []).map((row) =>
+      String(row.channel_type)
+    ),
   };
 }
 

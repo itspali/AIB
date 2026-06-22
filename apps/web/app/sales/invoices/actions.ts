@@ -27,6 +27,7 @@ import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerc
 import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { assertFinanceSetupReady } from "@/app/onboarding/actions";
 import { z } from "zod";
 import {
   canAccessSalesOrderShippingLocation,
@@ -166,6 +167,15 @@ export async function saveSalesInvoice(raw: unknown) {
   }
 
   const { supabase, userId, tenantId } = await requireTenantId();
+
+  const isNewInvoice =
+    !rawRecord.sales_invoice_id ||
+    (typeof rawRecord.sales_invoice_id === "string" && !rawRecord.sales_invoice_id.trim());
+  if (isNewInvoice) {
+    const gate = await assertFinanceSetupReady(supabase, tenantId);
+    if (gate.error) return { error: gate.error };
+  }
+
   const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
     customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
     originLocationId:
@@ -603,7 +613,10 @@ export async function convertOrderToInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid sales order." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantId();
+  const gate = await assertFinanceSetupReady(supabase, tenantId);
+  if (gate.error) return { error: gate.error };
+
   const { data, error } = await supabase.rpc("convert_order_to_invoice", {
     p_sales_order_id: parsed.data.sales_order_id,
     p_origin_location_id: parsed.data.origin_location_id,

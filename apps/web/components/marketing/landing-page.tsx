@@ -7,17 +7,17 @@ const VALUE_PROPS = [
   {
     icon: LayoutDashboard,
     title: "Unified command hub",
-    description: "Monitor inventory, sales pipeline, and financial exposure from one tenant-scoped workspace.",
+    description: "Monitor inventory, sales pipeline, and financial exposure from one place.",
   },
   {
     icon: Boxes,
     title: "Multi-location inventory",
-    description: "Model warehouses, channels, and tax policies before your first transaction goes live.",
+    description: "Model warehouses, channels, and tax policies before your first transaction.",
   },
   {
     icon: Shield,
     title: "Enterprise-grade isolation",
-    description: "Row-level security and dedicated tenant bootstrap keep each organization securely separated.",
+    description: "Row-level security and dedicated tenant bootstrap keep each business separated.",
   },
 ] as const;
 
@@ -32,7 +32,7 @@ export function MarketingLandingPage() {
               <Link href="/login">Sign in</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link href="/signup">Create workspace</Link>
+              <Link href="/signup">Get started</Link>
             </Button>
           </div>
         </div>
@@ -40,20 +40,20 @@ export function MarketingLandingPage() {
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 py-12 md:px-6 md:py-16">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium text-primary">Multi-tenant ERP for growing operators</p>
+          <p className="text-sm font-medium text-primary">ERP for D2C brands and B2B operators</p>
           <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-4xl">
-            Run inventory, sales, and compliance from one workspace
+            Run inventory, sales, and compliance from one place
           </h1>
           <p className="mt-4 text-sm text-muted-foreground md:text-base">
-            Register your organization, complete guided setup, and launch a tenant-isolated ERP
-            environment in minutes.
+            Whether you sell direct to consumers or to businesses, register in minutes, complete a
+            short setup, and launch a tenant-isolated ERP environment.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button size="lg" asChild>
-              <Link href="/signup">Create your company workspace</Link>
+              <Link href="/signup">Get started</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/login">Sign in to existing workspace</Link>
+              <Link href="/login">Sign in</Link>
             </Button>
           </div>
         </div>

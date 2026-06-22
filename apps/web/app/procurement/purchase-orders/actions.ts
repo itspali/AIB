@@ -55,6 +55,7 @@ import { parseIssuePurchaseOrderRpcResult } from "@/lib/documents/posting-querie
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { assertFinanceSetupReady } from "@/app/onboarding/actions";
 import { fetchPoPromoEntitlements, type PoPromoEntitlementRow } from "@/lib/procurement/promo/entitlements";
 import { poPeekShowsPromoEntitlements } from "@/lib/procurement/purchase-orders/po-peek-promo";
 import { normalizePoLayoutTemplate } from "@/lib/documents/purchase-order-layout";
@@ -302,6 +303,13 @@ export async function savePurchaseOrder(raw: unknown) {
 
   const values = parsed.data;
   const { supabase, tenantId, userId } = await requireTenantId();
+
+  const isNewPurchaseOrder = !values.purchase_order_id;
+  if (isNewPurchaseOrder) {
+    const gate = await assertFinanceSetupReady(supabase, tenantId);
+    if (gate.error) return { error: gate.error };
+  }
+
   const headerCharges = normalizePoHeaderChargesForSave({
     shipping_amount: values.shipping_amount,
     shipping_tax_rate_pct: values.shipping_tax_rate_pct,

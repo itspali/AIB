@@ -25,7 +25,7 @@ export function TenantProfileCard({
           {tenant.trade_name || tenant.name}
         </CardTitle>
         <CardDescription className="text-sm text-muted-foreground">
-          Complete the setup checklist below to launch your AIB Smart ERP workspace.
+          Finish the checklist below to complete your business setup.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -62,7 +62,8 @@ export function TenantProfileCard({
         {showDashboardExit ? (
           <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Your workspace is ready to explore. Finish setup anytime from the dashboard.
+              You can explore the dashboard now. Finish finance setup when you are ready to invoice or
+              buy stock.
             </p>
             <Button asChild variant="outline" className="shrink-0">
               <Link href="/dashboard">

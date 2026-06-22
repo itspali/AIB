@@ -1,6 +1,8 @@
+import type { BusinessModel } from "@/lib/onboarding/business-model";
+
 export type MilestoneStatus = "COMPLETED" | "ACTION_REQUIRED" | "LOCKED";
 
-export type WizardStepId = "locations" | "coa" | "tax" | "channels";
+export type WizardStepId = "profile" | "finance_setup";
 
 export type WizardNavStatus = "DONE" | "ACTIVE" | "PENDING" | "LOCKED";
 
@@ -35,6 +37,7 @@ export type OnboardingStepState = {
 export type OnboardingSnapshot = {
   tenant: TenantProfile;
   primaryLocation: PrimaryLocation | null;
+  businessModel: BusinessModel;
   accountCount: number;
   taxRateCount: number;
   channelCount: number;
@@ -54,6 +57,7 @@ export type CorporateProfileFormValues = {
   name: string;
   code: string;
   address_line1: string;
+  address_line2?: string;
   city: string;
   state: string;
   zip_postal: string;
@@ -85,6 +89,7 @@ export type ChannelFormValues = {
 };
 
 export type OnboardingDraft = {
+  business_model?: BusinessModel;
   corporateProfile?: Partial<CorporateProfileFormValues>;
   location?: Partial<CorporateProfileFormValues>;
   taxRates?: TaxRateRow[];

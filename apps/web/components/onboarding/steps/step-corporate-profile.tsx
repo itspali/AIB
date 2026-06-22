@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,7 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { saveCorporateProfile } from "@/app/onboarding/actions";
+import {
+  NEUTRAL_PROFILE_COPY,
+  getDefaultLocationDefaults,
+} from "@/lib/onboarding/business-model";
 import { COUNTRY_OPTIONS } from "@/lib/onboarding/locale-presets";
+import { cn } from "@/lib/utils";
 import type {
   CorporateProfileFormValues,
   PrimaryLocation,
@@ -24,18 +30,19 @@ import type {
 } from "@/lib/onboarding/types";
 
 const schema = z.object({
-  company_name: z.string().min(1, "Company name required"),
-  legal_registration_number: z.string().min(1, "Registration number required"),
-  tax_identifier: z.string().min(1, "Tax identifier required"),
-  name: z.string().min(1, "Location name required"),
-  code: z.string().min(1, "Warehouse code required"),
-  address_line1: z.string().min(1, "Address required"),
-  city: z.string().min(1, "City required"),
-  state: z.string().min(1, "State required"),
-  zip_postal: z.string().min(1, "Postal code required"),
+  company_name: z.string().min(1, "Name is required"),
+  legal_registration_number: z.string().default(""),
+  tax_identifier: z.string().default(""),
+  name: z.string().min(1, "Location name is required"),
+  code: z.string().default("HQ"),
+  address_line1: z.string().default(""),
+  address_line2: z.string().default(""),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  zip_postal: z.string().default(""),
   country_code: z.string().length(2, "Use 2-letter country code"),
-  billing_state: z.string().optional(),
-  shipping_state: z.string().optional(),
+  billing_state: z.string().default(""),
+  shipping_state: z.string().default(""),
   tax_registered_name: z.string().optional(),
   location_tax_identifier: z.string().optional(),
 });
@@ -51,10 +58,21 @@ type Props = {
 };
 
 export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function StepCorporateProfile(
-  { completed, tenant, primaryLocation, defaultValues, showAdvanced, onDraftChange, onEditingChange },
+  {
+    completed,
+    tenant,
+    primaryLocation,
+    defaultValues,
+    showAdvanced,
+    onDraftChange,
+    onEditingChange,
+  },
   ref
 ) {
+  const profileCopy = NEUTRAL_PROFILE_COPY;
+  const locationDefaults = getDefaultLocationDefaults();
   const [isEditing, setIsEditing] = useState(!completed);
+  const [complianceOpen, setComplianceOpen] = useState(profileCopy.defaultComplianceExpanded);
 
   const setEditing = (value: boolean) => {
     setIsEditing(value);
@@ -67,6 +85,13 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
       company_name: tenant.name || "",
       legal_registration_number: tenant.legal_registration_number || "",
       tax_identifier: tenant.tax_identifier || "",
+      name: defaultValues?.name || locationDefaults.name,
+      code: defaultValues?.code || locationDefaults.code,
+      address_line1: defaultValues?.address_line1 || "",
+      address_line2: defaultValues?.address_line2 || "",
+      city: defaultValues?.city || "",
+      state: defaultValues?.state || "",
+      zip_postal: defaultValues?.zip_postal || "",
       country_code: defaultValues?.country_code || "US",
       billing_state: "",
       shipping_state: "",
@@ -89,15 +114,21 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
       <div className="space-y-3">
         <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2">
           <p className="font-medium">{tenant.name}</p>
-          <p className="text-muted-foreground">
-            Reg. {tenant.legal_registration_number || "—"} · Tax ID {tenant.tax_identifier || "—"}
-          </p>
+          {(tenant.legal_registration_number || tenant.tax_identifier) && (
+            <p className="text-muted-foreground">
+              {tenant.legal_registration_number
+                ? `Reg. ${tenant.legal_registration_number}`
+                : null}
+              {tenant.legal_registration_number && tenant.tax_identifier ? " · " : null}
+              {tenant.tax_identifier ? `Tax ID ${tenant.tax_identifier}` : null}
+            </p>
+          )}
           <p className="text-muted-foreground">
             {primaryLocation.name} · {primaryLocation.city}, {primaryLocation.state}
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
-          Edit company &amp; location
+          Edit details
         </Button>
       </div>
     );
@@ -117,55 +148,36 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label>Company Name</Label>
-          <Input {...registerWithDraft("company_name")} placeholder="Acme Corporation" />
-          {form.formState.errors.company_name && (
-            <p className="text-sm text-destructive">{form.formState.errors.company_name.message}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label>Business Registration Number</Label>
-          <Input {...registerWithDraft("legal_registration_number")} placeholder="CIN / EIN / CRN" />
-          {form.formState.errors.legal_registration_number && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.legal_registration_number.message}
-            </p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label>Tax Identifier</Label>
-          <Input {...registerWithDraft("tax_identifier")} placeholder="GSTIN / VAT / EIN" />
-          {form.formState.errors.tax_identifier && (
-            <p className="text-sm text-destructive">{form.formState.errors.tax_identifier.message}</p>
-          )}
-        </div>
+      <div className="space-y-2">
+        <Label>{profileCopy.businessNameLabel}</Label>
+        <Input {...registerWithDraft("company_name")} placeholder="Acme Corporation" />
+        {form.formState.errors.company_name && (
+          <p className="text-sm text-destructive">{form.formState.errors.company_name.message}</p>
+        )}
       </div>
 
       <div>
-        <p className="mb-3 text-sm font-medium">Home Location</p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <p className="mb-1 text-sm font-medium">{profileCopy.locationSectionTitle}</p>
+        <p className="mb-3 text-xs text-muted-foreground">{profileCopy.locationSectionHint}</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Warehouse / Location Name</Label>
-            <Input {...registerWithDraft("name")} placeholder="Central Warehouse" />
+            <Label>{profileCopy.locationNameLabel}</Label>
+            <Input {...registerWithDraft("name")} placeholder={locationDefaults.name} />
             {form.formState.errors.name && (
               <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
             )}
           </div>
           <div className="space-y-2">
-            <Label>Location Code</Label>
-            <Input {...registerWithDraft("code")} placeholder="WH-001" />
-            {form.formState.errors.code && (
-              <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
-            )}
+            <Label>Location code</Label>
+            <Input {...registerWithDraft("code")} placeholder={locationDefaults.code} />
           </div>
-          <div className="space-y-2">
-            <Label>Address Line 1</Label>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Address line 1</Label>
             <Input {...registerWithDraft("address_line1")} />
-            {form.formState.errors.address_line1 && (
-              <p className="text-sm text-destructive">{form.formState.errors.address_line1.message}</p>
-            )}
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Address line 2 (optional)</Label>
+            <Input {...registerWithDraft("address_line2")} />
           </div>
           <div className="space-y-2">
             <Label>City</Label>
@@ -182,11 +194,8 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
             )}
           </div>
           <div className="space-y-2">
-            <Label>Postal Code</Label>
+            <Label>Postal code</Label>
             <Input {...registerWithDraft("zip_postal")} />
-            {form.formState.errors.zip_postal && (
-              <p className="text-sm text-destructive">{form.formState.errors.zip_postal.message}</p>
-            )}
           </div>
           <div className="space-y-2">
             <Label>Country</Label>
@@ -215,22 +224,52 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
         </div>
       </div>
 
+      <div className="rounded-lg border">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-2 p-4 text-left"
+          onClick={() => setComplianceOpen((open) => !open)}
+        >
+          <div>
+            <p className="text-sm font-medium">{profileCopy.compliancePanelTitle}</p>
+            <p className="text-xs text-muted-foreground">{profileCopy.compliancePanelHint}</p>
+          </div>
+          <ChevronDown
+            className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", {
+              "rotate-180": complianceOpen,
+            })}
+          />
+        </button>
+        {complianceOpen && (
+          <div className="grid grid-cols-1 gap-4 border-t p-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{profileCopy.registrationLabel}</Label>
+              <Input {...registerWithDraft("legal_registration_number")} placeholder="CIN / EIN / CRN" />
+            </div>
+            <div className="space-y-2">
+              <Label>{profileCopy.taxIdLabel}</Label>
+              <Input {...registerWithDraft("tax_identifier")} placeholder="GSTIN / VAT / EIN" />
+            </div>
+          </div>
+        )}
+      </div>
+
       {showAdvanced && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 border-t pt-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 border-t pt-4">
           <div className="space-y-2">
-            <Label>Billing State (Nexus)</Label>
+            <Label>Billing state (nexus)</Label>
             <Input {...registerWithDraft("billing_state")} />
           </div>
           <div className="space-y-2">
-            <Label>Shipping State (Nexus)</Label>
+            <Label>Shipping state (nexus)</Label>
             <Input {...registerWithDraft("shipping_state")} />
           </div>
           <div className="space-y-2">
-            <Label>Tax Registered Name</Label>
+            <Label>Tax registered name</Label>
             <Input {...registerWithDraft("tax_registered_name")} />
           </div>
           <div className="space-y-2">
-            <Label>Regional Tax Identifier</Label>
+            <Label>Regional tax identifier</Label>
             <Input
               {...registerWithDraft("location_tax_identifier")}
               placeholder="GSTIN / State Tax ID"
