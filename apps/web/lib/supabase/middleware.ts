@@ -63,6 +63,13 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Server Actions expect the RSC action protocol. Redirects and plain-text
+  // responses break the client with "An unexpected response was received from
+  // the server." Auth, onboarding, and impersonation guards run in actions.
+  if (isServerAction) {
+    return supabaseResponse;
+  }
+
   if (!user && !isPublicAuth && !isConsoleUnauthorized) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -90,15 +97,6 @@ export async function updateSession(request: NextRequest) {
     const impersonationPeek = await verifyImpersonationPayload(impersonationRaw);
     if (impersonationPeek && !isConsole) {
       tenantId = impersonationPeek.tenantId;
-    }
-
-    if (
-      isServerAction &&
-      impersonationPeek?.mode === "READ_ONLY" &&
-      !isConsole &&
-      !pathname.startsWith("/login")
-    ) {
-      return new NextResponse("Impersonation is read-only", { status: 403 });
     }
 
     if (!tenantId) {
