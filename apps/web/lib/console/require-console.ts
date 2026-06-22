@@ -26,7 +26,13 @@ async function fetchOperator(admin: NonNullable<ReturnType<typeof createAdminCli
     .is("revoked_at", null)
     .maybeSingle();
 
-  if (error) throw new ConsoleAccessError(error.message);
+  if (error) {
+    const hint =
+      error.message.includes("timeout") || error.message.includes("ECONNRESET")
+        ? " Database connection failed — check that the Supabase project is active."
+        : "";
+    throw new ConsoleAccessError(`${error.message}${hint}`);
+  }
   return data as ConsoleOperator | null;
 }
 

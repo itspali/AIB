@@ -80,7 +80,7 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
     };
   }
 
-  const workspaceDeletion = await fetchWorkspaceDeletionStatus(supabase);
+  const workspaceDeletion = await fetchWorkspaceDeletionStatus(supabase).catch(() => null);
 
   return {
     supabase,
