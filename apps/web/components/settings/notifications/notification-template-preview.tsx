@@ -8,11 +8,7 @@ import {
   NOTIFICATION_MERGE_FIELDS,
   groupTemplatesByDomain,
 } from "@/lib/notifications/template-catalog";
-import {
-  estimateSmsSegments,
-  listUnknownMergeFields,
-  renderNotificationTemplate,
-} from "@/lib/notifications/render-template";
+import { sanitizeNotificationHtml } from "@/lib/notifications/sanitize-html";
 import type { NotificationChannel, NotificationTemplateRow } from "@/lib/notifications/types";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +37,7 @@ export function NotificationTemplatePreview({
   );
   const renderedBody = useMemo(() => renderNotificationTemplate(bodyTemplate), [bodyTemplate]);
   const renderedHtml = useMemo(
-    () => renderNotificationTemplate(bodyTemplateHtml),
+    () => sanitizeNotificationHtml(renderNotificationTemplate(bodyTemplateHtml)),
     [bodyTemplateHtml]
   );
   const unknownFields = useMemo(

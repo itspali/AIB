@@ -1,16 +1,8 @@
 import Link from "next/link";
-import {
-  Building2,
-  Clock,
-  AlertTriangle,
-  UserPlus,
-  Users,
-  Ban,
-} from "lucide-react";
-import { MetricCard } from "@/components/dashboard/metric-card";
 import { HubSectionHeading } from "@/components/dashboard/hub-panel";
 import { ActionQueuePanel, type ActionQueueItem } from "@/components/console/action-queue-panel";
 import { ConsoleHubHeader } from "@/components/console/console-hub-header";
+import { ConsoleOverviewMetrics } from "@/components/console/console-overview-metrics";
 import { SignupFunnelBar } from "@/components/console/signup-funnel-bar";
 import { ConsoleDataTable } from "@/components/console/console-data-table";
 import { requireConsoleAccess } from "@/lib/console/require-console";
@@ -154,58 +146,7 @@ export default async function ConsoleOverviewPage() {
         ]}
       />
 
-      <section aria-label="Platform metrics">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <MetricCard
-            title="Active tenants"
-            value={String(metrics.activeTenants)}
-            subtitle={`${metrics.totalTenants} total workspaces`}
-            icon={Building2}
-            accent="emerald"
-            href="/console/tenants?status=ACTIVE"
-          />
-          <MetricCard
-            title="On trial"
-            value={String(metrics.trialTenants)}
-            subtitle={`${metrics.trialsExpiring7d} expiring in 7d`}
-            icon={Clock}
-            accent="amber"
-            href="/console/trials"
-          />
-          <MetricCard
-            title="Signups (7d)"
-            value={String(metrics.signups7d)}
-            subtitle="New registrations this week"
-            icon={UserPlus}
-            accent="cyan"
-            href="/console/signups"
-          />
-          <MetricCard
-            title="Stuck onboarding"
-            value={String(metrics.stuckOnboarding)}
-            subtitle="Not go-live ready or missing locations"
-            icon={AlertTriangle}
-            accent="violet"
-            href="/console/signups?issue=B"
-          />
-          <MetricCard
-            title="Suspended"
-            value={String(metrics.suspendedTenants)}
-            subtitle="Inactive or suspended accounts"
-            icon={Ban}
-            accent="amber"
-            href="/console/tenants?status=SUSPENDED"
-          />
-          <MetricCard
-            title="Total tenants"
-            value={String(metrics.totalTenants)}
-            subtitle="All workspaces on platform"
-            icon={Users}
-            accent="cyan"
-            href="/console/tenants"
-          />
-        </div>
-      </section>
+      <ConsoleOverviewMetrics metrics={metrics} />
 
       <section aria-label="Signup funnel">
         <HubSectionHeading

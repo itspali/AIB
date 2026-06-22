@@ -8,6 +8,7 @@ import type {
   TenantSubscriptionStatus,
 } from "../types";
 import { isMissingTableError, safeTenantHeadCount } from "./safe-query";
+import { loadTenantMembers } from "./user-memberships";
 
 export type TenantDetailUser = {
   id: string;
@@ -107,15 +108,9 @@ export async function fetchTenantDetail(
   if (tenantError) throw tenantError;
   if (!tenant) return null;
 
-  const [usersResult, locationCount, items, entities, purchaseOrders, subscription] =
+  const [users, locationCount, items, entities, purchaseOrders, subscription] =
     await Promise.all([
-      admin
-        .from("users")
-        .select(
-          "id, email, first_name, last_name, role, is_active, last_login_at, created_at"
-        )
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: true }),
+      loadTenantMembers(admin, tenantId),
       safeTenantHeadCount(admin, "tenant_locations", tenantId),
       safeTenantHeadCount(admin, "items", tenantId),
       safeTenantHeadCount(admin, "entities", tenantId),
@@ -123,14 +118,12 @@ export async function fetchTenantDetail(
       fetchTenantSubscription(admin, tenantId),
     ]);
 
-  if (usersResult.error) throw usersResult.error;
-
   return {
     tenant: {
       ...tenant,
       metadata_json: (tenant.metadata_json as Record<string, unknown> | null) ?? {},
     } as TenantDetail["tenant"],
-    users: (usersResult.data ?? []) as TenantDetailUser[],
+    users,
     location_count: locationCount,
     health: {
       items,

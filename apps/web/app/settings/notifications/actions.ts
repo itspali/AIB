@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { sanitizeNotificationHtml } from "@/lib/notifications/sanitize-html";
 import type { SaveNotificationTemplateInput } from "@/lib/notifications/types";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
@@ -50,6 +51,10 @@ export async function saveNotificationTemplate(
 
   const { supabase } = editor;
   const payload = parsed.data;
+  const sanitizedHtml =
+    payload.bodyTemplateHtml != null && payload.bodyTemplateHtml !== ""
+      ? sanitizeNotificationHtml(payload.bodyTemplateHtml)
+      : payload.bodyTemplateHtml ?? null;
 
   const { error } = await supabase.rpc("upsert_notification_template", {
     p_template_key: payload.templateKey,
@@ -57,7 +62,7 @@ export async function saveNotificationTemplate(
     p_locale: payload.locale,
     p_subject_template: payload.subjectTemplate ?? null,
     p_body_template: payload.bodyTemplate,
-    p_body_template_html: payload.bodyTemplateHtml ?? null,
+    p_body_template_html: sanitizedHtml,
     p_whatsapp_provider_template_name: payload.whatsappProviderTemplateName ?? null,
     p_whatsapp_param_mapping: payload.whatsappParamMapping ?? [],
     p_is_active: payload.isActive ?? true,

@@ -1,7 +1,13 @@
 import "server-only";
 
 export function isConsoleMfaOptional(): boolean {
-  return process.env.APP_CONSOLE_MFA_OPTIONAL === "true";
+  const optional = process.env.APP_CONSOLE_MFA_OPTIONAL === "true";
+  if (optional && process.env.NODE_ENV === "production") {
+    console.warn(
+      "[security] APP_CONSOLE_MFA_OPTIONAL=true disables console MFA in production. Remove this env var.",
+    );
+  }
+  return optional;
 }
 
 export function readAalFromClaims(claims: Record<string, unknown> | undefined): "aal1" | "aal2" | null {

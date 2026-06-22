@@ -5,6 +5,7 @@ import {
   PASSWORD_RECOVERY_COOKIE_PATH,
 } from "@/lib/auth/recovery-cookie";
 import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
+import { resolveSafeNextPath } from "@/lib/auth/safe-next-path";
 import { getTenantIdFromSession } from "@/lib/onboarding/status";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,9 +45,11 @@ export async function GET(request: Request) {
       const tenantId = await getTenantIdFromSession(supabase);
       if (tenantId) {
         const route = await resolvePostLoginRoute(supabase, tenantId);
-        return NextResponse.redirect(`${origin}${next ?? route}`);
+        const safeNext = resolveSafeNextPath(next, route);
+        return NextResponse.redirect(`${origin}${safeNext}`);
       }
-      return NextResponse.redirect(`${origin}${next ?? "/signup?resume=1"}`);
+      const safeNext = resolveSafeNextPath(next, "/signup?resume=1");
+      return NextResponse.redirect(`${origin}${safeNext}`);
     }
   }
 

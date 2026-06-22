@@ -1,16 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { signupPasswordSchema } from "@/lib/auth/password-schema";
 import { createAdminClient, getServiceRoleKeyMismatch } from "@/lib/supabase/admin";
 
 const authSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: signupPasswordSchema,
   companyName: z.string().min(1).optional(),
   adminName: z.string().min(1).optional(),
   countryCode: z.string().length(2).optional(),
 });
 
+function isSignupAuthorized(request: Request): boolean {
+  const secret = process.env.SIGNUP_API_SECRET?.trim();
+  if (!secret) {
+    return process.env.NODE_ENV !== "production";
+  }
+  const header = request.headers.get("x-signup-api-secret")?.trim();
+  return header === secret;
+}
+
 export async function POST(request: Request) {
+  if (!isSignupAuthorized(request)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const keyMismatch = getServiceRoleKeyMismatch();
   if (keyMismatch) {
     return NextResponse.json({ error: keyMismatch }, { status: 400 });
@@ -50,7 +64,7 @@ export async function POST(request: Request) {
       message.includes("registered") ||
       message.includes("exists")
     ) {
-      return NextResponse.json({ success: true, existing: true });
+      return NextResponse.json({ success: true });
     }
     if (message.includes("database error")) {
       return NextResponse.json(
@@ -64,5 +78,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ success: true, existing: false });
+  return NextResponse.json({ success: true });
 }

@@ -13,6 +13,7 @@ import type { UserRole } from "@/lib/user/types";
 
 import { resolveEffectiveTenant } from "@/lib/supabase/effective-tenant";
 import type { ImpersonationPayload } from "@/lib/console/impersonation-cookie";
+import { fetchWorkspaceDeletionStatus, type WorkspaceDeletionStatus } from "@/lib/organization/deletion";
 
 export type ImpersonationBannerContext = {
   tenantName: string;
@@ -29,6 +30,7 @@ export type ModulePageContext = {
   operatorRole: UserRole;
   approvalAlertCount: number;
   impersonation: ImpersonationBannerContext | null;
+  workspaceDeletion: WorkspaceDeletionStatus | null;
 };
 
 /**
@@ -78,6 +80,8 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
     };
   }
 
+  const workspaceDeletion = await fetchWorkspaceDeletionStatus(supabase);
+
   return {
     supabase,
     tenantId,
@@ -88,6 +92,7 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
     // Fetched client-side in DashboardShell to avoid four count queries on every SSR.
     approvalAlertCount: 0,
     impersonation,
+    workspaceDeletion,
   };
 }
 

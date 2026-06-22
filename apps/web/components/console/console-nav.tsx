@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
   Building2,
   Clock,
   CreditCard,
   LayoutDashboard,
+  LogOut,
   Receipt,
   ScrollText,
   Settings,
@@ -14,6 +16,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 export type ConsoleNavItem = {
@@ -48,9 +52,22 @@ type ConsoleNavProps = {
 
 export function ConsoleNav({ className, onNavigate }: ConsoleNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const handleSignOut = () => {
+    startTransition(async () => {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      onNavigate?.();
+      router.push("/login");
+      router.refresh();
+    });
+  };
 
   return (
-    <nav aria-label="App Console" className={cn("flex flex-col gap-1 p-3", className)}>
+    <nav aria-label="App Console" className={cn("flex h-full flex-col", className)}>
+      <div className="flex flex-1 flex-col gap-1 p-3">
       {CONSOLE_NAV_ITEMS.map((item) => {
         const active = isConsoleNavActive(item, pathname);
         const Icon = item.icon;
@@ -71,6 +88,21 @@ export function ConsoleNav({ className, onNavigate }: ConsoleNavProps) {
           </Link>
         );
       })}
+      </div>
+
+      <div className="mt-auto border-t border-border p-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={isPending}
+          onClick={handleSignOut}
+          className="h-10 w-full justify-start gap-2.5 px-2.5 text-destructive/90 hover:bg-destructive/10 hover:text-destructive"
+        >
+          <LogOut className="h-4 w-4 shrink-0" aria-hidden />
+          {isPending ? "Signing out…" : "Sign out"}
+        </Button>
+      </div>
     </nav>
   );
 }

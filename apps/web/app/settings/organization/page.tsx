@@ -9,7 +9,7 @@ import { fetchTenantReportingLines } from "@/lib/organization/reporting-lines";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
 export default async function OrganizationSettingsPage() {
-  const { supabase, tenantId, userId } = await getModulePageContext();
+  const { supabase, tenantId, userId, workspaceDeletion } = await getModulePageContext();
 
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
@@ -41,6 +41,7 @@ export default async function OrganizationSettingsPage() {
         logoPreviewUrl={logoPreviewUrl}
         groupInvitations={groupInvitations}
         reportingLines={reportingLines}
+        pendingDeletion={workspaceDeletion}
       />
     </>
   );

@@ -6,7 +6,8 @@ export type PlatformConfigKey =
   | "signup_enabled"
   | "maintenance_mode"
   | "console_mfa_required"
-  | "trial_expiry_action";
+  | "trial_expiry_action"
+  | "workspace_deletion_grace_days";
 
 export async function getPlatformConfigValue<T>(
   admin: SupabaseClient,

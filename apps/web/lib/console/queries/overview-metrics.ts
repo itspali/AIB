@@ -105,13 +105,18 @@ async function countStuckOnboarding(admin: SupabaseClient): Promise<number> {
 async function approximateStuckSignups(admin: SupabaseClient): Promise<StuckSignupCounts> {
   const counts: StuckSignupCounts = { bucketA: 0, bucketB: 0, bucketC: 0 };
 
-  const { data: publicUsers, error: usersError } = await admin.from("users").select("id, tenant_id");
+  const { data: memberships, error: usersError } = await admin
+    .from("user_tenant_memberships")
+    .select("user_id, tenant_id");
   if (usersError) return counts;
 
-  const publicUserIds = new Set((publicUsers ?? []).map((u) => u.id as string));
-  const tenantsWithUsers = new Set(
-    (publicUsers ?? []).map((u) => u.tenant_id as string).filter(Boolean)
-  );
+  const publicUserIds = new Set((memberships ?? []).map((m) => m.user_id as string));
+  const membershipByUser = new Map<string, string>();
+  for (const row of memberships ?? []) {
+    if (!membershipByUser.has(row.user_id as string)) {
+      membershipByUser.set(row.user_id as string, row.tenant_id as string);
+    }
+  }
 
   const { data: tenants, error: tenantError } = await admin
     .from("tenants")
@@ -152,8 +157,7 @@ async function approximateStuckSignups(admin: SupabaseClient): Promise<StuckSign
         typeof meta.tenant_id === "string" ? meta.tenant_id : null;
       const hasPublicUser = publicUserIds.has(authUser.id);
       const tenantId =
-        (publicUsers ?? []).find((u) => u.id === authUser.id)?.tenant_id ??
-        tenantIdInMetadata;
+        membershipByUser.get(authUser.id) ?? tenantIdInMetadata;
 
       const issue = computeSignupIssueBucket({
         authUserId: authUser.id,
@@ -173,8 +177,6 @@ async function approximateStuckSignups(admin: SupabaseClient): Promise<StuckSign
     page += 1;
     if (page > 25) break;
   }
-
-  void tenantsWithUsers;
 
   return counts;
 }

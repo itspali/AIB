@@ -26,3 +26,6 @@ go-bin/
 
 # Supabase CLI local link/cache (must not be committed)
 supabase/.temp/
+
+# Browser network captures may contain session tokens
+*.har

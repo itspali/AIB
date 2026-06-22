@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { formatAuthError } from "@/lib/auth/format-auth-error";
@@ -33,6 +34,7 @@ export function MfaChallengeForm({ className }: MfaChallengeFormProps) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
+  const [needsEnrollment, setNeedsEnrollment] = useState(false);
   const [loadingFactor, setLoadingFactor] = useState(true);
   const [isPending, startTransition] = useTransition();
 
@@ -60,10 +62,14 @@ export function MfaChallengeForm({ className }: MfaChallengeFormProps) {
 
       const verifiedTotp = (data.totp ?? []).find((factor) => factor.status === "verified");
       if (!verifiedTotp?.id) {
-        setError("No verified authenticator factor found. Enroll MFA before continuing.");
+        setNeedsEnrollment(true);
+        setError(null);
+        setFactorId(null);
         setLoadingFactor(false);
         return;
       }
+
+      setNeedsEnrollment(false);
 
       setFactorId(verifiedTotp.id);
       setLoadingFactor(false);
@@ -134,6 +140,20 @@ export function MfaChallengeForm({ className }: MfaChallengeFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {loadingFactor ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : needsEnrollment ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You need to set up an authenticator app before accessing the console.
+            </p>
+            <Button asChild className="w-full">
+              <Link href={`/login/mfa-enroll?next=${encodeURIComponent(nextPath)}`}>
+                Set up authenticator
+              </Link>
+            </Button>
+          </div>
+        ) : (
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor="mfa_challenge_code">Verification code</Label>
@@ -167,6 +187,7 @@ export function MfaChallengeForm({ className }: MfaChallengeFormProps) {
             {isPending ? "Verifying…" : "Verify and continue"}
           </Button>
         </form>
+        )}
       </CardContent>
     </Card>
   );

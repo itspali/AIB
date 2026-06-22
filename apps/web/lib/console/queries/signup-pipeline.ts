@@ -14,6 +14,7 @@ import type {
   TenantOnboardingStatus,
 } from "../types";
 import { isMissingTableError } from "./safe-query";
+import { loadMembershipsByUserIds, pickPrimaryMembership } from "./user-memberships";
 
 export type SignupPipelineFilters = {
   search?: string;
@@ -257,16 +258,18 @@ async function enrichAuthUsers(
   if (!authUsers.length) return [];
 
   const authIds = authUsers.map((u) => u.id);
-  const { data: publicUsers, error: usersError } = await admin
-    .from("users")
-    .select("id, tenant_id, email")
-    .in("id", authIds);
-
-  if (usersError) throw usersError;
+  const membershipMap = await loadMembershipsByUserIds(admin, authIds);
 
   const publicUserMap = new Map<string, PublicUserRow>();
-  for (const row of (publicUsers ?? []) as PublicUserRow[]) {
-    publicUserMap.set(row.id, row);
+  for (const authId of authIds) {
+    const primary = pickPrimaryMembership(membershipMap.get(authId) ?? []);
+    if (primary) {
+      publicUserMap.set(authId, {
+        id: primary.user_id,
+        tenant_id: primary.tenant_id,
+        email: primary.email,
+      });
+    }
   }
 
   const tenantIdSet = new Set<string>();

@@ -9,7 +9,9 @@ import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopUtilityStrip } from "@/components/layout/top-utility-strip";
 import { OmnibarProviderLazy } from "@/components/search/omnibar-provider-lazy";
 import { ImpersonationBanner } from "@/components/console/impersonation-banner";
+import { WorkspaceDeletionBanner } from "@/components/settings/workspace-deletion-banner";
 import type { ImpersonationBannerContext } from "@/lib/layout/module-page";
+import type { WorkspaceDeletionStatus } from "@/lib/organization/deletion";
 import type { OperatorProfile } from "@/lib/user/types";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +24,7 @@ type DashboardShellProps = {
   operatorProfile?: OperatorProfile | null;
   tenantId?: string | null;
   impersonation?: ImpersonationBannerContext | null;
+  workspaceDeletion?: WorkspaceDeletionStatus | null;
 };
 
 export function DashboardShell({
@@ -33,6 +36,7 @@ export function DashboardShell({
   operatorProfile = null,
   tenantId = null,
   impersonation = null,
+  workspaceDeletion = null,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [liveApprovalAlertCount, setLiveApprovalAlertCount] = useState(approvalAlertCount);
@@ -66,6 +70,7 @@ export function DashboardShell({
             mode={impersonation.mode}
           />
         ) : null}
+        {workspaceDeletion ? <WorkspaceDeletionBanner deletion={workspaceDeletion} /> : null}
         <div className="relative z-20 w-full shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
           <TopUtilityStrip
             orgName={orgName}

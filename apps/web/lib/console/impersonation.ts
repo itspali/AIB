@@ -2,6 +2,7 @@ import "server-only";
 
 import { headers } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   decodeImpersonationCookie,
   IMPERSONATION_COOKIE_NAME,
@@ -29,7 +30,16 @@ export async function readImpersonationFromCookies(): Promise<ImpersonationPaylo
   const headerStore = await headers();
   const raw = headerStore.get("cookie") ?? "";
   const match = raw.match(new RegExp(`${IMPERSONATION_COOKIE_NAME}=([^;]+)`));
-  return decodeImpersonationCookie(match?.[1]);
+  const payload = decodeImpersonationCookie(match?.[1]);
+  if (!payload) return null;
+
+  const admin = createAdminClient();
+  if (!admin) return null;
+
+  const valid = await validateImpersonationSession(admin, payload.sessionId);
+  if (!valid) return null;
+
+  return payload;
 }
 
 export async function assertNotReadOnlyImpersonation(): Promise<void> {

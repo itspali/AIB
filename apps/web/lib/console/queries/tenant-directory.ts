@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantAccountStatus, TenantOnboardingStatus } from "../types";
+import { loadTenantIdsByUserEmailSearch, loadTenantMembers } from "./user-memberships";
 
 export type TenantDirectoryFilters = {
   search?: string;
@@ -35,13 +36,7 @@ type TenantRow = {
   onboarding_status: TenantOnboardingStatus;
   primary_email: string;
   created_at: string;
-  users: { email: string; role: string }[] | null;
 };
-
-function resolveOwnerEmail(tenant: TenantRow): string | null {
-  const owner = tenant.users?.find((u) => u.role === "OWNER");
-  return owner?.email ?? tenant.primary_email ?? null;
-}
 
 export async function fetchTenantDirectory(
   admin: SupabaseClient,
@@ -53,16 +48,16 @@ export async function fetchTenantDirectory(
 
   let tenantIdsFromSearch: string[] | null = null;
   if (search) {
-    const [{ data: byTenant }, { data: byUser }] = await Promise.all([
+    const [{ data: byTenant }, tenantIdsByEmail] = await Promise.all([
       admin
         .from("tenants")
         .select("id")
         .or(`name.ilike.%${search}%,organization_code.ilike.%${search}%`),
-      admin.from("users").select("tenant_id").ilike("email", `%${search}%`),
+      loadTenantIdsByUserEmailSearch(admin, search),
     ]);
     const ids = new Set<string>();
     for (const row of byTenant ?? []) ids.add(row.id as string);
-    for (const row of byUser ?? []) ids.add(row.tenant_id as string);
+    for (const tenantId of tenantIdsByEmail) ids.add(tenantId);
     tenantIdsFromSearch = [...ids];
     if (tenantIdsFromSearch.length === 0) {
       return { rows: [], total: 0 };
@@ -79,8 +74,7 @@ export async function fetchTenantDirectory(
       status,
       onboarding_status,
       primary_email,
-      created_at,
-      users (email, role)
+      created_at
     `,
       { count: "exact" }
     )
@@ -100,9 +94,10 @@ export async function fetchTenantDirectory(
   const tenants = (data ?? []) as TenantRow[];
   const tenantIds = tenants.map((t) => t.id);
 
-  const [userCounts, locationCounts] = await Promise.all([
-    fetchCountsByTenant(admin, "users", tenantIds),
+  const [userCounts, locationCounts, ownerEmails] = await Promise.all([
+    fetchMembershipCountsByTenant(admin, tenantIds),
     fetchCountsByTenant(admin, "tenant_locations", tenantIds),
+    fetchOwnerEmailsByTenant(admin, tenantIds),
   ]);
 
   const rows: TenantDirectoryRow[] = tenants.map((tenant) => ({
@@ -111,7 +106,7 @@ export async function fetchTenantDirectory(
     name: tenant.name,
     status: tenant.status,
     onboarding_status: tenant.onboarding_status,
-    owner_email: resolveOwnerEmail(tenant),
+    owner_email: ownerEmails.get(tenant.id) ?? tenant.primary_email ?? null,
     user_count: userCounts.get(tenant.id) ?? 0,
     location_count: locationCounts.get(tenant.id) ?? 0,
     created_at: tenant.created_at,
@@ -136,4 +131,36 @@ async function fetchCountsByTenant(
     counts.set(tenantId, (counts.get(tenantId) ?? 0) + 1);
   }
   return counts;
+}
+
+async function fetchMembershipCountsByTenant(
+  admin: SupabaseClient,
+  tenantIds: string[]
+): Promise<Map<string, number>> {
+  return fetchCountsByTenant(admin, "user_tenant_memberships", tenantIds);
+}
+
+async function fetchOwnerEmailsByTenant(
+  admin: SupabaseClient,
+  tenantIds: string[]
+): Promise<Map<string, string>> {
+  const owners = new Map<string, string>();
+  if (!tenantIds.length) return owners;
+
+  const { data, error } = await admin
+    .from("user_tenant_memberships")
+    .select("tenant_id, email, role")
+    .in("tenant_id", tenantIds)
+    .eq("role", "OWNER");
+
+  if (error) return owners;
+
+  for (const row of data ?? []) {
+    const tenantId = row.tenant_id as string;
+    if (!owners.has(tenantId)) {
+      owners.set(tenantId, row.email as string);
+    }
+  }
+
+  return owners;
 }

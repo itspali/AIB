@@ -1,18 +1,5 @@
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { getModulePageContext } from "@/lib/layout/module-page";
+import { ModuleDashboardShell } from "@/components/layout/module-dashboard-shell";
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { orgName, approvalAlertCount, operatorProfile, tenantId } =
-    await getModulePageContext();
-
-  return (
-    <DashboardShell
-      orgName={orgName}
-      approvalAlertCount={approvalAlertCount}
-      operatorProfile={operatorProfile}
-      tenantId={tenantId}
-    >
-      {children}
-    </DashboardShell>
-  );
+  return <ModuleDashboardShell>{children}</ModuleDashboardShell>;
 }

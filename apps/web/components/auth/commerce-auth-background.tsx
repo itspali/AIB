@@ -39,180 +39,277 @@ const ALL_RAILS = [
   ...Object.values(FULFILLMENT_SPLIT_PATHS),
 ];
 
-type FlowLightProps = {
-  path: string;
-  dur: string;
-  begin?: string;
-  size?: number;
-  blurId: string;
-};
+const ink = "hsl(var(--primary))";
+const inkSoft = (o: number) => ({ stroke: ink, strokeOpacity: o });
+const fillSoft = (o: number) => ({ fill: ink, fillOpacity: o });
 
-function FlowLight({ path, dur, begin, size = 3.5, blurId }: FlowLightProps) {
+type FlowLightProps = { path: string; dur: string; begin?: string; size?: number; blurId: string };
+
+function FlowLight({ path, dur, begin, size = 3, blurId }: FlowLightProps) {
   return (
     <g filter={`url(#${blurId})`} className="auth-flow-orb">
-      <circle r={size + 6} className="fill-primary/25">
-        <animateMotion
-          dur={dur}
-          begin={begin}
-          repeatCount="indefinite"
-          path={path}
-          calcMode="linear"
-          keyPoints="0;1"
-          keyTimes="0;1"
-        />
+      <circle r={size + 4} className="fill-primary/12">
+        <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} calcMode="linear" keyPoints="0;1" keyTimes="0;1" />
       </circle>
-      <circle r={size} className="fill-primary">
-        <animateMotion
-          dur={dur}
-          begin={begin}
-          repeatCount="indefinite"
-          path={path}
-          calcMode="linear"
-          keyPoints="0;1"
-          keyTimes="0;1"
-        />
+      <circle r={size} className="fill-primary/75">
+        <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} calcMode="linear" keyPoints="0;1" keyTimes="0;1" />
       </circle>
     </g>
   );
 }
 
-function FlowRail({ d, width = 1.25 }: { d: string; width?: number }) {
+function FlowRail({ d, width = 1.1 }: { d: string; width?: number }) {
+  return (
+    <path d={d} stroke={ink} strokeOpacity={0.1} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
+  );
+}
+
+type ShadowKind = "point" | "document" | "shelf" | "vehicle" | "chart";
+
+function AssetShadow({ kind, cx, cy }: { kind: ShadowKind; cx: number; cy: number }) {
+  const base = { fill: "hsl(var(--foreground))" };
+  switch (kind) {
+    case "point":
+      return <ellipse cx={cx} cy={cy + 1} rx={11} ry={3} {...base} fillOpacity={0.045} />;
+    case "document":
+      return <ellipse cx={cx + 1} cy={cy + 2} rx={20} ry={5} {...base} fillOpacity={0.05} />;
+    case "shelf":
+      return <ellipse cx={cx} cy={cy + 3} rx={40} ry={9} {...base} fillOpacity={0.055} />;
+    case "vehicle":
+      return <ellipse cx={cx} cy={cy + 2} rx={38} ry={7} {...base} fillOpacity={0.05} />;
+    case "chart":
+      return <ellipse cx={cx} cy={cy + 2} rx={34} ry={7} {...base} fillOpacity={0.045} />;
+  }
+}
+
+function WebMonitorIcon() {
   return (
     <g>
-      <path
-        d={d}
-        stroke="hsl(var(--primary))"
-        strokeOpacity="0.07"
-        strokeWidth={width + 5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d={d}
-        stroke="hsl(var(--primary))"
-        strokeOpacity="0.13"
-        strokeWidth={width}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <rect x={312} y={76} width={40} height={28} rx={3} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.18)} strokeWidth={1.2} />
+      <rect x={316} y={80} width={32} height={18} rx={1} {...fillSoft(0.06)} />
+      <line x1={322} y1={86} x2={342} y2={86} {...inkSoft(0.14)} strokeWidth={1} />
+      <line x1={322} y1={92} x2={336} y2={92} {...inkSoft(0.1)} strokeWidth={1} />
+      <path d="M 324 104 L 340 104 L 332 110 Z" {...inkSoft(0.14)} strokeWidth={1.1} fill="hsl(var(--card))" fillOpacity={0.85} />
+      <line x1={332} y1={104} x2={332} y2={110} {...inkSoft(0.12)} strokeWidth={1} />
     </g>
   );
 }
 
-function PlatformShadow({ cx, cy, rx = 34, ry = 10 }: { cx: number; cy: number; rx?: number; ry?: number }) {
-  return <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="hsl(var(--primary))" fillOpacity="0.06" />;
+function MobilePhoneIcon() {
+  return (
+    <g>
+      <rect x={376} y={62} width={22} height={38} rx={5} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.18)} strokeWidth={1.2} />
+      <rect x={380} y={70} width={14} height={22} rx={1} {...fillSoft(0.05)} />
+      <circle cx={387} cy={96} r={1.5} {...fillSoft(0.2)} stroke="none" />
+      <line x1={381} y1={66} x2={393} y2={66} {...inkSoft(0.12)} strokeWidth={1} />
+    </g>
+  );
 }
 
-type IsoBoxProps = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  d?: number;
-  topFill: string;
-  frontFill: string;
-  sideFill: string;
-  stroke?: string;
-  strokeOpacity?: number;
-};
+function PosTerminalIcon() {
+  return (
+    <g>
+      <path d="M 420 88 L 454 88 L 458 100 L 416 100 Z" fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.18)} strokeWidth={1.2} />
+      <rect x={424} y={96} width={26} height={14} rx={2} {...fillSoft(0.06)} {...inkSoft(0.14)} strokeWidth={1} />
+      <rect x={430} y={100} width={14} height={6} rx={1} {...fillSoft(0.1)} />
+      <line x1={438} y1={110} x2={438} y2={114} {...inkSoft(0.12)} strokeWidth={1.2} />
+      <line x1={432} y1={114} x2={444} y2={114} {...inkSoft(0.12)} strokeWidth={1.2} />
+    </g>
+  );
+}
 
-function IsoBox({
+function ParcelIcon() {
+  return (
+    <g>
+      <rect x={578} y={74} width={26} height={22} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.17)} strokeWidth={1.1} />
+      <path d="M 578 80 L 591 74 L 604 80" {...inkSoft(0.15)} strokeWidth={1} fill="none" />
+      <line x1={591} y1={74} x2={591} y2={96} {...inkSoft(0.14)} strokeWidth={1} />
+      <line x1={584} y1={88} x2={598} y2={88} {...inkSoft(0.12)} strokeWidth={1} />
+    </g>
+  );
+}
+
+function CarrierVanIcon() {
+  return (
+    <g>
+      <rect x={644} y={80} width={30} height={16} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.17)} strokeWidth={1.1} />
+      <path d="M 636 88 H 644" {...inkSoft(0.15)} strokeWidth={1.2} />
+      <rect x={638} y={82} width={8} height={10} rx={1} {...fillSoft(0.05)} {...inkSoft(0.12)} strokeWidth={0.9} />
+      <circle cx={652} cy={98} r={4} fill="none" {...inkSoft(0.16)} strokeWidth={1} />
+      <circle cx={668} cy={98} r={4} fill="none" {...inkSoft(0.16)} strokeWidth={1} />
+    </g>
+  );
+}
+
+function VendorTruckIcon() {
+  return (
+    <g>
+      <rect x={298} y={324} width={28} height={14} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <rect x={290} y={328} width={10} height={10} rx={1} {...fillSoft(0.06)} {...inkSoft(0.14)} strokeWidth={0.9} />
+      <circle cx={304} cy={340} r={3.5} fill="none" {...inkSoft(0.14)} strokeWidth={1} />
+      <circle cx={320} cy={340} r={3.5} fill="none" {...inkSoft(0.14)} strokeWidth={1} />
+      <path d="M 330 330 H 338 V 322 H 334 Z" {...fillSoft(0.08)} {...inkSoft(0.12)} strokeWidth={0.9} />
+    </g>
+  );
+}
+
+function PurchaseOrderIcon({ frontGrad }: { frontGrad: string }) {
+  return (
+    <g>
+      <path d="M 408 320 L 440 320 L 440 352 L 408 352 Z" fill={`url(#${frontGrad})`} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <path d="M 428 320 L 440 320 L 440 332 L 428 332 Z" fill="hsl(var(--card))" fillOpacity={0.7} {...inkSoft(0.12)} strokeWidth={0.9} />
+      <line x1={414} y1={330} x2={432} y2={330} {...inkSoft(0.12)} strokeWidth={1} />
+      <line x1={414} y1={338} x2={428} y2={338} {...inkSoft(0.1)} strokeWidth={1} />
+      <path d="M 416 346 L 430 346" {...inkSoft(0.14)} strokeWidth={1.2} />
+    </g>
+  );
+}
+
+function WarehouseInventoryIcon({ boxTop, boxFront, boxSide }: { boxTop: string; boxFront: string; boxSide: string }) {
+  return (
+    <g>
+      <line x1={128} y1={248} x2={200} y2={248} {...inkSoft(0.14)} strokeWidth={1.3} />
+      <line x1={136} y1={210} x2={136} y2={248} {...inkSoft(0.14)} strokeWidth={1.3} />
+      <line x1={192} y1={210} x2={192} y2={248} {...inkSoft(0.14)} strokeWidth={1.3} />
+      <line x1={128} y1={210} x2={200} y2={210} {...inkSoft(0.14)} strokeWidth={1.3} />
+      <PalletBox x={144} y={216} w={22} h={16} d={5} fills={{ top: boxTop, front: boxFront, side: boxSide }} />
+      <PalletBox x={166} y={220} w={18} h={12} d={4} fills={{ top: boxTop, front: boxFront, side: boxSide }} />
+      <PalletBox x={152} y={198} w={20} h={14} d={5} fills={{ top: boxTop, front: boxFront, side: boxSide }} />
+    </g>
+  );
+}
+
+function PalletBox({
   x,
   y,
   w,
   h,
-  d = 9,
-  topFill,
-  frontFill,
-  sideFill,
-  stroke = "hsl(var(--primary))",
-  strokeOpacity = 0.22,
-}: IsoBoxProps) {
-  const ox = d * 0.55;
-  const oy = d * 0.32;
-  const strokeProps = {
-    stroke,
-    strokeOpacity,
-    strokeWidth: 1.15,
-    strokeLinejoin: "round" as const,
-  };
-
-  return (
-    <g>
-      <polygon
-        points={`${x + w},${y} ${x + w + ox},${y - oy} ${x + w + ox},${y + h - oy} ${x + w},${y + h}`}
-        fill={sideFill}
-        {...strokeProps}
-      />
-      <polygon
-        points={`${x},${y} ${x + w},${y} ${x + w + ox},${y - oy} ${x + ox},${y - oy}`}
-        fill={topFill}
-        {...strokeProps}
-      />
-      <rect x={x} y={y} width={w} height={h} rx={3} fill={frontFill} {...strokeProps} />
-    </g>
-  );
-}
-
-type Card3DProps = {
+  d,
+  fills,
+}: {
   x: number;
   y: number;
   w: number;
   h: number;
-  ids: { top: string; front: string; side: string };
-};
-
-function Card3D({ x, y, w, h, ids }: Card3DProps) {
-  const d = 8;
+  d: number;
+  fills: { top: string; front: string; side: string };
+}) {
   const ox = d * 0.5;
-  const oy = d * 0.28;
+  const oy = d * 0.3;
+  const s = { stroke: ink, strokeOpacity: 0.14, strokeWidth: 1 };
   return (
-    <g filter={`url(#${ids.front}-shadow)`}>
-      <polygon
-        points={`${x + w},${y} ${x + w + ox},${y - oy} ${x + w + ox},${y + h - oy} ${x + w},${y + h}`}
-        fill={`url(#${ids.side})`}
-        stroke="hsl(var(--primary))"
-        strokeOpacity="0.2"
-        strokeWidth="1"
-      />
-      <polygon
-        points={`${x},${y} ${x + w},${y} ${x + w + ox},${y - oy} ${x + ox},${y - oy}`}
-        fill={`url(#${ids.top})`}
-        stroke="hsl(var(--primary))"
-        strokeOpacity="0.22"
-        strokeWidth="1"
-      />
-      <rect
-        x={x}
-        y={y}
-        width={w}
-        height={h}
-        rx={5}
-        fill={`url(#${ids.front})`}
-        stroke="hsl(var(--primary))"
-        strokeOpacity="0.28"
-        strokeWidth="1.2"
-      />
+    <g>
+      <polygon points={`${x + w},${y} ${x + w + ox},${y - oy} ${x + w + ox},${y + h - oy} ${x + w},${y + h}`} fill={`url(#${fills.side})`} {...s} />
+      <polygon points={`${x},${y} ${x + w},${y} ${x + w + ox},${y - oy} ${x + ox},${y - oy}`} fill={`url(#${fills.top})`} {...s} />
+      <rect x={x} y={y} width={w} height={h} rx={1} fill={`url(#${fills.front})`} {...s} />
     </g>
   );
 }
 
-type CommerceAuthIllustrationProps = {
-  className?: string;
-  gradientId?: string;
-};
+function OrderClipboardIcon({ frontGrad }: { frontGrad: string }) {
+  return (
+    <g>
+      <rect x={362} y={178} width={8} height={18} rx={2} {...fillSoft(0.1)} {...inkSoft(0.14)} strokeWidth={1} />
+      <rect x={358} y={192} width={16} height={6} rx={3} {...fillSoft(0.12)} {...inkSoft(0.14)} strokeWidth={1} />
+      <rect x={352} y={198} width={64} height={72} rx={4} fill={`url(#${frontGrad})`} {...inkSoft(0.17)} strokeWidth={1.2} />
+      <rect x={360} y={208} width={10} height={10} rx={2} {...inkSoft(0.14)} strokeWidth={1} />
+      <path d="M 362 214 L 368 218 L 362 222 Z" {...fillSoft(0.15)} />
+      <line x1={374} y1={212} x2={404} y2={212} {...inkSoft(0.13)} strokeWidth={1.1} />
+      <rect x={360} y={224} width={10} height={10} rx={2} {...inkSoft(0.12)} strokeWidth={1} />
+      <path d="M 363 230 L 367 230 L 365 234 Z" {...fillSoft(0.12)} />
+      <line x1={374} y1={228} x2={398} y2={228} {...inkSoft(0.11)} strokeWidth={1.1} />
+      <line x1={374} y1={244} x2={406} y2={244} {...inkSoft(0.1)} strokeWidth={1.1} />
+      <rect x={374} y={256} width={32} height={10} rx={2} {...fillSoft(0.08)} />
+    </g>
+  );
+}
 
-export function CommerceAuthIllustration({
-  className,
-  gradientId = "auth-flow",
-}: CommerceAuthIllustrationProps) {
+function FulfillmentTruckIcon({ frontGrad }: { frontGrad: string }) {
+  return (
+    <g>
+      <rect x={588} y={200} width={48} height={26} rx={3} fill={`url(#${frontGrad})`} {...inkSoft(0.17)} strokeWidth={1.2} />
+      <path d="M 636 200 H 656 L 668 218 H 668 226 H 588" {...inkSoft(0.17)} strokeWidth={1.2} fill="hsl(var(--card))" fillOpacity={0.85} />
+      <rect x={642} y={206} width={10} height={10} rx={1} {...fillSoft(0.06)} {...inkSoft(0.12)} strokeWidth={0.9} />
+      <circle cx={604} cy={228} r={9} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.15)} strokeWidth={1.1} />
+      <circle cx={652} cy={228} r={9} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.15)} strokeWidth={1.1} />
+      <rect x={596} y={208} width={20} height={12} rx={1} {...fillSoft(0.05)} {...inkSoft(0.1)} strokeWidth={0.9} />
+    </g>
+  );
+}
+
+function InsightsChartIcon() {
+  return (
+    <g>
+      <line x1={838} y1={272} x2={948} y2={272} {...inkSoft(0.1)} strokeWidth={1.1} />
+      <rect x={848} y={248} width={12} height={24} rx={1} {...fillSoft(0.1)} {...inkSoft(0.14)} strokeWidth={1} />
+      <rect x={866} y={232} width={12} height={40} rx={1} {...fillSoft(0.13)} {...inkSoft(0.15)} strokeWidth={1} />
+      <rect x={884} y={256} width={12} height={16} rx={1} {...fillSoft(0.08)} {...inkSoft(0.13)} strokeWidth={1} />
+      <rect x={902} y={240} width={12} height={32} rx={1} {...fillSoft(0.11)} {...inkSoft(0.14)} strokeWidth={1} />
+      <path
+        d="M 844 220 L 868 206 L 892 214 L 916 196 L 944 204"
+        stroke="hsl(var(--accent))"
+        strokeOpacity={0.28}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx={868} cy={206} r={2} fill="hsl(var(--accent))" fillOpacity={0.35} />
+      <circle cx={916} cy={196} r={2} fill="hsl(var(--accent))" fillOpacity={0.35} />
+    </g>
+  );
+}
+
+function DemandForecastIcon({ frontGrad }: { frontGrad: string }) {
+  return (
+    <g>
+      <rect x={756} y={284} width={56} height={38} rx={5} fill={`url(#${frontGrad})`} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <path
+        d="M 766 310 L 778 300 L 790 306 L 802 292 L 814 298 L 802 314 Z"
+        {...fillSoft(0.07)}
+        {...inkSoft(0.12)}
+        strokeWidth={1}
+      />
+      <path
+        d="M 766 310 L 778 300 L 790 306 L 802 292 L 814 298"
+        stroke="hsl(var(--accent))"
+        strokeOpacity={0.3}
+        strokeWidth={1.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <line x1={764} y1={316} x2={808} y2={316} {...inkSoft(0.08)} strokeWidth={1} strokeDasharray="2 3" />
+    </g>
+  );
+}
+
+function ProcurementHubIcon({ frontGrad, boxFront }: { frontGrad: string; boxFront: string }) {
+  return (
+    <g>
+      <rect x={356} y={284} width={56} height={38} rx={5} fill={`url(#${frontGrad})`} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <path d="M 368 302 H 388 M 378 294 V 310" {...inkSoft(0.14)} strokeWidth={1.2} strokeLinecap="round" />
+      <path d="M 394 308 L 404 302 L 414 308 L 404 314 Z" {...fillSoft(0.1)} {...inkSoft(0.14)} strokeWidth={1} />
+      <rect x={396} y={300} width={16} height={12} rx={1} fill={`url(#${boxFront})`} {...inkSoft(0.13)} strokeWidth={0.9} />
+      <path d="M 398 306 H 410 M 404 302 V 310" {...inkSoft(0.1)} strokeWidth={0.9} strokeLinecap="round" />
+      <path d="M 418 306 H 432 L 436 300 H 422 Z" {...fillSoft(0.08)} {...inkSoft(0.12)} strokeWidth={0.9} />
+    </g>
+  );
+}
+
+type CommerceAuthIllustrationProps = { className?: string; gradientId?: string };
+
+export function CommerceAuthIllustration({ className, gradientId = "auth-flow" }: CommerceAuthIllustrationProps) {
   const blurId = `${gradientId}-blur`;
-  const topGrad = `${gradientId}-top`;
   const frontGrad = `${gradientId}-front`;
-  const sideGrad = `${gradientId}-side`;
   const boxTop = `${gradientId}-box-top`;
   const boxFront = `${gradientId}-box-front`;
   const boxSide = `${gradientId}-box-side`;
+  const shDoc = `${gradientId}-sh-doc`;
+  const shShelf = `${gradientId}-sh-shelf`;
+  const shVehicle = `${gradientId}-sh-vehicle`;
+  const shChart = `${gradientId}-sh-chart`;
+  const shPoint = `${gradientId}-sh-point`;
 
   return (
     <svg
@@ -224,54 +321,68 @@ export function CommerceAuthIllustration({
       aria-hidden
     >
       <defs>
-        <linearGradient id={topGrad} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0.1" />
-        </linearGradient>
         <linearGradient id={frontGrad} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.08" />
-        </linearGradient>
-        <linearGradient id={sideGrad} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.14" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.28" />
+          <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="0.88" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.05" />
         </linearGradient>
         <linearGradient id={boxTop} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.14" />
+          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.07" />
         </linearGradient>
         <linearGradient id={boxFront} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.16" />
+          <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="0.85" />
           <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.06" />
         </linearGradient>
         <linearGradient id={boxSide} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.22" />
+          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.06" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.14" />
         </linearGradient>
         <filter id={blurId} x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="3.5" result="blur" />
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <filter id={`${frontGrad}-shadow`} x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="hsl(var(--primary))" floodOpacity="0.12" />
+        <filter id={shPoint} x="-80%" y="-60%" width="260%" height="220%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1.2" floodColor="hsl(var(--foreground))" floodOpacity="0.06" />
         </filter>
-        <filter id={`${gradientId}-node-shadow`} x="-40%" y="-20%" width="180%" height="160%">
-          <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="hsl(var(--foreground))" floodOpacity="0.08" />
+        <filter id={shDoc} x="-50%" y="-40%" width="200%" height="200%">
+          <feDropShadow dx="1" dy="3" stdDeviation="2.5" floodColor="hsl(var(--foreground))" floodOpacity="0.07" />
+        </filter>
+        <filter id={shShelf} x="-45%" y="-30%" width="190%" height="180%">
+          <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="hsl(var(--foreground))" floodOpacity="0.08" />
+        </filter>
+        <filter id={shVehicle} x="-50%" y="-35%" width="200%" height="190%">
+          <feDropShadow dx="2" dy="4" stdDeviation="3" floodColor="hsl(var(--foreground))" floodOpacity="0.075" />
+        </filter>
+        <filter id={shChart} x="-45%" y="-35%" width="190%" height="190%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3.5" floodColor="hsl(var(--accent))" floodOpacity="0.06" />
         </filter>
       </defs>
 
-      {/* Flow rails — soft luminous track */}
-      <FlowRail d={MAIN_LOOP} width={1.5} />
+      <FlowRail d={MAIN_LOOP} width={1.2} />
       {ALL_RAILS.slice(1).map((d) => (
-        <FlowRail key={d} d={d} width={1.15} />
+        <FlowRail key={d} d={d} width={1} />
       ))}
 
-      {/* Lights */}
-      <FlowLight path={MAIN_LOOP} dur="18s" size={4.5} blurId={blurId} />
-      <FlowLight path={ORDER_MERGE_PATHS.web} dur="3.2s" begin="0s" blurId={blurId} />
+      {/* Ground shadows — shape matches asset type */}
+      <AssetShadow kind="point" cx={332} cy={110} />
+      <AssetShadow kind="point" cx={387} cy={106} />
+      <AssetShadow kind="point" cx={436} cy={110} />
+      <AssetShadow kind="document" cx={591} cy={100} />
+      <AssetShadow kind="vehicle" cx={662} cy={104} />
+      <AssetShadow kind="vehicle" cx={314} cy={348} />
+      <AssetShadow kind="document" cx={424} cy={352} />
+      <AssetShadow kind="shelf" cx={164} cy={254} />
+      <AssetShadow kind="document" cx={388} cy={276} />
+      <AssetShadow kind="vehicle" cx={628} cy={234} />
+      <AssetShadow kind="chart" cx={884} cy={278} />
+      <AssetShadow kind="chart" cx={784} cy={328} />
+      <AssetShadow kind="document" cx={388} cy={328} />
+
+      <FlowLight path={MAIN_LOOP} dur="18s" size={3.5} blurId={blurId} />
+      <FlowLight path={ORDER_MERGE_PATHS.web} dur="3.2s" blurId={blurId} />
       <FlowLight path={ORDER_MERGE_PATHS.mobile} dur="2.8s" begin="0.9s" blurId={blurId} />
       <FlowLight path={ORDER_MERGE_PATHS.pos} dur="3.4s" begin="1.7s" blurId={blurId} />
       <FlowLight path={PROCUREMENT_MERGE_PATHS.vendor} dur="3.6s" begin="0.4s" blurId={blurId} />
@@ -279,161 +390,80 @@ export function CommerceAuthIllustration({
       <FlowLight path={FULFILLMENT_SPLIT_PATHS.parcel} dur="2.6s" begin="0.2s" blurId={blurId} />
       <FlowLight path={FULFILLMENT_SPLIT_PATHS.carrier} dur="2.6s" begin="1.1s" blurId={blurId} />
 
-      {/* ── Order channels (mini 3D) ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={328} cy={108} rx={24} ry={7} />
-        <IsoBox x={310} y={78} w={36} h={24} d={6} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} />
-        <PlatformShadow cx={384} cy={104} rx={16} ry={6} />
-        <IsoBox x={374} y={64} w={20} h={34} d={5} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.22} />
-        <PlatformShadow cx={436} cy={108} rx={22} ry={7} />
-        <IsoBox x={420} y={84} w={32} h={18} d={5} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.22} />
+      <g filter={`url(#${shPoint})`}>
+        <WebMonitorIcon />
+        <MobilePhoneIcon />
+        <PosTerminalIcon />
       </g>
 
-      {/* ── Fulfillment channels ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={588} cy={104} rx={20} ry={6} />
-        <IsoBox x={576} y={76} w={24} h={20} d={5} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.22} />
-        <PlatformShadow cx={662} cy={108} rx={22} ry={7} />
-        <rect x={648} y={82} width={28} height={16} rx={3} fill={`url(#${boxFront})`} stroke="hsl(var(--primary))" strokeOpacity={0.22} />
-        <circle cx={656} cy={104} r={4} fill="none" stroke="hsl(var(--primary))" strokeOpacity={0.3} />
-        <circle cx={668} cy={104} r={4} fill="none" stroke="hsl(var(--primary))" strokeOpacity={0.3} />
+      <g filter={`url(#${shDoc})`}>
+        <ParcelIcon />
+      </g>
+      <g filter={`url(#${shVehicle})`}>
+        <CarrierVanIcon />
       </g>
 
-      {/* ── Procurement sources ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={318} cy={348} rx={24} ry={7} />
-        <IsoBox x={300} y={322} w={36} h={22} d={5} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.22} />
-        <PlatformShadow cx={422} cy={352} rx={22} ry={7} />
-        <Card3D x={406} y={318} w={32} h={30} ids={{ top: topGrad, front: frontGrad, side: sideGrad }} />
+      <g filter={`url(#${shVehicle})`}>
+        <VendorTruckIcon />
+      </g>
+      <g filter={`url(#${shDoc})`}>
+        <PurchaseOrderIcon frontGrad={frontGrad} />
       </g>
 
-      {/* ── Inventory ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={168} cy={268} rx={38} ry={11} />
-        <IsoBox x={148} y={188} w={40} h={28} d={8} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.25} />
-        <IsoBox x={158} y={222} w={36} h={26} d={7} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.22} />
-        <IsoBox x={182} y={204} w={30} h={22} d={6} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.2} />
+      <g filter={`url(#${shShelf})`}>
+        <WarehouseInventoryIcon boxTop={boxTop} boxFront={boxFront} boxSide={boxSide} />
       </g>
 
-      {/* ── Orders hub ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={388} cy={276} rx={42} ry={12} />
-        <Card3D x={354} y={184} w={68} h={82} ids={{ top: topGrad, front: frontGrad, side: sideGrad }} />
-        <line x1={368} y1={206} x2={408} y2={206} stroke="hsl(var(--primary))" strokeOpacity={0.25} strokeWidth={1.4} />
-        <line x1={368} y1={222} x2={400} y2={222} stroke="hsl(var(--primary))" strokeOpacity={0.18} strokeWidth={1.4} />
-        <line x1={368} y1={238} x2={404} y2={238} stroke="hsl(var(--primary))" strokeOpacity={0.18} strokeWidth={1.4} />
-        <rect x={368} y={252} width={38} height={12} rx={2} fill="hsl(var(--primary))" fillOpacity={0.12} />
+      <g filter={`url(#${shDoc})`}>
+        <OrderClipboardIcon frontGrad={frontGrad} />
       </g>
 
-      {/* ── Fulfillment hub ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={624} cy={272} rx={44} ry={12} />
-        <IsoBox x={596} y={192} w={52} h={30} d={8} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.25} />
-        <path
-          d="M 568 228 H 596 L 608 252 H 644 L 656 228 H 684"
-          stroke="hsl(var(--primary))"
-          strokeOpacity={0.3}
-          strokeWidth={1.6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle cx={588} cy={264} r={11} fill={`url(#${boxFront})`} stroke="hsl(var(--primary))" strokeOpacity={0.28} />
-        <circle cx={656} cy={264} r={11} fill={`url(#${boxFront})`} stroke="hsl(var(--primary))" strokeOpacity={0.28} />
+      <g filter={`url(#${shVehicle})`}>
+        <FulfillmentTruckIcon frontGrad={frontGrad} />
       </g>
 
-      {/* ── Insights (3D bars) ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={884} cy={278} rx={48} ry={12} />
-        <line x1={832} y1={276} x2={952} y2={276} stroke="hsl(var(--primary))" strokeOpacity={0.15} strokeWidth={1.2} />
-        {[
-          { x: 848, h: 28, d: 6 },
-          { x: 872, h: 44, d: 7 },
-          { x: 896, h: 20, d: 5 },
-          { x: 920, h: 36, d: 6 },
-        ].map(({ x, h, d }) => (
-          <IsoBox
-            key={x}
-            x={x}
-            y={276 - h}
-            w={14}
-            h={h}
-            d={d}
-            topFill={`url(#${boxTop})`}
-            frontFill={`url(#${boxFront})`}
-            sideFill={`url(#${boxSide})`}
-            stroke="hsl(var(--primary))"
-            strokeOpacity={0.22}
-          />
-        ))}
-        <path
-          d="M 844 216 L 872 200 L 900 208 L 928 188 L 952 196"
-          stroke="hsl(var(--accent))"
-          strokeOpacity={0.35}
-          strokeWidth={1.6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <g filter={`url(#${shChart})`}>
+        <InsightsChartIcon />
       </g>
 
-      {/* ── Demand ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={784} cy={330} rx={36} ry={10} />
-        <Card3D x={754} y={282} w={60} h={40} ids={{ top: topGrad, front: frontGrad, side: sideGrad }} />
-        <path
-          d="M 762 312 L 776 300 L 790 306 L 804 292 L 818 298"
-          stroke="hsl(var(--accent))"
-          strokeOpacity={0.4}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <g filter={`url(#${shChart})`}>
+        <DemandForecastIcon frontGrad={frontGrad} />
       </g>
 
-      {/* ── Procurement hub ── */}
-      <g filter={`url(#${gradientId}-node-shadow)`}>
-        <PlatformShadow cx={388} cy={330} rx={36} ry={10} />
-        <Card3D x={354} y={282} w={60} h={40} ids={{ top: topGrad, front: frontGrad, side: sideGrad }} />
-        <path d="M 366 302 H 394 M 380 292 V 312" stroke="hsl(var(--primary))" strokeOpacity={0.28} strokeWidth={1.4} strokeLinecap="round" />
-        <IsoBox x={398} y={296} w={12} h={16} d={4} topFill={`url(#${boxTop})`} frontFill={`url(#${boxFront})`} sideFill={`url(#${boxSide})`} stroke="hsl(var(--primary))" strokeOpacity={0.2} />
+      <g filter={`url(#${shDoc})`}>
+        <ProcurementHubIcon frontGrad={frontGrad} boxFront={boxFront} />
       </g>
 
-      {/* Labels */}
-      <text x={164} y={148} textAnchor="middle" className="fill-muted-foreground/40 text-[12px] font-medium">
+      <text x={164} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
         Inventory
       </text>
-      <text x={388} y={148} textAnchor="middle" className="fill-muted-foreground/40 text-[12px] font-medium">
+      <text x={388} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
         Orders
       </text>
-      <text x={624} y={148} textAnchor="middle" className="fill-muted-foreground/40 text-[12px] font-medium">
+      <text x={624} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
         Fulfillment
       </text>
-      <text x={884} y={148} textAnchor="middle" className="fill-muted-foreground/40 text-[12px] font-medium">
+      <text x={884} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
         Insights
       </text>
-      <text x={388} y={338} textAnchor="middle" className="fill-muted-foreground/40 text-[12px] font-medium">
+      <text x={388} y={338} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
         Procurement
       </text>
-      <text x={784} y={338} textAnchor="middle" className="fill-muted-foreground/40 text-[12px] font-medium">
+      <text x={784} y={338} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
         Demand
       </text>
 
       <g className="max-sm:hidden">
         {[
-          [328, 112, "Web"],
-          [384, 112, "Mobile"],
+          [332, 112, "Web"],
+          [387, 112, "Mobile"],
           [436, 112, "POS"],
-          [588, 112, "Parcel"],
+          [591, 112, "Parcel"],
           [662, 112, "Carrier"],
-          [318, 358, "Vendor"],
-          [422, 358, "PO"],
+          [314, 358, "Vendor"],
+          [424, 358, "PO"],
         ].map(([x, y, label]) => (
-          <text
-            key={label as string}
-            x={x as number}
-            y={y as number}
-            textAnchor="middle"
-            className="fill-muted-foreground/30 text-[10px]"
-          >
+          <text key={label as string} x={x as number} y={y as number} textAnchor="middle" className="fill-muted-foreground/24 text-[10px]">
             {label as string}
           </text>
         ))}

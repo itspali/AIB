@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
 import {
   IMPERSONATION_COOKIE_NAME,
-  peekImpersonationPayload,
+  verifyImpersonationPayload,
 } from "@/lib/console/impersonation-middleware";
 
 export async function updateSession(request: NextRequest) {
@@ -38,6 +38,7 @@ export async function updateSession(request: NextRequest) {
   const isConsole = pathname.startsWith("/console");
   const isConsoleUnauthorized = pathname.startsWith("/console/unauthorized");
   const isMfaChallenge = pathname.startsWith("/login/mfa-challenge");
+  const isMfaEnroll = pathname.startsWith("/login/mfa-enroll");
   const isOnboarding = pathname.startsWith("/onboarding");
   const isLogin = pathname.startsWith("/login");
   const isSignup = pathname.startsWith("/signup");
@@ -54,7 +55,8 @@ export async function updateSession(request: NextRequest) {
     isAuthCallback ||
     isPasswordReset ||
     isLegal ||
-    isMfaChallenge;
+    isMfaChallenge ||
+    isMfaEnroll;
   const isServerAction = request.method === "POST" && request.headers.has("next-action");
 
   if (isSignupApi) {
@@ -85,7 +87,7 @@ export async function updateSession(request: NextRequest) {
     let tenantId = user.app_metadata?.tenant_id;
 
     const impersonationRaw = request.cookies.get(IMPERSONATION_COOKIE_NAME)?.value;
-    const impersonationPeek = peekImpersonationPayload(impersonationRaw);
+    const impersonationPeek = await verifyImpersonationPayload(impersonationRaw);
     if (impersonationPeek && !isConsole) {
       tenantId = impersonationPeek.tenantId;
     }
@@ -101,7 +103,7 @@ export async function updateSession(request: NextRequest) {
 
     if (!tenantId) {
       const operatorConsolePath =
-        isConsole || isConsoleUnauthorized || isMfaChallenge || isLogin || isSignup;
+        isConsole || isConsoleUnauthorized || isMfaChallenge || isMfaEnroll || isLogin || isSignup;
       if (!operatorConsolePath) {
         const url = request.nextUrl.clone();
         url.pathname = "/signup";
@@ -131,6 +133,7 @@ export async function updateSession(request: NextRequest) {
       isSignup ||
       isPasswordReset ||
       isMfaChallenge ||
+      isMfaEnroll ||
       (!onboardedCookie && !isConsole);
 
     if (!needsRouteDecision || isConsole) {

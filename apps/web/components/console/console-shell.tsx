@@ -37,8 +37,8 @@ export function ConsoleShell({ children, operatorEmail, operatorRole }: ConsoleS
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-56 shrink-0 border-r border-border bg-card/40 md:block">
-          <ConsoleNav />
+        <aside className="hidden w-56 shrink-0 border-r border-border bg-card/40 md:flex md:flex-col">
+          <ConsoleNav className="min-h-0 flex-1" />
         </aside>
 
         <main
@@ -63,12 +63,12 @@ export function ConsoleShell({ children, operatorEmail, operatorRole }: ConsoleS
       </div>
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className={cn("w-72 p-0")}>
+        <SheetContent side="left" className={cn("flex w-72 flex-col p-0")}>
           <SheetHeader className="border-b border-border px-4 py-4 text-left">
             <SheetTitle>App Console</SheetTitle>
             <SheetDescription>Platform operations navigation</SheetDescription>
           </SheetHeader>
-          <ConsoleNav onNavigate={() => setMobileNavOpen(false)} />
+          <ConsoleNav className="min-h-0 flex-1" onNavigate={() => setMobileNavOpen(false)} />
         </SheetContent>
       </Sheet>
     </div>

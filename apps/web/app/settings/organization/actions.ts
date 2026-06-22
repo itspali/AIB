@@ -16,7 +16,7 @@ import {
 } from "@/lib/organization/schemas";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantMutation } from "@/lib/supabase/require-tenant";
+import { requireTenantId, requireTenantMutation } from "@/lib/supabase/require-tenant";
 import {
   buildDefaultProductFieldsAccessMatrix,
   parseTenantProductFieldsAccess,
@@ -529,37 +529,77 @@ export async function saveSellingFocus(
   return { success: true as const, suggestions };
 }
 
-export async function deleteWorkspace(confirmationName: string) {
-  const trimmed = confirmationName.trim();
+export async function requestWorkspaceDeletion(input: {
+  confirmationName: string;
+  backupAcknowledged: boolean;
+}) {
+  const trimmed = input.confirmationName.trim();
   if (!trimmed) {
     return { error: "Workspace name confirmation is required" };
   }
+  if (!input.backupAcknowledged) {
+    return { error: "You must acknowledge the data backup notice before scheduling deletion." };
+  }
 
-  const { supabase, tenantId, userId } = await requireTenantMutation();
+  const { supabase, tenantId, userId } = await requireTenantId();
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.isOwner) {
     return { error: "Workspace owner privileges required." };
   }
 
-  const { data, error } = await supabase.rpc("delete_tenant_workspace", {
+  const { data, error } = await supabase.rpc("request_tenant_workspace_deletion", {
     p_confirmation_name: trimmed,
+    p_backup_acknowledged: true,
   });
 
   if (error) {
     if (isMissingRpcError(error)) {
-      return { error: formatRpcDeployError("delete_tenant_workspace") };
+      return { error: formatRpcDeployError("request_tenant_workspace_deletion") };
     }
     return { error: error.message };
   }
 
   const payload = (data ?? {}) as Record<string, unknown>;
-  const switchedToTenantId =
-    typeof payload.switched_to_tenant_id === "string" ? payload.switched_to_tenant_id : null;
+  const scheduledPurgeAt =
+    typeof payload.scheduled_purge_at === "string" ? payload.scheduled_purge_at : null;
+  const graceDays = typeof payload.grace_days === "number" ? payload.grace_days : null;
 
   revalidatePath("/", "layout");
   for (const path of ORGANIZATION_PATHS) {
     revalidatePath(path);
   }
 
-  return { success: true as const, switchedToTenantId };
+  return { success: true as const, scheduledPurgeAt, graceDays };
+}
+
+export async function cancelWorkspaceDeletion() {
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+  if (!access.isOwner) {
+    return { error: "Workspace owner privileges required." };
+  }
+
+  const { error } = await supabase.rpc("cancel_tenant_workspace_deletion");
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("cancel_tenant_workspace_deletion") };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  for (const path of ORGANIZATION_PATHS) {
+    revalidatePath(path);
+  }
+
+  return { success: true as const };
+}
+
+/** @deprecated Use requestWorkspaceDeletion — immediate delete is disabled. */
+export async function deleteWorkspace(confirmationName: string) {
+  return requestWorkspaceDeletion({
+    confirmationName,
+    backupAcknowledged: true,
+  });
 }

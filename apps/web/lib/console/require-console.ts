@@ -63,7 +63,7 @@ export const requireConsoleAccess = cache(async (minRole: AppConsoleRole = "VIEW
   );
 
   if (!sessionSatisfiesConsoleMfa(aal, mfaRequired, operator.mfa_enforced)) {
-    redirect(`/login/mfa-challenge?next=${encodeURIComponent("/console")}`);
+    redirect(`/login/mfa-enroll?next=${encodeURIComponent("/console")}`);
   }
 
   return { supabase, admin, claims, operator };

@@ -21,7 +21,11 @@ type FactorSummary = {
   status: string;
 };
 
-export function ConsoleMfaEnroll() {
+type ConsoleMfaEnrollProps = {
+  redirectTo?: string;
+};
+
+export function ConsoleMfaEnroll({ redirectTo = "/console" }: ConsoleMfaEnrollProps) {
   const router = useRouter();
   const [factors, setFactors] = useState<FactorSummary[]>([]);
   const [enrollState, setEnrollState] = useState<EnrollState | null>(null);
@@ -117,6 +121,7 @@ export function ConsoleMfaEnroll() {
       setEnrollState(null);
       setCode("");
       loadFactors();
+      router.push(redirectTo);
       router.refresh();
     });
   };

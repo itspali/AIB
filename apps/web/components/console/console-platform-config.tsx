@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updatePlatformConfig } from "@/lib/console/actions/platform-config";
+import { purgeDueWorkspaceDeletions } from "@/lib/console/actions/workspace-deletion";
 import type { PlatformConfigKey } from "@/lib/console/platform-config";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -19,6 +22,7 @@ export type PlatformConfigState = {
   maintenance_mode: boolean;
   console_mfa_required: boolean;
   trial_expiry_action: string;
+  workspace_deletion_grace_days: number;
 };
 
 type ConsolePlatformConfigProps = {
@@ -29,6 +33,7 @@ export function ConsolePlatformConfig({ initial }: ConsolePlatformConfigProps) {
   const router = useRouter();
   const [config, setConfig] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const [purgeMessage, setPurgeMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const update = (key: PlatformConfigKey, value: unknown) => {
@@ -40,6 +45,31 @@ export function ConsolePlatformConfig({ initial }: ConsolePlatformConfigProps) {
         return;
       }
       setConfig((prev) => ({ ...prev, [key]: value as never }));
+      router.refresh();
+    });
+  };
+
+  const handleGraceDaysBlur = () => {
+    const days = Math.min(365, Math.max(1, Math.round(config.workspace_deletion_grace_days || 14)));
+    if (days !== config.workspace_deletion_grace_days) {
+      setConfig((prev) => ({ ...prev, workspace_deletion_grace_days: days }));
+    }
+    update("workspace_deletion_grace_days", days);
+  };
+
+  const handlePurgeDue = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await purgeDueWorkspaceDeletions();
+      if ("error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      if ("purgedCount" in result) {
+        setPurgeMessage(
+          `Processed due deletions: ${result.purgedCount} purged, ${result.failedCount} failed.`,
+        );
+      }
       router.refresh();
     });
   };
@@ -101,6 +131,41 @@ export function ConsolePlatformConfig({ initial }: ConsolePlatformConfigProps) {
             <SelectItem value="NOTIFY_ONLY">Notify only</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2 border-t border-border pt-6">
+        <Label htmlFor="workspace_deletion_grace_days">Workspace deletion grace period (days)</Label>
+        <p className="text-xs text-muted-foreground">
+          Days a workspace stays read-only after an owner schedules deletion, before purge runs.
+        </p>
+        <Input
+          id="workspace_deletion_grace_days"
+          type="number"
+          min={1}
+          max={365}
+          className="max-w-xs"
+          value={config.workspace_deletion_grace_days}
+          disabled={isPending}
+          onChange={(event) =>
+            setConfig((prev) => ({
+              ...prev,
+              workspace_deletion_grace_days: Number(event.target.value),
+            }))
+          }
+          onBlur={handleGraceDaysBlur}
+        />
+      </div>
+
+      <div className="space-y-2 border-t border-border pt-6">
+        <Label>Due workspace deletions</Label>
+        <p className="text-xs text-muted-foreground">
+          Run purge for workspaces whose grace period has ended. Failed purges remain flagged for
+          ops review.
+        </p>
+        <Button type="button" variant="outline" disabled={isPending} onClick={handlePurgeDue}>
+          {isPending ? "Running…" : "Purge due workspaces"}
+        </Button>
+        {purgeMessage ? <p className="text-sm text-muted-foreground">{purgeMessage}</p> : null}
       </div>
 
       {error ? (

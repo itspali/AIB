@@ -47,6 +47,7 @@ import {
   type OrgSettingsTabId,
 } from "@/lib/organization/section-nav";
 import type { GroupInvitationRow } from "@/lib/group/types";
+import type { WorkspaceDeletionStatus } from "@/lib/organization/deletion";
 import type { TenantReportingLine } from "@/lib/organization/reporting-lines";
 import {
   snapshotToFormValues,
@@ -63,6 +64,7 @@ type OrganizationSettingsTerminalProps = {
   logoPreviewUrl?: string | null;
   groupInvitations?: GroupInvitationRow[];
   reportingLines?: TenantReportingLine[];
+  pendingDeletion?: WorkspaceDeletionStatus | null;
 };
 
 export type { OrganizationSettingsTerminalProps };
@@ -95,6 +97,7 @@ export function OrganizationSettingsTerminal({
   logoPreviewUrl,
   groupInvitations = [],
   reportingLines = [],
+  pendingDeletion = null,
 }: OrganizationSettingsTerminalProps) {
   const router = useRouter();
   const omnibar = useOptionalOmnibarContext();
@@ -140,7 +143,7 @@ export function OrganizationSettingsTerminal({
     setIsEditing(false);
   }, [defaultValues, form]);
 
-  const fieldsDisabled = !isEditing || isPending;
+  const fieldsDisabled = !isEditing || isPending || pendingDeletion != null;
 
   const handleReset = () => {
     form.reset(defaultValues);
@@ -286,9 +289,11 @@ export function OrganizationSettingsTerminal({
   const actionButtons = (
     <>
       {!isEditing ? (
-        <Button type="button" size="sm" className="md:size-default" onClick={() => setIsEditing(true)}>
-          Edit
-        </Button>
+        pendingDeletion ? null : (
+          <Button type="button" size="sm" className="md:size-default" onClick={() => setIsEditing(true)}>
+            Edit
+          </Button>
+        )
       ) : (
         <>
           <Button
@@ -469,6 +474,7 @@ export function OrganizationSettingsTerminal({
                 workspaceName={snapshot.trade_name?.trim() || snapshot.legal_name?.trim() || snapshot.name}
                 isOwner={access.isOwner}
                 parentGroupName={snapshot.parent_group_name}
+                pendingDeletion={pendingDeletion}
               />
             </div>
           </SectionAnchor>

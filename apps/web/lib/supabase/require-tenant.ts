@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { readSessionClaims } from "@/lib/supabase/auth";
 import { resolveEffectiveTenant } from "@/lib/supabase/effective-tenant";
 import type { ImpersonationPayload } from "@/lib/console/impersonation-cookie";
+import { isWorkspaceDeletionPending } from "@/lib/organization/deletion";
+import { assertNotReadOnlyImpersonation } from "@/lib/console/impersonation";
 
 export type TenantContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -31,4 +33,16 @@ export const requireTenantId = cache(async (): Promise<TenantContext> => {
 });
 
 /** Tenant context for mutating server actions (read-only impersonation blocked in middleware). */
-export const requireTenantMutation = requireTenantId;
+export const requireTenantMutation = cache(async (): Promise<TenantContext> => {
+  await assertNotReadOnlyImpersonation();
+
+  const ctx = await requireTenantId();
+
+  if (await isWorkspaceDeletionPending(ctx.supabase, ctx.tenantId)) {
+    throw new Error(
+      "This workspace is scheduled for deletion and is read-only. Cancel the deletion from Organization settings.",
+    );
+  }
+
+  return ctx;
+});

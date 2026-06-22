@@ -12,14 +12,27 @@ function parseTrialExpiryAction(value: unknown): string {
   return "SUSPEND";
 }
 
+function parseGraceDays(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.min(365, Math.max(1, Math.round(value)));
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) return Math.min(365, Math.max(1, parsed));
+  }
+  return 14;
+}
+
 export default async function ConsoleSettingsPlatformPage() {
   const { admin } = await requireConsoleAccess("ADMIN");
 
-  const [signupEnabled, maintenanceMode, mfaRequired, trialExpiryAction] = await Promise.all([
+  const [signupEnabled, maintenanceMode, mfaRequired, trialExpiryAction, graceDays] =
+    await Promise.all([
     getPlatformConfigValue(admin, "signup_enabled", true),
     getPlatformConfigValue(admin, "maintenance_mode", false),
     getPlatformConfigValue(admin, "console_mfa_required", true),
     getPlatformConfigValue(admin, "trial_expiry_action", "SUSPEND"),
+    getPlatformConfigValue(admin, "workspace_deletion_grace_days", 14),
   ]);
 
   const initial: PlatformConfigState = {
@@ -27,6 +40,7 @@ export default async function ConsoleSettingsPlatformPage() {
     maintenance_mode: maintenanceMode,
     console_mfa_required: mfaRequired,
     trial_expiry_action: parseTrialExpiryAction(trialExpiryAction),
+    workspace_deletion_grace_days: parseGraceDays(graceDays),
   };
 
   return (
