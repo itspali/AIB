@@ -8,6 +8,8 @@ import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopUtilityStrip } from "@/components/layout/top-utility-strip";
 import { OmnibarProviderLazy } from "@/components/search/omnibar-provider-lazy";
+import { ImpersonationBanner } from "@/components/console/impersonation-banner";
+import type { ImpersonationBannerContext } from "@/lib/layout/module-page";
 import type { OperatorProfile } from "@/lib/user/types";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +21,7 @@ type DashboardShellProps = {
   approvalAlertCount?: number;
   operatorProfile?: OperatorProfile | null;
   tenantId?: string | null;
+  impersonation?: ImpersonationBannerContext | null;
 };
 
 export function DashboardShell({
@@ -29,6 +32,7 @@ export function DashboardShell({
   approvalAlertCount = 0,
   operatorProfile = null,
   tenantId = null,
+  impersonation = null,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [liveApprovalAlertCount, setLiveApprovalAlertCount] = useState(approvalAlertCount);
@@ -55,6 +59,13 @@ export function DashboardShell({
   return (
     <OmnibarProviderLazy operatorProfile={operatorProfile} tenantId={tenantId}>
       <div className="flex h-screen flex-col overflow-hidden bg-background">
+        {impersonation ? (
+          <ImpersonationBanner
+            tenantName={impersonation.tenantName}
+            organizationCode={impersonation.organizationCode}
+            mode={impersonation.mode}
+          />
+        ) : null}
         <div className="relative z-20 w-full shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
           <TopUtilityStrip
             orgName={orgName}

@@ -48,7 +48,7 @@ import { mapSalesCommerceLineToRpcPayload } from "@/lib/sales/shared/sales-comme
 import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { fetchApprovalWorkflowCompleteByDocumentId } from "@/lib/sales/shared/approval-list-hydration";
 
 const SO_PATHS = [
@@ -67,17 +67,17 @@ function revalidateSalesOrderPaths() {
 }
 
 export async function loadSalesLocations(): Promise<SalesLocationOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchSalesLocations(supabase, tenantId);
 }
 
 export async function loadSalesCustomers(): Promise<CustomerOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchSalesCustomers(supabase, tenantId);
 }
 
 export async function fetchMoreSalesOrders(offset: number) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolveSalesOrderEditAccess(supabase, userId, tenantId);
   return fetchSalesOrdersPage(
     supabase,
@@ -95,7 +95,7 @@ export async function loadSalesOrderDetail(
   salesOrderId: string
 ): Promise<{ salesOrder: SalesOrderRow } | { error: string }> {
   if (!salesOrderId.trim()) return { error: "Sales order id is required." };
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [salesOrder, access] = await Promise.all([
     fetchSalesOrderById(supabase, tenantId, salesOrderId),
     resolveSalesOrderEditAccess(supabase, userId, tenantId),
@@ -116,7 +116,7 @@ export async function peekSalesOrderNumber(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid location." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("peek_document_voucher_string", {
     p_voucher_type: "SALES_ORDER",
     p_location_id: parsed.data.shipping_location_id,
@@ -157,7 +157,7 @@ export async function saveSalesOrder(raw: unknown) {
     return { error: "Invalid sales order." };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
     customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
     originLocationId:
@@ -202,7 +202,7 @@ export async function saveSalesOrder(raw: unknown) {
       return { error: formatRpcDeployError("save_sales_order") };
     }
 
-    const { supabase: client, tenantId } = await requireTenantId();
+    const { supabase: client, tenantId } = await requireTenantMutation();
     const locationMeta = await fetchSalesLocationLabel(
       client,
       tenantId,
@@ -234,7 +234,7 @@ export async function amendConfirmedSalesOrder(raw: unknown) {
     return { error: "Invalid sales order." };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
     customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
     originLocationId:
@@ -303,7 +303,7 @@ export async function cancelSalesOrder(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid sales order." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("cancel_sales_order", {
     p_sales_order_id: parsed.data.sales_order_id,
   });
@@ -332,7 +332,7 @@ export async function updateSalesOrderVoucherNumber(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid SO number." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("update_sales_order_voucher_number", {
     p_sales_order_id: parsed.data.sales_order_id,
@@ -374,7 +374,7 @@ async function runSalesOrderWorkflowRpc(
     }
   | { error: string; errorAction?: UserFacingErrorAction }
 > {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc(rpcName, args);
 
   if (error) {
@@ -464,7 +464,7 @@ export async function bulkApproveSalesOrders(raw: unknown) {
   }
 
   const uniqueIds = [...new Set(parsed.data.sales_order_ids)];
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [access, approvalSettings] = await Promise.all([
     resolveSalesOrderEditAccess(supabase, userId, tenantId),
     fetchSalesApprovalSettings(supabase, tenantId),
@@ -611,7 +611,7 @@ export async function bulkConfirmSalesOrders(raw: unknown) {
   }
 
   const uniqueIds = [...new Set(parsed.data.sales_order_ids)];
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [access, approvalSettings] = await Promise.all([
     resolveSalesOrderEditAccess(supabase, userId, tenantId),
     fetchSalesApprovalSettings(supabase, tenantId),

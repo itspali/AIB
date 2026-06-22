@@ -26,7 +26,7 @@ import { fetchSalesLocationLabel } from "@/lib/sales/shared/queries";
 import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerce-save-extras";
 import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 import { assertFinanceSetupReady } from "@/app/onboarding/actions";
 import { z } from "zod";
 import {
@@ -57,7 +57,7 @@ function revalidateInvoicePaths() {
 }
 
 export async function fetchMoreSalesInvoices(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchSalesInvoicesPage(supabase, tenantId, { offset });
 }
 
@@ -72,7 +72,7 @@ export async function loadSalesInvoiceDetail(
   const parsed = z.string().uuid().safeParse(salesInvoiceId);
   if (!parsed.success) return { error: "Invalid invoice id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const invoice = await fetchSalesInvoiceById(supabase, tenantId, parsed.data);
     if (!invoice) return { error: "Invoice not found." };
@@ -90,7 +90,7 @@ export async function loadInvoicePaymentApplications(
   const parsed = z.string().uuid().safeParse(salesInvoiceId);
   if (!parsed.success) return { error: "Invalid invoice id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const applications = await fetchInvoicePaymentApplications(
       supabase,
@@ -110,7 +110,7 @@ export async function loadSalesInvoicePrefillFromOrder(salesOrderId: string) {
   const parsed = z.string().uuid().safeParse(salesOrderId);
   if (!parsed.success) return { error: "Invalid sales order id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const order = await fetchSalesOrderById(supabase, tenantId, parsed.data);
     if (!order) return { error: "Sales order not found." };
@@ -126,7 +126,7 @@ export async function loadSalesInvoicePrefillFromQuote(quotationId: string) {
   const parsed = z.string().uuid().safeParse(quotationId);
   if (!parsed.success) return { error: "Invalid quotation id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
     if (!quote) return { error: "Quotation not found." };
@@ -143,7 +143,7 @@ export async function resolveInvoiceLineSku(sku: string) {
 }
 
 async function invoiceErrorContext(
-  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  supabase: TenantContext["supabase"],
   tenantId: string,
   originLocationId?: string | null
 ) {
@@ -166,7 +166,7 @@ export async function saveSalesInvoice(raw: unknown) {
     return { error: "Invalid invoice." };
   }
 
-  const { supabase, userId, tenantId } = await requireTenantId();
+  const { supabase, userId, tenantId } = await requireTenantMutation();
 
   const isNewInvoice =
     !rawRecord.sales_invoice_id ||
@@ -236,7 +236,7 @@ export async function submitSalesInvoiceForApproval(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid invoice." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("submit_sales_invoice_for_approval", {
     p_sales_invoice_id: parsed.data.sales_invoice_id,
   });
@@ -258,7 +258,7 @@ export async function approveSalesInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid invoice." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("approve_sales_invoice", {
     p_sales_invoice_id: parsed.data.sales_invoice_id,
     p_notes: parsed.data.notes ?? null,
@@ -281,7 +281,7 @@ export async function rejectSalesInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid invoice." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("reject_sales_invoice", {
     p_sales_invoice_id: parsed.data.sales_invoice_id,
     p_notes: parsed.data.notes,
@@ -304,7 +304,7 @@ export async function postSalesInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid invoice." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("post_sales_invoice", {
     p_sales_invoice_id: parsed.data.sales_invoice_id,
   });
@@ -331,7 +331,7 @@ export async function bulkApproveSalesInvoices(raw: unknown) {
   }
 
   const uniqueIds = [...new Set(parsed.data.sales_invoice_ids)];
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [access, approvalSettings] = await Promise.all([
     resolveSalesOrderEditAccess(supabase, userId, tenantId),
     fetchSalesApprovalSettings(supabase, tenantId),
@@ -482,7 +482,7 @@ export async function bulkPostSalesInvoices(raw: unknown) {
   }
 
   const uniqueIds = [...new Set(parsed.data.sales_invoice_ids)];
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [access, approvalSettings] = await Promise.all([
     resolveSalesOrderEditAccess(supabase, userId, tenantId),
     fetchSalesApprovalSettings(supabase, tenantId),
@@ -613,7 +613,7 @@ export async function convertOrderToInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid sales order." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const gate = await assertFinanceSetupReady(supabase, tenantId);
   if (gate.error) return { error: gate.error };
 

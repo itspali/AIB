@@ -11,6 +11,15 @@ import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile"
 import type { OperatorProfile } from "@/lib/user/types";
 import type { UserRole } from "@/lib/user/types";
 
+import { resolveEffectiveTenant } from "@/lib/supabase/effective-tenant";
+import type { ImpersonationPayload } from "@/lib/console/impersonation-cookie";
+
+export type ImpersonationBannerContext = {
+  tenantName: string;
+  organizationCode: string | null;
+  mode: "READ_ONLY" | "WRITE";
+};
+
 export type ModulePageContext = {
   supabase: SupabaseClient;
   tenantId: string;
@@ -19,6 +28,7 @@ export type ModulePageContext = {
   operatorProfile: OperatorProfile | null;
   operatorRole: UserRole;
   approvalAlertCount: number;
+  impersonation: ImpersonationBannerContext | null;
 };
 
 /**
@@ -34,7 +44,9 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
 
   if (!claims) redirect("/signup");
 
-  const tenantId = claims.tenantId;
+  const { tenantId, impersonation: impersonationPayload } = await resolveEffectiveTenant(
+    claims.tenantId
+  );
   if (!tenantId) redirect("/signup");
 
   if (!bootstrap.tenant) redirect("/signup");
@@ -51,6 +63,21 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
 
   const operatorRole = resolvedProfile.role;
 
+  let impersonation: ImpersonationBannerContext | null = null;
+  if (impersonationPayload) {
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("name, trade_name, organization_code")
+      .eq("id", tenantId)
+      .maybeSingle();
+
+    impersonation = {
+      tenantName: tenantRow?.trade_name || tenantRow?.name || "Tenant",
+      organizationCode: tenantRow?.organization_code ?? null,
+      mode: impersonationPayload.mode,
+    };
+  }
+
   return {
     supabase,
     tenantId,
@@ -60,6 +87,7 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
     operatorRole,
     // Fetched client-side in DashboardShell to avoid four count queries on every SSR.
     approvalAlertCount: 0,
+    impersonation,
   };
 }
 

@@ -1,6 +1,10 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
+import {
+  IMPERSONATION_COOKIE_NAME,
+  peekImpersonationPayload,
+} from "@/lib/console/impersonation-middleware";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -24,42 +28,81 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // `getClaims()` verifies the session JWT locally against the cached JWKS
-  // (the project uses an asymmetric signing key), avoiding an Auth-server
-  // round-trip on every request that `getUser()` would incur.
   const { data: claimsData } = await supabase.auth.getClaims();
   const claims = claimsData?.claims as
-    | { sub?: string; app_metadata?: { tenant_id?: string } }
+    | { sub?: string; aal?: string; app_metadata?: { tenant_id?: string } }
     | undefined;
   const user = claims?.sub ? claims : null;
 
   const pathname = request.nextUrl.pathname;
+  const isConsole = pathname.startsWith("/console");
+  const isConsoleUnauthorized = pathname.startsWith("/console/unauthorized");
+  const isMfaChallenge = pathname.startsWith("/login/mfa-challenge");
   const isOnboarding = pathname.startsWith("/onboarding");
   const isLogin = pathname.startsWith("/login");
   const isSignup = pathname.startsWith("/signup");
   const isAuthCallback = pathname.startsWith("/auth/callback");
   const isPasswordReset = pathname.startsWith("/auth/reset-password");
   const isLegal = pathname.startsWith("/legal");
+  const isSuspended = pathname.startsWith("/suspended");
+  const isMaintenance = pathname.startsWith("/maintenance");
   const isSignupApi = pathname.startsWith("/api/signup");
   const isPublicAuth =
-    isLogin || isSignup || isSignupApi || isAuthCallback || isPasswordReset || isLegal;
+    isLogin ||
+    isSignup ||
+    isSignupApi ||
+    isAuthCallback ||
+    isPasswordReset ||
+    isLegal ||
+    isMfaChallenge;
   const isServerAction = request.method === "POST" && request.headers.has("next-action");
 
   if (isSignupApi) {
     return supabaseResponse;
   }
 
-  if (!user && !isPublicAuth) {
+  if (!user && !isPublicAuth && !isConsoleUnauthorized) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    if (isConsole) url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
+  if (user && isConsole && !isConsoleUnauthorized) {
+    return supabaseResponse;
+  }
+
+  if (user && !isPublicAuth && !isConsole && !isSuspended && !isMaintenance) {
+    const maintenanceMode = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
+    if (maintenanceMode) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/maintenance";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (user) {
-    const tenantId = user.app_metadata?.tenant_id;
+    let tenantId = user.app_metadata?.tenant_id;
+
+    const impersonationRaw = request.cookies.get(IMPERSONATION_COOKIE_NAME)?.value;
+    const impersonationPeek = peekImpersonationPayload(impersonationRaw);
+    if (impersonationPeek && !isConsole) {
+      tenantId = impersonationPeek.tenantId;
+    }
+
+    if (
+      isServerAction &&
+      impersonationPeek?.mode === "READ_ONLY" &&
+      !isConsole &&
+      !pathname.startsWith("/login")
+    ) {
+      return new NextResponse("Impersonation is read-only", { status: 403 });
+    }
 
     if (!tenantId) {
-      if (!isSignup) {
+      const operatorConsolePath =
+        isConsole || isConsoleUnauthorized || isMfaChallenge || isLogin || isSignup;
+      if (!operatorConsolePath) {
         const url = request.nextUrl.clone();
         url.pathname = "/signup";
         return NextResponse.redirect(url);
@@ -67,14 +110,30 @@ export async function updateSession(request: NextRequest) {
       return supabaseResponse;
     }
 
-    // Fast path: once a tenant is confirmed onboarded we stamp a cookie so the
-    // common case (an onboarded user navigating normal routes) needs no DB
-    // round-trip here. The onboarding-decision routes still revalidate.
+    if (!isConsole && !isPublicAuth && !isSuspended && !isMaintenance) {
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("is_active, status")
+        .eq("id", tenantId)
+        .maybeSingle();
+
+      if (tenant && (!tenant.is_active || tenant.status === "SUSPENDED")) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/suspended";
+        return NextResponse.redirect(url);
+      }
+    }
+
     const onboardedCookie = request.cookies.get("aib-onboarded")?.value === "1";
     const needsRouteDecision =
-      isOnboarding || isLogin || isSignup || isPasswordReset || !onboardedCookie;
+      isOnboarding ||
+      isLogin ||
+      isSignup ||
+      isPasswordReset ||
+      isMfaChallenge ||
+      (!onboardedCookie && !isConsole);
 
-    if (!needsRouteDecision) {
+    if (!needsRouteDecision || isConsole) {
       return supabaseResponse;
     }
 
@@ -92,15 +151,21 @@ export async function updateSession(request: NextRequest) {
       });
     }
 
-    if (needsOnboarding && !isOnboarding && !isPublicAuth) {
+    if (needsOnboarding && !isOnboarding && !isPublicAuth && !isConsole) {
       const url = request.nextUrl.clone();
       url.pathname = "/onboarding";
       return NextResponse.redirect(url);
     }
 
     if ((isLogin || isSignup) && !isServerAction) {
+      const next = request.nextUrl.searchParams.get("next");
       const url = request.nextUrl.clone();
-      url.pathname = postLoginRoute;
+      if (next && next.startsWith("/") && !next.startsWith("//")) {
+        url.pathname = next.split("?")[0] ?? next;
+      } else {
+        url.pathname = postLoginRoute;
+      }
+      url.search = "";
       return NextResponse.redirect(url);
     }
   }

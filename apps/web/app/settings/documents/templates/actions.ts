@@ -29,7 +29,7 @@ import { fetchDocumentOrgRenderContext } from "@/lib/documents/print/org-render-
 import { renderDocumentHtml } from "@/lib/documents/print/render-document-html";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { fetchOrganizationGstRegistered } from "@/lib/organization/gst-registration";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 
 const moduleKeySchema = z.enum([
   "PURCHASE_ORDER",
@@ -131,10 +131,10 @@ const saveSchema = z.object({
 });
 
 async function requireTemplateEditor(): Promise<
-  | { supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"]; tenantId: string; userId: string }
+  | { supabase: TenantContext["supabase"]; tenantId: string; userId: string }
   | { error: string }
 > {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
     return { error: "You do not have permission to edit document templates." };
@@ -208,7 +208,7 @@ export async function loadPresentationTemplate(input: {
   const locationId = scope.mode === "location" ? scope.locationId : null;
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const template = await fetchDocumentPresentationTemplate(
       supabase,
       tenantId,
@@ -330,7 +330,7 @@ export async function loadPresentationTemplatePreview(input: {
   const locationId = scopeLocationId(scope);
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const [existing, org, gstRegistered] = await Promise.all([
       fetchDocumentPresentationTemplate(supabase, tenantId, parsed.data.moduleKey, parsed.data.viewContext, {
         locationId,
@@ -374,7 +374,7 @@ export async function loadDocumentTemplatesModuleBundle(
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     return fetchDocumentTemplatesModuleBundle(supabase, tenantId, parsed.data);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to load template module." };
@@ -384,7 +384,7 @@ export async function loadDocumentTemplatesModuleBundle(
 export async function loadDocumentTemplateCatalogFieldSuggestions():
   Promise<{ suggestions: Awaited<ReturnType<typeof fetchPoCatalogFieldSuggestions>> } | { error: string }> {
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const suggestions = await fetchPoCatalogFieldSuggestions(supabase, tenantId);
     return { suggestions };
   } catch (error) {
@@ -408,7 +408,7 @@ export async function loadDocumentDesignerPreview(input: {
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     return renderDocumentDesignerPreviewHtml(supabase, tenantId, {
       moduleKey: parsed.data.moduleKey,
       viewContext: parsed.data.viewContext,

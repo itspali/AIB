@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import type { DutyStatus } from "@/lib/user/types";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 export async function updateUserDutyStatus(status: DutyStatus) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("update_user_duty_status", {
     p_status: status,
@@ -25,7 +25,7 @@ export async function updateUserProfile(values: {
   phone_number: string;
   avatar_url: string;
 }) {
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
 
   const first_name = values.first_name.trim();
   const last_name = values.last_name.trim();

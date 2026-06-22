@@ -19,7 +19,7 @@ import {
   searchStockVariantsForAdjustment,
 } from "@/app/inventory/stock/actions";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const TRANSFER_PATHS = ["/inventory/transfers", "/inventory", "/inventory/stock"] as const;
 
@@ -40,7 +40,7 @@ async function formatTransferError(
   sourceLocationId?: string,
   destinationLocationId?: string
 ) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const [sourceMeta, destinationMeta] = await Promise.all([
     sourceLocationId
       ? fetchTransferLocationLabel(supabase, tenantId, sourceLocationId)
@@ -61,17 +61,17 @@ async function formatTransferError(
 }
 
 export async function loadTransferLocations(): Promise<TransferLocationOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchTransferLocations(supabase, tenantId);
 }
 
 export async function fetchMoreStockTransfers(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchStockTransfersPage(supabase, tenantId, { offset });
 }
 
 export async function loadStockTransfers(): Promise<StockTransferRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const page = await fetchStockTransfersPage(supabase, tenantId);
   return page.rows;
 }
@@ -80,7 +80,7 @@ export async function loadStockTransferDetail(
   transferId: string
 ): Promise<{ transfer: StockTransferRow } | { error: string }> {
   if (!transferId.trim()) return { error: "Transfer id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const transfer = await fetchStockTransferById(supabase, tenantId, transferId);
   if (!transfer) return { error: "Transfer not found." };
   return { transfer };
@@ -95,7 +95,7 @@ export async function saveStockTransfer(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("save_stock_transfer", {
     p_transfer_id: values.transfer_id ?? null,
@@ -135,7 +135,7 @@ export async function saveStockTransfer(raw: unknown) {
 export async function dispatchStockTransfer(transferId: string) {
   if (!transferId.trim()) return { error: "Transfer id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const detail = await loadStockTransferDetail(transferId);
   if ("error" in detail) return { error: detail.error };
 
@@ -171,7 +171,7 @@ export async function receiveStockTransfer(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const detail = await loadStockTransferDetail(values.transfer_id);
   if ("error" in detail) return { error: detail.error };
 
@@ -209,7 +209,7 @@ export async function receiveStockTransfer(raw: unknown) {
 export async function cancelStockTransfer(transferId: string) {
   if (!transferId.trim()) return { error: "Transfer id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("cancel_stock_transfer", {
     p_transfer_id: transferId,

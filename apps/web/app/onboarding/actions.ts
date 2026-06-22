@@ -15,7 +15,7 @@ import {
   defaultTaxRatesForCountry,
 } from "@/lib/onboarding/locale-presets";
 import { isFinanceSetupComplete } from "@/lib/onboarding/finance-setup-gate";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import type {
   ChannelFormValues,
   CorporateProfileFormValues,
@@ -123,7 +123,7 @@ export async function assertFinanceSetupReady(
 }
 
 export async function saveCorporateProfile(values: CorporateProfileFormValues) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   let normalized = normalizeCorporateProfile(values);
 
   if (values.tax_registration_status && values.tax_registration_status !== "REGISTERED") {
@@ -200,7 +200,7 @@ export async function saveLocation(values: CorporateProfileFormValues) {
 }
 
 export async function deployCoaTemplate() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   // Seed a starter set of units of measure so the item catalog has units to
   // pick from out of the box. Idempotent and best-effort — never blocks the
@@ -253,7 +253,7 @@ function toDateOnly(value: string | null | undefined): string | null {
 }
 
 export async function saveTaxRates(rows: TaxRateRow[]) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { count, error: countError } = await supabase
     .from("tax_codes")
@@ -301,7 +301,7 @@ export async function saveChannel(values: ChannelFormValues) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid channel details" };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return ensureChannel(supabase, tenantId, parsed.data);
 }
 
@@ -388,7 +388,7 @@ async function persistBusinessModel(
 }
 
 export async function applyRecommendedFinanceSetup(businessModelInput?: BusinessModel) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const businessModel = parseBusinessModel(businessModelInput);
   const persistResult = await persistBusinessModel(supabase, tenantId, businessModel);
@@ -420,7 +420,7 @@ export async function applyRecommendedFinanceSetup(businessModelInput?: Business
 }
 
 export async function saveDraft(draft: OnboardingDraft) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data: tenant } = await supabase
     .from("tenants")
@@ -442,7 +442,7 @@ export async function saveDraft(draft: OnboardingDraft) {
 }
 
 export async function completeOnboarding() {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("complete_onboarding");
 

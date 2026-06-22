@@ -16,7 +16,7 @@ import {
 import type { OpenSalesInvoiceOption } from "@/lib/sales/invoices/types";
 import { SALES_INVOICES_HREF, SALES_PAYMENTS_HREF } from "@/lib/sales/navigation";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
 
 const PAYMENT_PATHS = [SALES_PAYMENTS_HREF, SALES_INVOICES_HREF, "/sales", "/dashboard"] as const;
@@ -28,7 +28,7 @@ function revalidatePaymentPaths() {
 }
 
 export async function loadCustomerPayments(): Promise<CustomerPaymentRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchCustomerPayments(supabase, tenantId);
 }
 
@@ -38,7 +38,7 @@ export async function loadCustomerPaymentDetail(
   const parsed = z.string().uuid().safeParse(paymentId);
   if (!parsed.success) return { error: "Invalid payment id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const payment = await fetchCustomerPaymentById(supabase, tenantId, parsed.data);
     if (!payment) return { error: "Payment not found." };
@@ -56,7 +56,7 @@ export async function loadOpenInvoicesForCustomer(
   const parsed = z.string().uuid().safeParse(customerId);
   if (!parsed.success) return { error: "Invalid customer id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const invoices = await fetchOpenSalesInvoicesForCustomer(supabase, tenantId, parsed.data);
     return { invoices };
@@ -73,7 +73,7 @@ export async function saveCustomerPayment(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid payment." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("save_customer_payment", {
     p_customer_id: parsed.data.customer_id,
     p_amount_received: parsed.data.amount_received,
@@ -102,7 +102,7 @@ export async function applyCustomerPaymentToInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid payment application." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("apply_customer_payment_to_invoice", {
     p_payment_id: parsed.data.payment_id,
     p_invoice_id: parsed.data.invoice_id,

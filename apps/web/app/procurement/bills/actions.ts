@@ -23,7 +23,7 @@ import type { BillablePurchaseOrderOption } from "@/lib/procurement/purchase-ord
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
 
 const postVendorPaymentSchema = z.object({
@@ -42,7 +42,7 @@ function revalidateBillPaths() {
 }
 
 export async function fetchMorePurchaseBills(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchPurchaseBillsPage(supabase, tenantId, { offset });
 }
 
@@ -54,7 +54,7 @@ export async function loadPurchaseBills(): Promise<PurchaseBillRow[]> {
 export async function loadBillablePurchaseOrders(
   supplierId?: string | null
 ): Promise<BillablePurchaseOrderOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchBillablePurchaseOrders(supabase, tenantId, {
     supplierId: supplierId ?? null,
   });
@@ -66,7 +66,7 @@ export async function loadBillingGrnsForPo(
   const parsed = z.string().uuid().safeParse(purchaseOrderId);
   if (!parsed.success) return { error: "Invalid purchase order." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const grns = await fetchGoodsReceiptsForPurchaseOrder(supabase, tenantId, parsed.data);
     return { grns };
@@ -83,7 +83,7 @@ export async function loadPurchaseBillDetail(
   const parsed = z.string().uuid().safeParse(purchaseInvoiceId);
   if (!parsed.success) return { error: "Invalid bill id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const bill = await fetchPurchaseBillById(supabase, tenantId, parsed.data);
     if (!bill) return { error: "Bill not found." };
@@ -102,7 +102,7 @@ export async function savePurchaseBill(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, userId, tenantId } = await requireTenantId();
+  const { supabase, userId, tenantId } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("save_purchase_invoice", {
     p_purchase_invoice_id: values.purchase_invoice_id ?? null,
@@ -154,7 +154,7 @@ export async function applyPurchasePriceVariance(purchaseInvoiceId: string) {
   const parsed = z.string().uuid().safeParse(purchaseInvoiceId);
   if (!parsed.success) return { error: "Invalid bill id." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("apply_purchase_price_variance", {
     p_invoice_id: parsed.data,
   });
@@ -185,7 +185,7 @@ export async function exportGstrReport(
   periodEnd: string,
   report: "GSTR1" | "GSTR2" | "GSTR3B" = "GSTR1"
 ) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("fetch_gstr_export", {
     p_period_start: periodStart,
     p_period_end: periodEnd,
@@ -206,7 +206,7 @@ export async function loadVendorAdvancesForSupplier(
   const parsed = z.string().uuid().safeParse(supplierId);
   if (!parsed.success) return { error: "Invalid supplier." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const advances = await fetchVendorAdvancePayments(supabase, tenantId, {
       supplierId: parsed.data,
@@ -226,7 +226,7 @@ export async function loadBillAdvanceApplications(
   const parsed = z.string().uuid().safeParse(purchaseInvoiceId);
   if (!parsed.success) return { error: "Invalid bill id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const applications = await fetchBillAdvanceApplications(supabase, tenantId, parsed.data);
     return { applications };
@@ -243,7 +243,7 @@ export async function saveVendorAdvance(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid vendor advance." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("save_vendor_advance_payment", {
     p_advance_id: parsed.data.advance_id ?? null,
     p_supplier_id: parsed.data.supplier_id,
@@ -272,7 +272,7 @@ export async function applyVendorAdvanceToBill(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid advance application." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("apply_vendor_advance_to_invoice", {
     p_invoice_id: parsed.data.purchase_invoice_id,
     p_advance_payment_id: parsed.data.advance_payment_id,
@@ -306,7 +306,7 @@ export async function voidPurchaseBill(purchaseInvoiceId: string) {
   const parsed = z.string().uuid().safeParse(purchaseInvoiceId);
   if (!parsed.success) return { error: "Invalid bill id." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("void_purchase_invoice", {
     p_invoice_id: parsed.data,
   });
@@ -335,7 +335,7 @@ export async function postVendorPayment(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid vendor payment." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("post_vendor_payment", {
     p_invoice_id: parsed.data.purchase_invoice_id,
     p_payment_reference: parsed.data.payment_reference,

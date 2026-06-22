@@ -19,7 +19,7 @@ import type {
   EntityCategoryRow,
   EntityCategoryWorkspace,
 } from "@/lib/entity-categories/types";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantId, requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 
 function revalidateEntityCategoryPaths(workspace: EntityCategoryWorkspace) {
   const listWorkspace = workspace === "customer" ? "customer" : "supplier";
@@ -75,7 +75,7 @@ export async function saveEntityCategory(
   workspace: EntityCategoryWorkspace,
   values: EntityCategoryFormValues
 ): Promise<EntityCategoryMutationResult> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { table, saveRpc } = getEntityCategoryWorkspaceConfig(workspace);
 
   const name = values.name.trim();
@@ -128,7 +128,7 @@ export async function saveEntityCategory(
 
 async function deleteEntityCategoryInternal(
   workspace: EntityCategoryWorkspace,
-  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  supabase: TenantContext["supabase"],
   categoryId: string
 ): Promise<{ ok: true; outcome: string } | { ok: false; error: string }> {
   const { deleteRpc } = getEntityCategoryWorkspaceConfig(workspace);
@@ -146,7 +146,7 @@ export async function deleteEntityCategory(
 ) {
   if (!categoryId) return { error: "Category id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const result = await deleteEntityCategoryInternal(workspace, supabase, categoryId);
   if (!result.ok) return { error: result.error };
 
@@ -160,7 +160,7 @@ export async function deactivateEntityCategory(
 ) {
   if (!categoryId) return { error: "Category id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { table } = getEntityCategoryWorkspaceConfig(workspace);
 
   const { error } = await supabase
@@ -186,7 +186,7 @@ export async function activateEntityCategory(
 ) {
   if (!categoryId) return { error: "Category id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { table } = getEntityCategoryWorkspaceConfig(workspace);
 
   const { data, error } = await supabase
@@ -223,7 +223,7 @@ export async function bulkActivateEntityCategories(
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { table } = getEntityCategoryWorkspaceConfig(workspace);
 
   const { data, error } = await supabase
@@ -249,7 +249,7 @@ export async function bulkDeactivateEntityCategories(
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { table } = getEntityCategoryWorkspaceConfig(workspace);
 
   const { data, error } = await supabase
@@ -275,7 +275,7 @@ export async function bulkDeleteEntityCategories(
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const results = await Promise.all(
     ids.map(async (categoryId) => ({

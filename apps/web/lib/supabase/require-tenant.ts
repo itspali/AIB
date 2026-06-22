@@ -1,17 +1,34 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { readSessionClaims } from "@/lib/supabase/auth";
+import { resolveEffectiveTenant } from "@/lib/supabase/effective-tenant";
+import type { ImpersonationPayload } from "@/lib/console/impersonation-cookie";
+
+export type TenantContext = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  tenantId: string;
+  userId: string;
+  email: string | null;
+  impersonation: ImpersonationPayload | null;
+};
 
 /** One Supabase client + JWT verify per server-action request. */
-export const requireTenantId = cache(async () => {
+export const requireTenantId = cache(async (): Promise<TenantContext> => {
   const supabase = await createClient();
   const claims = await readSessionClaims(supabase);
   if (!claims) throw new Error("Not authenticated");
-  if (!claims.tenantId) throw new Error("Tenant context missing from session");
+
+  const { tenantId, impersonation } = await resolveEffectiveTenant(claims.tenantId);
+  if (!tenantId) throw new Error("Tenant context missing from session");
+
   return {
     supabase,
-    tenantId: claims.tenantId,
+    tenantId,
     userId: claims.userId,
     email: claims.email,
+    impersonation,
   };
 });
+
+/** Tenant context for mutating server actions (read-only impersonation blocked in middleware). */
+export const requireTenantMutation = requireTenantId;

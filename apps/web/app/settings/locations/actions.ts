@@ -10,7 +10,7 @@ import { filterLocationFormNamingSequences } from "@/lib/locations/document-numb
 import { buildNamingSequencesPayload } from "@/lib/naming/sequences";
 import { DEFAULT_VIRTUAL_LOCATION_CONFIG } from "@/lib/locations/virtual-config";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const LOCATION_PATHS = [
   "/settings/locations",
@@ -26,7 +26,7 @@ export async function saveLocation(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
@@ -113,7 +113,7 @@ export async function saveLocation(raw: unknown) {
 }
 
 export async function suggestLocationCode(input: LocationCodeSuggestInput) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
@@ -153,7 +153,7 @@ export async function suggestLocationCode(input: LocationCodeSuggestInput) {
 }
 
 export async function deactivateLocation(locationId: string) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
@@ -179,7 +179,7 @@ export async function deactivateLocation(locationId: string) {
 }
 
 export async function reactivateLocation(locationId: string) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
@@ -205,7 +205,7 @@ export async function reactivateLocation(locationId: string) {
 }
 
 export async function deleteLocation(locationId: string) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {
@@ -236,7 +236,7 @@ export async function saveDomRoutingConfig(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid DOM routing configuration" };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
   if (!access.canManage) {

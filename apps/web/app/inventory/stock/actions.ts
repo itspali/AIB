@@ -36,7 +36,7 @@ import type { DocumentLineStockContext } from "@/lib/inventory/stock/line-stock-
 import { fetchVariantStockLedgerHistory } from "@/lib/inventory/stock/ledger-history";
 import type { InventoryLedgerHistoryRow } from "@/lib/inventory/stock/ledger-history";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const STOCK_PATHS = ["/inventory/stock", "/inventory", "/items"] as const;
 
@@ -47,7 +47,7 @@ function revalidateStockPaths() {
 }
 
 export async function loadStockLocations(): Promise<StockLocationOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchStockLocations(supabase, tenantId);
 }
 
@@ -65,7 +65,7 @@ export async function loadDocumentLineStockContexts(input: {
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const contexts = await fetchDocumentLineStockContexts(supabase, tenantId, {
       location_id: locationId,
       variant_ids: variantIds,
@@ -80,12 +80,12 @@ export async function loadDocumentLineStockContexts(input: {
 }
 
 export async function fetchMoreStockBalances(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchStockBalancesPage(supabase, tenantId, { offset });
 }
 
 export async function fetchMoreStockAdjustments(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchStockAdjustmentsPage(supabase, tenantId, { offset });
 }
 
@@ -93,7 +93,7 @@ export async function loadStockBalances(options?: {
   locationId?: string | null;
   search?: string;
 }): Promise<StockBalanceRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchStockBalances(supabase, tenantId, options);
 }
 
@@ -101,7 +101,7 @@ export async function loadStockAdjustments(options?: {
   locationId?: string | null;
   search?: string;
 }): Promise<StockAdjustmentRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchStockAdjustments(supabase, tenantId, options);
 }
 
@@ -109,7 +109,7 @@ export async function loadStockAdjustmentDetail(
   adjustmentId: string
 ): Promise<{ adjustment: StockAdjustmentRow } | { error: string }> {
   if (!adjustmentId.trim()) return { error: "Adjustment id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const adjustment = await fetchStockAdjustmentById(supabase, tenantId, adjustmentId);
   if (!adjustment) return { error: "Adjustment not found." };
   return { adjustment };
@@ -129,7 +129,7 @@ export async function loadStockLedgerHistoryForVariants(input: {
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const entriesByVariantId = await fetchVariantStockLedgerHistory(supabase, tenantId, {
       location_id: locationId,
       variant_ids: variantIds,
@@ -150,7 +150,7 @@ export async function searchStockVariantsForAdjustment(
   if (trimmed.length < 1) return { variants: [] };
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const variants = await searchStockVariants(supabase, tenantId, trimmed);
     return { variants };
   } catch (error) {
@@ -162,7 +162,7 @@ export async function listStockVariantsForAdjustmentBrowse(): Promise<
   { variants: StockVariantOption[] } | { error: string }
 > {
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const variants = await listStockVariantsForBrowse(supabase, tenantId);
     return { variants };
   } catch (error) {
@@ -173,7 +173,7 @@ export async function listStockVariantsForAdjustmentBrowse(): Promise<
 }
 
 export async function lookupStockVariantBySku(sku: string) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data: tenantRow } = await supabase
     .from("tenants")
@@ -202,7 +202,7 @@ export async function postStockAdjustment(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("post_stock_adjustment", {
     p_location_id: values.location_id,
@@ -248,17 +248,17 @@ export async function postStockAdjustment(raw: unknown) {
 }
 
 export async function loadPromoInventoryBalances(): Promise<PromoInventoryBalanceRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchPromoInventoryBalances(supabase, tenantId);
 }
 
 export async function loadQcInventoryBalances(): Promise<QcInventoryBalanceRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchQcInventoryBalances(supabase, tenantId);
 }
 
 export async function loadPromotionalReclassificationBatches(): Promise<PromotionalBatchRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchPromotionalReclassificationBatches(supabase, tenantId, { status: "DRAFT" });
 }
 
@@ -270,7 +270,7 @@ export async function createPromoReclassificationBatch(
     return { error: "Select at least one promotional balance." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("create_promotional_reclassification_batch", {
     p_balance_ids: balanceIds,
@@ -297,7 +297,7 @@ export async function createPromoReclassificationBatch(
 export async function postPromoReclassificationBatch(batchId: string) {
   if (!batchId.trim()) return { error: "Batch id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("post_promotional_reclassification", {
     p_batch_id: batchId,

@@ -10,7 +10,7 @@ import { buildEntityLogoStoragePath, ENTITY_LOGO_BUCKET } from "@/lib/entities/l
 import type { EntityDetailSnapshot, EntityWorkspace } from "@/lib/entities/types";
 import { fetchEntityCategoryRows } from "@/lib/entity-categories/queries";
 import type { EntityCategoryRow } from "@/lib/entity-categories/types";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 
 const ENTITY_PATHS = [
   "/sales",
@@ -47,7 +47,7 @@ function mapEntityRpcError(message: string): string {
 }
 
 async function relocateDraftEntityLogo(
-  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  supabase: TenantContext["supabase"],
   tenantId: string,
   entityId: string,
   entityPayload: Record<string, unknown>
@@ -83,26 +83,26 @@ async function relocateDraftEntityLogo(
 export async function loadEntityDetail(
   entityId: string
 ): Promise<EntityDetailSnapshot | null> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchEntityDetailById(supabase, tenantId, entityId);
 }
 
 export async function fetchMoreEntities(workspace: EntityWorkspace, offset: number) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   return fetchEntityListPage(supabase, workspace, { offset });
 }
 
 export async function loadEntityListCategoryRows(
   workspace: EntityWorkspace
 ): Promise<EntityCategoryRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchEntityCategoryRows(supabase, tenantId, workspace);
 }
 
 export async function loadEntityCustomFieldDefinitions(
   workspace: EntityWorkspace
 ): Promise<EntityCustomFieldDefinition[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchResolvedEntityCustomFieldDefinitions(supabase, tenantId, workspace);
 }
 
@@ -121,7 +121,7 @@ export async function saveEntity(
   workspace: EntityWorkspace,
   payload: EntitySavePayload
 ): Promise<{ entity: EntityDetailSnapshot } | { error: string }> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data: entityId, error } = await supabase.rpc("save_entity_profile", {
     p_entity: payload.entity,
@@ -176,7 +176,7 @@ export async function bulkActivateEntities(entityIds: string[]) {
   const ids = uniqueEntityIds(entityIds);
   if (ids.length === 0) return { error: "Select at least one entity." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("bulk_set_entities_active", {
     p_entity_ids: ids,
@@ -193,7 +193,7 @@ export async function bulkDeactivateEntities(entityIds: string[]) {
   const ids = uniqueEntityIds(entityIds);
   if (ids.length === 0) return { error: "Select at least one entity." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("bulk_set_entities_active", {
     p_entity_ids: ids,
@@ -207,7 +207,7 @@ export async function bulkDeactivateEntities(entityIds: string[]) {
 }
 
 export async function deactivateEntity(entityId: string) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("bulk_set_entities_active", {
     p_entity_ids: [entityId],
@@ -224,7 +224,7 @@ export async function deactivateEntity(entityId: string) {
 }
 
 export async function deleteEntity(entityId: string) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("delete_entity", {
     p_entity_id: entityId,
@@ -239,7 +239,7 @@ export async function deleteEntity(entityId: string) {
 }
 
 export async function loadEntityReferenceCount(entityId: string): Promise<number> {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("count_entity_references", {
     p_entity_id: entityId,
   });

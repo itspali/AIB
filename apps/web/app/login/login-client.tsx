@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { resolvePostLoginRoute } from "@/lib/auth/post-login-route";
+import { resolveSafeNextPath } from "@/lib/auth/safe-next-path";
 import { formatAuthError } from "@/lib/auth/format-auth-error";
 import { getTenantIdFromSession } from "@/lib/onboarding/status";
 import { createClient } from "@/lib/supabase/client";
@@ -12,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthPageShell } from "@/components/auth/auth-page-shell";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackError = searchParams.get("error");
+  const nextParam = searchParams.get("next");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,11 +51,21 @@ export default function LoginPage() {
     }
 
     const tenantId = await getTenantIdFromSession(supabase);
-    const redirectTo = tenantId
-      ? await resolvePostLoginRoute(supabase, tenantId)
-      : "/signup?resume=1";
+    const safeNext = resolveSafeNextPath(nextParam, tenantId ? "/dashboard" : "/signup?resume=1");
+
+    const { data: factorsData } = await supabase.auth.mfa.listFactors();
+    const hasVerifiedTotp = (factorsData?.totp ?? []).some((f) => f.status === "verified");
+
+    if (hasVerifiedTotp) {
+      setLoading(false);
+      router.push(`/login/mfa-challenge?next=${encodeURIComponent(safeNext)}`);
+      router.refresh();
+      return;
+    }
+
+    const redirectTo = tenantId ? await resolvePostLoginRoute(supabase, tenantId) : safeNext;
     setLoading(false);
-    router.push(redirectTo);
+    router.push(safeNext.startsWith("/console") ? safeNext : redirectTo);
     router.refresh();
   };
 
@@ -79,8 +92,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <AuthPageShell>
+      <Card className="w-full border-border/60 bg-card shadow-md lg:bg-card/95 lg:shadow-lg lg:backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-2xl font-bold tracking-tight">AIB Smart ERP</CardTitle>
           <CardDescription>
@@ -178,6 +191,6 @@ export default function LoginPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthPageShell>
   );
 }

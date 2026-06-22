@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 import { defaultTaxCodesForCountry } from "@/lib/tax/presets";
 import { taxCodeSchema } from "@/lib/tax/schemas";
 import type { TaxCodeFormValues } from "@/lib/tax/types";
@@ -20,7 +20,7 @@ export async function saveTaxCode(values: TaxCodeFormValues) {
   }
 
   const data = parsed.data;
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const components = data.components
     .filter((component) => component.name.trim() !== "")
@@ -62,7 +62,7 @@ export async function saveTaxCode(values: TaxCodeFormValues) {
 }
 
 async function resolveTenantCountryCode(
-  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  supabase: TenantContext["supabase"],
   tenantId: string
 ): Promise<string> {
   const { data: location } = await supabase
@@ -78,7 +78,7 @@ async function resolveTenantCountryCode(
 }
 
 export async function loadDefaultTaxCodes() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const countryCode = await resolveTenantCountryCode(supabase, tenantId);
   const presets = defaultTaxCodesForCountry(countryCode);
@@ -120,7 +120,7 @@ export async function loadDefaultTaxCodes() {
 export async function deleteTaxCode(taxCodeId: string) {
   if (!taxCodeId) return { error: "Tax code id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("delete_tax_code", {
     p_tax_code_id: taxCodeId,

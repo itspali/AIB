@@ -65,7 +65,7 @@ import {
 } from "@/lib/products/opening-stock";
 import { fetchItemVariantValuations } from "@/lib/products/opening-stock-queries";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 function parseDecimal(value: string, fallback = 0): number {
   const trimmed = value.trim();
@@ -120,7 +120,7 @@ export async function ensureProductTag(name: string, tagGroup?: string) {
   const trimmed = name.trim();
   if (!trimmed) return { error: "Tag name is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("ensure_tag", {
     p_name: trimmed,
     p_tag_group: tagGroup?.trim() || null,
@@ -145,7 +145,7 @@ export async function updateProductTag(tagId: string, name: string) {
   const slug = slugifyTagName(trimmed);
   if (!slug) return { error: "Tag name must contain letters or numbers." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data: existing, error: existingError } = await supabase
     .from("tags")
     .select("id")
@@ -172,7 +172,7 @@ export async function updateProductTag(tagId: string, name: string) {
 export async function deleteProductTag(tagId: string) {
   if (!tagId.trim()) return { error: "Tag id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { error } = await supabase.from("tags").delete().eq("tenant_id", tenantId).eq("id", tagId);
 
   if (error) return { error: error.message };
@@ -188,7 +188,7 @@ export async function saveProductMasterProfile(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   let previousReorderPoint = "";
   if (values.item_id) {
@@ -367,7 +367,7 @@ export async function getProductDetail(
   variantId?: string | null,
   options?: Pick<FetchProductDetailOptions, "scope">
 ) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const detail = await fetchProductDetail(supabase, tenantId, itemId, {
     variantId,
     scope: options?.scope ?? "full",
@@ -378,7 +378,7 @@ export async function getProductDetail(
 
 export async function getProductVariants(itemId: string) {
   if (!itemId.trim()) return { error: "Product id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const bundle = await fetchProductVariantReload(supabase, tenantId, itemId);
   if (!bundle) return { error: "Product variants not found." };
   return { bundle };
@@ -394,7 +394,7 @@ export async function loadProductDrawer(
 ) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const scope = options?.scope ?? "peek";
   const skipCatalogContext = options?.skipCatalogContext ?? false;
 
@@ -429,7 +429,7 @@ export async function loadProductPeekValuations(
 ) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const valuations = await fetchProductPeekValuations(
     supabase,
     tenantId,
@@ -448,7 +448,7 @@ export async function loadProductPeekSection(
 ) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const patch = await fetchProductPeekSection(
     supabase,
     tenantId,
@@ -486,7 +486,7 @@ export async function upgradeProductDetailToFull(
   itemId: string,
   variantId?: string | null
 ) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const detail = await fetchProductDetail(supabase, tenantId, itemId, {
     variantId,
     scope: "full",
@@ -497,7 +497,7 @@ export async function upgradeProductDetailToFull(
 
 export async function hydrateProductDetailMedia(itemId: string) {
   if (!itemId.trim()) return { error: "Product id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase
     .from("item_media")
     .select(
@@ -550,7 +550,7 @@ type ItemEditability = {
 };
 
 export async function getItemEditability(itemId: string) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("item_editability", { p_item_id: itemId });
 
   if (error) {
@@ -584,7 +584,7 @@ export async function findSimilarItems(
   const trimmed = name.trim();
   if (trimmed.length < 2) return { matches: [] as SimilarItem[] };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("find_similar_items", {
     p_name: trimmed,
     p_category_id: options?.categoryId ?? null,
@@ -627,7 +627,7 @@ function generateQuickCreateSku(): string {
  * flagged needs_review so the catalog team can complete it later.
  */
 export async function quickCreateItem(input: QuickCreateItemInput) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const name = input.name.trim();
   if (!name) return { error: "Item name is required" };
@@ -694,7 +694,7 @@ export async function quickCreateItem(input: QuickCreateItemInput) {
 }
 
 export async function getProductCatalogContext() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const catalogContext = await fetchProductCatalogContext(supabase, tenantId);
   return { catalogContext };
 }
@@ -703,7 +703,7 @@ export async function fetchMoreProductListRows(
   offset: number,
   options?: { expandVariants?: boolean; includeImages?: boolean }
 ) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const [permissions, page] = await Promise.all([
     resolveSessionProductFieldPermissions(supabase, tenantId),
@@ -728,7 +728,7 @@ export async function fetchProductListByFilterIds(
   itemIds: string[],
   options?: { expandVariants?: boolean; includeImages?: boolean }
 ) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const [permissions, page] = await Promise.all([
     resolveSessionProductFieldPermissions(supabase, tenantId),
@@ -751,7 +751,7 @@ export async function hydrateProductListImageUrls(itemIds: string[]) {
   const uniqueIds = [...new Set(itemIds.filter(Boolean))];
   if (!uniqueIds.length) return { imageUrls: {} as Record<string, string | null> };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase
     .from("product_list_workspace_rows")
     .select("id, primary_image_storage_path")
@@ -797,7 +797,7 @@ export async function fetchProductMediaGallery(
 ): Promise<{ slides: ProductListGallerySlide[] }> {
   if (!itemId.trim()) return { slides: [] };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase
     .from("item_media")
     .select("id, item_id, storage_url, sort_order, created_at")
@@ -851,7 +851,7 @@ export async function saveItemVariant(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const variantGtin = normalizeGtinInput(values.barcode);
 
   const { data, error } = await supabase.rpc("save_item_variant", {
@@ -898,7 +898,7 @@ export async function saveItemVariantsBulk(itemId: string, variants: BulkVariant
   if (!itemId.trim()) return { error: "Product id is required." };
   if (!variants.length) return { error: "No variants to create." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const payload = variants.map((row) => ({
     sku: row.sku.trim(),
@@ -941,7 +941,7 @@ export async function syncMatrixVariantSupplierPrices(
     .filter((row) => row.sku && row.costPrice && Number(row.costPrice) >= 0);
   if (!priced.length) return { success: true as const };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const skus = priced.map((row) => row.sku);
 
   const { data: variants, error: variantError } = await supabase
@@ -1025,7 +1025,7 @@ export async function getVariantAssortment(
 ): Promise<{ data: VariantAssortmentData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const [{ data: locations, error: locError }, { data: rows, error: rowError }] = await Promise.all([
     supabase
       .from("tenant_locations")
@@ -1054,7 +1054,7 @@ export async function getVariantAssortment(
 export async function saveVariantAssortment(itemId: string, rows: VariantAssortmentCell[]) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("save_item_variant_locations", {
     p_item_id: itemId,
     p_rows: rows,
@@ -1087,7 +1087,7 @@ export async function getItemBufferThresholds(
 ): Promise<{ data: BufferThresholdData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const [{ data: locations, error: locError }, { data: rows, error: rowError }] = await Promise.all([
     supabase
       .from("tenant_locations")
@@ -1125,7 +1125,7 @@ export async function getItemOpeningStockOnHand(
   itemId: string
 ): Promise<{ cells: OpeningStockOnHandCell[] } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const cells = await fetchItemVariantValuations(supabase, tenantId, itemId);
     return { cells };
@@ -1155,7 +1155,7 @@ export async function postItemOpeningStock(itemId: string, entries: OpeningStock
     stockedKeys.has(openingStockCellKey(entry.variant_id, entry.location_id))
   );
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data: variantRows, error: variantError } = await supabase
     .from("item_variants")
     .select("id, is_sellable")
@@ -1293,7 +1293,7 @@ export async function postItemOpeningStock(itemId: string, entries: OpeningStock
 export async function saveItemBufferThresholds(itemId: string, rows: BufferThresholdCell[]) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const payload = rows.map((row) => ({
     variant_id: row.variant_id,
     location_id: row.location_id,
@@ -1337,7 +1337,7 @@ export async function getVariantChannelAvailability(
 ): Promise<{ data: VariantChannelData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const [{ data: channels, error: channelError }, { data: rows, error: rowError }] =
     await Promise.all([
       supabase
@@ -1367,7 +1367,7 @@ export async function getVariantChannelAvailability(
 export async function saveVariantChannelAvailability(itemId: string, rows: VariantChannelCell[]) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("save_variant_channel_availability", {
     p_item_id: itemId,
     p_rows: rows,
@@ -1427,7 +1427,7 @@ export async function getItemDrawerExtensionData(
 ): Promise<{ data: ItemDrawerExtensionData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const useCatalogReference = Boolean(catalogContext);
 
   const itemScopedQueries = Promise.all([
@@ -1612,7 +1612,7 @@ export async function getSupplierCatalog(
 ): Promise<{ data: SupplierCatalogData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase
     .from("supplier_items")
     .select(
@@ -1649,7 +1649,7 @@ export async function saveSupplierCatalog(
 ) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("save_supplier_catalog_entries", {
     p_item_id: itemId,
     p_rows: rows.map((row) => ({
@@ -1738,7 +1738,7 @@ export async function listCompositionComponentCandidates(
     return { data: [] };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase
     .from("items")
     .select(
@@ -1805,7 +1805,7 @@ export async function getItemComposition(
 ): Promise<{ data: ItemCompositionData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase
     .from("item_composition_lines")
     .select(
@@ -1864,7 +1864,7 @@ export async function saveItemComposition(
   const validationMessage = validateCompositionDraftRows(rows);
   if (validationMessage) return { error: validationMessage };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("save_item_composition_lines", {
     p_parent_item_id: itemId,
     p_rows: rows.map((row, index) => ({
@@ -1897,7 +1897,7 @@ export async function getPriceBookEntries(
 ): Promise<{ data: PriceBookEntryData } | { error: string }> {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const [{ data: books, error: bookError }, { data: entries, error: entryError }] =
     await Promise.all([
       supabase
@@ -1950,7 +1950,7 @@ export async function savePriceBookEntries(
   if (!itemId.trim()) return { error: "Product id is required." };
   if (!priceBookId.trim()) return { error: "Price book is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("save_price_book_entries", {
     p_item_id: itemId,
     p_price_book_id: priceBookId,
@@ -1971,7 +1971,7 @@ export async function savePriceBookEntries(
 export async function saveItemVariantAxes(itemId: string, axes: string[]) {
   if (!itemId.trim()) return { error: "Product id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc("save_item_variant_axes", {
     p_item_id: itemId,
     p_axes: axes,
@@ -1989,7 +1989,7 @@ export async function saveItemVariantAxes(itemId: string, axes: string[]) {
 }
 
 export async function deleteItemVariant(variantId: string) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("delete_item_variant", {
     p_variant_id: variantId,
@@ -2013,7 +2013,7 @@ export async function saveItemMedia(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("save_item_media", {
     p_item_id: values.item_id,
@@ -2039,7 +2039,7 @@ export async function saveItemMedia(raw: unknown) {
 }
 
 export async function deleteItemMedia(mediaId: string, storagePath?: string) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("delete_item_media", {
     p_media_id: mediaId,
@@ -2061,7 +2061,7 @@ export async function deleteItemMedia(mediaId: string, storagePath?: string) {
 }
 
 export async function saveProductListUserPrefs(raw: unknown) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { coerceProductListPrefs, DEFAULT_SHOW_VARIANTS } = await import(
     "@/lib/products/list-prefs"
@@ -2099,7 +2099,7 @@ export type TaxCodeOption = {
 export async function fetchActiveTaxCodeOptions(options?: {
   includeTaxCodeId?: string | null;
 }): Promise<{ options: TaxCodeOption[] } | { error: string }> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data, error } = await supabase
     .from("tax_codes")
@@ -2144,7 +2144,7 @@ export type ResolveBulkTargetInput = {
 };
 
 export async function resolveBulkTargetItemIds(input: ResolveBulkTargetInput) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   if (!input.selectAllMatching) {
     const unique = [...new Set(input.selectedIds.filter(Boolean))];
@@ -2197,7 +2197,7 @@ export async function bulkAdjustItemPricing(
   const idsResult = await resolveBulkItemIds(target);
   if ("error" in idsResult) return { error: idsResult.error };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const value = Number(parsed.data.value);
 
   const { data, error } = await supabase.rpc("bulk_adjust_item_pricing", {
@@ -2230,7 +2230,7 @@ export async function bulkSyncItemJurisdiction(
   const idsResult = await resolveBulkItemIds(target);
   if ("error" in idsResult) return { error: idsResult.error };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("bulk_sync_item_jurisdiction", {
     p_item_ids: idsResult.itemIds,
@@ -2253,7 +2253,7 @@ export async function bulkArchiveItems(target: ResolveBulkTargetInput) {
   const idsResult = await resolveBulkItemIds(target);
   if ("error" in idsResult) return { error: idsResult.error };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("bulk_archive_items", {
     p_item_ids: idsResult.itemIds,
@@ -2278,7 +2278,7 @@ async function runBulkRpc(
   const idsResult = await resolveBulkItemIds(target);
   if ("error" in idsResult) return { error: idsResult.error };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc(rpc, {
     p_item_ids: idsResult.itemIds,
     ...params,

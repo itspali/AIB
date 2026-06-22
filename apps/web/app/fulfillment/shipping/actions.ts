@@ -10,7 +10,7 @@ import type { SalesShipmentRow, ShippableSalesOrder } from "@/lib/fulfillment/sh
 import { formatSalesOrderRpcError } from "@/lib/sales/orders/rpc-errors";
 import { postSalesShipmentSchema } from "@/lib/sales/orders/schemas";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const FULFILLMENT_PATHS = [
   "/fulfillment",
@@ -27,7 +27,7 @@ function revalidateFulfillmentPaths() {
 }
 
 export async function loadSalesShipments(): Promise<SalesShipmentRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchSalesShipments(supabase, tenantId);
 }
 
@@ -35,7 +35,7 @@ export async function loadSalesShipmentDetail(
   shipmentId: string
 ): Promise<{ shipment: SalesShipmentRow } | { error: string }> {
   if (!shipmentId.trim()) return { error: "Shipment id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const shipment = await fetchSalesShipmentById(supabase, tenantId, shipmentId);
   if (!shipment) return { error: "Shipment not found." };
   return { shipment };
@@ -45,7 +45,7 @@ export async function loadShippableSalesOrder(
   salesOrderId: string
 ): Promise<{ order: ShippableSalesOrder } | { error: string }> {
   if (!salesOrderId.trim()) return { error: "Sales order id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const order = await fetchShippableSalesOrder(supabase, tenantId, salesOrderId);
   if (!order) return { error: "Sales order not found." };
   return { order };
@@ -57,7 +57,7 @@ export async function postSalesShipment(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid shipment." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const values = parsed.data;
 
   const { data, error } = await supabase.rpc("post_sales_shipment", {

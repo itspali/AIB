@@ -54,7 +54,7 @@ import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { parseIssuePurchaseOrderRpcResult } from "@/lib/documents/posting-queries";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { assertFinanceSetupReady } from "@/app/onboarding/actions";
 import { fetchPoPromoEntitlements, type PoPromoEntitlementRow } from "@/lib/procurement/promo/entitlements";
 import { poPeekShowsPromoEntitlements } from "@/lib/procurement/purchase-orders/po-peek-promo";
@@ -84,12 +84,12 @@ function revalidatePurchaseOrderPaths() {
 }
 
 export async function loadProcurementLocations(): Promise<ProcurementLocationOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchProcurementLocations(supabase, tenantId);
 }
 
 export async function loadProcurementSuppliers(): Promise<ProcurementSupplierOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchProcurementSuppliers(supabase, tenantId);
 }
 
@@ -97,7 +97,7 @@ export async function loadEffectivePoDocumentLayout(
   documentLocationId?: string | null
 ): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const layout = await resolveEffectiveDocumentLayout({
       supabase,
       tenantId,
@@ -114,7 +114,7 @@ export async function loadEffectivePoDocumentLayout(
 }
 
 export async function fetchMorePurchaseOrders(offset: number) {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolvePurchaseOrderEditAccess(supabase, userId, tenantId);
   return fetchPurchaseOrdersPage(
     supabase,
@@ -132,7 +132,7 @@ export async function loadPurchaseOrderDetail(
   purchaseOrderId: string
 ): Promise<{ purchaseOrder: PurchaseOrderRow } | { error: string }> {
   if (!purchaseOrderId.trim()) return { error: "Purchase order id is required." };
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [purchaseOrder, access] = await Promise.all([
     fetchPurchaseOrderById(supabase, tenantId, purchaseOrderId),
     resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
@@ -158,7 +158,7 @@ export async function loadPurchaseOrderPeek(
 ): Promise<PurchaseOrderPeekPayload | { error: string }> {
   if (!purchaseOrderId.trim()) return { error: "Purchase order id is required." };
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [purchaseOrder, access] = await Promise.all([
     fetchPurchaseOrderById(supabase, tenantId, purchaseOrderId),
     resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
@@ -196,7 +196,7 @@ export async function peekPurchaseOrderNumber(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid location." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("peek_document_voucher_string", {
     p_voucher_type: "PURCHASE_ORDER",
     p_location_id: parsed.data.destination_location_id,
@@ -236,7 +236,7 @@ export async function lookupPoLineCatalogContext(input: {
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const context = await fetchPoLineCatalogContext(supabase, tenantId, input.variant_id);
     return { context };
   } catch (error) {
@@ -253,7 +253,7 @@ export async function lookupSupplierVariantPrice(input: {
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const unit_price = await fetchSupplierVariantPrice(
       supabase,
       tenantId,
@@ -275,7 +275,7 @@ export async function loadSupplierItemInsights(
   }
 
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const insights = await fetchSupplierItemInsights(supabase, tenantId, {
       supplier_id: parsed.data.supplier_id,
       variant_id: parsed.data.variant_id,
@@ -302,7 +302,7 @@ export async function savePurchaseOrder(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const isNewPurchaseOrder = !values.purchase_order_id;
   if (isNewPurchaseOrder) {
@@ -393,7 +393,7 @@ export async function updatePurchaseOrderVoucherNumber(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid PO number." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("update_purchase_order_voucher_number", {
     p_purchase_order_id: parsed.data.purchase_order_id,
@@ -423,7 +423,7 @@ export async function issuePurchaseOrder(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid purchase order." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("issue_purchase_order", {
     p_purchase_order_id: parsed.data.purchase_order_id,
@@ -470,7 +470,7 @@ async function runPurchaseOrderWorkflowRpc(
     }
   | { error: string; errorAction?: UserFacingErrorAction }
 > {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc(rpcName, args);
 
   if (error) {
@@ -531,7 +531,7 @@ export async function bulkApprovePurchaseOrders(raw: unknown) {
   }
 
   const uniqueIds = [...new Set(parsed.data.purchase_order_ids)];
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [access, approvalSettings] = await Promise.all([
     resolvePurchaseOrderEditAccess(supabase, userId, tenantId),
     fetchProcurementApprovalSettings(supabase, tenantId),
@@ -717,7 +717,7 @@ export async function applyPoCatalogWriteback(raw: unknown) {
     return { success: true as const, updatedCount: 0 };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const grouped = new Map<
     string,
@@ -884,7 +884,7 @@ export async function loadPoPromoEntitlements(purchaseOrderId: string) {
     return { error: "Invalid purchase order." as const };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   try {
     const entitlements = await fetchPoPromoEntitlements(supabase, tenantId, parsed.data);
@@ -901,7 +901,7 @@ export async function writeOffPromotionalEntitlement(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid write-off request." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { entitlement_id, reason } = parsed.data;
 
   const { error } = await supabase.rpc("write_off_promotional_entitlement", {

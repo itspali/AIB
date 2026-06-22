@@ -29,7 +29,7 @@ import { SALES_INVOICES_HREF, SALES_ORDERS_HREF, SALES_QUOTES_HREF } from "@/lib
 import { mapSalesCommerceRpcExtrasInput } from "@/lib/sales/shared/sales-commerce-save-extras";
 import { resolveSalesCommerceSupplyStatesServer } from "@/lib/sales/shared/resolve-sales-supply-states-server";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
 import {
   canAccessSalesOrderShippingLocation,
@@ -50,7 +50,7 @@ function revalidateQuotePaths() {
 }
 
 export async function fetchMoreSalesQuotations(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchSalesQuotationsPage(supabase, tenantId, { offset });
 }
 
@@ -65,7 +65,7 @@ export async function loadSalesQuotationDetail(
   const parsed = z.string().uuid().safeParse(quotationId);
   if (!parsed.success) return { error: "Invalid quotation id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
     if (!quote) return { error: "Quote not found." };
@@ -82,7 +82,7 @@ export async function resolveQuoteLineSku(sku: string) {
 }
 
 async function quoteErrorContext(
-  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  supabase: TenantContext["supabase"],
   tenantId: string,
   originLocationId?: string | null
 ) {
@@ -105,7 +105,7 @@ export async function saveSalesQuotation(raw: unknown) {
     return { error: "Invalid quote." };
   }
 
-  const { supabase, userId, tenantId } = await requireTenantId();
+  const { supabase, userId, tenantId } = await requireTenantMutation();
   const resolvedStates = await resolveSalesCommerceSupplyStatesServer(supabase, tenantId, {
     customerId: typeof rawRecord.customer_id === "string" ? rawRecord.customer_id : "",
     originLocationId:
@@ -180,7 +180,7 @@ async function runSalesQuotationWorkflowRpc(
   | { success: true; quotationId: string; pendingNextStep?: boolean }
   | { error: string }
 > {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc(rpcName, args);
 
   if (error) {
@@ -224,7 +224,7 @@ export async function sendSalesQuotation(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
-  const { supabase, tenantId, email } = await requireTenantId();
+  const { supabase, tenantId, email } = await requireTenantMutation();
   const quotationId = parsed.data.quotation_id;
   const sendChannel = parsed.data.send_channel ?? "EMAIL";
 
@@ -303,7 +303,7 @@ export async function bulkApproveSalesQuotations(raw: unknown) {
   }
 
   const uniqueIds = [...new Set(parsed.data.quotation_ids)];
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const [access, approvalSettings] = await Promise.all([
     resolveSalesOrderEditAccess(supabase, userId, tenantId),
     fetchSalesApprovalSettings(supabase, tenantId),
@@ -437,7 +437,7 @@ export async function resolveQuoteSendRecipientEmail(quotationId: string) {
   const parsed = z.string().uuid().safeParse(quotationId);
   if (!parsed.success) return { error: "Invalid quotation id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
   if (!quote) return { error: "Quote not found." };
 
@@ -451,7 +451,7 @@ export async function convertQuotationToOrder(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("convert_quotation_to_order", {
     p_quotation_id: parsed.data.quotation_id,
   });
@@ -473,7 +473,7 @@ export async function convertQuotationToInvoice(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid quote." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("convert_quotation_to_invoice", {
     p_quotation_id: parsed.data.quotation_id,
     p_origin_location_id: parsed.data.origin_location_id ?? null,
@@ -495,7 +495,7 @@ export async function loadSalesOrderPrefillFromQuote(quotationId: string) {
   const parsed = z.string().uuid().safeParse(quotationId);
   if (!parsed.success) return { error: "Invalid quotation id." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   try {
     const quote = await fetchSalesQuotationById(supabase, tenantId, parsed.data);
     if (!quote) return { error: "Quotation not found." };

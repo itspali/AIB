@@ -16,7 +16,7 @@ import {
 } from "@/lib/organization/schemas";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import {
   buildDefaultProductFieldsAccessMatrix,
   parseTenantProductFieldsAccess,
@@ -41,7 +41,7 @@ export async function saveOrganizationSettings(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
@@ -185,7 +185,7 @@ export async function grantOrganizationSettingsDelegate(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid delegate selection" };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.canGrantDelegates) {
@@ -208,7 +208,7 @@ export async function grantOrganizationSettingsDelegate(raw: unknown) {
 }
 
 export async function revokeOrganizationSettingsDelegate(userId: string) {
-  const { supabase, tenantId, userId: actorId } = await requireTenantId();
+  const { supabase, tenantId, userId: actorId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, actorId, tenantId);
   if (!access.canGrantDelegates) {
@@ -236,7 +236,7 @@ export async function grantPurchaseOrderEditDelegate(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid delegate selection" };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.canGrantDelegates) {
@@ -260,7 +260,7 @@ export async function grantPurchaseOrderEditDelegate(raw: unknown) {
 }
 
 export async function revokePurchaseOrderEditDelegate(userId: string) {
-  const { supabase, tenantId, userId: actorId } = await requireTenantId();
+  const { supabase, tenantId, userId: actorId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, actorId, tenantId);
   if (!access.canGrantDelegates) {
@@ -289,7 +289,7 @@ export async function grantPoApprovalDelegate(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid approval delegate selection" };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.canGrantDelegates) {
     return { error: "Only workspace owners can manage approval delegates." };
@@ -315,7 +315,7 @@ export async function grantPoApprovalDelegate(raw: unknown) {
 }
 
 export async function revokePoApprovalDelegate(delegatorUserId: string) {
-  const { supabase, tenantId, userId: actorId } = await requireTenantId();
+  const { supabase, tenantId, userId: actorId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, actorId, tenantId);
   if (!access.canGrantDelegates) {
@@ -370,7 +370,7 @@ export async function saveProductFieldsAccess(raw: unknown) {
 
   const accessMatrix = sanitizeProductFieldsAccess(raw);
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const settingsAccess = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!settingsAccess.isOwner) {
@@ -404,7 +404,7 @@ export async function saveOrganizationEntityCustomFields(
     return { error: validationError };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.isOwner) {
     return { error: "Only workspace owners can edit entity custom fields." };
@@ -449,7 +449,7 @@ export async function saveTenantReportingLines(
   lines: Array<{ user_id: string; reports_to_user_id: string | null }>
 ): Promise<{ success: true } | { error: string }> {
   try {
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit reporting lines." };
@@ -480,7 +480,7 @@ export async function saveSellingFocus(
   raw: unknown
 ): Promise<{ success: true; suggestions: ChannelSuggestion[] } | { error: string }> {
   const businessModel = parseBusinessModel(raw);
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
@@ -535,7 +535,7 @@ export async function deleteWorkspace(confirmationName: string) {
     return { error: "Workspace name confirmation is required" };
   }
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.isOwner) {
     return { error: "Workspace owner privileges required." };

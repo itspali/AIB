@@ -12,7 +12,7 @@ import { fetchProcurementLocations } from "@/lib/procurement/shared/queries";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const GIT_PATHS = [
   "/procurement/goods-in-transit",
@@ -41,7 +41,7 @@ function revalidateGitPaths() {
 }
 
 export async function loadGoodsInTransitVouchers(): Promise<GoodsInTransitRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchGoodsInTransitVouchers(supabase, tenantId);
 }
 
@@ -49,7 +49,7 @@ export async function loadGoodsInTransitDetail(
   voucherId: string
 ): Promise<{ voucher: GoodsInTransitRow } | { error: string }> {
   if (!voucherId.trim()) return { error: "Voucher id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const voucher = await fetchGoodsInTransitVoucherById(supabase, tenantId, voucherId);
   if (!voucher) return { error: "GIT voucher not found." };
   return { voucher };
@@ -61,7 +61,7 @@ export async function loadGitCatalogContext(): Promise<{
   gitLocations: Awaited<ReturnType<typeof fetchGitHoldingLocations>>;
   receivableOrders: ReceivablePurchaseOrderOption[];
 }> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const [vouchers, sourceLocations, gitLocations, receivableOrders] = await Promise.all([
     fetchGoodsInTransitVouchers(supabase, tenantId),
     fetchProcurementLocations(supabase, tenantId),
@@ -78,7 +78,7 @@ export async function postGoodsInTransit(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("post_goods_in_transit", {
     p_source_location_id: values.source_location_id,
@@ -114,7 +114,7 @@ export async function loadOpenGitVouchersForPo(
   purchaseOrderId: string
 ): Promise<GoodsInTransitRow[]> {
   if (!purchaseOrderId.trim()) return [];
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchGoodsInTransitVouchers(supabase, tenantId, {
     purchaseOrderId,
     status: "POSTED",

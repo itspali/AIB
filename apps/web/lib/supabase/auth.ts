@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { readSessionClaims, type SessionClaims } from "@/lib/supabase/session-claims";
+import { resolveEffectiveTenant } from "@/lib/supabase/effective-tenant";
 
 // Re-export the client-safe claim helpers so existing server-side imports of
 // this module keep working unchanged.
@@ -20,5 +21,6 @@ export const getSessionClaims = cache(async (): Promise<SessionClaims | null> =>
 
 export async function getSessionTenantId(): Promise<string | null> {
   const claims = await getSessionClaims();
-  return claims?.tenantId ?? null;
+  const { tenantId } = await resolveEffectiveTenant(claims?.tenantId);
+  return tenantId;
 }

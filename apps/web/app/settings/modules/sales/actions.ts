@@ -15,7 +15,7 @@ import {
   normalizeSalesOrderLayoutTemplate,
   normalizeSalesQuotationLayoutTemplate,
 } from "@/lib/sales/shared/sales-commerce-layout";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 
 const DOCUMENT_TEMPLATES_SETTINGS_PATH = "/settings/documents/templates";
@@ -35,7 +35,7 @@ async function loadDocumentLayoutForModule(
   input: { viewContext: DocumentViewContext; scope?: DocumentLayoutScope }
 ): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const layout = await fetchDocumentLayoutTemplate(
       supabase,
       tenantId,
@@ -58,7 +58,7 @@ async function saveDocumentLayoutForModule(
   input: SaveDocumentLayoutInput
 ): Promise<{ success: true } | { error: string }> {
   try {
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit document layout." };
@@ -291,7 +291,7 @@ export async function saveSalesApprovalSettings(
       return { error: parsed.error.issues[0]?.message ?? "Invalid approval settings." };
     }
 
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit approval settings." };
@@ -342,7 +342,7 @@ export async function saveSalesPolicies(raw: unknown) {
       return { error: parsed.error.issues[0]?.message ?? "Invalid sales policies." };
     }
 
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit sales policies." };

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AuthPageShell } from "@/components/auth/auth-page-shell";
 
 const signupSchema = z
   .object({
@@ -365,20 +366,20 @@ export default function SignupPageClient() {
 
   if (!sessionReady) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+      <AuthPageShell>
+        <Card className="w-full border-border/60 bg-card shadow-md lg:bg-card/95 lg:shadow-lg lg:backdrop-blur-sm">
           <CardContent className="pt-6">
             <SignupProgressSteps activeIndex={0} />
           </CardContent>
         </Card>
-      </div>
+      </AuthPageShell>
     );
   }
 
   if (mode === "check_email") {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+      <AuthPageShell>
+        <Card className="w-full border-border/60 bg-card shadow-md lg:bg-card/95 lg:shadow-lg lg:backdrop-blur-sm">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Mail className="h-6 w-6 text-primary" />
@@ -406,13 +407,13 @@ export default function SignupPageClient() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </AuthPageShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <AuthPageShell>
+      <Card className="w-full border-border/60 bg-card shadow-md lg:bg-card/95 lg:shadow-lg lg:backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-2xl font-bold tracking-tight">
             {isResume ? signupCopy.resumeTitle : signupCopy.title}
@@ -595,6 +596,6 @@ export default function SignupPageClient() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthPageShell>
   );
 }

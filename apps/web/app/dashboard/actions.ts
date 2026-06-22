@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import type { TaxRateSlabInput } from "@/lib/dashboard/types";
 
 function toTaxCodeSlug(value: string): string {
@@ -18,7 +18,7 @@ export async function addTaxRateSlab(input: TaxRateSlabInput) {
   const name = input.tax_component_name?.trim();
   if (!name) return { error: "Component name is required" };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const pct = Number.parseFloat(input.tax_percentage) || 0;
 
@@ -46,7 +46,7 @@ export async function addTaxRateSlab(input: TaxRateSlabInput) {
 }
 
 export async function dismissGettingStarted() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data: tenant } = await supabase
     .from("tenants")
@@ -74,7 +74,7 @@ export async function dismissGettingStarted() {
 }
 
 export async function markOrgSettingsReviewed() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data: tenant } = await supabase
     .from("tenants")

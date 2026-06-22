@@ -16,7 +16,7 @@ import {
   PO_AUTO_ROUND_OFF_STEP_PRESETS,
   resolvePoAutoRoundOffStep,
 } from "@/lib/procurement/purchase-orders/po-auto-round-off";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 
 const DOCUMENT_TEMPLATES_SETTINGS_PATH = "/settings/documents/templates";
@@ -42,7 +42,7 @@ async function loadDocumentLayoutForModule(
   input: { viewContext: DocumentViewContext; scope?: DocumentLayoutScope }
 ): Promise<{ layout: DocumentLayoutTemplate } | { error: string }> {
   try {
-    const { supabase, tenantId } = await requireTenantId();
+    const { supabase, tenantId } = await requireTenantMutation();
     const layout = await fetchDocumentLayoutTemplate(
       supabase,
       tenantId,
@@ -65,7 +65,7 @@ async function saveDocumentLayoutForModule(
   input: SaveDocumentLayoutInput
 ): Promise<{ success: true } | { error: string }> {
   try {
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit document layout." };
@@ -187,7 +187,7 @@ export async function saveProcurementPolicies(raw: unknown) {
       return { error: parsed.error.issues[0]?.message ?? "Invalid procurement policies." };
     }
 
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit procurement policies." };
@@ -292,7 +292,7 @@ const saveProcurementApprovalSettingsSchema = z.object({
 
 export async function fetchPendingPoApprovalRunCount(): Promise<number> {
   try {
-    const { supabase } = await requireTenantId();
+    const { supabase } = await requireTenantMutation();
     const { data, error } = await supabase.rpc("count_pending_po_approval_runs");
     if (error) return 0;
     return typeof data === "number" ? data : Number(data ?? 0);
@@ -311,7 +311,7 @@ export async function saveProcurementApprovalSettings(
       return { error: parsed.error.issues[0]?.message ?? "Invalid approval settings." };
     }
 
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit approval settings." };
@@ -392,7 +392,7 @@ export async function runPoApprovalSlaReminders(): Promise<
   | { error: string }
 > {
   try {
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.isOwner) {
       return { error: "Only workspace owners can run approval SLA reminders." };
@@ -436,7 +436,7 @@ export async function saveFinancialProcurementSettings(
       return { error: parsed.error.issues[0]?.message ?? "Invalid financial settings." };
     }
 
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
     if (!access.granted) {
       return { error: "You do not have permission to edit financial settings." };

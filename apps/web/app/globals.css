@@ -612,6 +612,20 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-auth-float,
+  .animate-auth-float-delayed,
+  .animate-auth-drift,
+  .animate-auth-flow-pulse {
+    animation: none;
+  }
+
+  .auth-flow-pulse circle,
+  .auth-flow-orb {
+    visibility: hidden;
+  }
+}
+
 /* Right drawer: slide in from off-screen right; width stays fixed (right edge anchored). */
 @keyframes aib-right-drawer-slide-in {
   from {

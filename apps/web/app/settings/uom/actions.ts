@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { uomSchema } from "@/lib/uom/schemas";
 import type { UomFormValues } from "@/lib/uom/types";
 
@@ -19,7 +19,7 @@ export async function saveUom(values: UomFormValues) {
   }
 
   const data = parsed.data;
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data: uomId, error } = await supabase.rpc("save_uom", {
     p_code: data.code.trim(),
@@ -40,7 +40,7 @@ export async function saveUom(values: UomFormValues) {
 export async function deleteUom(uomId: string) {
   if (!uomId) return { error: "Unit id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("delete_uom", {
     p_uom_id: uomId,
@@ -53,7 +53,7 @@ export async function deleteUom(uomId: string) {
 }
 
 export async function seedDefaultUoms() {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { data, error } = await supabase.rpc("seed_default_uoms");
 

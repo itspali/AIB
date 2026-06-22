@@ -61,10 +61,26 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.45" },
         },
+        "auth-float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+        "auth-drift": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "50%": { transform: "translateX(6px)" },
+        },
+        "auth-flow-pulse": {
+          "0%": { strokeDashoffset: "2460" },
+          "100%": { strokeDashoffset: "0" },
+        },
       },
       animation: {
         shimmer: "shimmer 1.6s ease-in-out infinite",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "auth-float": "auth-float 8s ease-in-out infinite",
+        "auth-float-delayed": "auth-float 10s ease-in-out 2s infinite",
+        "auth-drift": "auth-drift 12s ease-in-out infinite",
+        "auth-flow-pulse": "auth-flow-pulse 14s linear infinite",
       },
       boxShadow: {
         glow: "0 0 24px hsl(var(--primary) / 0.18)",

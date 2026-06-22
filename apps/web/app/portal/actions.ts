@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { fetchSupplierPortalContext } from "@/lib/supplier-portal/queries";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { z } from "zod";
 
 const PORTAL_PATHS = ["/portal", "/portal/purchase-orders"] as const;
@@ -21,7 +21,7 @@ export async function acknowledgePortalPurchaseOrder(
   if (!parsed.success) return { error: "Invalid purchase order." };
 
   try {
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const portal = await fetchSupplierPortalContext(supabase, tenantId, userId);
     if (!portal) return { error: "Supplier portal access is not configured for your account." };
 
@@ -54,7 +54,7 @@ export async function registerSupplierInvoiceUpload(input: {
   vendorInvoiceNumber?: string | null;
 }): Promise<{ success: true; uploadId: string } | { error: string }> {
   try {
-    const { supabase, tenantId, userId } = await requireTenantId();
+    const { supabase, tenantId, userId } = await requireTenantMutation();
     const portal = await fetchSupplierPortalContext(supabase, tenantId, userId);
     if (!portal) return { error: "Supplier portal access is not configured for your account." };
 

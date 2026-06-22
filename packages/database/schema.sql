@@ -1413,3 +1413,6 @@ CREATE TABLE general_ledger_entries (
 );
 
 -- Signup bootstrap RPC: see supabase/migrations/20260527180000_create_tenant_signup_initialization.sql
+
+-- App Console (Phases 0–5): supabase/migrations/20260801120000_app_console_foundation.sql
+-- and 20260801130000_console_provision_rpc.sql

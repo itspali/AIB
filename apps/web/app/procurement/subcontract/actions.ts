@@ -5,7 +5,7 @@ import { z } from "zod";
 import { fetchSubcontractWipLocations } from "@/lib/procurement/git/queries";
 import { fetchProcurementSuppliers } from "@/lib/procurement/shared/queries";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const SUBCONTRACT_PATHS = ["/procurement", "/procurement/goods-receipts", "/inventory/stock"] as const;
 
@@ -29,7 +29,7 @@ function revalidateSubcontractPaths() {
 }
 
 export async function loadSubcontractAdminContext() {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const [suppliers, wipLocations, jobLinks, bomLines] = await Promise.all([
     fetchProcurementSuppliers(supabase, tenantId),
@@ -90,7 +90,7 @@ export async function saveVendorJobWorkLocation(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid subcontract link." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("save_vendor_job_work_location", {
     p_supplier_id: parsed.data.supplier_id,
     p_location_id: parsed.data.location_id,
@@ -114,7 +114,7 @@ export async function saveSubcontractBomLines(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid subcontract BOM." };
   }
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("save_subcontract_bom_lines", {
     p_parent_item_id: parsed.data.parent_item_id,
     p_lines: parsed.data.lines.map((line) => ({

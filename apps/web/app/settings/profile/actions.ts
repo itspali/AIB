@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { profileSettingsSchema } from "@/lib/settings/schemas";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateUserDutyStatus } from "@/app/account/actions";
@@ -28,7 +28,7 @@ export async function applyProfileSecurityUpdates(raw: unknown) {
   }
 
   const values = parsed.data;
-  const { supabase, tenantId, userId, email } = await requireTenantId();
+  const { supabase, tenantId, userId, email } = await requireTenantMutation();
 
   const { error: prefsError } = await supabase.rpc("update_user_preferences", {
     p_timezone: values.timezone,
@@ -87,7 +87,7 @@ export async function registerSessionTelemetry(input: {
   authSessionId: string;
   osBrowser: string;
 }) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const headerStore = await headers();
   const forwarded = headerStore.get("x-forwarded-for");
   const ipAddress = forwarded?.split(",")[0]?.trim() || headerStore.get("x-real-ip") || "Local development";
@@ -109,7 +109,7 @@ export async function registerSessionTelemetry(input: {
 }
 
 export async function revokeOtherSessions(currentAuthSessionId: string) {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const { error } = await supabase.rpc("revoke_other_auth_sessions", {
     p_current_auth_session_id: currentAuthSessionId,
@@ -132,7 +132,7 @@ export async function deleteMyAccount(confirmationEmail: string) {
     return { error: "Email confirmation is required" };
   }
 
-  const { supabase, userId, email } = await requireTenantId();
+  const { supabase, userId, email } = await requireTenantMutation();
   if (!email || trimmed.toLowerCase() !== email.toLowerCase()) {
     return { error: "Email confirmation does not match your account" };
   }

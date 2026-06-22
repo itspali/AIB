@@ -12,7 +12,7 @@ import {
 } from "@/lib/sales/navigation";
 import { fetchInvoicesForSalesOrder } from "@/lib/sales/shared/related-documents";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const SALES_PATHS = [SALES_ORDERS_HREF, SALES_QUOTES_HREF, SALES_INVOICES_HREF, "/sales", "/dashboard"] as const;
 
@@ -36,7 +36,7 @@ async function runLinkRpc(
   rpcName: string,
   args: Record<string, unknown>
 ): Promise<{ success: true } | { error: string }> {
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const { error } = await supabase.rpc(rpcName, args);
 
   if (error) {
@@ -153,7 +153,7 @@ export async function searchLinkableQuotes(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 
@@ -189,7 +189,7 @@ export async function searchLinkableSalesOrders(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 
@@ -224,7 +224,7 @@ export async function searchLinkableInvoices(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 
@@ -260,7 +260,7 @@ export async function searchLinkableQuotesForOrderSlot(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 
@@ -295,7 +295,7 @@ export async function searchLinkableQuotesForInvoiceSlot(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 
@@ -330,7 +330,7 @@ export async function searchLinkableSalesOrdersForQuote(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 
@@ -363,7 +363,7 @@ export async function loadInvoicesLinkedToSalesOrder(salesOrderId: string) {
     return { error: "Sales order id is required." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const invoices = await fetchInvoicesForSalesOrder(supabase, tenantId, salesOrderId);
 
   return {
@@ -381,7 +381,7 @@ export async function searchLinkableInvoicesForQuote(raw: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid search." };
   }
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const limit = parsed.data.limit ?? 25;
   const query = parsed.data.query?.trim();
 

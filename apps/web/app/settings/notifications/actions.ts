@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { SaveNotificationTemplateInput } from "@/lib/notifications/types";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 
 const saveSchema = z.object({
@@ -26,10 +26,10 @@ const resetSchema = z.object({
 });
 
 async function requireSettingsEditor(): Promise<
-  | { supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"]; tenantId: string; userId: string }
+  | { supabase: TenantContext["supabase"]; tenantId: string; userId: string }
   | { error: string }
 > {
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
   const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
   if (!access.granted) {
     return { error: "You do not have permission to edit notification templates." };

@@ -25,7 +25,7 @@ import {
 } from "@/lib/documents/posting-queries";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const GRN_PATHS = [
   "/procurement/goods-receipts",
@@ -42,12 +42,12 @@ function revalidateGoodsReceiptPaths() {
 }
 
 export async function fetchMoreGoodsReceipts(offset: number) {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchGoodsReceiptsPage(supabase, tenantId, { offset });
 }
 
 export async function loadGoodsReceipts(): Promise<GoodsReceiptRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const page = await fetchGoodsReceiptsPage(supabase, tenantId);
   return page.rows;
 }
@@ -56,7 +56,7 @@ export async function loadGoodsReceiptDetail(
   goodsReceiptId: string
 ): Promise<{ goodsReceipt: GoodsReceiptRow } | { error: string }> {
   if (!goodsReceiptId.trim()) return { error: "Goods receipt id is required." };
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   const goodsReceipt = await fetchGoodsReceiptById(supabase, tenantId, goodsReceiptId);
   if (!goodsReceipt) return { error: "Goods receipt not found." };
   return { goodsReceipt };
@@ -65,7 +65,7 @@ export async function loadGoodsReceiptDetail(
 export async function loadReceivablePurchaseOrders(
   locationId?: string | null
 ): Promise<ReceivablePurchaseOrderOption[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchReceivablePurchaseOrders(supabase, tenantId, {
     locationId: locationId ?? null,
   });
@@ -78,7 +78,7 @@ export async function loadGrnVariantQcPolicies(
 ): Promise<Record<string, VariantQcPolicyHint>> {
   const unique = [...new Set(variantIds.filter(Boolean))];
   if (!unique.length) return {};
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchVariantQcPolicyHints(supabase, tenantId, unique);
 }
 
@@ -107,7 +107,7 @@ export async function postGoodsReceipt(
   );
   if (exceptionError) return { error: exceptionError };
 
-  const { supabase, tenantId, userId } = await requireTenantId();
+  const { supabase, tenantId, userId } = await requireTenantMutation();
 
   const rpcLines = values.lines.map((line) => {
     const received = Number(line.quantity_received);
@@ -223,7 +223,7 @@ export async function loadGoodsReceiptPostingRun(goodsReceiptId: string): Promis
   postedAt: string | null;
 } | null> {
   if (!goodsReceiptId.trim()) return null;
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const run = await fetchLatestDocumentPostingRun(supabase, "GRN", goodsReceiptId);
   if (!run) return null;
   return { steps: run.steps, postedAt: run.posted_at || null };
@@ -232,7 +232,7 @@ export async function loadGoodsReceiptPostingRun(goodsReceiptId: string): Promis
 export async function releaseGoodsReceiptFromQc(goodsReceiptId: string) {
   if (!goodsReceiptId.trim()) return { error: "Goods receipt id is required." };
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("release_goods_receipt_from_qc", {
     p_goods_receipt_id: goodsReceiptId,
     p_released_by: userId,
@@ -274,7 +274,7 @@ export async function releaseGoodsReceiptLineFromQc(input: {
     return { error: "Failed quantity is invalid." };
   }
 
-  const { supabase, userId } = await requireTenantId();
+  const { supabase, userId } = await requireTenantMutation();
   const { data, error } = await supabase.rpc("release_goods_receipt_line_from_qc", {
     p_goods_receipt_item_id: itemId,
     p_quantity_released: released,

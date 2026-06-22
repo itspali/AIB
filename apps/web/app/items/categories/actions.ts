@@ -7,17 +7,17 @@ import { fetchCategoryItemCounts, fetchCategoryRowById, fetchCategoryRows } from
 import type { AttributeTemplateEntry, CategoryRow, SystemCategoryFormValues } from "@/lib/categories/types";
 import { validateAttributeTemplates } from "@/lib/categories/validate-templates";
 import { validateCategoryParentAssignment } from "@/lib/categories/validate-parent";
-import { requireTenantId } from "@/lib/supabase/require-tenant";
+import { requireTenantMutation, type TenantContext } from "@/lib/supabase/require-tenant";
 
 const CATEGORY_PATHS = ["/items/categories", "/items"] as const;
 
 export async function loadCategoryItemCounts(): Promise<Record<string, number>> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchCategoryItemCounts(supabase, tenantId);
 }
 
 export async function loadCategoryRows(): Promise<CategoryRow[]> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
   return fetchCategoryRows(supabase, tenantId);
 }
 
@@ -59,7 +59,7 @@ type CategoryMutationResult = CategoryMutationSuccess | CategoryMutationError;
 export async function saveSystemCategory(
   values: SystemCategoryFormValues
 ): Promise<CategoryMutationResult> {
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const name = values.name.trim();
   if (!name) return { error: "Category name is required" };
@@ -107,7 +107,7 @@ export async function saveSystemCategory(
 }
 
 async function deleteSystemCategoryInternal(
-  supabase: Awaited<ReturnType<typeof requireTenantId>>["supabase"],
+  supabase: TenantContext["supabase"],
   categoryId: string
 ): Promise<{ ok: true; outcome: string } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc("delete_system_category", {
@@ -121,7 +121,7 @@ async function deleteSystemCategoryInternal(
 export async function deleteSystemCategory(categoryId: string) {
   if (!categoryId) return { error: "Category id is required." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
   const result = await deleteSystemCategoryInternal(supabase, categoryId);
   if (!result.ok) return { error: result.error };
 
@@ -132,7 +132,7 @@ export async function deleteSystemCategory(categoryId: string) {
 export async function deactivateSystemCategory(categoryId: string) {
   if (!categoryId) return { error: "Category id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { error } = await supabase
     .from("item_categories")
@@ -154,7 +154,7 @@ export async function deactivateSystemCategory(categoryId: string) {
 export async function activateSystemCategory(categoryId: string) {
   if (!categoryId) return { error: "Category id is required." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data, error } = await supabase
     .from("item_categories")
@@ -182,7 +182,7 @@ export async function bulkActivateCategories(categoryIds: string[]) {
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data, error } = await supabase
     .from("item_categories")
@@ -204,7 +204,7 @@ export async function bulkDeactivateCategories(categoryIds: string[]) {
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  const { supabase, tenantId } = await requireTenantId();
+  const { supabase, tenantId } = await requireTenantMutation();
 
   const { data, error } = await supabase
     .from("item_categories")
@@ -226,7 +226,7 @@ export async function bulkDeleteCategories(categoryIds: string[]) {
   const ids = uniqueCategoryIds(categoryIds);
   if (ids.length === 0) return { error: "Select at least one category." };
 
-  const { supabase } = await requireTenantId();
+  const { supabase } = await requireTenantMutation();
 
   const results = await Promise.all(
     ids.map(async (categoryId) => ({
