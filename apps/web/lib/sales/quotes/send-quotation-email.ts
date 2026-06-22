@@ -13,6 +13,7 @@ import {
   sendTransactionalEmail,
 } from "@/lib/email/send-transactional-email";
 import { renderNotificationTemplate } from "@/lib/notifications/render-template";
+import { sanitizeNotificationHtml } from "@/lib/notifications/sanitize-html";
 import { fetchSalesQuotationById } from "@/lib/sales/quotes/queries";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 
@@ -101,7 +102,7 @@ export async function sendQuotationEmailForQuote(input: {
     : `Quotation ${quote.quotation_number}`;
 
   const html = template?.body_template_html
-    ? renderNotificationTemplate(template.body_template_html, context)
+    ? sanitizeNotificationHtml(renderNotificationTemplate(template.body_template_html, context))
     : renderNotificationTemplate(
         template?.body_template ??
           "Please find attached our quotation {{quotation_number}}. Valid until {{valid_until}}. Total: {{total_net_amount}}.",

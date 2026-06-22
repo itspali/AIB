@@ -22,7 +22,7 @@ function isSignupAuthorized(request: Request): boolean {
 
 export async function POST(request: Request) {
   if (!isSignupAuthorized(request)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ useClientSignUp: true });
   }
 
   const keyMismatch = getServiceRoleKeyMismatch();
