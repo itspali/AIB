@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { deactivateLocation, reactivateLocation } from "@/app/settings/locations/actions";
+import { reactivateLocation } from "@/app/settings/locations/actions";
+import { LocationDeleteDialog } from "@/components/locations/location-delete-dialog";
 import { LocationDetailViewport } from "@/components/locations/location-detail-viewport";
 import { LocationGovernanceBanner } from "@/components/locations/location-governance-banner";
 import { LocationHierarchyRail } from "@/components/locations/location-hierarchy-rail";
@@ -32,9 +34,11 @@ export type LocationManagementTerminalProps = {
 type CanvasMode = "empty" | "detail" | "form";
 
 export function LocationManagementTerminal({ initialRows, moduleContext }: LocationManagementTerminalProps) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("empty");
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [listPrefs, setListPrefs] = useState<LocationListPrefs>(getDefaultLocationListPrefs);
   const [listPrefsHydrated, setListPrefsHydrated] = useState(false);
@@ -82,16 +86,9 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
     setCanvasMode("detail");
   };
 
-  const handleDeactivate = () => {
+  const handleDelete = () => {
     if (!selectedLocation) return;
-    startTransition(async () => {
-      const result = await deactivateLocation(selectedLocation.id);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to deactivate facility node.");
-        return;
-      }
-      toast.success("Facility node deactivated.");
-    });
+    setDeleteDialogOpen(true);
   };
 
   const handleReactivate = () => {
@@ -176,7 +173,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
               }
               defaultInventoryValuationMethod={moduleContext.defaultInventoryValuationMethod}
               onEdit={openEdit}
-              onDeactivate={handleDeactivate}
+              onDelete={handleDelete}
               onReactivate={handleReactivate}
             />
           ) : (
@@ -186,6 +183,18 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
       </div>
 
       {isPending && <span className="sr-only">Updating facility node…</span>}
+
+      <LocationDeleteDialog
+        location={selectedLocation}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onCompleted={() => {
+          setDeleteDialogOpen(false);
+          setSelectedId(null);
+          setCanvasMode("empty");
+          router.refresh();
+        }}
+      />
     </>
   );
 }

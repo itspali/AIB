@@ -1,11 +1,9 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { forwardRef, useImperativeHandle } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,118 +19,131 @@ import {
   getDefaultLocationDefaults,
 } from "@/lib/onboarding/business-model";
 import { COUNTRY_OPTIONS } from "@/lib/onboarding/locale-presets";
-import { cn } from "@/lib/utils";
+import {
+  TAX_REGISTRATION_STATUS_OPTIONS,
+  inferTaxRegistrationStatus,
+  registrationLabelForCountry,
+  taxIdLabelForCountry,
+  type TaxRegistrationStatus,
+} from "@/lib/onboarding/tax-registration";
 import type {
   CorporateProfileFormValues,
+  OnboardingDraft,
   PrimaryLocation,
   StepSubmitHandle,
   TenantProfile,
 } from "@/lib/onboarding/types";
 
-const schema = z.object({
-  company_name: z.string().min(1, "Name is required"),
-  legal_registration_number: z.string().default(""),
-  tax_identifier: z.string().default(""),
-  name: z.string().min(1, "Location name is required"),
-  code: z.string().default("HQ"),
-  address_line1: z.string().default(""),
-  address_line2: z.string().default(""),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  zip_postal: z.string().default(""),
-  country_code: z.string().length(2, "Use 2-letter country code"),
-  billing_state: z.string().default(""),
-  shipping_state: z.string().default(""),
-  tax_registered_name: z.string().optional(),
-  location_tax_identifier: z.string().optional(),
-});
+const taxStatusSchema = z.enum(["REGISTERED", "NOT_REGISTERED", "EXEMPT"]);
+
+const schema = z
+  .object({
+    company_name: z.string().min(1, "Name is required"),
+    legal_registration_number: z.string().default(""),
+    tax_identifier: z.string().default(""),
+    tax_registration_status: taxStatusSchema,
+    name: z.string().min(1, "Location name is required"),
+    code: z.string().default("HQ"),
+    address_line1: z.string().default(""),
+    address_line2: z.string().default(""),
+    city: z.string().min(1, "City is required"),
+    state: z.string().min(1, "State is required"),
+    zip_postal: z.string().default(""),
+    country_code: z.string().length(2, "Use 2-letter country code"),
+    billing_state: z.string().default(""),
+    shipping_state: z.string().default(""),
+    tax_registered_name: z.string().optional(),
+    location_tax_identifier: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.tax_registration_status === "REGISTERED" && !values.tax_identifier.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Tax ID is required when registered for tax",
+        path: ["tax_identifier"],
+      });
+    }
+  });
 
 type Props = {
-  completed: boolean;
   tenant: TenantProfile;
   primaryLocation: PrimaryLocation | null;
-  defaultValues?: Partial<CorporateProfileFormValues>;
-  showAdvanced: boolean;
-  onDraftChange?: (values: Partial<CorporateProfileFormValues>) => void;
-  onEditingChange?: (editing: boolean) => void;
+  initialCountryCode: string;
+  draft?: OnboardingDraft;
+  onDraftChange?: (values: Partial<CorporateProfileFormValues> & { tax_registration_status?: TaxRegistrationStatus }) => void;
 };
 
+function buildInitialValues(
+  tenant: TenantProfile,
+  primaryLocation: PrimaryLocation | null,
+  draft: OnboardingDraft | undefined,
+  initialCountryCode: string
+): CorporateProfileFormValues {
+  const locationDefaults = getDefaultLocationDefaults();
+  const draftProfile = draft?.corporateProfile ?? draft?.location;
+  const taxRegistrationStatus =
+    draft?.tax_registration_status ??
+    draftProfile?.tax_registration_status ??
+    inferTaxRegistrationStatus(tenant.tax_identifier);
+
+  return {
+    company_name: tenant.name || draftProfile?.company_name || "",
+    legal_registration_number:
+      tenant.legal_registration_number || draftProfile?.legal_registration_number || "",
+    tax_identifier: tenant.tax_identifier || draftProfile?.tax_identifier || "",
+    tax_registration_status: taxRegistrationStatus,
+    name: primaryLocation?.name || draftProfile?.name || locationDefaults.name,
+    code: primaryLocation?.code || draftProfile?.code || locationDefaults.code,
+    address_line1: primaryLocation?.address_line1 || draftProfile?.address_line1 || "",
+    address_line2: primaryLocation?.address_line2 || draftProfile?.address_line2 || "",
+    city: primaryLocation?.city || draftProfile?.city || "",
+    state: primaryLocation?.state || draftProfile?.state || "",
+    zip_postal: primaryLocation?.zip_postal || draftProfile?.zip_postal || "",
+    country_code:
+      draftProfile?.country_code ||
+      primaryLocation?.country_code ||
+      tenant.country_code ||
+      initialCountryCode,
+    billing_state: draftProfile?.billing_state || "",
+    shipping_state: draftProfile?.shipping_state || "",
+    tax_registered_name: primaryLocation?.tax_registered_name || draftProfile?.tax_registered_name || "",
+    location_tax_identifier:
+      primaryLocation?.location_tax_identifier || draftProfile?.location_tax_identifier || "",
+  };
+}
+
 export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function StepCorporateProfile(
-  {
-    completed,
-    tenant,
-    primaryLocation,
-    defaultValues,
-    showAdvanced,
-    onDraftChange,
-    onEditingChange,
-  },
+  { tenant, primaryLocation, initialCountryCode, draft, onDraftChange },
   ref
 ) {
   const profileCopy = NEUTRAL_PROFILE_COPY;
   const locationDefaults = getDefaultLocationDefaults();
-  const [isEditing, setIsEditing] = useState(!completed);
-  const [complianceOpen, setComplianceOpen] = useState(profileCopy.defaultComplianceExpanded);
-
-  const setEditing = (value: boolean) => {
-    setIsEditing(value);
-    onEditingChange?.(value);
-  };
 
   const form = useForm<CorporateProfileFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      company_name: tenant.name || "",
-      legal_registration_number: tenant.legal_registration_number || "",
-      tax_identifier: tenant.tax_identifier || "",
-      name: defaultValues?.name || locationDefaults.name,
-      code: defaultValues?.code || locationDefaults.code,
-      address_line1: defaultValues?.address_line1 || "",
-      address_line2: defaultValues?.address_line2 || "",
-      city: defaultValues?.city || "",
-      state: defaultValues?.state || "",
-      zip_postal: defaultValues?.zip_postal || "",
-      country_code: defaultValues?.country_code || "US",
-      billing_state: "",
-      shipping_state: "",
-      ...defaultValues,
-    },
+    defaultValues: buildInitialValues(tenant, primaryLocation, draft, initialCountryCode),
   });
+
+  const countryCode = form.watch("country_code");
+  const taxRegistrationStatus = form.watch("tax_registration_status");
+  const taxIdLabel = taxIdLabelForCountry(countryCode);
+  const registrationLabel = registrationLabelForCountry(countryCode);
 
   useImperativeHandle(ref, () => ({
     submit: async () => {
       const valid = await form.trigger();
       if (!valid) return { error: "Please complete all required fields" };
-      const result = await saveCorporateProfile(form.getValues());
-      if (!result.error) setEditing(false);
-      return result;
+      const values = form.getValues();
+      if (values.tax_registration_status !== "REGISTERED") {
+        values.tax_identifier = values.tax_registration_status === "EXEMPT" ? "" : values.tax_identifier;
+      }
+      return saveCorporateProfile(values);
     },
   }));
 
-  if (completed && primaryLocation && !isEditing) {
-    return (
-      <div className="space-y-3">
-        <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2">
-          <p className="font-medium">{tenant.name}</p>
-          {(tenant.legal_registration_number || tenant.tax_identifier) && (
-            <p className="text-muted-foreground">
-              {tenant.legal_registration_number
-                ? `Reg. ${tenant.legal_registration_number}`
-                : null}
-              {tenant.legal_registration_number && tenant.tax_identifier ? " · " : null}
-              {tenant.tax_identifier ? `Tax ID ${tenant.tax_identifier}` : null}
-            </p>
-          )}
-          <p className="text-muted-foreground">
-            {primaryLocation.name} · {primaryLocation.city}, {primaryLocation.state}
-          </p>
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
-          Edit details
-        </Button>
-      </div>
-    );
-  }
+  const syncDraft = (patch: Partial<CorporateProfileFormValues> & { tax_registration_status?: TaxRegistrationStatus }) => {
+    onDraftChange?.({ ...form.getValues(), ...patch });
+  };
 
   const registerWithDraft = (
     field: keyof CorporateProfileFormValues,
@@ -142,7 +153,7 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
       ...options,
       onChange: (event) => {
         options?.onChange?.(event);
-        onDraftChange?.({ ...form.getValues(), [field]: event.target.value });
+        syncDraft({ [field]: event.target.value });
       },
     });
 
@@ -200,10 +211,10 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
           <div className="space-y-2">
             <Label>Country</Label>
             <Select
-              value={form.watch("country_code")}
+              value={countryCode}
               onValueChange={(value) => {
                 form.setValue("country_code", value, { shouldValidate: true });
-                onDraftChange?.({ ...form.getValues(), country_code: value });
+                syncDraft({ country_code: value });
               }}
             >
               <SelectTrigger>
@@ -224,59 +235,78 @@ export const StepCorporateProfile = forwardRef<StepSubmitHandle, Props>(function
         </div>
       </div>
 
-      <div className="rounded-lg border">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between gap-2 p-4 text-left"
-          onClick={() => setComplianceOpen((open) => !open)}
-        >
-          <div>
-            <p className="text-sm font-medium">{profileCopy.compliancePanelTitle}</p>
-            <p className="text-xs text-muted-foreground">{profileCopy.compliancePanelHint}</p>
-          </div>
-          <ChevronDown
-            className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", {
-              "rotate-180": complianceOpen,
-            })}
-          />
-        </button>
-        {complianceOpen && (
-          <div className="grid grid-cols-1 gap-4 border-t p-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{profileCopy.registrationLabel}</Label>
-              <Input {...registerWithDraft("legal_registration_number")} placeholder="CIN / EIN / CRN" />
-            </div>
-            <div className="space-y-2">
-              <Label>{profileCopy.taxIdLabel}</Label>
-              <Input {...registerWithDraft("tax_identifier")} placeholder="GSTIN / VAT / EIN" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {showAdvanced && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 border-t pt-4">
-          <div className="space-y-2">
-            <Label>Billing state (nexus)</Label>
-            <Input {...registerWithDraft("billing_state")} />
-          </div>
-          <div className="space-y-2">
-            <Label>Shipping state (nexus)</Label>
-            <Input {...registerWithDraft("shipping_state")} />
-          </div>
-          <div className="space-y-2">
-            <Label>Tax registered name</Label>
-            <Input {...registerWithDraft("tax_registered_name")} />
-          </div>
-          <div className="space-y-2">
-            <Label>Regional tax identifier</Label>
-            <Input
-              {...registerWithDraft("location_tax_identifier")}
-              placeholder="GSTIN / State Tax ID"
-            />
-          </div>
+      <div className="space-y-4 rounded-lg border p-4">
+        <div>
+          <p className="text-sm font-medium">{profileCopy.compliancePanelTitle}</p>
+          <p className="text-xs text-muted-foreground">{profileCopy.compliancePanelHint}</p>
         </div>
-      )}
+
+        <div className="space-y-2">
+          <Label>Tax registration status</Label>
+          <Select
+            value={taxRegistrationStatus}
+            onValueChange={(value) => {
+              const status = value as TaxRegistrationStatus;
+              form.setValue("tax_registration_status", status, { shouldValidate: true });
+              syncDraft({ tax_registration_status: status });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              {TAX_REGISTRATION_STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {TAX_REGISTRATION_STATUS_OPTIONS.find((option) => option.value === taxRegistrationStatus)
+              ?.description}
+          </p>
+        </div>
+
+        {taxRegistrationStatus === "REGISTERED" ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>{taxIdLabel}</Label>
+              <Input
+                {...registerWithDraft("tax_identifier")}
+                placeholder={countryCode === "IN" ? "22AAAAA0000A1Z5" : "Tax registration number"}
+              />
+              {form.formState.errors.tax_identifier && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.tax_identifier.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>{registrationLabel}</Label>
+              <Input {...registerWithDraft("legal_registration_number")} placeholder="Optional" />
+            </div>
+            {countryCode === "IN" ? (
+              <div className="space-y-2 md:col-span-2">
+                <Label>Tax registered name (optional)</Label>
+                <Input {...registerWithDraft("tax_registered_name")} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {taxRegistrationStatus === "NOT_REGISTERED" ? (
+          <p className="text-sm text-muted-foreground">
+            You can add {taxIdLabel} later in Settings before issuing tax invoices.
+          </p>
+        ) : null}
+
+        {taxRegistrationStatus === "EXEMPT" ? (
+          <p className="text-sm text-muted-foreground">
+            No tax ID is required. Update this in Settings if your status changes.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 });

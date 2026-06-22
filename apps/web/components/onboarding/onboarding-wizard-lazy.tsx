@@ -10,8 +10,9 @@ const OnboardingWizard = lazyClientExport(
 
 type Props = {
   snapshot: OnboardingSnapshot;
+  signupCountryCode?: string | null;
 };
 
-export function OnboardingWizardLazy({ snapshot }: Props) {
-  return <OnboardingWizard snapshot={snapshot} />;
+export function OnboardingWizardLazy({ snapshot, signupCountryCode }: Props) {
+  return <OnboardingWizard snapshot={snapshot} signupCountryCode={signupCountryCode} />;
 }

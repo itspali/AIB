@@ -39,7 +39,7 @@ type Props = {
   documentSequences?: DocumentSequenceRow[];
   defaultInventoryValuationMethod?: ValuationMethodOption;
   onEdit: () => void;
-  onDeactivate: () => void;
+  onDelete: () => void;
   onReactivate: () => void;
 };
 
@@ -51,7 +51,7 @@ export function LocationDetailViewport({
   documentSequences = [],
   defaultInventoryValuationMethod = "FIFO",
   onEdit,
-  onDeactivate,
+  onDelete,
   onReactivate,
 }: Props) {
   const supportsInventory = locationSupportsInventoryOps(location);
@@ -314,13 +314,18 @@ export function LocationDetailViewport({
         <div className="flex flex-wrap gap-2">
           <Button onClick={onEdit}>Edit facility node</Button>
           {location.is_active ? (
-            <Button variant="outline" onClick={onDeactivate}>
-              Deactivate
+            <Button variant="destructive" onClick={onDelete}>
+              Delete location
             </Button>
           ) : (
-            <Button variant="outline" onClick={onReactivate}>
-              Reactivate
-            </Button>
+            <>
+              <Button variant="outline" onClick={onReactivate}>
+                Reactivate
+              </Button>
+              <Button variant="destructive" onClick={onDelete}>
+                Delete permanently
+              </Button>
+            </>
           )}
         </div>
       )}

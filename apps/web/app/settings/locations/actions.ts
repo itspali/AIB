@@ -204,6 +204,32 @@ export async function reactivateLocation(locationId: string) {
   return { success: true as const };
 }
 
+export async function deleteLocation(locationId: string) {
+  const { supabase, tenantId, userId } = await requireTenantId();
+
+  const access = await resolveLocationManagementAccess(supabase, userId, tenantId);
+  if (!access.canManage) {
+    return { error: "Administrative privileges required." };
+  }
+
+  const { error } = await supabase.rpc("delete_tenant_location", {
+    p_location_id: locationId,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("delete_tenant_location") };
+    }
+    return { error: error.message };
+  }
+
+  for (const path of LOCATION_PATHS) {
+    revalidatePath(path);
+  }
+
+  return { success: true as const };
+}
+
 export async function saveDomRoutingConfig(raw: unknown) {
   const parsed = domRoutingSaveSchema.safeParse(raw);
   if (!parsed.success) {

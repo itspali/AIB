@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { applyProfileSecurityUpdates, registerSessionTelemetry } from "@/app/settings/profile/actions";
 import { ProfileIdentitySection } from "@/components/settings/profile-identity-section";
 import { ProfileLocalizationSection } from "@/components/settings/profile-localization-section";
+import { AccountDangerZoneSection } from "@/components/settings/account-danger-zone-section";
 import { SecurityRail } from "@/components/settings/security-rail";
 import { Button } from "@/components/ui/button";
 import { parseUserAgentSummary } from "@/lib/settings/format-datetime";
@@ -122,6 +123,7 @@ export function ProfileSettingsTerminal({ snapshot, tenantId, avatarPreviewUrl }
             disabled={isPending}
           />
           <ProfileLocalizationSection form={form} disabled={isPending} />
+          <AccountDangerZoneSection email={snapshot.email} />
         </main>
 
         <SecurityRail

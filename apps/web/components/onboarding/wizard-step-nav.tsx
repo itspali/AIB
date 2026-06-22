@@ -17,27 +17,38 @@ function getNavStatus(step: OnboardingStepState, activeStepId: WizardStepId): Wi
   return "PENDING";
 }
 
-function canSelectStep(step: OnboardingStepState, activeStepId: WizardStepId): boolean {
-  if (step.status === "LOCKED") return false;
+function canSelectStep(
+  step: OnboardingStepState,
+  steps: OnboardingStepState[],
+  activeStepId: WizardStepId
+): boolean {
   if (step.id === activeStepId) return false;
-  return step.completed;
+  if (step.status === "LOCKED") return false;
+  if (step.completed) return true;
+  if (step.id === "finance_setup") {
+    const profile = steps.find((item) => item.id === "profile");
+    return profile?.completed ?? false;
+  }
+  return false;
 }
 
 function StepNavButton({
   step,
   index,
   activeStepId,
+  steps,
   onStepSelect,
   compact = false,
 }: {
   step: OnboardingStepState;
   index: number;
   activeStepId: WizardStepId;
+  steps: OnboardingStepState[];
   onStepSelect: (stepId: WizardStepId) => void;
   compact?: boolean;
 }) {
   const navStatus = getNavStatus(step, activeStepId);
-  const selectable = canSelectStep(step, activeStepId);
+  const selectable = canSelectStep(step, steps, activeStepId);
 
   return (
     <button
@@ -122,6 +133,7 @@ export function WizardStepNav({ steps, activeStepId, onStepSelect }: Props) {
                   step={step}
                   index={index}
                   activeStepId={activeStepId}
+                  steps={steps}
                   onStepSelect={onStepSelect}
                   compact
                 />
@@ -144,6 +156,7 @@ export function WizardStepNav({ steps, activeStepId, onStepSelect }: Props) {
               step={step}
               index={index}
               activeStepId={activeStepId}
+              steps={steps}
               onStepSelect={onStepSelect}
             />
           ))}

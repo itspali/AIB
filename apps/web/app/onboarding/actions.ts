@@ -9,6 +9,7 @@ import {
   parseBusinessModel,
   type BusinessModel,
 } from "@/lib/onboarding/business-model";
+import { resolveOnboardingCountryCode } from "@/lib/onboarding/resolve-country";
 import {
   coaTemplateForCountry,
   defaultTaxRatesForCountry,
@@ -49,14 +50,12 @@ async function resolveTenantCountryCode(
 ): Promise<string> {
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("metadata_json")
+    .select("country_code, metadata_json")
     .eq("id", tenantId)
     .single();
 
   const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
   const draft = metadata.onboarding_draft as OnboardingDraft | undefined;
-  const fromDraft = draft?.corporateProfile?.country_code || draft?.location?.country_code;
-  if (fromDraft) return fromDraft.toUpperCase();
 
   const { data: location } = await supabase
     .from("tenant_locations")
@@ -66,8 +65,11 @@ async function resolveTenantCountryCode(
     .limit(1)
     .maybeSingle();
 
-  if (location?.country_code) return String(location.country_code).toUpperCase();
-  return "US";
+  return resolveOnboardingCountryCode({
+    draft,
+    tenantCountryCode: tenant?.country_code,
+    primaryLocationCountryCode: location?.country_code,
+  });
 }
 
 async function updateOnboardingStatus(
@@ -121,8 +123,12 @@ export async function assertFinanceSetupReady(
 }
 
 export async function saveCorporateProfile(values: CorporateProfileFormValues) {
-  const { supabase } = await requireTenantId();
-  const normalized = normalizeCorporateProfile(values);
+  const { supabase, tenantId } = await requireTenantId();
+  let normalized = normalizeCorporateProfile(values);
+
+  if (values.tax_registration_status && values.tax_registration_status !== "REGISTERED") {
+    normalized = { ...normalized, tax_identifier: "" };
+  }
 
   const { error } = await supabase.rpc("save_onboarding_corporate_profile", {
     p_company_name: normalized.company_name,
@@ -143,6 +149,46 @@ export async function saveCorporateProfile(values: CorporateProfileFormValues) {
   });
 
   if (error) return { error: error.message };
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("metadata_json")
+    .eq("id", tenantId)
+    .single();
+
+  const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
+  const draft = (metadata.onboarding_draft as OnboardingDraft | undefined) ?? {};
+
+  const { error: metadataError } = await supabase
+    .from("tenants")
+    .update({
+      country_code: normalized.country_code,
+      metadata_json: {
+        ...metadata,
+        onboarding_draft: {
+          ...draft,
+          tax_registration_status: values.tax_registration_status,
+          corporateProfile: {
+            ...(draft.corporateProfile ?? {}),
+            company_name: normalized.company_name,
+            country_code: normalized.country_code,
+            name: normalized.name,
+            code: normalized.code,
+            address_line1: normalized.address_line1,
+            address_line2: normalized.address_line2,
+            city: normalized.city,
+            state: normalized.state,
+            zip_postal: normalized.zip_postal,
+            tax_identifier: normalized.tax_identifier,
+            legal_registration_number: normalized.legal_registration_number,
+            tax_registration_status: values.tax_registration_status,
+          },
+        },
+      },
+    })
+    .eq("id", tenantId);
+
+  if (metadataError) return { error: metadataError.message };
 
   revalidatePath("/onboarding");
   return { success: true as const };

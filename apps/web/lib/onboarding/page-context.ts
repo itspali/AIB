@@ -16,8 +16,17 @@ export const getOnboardingPageContext = cache(async () => {
 
   if (!tenantId) redirect("/signup");
 
-  const snapshot = await fetchOnboardingSnapshot(supabase, tenantId);
+  const [{ data: authData }, snapshot] = await Promise.all([
+    supabase.auth.getUser(),
+    fetchOnboardingSnapshot(supabase, tenantId),
+  ]);
+
   if (!snapshot) redirect("/signup");
+
+  const signupCountryCode =
+    typeof authData.user?.user_metadata?.country_code === "string"
+      ? authData.user.user_metadata.country_code
+      : null;
 
   const orgName = snapshot.tenant.trade_name || snapshot.tenant.name;
   const operatorProfile = await fetchOperatorProfileForSession(supabase, orgName);
@@ -27,6 +36,7 @@ export const getOnboardingPageContext = cache(async () => {
     supabase,
     tenantId,
     snapshot,
+    signupCountryCode,
     orgName,
     operatorProfile,
     workspaceReady,

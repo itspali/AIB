@@ -3,7 +3,7 @@ import { OnboardingWizardLazy } from "@/components/onboarding/onboarding-wizard-
 import { getOnboardingPageContext } from "@/lib/onboarding/page-context";
 
 export default async function OnboardingPage() {
-  const { snapshot, workspaceReady } = await getOnboardingPageContext();
+  const { snapshot, workspaceReady, signupCountryCode } = await getOnboardingPageContext();
 
   return (
     <div className="space-y-4 md:space-y-8 min-w-0">
@@ -12,7 +12,7 @@ export default async function OnboardingPage() {
         progressPercent={snapshot.progressPercent}
         showDashboardExit={workspaceReady}
       />
-      <OnboardingWizardLazy snapshot={snapshot} />
+      <OnboardingWizardLazy snapshot={snapshot} signupCountryCode={signupCountryCode} />
     </div>
   );
 }

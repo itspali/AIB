@@ -1,4 +1,5 @@
 import type { BusinessModel } from "@/lib/onboarding/business-model";
+import type { TaxRegistrationStatus } from "@/lib/onboarding/tax-registration";
 
 export type MilestoneStatus = "COMPLETED" | "ACTION_REQUIRED" | "LOCKED";
 
@@ -13,6 +14,7 @@ export type TenantProfile = {
   legal_name: string | null;
   legal_registration_number: string | null;
   tax_identifier: string | null;
+  country_code: string | null;
   onboarding_status: string;
   metadata_json: Record<string, unknown> | null;
 };
@@ -20,10 +22,14 @@ export type TenantProfile = {
 export type PrimaryLocation = {
   id: string;
   name: string;
+  code?: string;
+  address_line1?: string;
+  address_line2?: string | null;
   tax_registered_name: string | null;
   location_tax_identifier: string | null;
   state: string;
   city: string;
+  zip_postal?: string;
   country_code?: string;
 };
 
@@ -66,6 +72,7 @@ export type CorporateProfileFormValues = {
   shipping_state: string;
   tax_registered_name?: string;
   location_tax_identifier?: string;
+  tax_registration_status?: TaxRegistrationStatus;
 };
 
 export type LocationFormValues = CorporateProfileFormValues;
@@ -90,6 +97,7 @@ export type ChannelFormValues = {
 
 export type OnboardingDraft = {
   business_model?: BusinessModel;
+  tax_registration_status?: TaxRegistrationStatus;
   corporateProfile?: Partial<CorporateProfileFormValues>;
   location?: Partial<CorporateProfileFormValues>;
   taxRates?: TaxRateRow[];

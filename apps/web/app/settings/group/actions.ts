@@ -281,3 +281,18 @@ export async function saveGroupEntityCustomFields(
 
   return { success: true as const };
 }
+
+export async function deleteTenantGroup(groupId: string) {
+  if (!groupId.trim()) return { error: "Group is required" };
+
+  const { supabase } = await requireTenantId();
+  const { error } = await supabase.rpc("delete_tenant_group", {
+    p_group_id: groupId,
+  });
+
+  if (error) return { error: error.message };
+
+  for (const path of GROUP_PATHS) revalidatePath(path);
+  revalidatePath("/", "layout");
+  return { success: true as const };
+}

@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { createTenantGroup, saveGroupSettings } from "@/app/settings/group/actions";
 import { CopyableReadonlyField } from "@/components/settings/copyable-readonly-field";
+import { GroupDeleteConfirmDialog } from "@/components/settings/group/group-delete-confirm-dialog";
 import { GroupEntityFieldsSection } from "@/components/settings/group/group-entity-fields-section";
 import { GroupOrganizationsSection } from "@/components/settings/group/group-organizations-section";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
@@ -41,6 +42,7 @@ export function GroupSettingsTerminal({
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const defaultValues = useMemo(
@@ -217,6 +219,24 @@ export function GroupSettingsTerminal({
           pendingInvitations={pendingInvitations}
           canManage={Boolean(access?.granted)}
         />
+
+        {access?.isOwner ? (
+          <div className="surface-panel border-destructive/30 bg-destructive/5 p-4">
+            <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Permanently delete this enterprise group after every organization has left and
+              pending invitations are revoked.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              className="mt-3"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              Delete group
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <aside className="space-y-4">
@@ -236,6 +256,13 @@ export function GroupSettingsTerminal({
           </dl>
         </div>
       </aside>
+
+      <GroupDeleteConfirmDialog
+        groupId={snapshot.group_id}
+        groupName={snapshot.name}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      />
     </form>
   );
 }

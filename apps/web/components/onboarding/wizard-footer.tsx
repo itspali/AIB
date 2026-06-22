@@ -58,11 +58,6 @@ export function WizardFooter({
       return;
     }
 
-    if (stepCompleted && !isFinanceStep) {
-      onContinue();
-      return;
-    }
-
     if (stepCompleted && isFinanceStep) {
       finishSetup();
       return;
@@ -100,10 +95,8 @@ export function WizardFooter({
 
   const primaryLabel = showLaunchOnly
     ? "Go to dashboard"
-    : stepCompleted
-      ? isFinanceStep
-        ? "Go to dashboard"
-        : "Continue"
+    : stepCompleted && isFinanceStep
+      ? "Go to dashboard"
       : isFinanceStep
         ? "Apply recommended setup"
         : "Save and continue";

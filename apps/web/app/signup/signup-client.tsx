@@ -185,9 +185,12 @@ async function initializeWorkspace(
     .single();
 
   const metadata = (tenant?.metadata_json as Record<string, unknown> | null) ?? {};
-  await supabase
+  const countryCode = values.countryCode.toUpperCase();
+
+  const { error: updateError } = await supabase
     .from("tenants")
     .update({
+      country_code: countryCode,
       metadata_json: {
         ...metadata,
         onboarding_draft: {
@@ -195,7 +198,7 @@ async function initializeWorkspace(
             ? metadata.onboarding_draft
             : {}),
           corporateProfile: {
-            country_code: values.countryCode,
+            country_code: countryCode,
             company_name: values.companyName,
           },
         },
@@ -203,6 +206,10 @@ async function initializeWorkspace(
       },
     })
     .eq("id", tenantId as string);
+
+  if (updateError) {
+    return { error: "Workspace created but country preferences could not be saved. Update country in onboarding." };
+  }
 
   return { error: null, tenantId: tenantId as string };
 }

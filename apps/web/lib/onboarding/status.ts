@@ -69,7 +69,7 @@ export async function fetchOnboardingSnapshot(
   const { data: tenant, error: tenantError } = await supabase
     .from("tenants")
     .select(
-      "id, name, trade_name, legal_name, legal_registration_number, tax_identifier, onboarding_status, metadata_json"
+      "id, name, trade_name, legal_name, legal_registration_number, tax_identifier, country_code, onboarding_status, metadata_json"
     )
     .eq("id", tenantId)
     .single();
@@ -87,9 +87,10 @@ export async function fetchOnboardingSnapshot(
   ] = await Promise.all([
     supabase
       .from("tenant_locations")
-      .select("id, name, tax_registered_name, location_tax_identifier, state, city, country_code", {
-        count: "exact",
-      })
+      .select(
+        "id, name, code, address_line1, address_line2, tax_registered_name, location_tax_identifier, state, city, zip_postal, country_code",
+        { count: "exact" }
+      )
       .eq("tenant_id", tenantId)
       .limit(1),
     safeCount(supabase, "accounts", tenantId),

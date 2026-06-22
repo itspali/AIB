@@ -528,3 +528,38 @@ export async function saveSellingFocus(
 
   return { success: true as const, suggestions };
 }
+
+export async function deleteWorkspace(confirmationName: string) {
+  const trimmed = confirmationName.trim();
+  if (!trimmed) {
+    return { error: "Workspace name confirmation is required" };
+  }
+
+  const { supabase, tenantId, userId } = await requireTenantId();
+  const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+  if (!access.isOwner) {
+    return { error: "Workspace owner privileges required." };
+  }
+
+  const { data, error } = await supabase.rpc("delete_tenant_workspace", {
+    p_confirmation_name: trimmed,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("delete_tenant_workspace") };
+    }
+    return { error: error.message };
+  }
+
+  const payload = (data ?? {}) as Record<string, unknown>;
+  const switchedToTenantId =
+    typeof payload.switched_to_tenant_id === "string" ? payload.switched_to_tenant_id : null;
+
+  revalidatePath("/", "layout");
+  for (const path of ORGANIZATION_PATHS) {
+    revalidatePath(path);
+  }
+
+  return { success: true as const, switchedToTenantId };
+}

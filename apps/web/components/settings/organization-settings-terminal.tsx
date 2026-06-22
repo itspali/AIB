@@ -15,6 +15,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { saveOrganizationSettings } from "@/app/settings/organization/actions";
 import { OrganizationAccessSection } from "@/components/settings/organization-access-section";
+import { OrganizationDangerZoneSection } from "@/components/settings/organization-danger-zone-section";
 import { OrganizationEntityFieldsSection } from "@/components/settings/organization-entity-fields-section";
 import { OrganizationProcurementSection } from "@/components/settings/organization-procurement-section";
 import { OrganizationAccountingSection } from "@/components/settings/organization-accounting-section";
@@ -462,6 +463,14 @@ export function OrganizationSettingsTerminal({
               reportingLines={reportingLines}
               disabled={fieldsDisabled}
             />
+            <div className="mt-4">
+              <OrganizationDangerZoneSection
+                tenantId={tenantId}
+                workspaceName={snapshot.trade_name?.trim() || snapshot.legal_name?.trim() || snapshot.name}
+                isOwner={access.isOwner}
+                parentGroupName={snapshot.parent_group_name}
+              />
+            </div>
           </SectionAnchor>
         </div>
       </div>

@@ -8,12 +8,15 @@ import { WizardFooter } from "@/components/onboarding/wizard-footer";
 import { WizardStepNav } from "@/components/onboarding/wizard-step-nav";
 import { useOnboardingDraftSaver } from "@/components/onboarding/use-onboarding-draft";
 import { getFirstIncompleteStepId } from "@/lib/onboarding/status";
+import { resolveOnboardingCountryCode } from "@/lib/onboarding/resolve-country";
 import type {
+  CorporateProfileFormValues,
   OnboardingDraft,
   OnboardingSnapshot,
   StepSubmitHandle,
   WizardStepId,
 } from "@/lib/onboarding/types";
+import type { TaxRegistrationStatus } from "@/lib/onboarding/tax-registration";
 
 const STEP_ORDER: WizardStepId[] = ["profile", "finance_setup"];
 
@@ -35,24 +38,15 @@ const StepFinanceSetup = dynamic(
   { ssr: false, loading: stepLoading }
 );
 
-const AdvancedParametersPanel = dynamic(
-  () =>
-    import("@/components/onboarding/advanced-parameters-panel").then(
-      (module) => module.AdvancedParametersPanel
-    ),
-  { ssr: false }
-);
-
 type Props = {
   snapshot: OnboardingSnapshot;
+  signupCountryCode?: string | null;
 };
 
-export function OnboardingWizard({ snapshot }: Props) {
+export function OnboardingWizard({ snapshot, signupCountryCode }: Props) {
   const [activeStepId, setActiveStepId] = useState<WizardStepId>(() =>
     getFirstIncompleteStepId(snapshot.steps)
   );
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [editingProfile, setEditingProfile] = useState(false);
 
   const profileRef = useRef<StepSubmitHandle>(null);
   const financeRef = useRef<StepSubmitHandle>(null);
@@ -62,11 +56,13 @@ export function OnboardingWizard({ snapshot }: Props) {
     ...((snapshot.tenant.metadata_json?.onboarding_draft as OnboardingDraft | undefined) ?? {}),
   };
   const { queueSave } = useOnboardingDraftSaver(draft);
-  const resolvedCountryCode =
-    draft.corporateProfile?.country_code ||
-    draft.location?.country_code ||
-    snapshot.primaryLocation?.country_code ||
-    "US";
+
+  const resolvedCountryCode = resolveOnboardingCountryCode({
+    draft,
+    tenantCountryCode: snapshot.tenant.country_code,
+    primaryLocationCountryCode: snapshot.primaryLocation?.country_code,
+    signupCountryCode,
+  });
 
   const stepMap = Object.fromEntries(snapshot.steps.map((s) => [s.id, s]));
   const activeStep = stepMap[activeStepId];
@@ -75,8 +71,6 @@ export function OnboardingWizard({ snapshot }: Props) {
     profile: profileRef,
     finance_setup: financeRef,
   };
-
-  const showAdvancedPanel = activeStepId === "profile";
 
   const advanceStep = () => {
     const currentIndex = STEP_ORDER.indexOf(activeStepId);
@@ -95,6 +89,16 @@ export function OnboardingWizard({ snapshot }: Props) {
     if (currentIndex > 0) {
       setActiveStepId(STEP_ORDER[currentIndex - 1]);
     }
+  };
+
+  const handleProfileDraftChange = (
+    values: Partial<CorporateProfileFormValues> & { tax_registration_status?: TaxRegistrationStatus }
+  ) => {
+    const { tax_registration_status, ...corporateProfile } = values;
+    queueSave({
+      corporateProfile,
+      ...(tax_registration_status ? { tax_registration_status } : {}),
+    });
   };
 
   return (
@@ -141,13 +145,11 @@ export function OnboardingWizard({ snapshot }: Props) {
           {activeStepId === "profile" && (
             <StepCorporateProfile
               ref={profileRef}
-              completed={stepMap.profile?.completed ?? false}
               tenant={snapshot.tenant}
               primaryLocation={snapshot.primaryLocation}
-              defaultValues={draft.corporateProfile ?? draft.location}
-              showAdvanced={showAdvanced}
-              onDraftChange={(corporateProfile) => queueSave({ corporateProfile })}
-              onEditingChange={setEditingProfile}
+              initialCountryCode={resolvedCountryCode}
+              draft={draft}
+              onDraftChange={handleProfileDraftChange}
             />
           )}
 
@@ -164,19 +166,11 @@ export function OnboardingWizard({ snapshot }: Props) {
               onBusinessModelChange={(business_model) => queueSave({ business_model })}
             />
           )}
-
-          {showAdvancedPanel && (
-            <AdvancedParametersPanel enabled={showAdvanced} onEnabledChange={setShowAdvanced} />
-          )}
         </div>
 
         <WizardFooter
           activeStepId={activeStepId}
-          stepCompleted={
-            activeStepId === "profile"
-              ? (stepMap.profile?.completed ?? false) && !editingProfile
-              : (activeStep?.completed ?? false)
-          }
+          stepCompleted={activeStep?.completed ?? false}
           canLaunch={snapshot.canLaunch}
           stepRef={stepRefMap[activeStepId]}
           onBack={goBack}

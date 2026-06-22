@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { profileSettingsSchema } from "@/lib/settings/schemas";
 import { requireTenantId } from "@/lib/supabase/require-tenant";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { updateUserDutyStatus } from "@/app/account/actions";
 
 const REVALIDATE_PATHS = [
@@ -119,6 +120,39 @@ export async function revokeOtherSessions(currentAuthSessionId: string) {
       return { error: formatRpcDeployError("revoke_other_auth_sessions") };
     }
     return { error: error.message };
+  }
+
+  revalidateProfilePaths();
+  return { success: true as const };
+}
+
+export async function deleteMyAccount(confirmationEmail: string) {
+  const trimmed = confirmationEmail.trim();
+  if (!trimmed) {
+    return { error: "Email confirmation is required" };
+  }
+
+  const { supabase, userId, email } = await requireTenantId();
+  if (!email || trimmed.toLowerCase() !== email.toLowerCase()) {
+    return { error: "Email confirmation does not match your account" };
+  }
+
+  const { error } = await supabase.rpc("delete_my_user_account");
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("delete_my_user_account") };
+    }
+    return { error: error.message };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return { error: "Account deletion service is unavailable. Contact support." };
+  }
+
+  const { error: authError } = await admin.auth.admin.deleteUser(userId);
+  if (authError) {
+    return { error: authError.message };
   }
 
   revalidateProfilePaths();
