@@ -7,7 +7,7 @@ import {
 } from "@/lib/approvals/approval-required-gate";
 
 describe("approval-required-gate", () => {
-  it("treats workspace owners as exempt from approval submission", () => {
+  it("requires approval above threshold for workspace owners", () => {
     expect(
       isDocumentApprovalRequired({
         requireEnabled: true,
@@ -18,7 +18,7 @@ describe("approval-required-gate", () => {
         thresholdAmount: 5_000,
         approverUserIds: [],
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("skips approval for amounts inside a skip band", () => {

@@ -277,7 +277,7 @@ type LocationEmbedRow = {
 };
 type LocationEmbed = LocationEmbedRow | LocationEmbedRow[] | null;
 
-async function hydratePurchaseOrderApprovalSubmitters(
+async function hydratePurchaseOrderApprovalMeta(
   supabase: SupabaseClient,
   tenantId: string,
   rows: PurchaseOrderRow[]
@@ -287,22 +287,51 @@ async function hydratePurchaseOrderApprovalSubmitters(
     .map((row) => row.id);
   if (pendingIds.length === 0) return;
 
-  const { data, error } = await supabase
-    .from("document_approval_requests")
-    .select("document_id, submitted_by")
-    .eq("tenant_id", tenantId)
-    .eq("document_type", "PURCHASE_ORDER")
-    .eq("status", "PENDING")
-    .in("document_id", pendingIds);
+  const [{ data: requests, error: requestError }, { data: runs, error: runError }] =
+    await Promise.all([
+      supabase
+        .from("document_approval_requests")
+        .select("document_id, submitted_by, status, submitted_at")
+        .eq("tenant_id", tenantId)
+        .eq("document_type", "PURCHASE_ORDER")
+        .in("document_id", pendingIds)
+        .order("submitted_at", { ascending: false }),
+      supabase
+        .from("document_approval_runs")
+        .select("document_id, status, submitted_at")
+        .eq("tenant_id", tenantId)
+        .eq("document_type", "PURCHASE_ORDER")
+        .in("document_id", pendingIds)
+        .order("submitted_at", { ascending: false }),
+    ]);
 
-  if (error || !data?.length) return;
+  if (requestError && runError) return;
 
-  const submitterByPoId = new Map(
-    data.map((row) => [row.document_id as string, (row.submitted_by as string | null) ?? null])
-  );
+  const requestByPoId = new Map<
+    string,
+    { submitted_by: string | null; status: string | null }
+  >();
+  for (const row of requests ?? []) {
+    const poId = row.document_id as string;
+    if (requestByPoId.has(poId)) continue;
+    requestByPoId.set(poId, {
+      submitted_by: (row.submitted_by as string | null) ?? null,
+      status: (row.status as string | null) ?? null,
+    });
+  }
+
+  const runStatusByPoId = new Map<string, string | null>();
+  for (const row of runs ?? []) {
+    const poId = row.document_id as string;
+    if (runStatusByPoId.has(poId)) continue;
+    runStatusByPoId.set(poId, (row.status as string | null) ?? null);
+  }
 
   for (const row of rows) {
-    row.approval_submitted_by = submitterByPoId.get(row.id) ?? null;
+    const requestMeta = requestByPoId.get(row.id);
+    row.approval_submitted_by = requestMeta?.submitted_by ?? null;
+    row.approval_request_status = requestMeta?.status ?? null;
+    row.approval_run_status = runStatusByPoId.get(row.id) ?? null;
   }
 }
 
@@ -653,7 +682,7 @@ export async function fetchPurchaseOrdersPage(
   const rows = (data ?? []).map((row) => mapPoListRow(row as PoListDbRow));
   await Promise.all([
     hydratePurchaseOrderCreatorNames(supabase, rows),
-    hydratePurchaseOrderApprovalSubmitters(supabase, tenantId, rows),
+    hydratePurchaseOrderApprovalMeta(supabase, tenantId, rows),
   ]);
 
   return buildDocumentListPage(rows, totalCount || rows.length, offset, limit);
@@ -692,7 +721,7 @@ export async function fetchPurchaseOrderById(
   mapped.lines = (row.po_lines ?? []).map(mapPoLine);
   await Promise.all([
     hydratePurchaseOrderCreatorNames(supabase, [mapped]),
-    hydratePurchaseOrderApprovalSubmitters(supabase, tenantId, [mapped]),
+    hydratePurchaseOrderApprovalMeta(supabase, tenantId, [mapped]),
   ]);
   return mapped;
 }

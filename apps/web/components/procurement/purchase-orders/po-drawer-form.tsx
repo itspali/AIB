@@ -86,10 +86,12 @@ import { DocumentPeekActivityShell } from "@/components/activity/document-peek-a
 import { DocumentPeekApprovalPane } from "@/components/approvals/document-peek-approval-pane";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import {
+  canUserManuallyIssueApprovedPo,
   isPoApprovalRequiredBeforeIssue,
   isPurchaseOrderApprovableByUser,
   type ProcurementApprovalSettings,
 } from "@/lib/procurement/approval-settings";
+import { computePurchaseOrderTotals } from "@/lib/procurement/purchase-orders/totals";
 import { cn } from "@/lib/utils";
 import { useDelayedVisible } from "@/hooks/use-delayed-visible";
 
@@ -650,7 +652,13 @@ export function PoDrawerForm({
         return;
       }
 
-      toast.success("Purchase order approved and issued");
+      toast.success(
+        result.pendingNextStep
+          ? "Step approved — waiting for next level."
+          : result.issued
+            ? "Purchase order approved and issued"
+            : "Purchase order approved — ready to issue"
+      );
       setIssuePostingSummary(result.steps ?? []);
       setIsDirty(false);
       await reloadDetail(orderId);
@@ -714,7 +722,29 @@ export function PoDrawerForm({
   const isDraftOrder = detail?.document_status === "DRAFT";
   const isPendingApprovalOrder = detail?.document_status === "PENDING_APPROVAL";
   const purchaseOrderId = editOrderId ?? detail?.id ?? null;
-  const totalNetAmount = Number(detail?.total_net_amount ?? 0);
+  const savedTotalNetAmount = Number(detail?.total_net_amount ?? 0);
+  const totalNetAmount = (() => {
+    if (!isMutating) return savedTotalNetAmount;
+    try {
+      const savableLines = filterSavablePoLines(form.lines);
+      const taxMechanism = resolvePoGstContextFromForm(
+        suppliers,
+        form.supplier_id,
+        locations,
+        form.destination_location_id,
+        organizationBillTo.country_code
+      ).taxMechanism;
+      return computePurchaseOrderTotals(savableLines, {
+        purchasePricesTaxInclusive: form.prices_tax_inclusive,
+        taxMechanism,
+        headerCharges: form.header_charges,
+        autoRoundOff: autoRoundOffPolicy,
+        allowTransactionDiscounts,
+      }).grandTotal;
+    } catch {
+      return savedTotalNetAmount;
+    }
+  })();
   const approvalRequiredBeforeIssue = isPoApprovalRequiredBeforeIssue(
     approvalSettings,
     totalNetAmount,
@@ -724,15 +754,22 @@ export function PoDrawerForm({
   const showSubmitForApproval =
     isDraftOrder && editAccessGranted && approvalRequiredBeforeIssue && purchaseOrderId != null;
   const showIssue =
-    isDraftOrder &&
-    editAccessGranted &&
-    !approvalRequiredBeforeIssue &&
-    purchaseOrderId != null;
+    (isDraftOrder &&
+      editAccessGranted &&
+      !approvalRequiredBeforeIssue &&
+      purchaseOrderId != null) ||
+    (detail != null &&
+      purchaseOrderId != null &&
+      canUserManuallyIssueApprovedPo(detail, currentUserId, approvalSettings, {
+        isOwner,
+        editAccessGranted,
+      }));
   const showApproveReject =
     isPendingApprovalOrder &&
     detail != null &&
     isPurchaseOrderApprovableByUser(detail, currentUserId, approvalSettings, { isOwner }) &&
     purchaseOrderId != null;
+
   const saveActionLabel = isDraftOrder ? "Save draft" : "Save";
   const canEditVoucherNumber =
     isDraftOrder && canEditThisOrder && purchaseOrderId != null;

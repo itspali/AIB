@@ -3,6 +3,8 @@ import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/p
 import type { PoApprovalRule, PoApproverRole } from "@/lib/approvals/approval-rules";
 import type { PoWorkflowTemplate } from "@/lib/approvals/workflow-templates";
 
+export type PoManualIssueActor = "submitter" | "editors" | "submitter_or_owner";
+
 export type ProcurementApprovalSettings = {
   require_po_approval_before_issue: boolean;
   po_approval_threshold_amount: number | null;
@@ -21,7 +23,54 @@ export type ProcurementApprovalSettings = {
   po_approval_reminder_hours?: number | null;
   /** Hours before owners are notified; null disables escalation. */
   po_approval_escalation_hours?: number | null;
+  /** When true (default), final approval chains to issue_purchase_order. */
+  po_auto_issue_after_approval?: boolean;
+  /** Who may issue after manual approval when auto-issue is off. */
+  po_manual_issue_actor?: PoManualIssueActor;
 };
+
+export function isPoAutoIssueAfterApproval(settings: ProcurementApprovalSettings): boolean {
+  return settings.po_auto_issue_after_approval !== false;
+}
+
+export function isPoFullyApprovedAwaitingIssue(order: {
+  document_status: string;
+  approval_request_status?: string | null;
+  approval_run_status?: string | null;
+}): boolean {
+  if (order.document_status !== "PENDING_APPROVAL") return false;
+  const requestApproved = order.approval_request_status === "APPROVED";
+  const runApproved = order.approval_run_status === "APPROVED";
+  return requestApproved || runApproved;
+}
+
+export function canUserManuallyIssueApprovedPo(
+  order: {
+    document_status: string;
+    approval_submitted_by?: string | null;
+    approval_request_status?: string | null;
+    approval_run_status?: string | null;
+  },
+  userId: string,
+  settings: ProcurementApprovalSettings,
+  options: { isOwner: boolean; editAccessGranted: boolean }
+): boolean {
+  if (!isPoFullyApprovedAwaitingIssue(order)) return false;
+  if (isPoAutoIssueAfterApproval(settings)) return false;
+
+  const actor = settings.po_manual_issue_actor ?? "submitter";
+  const submitterId = order.approval_submitted_by ?? null;
+
+  switch (actor) {
+    case "editors":
+      return options.editAccessGranted;
+    case "submitter_or_owner":
+      return options.isOwner || (submitterId != null && submitterId === userId);
+    case "submitter":
+    default:
+      return submitterId != null && submitterId === userId;
+  }
+}
 
 export function canUserApprovePurchaseOrders(
   userId: string,
@@ -107,12 +156,15 @@ export function isPurchaseOrderApprovableByUser(
     document_status: string;
     total_net_amount: string | number;
     approval_submitted_by?: string | null;
+    approval_request_status?: string | null;
+    approval_run_status?: string | null;
   },
   userId: string,
   settings: ProcurementApprovalSettings,
   options: { isOwner: boolean }
 ): boolean {
   if (order.document_status !== "PENDING_APPROVAL") return false;
+  if (isPoFullyApprovedAwaitingIssue(order)) return false;
 
   // Workspace owners are super-approvers: any pending PO, any amount, including own submissions.
   if (options.isOwner) return true;

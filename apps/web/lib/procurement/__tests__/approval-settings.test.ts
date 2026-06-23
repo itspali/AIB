@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canUserApprovePurchaseOrderAmount,
   canUserApprovePurchaseOrders,
+  canUserManuallyIssueApprovedPo,
   isPoApprovalRequiredBeforeIssue,
   isPurchaseOrderApprovableByUser,
   poSelfApproveAllowed,
@@ -61,10 +62,10 @@ describe("approval-settings", () => {
     ).toBe(true);
   });
 
-  it("lets workspace owners issue purchase orders directly when approval is enabled", () => {
+  it("requires workspace owners to submit for approval above threshold", () => {
     expect(
       isPoApprovalRequiredBeforeIssue(baseSettings, 50_000, "owner-1", { isOwner: true })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("only treats pending approval orders as bulk approvable", () => {
@@ -138,6 +139,77 @@ describe("approval-settings", () => {
         "approver-1",
         baseSettings,
         { isOwner: false }
+      )
+    ).toBe(true);
+  });
+
+  it("blocks approve actions when fully approved and awaiting manual issue", () => {
+    expect(
+      isPurchaseOrderApprovableByUser(
+        {
+          document_status: "PENDING_APPROVAL",
+          total_net_amount: "17700",
+          approval_request_status: "APPROVED",
+          approval_run_status: "APPROVED",
+        },
+        "approver-1",
+        baseSettings,
+        { isOwner: false }
+      )
+    ).toBe(false);
+  });
+});
+
+describe("manual issue after approval", () => {
+  const manualSettings: ProcurementApprovalSettings = {
+    ...baseSettings,
+    po_auto_issue_after_approval: false,
+    po_manual_issue_actor: "submitter",
+  };
+
+  const approvedOrder = {
+    document_status: "PENDING_APPROVAL",
+    approval_submitted_by: "buyer-1",
+    approval_request_status: "APPROVED",
+    approval_run_status: "APPROVED",
+  };
+
+  it("allows submitter to issue when manual mode is on", () => {
+    expect(
+      canUserManuallyIssueApprovedPo(approvedOrder, "buyer-1", manualSettings, {
+        isOwner: false,
+        editAccessGranted: true,
+      })
+    ).toBe(true);
+  });
+
+  it("blocks non-submitter when actor is submitter", () => {
+    expect(
+      canUserManuallyIssueApprovedPo(approvedOrder, "other-1", manualSettings, {
+        isOwner: false,
+        editAccessGranted: true,
+      })
+    ).toBe(false);
+  });
+
+  it("allows editors when actor is editors", () => {
+    expect(
+      canUserManuallyIssueApprovedPo(
+        approvedOrder,
+        "other-1",
+        { ...manualSettings, po_manual_issue_actor: "editors" },
+        { isOwner: false, editAccessGranted: true }
+      )
+    ).toBe(true);
+  });
+
+  it("allows owner when actor is submitter_or_owner", () => {
+    expect(
+      canUserManuallyIssueApprovedPo(
+        approvedOrder,
+        "owner-1",
+        { ...manualSettings, po_manual_issue_actor: "submitter_or_owner" },
+        { isOwner: true, editAccessGranted: true }
       )
     ).toBe(true);
   });

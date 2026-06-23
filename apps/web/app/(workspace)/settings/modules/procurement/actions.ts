@@ -288,6 +288,8 @@ const saveProcurementApprovalSettingsSchema = z.object({
   po_approval_respect_destination_location: z.boolean().optional(),
   po_approval_reminder_hours: z.number().int().min(0).nullable().optional(),
   po_approval_escalation_hours: z.number().int().min(0).nullable().optional(),
+  po_auto_issue_after_approval: z.boolean().optional(),
+  po_manual_issue_actor: z.enum(["submitter", "editors", "submitter_or_owner"]).optional(),
 });
 
 export async function fetchPendingPoApprovalRunCount(): Promise<number> {
@@ -343,6 +345,8 @@ export async function saveProcurementApprovalSettings(
           parsed.data.po_approval_respect_destination_location ?? true,
         po_approval_reminder_hours: parsed.data.po_approval_reminder_hours ?? 24,
         po_approval_escalation_hours: parsed.data.po_approval_escalation_hours ?? 72,
+        po_auto_issue_after_approval: parsed.data.po_auto_issue_after_approval ?? true,
+        po_manual_issue_actor: parsed.data.po_manual_issue_actor ?? "submitter",
       },
     });
 

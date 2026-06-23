@@ -6,7 +6,7 @@ import {
   getPurchaseOrderColumnDef,
   type PurchaseOrderListColumnId,
 } from "@/lib/procurement/purchase-orders/list-columns";
-import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
+import { purchaseOrderStatusDisplayLabel } from "@/lib/procurement/purchase-orders/labels";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import {
@@ -46,7 +46,7 @@ export function renderPurchaseOrderListCell(
       );
     case "status": {
       const column = getPurchaseOrderColumnDef("status");
-      const label = purchaseOrderStatusLabel(row.document_status);
+      const label = purchaseOrderStatusDisplayLabel(row);
       return renderChipOrText({
         column,
         valueKey: row.document_status,

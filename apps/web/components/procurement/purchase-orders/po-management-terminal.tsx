@@ -342,20 +342,23 @@ export function PoManagementTerminal({
 
       const approvedCount = result.approvedIds.length;
       const failedCount = result.failures.length;
+      const issuedLabel = approvalSettings.po_auto_issue_after_approval !== false;
       if (failedCount > 0) {
         toast.success(
           `${approvedCount} purchase ${approvedCount === 1 ? "order" : "orders"} approved; ${failedCount} could not be approved.`
         );
       } else {
         toast.success(
-          `${approvedCount} purchase ${approvedCount === 1 ? "order" : "orders"} approved and issued`
+          issuedLabel
+            ? `${approvedCount} purchase ${approvedCount === 1 ? "order" : "orders"} approved and issued`
+            : `${approvedCount} purchase ${approvedCount === 1 ? "order" : "orders"} approved — ready to issue`
         );
       }
       clearBulkSelection();
       refreshList();
       notifyApprovalAlertChanged();
     });
-  }, [clearBulkSelection, refreshList, resolveSelectedIds]);
+  }, [approvalSettings, clearBulkSelection, refreshList, resolveSelectedIds]);
 
   const handleSortChange = useCallback(
     (field: PurchaseOrderListSortField, direction: PurchaseOrderListSortDirection) => {

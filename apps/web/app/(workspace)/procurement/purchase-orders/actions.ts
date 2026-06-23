@@ -466,6 +466,7 @@ async function runPurchaseOrderWorkflowRpc(
       purchaseOrderId: string;
       steps: PostingStepResult[];
       issued?: boolean;
+      approved?: boolean;
       pendingNextStep?: boolean;
     }
   | { error: string; errorAction?: UserFacingErrorAction }
@@ -497,6 +498,7 @@ async function runPurchaseOrderWorkflowRpc(
     purchaseOrderId: parsedResult.purchaseOrderId,
     steps: parsedResult.steps,
     issued: parsedResult.issued,
+    approved: parsedResult.approved,
     pendingNextStep: parsedResult.pendingNextStep,
   };
 }

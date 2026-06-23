@@ -61,7 +61,7 @@ CANCELLED
 
 **Direct issue (policy off):** `issue_purchase_order` from `DRAFT` unchanged.
 
-**Approved issue:** After `approve_purchase_order`, status remains `PENDING_APPROVAL` until `issue_purchase_order` runs (auto-chained on approve in RPC) → `ISSUED_ACTIVE`.
+**Approved issue:** After `approve_purchase_order`, when `po_auto_issue_after_approval` is true (default), `issue_purchase_order` runs in the same RPC → `ISSUED_ACTIVE`. When false, the PO remains `PENDING_APPROVAL` with an approved request/run until an authorized actor calls `issue_purchase_order`.
 
 ---
 
@@ -161,6 +161,8 @@ Implemented in: `apps/web/components/settings/modules/procurement-approvals-pane
 | Submitter self-approve below threshold? | **Optional** — off by default |
 | Notifications v1? | **In-app only** — dashboard badge + PO list filter |
 | Multi-level approval chains? | **Deferred** — single approver v1 |
+| Auto-issue after final approval? | **Configurable** — default **on** (`po_auto_issue_after_approval`); when off, PO stays `PENDING_APPROVAL` with approved run until manual issue |
+| Who may manually issue? | **Configurable** — `submitter` (default), `editors`, or `submitter_or_owner` via `po_manual_issue_actor` |
 
 ---
 

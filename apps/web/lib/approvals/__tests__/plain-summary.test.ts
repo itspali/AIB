@@ -65,6 +65,33 @@ describe("buildApprovalPlainSummary", () => {
     expect(lines.some((line) => line.includes("10,000"))).toBe(true);
     expect(lines.some((line) => line.includes("their own"))).toBe(true);
   });
+
+  it("describes automatic issue after approval by default", () => {
+    const lines = buildApprovalPlainSummary({
+      enabled: true,
+      scopeMode: "all",
+      thresholdAmount: null,
+      allowSelfApproveSmall: false,
+      approverCount: 1,
+      extraStepCount: 1,
+      autoIssueAfterApproval: true,
+    });
+    expect(lines.some((line) => line.includes("automatically"))).toBe(true);
+  });
+
+  it("describes manual issue when auto issue is disabled", () => {
+    const lines = buildApprovalPlainSummary({
+      enabled: true,
+      scopeMode: "all",
+      thresholdAmount: null,
+      allowSelfApproveSmall: false,
+      approverCount: 1,
+      extraStepCount: 1,
+      autoIssueAfterApproval: false,
+      manualIssueActor: "submitter",
+    });
+    expect(lines.some((line) => line.includes("issue manually"))).toBe(true);
+  });
 });
 
 describe("hasCustomWorkflow", () => {

@@ -36,6 +36,12 @@ async function countRows(
   return count ?? 0;
 }
 
+async function countPendingPoApprovalRuns(supabase: SupabaseClient): Promise<number> {
+  const { data, error } = await supabase.rpc("count_pending_po_approval_runs");
+  if (error) return 0;
+  return typeof data === "number" ? data : Number(data ?? 0);
+}
+
 export async function fetchApprovalAlertCount(
   supabase: SupabaseClient,
   tenantId: string
@@ -43,7 +49,7 @@ export async function fetchApprovalAlertCount(
   const [salesPending, salesHold, purchasePending, transferPending] = await Promise.all([
     countRows(supabase, "sales_orders", tenantId, { commercial_status: "PENDING_APPROVAL" }),
     countRows(supabase, "sales_orders", tenantId, { commercial_status: "CREDIT_HOLD" }),
-    countRows(supabase, "purchase_orders", tenantId, { document_status: "PENDING_APPROVAL" }),
+    countPendingPoApprovalRuns(supabase),
     countRows(supabase, "stock_transfers", tenantId, { current_status: "PENDING_APPROVAL" }),
   ]);
 
@@ -83,13 +89,30 @@ export async function fetchPendingPurchaseOrderApprovals(
   if (error || !orders?.length) return [];
 
   const orderIds = orders.map((row) => row.id as string);
-  const { data: requests } = await supabase
-    .from("document_approval_requests")
-    .select("document_id, submitted_at, submitted_by")
-    .eq("tenant_id", tenantId)
-    .eq("document_type", "PURCHASE_ORDER")
-    .eq("status", "PENDING")
-    .in("document_id", orderIds);
+  const [{ data: requests }, { data: pendingRuns }] = await Promise.all([
+    supabase
+      .from("document_approval_requests")
+      .select("document_id, submitted_at, submitted_by")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "PURCHASE_ORDER")
+      .eq("status", "PENDING")
+      .in("document_id", orderIds),
+    supabase
+      .from("document_approval_runs")
+      .select("document_id")
+      .eq("tenant_id", tenantId)
+      .eq("document_type", "PURCHASE_ORDER")
+      .eq("status", "PENDING")
+      .in("document_id", orderIds),
+  ]);
+
+  const actionableOrderIds = new Set<string>([
+    ...(requests ?? []).map((row) => row.document_id as string),
+    ...(pendingRuns ?? []).map((row) => row.document_id as string),
+  ]);
+
+  const actionableOrders = orders.filter((row) => actionableOrderIds.has(row.id as string));
+  if (actionableOrders.length === 0) return [];
 
   const requestByOrderId = new Map(
     (requests ?? []).map((row) => [row.document_id as string, row] as const)
@@ -115,7 +138,7 @@ export async function fetchPendingPurchaseOrderApprovals(
     }
   }
 
-  return orders.map((row) => {
+  return actionableOrders.map((row) => {
     const supplier = row.supplier as { name?: string } | null;
     const request = requestByOrderId.get(row.id as string);
     const submittedBy = request?.submitted_by as string | undefined;

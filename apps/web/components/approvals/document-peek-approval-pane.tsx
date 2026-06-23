@@ -178,7 +178,9 @@ export function DocumentPeekApprovalPane({
           toast.success(
             result.pendingNextStep
               ? "Step approved — waiting for next level."
-              : "Purchase order approved"
+              : result.issued
+                ? "Purchase order approved and issued"
+                : "Purchase order approved — ready to issue"
           );
         } else {
           toast.error(`Approval is not configured for ${docLabel}.`);

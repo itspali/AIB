@@ -1,7 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
+import type {
+  PoManualIssueActor,
+  ProcurementApprovalSettings,
+} from "@/lib/procurement/approval-settings";
 import type { ApprovalPolicyBand, ApprovalApproverPool } from "@/lib/approvals/policy-types";
 import {
   normalizePoApprovalRules,
@@ -27,7 +30,16 @@ const DEFAULT_APPROVAL_SETTINGS: ProcurementApprovalSettings = {
   po_approval_respect_destination_location: true,
   po_approval_reminder_hours: 24,
   po_approval_escalation_hours: 72,
+  po_auto_issue_after_approval: true,
+  po_manual_issue_actor: "submitter",
 };
+
+function parsePoManualIssueActor(raw: unknown): PoManualIssueActor {
+  if (raw === "editors" || raw === "submitter_or_owner" || raw === "submitter") {
+    return raw;
+  }
+  return DEFAULT_APPROVAL_SETTINGS.po_manual_issue_actor ?? "submitter";
+}
 
 function parseOptionalHours(raw: unknown, fallback: number | null): number | null {
   if (raw === null || raw === undefined || raw === "") return fallback;
@@ -126,5 +138,10 @@ export async function fetchProcurementApprovalSettings(
       meta.po_approval_escalation_hours,
       DEFAULT_APPROVAL_SETTINGS.po_approval_escalation_hours ?? 72
     ),
+    po_auto_issue_after_approval:
+      typeof meta.po_auto_issue_after_approval === "boolean"
+        ? meta.po_auto_issue_after_approval
+        : DEFAULT_APPROVAL_SETTINGS.po_auto_issue_after_approval,
+    po_manual_issue_actor: parsePoManualIssueActor(meta.po_manual_issue_actor),
   };
 }

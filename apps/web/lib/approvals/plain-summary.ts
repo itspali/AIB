@@ -58,12 +58,17 @@ export function buildApprovalPlainSummary(options: {
   respectDestinationLocation?: boolean;
   reminderHours?: number | null;
   escalationHours?: number | null;
+  autoIssueAfterApproval?: boolean;
+  manualIssueActor?: "submitter" | "editors" | "submitter_or_owner";
   wording?: ApprovalPlainSummaryWording;
   disabledSummary?: string;
 }): string[] {
   const draftNoun = options.wording?.draftNoun ?? "purchase order";
-  const finalAction = options.wording?.finalAction ?? "issued to the supplier";
   const submitterNoun = options.wording?.submitterNoun ?? "buyer";
+  const autoIssue = options.autoIssueAfterApproval !== false;
+  const finalAction = autoIssue
+    ? (options.wording?.finalAction ?? "issued to the supplier automatically")
+    : describeManualIssueAction(options.manualIssueActor ?? "submitter", draftNoun, submitterNoun);
 
   if (!options.enabled) {
     return [
@@ -141,6 +146,22 @@ export function buildApprovalPlainSummary(options: {
 
 function formatAmount(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function describeManualIssueAction(
+  actor: "submitter" | "editors" | "submitter_or_owner",
+  draftNoun: string,
+  submitterNoun: string
+): string {
+  switch (actor) {
+    case "editors":
+      return `returned for manual issue by anyone with purchase order edit permission`;
+    case "submitter_or_owner":
+      return `returned to the ${submitterNoun} or a workspace owner to issue manually`;
+    case "submitter":
+    default:
+      return `returned to the ${submitterNoun} to issue manually`;
+  }
 }
 
 export function hasCustomWorkflow(settings: ProcurementApprovalSettings): boolean {

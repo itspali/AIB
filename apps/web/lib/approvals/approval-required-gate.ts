@@ -79,7 +79,6 @@ export function submitterSelfApproveAllowed(input: {
   approverUserIds: string[];
 }): boolean {
   if (!input.userId) return false;
-  if (input.isOwner) return true;
   if (!input.allowSubmitterSelfApprove) return false;
   if (!input.approverUserIds.includes(input.userId)) return false;
 

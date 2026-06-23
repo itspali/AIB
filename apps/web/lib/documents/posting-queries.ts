@@ -142,6 +142,7 @@ export function parseIssuePurchaseOrderRpcResult(raw: unknown): {
   purchaseOrderId: string;
   steps: PostingStepResult[];
   issued?: boolean;
+  approved?: boolean;
   pendingNextStep?: boolean;
 } | null {
   if (!raw || typeof raw !== "object") {
@@ -165,6 +166,7 @@ export function parseIssuePurchaseOrderRpcResult(raw: unknown): {
     purchaseOrderId,
     steps: parsePostingSteps(payload.steps),
     issued: payload.issued === true,
+    approved: payload.approved === true,
     pendingNextStep: payload.pending_next_step === true,
   };
 }

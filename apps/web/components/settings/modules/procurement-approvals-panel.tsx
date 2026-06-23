@@ -110,6 +110,8 @@ export function ProcurementApprovalsPanel({
       initialSettings.po_approval_respect_destination_location ?? true,
     po_approval_reminder_hours: initialSettings.po_approval_reminder_hours ?? 24,
     po_approval_escalation_hours: initialSettings.po_approval_escalation_hours ?? 72,
+    po_auto_issue_after_approval: initialSettings.po_auto_issue_after_approval ?? true,
+    po_manual_issue_actor: initialSettings.po_manual_issue_actor ?? "submitter",
   }));
   const [isPending, startTransition] = useTransition();
   const [scopeMode, setScopeMode] = useState<ApprovalScopeMode>(() =>
@@ -177,6 +179,8 @@ export function ProcurementApprovalsPanel({
         respectDestinationLocation: settings.po_approval_respect_destination_location,
         reminderHours: settings.po_approval_reminder_hours,
         escalationHours: settings.po_approval_escalation_hours,
+        autoIssueAfterApproval: settings.po_auto_issue_after_approval,
+        manualIssueActor: settings.po_manual_issue_actor,
       }),
     [scopeMode, settings, workflowBands, workflowChoice]
   );
@@ -433,7 +437,52 @@ export function ProcurementApprovalsPanel({
               </div>
 
               <div className="rounded-lg border border-border px-4 py-3">
-                <StepHeader step={4} title="Approval workflow" />
+                <StepHeader step={4} title="After final approval" />
+                <div className="mt-3 space-y-2 pl-8">
+                  <ChoiceCard
+                    selected={settings.po_auto_issue_after_approval !== false}
+                    title="Automatically issue to supplier"
+                    description="When approval completes, the PO is issued immediately (current default)."
+                    disabled={!canEdit}
+                    onSelect={() => patch({ po_auto_issue_after_approval: true })}
+                  />
+                  <ChoiceCard
+                    selected={settings.po_auto_issue_after_approval === false}
+                    title="Require manual issue"
+                    description="Approval completes but the PO stays unissued until someone issues it."
+                    disabled={!canEdit}
+                    onSelect={() => patch({ po_auto_issue_after_approval: false })}
+                  >
+                    <div className="mt-3 space-y-2 border-t border-border pt-3">
+                      <p className="text-xs font-medium text-muted-foreground">Who can issue manually</p>
+                      <ChoiceCard
+                        selected={(settings.po_manual_issue_actor ?? "submitter") === "submitter"}
+                        title="Submitter only"
+                        description="Only the person who submitted the PO for approval."
+                        disabled={!canEdit}
+                        onSelect={() => patch({ po_manual_issue_actor: "submitter" })}
+                      />
+                      <ChoiceCard
+                        selected={settings.po_manual_issue_actor === "editors"}
+                        title="Anyone with PO edit permission"
+                        description="Any user who can edit purchase orders."
+                        disabled={!canEdit}
+                        onSelect={() => patch({ po_manual_issue_actor: "editors" })}
+                      />
+                      <ChoiceCard
+                        selected={settings.po_manual_issue_actor === "submitter_or_owner"}
+                        title="Submitter or workspace owner"
+                        description="The submitter or any workspace owner."
+                        disabled={!canEdit}
+                        onSelect={() => patch({ po_manual_issue_actor: "submitter_or_owner" })}
+                      />
+                    </div>
+                  </ChoiceCard>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border px-4 py-3">
+                <StepHeader step={5} title="Approval workflow" />
                 <div className="mt-3 pl-8">
                   <ApprovalWorkflowTemplatePicker
                     value={workflowChoice}
@@ -459,7 +508,7 @@ export function ProcurementApprovalsPanel({
 
               <div className="rounded-lg border border-border px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <StepHeader step={5} title="Extra approval triggers" />
+                  <StepHeader step={6} title="Extra approval triggers" />
                   <Switch
                     checked={rulesOpen}
                     disabled={!canEdit}
@@ -492,7 +541,7 @@ export function ProcurementApprovalsPanel({
               </div>
 
               <div className="rounded-lg border border-border px-4 py-3">
-                <StepHeader step={6} title="Location scope, reminders & escalation" />
+                <StepHeader step={7} title="Location scope, reminders & escalation" />
                 <div className="mt-3 space-y-4 pl-8">
                   <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                     <div>

@@ -92,6 +92,8 @@ export type PurchaseOrderRow = {
   created_by_name: string;
   /** Pending approval request submitter, when status is PENDING_APPROVAL. */
   approval_submitted_by?: string | null;
+  approval_request_status?: string | null;
+  approval_run_status?: string | null;
   created_at: string;
   updated_at: string;
   lines?: PurchaseOrderLineRow[];

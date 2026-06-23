@@ -1,5 +1,5 @@
 import { formatDate } from "@/lib/dashboard/format";
-import { purchaseOrderStatusLabel } from "@/lib/procurement/purchase-orders/labels";
+import { purchaseOrderStatusDisplayLabel } from "@/lib/procurement/purchase-orders/labels";
 import type { PurchaseOrderListColumnId } from "@/lib/procurement/purchase-orders/list-columns";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 
@@ -20,7 +20,7 @@ export function getPurchaseOrderListCellDisplayTexts(
       return texts;
     }
     case "status":
-      return [purchaseOrderStatusLabel(row.document_status)];
+      return [purchaseOrderStatusDisplayLabel(row)];
     case "lines":
       return [String(row.line_count)];
     case "net_amount":
