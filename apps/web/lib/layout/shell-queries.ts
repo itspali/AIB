@@ -20,21 +20,33 @@ export function useShellOperatorProfile(
   impersonating: boolean,
   serverProfile: OperatorProfile | null | undefined
 ) {
+  const hasServerProfile = serverProfile != null;
+
   return useQuery({
     queryKey: shellQueryKeys.operatorProfile,
     queryFn: fetchOperatorProfileAction,
     enabled: Boolean(tenantId) && !impersonating,
     initialData: serverProfile ?? undefined,
+    initialDataUpdatedAt: hasServerProfile ? Date.now() : undefined,
     staleTime: OPERATOR_PROFILE_STALE_MS,
+    refetchOnMount: hasServerProfile ? false : true,
   });
 }
 
-export function useShellApprovalAlertCount(showModuleNav: boolean) {
+export function useShellApprovalAlertCount(
+  showModuleNav: boolean,
+  serverCount?: number
+) {
+  const hasServerCount = serverCount != null;
+
   return useQuery({
     queryKey: shellQueryKeys.approvalAlertCount,
     queryFn: fetchApprovalAlertCountAction,
     enabled: showModuleNav,
+    initialData: hasServerCount ? serverCount : undefined,
+    initialDataUpdatedAt: hasServerCount ? Date.now() : undefined,
     staleTime: APPROVAL_ALERT_STALE_MS,
+    refetchOnMount: hasServerCount ? false : true,
   });
 }
 

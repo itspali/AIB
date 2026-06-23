@@ -9,6 +9,7 @@ import {
   parseModuleDrawerState,
   type ModuleDrawerState,
 } from "@/lib/layout/module-drawer-url";
+import { ITEM_CATALOG_ORIGIN_PARAM } from "@/lib/products/item-navigation";
 
 export type ListModuleLoadMode = "list" | "drawer-deep-link";
 
@@ -26,6 +27,7 @@ export const DRAWER_ONLY_QUERY_PARAMS = new Set([
   LEGACY_ITEM_LIST_SELECTION_PARAM,
   LEGACY_CATEGORY_SELECTED_PARAM,
   LEGACY_CATEGORY_CREATE_PARAM,
+  ITEM_CATALOG_ORIGIN_PARAM,
 ]);
 
 function toSearchParams(

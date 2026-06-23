@@ -35,6 +35,7 @@ export function DashboardShell({
   orgName,
   progressPercent = 0,
   onboardingMode = false,
+  approvalAlertCount = 0,
   operatorProfile = null,
   tenantId = null,
   impersonation = null,
@@ -50,7 +51,10 @@ export function DashboardShell({
     Boolean(impersonation),
     operatorProfile
   );
-  const { data: liveApprovalAlertCount = 0 } = useShellApprovalAlertCount(showModuleNav);
+  const { data: liveApprovalAlertCount = approvalAlertCount } = useShellApprovalAlertCount(
+    showModuleNav,
+    approvalAlertCount
+  );
   useApprovalAlertInvalidation(showModuleNav);
 
   return (

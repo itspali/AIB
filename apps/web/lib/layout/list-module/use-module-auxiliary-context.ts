@@ -25,6 +25,8 @@ export function useModuleAuxiliaryContext<T>(
   const enabled = options.enabled ?? true;
   const staleTime = options.staleTime ?? DEFAULT_STALE_MS;
 
+  const hasInitialData = initialData != null;
+
   const query = useQuery({
     queryKey,
     queryFn: async () => {
@@ -36,8 +38,10 @@ export function useModuleAuxiliaryContext<T>(
       }
     },
     enabled,
-    initialData: initialData ?? undefined,
+    initialData: hasInitialData ? initialData : undefined,
+    initialDataUpdatedAt: hasInitialData ? Date.now() : undefined,
     staleTime,
+    refetchOnMount: hasInitialData ? false : true,
   });
 
   const ensureLoaded = useCallback(async (): Promise<T | null> => {

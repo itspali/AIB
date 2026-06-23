@@ -116,6 +116,8 @@ type Props = {
   itemsRouteSession?: number;
   /** Desktop split detail open — list pane uses narrower responsive layout. */
   detailPaneOpen?: boolean;
+  /** List totals not yet loaded (deep-link peek refresh). */
+  listCountPending?: boolean;
   bulkToolbarEmbedded?: boolean;
   renderLayout: (sections: {
     toolbar: ReactNode;
@@ -158,6 +160,7 @@ export function ProductStreamPanel({
   ssrListReady = false,
   itemsRouteSession = 0,
   detailPaneOpen = false,
+  listCountPending = false,
   bulkToolbarEmbedded = false,
   renderLayout,
 }: Props) {
@@ -677,6 +680,7 @@ export function ProductStreamPanel({
       activeViewMode={displayViewMode}
       viewModeToggleLocked={detailPaneOpen && isCardViewMode(prefs.viewMode)}
       compactCountLabel={detailPaneOpen}
+      listCountPending={listCountPending}
     />
   );
 

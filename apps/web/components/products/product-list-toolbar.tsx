@@ -105,6 +105,8 @@ type Props = {
   viewModeToggleLocked?: boolean;
   /** Uses compact result count (e.g. while split-pane detail is open). */
   compactCountLabel?: boolean;
+  /** Deep-link peek refresh — list totals are not loaded yet. */
+  listCountPending?: boolean;
 };
 
 function presetIcon(preset: ProductListDisplayPreset) {
@@ -132,6 +134,7 @@ export function ProductListToolbar({
   activeViewMode,
   viewModeToggleLocked = false,
   compactCountLabel = false,
+  listCountPending = false,
 }: Props) {
   const omnibar = useOptionalOmnibarContext();
   const controlsDisabled = !prefsHydrated || isSavingPrefs;
@@ -167,9 +170,13 @@ export function ProductListToolbar({
       ? `row${totalCount === 1 ? "" : "s"}`
       : `product${totalCount === 1 ? "" : "s"}`;
 
-  const fullCountText = `Showing ${resultCount} of ${totalCount} ${countLabel}.`;
-  const shortCountText = `Showing ${resultCount} of ${totalCount}`;
-  const ratioCountText = `${resultCount}/${totalCount}`;
+  const fullCountText = listCountPending
+    ? "Loading item count…"
+    : `Showing ${resultCount} of ${totalCount} ${countLabel}.`;
+  const shortCountText = listCountPending
+    ? "Loading…"
+    : `Showing ${resultCount} of ${totalCount}`;
+  const ratioCountText = listCountPending ? "…" : `${resultCount}/${totalCount}`;
 
   return (
     <div className="space-y-2">

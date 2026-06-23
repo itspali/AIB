@@ -50,6 +50,7 @@ import {
 } from "@/lib/products/peek-panels";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { useModuleAuxiliaryContext } from "@/lib/layout/list-module/use-module-auxiliary-context";
+import type { ListModuleLoadMode } from "@/lib/layout/list-module/drawer-search-params";
 import {
   type BulkToolbarAction,
 } from "@/components/products/product-bulk-action-toolbar";
@@ -207,6 +208,7 @@ const ProductBulkStorefrontDialog = lazyClientExport(
 
 type Props = {
   tenantId: string;
+  loadMode?: ListModuleLoadMode;
   initialProducts: ProductListRow[];
   listTotalCount?: number;
   listHasMore?: boolean;
@@ -244,6 +246,7 @@ const peekValuationsDone = new Set<string>();
 
 export function ProductCatalogTerminal({
   tenantId,
+  loadMode = "list",
   initialProducts,
   listTotalCount = initialProducts.length,
   listHasMore = false,
@@ -310,6 +313,10 @@ export function ProductCatalogTerminal({
   const filterFetchRequestRef = useRef(0);
   const expandVariantsFetchRequestRef = useRef(0);
   const fullCatalogFetchRequestRef = useRef(0);
+  const [listHydrationDeferred, setListHydrationDeferred] = useState(
+    () => loadMode === "drawer-deep-link"
+  );
+  const wasDrawerOpenRef = useRef(false);
   const [totalCount, setTotalCount] = useState(listTotalCount);
   const [hasMore, setHasMore] = useState(listHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -386,6 +393,13 @@ export function ProductCatalogTerminal({
   const selectedId = drawer.recordId;
   const selectedVariantId = drawer.variantId;
   const drawerOpen = drawer.isOpen;
+
+  useEffect(() => {
+    if (wasDrawerOpenRef.current && !drawerOpen && listHydrationDeferred) {
+      setListHydrationDeferred(false);
+    }
+    wasDrawerOpenRef.current = drawerOpen;
+  }, [drawerOpen, listHydrationDeferred]);
 
   const runBulkTransition = useCallback(
     (task: () => Promise<void>) => {
@@ -588,6 +602,7 @@ export function ProductCatalogTerminal({
   useEffect(() => {
     if (!omnibar) return;
     if (hasServerFilteredView) return;
+    if (listHydrationDeferred) return;
     if (isResolvingDefaultView || structuralFilterActive || matchesServerSnapshot()) return;
     if (products.length > 0) return;
     if (omnibar.appliedQuery.trim() || omnibar.activeSavedView) return;
@@ -617,6 +632,8 @@ export function ProductCatalogTerminal({
   }, [
     hasServerFilteredView,
     isResolvingDefaultView,
+    listFetchOptions,
+    listHydrationDeferred,
     matchesServerSnapshot,
     omnibar?.activeSavedView,
     omnibar?.appliedQuery,
@@ -704,6 +721,15 @@ export function ProductCatalogTerminal({
   const handleExpandVariantsChange = useCallback(
     (nextExpandVariants: boolean, source: "sync" | "user" = "sync") => {
       if (expandVariantsRef.current === nextExpandVariants) return;
+      if (
+        source === "sync" &&
+        listHydrationDeferred &&
+        productsRef.current.length === 0
+      ) {
+        expandVariantsRef.current = nextExpandVariants;
+        setExpandVariants(nextExpandVariants);
+        return;
+      }
       clearBulkSelection();
 
       const ssrListReady = initialProducts.length > 0 || hasServerFilteredView;
@@ -759,6 +785,7 @@ export function ProductCatalogTerminal({
       omnibar?.appliedQuery,
       refetchCatalog,
       structuralFilterActive,
+      listHydrationDeferred,
     ]
   );
 
@@ -1770,6 +1797,7 @@ export function ProductCatalogTerminal({
     onLoadMore: unfilteredCatalogActive ? handleLoadMore : undefined,
     structuralFilterResolved: !unfilteredCatalogActive && filterProducts != null,
     isLoadingStructuralFilter:
+      listHydrationDeferred ||
       isLoadingFullCatalog ||
       (!matchesServerSnapshot() &&
         (isResolvingDefaultView ||
@@ -1804,6 +1832,7 @@ export function ProductCatalogTerminal({
     ssrListReady: initialProducts.length > 0 || hasServerFilteredView,
     itemsRouteSession: itemsRouteSessionRef.current,
     detailPaneOpen: drawerOpen,
+    listCountPending: listHydrationDeferred,
     bulkToolbarEmbedded: true,
   } as const;
 

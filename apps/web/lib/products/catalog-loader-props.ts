@@ -3,7 +3,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCategoryRows } from "@/lib/categories/queries";
 import type { CategoryRow } from "@/lib/categories/types";
-import { resolveListModuleDrawerParams } from "@/lib/layout/list-module/drawer-search-params";
+import {
+  resolveListModuleDrawerParams,
+  type ListModuleLoadMode,
+} from "@/lib/layout/list-module/drawer-search-params";
 import { parseProductPeekPanel } from "@/lib/layout/module-drawer-url";
 import { resolveProductCatalogInitialState } from "@/lib/products/catalog-initial-state";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
@@ -23,6 +26,7 @@ import type { UserRole } from "@/lib/user/types";
 
 export type ProductCatalogLoaderProps = {
   tenantId: string;
+  loadMode: ListModuleLoadMode;
   initialProducts: ProductCatalogInitialState["products"];
   listTotalCount: number;
   listHasMore: boolean;
@@ -131,6 +135,7 @@ export async function resolveProductCatalogLoaderProps(input: {
 
     return {
       tenantId,
+      loadMode: "drawer-deep-link",
       initialProducts: [],
       listTotalCount: 0,
       listHasMore: false,
@@ -155,6 +160,7 @@ export async function resolveProductCatalogLoaderProps(input: {
 
   return {
     tenantId,
+    loadMode: "list",
     initialProducts: catalogState.products,
     listTotalCount: catalogState.totalCount,
     listHasMore: catalogState.hasMore,
