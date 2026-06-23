@@ -12,12 +12,23 @@ import { resolveProductCatalogInitialState } from "@/lib/products/catalog-initia
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import { enrichProductDetailSnapshot } from "@/lib/products/detail-enrichment";
 import { resolveProductFieldPermissions } from "@/lib/products/field-permissions-server";
+import { fetchProductListPage } from "@/lib/products/list-queries";
+import {
+  coerceProductListPrefs,
+  DEFAULT_SHOW_VARIANTS,
+  resolveProductListExpandVariants,
+  shouldIncludeListImages,
+} from "@/lib/products/list-prefs";
 import { loadUserProductListPrefs } from "@/lib/products/list-prefs-server";
 import {
   mergeProductPeekSection,
   peekPanelToSection,
 } from "@/lib/products/peek-panels";
-import { fetchProductDetail, fetchProductPeekSection } from "@/lib/products/queries";
+import {
+  fetchProductDetail,
+  fetchProductPeekSection,
+  fetchProductPeekValuations,
+} from "@/lib/products/queries";
 import type { ProductCatalogInitialState } from "@/lib/products/catalog-initial-state";
 import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
 import type { ProductPeekPanelId } from "@/lib/products/types";
@@ -72,19 +83,25 @@ async function resolveDeepLinkDetail(
   if (!detail) return null;
 
   let enriched = enrichProductDetailSnapshot(detail, catalogContext);
+  const needsValuations =
+    enriched.item_type === "PHYSICAL" && !enriched.is_bundle && enriched.track_inventory;
   const section = peekPanelToSection(peekPanel);
-  if (!section) return enriched;
 
-  const patch = await fetchProductPeekSection(
-    supabase,
-    tenantId,
-    itemId,
-    section,
-    variantId
-  );
-  if (!patch) return enriched;
+  const [valuations, patch] = await Promise.all([
+    needsValuations
+      ? fetchProductPeekValuations(supabase, tenantId, itemId, variantId, true)
+      : Promise.resolve([]),
+    section
+      ? fetchProductPeekSection(supabase, tenantId, itemId, section, variantId)
+      : Promise.resolve(null),
+  ]);
 
-  enriched = mergeProductPeekSection(enriched, section, patch);
+  if (needsValuations) {
+    enriched = { ...enriched, valuations, peek_valuations_resolved: true };
+  }
+  if (section && patch) {
+    enriched = mergeProductPeekSection(enriched, section, patch);
+  }
   return enrichProductDetailSnapshot(enriched, catalogContext);
 }
 
@@ -114,8 +131,17 @@ export async function resolveProductCatalogLoaderProps(input: {
     const recordId = drawerParams.drawer.recordId;
     const variantId = drawerParams.drawer.variantId;
     const scope = drawerParams.drawer.surface === "edit" ? "full" : "peek";
-    const [fieldPermissions, initialDetail] = await Promise.all([
-      resolveProductFieldPermissions(supabase, tenantId, operatorRole),
+    const coercedPrefs = initialListPrefs ? coerceProductListPrefs(initialListPrefs) : null;
+    const expandVariants = coercedPrefs
+      ? resolveProductListExpandVariants(DEFAULT_SHOW_VARIANTS, coercedPrefs.viewMode)
+      : false;
+    const includeImages = shouldIncludeListImages(coercedPrefs);
+    const fieldPermissions = await resolveProductFieldPermissions(
+      supabase,
+      tenantId,
+      operatorRole
+    );
+    const [initialDetail, listPage] = await Promise.all([
       scope === "peek"
         ? resolveDeepLinkDetail(
             supabase,
@@ -131,14 +157,17 @@ export async function resolveProductCatalogLoaderProps(input: {
           }).then((detail) =>
             detail ? enrichProductDetailSnapshot(detail, catalogContext) : null
           ),
+      fetchProductListPage(supabase, tenantId, fieldPermissions, {
+        includeImages,
+        expandVariants,
+      }),
     ]);
-
     return {
       tenantId,
       loadMode: "drawer-deep-link",
-      initialProducts: [],
-      listTotalCount: 0,
-      listHasMore: false,
+      initialProducts: listPage.rows,
+      listTotalCount: listPage.totalCount,
+      listHasMore: listPage.hasMore,
       initialSavedView: null,
       initialFilteredItemIds: null,
       fieldPermissions,

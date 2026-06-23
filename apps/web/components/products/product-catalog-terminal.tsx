@@ -52,6 +52,10 @@ import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider"
 import { useModuleAuxiliaryContext } from "@/lib/layout/list-module/use-module-auxiliary-context";
 import type { ListModuleLoadMode } from "@/lib/layout/list-module/drawer-search-params";
 import {
+  isDeepLinkPeekLanding,
+  peekDetailMatchesSsrSeed,
+} from "@/lib/layout/list-module/deep-link-landing";
+import {
   type BulkToolbarAction,
 } from "@/components/products/product-bulk-action-toolbar";
 import dynamic from "next/dynamic";
@@ -244,6 +248,14 @@ const peekValuationsInflight = new Map<
 >();
 const peekValuationsDone = new Set<string>();
 
+/** Dedupes page-0 list bootstrap across Strict Mode remounts on deep-link peek refresh. */
+const catalogListPage0Inflight = new Map<
+  number,
+  Promise<Awaited<ReturnType<typeof fetchMoreProductListRows>>>
+>();
+/** Shared inflight key so Strict Mode remount reuses the same page-0 fetch. */
+const DEEP_LINK_PAGE0_INFLIGHT_KEY = 0;
+
 export function ProductCatalogTerminal({
   tenantId,
   loadMode = "list",
@@ -275,6 +287,10 @@ export function ProductCatalogTerminal({
     useAvailablePaneHeight(true, "remaining-viewport");
   const omnibar = useOptionalOmnibarContext();
   const itemsRouteSessionRef = useRef(allocateItemsRouteSession());
+  const deepLinkPeekLandingRef = useRef(
+    isDeepLinkPeekLanding(loadMode, initialProducts.length, initialDetail)
+  );
+  const deepLinkListBootstrapStartedRef = useRef(false);
 
   useListModuleScrollLock();
 
@@ -313,10 +329,6 @@ export function ProductCatalogTerminal({
   const filterFetchRequestRef = useRef(0);
   const expandVariantsFetchRequestRef = useRef(0);
   const fullCatalogFetchRequestRef = useRef(0);
-  const [listHydrationDeferred, setListHydrationDeferred] = useState(
-    () => loadMode === "drawer-deep-link"
-  );
-  const wasDrawerOpenRef = useRef(false);
   const [totalCount, setTotalCount] = useState(listTotalCount);
   const [hasMore, setHasMore] = useState(listHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -390,16 +402,79 @@ export function ProductCatalogTerminal({
     [expandVariants]
   );
 
+  const runPage0CatalogFetch = useCallback(
+    (fetchOptions: { expandVariants: boolean; includeImages: boolean }) => {
+      if (productsRef.current.length > 0) return;
+
+      const deepLinkBootstrap = deepLinkPeekLandingRef.current;
+      const inflightKey = deepLinkBootstrap
+        ? DEEP_LINK_PAGE0_INFLIGHT_KEY
+        : itemsRouteSessionRef.current;
+
+      if (deepLinkBootstrap) {
+        if (deepLinkListBootstrapStartedRef.current && catalogListPage0Inflight.has(inflightKey)) {
+          return;
+        }
+        deepLinkListBootstrapStartedRef.current = true;
+      }
+
+      const requestId = fullCatalogFetchRequestRef.current + 1;
+      fullCatalogFetchRequestRef.current = requestId;
+      setIsLoadingFullCatalog(true);
+
+      const runFetch = () =>
+        fetchMoreProductListRows(0, fetchOptions).finally(() => {
+          catalogListPage0Inflight.delete(inflightKey);
+        });
+
+      const fetchPromise = catalogListPage0Inflight.get(inflightKey) ?? runFetch();
+      if (!catalogListPage0Inflight.has(inflightKey)) {
+        catalogListPage0Inflight.set(inflightKey, fetchPromise);
+      }
+
+      void (async () => {
+        try {
+          const page = await fetchPromise;
+          const mounted = catalogFetchMountedRef.current;
+          const requestIdMatch = fullCatalogFetchRequestRef.current === requestId;
+          if (!mounted) return;
+          if (!requestIdMatch) return;
+          setProducts(page.rows);
+          setTotalCount(page.totalCount);
+          setHasMore(page.hasMore);
+        } catch {
+          if (fullCatalogFetchRequestRef.current !== requestId) return;
+          toast.error("Unable to load items.");
+        } finally {
+          if (fullCatalogFetchRequestRef.current === requestId) {
+            setIsLoadingFullCatalog(false);
+          }
+        }
+      })();
+    },
+    []
+  );
+
+  useLayoutEffect(() => {
+    if (!deepLinkPeekLandingRef.current) return;
+    if (productsRef.current.length > 0) return;
+    runPage0CatalogFetch({
+      expandVariants: initialExpandVariants,
+      includeImages: false,
+    });
+  }, [initialExpandVariants, runPage0CatalogFetch]);
+
   const selectedId = drawer.recordId;
   const selectedVariantId = drawer.variantId;
   const drawerOpen = drawer.isOpen;
 
+  const catalogFetchMountedRef = useRef(true);
   useEffect(() => {
-    if (wasDrawerOpenRef.current && !drawerOpen && listHydrationDeferred) {
-      setListHydrationDeferred(false);
-    }
-    wasDrawerOpenRef.current = drawerOpen;
-  }, [drawerOpen, listHydrationDeferred]);
+    catalogFetchMountedRef.current = true;
+    return () => {
+      catalogFetchMountedRef.current = false;
+    };
+  }, []);
 
   const runBulkTransition = useCallback(
     (task: () => Promise<void>) => {
@@ -600,55 +675,40 @@ export function ProductCatalogTerminal({
   ]);
 
   useEffect(() => {
-    if (!omnibar) return;
+    if (deepLinkPeekLandingRef.current) return;
+
+    const deepLinkBootstrap = deepLinkPeekLandingRef.current;
+
+    if (!omnibar && !deepLinkBootstrap) return;
     if (hasServerFilteredView) return;
-    if (listHydrationDeferred) return;
-    if (isResolvingDefaultView || structuralFilterActive || matchesServerSnapshot()) return;
-    if (products.length > 0) return;
-    if (omnibar.appliedQuery.trim() || omnibar.activeSavedView) return;
+    if (!deepLinkBootstrap) {
+      if (isResolvingDefaultView || structuralFilterActive || matchesServerSnapshot()) return;
+      if (products.length > 0) return;
+      if (omnibar!.appliedQuery.trim() || omnibar!.activeSavedView) return;
+    } else {
+      if (structuralFilterActive) return;
+      if (products.length > 0) return;
+    }
 
-    const requestId = fullCatalogFetchRequestRef.current + 1;
-    fullCatalogFetchRequestRef.current = requestId;
-    setIsLoadingFullCatalog(true);
-
-    const routeSession = itemsRouteSessionRef.current;
-    void (async () => {
-      try {
-        const page = await fetchMoreProductListRows(0, listFetchOptions());
-        if (!isItemsRouteSessionActive(routeSession)) return;
-        if (fullCatalogFetchRequestRef.current !== requestId) return;
-        setProducts(page.rows);
-        setTotalCount(page.totalCount);
-        setHasMore(page.hasMore);
-      } catch {
-        if (fullCatalogFetchRequestRef.current !== requestId) return;
-        toast.error("Unable to load items.");
-      } finally {
-        if (fullCatalogFetchRequestRef.current === requestId) {
-          setIsLoadingFullCatalog(false);
-        }
-      }
-    })();
+    runPage0CatalogFetch(listFetchOptions());
   }, [
     hasServerFilteredView,
     isResolvingDefaultView,
     listFetchOptions,
-    listHydrationDeferred,
     matchesServerSnapshot,
     omnibar?.activeSavedView,
     omnibar?.appliedQuery,
     omnibar?.moduleFilterRevision,
     products.length,
     structuralFilterActive,
-    expandVariants,
     omnibar,
+    runPage0CatalogFetch,
   ]);
 
   useEffect(() => {
     return () => {
-      invalidateItemsRouteSessions();
+      catalogListPage0Inflight.delete(itemsRouteSessionRef.current);
       filterFetchRequestRef.current += 1;
-      fullCatalogFetchRequestRef.current += 1;
       expandVariantsFetchRequestRef.current += 1;
       if (prefetchTimerRef.current) {
         clearTimeout(prefetchTimerRef.current);
@@ -658,16 +718,17 @@ export function ProductCatalogTerminal({
   }, []);
 
   const unfilteredCatalogActive =
-    !isResolvingDefaultView &&
+    (!isResolvingDefaultView || deepLinkPeekLandingRef.current) &&
     !structuralFilterActive &&
     !omnibar?.activeSavedView &&
     !omnibar?.appliedQuery.trim();
 
-  const catalogProducts = isResolvingDefaultView
-    ? []
-    : unfilteredCatalogActive
-      ? products
-      : filterProducts ?? products;
+  const catalogProducts =
+    isResolvingDefaultView && !deepLinkPeekLandingRef.current
+      ? []
+      : unfilteredCatalogActive
+        ? products
+        : filterProducts ?? products;
   const catalogTotalCount = unfilteredCatalogActive || filterProducts == null ? totalCount : filterProducts.length;
   const catalogHasMore = unfilteredCatalogActive ? hasMore : filterProducts != null ? false : hasMore;
 
@@ -723,7 +784,7 @@ export function ProductCatalogTerminal({
       if (expandVariantsRef.current === nextExpandVariants) return;
       if (
         source === "sync" &&
-        listHydrationDeferred &&
+        deepLinkPeekLandingRef.current &&
         productsRef.current.length === 0
       ) {
         expandVariantsRef.current = nextExpandVariants;
@@ -749,6 +810,10 @@ export function ProductCatalogTerminal({
 
       const currentRows = productsRef.current;
       if (listHasExpandedVariantRows(currentRows)) {
+        return;
+      }
+
+      if (deepLinkPeekLandingRef.current && currentRows.length === 0) {
         return;
       }
 
@@ -785,7 +850,6 @@ export function ProductCatalogTerminal({
       omnibar?.appliedQuery,
       refetchCatalog,
       structuralFilterActive,
-      listHydrationDeferred,
     ]
   );
 
@@ -1401,7 +1465,7 @@ export function ProductCatalogTerminal({
     if (detail.item_type !== "PHYSICAL" || detail.is_bundle || !detail.track_inventory) return;
 
     const cacheKey = detailCacheKey(drawer.recordId, drawer.variantId ?? null);
-    if (detail.valuations.length > 0) {
+    if (detail.valuations.length > 0 || detail.peek_valuations_resolved) {
       peekValuationsDone.add(cacheKey);
       setValuationsLoadingKey((current) => (current === cacheKey ? null : current));
       return;
@@ -1500,7 +1564,7 @@ export function ProductCatalogTerminal({
     if (
       fetchScope === "peek" &&
       currentDetail?.id === drawer.recordId &&
-      detailMatchesDrawerVariant(currentDetail, drawerVariant)
+      peekDetailMatchesSsrSeed(currentDetail, drawer.recordId, drawerVariant, fetchScope)
     ) {
       drawerFetchTargetRef.current = fetchTargetKey;
       return;
@@ -1763,8 +1827,10 @@ export function ProductCatalogTerminal({
     Boolean(detail) &&
     Boolean(drawer.recordId) &&
     detail?.id === drawer.recordId &&
-    detailMatchesDrawerVariant(detail, drawer.variantId) &&
-    (drawer.surface !== "edit" || detail?.detail_scope === "full");
+    (drawer.surface === "edit"
+      ? detail?.detail_scope === "full" &&
+        detailMatchesDrawerVariant(detail, drawer.variantId)
+      : peekDetailMatchesSsrSeed(detail, drawer.recordId, drawer.variantId, "peek"));
 
   const isDetailRefreshing = Boolean(
     drawerTargetKey && detailLoadingKey === drawerTargetKey && isLoadingDetail
@@ -1797,9 +1863,9 @@ export function ProductCatalogTerminal({
     onLoadMore: unfilteredCatalogActive ? handleLoadMore : undefined,
     structuralFilterResolved: !unfilteredCatalogActive && filterProducts != null,
     isLoadingStructuralFilter:
-      listHydrationDeferred ||
       isLoadingFullCatalog ||
       (!matchesServerSnapshot() &&
+        !deepLinkPeekLandingRef.current &&
         (isResolvingDefaultView ||
           (structuralFilterActive &&
             (isLoadingFilterProducts ||
@@ -1832,7 +1898,8 @@ export function ProductCatalogTerminal({
     ssrListReady: initialProducts.length > 0 || hasServerFilteredView,
     itemsRouteSession: itemsRouteSessionRef.current,
     detailPaneOpen: drawerOpen,
-    listCountPending: listHydrationDeferred,
+    listCountPending:
+      deepLinkPeekLandingRef.current && products.length === 0 && isLoadingFullCatalog,
     bulkToolbarEmbedded: true,
   } as const;
 

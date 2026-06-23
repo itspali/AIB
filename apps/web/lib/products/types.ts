@@ -216,6 +216,8 @@ export type ProductDetailSnapshot = {
   variant_count_summary?: ProductVariantCountSummary;
   /** Deferred peek sections already merged into this snapshot. */
   peek_loaded_sections?: ProductPeekSection[];
+  /** Peek stock/valuations were resolved on the server (including an empty result). */
+  peek_valuations_resolved?: boolean;
   created_at: string;
   updated_at: string;
 };
