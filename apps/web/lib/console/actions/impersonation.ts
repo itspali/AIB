@@ -186,3 +186,8 @@ export async function endImpersonation(sessionId?: string) {
   }
 }
 
+/** Form-compatible wrapper — `<form action>` requires `(formData: FormData) => …`. */
+export async function endImpersonationFormAction(_formData: FormData) {
+  await endImpersonation();
+}
+

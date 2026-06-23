@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
-import { endImpersonation } from "@/lib/console/actions/impersonation";
+import { endImpersonationFormAction } from "@/lib/console/actions/impersonation";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -32,7 +32,7 @@ export function ImpersonationBanner({ tenantName, organizationCode, mode }: Prop
         <Button asChild size="sm" variant="outline">
           <Link href="/console">Back to console</Link>
         </Button>
-        <form action={endImpersonation} className="inline">
+        <form action={endImpersonationFormAction} className="inline">
           <ExitImpersonationButton />
         </form>
       </div>
