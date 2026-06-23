@@ -33,6 +33,7 @@ import {
 import type { useCategoryForm } from "@/lib/categories/use-category-form";
 import { CATEGORY_EDITOR_FIELD_HELP } from "@/lib/categories/category-editor-field-help";
 import { QC_RECEIPT_POLICIES, qcReceiptPolicyLabel } from "@/lib/procurement/qc-receipt-policy";
+import { QcTestTemplateScopePanel } from "@/components/procurement/quality-inspection/qc-test-template-scope-panel";
 import {
   CATEGORY_EDITOR_FORM_CLASS,
   editorPanelWizardBleedLgClass,
@@ -294,6 +295,16 @@ export function CategoryEditorShell({
                   </Select>
                 </div>
               </div>
+
+              {editingCategoryId ? (
+                <QcTestTemplateScopePanel
+                  scopeType="CATEGORY"
+                  scopeReferenceId={editingCategoryId}
+                  scopeLabel="category"
+                  readOnly={readOnly}
+                  className="mt-4"
+                />
+              ) : null}
 
               <div className="grid grid-cols-1 items-end gap-x-4 gap-y-3 md:grid-cols-2">
                 {hasParent ? (

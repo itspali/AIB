@@ -55,12 +55,15 @@ import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-o
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
 import type { LandedCostAllocationMethod, ProcurementSettings } from "@/lib/procurement/settings";
 import {
-  grnStockColumnLabel,
   resolveDefaultRouteToQc,
   type QcPolicyContext,
   type VariantQcPolicyHint,
 } from "@/lib/procurement/qc-receipt-policy";
-import { grnLineQcHoldQuantity } from "@/lib/procurement/goods-receipts/grn-qc-release";
+import {
+  buildGrnPeekLineColumns,
+  buildGrnPeekLineMinTableWidth,
+  grnPeekLineCellValue,
+} from "@/lib/procurement/goods-receipts/grn-qc-release";
 import { ensureTrailingEmptyLine } from "@/lib/documents/line-entry";
 import { useDocumentLineTableFillHeight } from "@/lib/documents/use-document-line-table-fill-height";
 import { cn } from "@/lib/utils";
@@ -503,6 +506,11 @@ export function GrnDrawerForm({
           (() => {
             const peekLines = detail.lines ?? [];
             const showLineImportTax = peekLines.some(grnLineHasImportTax);
+            const peekColumns = buildGrnPeekLineColumns({
+              isQcPending: detail.is_qc_pending,
+              qcModuleEnabled: qcContext.qcModuleEnabled,
+              showLineImportTax,
+            });
             return (
           <DocumentPeekActivityShell
             entityType="GOODS_RECEIPT"
@@ -530,6 +538,7 @@ export function GrnDrawerForm({
             <GrnQcReleasePanel
               goodsReceiptId={detail.id}
               isQcPending={detail.is_qc_pending}
+              qcModuleEnabled={qcContext.qcModuleEnabled}
               qcLines={detail.lines ?? []}
               onReleased={handleQcReleased}
             />
@@ -543,40 +552,17 @@ export function GrnDrawerForm({
                   Quantities and costs recorded at receipt. Use quality inspection above to post
                   stock or record rejects.
                 </p>
+              ) : qcContext.qcModuleEnabled ? (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Posted to stock and QC reject columns reflect the inspection outcome. Dock exc.
+                  covers damage or shortages recorded at receipt.
+                </p>
               ) : null}
               <DocumentLinePeekTable
                 lines={peekLines}
                 getRowKey={(line) => line.id}
-                columns={[
-                  { id: "item", label: "Item", align: "left" },
-                  { id: "quantity_received", label: "Received", align: "right", widthClass: "w-[5rem]" },
-                  { id: "quantity_rejected", label: "Exceptions", align: "right", widthClass: "w-[5rem]" },
-                  {
-                    id: "quantity_accepted",
-                    label: detail.is_qc_pending
-                      ? "On hold"
-                      : grnStockColumnLabel(qcContext.qcModuleEnabled),
-                    align: "right",
-                    widthClass: "w-[5.5rem]",
-                  },
-                  { id: "raw_unit_cost", label: "Unit cost", align: "right", widthClass: "w-[5.5rem]" },
-                  ...(showLineImportTax
-                    ? [
-                        {
-                          id: "customs_duty_amount",
-                          label: "Customs",
-                          align: "right" as const,
-                          widthClass: "w-[5rem]",
-                        },
-                        {
-                          id: "import_igst_amount",
-                          label: "Import IGST",
-                          align: "right" as const,
-                          widthClass: "w-[5.5rem]",
-                        },
-                      ]
-                    : []),
-                ]}
+                minTableWidth={buildGrnPeekLineMinTableWidth(peekColumns)}
+                columns={peekColumns}
                 renderCell={(column, line) => {
                   if (column.id === "item") {
                     return (
@@ -586,25 +572,11 @@ export function GrnDrawerForm({
                       />
                     );
                   }
-                  if (column.id === "quantity_received") {
-                    return <DocumentLinePeekValueCell value={line.quantity_received} />;
-                  }
-                  if (column.id === "quantity_accepted") {
-                    const holdValue = detail.is_qc_pending
-                      ? String(grnLineQcHoldQuantity(line))
-                      : line.quantity_accepted;
-                    return <DocumentLinePeekValueCell value={holdValue} />;
-                  }
-                  if (column.id === "quantity_rejected") {
-                    return <DocumentLinePeekValueCell value={line.quantity_rejected} />;
-                  }
-                  if (column.id === "customs_duty_amount") {
-                    return <DocumentLinePeekValueCell value={line.customs_duty_amount} />;
-                  }
-                  if (column.id === "import_igst_amount") {
-                    return <DocumentLinePeekValueCell value={line.import_igst_amount} />;
-                  }
-                  return <DocumentLinePeekValueCell value={line.raw_unit_cost} />;
+                  return (
+                    <DocumentLinePeekValueCell
+                      value={grnPeekLineCellValue(column.id, line, detail.is_qc_pending)}
+                    />
+                  );
                 }}
               />
             </div>

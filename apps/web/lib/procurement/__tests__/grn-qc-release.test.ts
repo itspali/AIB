@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  grnLineDockExceptions,
+  grnLinePostedToStock,
   grnLineQcHoldQuantity,
+  grnLineQcRejected,
   grnLinesAwaitingQcRelease,
   parseGrnQcReleaseQuantities,
   syncGrnQcPassQuantity,
@@ -94,5 +97,24 @@ describe("syncGrnQcPassQuantity", () => {
 describe("syncGrnQcRejectQuantity", () => {
   it("sets pass to the remaining on-hold quantity", () => {
     expect(syncGrnQcRejectQuantity(10, "2")).toEqual({ pass: "8", reject: "2" });
+  });
+});
+
+describe("grnLine quantity breakdown", () => {
+  it("derives dock exceptions, QC rejects, and posted stock", () => {
+    const dockOnly = line({ id: "dock", quantity_received: "10", quantity_accepted: "9", quantity_rejected: "1" });
+    expect(grnLineDockExceptions(dockOnly)).toBe(1);
+    expect(grnLineQcRejected(dockOnly)).toBe(0);
+    expect(grnLinePostedToStock(dockOnly)).toBe(9);
+
+    const qcReject = line({ id: "qc", quantity_received: "10", quantity_accepted: "10", quantity_rejected: "2" });
+    expect(grnLineDockExceptions(qcReject)).toBe(0);
+    expect(grnLineQcRejected(qcReject)).toBe(2);
+    expect(grnLinePostedToStock(qcReject)).toBe(8);
+
+    const mixed = line({ id: "mixed", quantity_received: "10", quantity_accepted: "9", quantity_rejected: "3" });
+    expect(grnLineDockExceptions(mixed)).toBe(1);
+    expect(grnLineQcRejected(mixed)).toBe(2);
+    expect(grnLinePostedToStock(mixed)).toBe(7);
   });
 });

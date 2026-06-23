@@ -7,6 +7,7 @@ import {
   Boxes,
   Building2,
   ClipboardList,
+  ClipboardCheck,
   CreditCard,
   FileText,
   FileOutput,
@@ -85,6 +86,11 @@ export const moduleNavItems: ModuleNavItem[] = [
         href: "/procurement/goods-receipts",
         label: "Goods Receipts",
         icon: PackageCheck,
+      },
+      {
+        href: "/procurement/quality-inspection",
+        label: "Quality Inspection",
+        icon: ClipboardCheck,
       },
       {
         href: "/procurement/goods-in-transit",

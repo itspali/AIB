@@ -12,7 +12,11 @@ import {
   type GrnRejectDisposition,
 } from "@/lib/procurement/goods-receipts/grn-reject-dispositions";
 import {
+  formatGrnDisplayQuantity,
+  grnLineDockExceptions,
+  grnLinePostedToStock,
   grnLineQcHoldQuantity,
+  grnLineQcRejected,
   grnLinesAwaitingQcRelease,
   parseGrnQcReleaseQuantities,
   syncGrnQcPassQuantity,
@@ -34,6 +38,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   goodsReceiptId: string;
   isQcPending: boolean;
+  qcModuleEnabled: boolean;
   qcLines: GoodsReceiptLineRow[];
   onReleased: () => void | Promise<void>;
 };
@@ -53,9 +58,48 @@ function defaultLineDraft(line: GoodsReceiptLineRow): LineDraft {
   };
 }
 
+function GrnQcOutcomeSummary({ lines }: { lines: GoodsReceiptLineRow[] }) {
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="overflow-x-auto rounded-md border border-border bg-background">
+      <table className="w-full min-w-[28rem] text-sm">
+        <thead>
+          <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+            <th className="px-3 py-2 text-left font-medium">Item</th>
+            <th className="w-[5rem] px-2 py-2 text-right font-medium">Posted</th>
+            <th className="w-[5rem] px-2 py-2 text-right font-medium">QC reject</th>
+            <th className="w-[5rem] px-2 py-2 text-right font-medium">Dock exc.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line) => (
+            <tr key={line.id} className="border-b border-border/70 last:border-b-0">
+              <td className="px-3 py-2 align-middle">
+                <p className="font-medium leading-tight">{line.item_name}</p>
+                <p className="font-mono text-xs text-muted-foreground">{line.variant_sku}</p>
+              </td>
+              <td className="px-2 py-2 text-right align-middle tabular-nums">
+                {formatGrnDisplayQuantity(grnLinePostedToStock(line))}
+              </td>
+              <td className="px-2 py-2 text-right align-middle tabular-nums">
+                {formatGrnDisplayQuantity(grnLineQcRejected(line))}
+              </td>
+              <td className="px-2 py-2 text-right align-middle tabular-nums">
+                {formatGrnDisplayQuantity(grnLineDockExceptions(line))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function GrnQcReleasePanel({
   goodsReceiptId,
   isQcPending,
+  qcModuleEnabled,
   qcLines,
   onReleased,
 }: Props) {
@@ -64,20 +108,45 @@ export function GrnQcReleasePanel({
 
   const pendingLines = useMemo(() => grnLinesAwaitingQcRelease(qcLines), [qcLines]);
 
+  const hasLineRejectDraft = useMemo(
+    () =>
+      pendingLines.some((line) => {
+        const onHold = grnLineQcHoldQuantity(line);
+        const draft = lineDrafts[line.id] ?? defaultLineDraft(line);
+        const parsed = parseGrnQcReleaseQuantities(onHold, draft.pass, draft.reject);
+        return !parsed.error && parsed.reject > 0;
+      }),
+    [lineDrafts, pendingLines]
+  );
+
   if (!isQcPending) {
+    if (!qcModuleEnabled) return null;
+
     return (
-      <Badge variant="completed" className="text-xs font-normal">
-        QC cleared — stock posted
-      </Badge>
+      <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
+        <Badge variant="completed" className="text-xs font-normal">
+          QC cleared — stock posted
+        </Badge>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">Inspection outcome</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Pass and reject quantities recorded during quality inspection.
+          </p>
+        </div>
+        <GrnQcOutcomeSummary lines={qcLines} />
+      </section>
     );
   }
 
   if (pendingLines.length === 0) {
+    if (!qcModuleEnabled) return null;
+
     return (
-      <section className="rounded-lg border border-border bg-muted/20 p-4">
+      <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
         <Badge variant="completed" className="text-xs font-normal">
           QC cleared — stock posted
         </Badge>
+        <GrnQcOutcomeSummary lines={qcLines} />
       </section>
     );
   }
@@ -244,9 +313,22 @@ export function GrnQcReleasePanel({
         </table>
       </div>
 
-      <Button type="button" size="sm" disabled={isPending} onClick={handleReleaseAll}>
-        {isPending ? "Posting…" : "Accept all & post to stock"}
-      </Button>
+      <div className="space-y-2">
+        {hasLineRejectDraft ? (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            One or more lines have reject quantities entered. Use Apply on each line to save
+            pass/reject splits — Accept all posts the full on-hold quantity with zero rejects.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Accept all posts the full on-hold quantity for every line with zero rejects. Use Apply
+            on each line when you need a pass/reject split.
+          </p>
+        )}
+        <Button type="button" size="sm" disabled={isPending} onClick={handleReleaseAll}>
+          {isPending ? "Posting…" : "Accept all & post to stock"}
+        </Button>
+      </div>
     </section>
   );
 }

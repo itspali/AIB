@@ -26,8 +26,8 @@ import type { DocumentColumnPref, DocumentLayoutTemplate } from "@/lib/documents
 import type { PoPeekLineDisplayOptions } from "@/lib/documents/peek-line-display";
 import { formatDate } from "@/lib/dashboard/format";
 import {
-  purchaseOrderStatusBadgeVariant,
-  purchaseOrderStatusLabel,
+  purchaseOrderStatusDisplayBadgeVariant,
+  purchaseOrderStatusDisplayLabel,
 } from "@/lib/procurement/purchase-orders/labels";
 import { parsePurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
 import type { PurchaseOrderCustomFields } from "@/lib/procurement/purchase-orders/custom-fields";
@@ -121,8 +121,8 @@ function resolvePeekHeaderValue(
       return <p className="text-sm font-medium">{order.currency_code}</p>;
     case "document_status":
       return (
-        <Badge variant={purchaseOrderStatusBadgeVariant(order.document_status)}>
-          {purchaseOrderStatusLabel(order.document_status)}
+        <Badge variant={purchaseOrderStatusDisplayBadgeVariant(order)}>
+          {purchaseOrderStatusDisplayLabel(order)}
         </Badge>
       );
     case "payment_terms_days":

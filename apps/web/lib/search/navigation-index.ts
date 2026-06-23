@@ -87,6 +87,11 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     keywords: ["goods receipts", "grn", "receipt", "inbound", "procurement"],
   },
   {
+    label: "Quality Inspection",
+    href: "/procurement/quality-inspection",
+    keywords: ["quality inspection", "qc", "inspection", "quarantine", "procurement"],
+  },
+  {
     label: "Suppliers",
     href: "/procurement/suppliers",
     keywords: ["suppliers", "vendors", "procurement"],

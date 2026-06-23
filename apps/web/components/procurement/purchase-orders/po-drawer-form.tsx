@@ -88,6 +88,7 @@ import type { PostingStepResult } from "@/lib/documents/posting-types";
 import {
   canUserManuallyIssueApprovedPo,
   isPoApprovalRequiredBeforeIssue,
+  isPoFullyApprovedAwaitingIssue,
   isPurchaseOrderApprovableByUser,
   type ProcurementApprovalSettings,
 } from "@/lib/procurement/approval-settings";
@@ -720,7 +721,10 @@ export function PoDrawerForm({
     detail?.document_status === "PARTIALLY_FULFILLED";
 
   const isDraftOrder = detail?.document_status === "DRAFT";
-  const isPendingApprovalOrder = detail?.document_status === "PENDING_APPROVAL";
+  const isPendingApprovalOrder =
+    detail?.document_status === "PENDING_APPROVAL" &&
+    detail != null &&
+    !isPoFullyApprovedAwaitingIssue(detail);
   const purchaseOrderId = editOrderId ?? detail?.id ?? null;
   const savedTotalNetAmount = Number(detail?.total_net_amount ?? 0);
   const totalNetAmount = (() => {
@@ -802,61 +806,59 @@ export function PoDrawerForm({
     surface === "peek" && detail ? (
       <>
         {canEditThisOrder ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            aria-label="Edit purchase order"
+            onClick={() => onOpenEdit(detail.id)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        ) : null}
+        {showSubmitForApproval ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={isPending}
+            onClick={handleSubmitForApproval}
+          >
+            {isPending ? "Submitting…" : "Submit for approval"}
+          </Button>
+        ) : null}
+        {showIssue ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={isPending}
+            onClick={handleIssue}
+          >
+            {isPending ? "Issuing…" : "Issue"}
+          </Button>
+        ) : null}
+        {showApproveReject ? (
           <>
             <Button
               type="button"
-              variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
-              aria-label="Edit purchase order"
-              onClick={() => onOpenEdit(detail.id)}
+              variant="secondary"
+              disabled={isPending}
+              onClick={handleApprove}
             >
-              <Pencil className="h-4 w-4" />
+              {isPending ? "Approving…" : "Approve"}
             </Button>
-            {showSubmitForApproval ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={isPending}
-                onClick={handleSubmitForApproval}
-              >
-                {isPending ? "Submitting…" : "Submit for approval"}
-              </Button>
-            ) : null}
-            {showIssue ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={isPending}
-                onClick={handleIssue}
-              >
-                {isPending ? "Issuing…" : "Issue"}
-              </Button>
-            ) : null}
-            {showApproveReject ? (
-              <>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={isPending}
-                  onClick={handleApprove}
-                >
-                  {isPending ? "Approving…" : "Approve"}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={() => setRejectDialogOpen(true)}
-                >
-                  Reject
-                </Button>
-              </>
-            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setRejectDialogOpen(true)}
+            >
+              Reject
+            </Button>
           </>
         ) : null}
         {canReceive ? (
@@ -1021,10 +1023,12 @@ export function PoDrawerForm({
                 totalNetAmount={Number(detail.total_net_amount ?? 0)}
                 currencyCode={detail.currency_code}
                 approvalSubmittedBy={detail.approval_submitted_by}
+                approvalRequestStatus={detail.approval_request_status}
+                approvalRunStatus={detail.approval_run_status}
                 currentUserId={currentUserId}
                 isOwner={isOwner}
                 approvalSettings={approvalSettings}
-                refreshKey={`${detail.id}:${detail.updated_at}:${issuePostingSummary?.length ?? 0}`}
+                refreshKey={`${detail.id}:${detail.updated_at}:${detail.approval_request_status ?? ""}:${detail.approval_run_status ?? ""}:${issuePostingSummary?.length ?? 0}`}
                 onActionComplete={async () => {
                   await reloadDetail(detail.id);
                   onAfterSave(detail.id);

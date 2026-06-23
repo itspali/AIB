@@ -59,6 +59,7 @@ import {
 } from "@/components/products/variant-opening-stock-matrix";
 import { PriceBookEntryEditor } from "@/components/products/price-book-entry-editor";
 import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
+import { QcTestTemplateScopePanel } from "@/components/procurement/quality-inspection/qc-test-template-scope-panel";
 import { VariantAttributeFields } from "@/components/products/variant-attribute-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -3061,6 +3062,17 @@ export function ProductEditorShell({
                         </SelectContent>
                       </Select>
                     </Field>
+                  </div>
+                ) : null}
+
+                {itemId && trackInventory ? (
+                  <div className={editorPanelDividerClass()}>
+                    <QcTestTemplateScopePanel
+                      scopeType="ITEM"
+                      scopeReferenceId={itemId}
+                      scopeLabel="item"
+                      readOnly={readOnly}
+                    />
                   </div>
                 ) : null}
 

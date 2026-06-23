@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Building2,
+  ClipboardCheck,
   ClipboardList,
   FolderTree,
   PackageCheck,

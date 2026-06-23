@@ -27,7 +27,12 @@ import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import { notifyNotificationInboxChanged } from "@/lib/notifications/inbox-events";
 import { formatMoneyDetail } from "@/lib/procurement/math";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
-import { isPurchaseOrderApprovableByUser } from "@/lib/procurement/approval-settings";
+import {
+  isPoFullyApprovedAwaitingIssue,
+  isPurchaseOrderApprovableByUser,
+} from "@/lib/procurement/approval-settings";
+import { purchaseOrderStatusDisplayLabel } from "@/lib/procurement/purchase-orders/labels";
+import type { PurchaseOrderStatus } from "@/lib/procurement/purchase-orders/types";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import {
   isSalesOrderApprovableByUser,
@@ -51,6 +56,8 @@ type Props = {
   totalNetAmount: number;
   currencyCode: string;
   approvalSubmittedBy?: string | null;
+  approvalRequestStatus?: string | null;
+  approvalRunStatus?: string | null;
   currentUserId: string;
   isOwner: boolean;
   approvalSettings: ApprovalSettings;
@@ -81,6 +88,8 @@ function isApprovableByUser(
     document_status: string;
     total_net_amount: number;
     approval_submitted_by?: string | null;
+    approval_request_status?: string | null;
+    approval_run_status?: string | null;
   },
   userId: string,
   approvalSettings: ApprovalSettings,
@@ -122,6 +131,8 @@ export function DocumentPeekApprovalPane({
   totalNetAmount,
   currencyCode,
   approvalSubmittedBy,
+  approvalRequestStatus,
+  approvalRunStatus,
   currentUserId,
   isOwner,
   approvalSettings,
@@ -147,19 +158,38 @@ export function DocumentPeekApprovalPane({
     void reload();
   }, [reload, refreshKey]);
 
+  const poApprovalMeta =
+    documentType === "PURCHASE_ORDER"
+      ? {
+          document_status: documentStatus as PurchaseOrderStatus,
+          approval_request_status: approvalRequestStatus,
+          approval_run_status: approvalRunStatus,
+        }
+      : null;
+  const approvedAwaitingIssue =
+    poApprovalMeta != null && isPoFullyApprovedAwaitingIssue(poApprovalMeta);
+
   const canApproveReject =
     documentStatus === "PENDING_APPROVAL" &&
+    !approvedAwaitingIssue &&
     isApprovableByUser(
       documentType,
       {
         document_status: documentStatus,
         total_net_amount: totalNetAmount,
         approval_submitted_by: approvalSubmittedBy,
+        approval_request_status: approvalRequestStatus,
+        approval_run_status: approvalRunStatus,
       },
       currentUserId,
       approvalSettings,
       { isOwner }
     );
+
+  const statusBadgeLabel =
+    poApprovalMeta != null
+      ? purchaseOrderStatusDisplayLabel(poApprovalMeta)
+      : documentStatus.replaceAll("_", " ");
 
   const activeStep = resolveActiveApprovalStep(run, currentUserId);
   const docLabel = documentTypeLabel(documentType);
@@ -243,7 +273,7 @@ export function DocumentPeekApprovalPane({
       <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-medium">{voucherNumber}</p>
-          <Badge variant="administrative">{documentStatus.replaceAll("_", " ")}</Badge>
+          <Badge variant="administrative">{statusBadgeLabel}</Badge>
           {run?.status ? <Badge variant="default">{run.status}</Badge> : null}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -271,6 +301,10 @@ export function DocumentPeekApprovalPane({
             Reject
           </Button>
         </div>
+      ) : approvedAwaitingIssue ? (
+        <p className="text-xs text-muted-foreground">
+          Approval is complete. Issue the purchase order to the supplier when ready.
+        </p>
       ) : documentStatus === "PENDING_APPROVAL" ? (
         <p className="text-xs text-muted-foreground">
           You are not an assignee on the current approval step.

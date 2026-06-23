@@ -14,6 +14,9 @@ export type DocumentLinePeekColumn = {
   label: string;
   align?: "left" | "right" | "center";
   widthClass?: string;
+  colWidthRem?: number;
+  colMinWidthRem?: number;
+  headerClassName?: string;
 };
 
 type Props<T> = {
@@ -47,6 +50,21 @@ export function DocumentLinePeekTable<T>({
   return (
     <div className="po-peek-lines-table po-line-grid-scroll">
       <table className={cn("w-full table-fixed border-collapse text-sm", minTableWidth)}>
+        <colgroup>
+          {showLineNumbers ? <col style={{ width: "2.25rem" }} /> : null}
+          {columns.map((column) => (
+            <col
+              key={column.id}
+              style={
+                column.colMinWidthRem != null
+                  ? { minWidth: `${column.colMinWidthRem}rem` }
+                  : column.colWidthRem != null
+                    ? { width: `${column.colWidthRem}rem` }
+                    : undefined
+              }
+            />
+          ))}
+        </colgroup>
         <thead className="text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             {showLineNumbers ? (
@@ -67,8 +85,10 @@ export function DocumentLinePeekTable<T>({
                 scope="col"
                 className={cn(
                   "px-1.5 py-1.5 text-xs font-medium",
+                  column.id === "item" && "min-w-0 whitespace-normal",
                   peekColumnClass(column),
-                  DOCUMENT_LINE_HEADER_CELL
+                  DOCUMENT_LINE_HEADER_CELL,
+                  column.headerClassName
                 )}
               >
                 {column.label}
@@ -98,6 +118,7 @@ export function DocumentLinePeekTable<T>({
                   key={column.id}
                   className={cn(
                     "p-2 align-top",
+                    column.id === "item" && "min-w-0 whitespace-normal",
                     DOCUMENT_LINE_CELL_BORDER,
                     peekColumnClass(column),
                     DOCUMENT_LINE_ROW_CELL_HOVER

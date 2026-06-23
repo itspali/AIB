@@ -38,6 +38,13 @@ describe("line-column-widths", () => {
     );
   });
 
+  it("sizes GRN receipt columns compactly with a wider exception disposition column", () => {
+    expect(getDocumentLineColumnWidthRem("quantity_received")).toBe(5.5);
+    expect(getDocumentLineColumnWidthRem("exception_quantity")).toBe(7);
+    expect(getDocumentLineColumnWidthRem("quantity_accepted")).toBe(6.5);
+    expect(getDocumentLineColumnWidthRem("raw_unit_cost")).toBe(7.5);
+  });
+
   it("grows min table width when optional columns are enabled", () => {
     const base = computeDocumentLineMinTableWidth(["item", "quantity_ordered", "unit_price", "line_total"]);
     const withUnit = computeDocumentLineMinTableWidth([

@@ -29,6 +29,7 @@ import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const GRN_PATHS = [
   "/procurement/goods-receipts",
+  "/procurement/quality-inspection",
   "/procurement/purchase-orders",
   "/procurement",
   "/inventory/stock",

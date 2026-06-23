@@ -16,6 +16,12 @@ import {
   ensureTrailingEmptyLine,
   isDocumentLineItemSelected,
 } from "@/lib/documents/line-entry";
+import {
+  computeDocumentLineMinTableWidth,
+  getDocumentLineColumnMinWidthRem,
+  getDocumentLineColumnWidthClass,
+  getDocumentLineColumnWidthRem,
+} from "@/lib/documents/line-column-widths";
 import { prefetchBrowseVariants } from "@/lib/inventory/stock/variant-suggestion-cache";
 import {
   GRN_REJECT_DISPOSITIONS,
@@ -248,39 +254,55 @@ export function GrnLineEntryTable({
         id: "item",
         label: "Item",
         align: "left",
-        widthClass: "min-w-[12rem] w-auto sm:min-w-[16rem]",
+        widthClass: getDocumentLineColumnWidthClass("item"),
+        colWidthRem: getDocumentLineColumnWidthRem("item"),
+        colMinWidthRem: getDocumentLineColumnMinWidthRem("item"),
         editable: !poLocked,
       },
       {
         id: "quantity_received",
         label: "Received",
         align: "right",
-        widthClass: "w-[4.5rem]",
+        widthClass: getDocumentLineColumnWidthClass("quantity_received"),
+        colWidthRem: getDocumentLineColumnWidthRem("quantity_received"),
         editable: true,
       },
       {
         id: "exception_quantity",
         label: "Exceptions",
         align: "right",
-        widthClass: "w-[4.5rem]",
+        widthClass: getDocumentLineColumnWidthClass("exception_quantity"),
+        colWidthRem: getDocumentLineColumnWidthRem("exception_quantity"),
         editable: true,
       },
       {
         id: "quantity_accepted",
         label: stockLabel,
         align: "right",
-        widthClass: "w-[5rem]",
+        widthClass: getDocumentLineColumnWidthClass("quantity_accepted"),
+        colWidthRem: getDocumentLineColumnWidthRem("quantity_accepted"),
         editable: false,
+        headerClassName: "whitespace-normal leading-tight",
       },
       {
         id: "raw_unit_cost",
         label: "Unit cost",
         align: "right",
-        widthClass: "w-[5rem]",
+        widthClass: getDocumentLineColumnWidthClass("raw_unit_cost"),
+        colWidthRem: getDocumentLineColumnWidthRem("raw_unit_cost"),
         editable: true,
       },
     ],
     [poLocked, stockLabel]
+  );
+
+  const minTableWidth = useMemo(
+    () =>
+      computeDocumentLineMinTableWidth(
+        ["item", "quantity_received", "exception_quantity", "quantity_accepted", "raw_unit_cost"],
+        { remove: !poLocked }
+      ),
+    [poLocked]
   );
 
   return (
@@ -300,7 +322,7 @@ export function GrnLineEntryTable({
       <DocumentLineEntryGrid
         lines={lines}
         columns={columns}
-        minTableWidth="min-w-[44rem]"
+        minTableWidth={minTableWidth}
         fillHeight={fillHeight}
         disabled={disabled}
         showRemoveColumn={!poLocked}

@@ -131,20 +131,24 @@ function ChoiceCard({
   children?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onSelect}
+    <div
       className={cn(
         "w-full rounded-lg border px-4 py-3 text-left transition-colors",
         selected ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/30",
         disabled && "opacity-60"
       )}
     >
-      <p className="text-sm font-medium">{title}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onSelect}
+        className="w-full text-left disabled:cursor-not-allowed"
+      >
+        <p className="text-sm font-medium">{title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+      </button>
       {selected ? children : null}
-    </button>
+    </div>
   );
 }
 

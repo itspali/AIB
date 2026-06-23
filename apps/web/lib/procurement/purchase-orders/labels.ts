@@ -27,6 +27,18 @@ export function purchaseOrderStatusDisplayLabel(
   return purchaseOrderStatusLabel(row.document_status);
 }
 
+export function purchaseOrderStatusDisplayBadgeVariant(
+  row: Pick<
+    PurchaseOrderRow,
+    "document_status" | "approval_request_status" | "approval_run_status"
+  >
+): "default" | "active" | "completed" | "action_required" {
+  if (isPoFullyApprovedAwaitingIssue(row)) {
+    return "active";
+  }
+  return purchaseOrderStatusBadgeVariant(row.document_status);
+}
+
 export function purchaseOrderStatusBadgeVariant(
   status: PurchaseOrderStatus
 ): "default" | "active" | "completed" | "action_required" {
