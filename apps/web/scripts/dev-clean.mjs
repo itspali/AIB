@@ -91,6 +91,7 @@ for (const cachePath of cachePaths) {
 await delay(isWindows ? 800 : 200);
 
 console.log(`Starting next dev on port ${port}...`);
+console.log("If the browser was already open, hard refresh (Ctrl+Shift+R) to avoid stale Server Action errors.");
 
 const child = spawn("npx", ["next", "dev", "--turbopack", "--port", String(port)], {
   cwd: webRoot,

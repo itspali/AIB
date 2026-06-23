@@ -4,7 +4,6 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionClaims, getSessionTenantId } from "@/lib/supabase/auth";
-import { fetchThemePolicyForSession } from "@/lib/theme/queries";
 import type { ResolvedThemePolicy } from "@/lib/theme/governance";
 import {
   parseBusinessModel,
@@ -20,6 +19,7 @@ export type AppShellBootstrap = {
   tenant: {
     name: string;
     trade_name: string | null;
+    organization_code: string | null;
     onboarding_status: string;
     metadata_json: Record<string, unknown> | null;
   } | null;
@@ -53,19 +53,16 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
   }
 
   const supabase = await createClient();
-  const [{ data: tenant }, { count: locationCount }, themePolicy] = await Promise.all([
+  const [{ data: tenant }, { count: locationCount }] = await Promise.all([
     supabase
       .from("tenants")
-      .select("name, trade_name, onboarding_status, metadata_json")
+      .select("name, trade_name, organization_code, onboarding_status, metadata_json")
       .eq("id", tenantId)
       .single(),
     supabase
       .from("tenant_locations")
       .select("*", { count: "exact", head: true })
       .eq("tenant_id", tenantId),
-    claims?.userId
-      ? fetchThemePolicyForSession(supabase, tenantId, claims.userId)
-      : Promise.resolve(null),
   ]);
 
   const resolvedLocationCount = locationCount ?? 0;
@@ -77,11 +74,12 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
     tenantId,
     userId: claims?.userId ?? null,
     themeCookie,
-    themePolicy,
+    themePolicy: null,
     tenant: tenant
       ? {
           name: tenant.name,
           trade_name: tenant.trade_name,
+          organization_code: tenant.organization_code ?? null,
           onboarding_status: tenant.onboarding_status,
           metadata_json: metadata,
         }

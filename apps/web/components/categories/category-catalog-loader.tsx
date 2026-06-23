@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { CategoryCatalogPageSkeleton } from "@/components/categories/category-catalog-page-skeleton";
+import { fetchCategoryRows } from "@/lib/categories/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchDefaultCustomModuleView } from "@/lib/search/views/queries";
 import { toSavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
@@ -15,18 +16,19 @@ const CategoryManagementTerminal = dynamic(
 
 export async function CategoryCatalogLoader() {
   const { supabase, tenantId, userId } = await getModulePageContext();
-  const defaultView = await fetchDefaultCustomModuleView(
-    supabase,
-    tenantId,
-    userId,
-    "categories"
-  );
+  const [defaultView, initialRows] = await Promise.all([
+    fetchDefaultCustomModuleView(supabase, tenantId, userId, "categories"),
+    fetchCategoryRows(supabase, tenantId),
+  ]);
 
   const initialSavedView: SavedViewSnapshot | null = defaultView
     ? toSavedViewSnapshot(defaultView)
     : null;
 
   return (
-    <CategoryManagementTerminal initialRows={[]} initialSavedView={initialSavedView} />
+    <CategoryManagementTerminal
+      initialRows={initialRows}
+      initialSavedView={initialSavedView}
+    />
   );
 }

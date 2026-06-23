@@ -6,7 +6,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { claimsToUserShape, getSessionClaims } from "@/lib/supabase/auth";
 import { getAppShellBootstrap } from "@/lib/layout/app-shell-bootstrap";
-import { fetchOperatorProfile } from "@/lib/user/queries";
+import { fetchActiveTenantMembership } from "@/lib/user/membership";
 import { buildFallbackOperatorProfile } from "@/lib/user/build-fallback-profile";
 import type { OperatorProfile } from "@/lib/user/types";
 import type { UserRole } from "@/lib/user/types";
@@ -55,32 +55,38 @@ export async function loadModulePageContext(): Promise<ModulePageContext> {
   if (!bootstrap.hasWorkspaceAccess) redirect("/onboarding");
 
   const tenant = bootstrap.tenant;
-  const operatorProfile = await fetchOperatorProfile(supabase, claims.userId, tenantId);
-
   const orgName = tenant.trade_name || tenant.name;
 
-  const resolvedProfile =
-    operatorProfile ??
-    buildFallbackOperatorProfile(claimsToUserShape(claims) as User, orgName);
+  const [membership, workspaceDeletion] = await Promise.all([
+    impersonationPayload
+      ? Promise.resolve(null)
+      : fetchActiveTenantMembership(supabase, claims.userId, tenantId),
+    fetchWorkspaceDeletionStatus(supabase).catch(() => null),
+  ]);
+
+  const resolvedProfile = buildFallbackOperatorProfile(
+    claimsToUserShape(claims) as User,
+    orgName
+  );
+  if (membership) {
+    resolvedProfile.role = membership.role;
+    if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+      resolvedProfile.locationLabel = membership.assigned_location_id
+        ? "Assigned branch"
+        : "Unassigned";
+    }
+  }
 
   const operatorRole = resolvedProfile.role;
 
   let impersonation: ImpersonationBannerContext | null = null;
   if (impersonationPayload) {
-    const { data: tenantRow } = await supabase
-      .from("tenants")
-      .select("name, trade_name, organization_code")
-      .eq("id", tenantId)
-      .maybeSingle();
-
     impersonation = {
-      tenantName: tenantRow?.trade_name || tenantRow?.name || "Tenant",
-      organizationCode: tenantRow?.organization_code ?? null,
+      tenantName: orgName,
+      organizationCode: tenant.organization_code,
       mode: impersonationPayload.mode,
     };
   }
-
-  const workspaceDeletion = await fetchWorkspaceDeletionStatus(supabase).catch(() => null);
 
   return {
     supabase,

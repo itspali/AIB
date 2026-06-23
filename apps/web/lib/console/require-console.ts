@@ -69,7 +69,10 @@ export const requireConsoleAccess = cache(async (minRole: AppConsoleRole = "VIEW
   );
 
   if (!sessionSatisfiesConsoleMfa(aal, mfaRequired, operator.mfa_enforced)) {
-    redirect(`/login/mfa-enroll?next=${encodeURIComponent("/console")}`);
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const hasVerifiedTotp = (factors?.totp ?? []).some((factor) => factor.status === "verified");
+    const mfaPath = hasVerifiedTotp ? "/login/mfa-challenge" : "/login/mfa-enroll";
+    redirect(`${mfaPath}?next=${encodeURIComponent("/console")}`);
   }
 
   return { supabase, admin, claims, operator };

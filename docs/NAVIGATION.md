@@ -12,7 +12,7 @@ Organization Settings internal layouts stay frozen.
 
 | Area | Today | Source |
 |------|-------|--------|
-| Primary rail | Dashboard, Procurement, **Items** (Catalog/Categories), **Inventory** (Overview/Stock/Transfers), Sales, Fulfillment & Shipping, Financials, **Administration** | [module-nav.tsx](../apps/web/components/layout/module-nav.tsx) |
+| Primary rail | Dashboard, **Items** (Catalog/Categories), Procurement, **Inventory** (Overview/Stock/Transfers), Sales, Fulfillment & Shipping, Financials, **Administration** | [module-nav.tsx](../apps/web/components/layout/module-nav.tsx) |
 | Built operational modules | **Dashboard**, **Items** catalog, **Inventory** (overview + stock + transfers), **Procurement** (PO + GRN), **Entities** (customers + suppliers), **Administration** (org, locations, tax, profile, group) | `apps/web/app/**` |
 | Coming soon shells | Procurement Bills; Sales, Fulfillment, Financials transactional UIs; Users & Roles | `comingSoon: true` in `module-nav.tsx` |
 | Locations | Under **Administration → Locations** (`/settings/locations`), not Inventory children | `module-nav.tsx` |

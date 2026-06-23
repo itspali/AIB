@@ -43,7 +43,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Script id="aib-theme-init" strategy="beforeInteractive">
           {themeInitScript}
         </Script>
-        <Providers themePolicy={bootstrap.themePolicy}>
+        <Providers
+          themePolicy={bootstrap.themePolicy}
+          hydrateThemePolicy={Boolean(bootstrap.tenantId)}
+        >
           <OnboardingProvider
             initialComplete={bootstrap.onboardingComplete}
             initialWorkspaceAccess={bootstrap.hasWorkspaceAccess}

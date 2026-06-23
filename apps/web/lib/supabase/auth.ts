@@ -19,8 +19,8 @@ export const getSessionClaims = cache(async (): Promise<SessionClaims | null> =>
   return readSessionClaims(supabase);
 });
 
-export async function getSessionTenantId(): Promise<string | null> {
+export const getSessionTenantId = cache(async (): Promise<string | null> => {
   const claims = await getSessionClaims();
   const { tenantId } = await resolveEffectiveTenant(claims?.tenantId);
   return tenantId;
-}
+});

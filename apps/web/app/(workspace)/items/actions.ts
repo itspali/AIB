@@ -458,28 +458,9 @@ export async function loadProductPeekSection(
   );
   if (!patch) return { error: "Product section not found." };
 
-  let detailPatch = patch;
-  if (section === "reach") {
-    const catalogContext = await fetchProductCatalogContext(supabase, tenantId);
-    if (catalogContext && patch.storefront_visibility) {
-      detailPatch = {
-        ...patch,
-        storefront_visibility: patch.storefront_visibility.map((row) => {
-          const channel = catalogContext.storefronts.find(
-            (entry) => entry.id === row.storefront_id
-          );
-          if (!channel) return row;
-          return {
-            ...row,
-            storefront_name: channel.name,
-            channel_type: channel.channel_type,
-          };
-        }),
-      };
-    }
-  }
-
-  return { section, patch: detailPatch };
+  // Storefront labels are enriched client-side from SSR/catalogContext cache
+  // (see ProductCatalogTerminal.loadPeekPanelSection).
+  return { section, patch };
 }
 
 export async function upgradeProductDetailToFull(

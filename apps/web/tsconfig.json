@@ -15,6 +15,17 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
+      "@/app/account/*": ["./app/(workspace)/account/*"],
+      "@/app/approvals/*": ["./app/(workspace)/approvals/*"],
+      "@/app/dashboard/*": ["./app/(workspace)/dashboard/*"],
+      "@/app/entities/*": ["./app/(workspace)/entities/*"],
+      "@/app/financials/*": ["./app/(workspace)/financials/*"],
+      "@/app/fulfillment/*": ["./app/(workspace)/fulfillment/*"],
+      "@/app/inventory/*": ["./app/(workspace)/inventory/*"],
+      "@/app/items/*": ["./app/(workspace)/items/*"],
+      "@/app/procurement/*": ["./app/(workspace)/procurement/*"],
+      "@/app/sales/*": ["./app/(workspace)/sales/*"],
+      "@/app/settings/*": ["./app/(workspace)/settings/*"],
       "@/*": ["./*"]
     }
   },

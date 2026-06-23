@@ -10,6 +10,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
@@ -48,6 +49,7 @@ import {
   type ProductPeekPanelId,
 } from "@/lib/products/peek-panels";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
+import { useModuleAuxiliaryContext } from "@/lib/layout/list-module/use-module-auxiliary-context";
 import {
   type BulkToolbarAction,
 } from "@/components/products/product-bulk-action-toolbar";
@@ -229,6 +231,8 @@ type DrawerFetchResult =
   | { ok: true; snapshot: ProductDetailSnapshot }
   | { ok: false; error?: string };
 
+const PRODUCT_CATALOG_CONTEXT_QUERY_KEY = ["items", "catalogContext"] as const;
+
 /** Survives Strict Mode remounts so row-click detail fetches dedupe to one POST. */
 const drawerDetailInflight = new Map<string, Promise<DrawerFetchResult>>();
 const drawerDetailSnapshotCache = new Map<string, ProductDetailSnapshot>();
@@ -252,6 +256,7 @@ export function ProductCatalogTerminal({
   initialDetail = null,
 }: Props) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const drawer = useModuleDrawerUrl(ITEMS_HREF, { canonicalizeLegacy: true });
   const searchParams = useSearchParams();
   const peekPanel = useMemo(() => {
@@ -274,10 +279,12 @@ export function ProductCatalogTerminal({
   const categoriesRequestedRef = useRef(initialCategories.length > 0);
 
   useEffect(() => {
-    if (categoriesRequestedRef.current) return;
+    if (categories.length > 0 || categoriesRequestedRef.current) return;
+    if (!drawer.isOpen) return;
+    if (drawer.surface !== "create" && drawer.surface !== "edit") return;
     categoriesRequestedRef.current = true;
     void loadCategoryRows().then(setCategories);
-  }, []);
+  }, [categories.length, drawer.isOpen, drawer.surface]);
 
   const hasServerFilteredView =
     initialSavedView != null && initialFilteredItemIds != null;
@@ -309,12 +316,32 @@ export function ProductCatalogTerminal({
   const [detail, setDetail] = useState<ProductDetailSnapshot | null>(initialDetail);
   const detailRef = useRef(initialDetail);
   detailRef.current = detail;
-  const [catalogContext, setCatalogContext] = useState<ProductCatalogContext | null>(
-    initialCatalogContext
+  const {
+    data: catalogContext,
+    isLoading: isLoadingCatalogContext,
+    ensureLoaded: ensureCatalogContextLoaded,
+  } = useModuleAuxiliaryContext(
+    PRODUCT_CATALOG_CONTEXT_QUERY_KEY,
+    async () => {
+      const result = await getProductCatalogContext();
+      return result.catalogContext;
+    },
+    initialCatalogContext,
+    {
+      onError: () => toast.error("Unable to load catalog settings."),
+    }
+  );
+  const ensureCatalogContext = useCallback((): Promise<ProductCatalogContext | null> => {
+    if (catalogContext) return Promise.resolve(catalogContext);
+    return ensureCatalogContextLoaded();
+  }, [catalogContext, ensureCatalogContextLoaded]);
+  const seedCatalogContext = useCallback(
+    (next: ProductCatalogContext) => {
+      queryClient.setQueryData(PRODUCT_CATALOG_CONTEXT_QUERY_KEY, next);
+    },
+    [queryClient]
   );
   const [isLoadingDetail, startDetailTransition] = useTransition();
-  const [isLoadingCatalogContext, setIsLoadingCatalogContext] = useState(false);
-  const catalogContextRequestRef = useRef<Promise<ProductCatalogContext | null> | null>(null);
   const drawerFetchTargetRef = useRef<string | null>(null);
   const activeDrawerTargetRef = useRef<{ itemId: string; variantId: string | null }>({
     itemId: "",
@@ -1075,32 +1102,6 @@ export function ProductCatalogTerminal({
     setFilterProducts((current) => (current ? applyUrls(current) : current));
   }, []);
 
-  const ensureCatalogContext = useCallback((): Promise<ProductCatalogContext | null> => {
-    if (catalogContext) return Promise.resolve(catalogContext);
-
-    if (catalogContextRequestRef.current) {
-      return catalogContextRequestRef.current;
-    }
-
-    const request = (async () => {
-      setIsLoadingCatalogContext(true);
-      try {
-        const result = await getProductCatalogContext();
-        setCatalogContext(result.catalogContext);
-        return result.catalogContext;
-      } catch {
-        toast.error("Unable to load catalog settings.");
-        return null;
-      } finally {
-        setIsLoadingCatalogContext(false);
-        catalogContextRequestRef.current = null;
-      }
-    })();
-
-    catalogContextRequestRef.current = request;
-    return request;
-  }, [catalogContext]);
-
   const resolveCachedDetail = useCallback(
     (itemId: string, variantId: string | null, scope: "peek" | "full") => {
       if (scope === "peek") {
@@ -1236,7 +1237,7 @@ export function ProductCatalogTerminal({
           }
 
           if (result.catalogContext && !catalogContext) {
-            setCatalogContext(result.catalogContext);
+            seedCatalogContext(result.catalogContext);
           }
 
           const resolved = catalogContext
@@ -1274,7 +1275,7 @@ export function ProductCatalogTerminal({
         consumeResult(await fetchPromise);
       });
     },
-    [catalogContext, resolveCachedDetail]
+    [catalogContext, resolveCachedDetail, seedCatalogContext]
   );
 
   const loadDrawerDataRef = useRef(loadDrawerData);
@@ -1660,7 +1661,10 @@ export function ProductCatalogTerminal({
 
         setDetail((current) => {
           if (!current || current.id !== drawer.recordId) return current;
-          const merged = mergeProductPeekSection(current, section, result.patch);
+          let merged = mergeProductPeekSection(current, section, result.patch);
+          if (section === "reach" && catalogContext) {
+            merged = enrichProductDetailSnapshot(merged, catalogContext);
+          }
           detailCacheRef.current.set(
             detailCacheKey(merged.id, merged.variant_id),
             merged
@@ -1673,7 +1677,7 @@ export function ProductCatalogTerminal({
         setPeekPanelLoading(null);
       }
     },
-    [detail, drawer.recordId, drawer.variantId]
+    [catalogContext, detail, drawer.recordId, drawer.variantId]
   );
 
   const handlePeekPanelChange = useCallback(

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useFormStatus } from "react-dom";
 import { endImpersonation } from "@/lib/console/actions/impersonation";
 import { Button } from "@/components/ui/button";
 
@@ -9,6 +10,15 @@ type Props = {
   organizationCode: string | null;
   mode: "READ_ONLY" | "WRITE";
 };
+
+function ExitImpersonationButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" size="sm" variant="secondary" disabled={pending}>
+      {pending ? "Exiting…" : "Exit impersonation"}
+    </Button>
+  );
+}
 
 export function ImpersonationBanner({ tenantName, organizationCode, mode }: Props) {
   return (
@@ -22,15 +32,9 @@ export function ImpersonationBanner({ tenantName, organizationCode, mode }: Prop
         <Button asChild size="sm" variant="outline">
           <Link href="/console">Back to console</Link>
         </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            void endImpersonation();
-          }}
-        >
-          Exit impersonation
-        </Button>
+        <form action={endImpersonation} className="inline">
+          <ExitImpersonationButton />
+        </form>
       </div>
     </div>
   );

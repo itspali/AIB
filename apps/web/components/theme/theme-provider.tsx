@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { fetchThemePolicyAction } from "@/lib/layout/shell-actions";
 import { applyBrandColorsToDocument } from "@/lib/theme/brand-colors";
 import type { ResolvedThemePolicy } from "@/lib/theme/governance";
 import {
@@ -61,10 +62,32 @@ function applyResolvedTheme(theme: Theme, policy: ResolvedThemePolicy) {
 type ThemeProviderProps = {
   children: React.ReactNode;
   policy?: ResolvedThemePolicy | null;
+  /** When false, skip client hydration (login/signup and other public routes). */
+  hydratePolicy?: boolean;
 };
 
-export function ThemeProvider({ children, policy = null }: ThemeProviderProps) {
-  const resolvedPolicy = policy;
+export function ThemeProvider({
+  children,
+  policy = null,
+  hydratePolicy = false,
+}: ThemeProviderProps) {
+  const [resolvedPolicy, setResolvedPolicy] = useState<ResolvedThemePolicy | null>(policy);
+
+  useEffect(() => {
+    setResolvedPolicy(policy);
+  }, [policy]);
+
+  useEffect(() => {
+    if (policy || !hydratePolicy) return;
+    let cancelled = false;
+    void fetchThemePolicyAction().then((next) => {
+      if (!cancelled && next) setResolvedPolicy(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydratePolicy, policy]);
+
   const canChangeTheme = resolvedPolicy?.canChangeTheme ?? true;
   const enforcedTheme = resolvedPolicy?.enforcedTheme ?? DEFAULT_THEME;
   const policyKey = resolvedPolicy

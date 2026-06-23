@@ -58,6 +58,17 @@ export const moduleNavItems: ModuleNavItem[] = [
     mobilePrimary: true,
   },
   {
+    href: "/items",
+    label: "Items",
+    shortLabel: "Items",
+    icon: Package,
+    mobilePrimary: true,
+    children: [
+      { href: "/items", label: "Catalog", icon: Package },
+      { href: "/items/categories", label: "Categories", icon: FolderTree },
+    ],
+  },
+  {
     href: "/procurement",
     label: "Procurement",
     shortLabel: "Procure",
@@ -92,17 +103,6 @@ export const moduleNavItems: ModuleNavItem[] = [
         icon: FolderTree,
       },
       { href: "/procurement/bills", label: "Bills", icon: ScrollText },
-    ],
-  },
-  {
-    href: "/items",
-    label: "Items",
-    shortLabel: "Items",
-    icon: Package,
-    mobilePrimary: true,
-    children: [
-      { href: "/items", label: "Catalog", icon: Package },
-      { href: "/items/categories", label: "Categories", icon: FolderTree },
     ],
   },
   {

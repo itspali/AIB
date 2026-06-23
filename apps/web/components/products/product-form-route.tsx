@@ -13,6 +13,7 @@ import { ProductFormSkeleton } from "@/components/products/product-form-skeleton
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { Button } from "@/components/ui/button";
 import { useRouteTransition } from "@/lib/navigation/use-route-transition";
+import { useCatalogDrawerNavigation } from "@/lib/layout/list-module/use-catalog-drawer-navigation";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { cn } from "@/lib/utils";
 import type { CategoryRow } from "@/lib/categories/types";
@@ -70,7 +71,9 @@ export function ProductFormRoute({
   lockedFields = [],
 }: Props) {
   const searchParams = useSearchParams();
-  const { push, replace, refresh, isPending: isNavigating } = useRouteTransition();
+  const { replace, refresh, isPending } = useRouteTransition();
+  const { navigate, isPending: isDrawerNavPending } = useCatalogDrawerNavigation(ITEMS_HREF);
+  const isNavigating = isPending || isDrawerNavPending;
   const fromCatalog = isCatalogPopOutOrigin(searchParams);
   const itemId = detail?.id;
 
@@ -126,8 +129,7 @@ export function ProductFormRoute({
     const nav = navRef.current;
     navRef.current = { type: "primary" };
 
-    const finish = () =>
-      push(fromCatalog ? itemPeekHref(savedItemId) : itemPeekHref(savedItemId));
+    const finish = () => navigate(itemPeekHref(savedItemId));
 
     if (nav.type === "exit") return finish();
     if (nav.type === "stage") {
@@ -175,14 +177,14 @@ export function ProductFormRoute({
 
   const handleCancel = () => {
     if (fromCatalog) {
-      push(itemListReturnHref(detail?.id));
+      navigate(itemListReturnHref(detail?.id));
       return;
     }
     if (mode === "edit" && detail) {
-      push(itemPeekHref(detail.id));
+      navigate(itemPeekHref(detail.id));
       return;
     }
-    push(itemListReturnHref());
+    navigate(itemListReturnHref());
   };
 
   const handleHeaderClose = () => {

@@ -8,14 +8,21 @@ import type { ResolvedThemePolicy } from "@/lib/theme/governance";
 type ProvidersProps = {
   children: React.ReactNode;
   themePolicy?: ResolvedThemePolicy | null;
+  hydrateThemePolicy?: boolean;
 };
 
-export function Providers({ children, themePolicy = null }: ProvidersProps) {
+export function Providers({
+  children,
+  themePolicy = null,
+  hydrateThemePolicy = false,
+}: ProvidersProps) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider policy={themePolicy}>{children}</ThemeProvider>
+      <ThemeProvider policy={themePolicy} hydratePolicy={hydrateThemePolicy}>
+        {children}
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

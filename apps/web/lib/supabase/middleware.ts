@@ -6,6 +6,10 @@ import {
   verifyImpersonationPayload,
 } from "@/lib/console/impersonation-middleware";
 
+/** Short-lived cache to skip a tenants-table read on every client navigation. */
+const TENANT_ACTIVE_COOKIE = "aib-tenant-active";
+const TENANT_ACTIVE_MAX_AGE_SEC = 120;
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -41,7 +45,9 @@ export async function updateSession(request: NextRequest) {
   const isMfaEnroll = pathname.startsWith("/login/mfa-enroll");
   const isOnboarding = pathname.startsWith("/onboarding");
   const isLogin = pathname.startsWith("/login");
+  const isLoginLanding = pathname === "/login" || pathname === "/login/";
   const isSignup = pathname.startsWith("/signup");
+  const isSignupLanding = pathname === "/signup" || pathname === "/signup/";
   const isAuthCallback = pathname.startsWith("/auth/callback");
   const isPasswordReset = pathname.startsWith("/auth/reset-password");
   const isLegal = pathname.startsWith("/legal");
@@ -77,6 +83,23 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  const impersonationRaw = user
+    ? request.cookies.get(IMPERSONATION_COOKIE_NAME)?.value
+    : undefined;
+  const impersonationPeek = user ? await verifyImpersonationPayload(impersonationRaw) : null;
+
+  // Patch JWT tenant_id in middleware so request cookies update before RSC runs.
+  // Server Components cannot reliably persist auth cookie writes (read-only context).
+  if (user && impersonationPeek && !isConsole) {
+    const jwtTenant = user.app_metadata?.tenant_id;
+    if (jwtTenant !== impersonationPeek.tenantId) {
+      await supabase.rpc("console_apply_impersonation_jwt", {
+        p_session_id: impersonationPeek.sessionId,
+      });
+      await supabase.auth.refreshSession();
+    }
+  }
+
   if (user && isConsole && !isConsoleUnauthorized) {
     return supabaseResponse;
   }
@@ -93,8 +116,6 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     let tenantId = user.app_metadata?.tenant_id;
 
-    const impersonationRaw = request.cookies.get(IMPERSONATION_COOKIE_NAME)?.value;
-    const impersonationPeek = await verifyImpersonationPayload(impersonationRaw);
     if (impersonationPeek && !isConsole) {
       tenantId = impersonationPeek.tenantId;
     }
@@ -111,30 +132,49 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (!isConsole && !isPublicAuth && !isSuspended && !isMaintenance) {
-      const { data: tenant } = await supabase
-        .from("tenants")
-        .select("is_active, status")
-        .eq("id", tenantId)
-        .maybeSingle();
+      const tenantActiveCached =
+        request.cookies.get(TENANT_ACTIVE_COOKIE)?.value === tenantId;
 
-      if (tenant && (!tenant.is_active || tenant.status === "SUSPENDED")) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/suspended";
-        return NextResponse.redirect(url);
+      if (!tenantActiveCached) {
+        const { data: tenant } = await supabase
+          .from("tenants")
+          .select("is_active, status")
+          .eq("id", tenantId)
+          .maybeSingle();
+
+        if (tenant && (!tenant.is_active || tenant.status === "SUSPENDED")) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/suspended";
+          const redirect = NextResponse.redirect(url);
+          redirect.cookies.delete(TENANT_ACTIVE_COOKIE);
+          return redirect;
+        }
+
+        if (tenant) {
+          supabaseResponse.cookies.set(TENANT_ACTIVE_COOKIE, tenantId, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: TENANT_ACTIVE_MAX_AGE_SEC,
+          });
+        }
       }
     }
 
     const onboardedCookie = request.cookies.get("aib-onboarded")?.value === "1";
     const needsRouteDecision =
       isOnboarding ||
-      isLogin ||
-      isSignup ||
+      isLoginLanding ||
+      isSignupLanding ||
       isPasswordReset ||
-      isMfaChallenge ||
-      isMfaEnroll ||
       (!onboardedCookie && !isConsole);
 
     if (!needsRouteDecision || isConsole) {
+      return supabaseResponse;
+    }
+
+    // Console MFA routes must render — never bounce authenticated users via ?next=.
+    if (isMfaChallenge || isMfaEnroll) {
       return supabaseResponse;
     }
 
@@ -158,7 +198,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if ((isLogin || isSignup) && !isServerAction) {
+    if ((isLoginLanding || isSignupLanding) && !isServerAction) {
       const next = request.nextUrl.searchParams.get("next");
       const url = request.nextUrl.clone();
       if (next && next.startsWith("/") && !next.startsWith("//")) {

@@ -32,6 +32,7 @@ import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
 import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
+import { scopeFromModuleName } from "@/lib/search/views/module-view-registry";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import type { EntityListColumnRegistryKey, EntityListColumnId } from "@/lib/entities/list-columns";
 import {
@@ -409,6 +410,11 @@ export function EntityManagementTerminal({
     serverViewHydratedRef.current = true;
     if (initialSavedView) {
       omnibar.hydrateModuleViewFromServer(initialSavedView, null);
+      return;
+    }
+    const scope = scopeFromModuleName(config.savedViewModuleKey);
+    if (scope) {
+      omnibar.markDefaultViewResolvedOnServer(scope);
     }
   }, [config.savedViewModuleKey, initialSavedView, omnibar]);
 

@@ -1,8 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { fetchApprovalAlertCountAction } from "@/lib/layout/shell-actions";
-import { APPROVAL_ALERT_CHANGED_EVENT } from "@/lib/layout/approval-alert-events";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
@@ -11,9 +8,15 @@ import { OmnibarProviderLazy } from "@/components/search/omnibar-provider-lazy";
 import { ImpersonationBanner } from "@/components/console/impersonation-banner";
 import { WorkspaceDeletionBanner } from "@/components/settings/workspace-deletion-banner";
 import type { ImpersonationBannerContext } from "@/lib/layout/module-page";
+import {
+  useApprovalAlertInvalidation,
+  useShellApprovalAlertCount,
+  useShellOperatorProfile,
+} from "@/lib/layout/shell-queries";
 import type { WorkspaceDeletionStatus } from "@/lib/organization/deletion";
 import type { OperatorProfile } from "@/lib/user/types";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -32,36 +35,26 @@ export function DashboardShell({
   orgName,
   progressPercent = 0,
   onboardingMode = false,
-  approvalAlertCount = 0,
   operatorProfile = null,
   tenantId = null,
   impersonation = null,
   workspaceDeletion = null,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [liveApprovalAlertCount, setLiveApprovalAlertCount] = useState(approvalAlertCount);
 
-  const refreshApprovalAlertCount = useCallback(() => {
-    void fetchApprovalAlertCountAction().then(setLiveApprovalAlertCount);
-  }, []);
-
-  // Only the locked first-run onboarding canvas hides module navigation.
   const isOnboardingLayout = onboardingMode;
   const showModuleNav = !onboardingMode;
 
-  useEffect(() => {
-    setLiveApprovalAlertCount(approvalAlertCount);
-  }, [approvalAlertCount]);
-
-  useEffect(() => {
-    if (!showModuleNav) return;
-    const onApprovalAlertChanged = () => refreshApprovalAlertCount();
-    window.addEventListener(APPROVAL_ALERT_CHANGED_EVENT, onApprovalAlertChanged);
-    return () => window.removeEventListener(APPROVAL_ALERT_CHANGED_EVENT, onApprovalAlertChanged);
-  }, [refreshApprovalAlertCount, showModuleNav]);
+  const { data: liveOperatorProfile = operatorProfile } = useShellOperatorProfile(
+    tenantId,
+    Boolean(impersonation),
+    operatorProfile
+  );
+  const { data: liveApprovalAlertCount = 0 } = useShellApprovalAlertCount(showModuleNav);
+  useApprovalAlertInvalidation(showModuleNav);
 
   return (
-    <OmnibarProviderLazy operatorProfile={operatorProfile} tenantId={tenantId}>
+    <OmnibarProviderLazy operatorProfile={liveOperatorProfile} tenantId={tenantId}>
       <div className="flex h-screen flex-col overflow-hidden bg-background">
         {impersonation ? (
           <ImpersonationBanner
@@ -78,7 +71,7 @@ export function DashboardShell({
             showProgress={isOnboardingLayout}
             hideWorkspaceTools={isOnboardingLayout}
             approvalAlertCount={showModuleNav ? liveApprovalAlertCount : 0}
-            operatorProfile={operatorProfile}
+            operatorProfile={liveOperatorProfile}
             embedded
             showSidebarToggle={showModuleNav}
             onOpenMobileNav={showModuleNav ? () => setMobileNavOpen(true) : undefined}

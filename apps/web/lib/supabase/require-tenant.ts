@@ -14,14 +14,13 @@ export type TenantContext = {
   impersonation: ImpersonationPayload | null;
 };
 
-/** One Supabase client + JWT verify per server-action request. */
-export const requireTenantId = cache(async (): Promise<TenantContext> => {
+async function loadTenantContext(): Promise<TenantContext | null> {
   const supabase = await createClient();
   const claims = await readSessionClaims(supabase);
-  if (!claims) throw new Error("Not authenticated");
+  if (!claims) return null;
 
   const { tenantId, impersonation } = await resolveEffectiveTenant(claims.tenantId);
-  if (!tenantId) throw new Error("Tenant context missing from session");
+  if (!tenantId) return null;
 
   return {
     supabase,
@@ -30,6 +29,16 @@ export const requireTenantId = cache(async (): Promise<TenantContext> => {
     email: claims.email,
     impersonation,
   };
+}
+
+/** Tenant context when present; null on public/unauthenticated routes. */
+export const tryRequireTenantId = cache(loadTenantContext);
+
+/** One Supabase client + JWT verify per server-action request. */
+export const requireTenantId = cache(async (): Promise<TenantContext> => {
+  const ctx = await tryRequireTenantId();
+  if (!ctx) throw new Error("Not authenticated");
+  return ctx;
 });
 
 /** Tenant context for mutating server actions (read-only impersonation blocked in middleware). */

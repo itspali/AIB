@@ -1,6 +1,7 @@
 /** Edge-safe impersonation helpers for middleware routing (HMAC verified). */
 
 export type ImpersonationPeek = {
+  sessionId: string;
   tenantId: string;
   mode?: "READ_ONLY" | "WRITE";
   exp: number;
@@ -50,12 +51,16 @@ async function signImpersonationBody(body: string, secret: string): Promise<stri
 function parseImpersonationPeek(body: string): ImpersonationPeek | null {
   try {
     const payload = JSON.parse(decodeBase64Url(body)) as ImpersonationPeek & {
+      sessionId?: string;
       tenantId?: string;
       mode?: "READ_ONLY" | "WRITE";
       exp?: number;
     };
-    if (!payload.tenantId || !payload.exp || payload.exp < Date.now()) return null;
+    if (!payload.sessionId || !payload.tenantId || !payload.exp || payload.exp < Date.now()) {
+      return null;
+    }
     return {
+      sessionId: payload.sessionId,
       tenantId: payload.tenantId,
       mode: payload.mode ?? "READ_ONLY",
       exp: payload.exp,
