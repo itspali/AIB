@@ -440,6 +440,13 @@ CREATE TABLE workspace_control_registry (
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- workspace_control_registry keys (tenant-global, target_reference_id IS NULL):
+--   PROCUREMENT_SETTINGS, SALES_SETTINGS, FINANCIAL_SETTINGS, IMPORT_LOGISTICS_SETTINGS
+-- FINANCIAL_SETTINGS metadata includes:
+--   ppv_expense_account_id, promo_contra_expense_account_id,
+--   git_holding_account_id, vendor_prepayment_account_id (UUID refs to accounts)
+-- IMPORT_LOGISTICS_SETTINGS metadata — see docs/IMPORT_LOGISTICS.md
+
 CREATE TABLE document_sequences (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -451,6 +458,11 @@ CREATE TABLE document_sequences (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, voucher_type, prefix)
 );
+
+-- purchase_orders import receipt routing (see 20260802140000_po_receipt_routing_fields.sql):
+--   receipt_location_id UUID REFERENCES tenant_locations (id)
+--   ultimate_destination_location_id UUID REFERENCES tenant_locations (id)
+--   po_fulfillment_stage_override TEXT CHECK (COMMERCIAL | FINAL)
 
 CREATE TABLE purchase_orders (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -482,6 +494,14 @@ CREATE TABLE purchase_orders (
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, voucher_number)
 );
+
+-- goods_receipts import logistics extensions (see 20260802110000_grn_receipt_stage_foundation.sql):
+--   receipt_stage TEXT NOT NULL DEFAULT 'FINAL'
+--     CHECK (COMMERCIAL | CUSTOMS | FINAL | GIT_CLEARANCE)
+--   is_po_fulfilling BOOLEAN NOT NULL DEFAULT TRUE
+--   parent_grn_id UUID REFERENCES goods_receipts (id)
+--   shipment_id UUID
+--   staging_location_id UUID REFERENCES tenant_locations (id)
 
 CREATE TABLE goods_receipts (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -527,6 +547,8 @@ CREATE TABLE purchase_invoices (
 --   supabase/migrations/20260612180000_grn_accept_reject_lines.sql
 --   supabase/migrations/20260612200000_wave5_tax_recoverable_promo_reclass.sql
 --   supabase/migrations/20260612210000_wave6_git_subcontract.sql
+--   supabase/migrations/20260802100000_virtual_git_stock_holding.sql
+--   supabase/migrations/20260802180000_git_gl_posting.sql
 --   supabase/migrations/20260612230000_vendor_advance_application.sql
 --   supabase/migrations/20260612240000_grn_qc_release.sql
 --   supabase/migrations/20260612240100_fix_grn_qc_release_append_only.sql

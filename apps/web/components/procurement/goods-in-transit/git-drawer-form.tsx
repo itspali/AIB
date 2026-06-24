@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { postGoodsInTransit } from "@/app/procurement/goods-in-transit/actions";
@@ -36,6 +37,8 @@ type Props = {
   gitLocations: Array<{ id: string; name: string; code: string }>;
   receivableOrders: ReceivablePurchaseOrderOption[];
   onPosted: () => void;
+  peekVoucher?: GoodsInTransitRow | null;
+  headerActions?: ReactNode;
 };
 
 export function GitDrawerForm({
@@ -45,6 +48,8 @@ export function GitDrawerForm({
   gitLocations,
   receivableOrders,
   onPosted,
+  peekVoucher = null,
+  headerActions,
 }: Props) {
   const [sourceLocationId, setSourceLocationId] = useState("");
   const [gitLocationId, setGitLocationId] = useState("");
@@ -60,14 +65,14 @@ export function GitDrawerForm({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || peekVoucher) return;
     setError(null);
     setSourceLocationId("");
     setGitLocationId(gitLocations[0]?.id ?? "");
     setPurchaseOrderId(null);
     setNotes("");
     setLines([]);
-  }, [open, gitLocations]);
+  }, [open, gitLocations, peekVoucher]);
 
   useEffect(() => {
     if (!purchaseOrderId || !selectedPo) {
@@ -117,20 +122,69 @@ export function GitDrawerForm({
 
   if (!open) return null;
 
+  if (peekVoucher) {
+    return (
+      <RightDrawer
+        open={open}
+        onOpenChange={onOpenChange}
+        title={peekVoucher.voucher_number}
+        headerActions={headerActions}
+        allowBackgroundInteraction
+        showCloseButton
+      >
+        <div className="space-y-4 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={peekVoucher.status === "POSTED" ? "active" : "completed"}>
+              {gitVoucherStatusLabel(peekVoucher.status)}
+            </Badge>
+            {peekVoucher.purchase_order_number ? (
+              <span className="font-mono text-muted-foreground">
+                PO {peekVoucher.purchase_order_number}
+              </span>
+            ) : null}
+          </div>
+          <p>
+            {peekVoucher.source_location_name} → {peekVoucher.git_holding_location_name}
+            {peekVoucher.destination_location_name
+              ? ` → ${peekVoucher.destination_location_name}`
+              : ""}
+          </p>
+          {peekVoucher.posted_at ? (
+            <p className="text-muted-foreground">Posted {formatDate(peekVoucher.posted_at)}</p>
+          ) : null}
+          {peekVoucher.notes ? <p className="text-muted-foreground">{peekVoucher.notes}</p> : null}
+          {peekVoucher.lines?.length ? (
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {peekVoucher.lines.map((line) => (
+                <li key={line.id} className="flex justify-between gap-2 px-3 py-2">
+                  <span>
+                    {line.item_name} · {line.variant_sku}
+                  </span>
+                  <span className="font-mono">{line.quantity}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground">{peekVoucher.line_count} lines</p>
+          )}
+        </div>
+      </RightDrawer>
+    );
+  }
+
   return (
     <RightDrawer open={open} onOpenChange={onOpenChange} title="Post goods in transit">
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label>Purchase order (optional)</Label>
+          <Label>Import purchase order</Label>
           <Select
             value={purchaseOrderId ?? "none"}
             onValueChange={(value) => setPurchaseOrderId(value === "none" ? null : value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Standalone GIT move" />
+              <SelectValue placeholder="Select import PO" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Standalone GIT move</SelectItem>
               {receivableOrders.map((order) => (
                 <SelectItem key={order.id} value={order.id}>
                   {order.voucher_number} — {order.supplier_name}
@@ -138,6 +192,9 @@ export function GitDrawerForm({
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            Goods in transit is for import shipments only.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -227,10 +284,12 @@ export function GitDrawerForm({
 
 type ListProps = {
   vouchers: GoodsInTransitRow[];
+  selectedId?: string | null;
+  onSelect?: (voucherId: string) => void;
   onRefresh: () => void;
 };
 
-export function GitVoucherList({ vouchers, onRefresh }: ListProps) {
+export function GitVoucherList({ vouchers, selectedId, onSelect, onRefresh }: ListProps) {
   return (
     <div className="space-y-4">
       {vouchers.length === 0 ? (
@@ -241,21 +300,29 @@ export function GitVoucherList({ vouchers, onRefresh }: ListProps) {
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border">
           {vouchers.map((voucher) => (
-            <li key={voucher.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-medium">{voucher.voucher_number}</span>
-                  <Badge variant={voucher.status === "POSTED" ? "active" : "completed"}>
-                    {gitVoucherStatusLabel(voucher.status)}
-                  </Badge>
+            <li key={voucher.id}>
+              <button
+                type="button"
+                className={`flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/30 ${
+                  selectedId === voucher.id ? "bg-muted/40" : ""
+                }`}
+                onClick={() => onSelect?.(voucher.id)}
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-medium">{voucher.voucher_number}</span>
+                    <Badge variant={voucher.status === "POSTED" ? "active" : "completed"}>
+                      {gitVoucherStatusLabel(voucher.status)}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {voucher.source_location_name} → {voucher.git_holding_location_name}
+                    {voucher.purchase_order_number ? ` · PO ${voucher.purchase_order_number}` : ""}
+                    {voucher.posted_at ? ` · ${formatDate(voucher.posted_at)}` : ""}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {voucher.source_location_name} → {voucher.git_holding_location_name}
-                  {voucher.purchase_order_number ? ` · PO ${voucher.purchase_order_number}` : ""}
-                  {voucher.posted_at ? ` · ${formatDate(voucher.posted_at)}` : ""}
-                </p>
-              </div>
-              <span className="text-sm font-medium">{voucher.line_count} lines</span>
+                <span className="text-sm font-medium">{voucher.line_count} lines</span>
+              </button>
             </li>
           ))}
         </ul>

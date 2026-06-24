@@ -19,6 +19,7 @@ type RawGitRow = {
   git_holding_location_id: string;
   destination_location_id: string | null;
   purchase_order_id: string | null;
+  shipment_id: string | null;
   posted_at: string | null;
   cleared_at: string | null;
   created_at: string;
@@ -104,6 +105,7 @@ async function enrichGitRows(
       purchase_order_number: row.purchase_order_id
         ? poNumbers.get(row.purchase_order_id) ?? null
         : null,
+      shipment_id: row.shipment_id ?? null,
       line_count: lineCounts.get(row.id) ?? 0,
       posted_at: row.posted_at,
       cleared_at: row.cleared_at,
@@ -116,18 +118,19 @@ async function enrichGitRows(
 export async function fetchGoodsInTransitVouchers(
   supabase: SupabaseClient,
   tenantId: string,
-  options?: { status?: GoodsInTransitStatus; purchaseOrderId?: string }
+  options?: { status?: GoodsInTransitStatus; purchaseOrderId?: string; shipmentId?: string }
 ): Promise<GoodsInTransitRow[]> {
   let query = supabase
     .from("goods_in_transit_vouchers")
     .select(
-      "id, voucher_number, status, source_location_id, git_holding_location_id, destination_location_id, purchase_order_id, posted_at, cleared_at, created_at, notes"
+      "id, voucher_number, status, source_location_id, git_holding_location_id, destination_location_id, purchase_order_id, shipment_id, posted_at, cleared_at, created_at, notes"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   if (options?.status) query = query.eq("status", options.status);
   if (options?.purchaseOrderId) query = query.eq("purchase_order_id", options.purchaseOrderId);
+  if (options?.shipmentId) query = query.eq("shipment_id", options.shipmentId);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -160,7 +163,7 @@ export async function fetchGoodsInTransitVoucherById(
   const { data, error } = await supabase
     .from("goods_in_transit_vouchers")
     .select(
-      "id, voucher_number, status, source_location_id, git_holding_location_id, destination_location_id, purchase_order_id, posted_at, cleared_at, created_at, notes"
+      "id, voucher_number, status, source_location_id, git_holding_location_id, destination_location_id, purchase_order_id, shipment_id, posted_at, cleared_at, created_at, notes"
     )
     .eq("tenant_id", tenantId)
     .eq("id", voucherId)
@@ -215,6 +218,20 @@ export async function fetchGoodsInTransitVoucherById(
   mapped.line_count = mapped.lines.length;
 
   return mapped;
+}
+
+export async function fetchOpenProcurementGitVoucherCount(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("goods_in_transit_vouchers")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("status", "POSTED");
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 export async function fetchGitHoldingLocations(

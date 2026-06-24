@@ -2,8 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   buildQcTestTemplateSavePayload,
   createEmptyQcTestParameterRow,
+  resolveQcTestTemplateFormForSave,
   validateQcTestTemplateForm,
 } from "@/lib/procurement/quality-inspection/template-form";
+
+describe("resolveQcTestTemplateFormForSave", () => {
+  it("uses default template name when tests exist but name is blank", () => {
+    const resolved = resolveQcTestTemplateFormForSave(
+      {
+        name: "",
+        description: "",
+        parameters: [{ ...createEmptyQcTestParameterRow(), name: "Visual" }],
+      },
+      { defaultTemplateName: "Fabrics" }
+    );
+
+    expect(resolved.name).toBe("Fabrics");
+    expect(validateQcTestTemplateForm(resolved)).toBeNull();
+  });
+});
 
 describe("validateQcTestTemplateForm", () => {
   it("requires a template name when parameters exist", () => {

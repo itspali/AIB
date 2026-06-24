@@ -14,6 +14,8 @@ import type {
   ExpenseAccountOption,
   FinancialProcurementSettings,
 } from "@/lib/procurement/settings";
+import type { ImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
+import { ImportLogisticsPoliciesPanel } from "@/components/settings/modules/import-logistics-policies-panel";
 import type { WorkspaceEligibleUser } from "@/lib/organization/queries";
 
 type Props = {
@@ -41,7 +43,9 @@ type Props = {
   approverProfiles: WorkspaceEligibleUser[];
   financialSettings: FinancialProcurementSettings;
   expenseAccounts: ExpenseAccountOption[];
+  assetAccounts: ExpenseAccountOption[];
   liabilityAccounts: ExpenseAccountOption[];
+  importLogisticsSettings: ImportLogisticsSettings;
 };
 
 export function ProcurementModuleSettingsTerminal({
@@ -52,11 +56,18 @@ export function ProcurementModuleSettingsTerminal({
   approverProfiles,
   financialSettings,
   expenseAccounts,
+  assetAccounts,
   liabilityAccounts,
+  importLogisticsSettings,
 }: Props) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = tabParam === "approvals" ? "approvals" : "policies";
+  const initialTab =
+    tabParam === "approvals"
+      ? "approvals"
+      : tabParam === "import"
+        ? "import"
+        : "policies";
 
   return (
     <div className="canvas-scroll-endpad space-y-3">
@@ -76,10 +87,20 @@ export function ProcurementModuleSettingsTerminal({
           <TabsTrigger value="policies" className="h-7 px-3 text-xs">
             Policies
           </TabsTrigger>
+          <TabsTrigger value="import" className="h-7 px-3 text-xs">
+            Import & logistics
+          </TabsTrigger>
           <TabsTrigger value="approvals" className="h-7 px-3 text-xs">
             Approvals
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="import" className="mt-2">
+          <ImportLogisticsPoliciesPanel
+            canEdit={canEdit}
+            initialSettings={importLogisticsSettings}
+          />
+        </TabsContent>
 
         <TabsContent value="approvals" className="mt-2">
           <ProcurementApprovalsPanel
@@ -117,6 +138,7 @@ export function ProcurementModuleSettingsTerminal({
             <ProcurementFinancialAccountsPanel
               initialSettings={financialSettings}
               expenseAccounts={expenseAccounts}
+              assetAccounts={assetAccounts}
               liabilityAccounts={liabilityAccounts}
               canEdit={canEdit}
             />

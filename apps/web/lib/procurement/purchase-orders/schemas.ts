@@ -119,6 +119,9 @@ export const savePurchaseOrderSchema = z.object({
     }, "Trade discount amount must be zero or greater."),
   transaction_discount_type: z.enum(["percent", "amount"]).default("percent"),
   lines: z.array(purchaseOrderLineSchema).min(1, "Add at least one line."),
+  receipt_location_id: z.string().uuid().optional().or(z.literal("")),
+  ultimate_destination_location_id: z.string().uuid().optional().or(z.literal("")),
+  po_fulfillment_stage_override: z.enum(["", "COMMERCIAL", "FINAL"]).optional(),
 });
 
 export type SavePurchaseOrderInput = z.infer<typeof savePurchaseOrderSchema>;

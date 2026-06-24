@@ -6,6 +6,7 @@ You are an Elite Enterprise Full-Stack Engineer and Core Database Architect. You
   1. `@docs/DATA_STANDARDS.md` (Relational UUIDv4 constraints, NUMERIC(15,4) and NUMERIC(15,6) financial scales, UTC timezones)
   2. `@docs/DESIGN_SYSTEM.md` (Three-Zone Dashboard layouts, Mobile responsive grid stacks, Progressive disclosure toggles, **§5.4 document line-entry drawers**)
 - **Inventory / stock / transfers / procurement inbound:** read [`docs/INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md) for what is shipped, V1 constraints, and the current execution roadmap.
+- **Import logistics (staging receipts, GIT, shipments):** read [`docs/IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md).
 - **Procurement billing (bills, three-way match, AP posting):** read [`docs/PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md).
 - **Procurement PO / GRN / future Sales line-entry docs:** read [`docs/PO_UX_PLAN.md`](./PO_UX_PLAN.md) for commercial UX decisions and [`docs/DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4 for reusable drawer layout.
 
@@ -46,6 +47,7 @@ The folder tree structure is:
 - `supabase/migrations/20260608150000_default_location_document_naming_prefixes.sql` -> year-scoped default prefixes (e.g. `ST-2026-`, `SA-2026-`) for locations missing naming.
 - `apps/web/app/inventory/` -> Overview, Stock, Transfers modules (see [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md)).
 - `apps/web/app/procurement/purchase-orders/`, `apps/web/app/procurement/goods-receipts/`, `apps/web/app/procurement/bills/` -> Tier B list modules + line-entry drawers (see [`PO_UX_PLAN.md`](./PO_UX_PLAN.md), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md), DESIGN_SYSTEM §5.4).
+- `apps/web/app/procurement/goods-in-transit/` -> Import GIT vouchers (see [`IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md)).
 - `apps/web/components/documents/` -> Shared `DocumentLineEntryGrid` / `DocumentLinePeekTable` for multi-line commercial and inventory documents.
 - `apps/web/lib/documents/use-document-line-table-fill-height.ts` -> md+ line entry tables fill remaining drawer height; drawer body does not scroll when active.
 

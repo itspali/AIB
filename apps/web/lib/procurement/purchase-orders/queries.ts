@@ -133,6 +133,9 @@ function buildPurchaseOrderListSelect(options: PoSelectShape): string {
       id,
       voucher_number,
       destination_location_id,
+      receipt_location_id,
+      ultimate_destination_location_id,
+      po_fulfillment_stage_override,
       supplier_id,
       document_status,
       currency_code,
@@ -162,6 +165,9 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
       id,
       voucher_number,
       destination_location_id,
+      receipt_location_id,
+      ultimate_destination_location_id,
+      po_fulfillment_stage_override,
       supplier_id,
       document_status,
       currency_code,
@@ -205,6 +211,9 @@ function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string 
       id,
       voucher_number,
       destination_location_id,
+      receipt_location_id,
+      ultimate_destination_location_id,
+      po_fulfillment_stage_override,
       document_status,
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${SUPPLIER_EMBED} (name),
@@ -404,6 +413,9 @@ type PoListDbRow = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  receipt_location_id?: string | null;
+  ultimate_destination_location_id?: string | null;
+  po_fulfillment_stage_override?: string | null;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
   po_lines: Array<{ id: string }> | null;
@@ -455,6 +467,9 @@ type ReceivablePoDbRow = {
   id: string;
   voucher_number: string;
   destination_location_id: string;
+  receipt_location_id?: string | null;
+  ultimate_destination_location_id?: string | null;
+  po_fulfillment_stage_override?: string | null;
   tax_supply_nature?: string | null;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
@@ -631,6 +646,14 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
     approval_submitted_by: null,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    receipt_location_id: row.receipt_location_id ?? null,
+    ultimate_destination_location_id: row.ultimate_destination_location_id ?? null,
+    po_fulfillment_stage_override:
+      row.po_fulfillment_stage_override === "FINAL"
+        ? "FINAL"
+        : row.po_fulfillment_stage_override === "COMMERCIAL"
+          ? "COMMERCIAL"
+          : null,
   };
 }
 
@@ -771,6 +794,14 @@ export async function fetchReceivablePurchaseOrders(
         destination_location_id: typed.destination_location_id,
         destination_location_name: destination?.name ?? "",
         destination_location_code: destination?.code ?? "",
+        receipt_location_id: typed.receipt_location_id ?? null,
+        ultimate_destination_location_id: typed.ultimate_destination_location_id ?? null,
+        po_fulfillment_stage_override:
+          typed.po_fulfillment_stage_override === "FINAL"
+            ? "FINAL"
+            : typed.po_fulfillment_stage_override === "COMMERCIAL"
+              ? "COMMERCIAL"
+              : null,
         supplier_name: supplier?.name ?? "",
         tax_supply_nature: isPoTaxSupplyNature(String(typed.tax_supply_nature ?? ""))
           ? (typed.tax_supply_nature as PoTaxSupplyNature)

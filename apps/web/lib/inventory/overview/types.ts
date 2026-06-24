@@ -15,6 +15,8 @@ export type InventoryOverviewSnapshot = {
   stockedBalanceCount: number;
   /** Transfers currently in DISPATCHED_IN_TRANSIT status. */
   inTransitTransferCount: number;
+  /** Posted procurement GIT vouchers awaiting clearance. */
+  procurementGitInTransitCount: number;
   /** Lowest on-hand balances at or below reorder (capped for overview). */
   belowReorderBalances: BelowReorderOverviewRow[];
   recentTransfers: StockTransferRow[];

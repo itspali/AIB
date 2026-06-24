@@ -28,6 +28,8 @@ import {
 } from "@/lib/procurement/purchase-orders/po-gst-compliance";
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
+import { PoImportLogisticsPanel } from "@/components/procurement/purchase-orders/po-import-logistics-panel";
+import type { PoFulfillmentStage } from "@/lib/procurement/import-logistics-settings-shared";
 import { cn } from "@/lib/utils";
 
 export const PO_FULL_PAGE_LAYOUT: RightDrawerLayoutValue = {
@@ -55,6 +57,7 @@ export type PoDocumentEditorShellProps = {
   autoRoundOffPolicy?: PoAutoRoundOffPolicy;
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
+  tenantDefaultFulfillmentStage?: PoFulfillmentStage;
   organizationBillTo?: OrganizationBillToSnapshot | null;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
@@ -80,6 +83,7 @@ export function PoDocumentEditorShell({
   autoRoundOffPolicy,
   taxCodeOptions = [],
   tenantCountry = null,
+  tenantDefaultFulfillmentStage = "COMMERCIAL",
   organizationBillTo = null,
   isPending,
   layoutOverride = null,
@@ -224,6 +228,17 @@ export function PoDocumentEditorShell({
 
   const summaryStackProps = {
     showNotesSection,
+    importLogisticsSection: (
+      <PoImportLogisticsPanel
+        form={form}
+        locations={locations}
+        suppliers={suppliers}
+        tenantCountry={tenantCountry}
+        tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
+        disabled={isPending}
+        onPatch={onPatch}
+      />
+    ),
     totalsPanelProps,
     detailsPanelProps: {
       ...detailsPanelProps,

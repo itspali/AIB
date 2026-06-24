@@ -62,6 +62,12 @@ export type PoDraftFormState = {
   custom_fields: PurchaseOrderCustomFields;
   header_charges: PoHeaderChargesFields;
   lines: PoDraftLine[];
+  /** Import staging location (port / agent). Empty = use destination. */
+  receipt_location_id: string;
+  /** Planned main warehouse after staging/GIT. Empty = use destination. */
+  ultimate_destination_location_id: string;
+  /** COMMERCIAL | FINAL | empty = tenant default. */
+  po_fulfillment_stage_override: "" | "COMMERCIAL" | "FINAL";
 };
 
 export function createEmptyPoLine(key?: string): PoDraftLine {
@@ -237,6 +243,9 @@ export function defaultPoDraftForm(
     custom_fields: emptyPurchaseOrderCustomFields(),
     header_charges: emptyPoHeaderCharges(),
     lines: [createEmptyPoLine(entryLineKey)],
+    receipt_location_id: "",
+    ultimate_destination_location_id: "",
+    po_fulfillment_stage_override: "",
   };
 }
 
@@ -350,6 +359,9 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
     prices_tax_inclusive: order.prices_tax_inclusive,
     custom_fields: parsePurchaseOrderCustomFields(order.custom_fields),
     header_charges: mapPurchaseOrderHeaderCharges(order),
+    receipt_location_id: order.receipt_location_id ?? "",
+    ultimate_destination_location_id: order.ultimate_destination_location_id ?? "",
+    po_fulfillment_stage_override: order.po_fulfillment_stage_override ?? "",
     lines:
       order.lines?.length
         ? ensureTrailingPoLine(

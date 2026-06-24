@@ -274,13 +274,22 @@ export function LocationProvisionForm({
     form.is_stock_holding,
   ]);
 
-  const buildSavePayload = () =>
-    normalizeVirtualAddress({
+  const buildSavePayload = (): LocationFormValues => {
+    const base = normalizeVirtualAddress({
       ...form,
       code_manually_edited: codeManuallyEditedRef.current,
       code_generation: lastSuggestionRef.current,
       existing_location_meta: form.existing_location_meta ?? {},
     });
+    if (
+      base.presence_type === "VIRTUAL" &&
+      !base.location_id &&
+      (base.is_git_holding || base.is_subcontract_wip)
+    ) {
+      return { ...base, is_stock_holding: false };
+    }
+    return base;
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

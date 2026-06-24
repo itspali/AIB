@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import {
   loadGoodsReceiptDetail,
   loadGrnVariantQcPolicies,
+  loadImportLogisticsSettingsForGrn,
+  loadReceivableImportShipments,
   postGoodsReceipt,
 } from "@/app/procurement/goods-receipts/actions";
 import {
@@ -50,6 +52,13 @@ import { formatDate } from "@/lib/dashboard/format";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
+import type { ImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
+import {
+  grnReceiptStageLabel,
+  resolveGrnReceiptContext,
+  type GrnReceiptStage,
+} from "@/lib/procurement/import-logistics/receipt-context";
+import type { ReceivableImportShipmentOption } from "@/lib/procurement/shipments/queries";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
@@ -71,6 +80,10 @@ import { cn } from "@/lib/utils";
 type CreateFormState = {
   destination_location_id: string;
   purchase_order_id: string | null;
+  shipment_id: string | null;
+  receipt_stage: GrnReceiptStage;
+  is_po_fulfilling: boolean;
+  staging_location_id: string | null;
   bill_of_entry_number: string;
   bill_of_entry_date: string;
   port_code: string;
@@ -95,6 +108,7 @@ type Props = {
     ProcurementSettings,
     "is_qc_required_before_stocking" | "allow_qc_line_override"
   >;
+  importLogisticsSettings?: ImportLogisticsSettings;
   onClose: () => void;
   onAfterSave: (goodsReceiptId: string) => void;
   onReceiptUpdated?: () => void;
@@ -114,6 +128,10 @@ function defaultCreateForm(
     return {
       destination_location_id: selectedPo.destination_location_id,
       purchase_order_id: selectedPo.id,
+      shipment_id: null,
+      receipt_stage: "FINAL",
+      is_po_fulfilling: true,
+      staging_location_id: selectedPo.receipt_location_id ?? null,
       bill_of_entry_number: "",
       bill_of_entry_date: "",
       port_code: "",
@@ -130,6 +148,10 @@ function defaultCreateForm(
   return {
     destination_location_id: locations[0]?.id ?? "",
     purchase_order_id: null,
+    shipment_id: null,
+    receipt_stage: "FINAL",
+    is_po_fulfilling: true,
+    staging_location_id: null,
     bill_of_entry_number: "",
     bill_of_entry_date: "",
     port_code: "",
@@ -161,6 +183,7 @@ export function GrnDrawerForm({
   prefillPurchaseOrderId = null,
   defaultLandedCostAllocationMethod = "BY_VALUE",
   procurementSettings,
+  importLogisticsSettings: importLogisticsSettingsProp,
   onClose,
   onAfterSave,
   onReceiptUpdated,
@@ -200,6 +223,23 @@ export function GrnDrawerForm({
   );
 
   const [policyHints, setPolicyHints] = useState<Record<string, VariantQcPolicyHint>>({});
+  const [importLogisticsSettings, setImportLogisticsSettings] = useState<ImportLogisticsSettings | null>(
+    importLogisticsSettingsProp ?? null
+  );
+  const [shipments, setShipments] = useState<ReceivableImportShipmentOption[]>([]);
+
+  useEffect(() => {
+    if (!open || importLogisticsSettingsProp) return;
+    void loadImportLogisticsSettingsForGrn().then(setImportLogisticsSettings);
+  }, [open, importLogisticsSettingsProp]);
+
+  useEffect(() => {
+    if (!open || !form.purchase_order_id) {
+      setShipments([]);
+      return;
+    }
+    void loadReceivableImportShipments(form.purchase_order_id).then(setShipments);
+  }, [open, form.purchase_order_id]);
 
   const applyPolicyHintsToLines = useCallback(
     (lines: GrnDraftLine[], hints: Record<string, VariantQcPolicyHint>) =>
@@ -361,6 +401,7 @@ export function GrnDrawerForm({
     patchForm({
       destination_location_id: selectedPo.destination_location_id,
       purchase_order_id: selectedPo.id,
+      shipment_id: null,
       git_voucher_id: null,
       lines: nextLines,
     });
@@ -371,6 +412,65 @@ export function GrnDrawerForm({
     () => grnFormHasInvalidExceptions(form.lines),
     [form.lines]
   );
+
+  const selectedReceivablePo = form.purchase_order_id
+    ? receivableOrders.find((order) => order.id === form.purchase_order_id)
+    : null;
+  const selectedShipment = form.shipment_id
+    ? shipments.find((shipment) => shipment.id === form.shipment_id) ?? null
+    : null;
+  const isImportGoodsPo = selectedReceivablePo?.tax_supply_nature === "IMPORT_GOODS";
+  const logisticsSettings = importLogisticsSettingsProp ?? importLogisticsSettings;
+  const receiptContext = useMemo(() => {
+    if (!logisticsSettings) return null;
+    return resolveGrnReceiptContext(
+      logisticsSettings,
+      selectedReceivablePo
+        ? {
+            id: selectedReceivablePo.id,
+            tax_supply_nature: selectedReceivablePo.tax_supply_nature,
+            destination_location_id: selectedReceivablePo.destination_location_id,
+            receipt_location_id: selectedReceivablePo.receipt_location_id,
+            ultimate_destination_location_id: selectedReceivablePo.ultimate_destination_location_id,
+            po_fulfillment_stage_override: selectedReceivablePo.po_fulfillment_stage_override,
+          }
+        : null,
+      selectedShipment,
+      {
+        receiptStage: form.receipt_stage,
+        hasGitVoucher: Boolean(form.git_voucher_id),
+      }
+    );
+  }, [
+    form.git_voucher_id,
+    form.receipt_stage,
+    logisticsSettings,
+    selectedReceivablePo,
+    selectedShipment,
+  ]);
+
+  useEffect(() => {
+    if (!receiptContext || !isMutating) return;
+    setForm((current) => {
+      const nextDestination =
+        receiptContext.defaultDestinationLocationId ?? current.destination_location_id;
+      if (
+        current.receipt_stage === receiptContext.receiptStage &&
+        current.is_po_fulfilling === receiptContext.isPoFulfilling &&
+        current.destination_location_id === nextDestination &&
+        current.staging_location_id === receiptContext.stagingLocationId
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        receipt_stage: receiptContext.receiptStage,
+        is_po_fulfilling: receiptContext.isPoFulfilling,
+        destination_location_id: nextDestination,
+        staging_location_id: receiptContext.stagingLocationId,
+      };
+    });
+  }, [isMutating, receiptContext]);
 
   const handleSubmit = useCallback(() => {
     if (hasInvalidExceptions) {
@@ -403,6 +503,11 @@ export function GrnDrawerForm({
         })),
         landed_charges: filterSavableGrnLandedCharges(form.landed_charges),
         git_voucher_id: form.git_voucher_id,
+        shipment_id: form.shipment_id,
+        receipt_stage: receiptContext?.receiptStage ?? form.receipt_stage,
+        is_po_fulfilling: receiptContext?.isPoFulfilling ?? form.is_po_fulfilling,
+        staging_location_id: form.staging_location_id,
+        parent_grn_id: null,
       };
 
       const result = await postGoodsReceipt(
@@ -422,7 +527,7 @@ export function GrnDrawerForm({
       });
       onAfterSave(result.goodsReceiptId);
     });
-  }, [form, hasInvalidExceptions, onAfterSave, openQtyByPoItemId]);
+  }, [form, hasInvalidExceptions, onAfterSave, openQtyByPoItemId, receiptContext]);
 
   submitRef.current = handleSubmit;
 
@@ -466,10 +571,6 @@ export function GrnDrawerForm({
 
   const showLoadingPeek = surface === "peek" && detailLoading && !detail?.lines?.length;
   const poLocked = Boolean(form.purchase_order_id);
-  const selectedReceivablePo = form.purchase_order_id
-    ? receivableOrders.find((order) => order.id === form.purchase_order_id)
-    : null;
-  const isImportGoodsPo = selectedReceivablePo?.tax_supply_nature === "IMPORT_GOODS";
 
   return (
     <>
@@ -657,11 +758,85 @@ export function GrnDrawerForm({
               />
             ) : null}
 
+            {form.purchase_order_id && isImportGoodsPo && shipments.length > 0 ? (
+              <div className="space-y-2 shrink-0">
+                <Label>Import shipment</Label>
+                <Select
+                  value={form.shipment_id ?? "none"}
+                  onValueChange={(value) => {
+                    if (value === "none") {
+                      patchForm({ shipment_id: null });
+                      return;
+                    }
+                    const shipment = shipments.find((row) => row.id === value);
+                    patchForm({
+                      shipment_id: value,
+                      bill_of_entry_number: shipment?.bill_of_entry_number ?? "",
+                      bill_of_entry_date: shipment?.bill_of_entry_date ?? "",
+                      port_code: shipment?.port_code ?? "",
+                      exchange_rate: shipment?.exchange_rate ?? form.exchange_rate,
+                      assessable_value: shipment?.assessable_value ?? "",
+                      customs_duty_amount: shipment?.customs_duty_amount ?? "",
+                      import_igst_amount: shipment?.import_igst_amount ?? "",
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select shipment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No shipment</SelectItem>
+                    {shipments.map((shipment) => (
+                      <SelectItem key={shipment.id} value={shipment.id}>
+                        {shipment.shipment_number} · {shipment.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {isImportGoodsPo && receiptContext?.showStageSelector ? (
+              <div className="space-y-2 shrink-0">
+                <Label>Receipt stage</Label>
+                <Select
+                  value={form.receipt_stage}
+                  onValueChange={(value) =>
+                    patchForm({
+                      receipt_stage: value as GrnReceiptStage,
+                      git_voucher_id: value === "GIT_CLEARANCE" ? form.git_voucher_id : null,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {receiptContext.allowedStages.map((stage) => (
+                      <SelectItem key={stage} value={stage}>
+                        {grnReceiptStageLabel(stage)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  PO fulfillment: {receiptContext.isPoFulfilling ? "yes" : "inventory only"}
+                </p>
+              </div>
+            ) : null}
+
             {form.purchase_order_id && isImportGoodsPo ? (
               <GrnGitLinkPanel
                 purchaseOrderId={form.purchase_order_id}
+                shipmentId={form.shipment_id}
                 value={form.git_voucher_id}
-                onChange={(git_voucher_id) => patchForm({ git_voucher_id })}
+                visible={receiptContext?.showGitLink ?? false}
+                onChange={(git_voucher_id) =>
+                  patchForm({
+                    git_voucher_id,
+                    receipt_stage: git_voucher_id ? "GIT_CLEARANCE" : form.receipt_stage,
+                  })
+                }
                 className="shrink-0"
               />
             ) : null}
@@ -670,12 +845,14 @@ export function GrnDrawerForm({
               <div className="surface-inset grid shrink-0 grid-cols-1 gap-4 p-4 sm:grid-cols-2">
                 <p className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Import / Bill of entry
+                  {receiptContext?.requireBoe ? " (required)" : " (optional for this stage)"}
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="grn-boe-number">Bill of entry #</Label>
                   <Input
                     id="grn-boe-number"
                     value={form.bill_of_entry_number}
+                    readOnly={Boolean(selectedShipment?.bill_of_entry_number) && !receiptContext?.boeEditable}
                     onChange={(event) => patchForm({ bill_of_entry_number: event.target.value })}
                   />
                 </div>

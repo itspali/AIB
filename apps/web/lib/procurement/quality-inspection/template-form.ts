@@ -85,6 +85,17 @@ export function parseChoiceOptionsText(raw: string): string[] {
     .filter(Boolean);
 }
 
+export function resolveQcTestTemplateFormForSave(
+  state: QcTestTemplateFormState,
+  options?: { defaultTemplateName?: string | null }
+): QcTestTemplateFormState {
+  const defaultName = options?.defaultTemplateName?.trim() ?? "";
+  if (state.name.trim() || !defaultName || state.parameters.length === 0) {
+    return state;
+  }
+  return { ...state, name: defaultName };
+}
+
 export function validateQcTestTemplateForm(state: QcTestTemplateFormState): string | null {
   const hasParameters = state.parameters.length > 0;
   const name = state.name.trim();

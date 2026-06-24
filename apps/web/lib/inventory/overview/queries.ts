@@ -10,6 +10,7 @@ import type {
   BelowReorderOverviewRow,
   InventoryOverviewSnapshot,
 } from "@/lib/inventory/overview/types";
+import { fetchOpenProcurementGitVoucherCount } from "@/lib/procurement/git/queries";
 
 const BELOW_REORDER_OVERVIEW_LIMIT = 12;
 
@@ -37,7 +38,8 @@ function compareBelowReorderRows(a: StockBalanceRow, b: StockBalanceRow): number
 export function buildInventoryOverviewSnapshot(
   balances: Awaited<ReturnType<typeof fetchStockBalances>>,
   adjustments: Awaited<ReturnType<typeof fetchStockAdjustments>>,
-  transfers: StockTransferRow[] = []
+  transfers: StockTransferRow[] = [],
+  procurementGitInTransitCount = 0
 ): InventoryOverviewSnapshot {
   let inventoryValuation = 0;
   let belowReorderCount = 0;
@@ -89,6 +91,7 @@ export function buildInventoryOverviewSnapshot(
     belowReorderCount,
     stockedBalanceCount,
     inTransitTransferCount,
+    procurementGitInTransitCount,
     belowReorderBalances,
     recentTransfers: transfers.slice(0, 8),
     recentAdjustments: adjustments.slice(0, 8),
@@ -99,11 +102,17 @@ export async function fetchInventoryOverviewSnapshot(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<InventoryOverviewSnapshot> {
-  const [balances, adjustments, transfers] = await Promise.all([
+  const [balances, adjustments, transfers, procurementGitInTransitCount] = await Promise.all([
     fetchStockBalances(supabase, tenantId),
     fetchStockAdjustments(supabase, tenantId),
     fetchStockTransfers(supabase, tenantId),
+    fetchOpenProcurementGitVoucherCount(supabase, tenantId),
   ]);
 
-  return buildInventoryOverviewSnapshot(balances, adjustments, transfers);
+  return buildInventoryOverviewSnapshot(
+    balances,
+    adjustments,
+    transfers,
+    procurementGitInTransitCount
+  );
 }

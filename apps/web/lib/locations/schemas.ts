@@ -102,10 +102,16 @@ export const locationFormSchema = z
         });
       }
     }
-    if (values.presence_type === "VIRTUAL" && values.is_stock_holding) {
+    if (
+      values.presence_type === "VIRTUAL" &&
+      values.is_stock_holding &&
+      !values.is_git_holding &&
+      !values.is_subcontract_wip
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Virtual locations cannot be stock-holding",
+        message:
+          "Virtual locations can hold stock only when flagged as a GIT holding or subcontract WIP node",
         path: ["is_stock_holding"],
       });
     }

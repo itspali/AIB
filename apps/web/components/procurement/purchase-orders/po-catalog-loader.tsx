@@ -7,6 +7,7 @@ import {
 } from "@/lib/procurement/location-scope";
 import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
+import { fetchImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
 import { resolvePoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { purchaseOrderFetchOptionsForScope } from "@/lib/procurement/purchase-orders/fetch-scope";
 import { fetchPurchaseOrdersPage } from "@/lib/procurement/purchase-orders/queries";
@@ -25,7 +26,7 @@ export async function PoCatalogLoader() {
     getAppShellBootstrap(),
   ]);
 
-  const [locations, suppliers, editAccess, procurementSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions] =
+  const [locations, suppliers, editAccess, procurementSettings, approvalSettings, tenantRow, documentLayout, taxCodeOptions, importLogisticsSettings] =
     await Promise.all([
       fetchProcurementLocations(supabase, tenantId),
       fetchProcurementSuppliers(supabase, tenantId),
@@ -46,6 +47,7 @@ export async function PoCatalogLoader() {
         viewContext: "SCREEN_GRID",
       }),
       fetchActivePoLineTaxCodeOptions(supabase, tenantId),
+      fetchImportLogisticsSettings(supabase, tenantId),
     ]);
 
   const scopedLocations = filterProcurementLocationsByScope(locations, editAccess.locationScope);
@@ -88,6 +90,7 @@ export async function PoCatalogLoader() {
       currentUserId={userId}
       isOwner={editAccess.isOwner}
       financeSetupComplete={bootstrap.financeSetupComplete}
+      tenantDefaultFulfillmentStage={importLogisticsSettings.po_fulfillment_stage}
     />
   );
 }

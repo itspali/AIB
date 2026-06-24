@@ -91,6 +91,11 @@ export const postGoodsReceiptSchema = z.object({
   import_igst_amount: z.string().trim().optional().nullable(),
   lines: z.array(goodsReceiptLineSchema).min(1, "Add at least one line."),
   git_voucher_id: z.string().uuid().optional().nullable(),
+  shipment_id: z.string().uuid().optional().nullable(),
+  receipt_stage: z.enum(["COMMERCIAL", "CUSTOMS", "FINAL", "GIT_CLEARANCE"]).optional().default("FINAL"),
+  is_po_fulfilling: z.boolean().optional().default(true),
+  parent_grn_id: z.string().uuid().optional().nullable(),
+  staging_location_id: z.string().uuid().optional().nullable(),
   landed_charges: z
     .array(
       z.object({

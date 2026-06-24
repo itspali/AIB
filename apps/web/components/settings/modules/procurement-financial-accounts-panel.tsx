@@ -21,6 +21,7 @@ import type {
 type Props = {
   initialSettings: FinancialProcurementSettings;
   expenseAccounts: ExpenseAccountOption[];
+  assetAccounts: ExpenseAccountOption[];
   liabilityAccounts: ExpenseAccountOption[];
   canEdit: boolean;
 };
@@ -28,6 +29,7 @@ type Props = {
 export function ProcurementFinancialAccountsPanel({
   initialSettings,
   expenseAccounts,
+  assetAccounts,
   liabilityAccounts,
   canEdit,
 }: Props) {
@@ -50,7 +52,7 @@ export function ProcurementFinancialAccountsPanel({
   return (
     <OrgSettingsSection
       title="Billing GL accounts"
-      description="Configure accounts used when purchase price variance cannot be fully absorbed into inventory."
+      description="Configure accounts used for purchase price variance, promotional contra, goods-in-transit holding, and vendor prepayments."
     >
       <div className="space-y-4">
         <div className="grid gap-2">
@@ -79,6 +81,65 @@ export function ProcurementFinancialAccountsPanel({
           </Select>
           <p className="text-xs text-muted-foreground">
             Used when Apply PPV posts variance beyond inventory restatement limits.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="promo-contra-expense-account">Promotional contra expense account</Label>
+          <Select
+            value={settings.promo_contra_expense_account_id ?? "none"}
+            disabled={!canEdit}
+            onValueChange={(value) =>
+              setSettings((current) => ({
+                ...current,
+                promo_contra_expense_account_id: value === "none" ? null : value,
+              }))
+            }
+          >
+            <SelectTrigger id="promo-contra-expense-account">
+              <SelectValue placeholder="Select expense account" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not configured</SelectItem>
+              {expenseAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.account_code} — {account.account_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Used when promotional bundle cost is restated against paid stock on GRN close-out.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="git-holding-account">GIT holding account</Label>
+          <Select
+            value={settings.git_holding_account_id ?? "none"}
+            disabled={!canEdit}
+            onValueChange={(value) =>
+              setSettings((current) => ({
+                ...current,
+                git_holding_account_id: value === "none" ? null : value,
+              }))
+            }
+          >
+            <SelectTrigger id="git-holding-account">
+              <SelectValue placeholder="Select asset account" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not configured</SelectItem>
+              {assetAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.account_code} — {account.account_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Goods-in-transit asset used when posting import stock to a virtual GIT holding node
+            (Dr GIT holding / Cr inventory on post; reversed on clearance).
           </p>
         </div>
 

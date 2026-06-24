@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadOpenGitVouchersForPo } from "@/app/procurement/goods-in-transit/actions";
+import {
+  loadOpenGitVouchersForPo,
+  loadOpenGitVouchersForShipment,
+} from "@/app/procurement/goods-in-transit/actions";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,24 +17,44 @@ import type { GoodsInTransitRow } from "@/lib/procurement/git/types";
 
 type Props = {
   purchaseOrderId: string | null;
+  shipmentId?: string | null;
   value: string | null;
   onChange: (gitVoucherId: string | null) => void;
+  visible?: boolean;
   className?: string;
 };
 
-export function GrnGitLinkPanel({ purchaseOrderId, value, onChange, className }: Props) {
+export function GrnGitLinkPanel({
+  purchaseOrderId,
+  shipmentId = null,
+  value,
+  onChange,
+  visible = true,
+  className,
+}: Props) {
   const [vouchers, setVouchers] = useState<GoodsInTransitRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!purchaseOrderId) {
+    if (!visible) {
+      setVouchers([]);
+      return;
+    }
+
+    if (!purchaseOrderId && !shipmentId) {
       setVouchers([]);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
-    void loadOpenGitVouchersForPo(purchaseOrderId).then((rows) => {
+    const loader = shipmentId
+      ? loadOpenGitVouchersForShipment(shipmentId)
+      : purchaseOrderId
+        ? loadOpenGitVouchersForPo(purchaseOrderId)
+        : Promise.resolve([]);
+
+    void loader.then((rows) => {
       if (cancelled) return;
       setVouchers(rows);
       setLoading(false);
@@ -41,16 +64,19 @@ export function GrnGitLinkPanel({ purchaseOrderId, value, onChange, className }:
     return () => {
       cancelled = true;
     };
-  }, [purchaseOrderId, onChange]);
+  }, [purchaseOrderId, shipmentId, onChange, visible]);
 
-  if (!purchaseOrderId || (!loading && vouchers.length === 0)) return null;
+  if (!visible || (!purchaseOrderId && !shipmentId) || (!loading && vouchers.length === 0)) {
+    return null;
+  }
 
   return (
     <section className={className}>
       <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
         <Label>Clear goods in transit</Label>
         <p className="text-xs text-muted-foreground">
-          Link a posted GIT voucher to release in-transit stock when this receipt is posted.
+          Link a posted import GIT voucher{shipmentId ? " for this shipment" : ""} to release
+          in-transit stock when this receipt is posted.
         </p>
         <Select
           value={value ?? "none"}

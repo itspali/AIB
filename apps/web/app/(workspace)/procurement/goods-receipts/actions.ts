@@ -12,6 +12,9 @@ import { fetchVariantQcPolicyHints } from "@/lib/procurement/goods-receipts/qc-p
 import type { VariantQcPolicyHint } from "@/lib/procurement/qc-receipt-policy";
 import { postGoodsReceiptSchema } from "@/lib/procurement/goods-receipts/schemas";
 import type { GoodsReceiptRow } from "@/lib/procurement/goods-receipts/types";
+import { fetchImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
+import { fetchReceivableImportShipments } from "@/lib/procurement/shipments/queries";
+import type { ReceivableImportShipmentOption } from "@/lib/procurement/shipments/queries";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
 import { fetchProcurementLocationLabel } from "@/lib/procurement/shared/queries";
@@ -61,6 +64,20 @@ export async function loadGoodsReceiptDetail(
   const goodsReceipt = await fetchGoodsReceiptById(supabase, tenantId, goodsReceiptId);
   if (!goodsReceipt) return { error: "Goods receipt not found." };
   return { goodsReceipt };
+}
+
+export async function loadReceivableImportShipments(
+  purchaseOrderId?: string | null
+): Promise<ReceivableImportShipmentOption[]> {
+  const { supabase, tenantId } = await requireTenantMutation();
+  return fetchReceivableImportShipments(supabase, tenantId, {
+    purchaseOrderId: purchaseOrderId ?? null,
+  });
+}
+
+export async function loadImportLogisticsSettingsForGrn() {
+  const { supabase, tenantId } = await requireTenantMutation();
+  return fetchImportLogisticsSettings(supabase, tenantId);
 }
 
 export async function loadReceivablePurchaseOrders(
@@ -134,23 +151,87 @@ export async function postGoodsReceipt(
   });
 
   if (values.git_voucher_id) {
-    const { error: gitError } = await supabase.rpc("clear_goods_in_transit_for_grn", {
-      p_git_voucher_id: values.git_voucher_id,
+    const grnRpcPayload = {
       p_destination_location_id: values.destination_location_id,
-      p_lines: rpcLines.map((line) => ({
-        variant_id: line.variant_id,
-        quantity_received: line.quantity_received,
-        quantity_accepted: line.quantity_accepted,
-      })),
+      p_purchase_order_id: values.purchase_order_id ?? null,
+      p_lines: rpcLines,
       p_created_by: userId,
-    });
+      p_bill_of_entry_number: values.bill_of_entry_number ?? null,
+      p_bill_of_entry_date: values.bill_of_entry_date || null,
+      p_port_code: values.port_code ?? null,
+      p_exchange_rate: values.exchange_rate ? Number(values.exchange_rate) : null,
+      p_assessable_value: values.assessable_value ? Number(values.assessable_value) : null,
+      p_customs_duty_amount: values.customs_duty_amount ? Number(values.customs_duty_amount) : null,
+      p_import_igst_amount: values.import_igst_amount ? Number(values.import_igst_amount) : null,
+      p_landed_charges: (values.landed_charges ?? []).map((charge) => ({
+        charge_type: charge.charge_type,
+        amount: Number(charge.amount),
+        allocation_method: charge.allocation_method ?? null,
+      })),
+      p_shipment_id: values.shipment_id ?? null,
+      p_parent_grn_id: values.parent_grn_id ?? null,
+      p_staging_location_id: values.staging_location_id ?? null,
+    };
 
-    if (gitError) {
-      if (isMissingRpcError(gitError)) {
-        return { error: formatRpcDeployError("clear_goods_in_transit_for_grn") };
+    const useAtomicClearance = values.receipt_stage === "GIT_CLEARANCE";
+
+    const { data, error } = useAtomicClearance
+      ? await supabase.rpc("post_grn_with_git_clearance", {
+          p_git_voucher_id: values.git_voucher_id,
+          ...grnRpcPayload,
+        })
+      : await (async () => {
+          const { error: gitError } = await supabase.rpc("clear_goods_in_transit_for_grn", {
+            p_git_voucher_id: values.git_voucher_id,
+            p_destination_location_id: values.destination_location_id,
+            p_lines: rpcLines.map((line) => ({
+              variant_id: line.variant_id,
+              quantity_received: line.quantity_received,
+              quantity_accepted: line.quantity_accepted,
+            })),
+            p_created_by: userId,
+          });
+          if (gitError) return { data: null, error: gitError };
+          return supabase.rpc("post_goods_receipt", {
+            ...grnRpcPayload,
+            p_receipt_stage: values.receipt_stage ?? "FINAL",
+            p_is_po_fulfilling: values.is_po_fulfilling ?? true,
+          });
+        })();
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return {
+          error: formatRpcDeployError(
+            useAtomicClearance ? "post_grn_with_git_clearance" : "post_goods_receipt"
+          ),
+        };
       }
-      return { error: gitError.message };
+      return { error: error.message };
     }
+
+    const parsedResult = parsePostGoodsReceiptRpcResult(data);
+    if (!parsedResult) {
+      return { error: "Goods receipt posted but the response was invalid." };
+    }
+
+    if (values.purchase_order_id) {
+      const { error: backflushError } = await supabase.rpc("apply_subcontract_backflush_for_grn", {
+        p_goods_receipt_id: parsedResult.goodsReceiptId,
+      });
+      if (backflushError && !isMissingRpcError(backflushError)) {
+        return {
+          error: `Receipt posted but subcontract backflush failed: ${backflushError.message}`,
+        };
+      }
+    }
+
+    revalidateGoodsReceiptPaths();
+    return {
+      success: true as const,
+      goodsReceiptId: parsedResult.goodsReceiptId,
+      steps: parsedResult.steps,
+    };
   }
 
   const { data, error } = await supabase.rpc("post_goods_receipt", {
@@ -170,6 +251,11 @@ export async function postGoodsReceipt(
       amount: Number(charge.amount),
       allocation_method: charge.allocation_method ?? null,
     })),
+    p_receipt_stage: values.receipt_stage ?? "FINAL",
+    p_is_po_fulfilling: values.is_po_fulfilling ?? true,
+    p_parent_grn_id: values.parent_grn_id ?? null,
+    p_shipment_id: values.shipment_id ?? null,
+    p_staging_location_id: values.staging_location_id ?? null,
   });
 
   if (error) {

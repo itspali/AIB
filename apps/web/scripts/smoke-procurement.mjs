@@ -667,6 +667,203 @@ async function testLandedChargesGrn(ctx) {
   };
 }
 
+async function createGitHoldingLocation(supabase) {
+  const stamp = Date.now();
+  const { data: locationId, error } = await supabase.rpc("save_tenant_location", {
+    p_location_id: null,
+    p_name: `GIT Holding ${stamp}`,
+    p_code: `GIT${String(stamp).slice(-4)}`,
+    p_address_line1: "1 Virtual Transit Way",
+    p_city: "Austin",
+    p_state: "TX",
+    p_zip_postal: "78701",
+    p_country_code: "US",
+    p_is_stock_holding: true,
+    p_presence_type: "VIRTUAL",
+    p_location_meta: {},
+  });
+  if (error) throw new Error(`save_tenant_location (GIT): ${error.message}`);
+  if (!locationId) throw new Error("save_tenant_location (GIT) returned no id");
+
+  const { error: flagError } = await supabase.rpc("update_location_logistics_flags", {
+    p_location_id: locationId,
+    p_is_git_holding: true,
+    p_is_subcontract_wip: false,
+  });
+  if (flagError) {
+    throw new Error(`update_location_logistics_flags (GIT): ${flagError.message}`);
+  }
+
+  return locationId;
+}
+
+async function postGoodsReceiptExtended(supabase, payload) {
+  const {
+    locationId,
+    poId,
+    lines,
+    userId,
+    receiptStage = "FINAL",
+    isPoFulfilling = true,
+  } = payload;
+
+  return supabase.rpc("post_goods_receipt", {
+    p_destination_location_id: locationId,
+    p_purchase_order_id: poId,
+    p_lines: lines,
+    p_created_by: userId,
+    p_landed_charges: [],
+    p_receipt_stage: receiptStage,
+    p_is_po_fulfilling: isPoFulfilling,
+    p_parent_grn_id: null,
+    p_shipment_id: null,
+    p_staging_location_id: null,
+  });
+}
+
+async function testImportLogisticsStagingGitClearance(ctx) {
+  const { supabase, userId, locationId } = ctx;
+  const stamp = Date.now();
+  const unitPrice = 10;
+  const fulfillQty = 5;
+  const clearanceQty = 5;
+  const orderQty = 10;
+
+  const gitLocationId = await createGitHoldingLocation(supabase);
+  const supplierId = await createSupplier(supabase);
+  const { variantId } = await createTrackInventoryProduct(supabase, `${stamp}-import`);
+
+  const { data: poId, error: savePoError } = await supabase.rpc("save_purchase_order", {
+    p_purchase_order_id: null,
+    p_destination_location_id: locationId,
+    p_supplier_id: supplierId,
+    p_lines: [
+      {
+        variant_id: variantId,
+        quantity_ordered: orderQty,
+        unit_price_contractual: unitPrice,
+        discount_percentage: 0,
+        discount_amount: 0,
+      },
+    ],
+    p_created_by: userId,
+    p_payment_terms_days: 30,
+    p_custom_fields: {},
+    p_currency_code: "USD",
+    p_prices_tax_inclusive: false,
+  });
+  if (savePoError) throw new Error(`save_purchase_order (import): ${savePoError.message}`);
+
+  const { error: issueError } = await supabase.rpc("issue_purchase_order", {
+    p_purchase_order_id: poId,
+  });
+  if (issueError) throw new Error(`issue_purchase_order (import): ${issueError.message}`);
+
+  const { data: poItems, error: poItemsError } = await supabase
+    .from("purchase_order_items")
+    .select("id")
+    .eq("purchase_order_id", poId);
+  if (poItemsError) throw new Error(`purchase_order_items fetch (import): ${poItemsError.message}`);
+  const poItemId = poItems[0].id;
+
+  const linePayload = {
+    variant_id: variantId,
+    po_item_id: poItemId,
+    quantity_received: fulfillQty,
+    raw_unit_cost: unitPrice,
+    is_promotional: false,
+  };
+
+  const { error: stagingGrnError } = await postGoodsReceiptExtended(supabase, {
+    locationId,
+    poId,
+    userId,
+    lines: [linePayload],
+    receiptStage: "COMMERCIAL",
+    isPoFulfilling: true,
+  });
+  if (stagingGrnError) {
+    throw new Error(`post_goods_receipt (staging): ${stagingGrnError.message}`);
+  }
+
+  const { data: poAfterStaging, error: poAfterStagingError } = await supabase
+    .from("purchase_order_items")
+    .select("quantity_received")
+    .eq("id", poItemId)
+    .single();
+  if (poAfterStagingError) {
+    throw new Error(`po items after staging: ${poAfterStagingError.message}`);
+  }
+  assert(
+    Number(poAfterStaging.quantity_received) === fulfillQty,
+    `Expected PO received ${fulfillQty} after staging GRN, got ${poAfterStaging.quantity_received}`
+  );
+
+  const { data: gitResult, error: gitError } = await supabase.rpc("post_goods_in_transit", {
+    p_source_location_id: locationId,
+    p_git_holding_location_id: gitLocationId,
+    p_lines: [
+      {
+        variant_id: variantId,
+        po_item_id: poItemId,
+        quantity: fulfillQty,
+        unit_cost: unitPrice,
+      },
+    ],
+    p_created_by: userId,
+    p_purchase_order_id: poId,
+    p_notes: "smoke import logistics",
+  });
+  if (gitError) throw new Error(`post_goods_in_transit: ${gitError.message}`);
+  const gitVoucherId = gitResult?.voucher_id;
+  assert(gitVoucherId, "post_goods_in_transit returned no voucher_id");
+
+  const clearanceLines = [
+    {
+      variant_id: variantId,
+      quantity_received: clearanceQty,
+      quantity_accepted: clearanceQty,
+    },
+  ];
+
+  const { error: clearError } = await supabase.rpc("clear_goods_in_transit_for_grn", {
+    p_git_voucher_id: gitVoucherId,
+    p_destination_location_id: locationId,
+    p_lines: clearanceLines,
+    p_created_by: userId,
+  });
+  if (clearError) throw new Error(`clear_goods_in_transit_for_grn: ${clearError.message}`);
+
+  const { error: clearanceGrnError } = await postGoodsReceiptExtended(supabase, {
+    locationId,
+    poId,
+    userId,
+    lines: [{ ...linePayload, quantity_received: clearanceQty }],
+    receiptStage: "GIT_CLEARANCE",
+    isPoFulfilling: false,
+  });
+  if (clearanceGrnError) {
+    throw new Error(`post_goods_receipt (clearance): ${clearanceGrnError.message}`);
+  }
+
+  const { data: poAfterClearance, error: poFinalError } = await supabase
+    .from("purchase_order_items")
+    .select("quantity_received")
+    .eq("id", poItemId)
+    .single();
+  if (poFinalError) throw new Error(`po items after clearance: ${poFinalError.message}`);
+  assert(
+    Number(poAfterClearance.quantity_received) === fulfillQty,
+    `PO qty double-counted: expected ${fulfillQty}, got ${poAfterClearance.quantity_received}`
+  );
+
+  return {
+    name: "Import logistics staging → GIT → clearance (PO qty not double-counted)",
+    ok: true,
+    detail: `received=${poAfterClearance.quantity_received}, git=${gitResult?.voucher_number ?? gitVoucherId}`,
+  };
+}
+
 async function testBillQtyMismatchFails(ctx) {
   const { supabase, userId, locationId } = ctx;
   const stamp = Date.now();
@@ -869,6 +1066,7 @@ async function main() {
       };
       results.push(await testLandedChargesGrn(extendedCtx));
       results.push(await testBillQtyMismatchFails(extendedCtx));
+      results.push(await testImportLogisticsStagingGitClearance(extendedCtx));
       if (flow.billSteps.includes("bill_payables_posted")) {
         results.push({
           name: "Bill payables posted to AP",
@@ -895,7 +1093,7 @@ async function main() {
 
   console.log("\nProcurement smoke test (PO → GRN → Bills) — PASSED\n");
   if (SMOKE_EXTENDED) {
-    console.log("  (extended mode: landed charges, qty mismatch, AP posting)\n");
+    console.log("  (extended mode: landed charges, qty mismatch, import GIT, AP posting)\n");
   }
   for (const result of results) {
     const suffix = result.detail ? `: ${result.detail}` : "";

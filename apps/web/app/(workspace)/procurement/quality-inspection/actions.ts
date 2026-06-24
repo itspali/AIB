@@ -19,7 +19,7 @@ import {
   type QcTestTemplateScope,
 } from "@/lib/procurement/quality-inspection/template-queries";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
-import { requireTenantMutation } from "@/lib/supabase/require-tenant";
+import { requireTenantId, requireTenantMutation } from "@/lib/supabase/require-tenant";
 
 const QC_PATHS = [
   "/procurement/quality-inspection",
@@ -61,7 +61,7 @@ export async function loadQcInspectionQueueRow(goodsReceiptItemId: string) {
 
 export async function loadQcTestTemplateForItem(itemId: string) {
   if (!itemId.trim()) return { template: null };
-  const { supabase, tenantId } = await requireTenantMutation();
+  const { supabase, tenantId } = await requireTenantId();
   const template = await fetchQcTestTemplateForItem(supabase, tenantId, itemId);
   return { template };
 }
@@ -237,7 +237,7 @@ export async function loadQcTestTemplateForScope(
   scopeReferenceId: string
 ) {
   if (!scopeReferenceId.trim()) return { template: null };
-  const { supabase, tenantId } = await requireTenantMutation();
+  const { supabase, tenantId } = await requireTenantId();
   const template = await fetchQcTestTemplateByScope(
     supabase,
     tenantId,

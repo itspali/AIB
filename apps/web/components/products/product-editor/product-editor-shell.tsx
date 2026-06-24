@@ -3072,6 +3072,7 @@ export function ProductEditorShell({
                       scopeReferenceId={itemId}
                       scopeLabel="item"
                       readOnly={readOnly}
+                      defaultTemplateName={name}
                     />
                   </div>
                 ) : null}

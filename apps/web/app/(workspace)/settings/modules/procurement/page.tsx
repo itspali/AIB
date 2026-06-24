@@ -3,6 +3,7 @@ import { getModulePageContext } from "@/lib/layout/module-page";
 import { fetchProcurementApprovalSettings } from "@/lib/procurement/approval-settings-server";
 import {
   fetchExpenseAccountOptions,
+  fetchAssetAccountOptions,
   fetchFinancialProcurementSettings,
   fetchLiabilityAccountOptions,
   fetchProcurementSettings,
@@ -11,6 +12,7 @@ import {
   fetchWorkspaceEligibleUsers,
   fetchWorkspaceUserProfiles,
 } from "@/lib/organization/queries";
+import { fetchImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
 import { resolveOrganizationSettingsAccess } from "@/lib/organization/access";
 
 export default async function ProcurementModuleSettingsPage() {
@@ -23,7 +25,9 @@ export default async function ProcurementModuleSettingsPage() {
     eligibleUsers,
     financialSettings,
     expenseAccounts,
+    assetAccounts,
     liabilityAccounts,
+    importLogisticsSettings,
   ] = await Promise.all([
     resolveOrganizationSettingsAccess(supabase, userId, tenantId),
     fetchProcurementSettings(supabase, tenantId),
@@ -31,7 +35,9 @@ export default async function ProcurementModuleSettingsPage() {
     fetchWorkspaceEligibleUsers(supabase, tenantId),
     fetchFinancialProcurementSettings(supabase, tenantId),
     fetchExpenseAccountOptions(supabase, tenantId),
+    fetchAssetAccountOptions(supabase, tenantId),
     fetchLiabilityAccountOptions(supabase, tenantId),
+    fetchImportLogisticsSettings(supabase, tenantId),
   ]);
 
   const approverProfiles = await fetchWorkspaceUserProfiles(
@@ -48,7 +54,9 @@ export default async function ProcurementModuleSettingsPage() {
       approverProfiles={approverProfiles}
       financialSettings={financialSettings}
       expenseAccounts={expenseAccounts}
+      assetAccounts={assetAccounts}
       liabilityAccounts={liabilityAccounts}
+      importLogisticsSettings={importLogisticsSettings}
     />
   );
 }

@@ -33,7 +33,7 @@ import {
 import type { useCategoryForm } from "@/lib/categories/use-category-form";
 import { CATEGORY_EDITOR_FIELD_HELP } from "@/lib/categories/category-editor-field-help";
 import { QC_RECEIPT_POLICIES, qcReceiptPolicyLabel } from "@/lib/procurement/qc-receipt-policy";
-import { QcTestTemplateScopePanel } from "@/components/procurement/quality-inspection/qc-test-template-scope-panel";
+import { QcTestTemplateScopePanel, type QcTestTemplateScopePanelHandle } from "@/components/procurement/quality-inspection/qc-test-template-scope-panel";
 import {
   CATEGORY_EDITOR_FORM_CLASS,
   editorPanelWizardBleedLgClass,
@@ -72,6 +72,8 @@ type Props = {
   onActiveSectionChange?: (id: string) => void;
   scrollRootRef?: RefObject<HTMLElement | null>;
   chipBarRef?: RefObject<HTMLDivElement | null>;
+  qcTemplatePanelRef?: RefObject<QcTestTemplateScopePanelHandle | null>;
+  onQcTemplateDirtyChange?: (dirty: boolean) => void;
 };
 
 function Section({
@@ -107,6 +109,8 @@ export function CategoryEditorShell({
   onActiveSectionChange,
   scrollRootRef,
   chipBarRef,
+  qcTemplatePanelRef,
+  onQcTemplateDirtyChange,
 }: Props) {
   const { form, setForm, error, isPending, parentOptions, inheritedPreview } = formApi;
 
@@ -298,11 +302,14 @@ export function CategoryEditorShell({
 
               {editingCategoryId ? (
                 <QcTestTemplateScopePanel
+                  ref={qcTemplatePanelRef}
                   scopeType="CATEGORY"
                   scopeReferenceId={editingCategoryId}
                   scopeLabel="category"
                   readOnly={readOnly}
                   className="mt-4"
+                  onDirtyChange={onQcTemplateDirtyChange}
+                  defaultTemplateName={form.name}
                 />
               ) : null}
 

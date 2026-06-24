@@ -96,6 +96,9 @@ export type PurchaseOrderRow = {
   approval_run_status?: string | null;
   created_at: string;
   updated_at: string;
+  receipt_location_id?: string | null;
+  ultimate_destination_location_id?: string | null;
+  po_fulfillment_stage_override?: "COMMERCIAL" | "FINAL" | null;
   lines?: PurchaseOrderLineRow[];
 };
 
@@ -105,6 +108,9 @@ export type ReceivablePurchaseOrderOption = {
   destination_location_id: string;
   destination_location_name: string;
   destination_location_code: string;
+  receipt_location_id: string | null;
+  ultimate_destination_location_id: string | null;
+  po_fulfillment_stage_override: "COMMERCIAL" | "FINAL" | null;
   supplier_name: string;
   tax_supply_nature: PoTaxSupplyNature;
   lines: PurchaseOrderLineRow[];

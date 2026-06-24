@@ -48,6 +48,7 @@ import {
   canUserApprovePurchaseOrders,
   isPurchaseOrderApprovableByUser,
 } from "@/lib/procurement/approval-settings";
+import type { PoFulfillmentStage } from "@/lib/procurement/import-logistics-settings-shared";
 
 const PO_PAGE_DESCRIPTION =
   "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
@@ -94,6 +95,7 @@ type Props = {
   currentUserId: string;
   isOwner: boolean;
   financeSetupComplete: boolean;
+  tenantDefaultFulfillmentStage?: PoFulfillmentStage;
 };
 
 export function PoManagementTerminal({
@@ -119,6 +121,7 @@ export function PoManagementTerminal({
   currentUserId,
   isOwner,
   financeSetupComplete,
+  tenantDefaultFulfillmentStage = "COMMERCIAL",
 }: Props) {
   const searchParams = useSearchParams();
   const drawer = useModuleDrawerUrl(PROCUREMENT_PO_HREF, {
@@ -537,6 +540,7 @@ export function PoManagementTerminal({
           approvalSettings={approvalSettings}
           currentUserId={currentUserId}
           isOwner={isOwner}
+          tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
         />
       ) : null}
     </>

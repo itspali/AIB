@@ -32,6 +32,7 @@ const postGitSchema = z.object({
   source_location_id: z.string().uuid(),
   git_holding_location_id: z.string().uuid(),
   purchase_order_id: z.string().uuid().optional().nullable(),
+  shipment_id: z.string().uuid().optional().nullable(),
   notes: z.string().trim().optional().nullable(),
   lines: z.array(gitLineSchema).min(1),
 });
@@ -92,6 +93,7 @@ export async function postGoodsInTransit(raw: unknown) {
     p_created_by: userId,
     p_purchase_order_id: values.purchase_order_id ?? null,
     p_notes: values.notes?.trim() || null,
+    p_shipment_id: values.shipment_id ?? null,
   });
 
   if (error) {
@@ -119,4 +121,33 @@ export async function loadOpenGitVouchersForPo(
     purchaseOrderId,
     status: "POSTED",
   });
+}
+
+export async function loadOpenGitVouchersForShipment(
+  shipmentId: string
+): Promise<GoodsInTransitRow[]> {
+  if (!shipmentId.trim()) return [];
+  const { supabase, tenantId } = await requireTenantMutation();
+  return fetchGoodsInTransitVouchers(supabase, tenantId, {
+    shipmentId,
+    status: "POSTED",
+  });
+}
+
+export async function cancelGoodsInTransit(voucherId: string, reason?: string | null) {
+  if (!voucherId.trim()) return { error: "Voucher id is required." };
+  const { supabase, userId } = await requireTenantMutation();
+  const { data, error } = await supabase.rpc("cancel_goods_in_transit", {
+    p_git_voucher_id: voucherId,
+    p_created_by: userId,
+    p_reason: reason?.trim() || null,
+  });
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("cancel_goods_in_transit") };
+    }
+    return { error: error.message };
+  }
+  revalidateGitPaths();
+  return { success: true as const, detail: data };
 }

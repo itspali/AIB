@@ -88,6 +88,11 @@ export const moduleNavItems: ModuleNavItem[] = [
         icon: PackageCheck,
       },
       {
+        href: "/procurement/shipments",
+        label: "Import Shipments",
+        icon: Ship,
+      },
+      {
         href: "/procurement/quality-inspection",
         label: "Quality Inspection",
         icon: ClipboardCheck,
@@ -95,7 +100,7 @@ export const moduleNavItems: ModuleNavItem[] = [
       {
         href: "/procurement/goods-in-transit",
         label: "Goods in Transit",
-        icon: Ship,
+        icon: Truck,
       },
       {
         href: "/procurement/subcontract",

@@ -96,7 +96,7 @@ export function validateCategoryStage(
 export type UseCategoryFormOptions = {
   rows: CategoryRow[];
   editingCategory?: CategoryRow | null;
-  onSaved: (category: CategoryRow) => void;
+  onSaved: (category: CategoryRow) => void | Promise<void>;
   notifyOnSave?: boolean;
 };
 
@@ -199,7 +199,7 @@ export function useCategoryForm({
         );
       }
       setBaseline(form);
-      onSaved(result.category);
+      await onSaved(result.category);
     });
   }, [editingCategory?.id, form, isEditing, notifyOnSave, onSaved]);
 

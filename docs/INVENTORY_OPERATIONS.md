@@ -2,9 +2,9 @@
 
 **Read this first** when working on stock, transfers, opening balances, inventory overview, or inbound procurement that touches on-hand quantities.
 
-**Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) (bills / three-way match).
+**Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) (bills / three-way match), [`IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md) (staging receipts, GIT, import shipments).
 
-**Last updated:** 2026-06-14 (GRN QC/reject/landed cost; procurement bills cross-link).
+**Last updated:** 2026-08-02 (import logistics GIT + GL; GRN receipt stages).
 
 ---
 
@@ -108,6 +108,26 @@ Receipt posting (`post_goods_receipt`) supports partial accept/reject, QC routin
 - `20260620200000_procurement_promo_engine.sql` — landed charges table + allocation in `post_goods_receipt`
 
 **UI:** GRN drawer — landed cost panel (`GrnLandedCostPanel`), accept/reject columns when QC enabled; `apps/web/lib/procurement/goods-receipts/landed-cost-allocation.ts` mirrors server allocation preview.
+
+### Import logistics & GIT (2026-08-02)
+
+Tenant-configurable overseas import path: staging receipts, virtual GIT holding nodes, clearance GRNs that **never** double-increment PO `quantity_received`.
+
+| Feature | Behavior |
+|---------|----------|
+| **Policy registry** | `IMPORT_LOGISTICS_SETTINGS` — receipt strategy, staging mode, BoE policy, GIT enable |
+| **Receipt stages** | `goods_receipts.receipt_stage`: `COMMERCIAL`, `CUSTOMS`, `FINAL`, `GIT_CLEARANCE` |
+| **PO fulfillment guard** | `is_po_fulfilling` on GRN; clearance stage skips `quantity_received` |
+| **GIT vouchers** | `post_goods_in_transit` / `clear_goods_in_transit_for_grn` — import in-transit custody |
+| **GL (optional)** | `git_holding_account_id` → Dr/Cr against `1400-INVENTORY` on GIT post/clear |
+
+**Full spec:** [`IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md)
+
+**Migrations:** `20260802100000_*` through `20260802180000_git_gl_posting.sql`
+
+**UI:** `/procurement/goods-in-transit`; Settings → Procurement → Import & logistics; GRN GIT link panel
+
+**Lib:** `apps/web/lib/procurement/import-logistics/receipt-context.ts`, `import-logistics-settings.ts`
 
 ### Document drawer UX (Stock / Transfers / GRN parity — 2026-06-09)
 

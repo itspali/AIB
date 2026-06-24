@@ -95,6 +95,7 @@ import {
 import { computePurchaseOrderTotals } from "@/lib/procurement/purchase-orders/totals";
 import { cn } from "@/lib/utils";
 import { useDelayedVisible } from "@/hooks/use-delayed-visible";
+import type { PoFulfillmentStage } from "@/lib/procurement/import-logistics-settings-shared";
 
 type Props = {
   open: boolean;
@@ -127,6 +128,7 @@ type Props = {
   approvalSettings: ProcurementApprovalSettings;
   currentUserId: string;
   isOwner: boolean;
+  tenantDefaultFulfillmentStage?: PoFulfillmentStage;
 };
 
 function resolveDrawerTitle(surface: DrawerSurface, order: PurchaseOrderRow | null): string {
@@ -177,6 +179,7 @@ export function PoDrawerForm({
   approvalSettings,
   currentUserId,
   isOwner,
+  tenantDefaultFulfillmentStage = "COMMERCIAL",
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
@@ -557,6 +560,11 @@ export function PoDrawerForm({
         transaction_discount_percentage: String(headerCharges.transaction_discount_percentage),
         transaction_discount_amount: String(headerCharges.transaction_discount_amount),
         transaction_discount_type: headerCharges.transaction_discount_type,
+        receipt_location_id: form.receipt_location_id?.trim() || "",
+        ultimate_destination_location_id:
+          form.ultimate_destination_location_id?.trim() ||
+          form.destination_location_id,
+        po_fulfillment_stage_override: form.po_fulfillment_stage_override || "",
         lines: savableLines.map((line) => {
           const discount = normalizePoLineDiscountForSave(line);
           const parentKey = line.linked_parent_line_key;
@@ -984,6 +992,8 @@ export function PoDrawerForm({
         promoDefaultCategory={promoDefaultCategory}
         autoRoundOffPolicy={autoRoundOffPolicy}
         taxCodeOptions={taxCodeOptions}
+        tenantCountry={organizationBillTo?.country_code ?? null}
+        tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
         organizationBillTo={organizationBillTo}
         isPending={isPending}
         layoutOverride={drawerLayoutSnapshot}

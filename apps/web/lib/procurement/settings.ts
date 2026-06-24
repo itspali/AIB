@@ -255,6 +255,27 @@ export async function fetchExpenseAccountOptions(
   }));
 }
 
+export async function fetchAssetAccountOptions(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<ExpenseAccountOption[]> {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, account_code, account_name")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .eq("classification", "ASSET")
+    .order("account_code");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id as string,
+    account_code: row.account_code as string,
+    account_name: row.account_name as string,
+  }));
+}
+
 export async function fetchLiabilityAccountOptions(
   supabase: SupabaseClient,
   tenantId: string

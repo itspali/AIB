@@ -101,7 +101,7 @@ const QC_QUEUE_SELECT = `
   item_id,
   variant_id,
   location_id,
-  goods_receipt_items!inner (
+  goods_receipt_items!qc_inventory_balances_goods_receipt_item_id_fkey!inner (
     id,
     quantity_received,
     quantity_accepted,
@@ -110,7 +110,7 @@ const QC_QUEUE_SELECT = `
     is_promotional,
     items!goods_receipt_items_item_tenant_fk (name),
     item_variants!goods_receipt_items_variant_tenant_fk (sku),
-    goods_receipts!inner (
+    goods_receipts!goods_receipt_items_gr_tenant_fk!inner (
       id,
       voucher_number,
       purchase_order_id,

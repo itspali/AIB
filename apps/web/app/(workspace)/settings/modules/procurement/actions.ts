@@ -233,6 +233,63 @@ export async function saveProcurementPolicies(raw: unknown) {
   }
 }
 
+const saveImportLogisticsSettingsSchema = z.object({
+  import_receipt_document_strategy: z.enum([
+    "SINGLE_GRN_WITH_STAGES",
+    "SEPARATE_GRNS_PER_STAGE",
+    "SINGLE_FINAL_ONLY",
+  ]),
+  import_receipt_mode: z.enum([
+    "DIRECT_TO_WAREHOUSE",
+    "STAGING_THEN_GIT",
+    "STAGING_THEN_TRANSFER",
+  ]),
+  po_fulfillment_stage: z.enum(["COMMERCIAL", "FINAL"]),
+  require_boe_on_first_receipt: z.enum(["ALWAYS", "NEVER", "ON_FINAL_RECEIPT_ONLY"]),
+  allow_staging_receipt_location_mismatch: z.boolean(),
+  allow_commercial_receipt_before_customs: z.boolean(),
+  git_enabled: z.boolean(),
+});
+
+export async function saveImportLogisticsSettings(raw: unknown) {
+  try {
+    const parsed = saveImportLogisticsSettingsSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid import logistics settings." };
+    }
+
+    const { supabase, tenantId, userId } = await requireTenantMutation();
+    const access = await resolveOrganizationSettingsAccess(supabase, userId, tenantId);
+    if (!access.granted) {
+      return { error: "You do not have permission to edit import logistics settings." };
+    }
+
+    const { error } = await supabase.rpc("upsert_tenant_workspace_control", {
+      p_registry_key: "IMPORT_LOGISTICS_SETTINGS",
+      p_metadata_patch: parsed.data,
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return { error: formatRpcDeployError("upsert_tenant_workspace_control") };
+      }
+      return { error: error.message };
+    }
+
+    revalidatePath("/settings/modules/procurement");
+    revalidatePath("/procurement/purchase-orders");
+    revalidatePath("/procurement/goods-receipts");
+    revalidatePath("/procurement/goods-in-transit");
+    revalidatePath("/procurement/shipments");
+
+    return { success: true as const };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to save import logistics settings.",
+    };
+  }
+}
+
 const approvalPolicyBandSchema = z.object({
   min_amount: z.number().nonnegative(),
   max_amount: z.number().nonnegative().nullable(),
@@ -428,6 +485,8 @@ export async function runPoApprovalSlaReminders(): Promise<
 
 const saveFinancialProcurementSettingsSchema = z.object({
   ppv_expense_account_id: z.string().uuid().nullable(),
+  promo_contra_expense_account_id: z.string().uuid().nullable(),
+  git_holding_account_id: z.string().uuid().nullable(),
   vendor_prepayment_account_id: z.string().uuid().nullable(),
 });
 
@@ -450,6 +509,8 @@ export async function saveFinancialProcurementSettings(
       p_registry_key: "FINANCIAL_SETTINGS",
       p_metadata_patch: {
         ppv_expense_account_id: parsed.data.ppv_expense_account_id,
+        promo_contra_expense_account_id: parsed.data.promo_contra_expense_account_id,
+        git_holding_account_id: parsed.data.git_holding_account_id,
         vendor_prepayment_account_id: parsed.data.vendor_prepayment_account_id,
       },
     });

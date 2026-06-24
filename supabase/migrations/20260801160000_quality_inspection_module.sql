@@ -193,7 +193,7 @@ DECLARE
     v_qc_row public.qc_inventory_balances%ROWTYPE;
     v_inspection_id UUID;
     v_overall public.qc_parameter_result;
-    v_line JSONB;
+    v_result_entry JSONB;
     v_has_mandatory_fail BOOLEAN := FALSE;
     v_release JSONB;
 BEGIN
@@ -215,10 +215,10 @@ BEGIN
     WHERE tenant_id = v_tenant_id AND goods_receipt_item_id = p_goods_receipt_item_id;
 
     IF jsonb_array_length(COALESCE(p_result_lines, '[]'::jsonb)) > 0 THEN
-        FOR v_line IN SELECT value FROM jsonb_array_elements(COALESCE(p_result_lines, '[]'::jsonb))
+        FOR v_result_entry IN SELECT value FROM jsonb_array_elements(COALESCE(p_result_lines, '[]'::jsonb))
         LOOP
-            IF COALESCE(v_line ->> 'is_mandatory', 'false')::boolean
-               AND COALESCE(v_line ->> 'result', 'NA') = 'FAIL'
+            IF COALESCE(v_result_entry ->> 'is_mandatory', 'false')::boolean
+               AND COALESCE(v_result_entry ->> 'result', 'NA') = 'FAIL'
             THEN
                 v_has_mandatory_fail := TRUE;
             END IF;
@@ -281,17 +281,17 @@ BEGIN
         SELECT
             v_tenant_id,
             v_inspection_id,
-            NULLIF(v_line ->> 'parameter_id', '')::uuid,
-            COALESCE(v_line ->> 'parameter_name', 'Parameter'),
-            COALESCE(v_line ->> 'parameter_type', 'TEXT')::public.qc_test_parameter_type,
-            NULLIF(v_line ->> 'min_value', '')::numeric,
-            NULLIF(v_line ->> 'max_value', '')::numeric,
-            NULLIF(v_line ->> 'expected_text', ''),
-            COALESCE(v_line -> 'choice_options', '[]'::jsonb),
-            NULLIF(v_line ->> 'measured_value', ''),
-            COALESCE(v_line ->> 'result', 'NA')::public.qc_parameter_result,
-            COALESCE((v_line ->> 'sort_order')::int, 0)
-        FROM jsonb_array_elements(COALESCE(p_result_lines, '[]'::jsonb)) AS v_line;
+            NULLIF(result_line.value ->> 'parameter_id', '')::uuid,
+            COALESCE(result_line.value ->> 'parameter_name', 'Parameter'),
+            COALESCE(result_line.value ->> 'parameter_type', 'TEXT')::public.qc_test_parameter_type,
+            NULLIF(result_line.value ->> 'min_value', '')::numeric,
+            NULLIF(result_line.value ->> 'max_value', '')::numeric,
+            NULLIF(result_line.value ->> 'expected_text', ''),
+            COALESCE(result_line.value -> 'choice_options', '[]'::jsonb),
+            NULLIF(result_line.value ->> 'measured_value', ''),
+            COALESCE(result_line.value ->> 'result', 'NA')::public.qc_parameter_result,
+            COALESCE((result_line.value ->> 'sort_order')::int, 0)
+        FROM jsonb_array_elements(COALESCE(p_result_lines, '[]'::jsonb)) AS result_line(value);
     END IF;
 
     v_release := public.release_goods_receipt_line_from_qc(

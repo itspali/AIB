@@ -7,12 +7,14 @@ import {
   CATEGORY_SECTION_ATTRIBUTES_ID,
   CATEGORY_SECTION_BASICS_ID,
 } from "@/components/categories/category-editor-shell";
+import type { QcTestTemplateScopePanelHandle } from "@/components/procurement/quality-inspection/qc-test-template-scope-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { Button } from "@/components/ui/button";
 import type { CategoryRow } from "@/lib/categories/types";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { useCategoryForm } from "@/lib/categories/use-category-form";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
+import { toast } from "sonner";
 
 type Props = {
   open: boolean;
@@ -45,6 +47,8 @@ export function CategoryDrawerForm({
   const isMutating = isMutationSurface(surface);
   const editingCategory =
     surface === "create" ? null : peekCategory;
+  const qcTemplatePanelRef = useRef<QcTestTemplateScopePanelHandle>(null);
+  const [qcTemplateDirty, setQcTemplateDirty] = useState(false);
 
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
@@ -53,12 +57,17 @@ export function CategoryDrawerForm({
   const formApi = useCategoryForm({
     rows,
     editingCategory,
-    onSaved: (category) => {
+    onSaved: async (category) => {
       onAfterSave(category.id, category);
+      const qcResult = await qcTemplatePanelRef.current?.saveIfDirty();
+      if (qcResult && !qcResult.ok) {
+        toast.error(`Category saved, but inspection tests could not be saved: ${qcResult.error}`);
+      }
     },
   });
 
   const { isPending, submit, resetFromEditing, isDirty } = formApi;
+  const hasUnsavedChanges = isDirty || qcTemplateDirty;
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const chipBarRef = useRef<HTMLDivElement | null>(null);
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -70,21 +79,23 @@ export function CategoryDrawerForm({
     if (open) {
       resetFromEditing();
       setActiveSection(CATEGORY_SECTION_BASICS_ID);
+      setQcTemplateDirty(false);
     }
   }, [open, resetFromEditing, surface, peekCategory?.id]);
 
   const closeForm = useCallback(() => {
     resetFromEditing();
+    setQcTemplateDirty(false);
     onClose();
   }, [onClose, resetFromEditing]);
 
   const handleRequestClose = useCallback(() => {
-    if (isMutating && isDirty) {
+    if (isMutating && hasUnsavedChanges) {
       requestClose(closeForm);
       return;
     }
     closeForm();
-  }, [closeForm, isDirty, isMutating, requestClose]);
+  }, [closeForm, hasUnsavedChanges, isMutating, requestClose]);
 
   useEffect(() => {
     if (!open || !isMutating) return;
@@ -189,6 +200,8 @@ export function CategoryDrawerForm({
                 onActiveSectionChange={setActiveSection}
                 scrollRootRef={paneRef}
                 chipBarRef={chipBarRef}
+                qcTemplatePanelRef={qcTemplatePanelRef}
+                onQcTemplateDirtyChange={setQcTemplateDirty}
               />
             )}
           </div>

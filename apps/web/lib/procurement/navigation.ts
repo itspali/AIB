@@ -4,6 +4,7 @@ export const PROCUREMENT_GRN_HREF = "/procurement/goods-receipts";
 export const PROCUREMENT_QC_INSPECTION_HREF = "/procurement/quality-inspection";
 export const PROCUREMENT_BILLS_HREF = "/procurement/bills";
 export const PROCUREMENT_GIT_HREF = "/procurement/goods-in-transit";
+export const PROCUREMENT_SHIPMENTS_HREF = "/procurement/shipments";
 export const SETTINGS_LOCATIONS_HREF = "/settings/locations";
 
 export const GRN_DRAWER_PO_PARAM = "po";

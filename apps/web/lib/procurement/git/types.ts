@@ -23,6 +23,7 @@ export type GoodsInTransitRow = {
   destination_location_name: string | null;
   purchase_order_id: string | null;
   purchase_order_number: string | null;
+  shipment_id: string | null;
   line_count: number;
   posted_at: string | null;
   cleared_at: string | null;

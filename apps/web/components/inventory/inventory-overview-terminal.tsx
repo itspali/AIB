@@ -8,6 +8,7 @@ import {
   Boxes,
   ClipboardList,
   Package,
+  Ship,
 } from "lucide-react";
 import { InventoryBelowReorderSection } from "@/components/inventory/inventory-below-reorder-section";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/inventory/transfers/navigation";
 import type { InventoryOverviewSnapshot } from "@/lib/inventory/overview/types";
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
+import { PROCUREMENT_GIT_HREF } from "@/lib/procurement/navigation";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -50,7 +52,7 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
       </div>
 
       <section aria-label="Inventory summary" className="mb-8">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard
             title="Inventory valuation"
             value={formatCurrency(snapshot.inventoryValuation)}
@@ -72,6 +74,14 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             icon={ArrowLeftRight}
             accent="cyan"
             href={transfersHrefWithStatusFilter("DISPATCHED_IN_TRANSIT")}
+          />
+          <MetricCard
+            title="Procurement GIT"
+            value={String(snapshot.procurementGitInTransitCount)}
+            subtitle="Import goods in transit awaiting clearance"
+            icon={Ship}
+            accent="cyan"
+            href={PROCUREMENT_GIT_HREF}
           />
           <MetricCard
             title="Stocked balances"

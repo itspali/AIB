@@ -358,6 +358,11 @@ export async function savePurchaseOrder(raw: unknown) {
     p_transaction_discount_percentage: headerCharges.transaction_discount_percentage,
     p_transaction_discount_amount: headerCharges.transaction_discount_amount,
     p_transaction_discount_type: headerCharges.transaction_discount_type,
+    p_receipt_location_id: values.receipt_location_id?.trim() || null,
+    p_ultimate_destination_location_id:
+      values.ultimate_destination_location_id?.trim() ||
+      values.destination_location_id,
+    p_po_fulfillment_stage_override: values.po_fulfillment_stage_override?.trim() || null,
   });
 
   if (error) {
