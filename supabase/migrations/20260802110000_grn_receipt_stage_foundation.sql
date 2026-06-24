@@ -28,7 +28,12 @@ CREATE OR REPLACE FUNCTION public.post_goods_receipt(
     p_assessable_value NUMERIC(15, 4) DEFAULT NULL,
     p_customs_duty_amount NUMERIC(15, 4) DEFAULT NULL,
     p_import_igst_amount NUMERIC(15, 4) DEFAULT NULL,
-    p_landed_charges JSONB DEFAULT '[]'::jsonb
+    p_landed_charges JSONB DEFAULT '[]'::jsonb,
+    p_receipt_stage TEXT DEFAULT 'FINAL',
+    p_is_po_fulfilling BOOLEAN DEFAULT TRUE,
+    p_parent_grn_id UUID DEFAULT NULL,
+    p_shipment_id UUID DEFAULT NULL,
+    p_staging_location_id UUID DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -352,7 +357,7 @@ BEGIN
             CASE WHEN v_qty_rejected > 0 THEN v_reject_disposition ELSE NULL END
         ) RETURNING id INTO v_gr_item_id;
 
-        IF p_purchase_order_id IS NOT NULL AND v_po_item_id IS NOT NULL THEN
+        IF p_purchase_order_id IS NOT NULL AND v_po_item_id IS NOT NULL AND COALESCE(p_is_po_fulfilling, TRUE) THEN
             UPDATE public.purchase_order_items SET
                 quantity_received = quantity_received + v_qty, updated_at = NOW()
             WHERE id = v_po_item_id AND tenant_id = v_tenant_id;
@@ -445,7 +450,7 @@ BEGIN
         v_steps := private.append_posting_step(v_steps, 'grn_qc_quarantine_applied', 'skipped', NULL);
     END IF;
 
-    IF p_purchase_order_id IS NOT NULL THEN
+    IF p_purchase_order_id IS NOT NULL AND COALESCE(p_is_po_fulfilling, TRUE) THEN
         INSERT INTO public.purchase_order_grn_mappings (tenant_id, purchase_order_id, goods_receipt_id, mapped_by)
         VALUES (v_tenant_id, p_purchase_order_id, v_gr_id, p_created_by)
         ON CONFLICT (purchase_order_id, goods_receipt_id) DO NOTHING;
@@ -461,6 +466,8 @@ BEGIN
         WHERE po.id = p_purchase_order_id AND po.tenant_id = v_tenant_id;
 
         v_steps := private.append_posting_step(v_steps, 'grn_po_fulfillment_updated', 'success', NULL);
+    ELSIF p_purchase_order_id IS NOT NULL THEN
+        v_steps := private.append_posting_step(v_steps, 'grn_po_fulfillment_updated', 'skipped', 'non-PO-fulfilling receipt');
     ELSE
         v_steps := private.append_posting_step(v_steps, 'grn_po_fulfillment_updated', 'skipped', NULL);
     END IF;

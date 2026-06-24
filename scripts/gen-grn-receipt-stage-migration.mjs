@@ -12,7 +12,7 @@ if (start < 0 || end < 3) {
 }
 let fn = src.slice(start, end) + "\n";
 fn = fn.replace(
-  /p_landed_charges JSONB DEFAULT '\[\]'::jsonb\n\)/,
+  /p_landed_charges JSONB DEFAULT '\[\]'::jsonb\r?\n\)/,
   `p_landed_charges JSONB DEFAULT '[]'::jsonb,
     p_receipt_stage TEXT DEFAULT 'FINAL',
     p_is_po_fulfilling BOOLEAN DEFAULT TRUE,
