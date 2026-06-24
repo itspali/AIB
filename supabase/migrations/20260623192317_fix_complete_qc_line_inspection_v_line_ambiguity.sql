@@ -1,4 +1,5 @@
 -- Fix ambiguous v_line reference in complete_qc_line_inspection (PL/pgSQL variable vs SQL alias).
+-- Applied on sandbox via MCP; this file reconciles remote schema_migrations with Git for CI.
 
 CREATE OR REPLACE FUNCTION public.complete_qc_line_inspection(
     p_goods_receipt_item_id UUID,
