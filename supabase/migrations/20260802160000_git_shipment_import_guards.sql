@@ -1,6 +1,5 @@
 -- Import-only GIT posting guards + shipment linkage + location-scoped numbering
-
-ALTER TYPE public.document_voucher_type ADD VALUE IF NOT EXISTS 'GOODS_IN_TRANSIT';
+-- Enum GOODS_IN_TRANSIT: see 20260802125000_import_logistics_enum_values.sql (55P04)
 
 DROP FUNCTION IF EXISTS public.post_goods_in_transit(UUID, UUID, JSONB, UUID, UUID, TEXT);
 

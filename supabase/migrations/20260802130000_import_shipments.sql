@@ -17,9 +17,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
-ALTER TYPE public.document_voucher_type ADD VALUE IF NOT EXISTS 'IMPORT_SHIPMENT';
-ALTER TYPE public.document_posting_document_type ADD VALUE IF NOT EXISTS 'SHIPMENT';
-ALTER TYPE public.activity_entity_type ADD VALUE IF NOT EXISTS 'SHIPMENT';
+-- Enum values: see 20260802125000_import_logistics_enum_values.sql (55P04)
 
 -- --------------------------------------------------------------------
 -- 2. TABLES
