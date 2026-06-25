@@ -8,7 +8,6 @@ import {
   useState,
   useTransition,
 } from "react";
-import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   bulkActivateEntityCategories,
@@ -19,18 +18,17 @@ import {
 } from "@/app/entities/category-actions";
 import { EntityCategoryEmptyState } from "@/components/entity-categories/entity-category-empty-state";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import {
-  entityCategoryPageDescription,
   getEntityCategoryWorkspaceConfig,
 } from "@/lib/entity-categories/config";
 import { enrichEntityCategoryListRows } from "@/lib/entity-categories/list-row";
@@ -58,6 +56,11 @@ import type { EntityCategoryRow, EntityCategoryWorkspace } from "@/lib/entity-ca
 import { flattenEntityCategoryTree } from "@/lib/entity-categories/tree";
 import { useFilteredEntityCategories } from "@/lib/entity-categories/use-filtered-entity-categories";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapEntityCategoryListRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 
 const EntityCategoryDrawerForm = lazyClientExport(
   () => import("@/components/entity-categories/entity-category-drawer-form"),
@@ -115,48 +118,12 @@ function resolveBulkCategoryIds(
   return [...bulkSelectedIds];
 }
 
-function EntityCategoriesPageTitleHeader({
-  workspace,
-  onNewCategory,
-}: {
-  workspace: EntityCategoryWorkspace;
-  onNewCategory: () => void;
-}) {
-  const { title } = getEntityCategoryWorkspaceConfig(workspace);
-  const description = entityCategoryPageDescription(workspace);
-
-  return (
-    <div className="mb-4 flex items-center justify-between gap-2.5 sm:mb-5">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">{title}</h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-              aria-label={`About ${title}`}
-            >
-              <Info className="h-4 w-4" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72 p-3">
-            <p className="text-sm leading-snug text-muted-foreground">{description}</p>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <Button type="button" className="shrink-0 gap-1.5" onClick={onNewCategory}>
-        <Plus className="h-4 w-4" aria-hidden />
-        New
-      </Button>
-    </div>
-  );
-}
-
 export function EntityCategoryManagementTerminal({
   workspace,
   initialRows,
   entityCountByCategoryId: initialEntityCountByCategoryId = {},
 }: Props) {
+  const config = getEntityCategoryWorkspaceConfig(workspace);
   const baseHref = entityCategoriesHref(workspace);
   const drawer = useModuleDrawerUrl(baseHref, { canonicalizeLegacy: true });
   const { deviceClass } = useDeviceClass();
@@ -200,6 +167,14 @@ export function EntityCategoryManagementTerminal({
   const { filteredTree, filteredRows, totalCount, resultCount } =
     useFilteredEntityCategories(rows);
 
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.name,
+      row.parent_id ? rows.find((parent) => parent.id === row.parent_id)?.name : undefined,
+    ],
+  });
+
   const selectedId = drawer.recordId;
   const peekCategory =
     drawer.recordId != null
@@ -211,13 +186,13 @@ export function EntityCategoryManagementTerminal({
 
   const listRows = useMemo(() => {
     const enriched = enrichEntityCategoryListRows(
-      filteredRows,
+      feedFilteredRows,
       rows,
       entityCountByCategoryId
     );
     return sortEntityCategoryListRows(enriched, prefs.sortField, prefs.sortDirection);
   }, [
-    filteredRows,
+    feedFilteredRows,
     rows,
     entityCountByCategoryId,
     prefs.sortDirection,
@@ -528,11 +503,37 @@ export function EntityCategoryManagementTerminal({
       />
     );
 
-  const body = (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-      {listPrimary}
-    </div>
-  );
+  const body = listPrimary;
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: listRows,
+    selectedId,
+    onSelect: handleSelectCategory,
+    mapRow: mapEntityCategoryListRowToSplitFeed,
+    hasAnyData: rows.length > 0,
+    emptyMessage: "No categories match the current filters.",
+    loading: rowsLoading ? (
+      <Skeleton className="h-full min-h-[240px] w-full" />
+    ) : undefined,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <EntityCategoryEmptyState workspace={workspace} onCreate={drawer.openCreate} />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No categories match the current filters.
+        </div>
+      </div>
+    ),
+    bulkEnabled: true,
+    bulkSelectedIds,
+    pageAllSelected,
+    pageSomeSelected,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+  });
 
   const bulkToolbar =
     rows.length > 0 && bulkSelectionCount > 0 ? (
@@ -555,33 +556,49 @@ export function EntityCategoryManagementTerminal({
     ) : null;
 
   const drawerOpen = drawer.isOpen;
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
 
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <EntityCategoriesPageTitleHeader
-            workspace={workspace}
-            onNewCategory={drawer.openCreate}
+          <UnifiedCatalogHeader
+            title={config.title}
+            count={`${resultCount}/${totalCount}`}
+            onNew={drawer.openCreate}
+            newAriaLabel={`New ${config.titleSingular.toLowerCase()}`}
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              rows.length > 0 ? (
+                <EntityCategoryListToolbar
+                  workspace={workspace}
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  detectedDeviceClass={deviceClass}
+                  resultCount={resultCount}
+                  totalCount={totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  hideCount
+                  prefsHydrated={prefsHydrated}
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          rows.length > 0 ? (
-            <EntityCategoryListToolbar
-              workspace={workspace}
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              detectedDeviceClass={deviceClass}
-              resultCount={resultCount}
-              totalCount={totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={bulkToolbar}
       >
-        {body}
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle={`Select a ${config.titleSingular.toLowerCase()}`}
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={body}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawerOpen ? (
@@ -621,6 +638,7 @@ export function EntityCategoryManagementTerminal({
           onConfirm={runBulkDelete}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

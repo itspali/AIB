@@ -38,7 +38,7 @@ export type ProductListColumnId = (typeof PRODUCT_LIST_COLUMN_IDS)[number];
 export type ProductListColumnDef = ListColumnDef<ProductListColumnId>;
 
 const W_IMAGE = columnWidths({
-  default: { min: 48, max: 48, preferred: 48 },
+  default: { min: 48, max: 120, preferred: 48 },
 });
 
 const W_NAME = columnWidths({

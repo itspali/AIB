@@ -13,6 +13,8 @@ export type PoFulfillmentStage = "COMMERCIAL" | "FINAL";
 export type RequireBoeOnFirstReceipt = "ALWAYS" | "NEVER" | "ON_FINAL_RECEIPT_ONLY";
 
 export type ImportLogisticsSettings = {
+  /** Master switch — import modules, settings, and GIT surfaces are hidden when false. */
+  imports_enabled: boolean;
   import_receipt_document_strategy: ImportReceiptDocumentStrategy;
   import_receipt_mode: ImportReceiptMode;
   po_fulfillment_stage: PoFulfillmentStage;
@@ -23,6 +25,7 @@ export type ImportLogisticsSettings = {
 };
 
 export const DEFAULT_IMPORT_LOGISTICS_SETTINGS: ImportLogisticsSettings = {
+  imports_enabled: false,
   import_receipt_document_strategy: "SINGLE_FINAL_ONLY",
   import_receipt_mode: "DIRECT_TO_WAREHOUSE",
   po_fulfillment_stage: "COMMERCIAL",

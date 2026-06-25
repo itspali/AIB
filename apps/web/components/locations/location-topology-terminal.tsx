@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { DomRoutingConfigCard } from "@/components/locations/dom-routing-config-card";
 import { LocationGovernanceBanner } from "@/components/locations/location-governance-banner";
 import { LocationModuleHeader } from "@/components/locations/location-module-header";
@@ -28,6 +29,7 @@ export function LocationTopologyTerminal({
       <LocationModuleHeader activeTab="topology" />
       <LocationGovernanceBanner governance={moduleContext.governance} />
 
+      <SettingsGlassShell>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <div className="lg:col-span-7">
           <LocationTopologyExplorer
@@ -44,6 +46,7 @@ export function LocationTopologyTerminal({
           />
         </div>
       </div>
+      </SettingsGlassShell>
     </>
   );
 }

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import {
   Select,
   SelectContent,
@@ -754,23 +755,26 @@ function InventoryLogisticsCard({
   updateField: <K extends keyof LocationFormValues>(key: K, value: LocationFormValues[K]) => void;
   showPhysicalWarehouseHint?: boolean;
 }) {
+  const { importsEnabled } = useOnboardingContext();
   const isVirtual = form.presence_type === "VIRTUAL";
   const stockToggleDisabled =
     isVirtual && !form.is_git_holding && !form.is_subcontract_wip;
 
   return (
     <CapabilityCard title="Inventory Storage Rules">
-      <SwitchRow
-        label="GIT holding node (in-transit inventory)"
-        checked={form.is_git_holding}
-        onCheckedChange={(checked) => updateField("is_git_holding", checked)}
-      />
+      {importsEnabled ? (
+        <SwitchRow
+          label="GIT holding node (in-transit inventory)"
+          checked={form.is_git_holding}
+          onCheckedChange={(checked) => updateField("is_git_holding", checked)}
+        />
+      ) : null}
       <SwitchRow
         label="Subcontract WIP (vendor job work)"
         checked={form.is_subcontract_wip}
         onCheckedChange={(checked) => updateField("is_subcontract_wip", checked)}
       />
-      {form.is_git_holding ? (
+      {importsEnabled && form.is_git_holding ? (
         <p className="text-xs text-muted-foreground">
           Used by Procurement → Goods in transit to hold import stock between dispatch and GRN
           clearance. Prefer a virtual presence node for GIT holding.
@@ -788,7 +792,9 @@ function InventoryLogisticsCard({
       />
       {isVirtual && stockToggleDisabled ? (
         <p className="text-xs text-muted-foreground">
-          Enable GIT holding or subcontract WIP above to activate stock on a virtual node.
+          {importsEnabled
+            ? "Enable GIT holding or subcontract WIP above to activate stock on a virtual node."
+            : "Enable subcontract WIP above to activate stock on a virtual node."}
         </p>
       ) : null}
       {form.is_stock_holding && showPhysicalWarehouseHint ? (

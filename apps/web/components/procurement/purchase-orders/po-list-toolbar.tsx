@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUpDown } from "lucide-react";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { PoListColumnSettings } from "@/components/procurement/purchase-orders/po-list-column-settings";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
@@ -45,6 +46,7 @@ type Props = {
   totalCount: number;
   compactCountLabel?: boolean;
   prefsHydrated?: boolean;
+  hideCount?: boolean;
 };
 
 function StatusFilterSelect({
@@ -125,6 +127,7 @@ export function PoListToolbar({
   totalCount,
   compactCountLabel = false,
   prefsHydrated = true,
+  hideCount = false,
 }: Props) {
   const { deviceClass } = useDeviceClass();
   const controlsDisabled = !prefsHydrated;
@@ -144,6 +147,7 @@ export function PoListToolbar({
       countNoun="order"
       countNounPlural="orders"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -231,11 +235,15 @@ export function PoListToolbar({
             </Select>
           </div>
 
-          <PoListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <PoListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

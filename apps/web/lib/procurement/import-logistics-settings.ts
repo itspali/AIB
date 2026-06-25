@@ -70,6 +70,10 @@ export async function fetchImportLogisticsSettings(
       : {};
 
   return {
+    imports_enabled:
+      typeof meta.imports_enabled === "boolean"
+        ? meta.imports_enabled
+        : DEFAULT_IMPORT_LOGISTICS_SETTINGS.imports_enabled,
     import_receipt_document_strategy: readStrategy(meta.import_receipt_document_strategy),
     import_receipt_mode: readMode(meta.import_receipt_mode),
     po_fulfillment_stage: readPoFulfillmentStage(meta.po_fulfillment_stage),

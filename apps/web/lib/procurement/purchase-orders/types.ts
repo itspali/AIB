@@ -99,6 +99,7 @@ export type PurchaseOrderRow = {
   receipt_location_id?: string | null;
   ultimate_destination_location_id?: string | null;
   po_fulfillment_stage_override?: "COMMERCIAL" | "FINAL" | null;
+  is_subcontract_job?: boolean;
   lines?: PurchaseOrderLineRow[];
 };
 
@@ -111,6 +112,7 @@ export type ReceivablePurchaseOrderOption = {
   receipt_location_id: string | null;
   ultimate_destination_location_id: string | null;
   po_fulfillment_stage_override: "COMMERCIAL" | "FINAL" | null;
+  is_subcontract_job: boolean;
   supplier_name: string;
   tax_supply_nature: PoTaxSupplyNature;
   lines: PurchaseOrderLineRow[];

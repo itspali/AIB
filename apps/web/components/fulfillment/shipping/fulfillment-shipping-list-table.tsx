@@ -4,11 +4,16 @@ import { formatDate } from "@/lib/dashboard/format";
 import { shippingCarrierLabel } from "@/lib/fulfillment/shipping/labels";
 import type { SalesShipmentRow } from "@/lib/fulfillment/shipping/types";
 import {
+  ListWorkspaceRegistryHeaderCell,
+  ListWorkspaceRegistryTableFrame,
+} from "@/components/layout/list-workspace-registry-table";
+import {
   LIST_TABLE_CELL_MONO_REF,
   LIST_TABLE_CELL_PRIMARY,
   LIST_TABLE_CELL_SECONDARY,
   LIST_TABLE_ROW_BASE,
   LIST_TABLE_CELL_HOVER,
+  listTableElementClass,
 } from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
@@ -28,17 +33,17 @@ export function FulfillmentShippingListTable({ shipments, selectedId, onSelect }
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      <table className="w-full min-w-[48rem] text-sm">
-        <thead className="sticky top-0 z-[1] bg-muted/95 text-xs uppercase text-muted-foreground backdrop-blur-sm">
+    <ListWorkspaceRegistryTableFrame>
+      <table className={listTableElementClass("wide")}>
+        <thead>
           <tr>
-            <th className="p-2 text-left">Tracking</th>
-            <th className="p-2 text-left">Sales order</th>
-            <th className="p-2 text-left">Customer</th>
-            <th className="p-2 text-left">Location</th>
-            <th className="p-2 text-left">Carrier</th>
-            <th className="p-2 text-right">Lines</th>
-            <th className="p-2 text-left">Dispatched</th>
+            <ListWorkspaceRegistryHeaderCell label="Tracking" />
+            <ListWorkspaceRegistryHeaderCell label="Sales order" />
+            <ListWorkspaceRegistryHeaderCell label="Customer" />
+            <ListWorkspaceRegistryHeaderCell label="Location" />
+            <ListWorkspaceRegistryHeaderCell label="Carrier" />
+            <ListWorkspaceRegistryHeaderCell label="Lines" align="right" />
+            <ListWorkspaceRegistryHeaderCell label="Dispatched" />
           </tr>
         </thead>
         <tbody>
@@ -75,6 +80,6 @@ export function FulfillmentShippingListTable({ shipments, selectedId, onSelect }
           ))}
         </tbody>
       </table>
-    </div>
+    </ListWorkspaceRegistryTableFrame>
   );
 }

@@ -42,8 +42,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
-import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM } from "@/lib/procurement/navigation";
+import { PROCUREMENT_GRN_HREF, GRN_DRAWER_PO_PARAM, importShipmentCreateFromPoHref } from "@/lib/procurement/navigation";
+import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { canEditPurchaseOrderDocument } from "@/lib/procurement/access";
 import { applySavedPoTaxToDraftForm } from "@/lib/procurement/purchase-orders/po-line-saved-tax";
 import {
@@ -96,6 +98,7 @@ import { computePurchaseOrderTotals } from "@/lib/procurement/purchase-orders/to
 import { cn } from "@/lib/utils";
 import { useDelayedVisible } from "@/hooks/use-delayed-visible";
 import type { PoFulfillmentStage } from "@/lib/procurement/import-logistics-settings-shared";
+import { loadSubcontractWipSupplierIds } from "@/app/(workspace)/procurement/subcontract/actions";
 
 type Props = {
   open: boolean;
@@ -183,6 +186,9 @@ export function PoDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const { isSplitInlinePeek, peekShellClassName, peekBodyClassName } =
+    useModuleDrawerPeekPresentation(surface === "peek");
+  const { importsEnabled } = useOnboardingContext();
   const [drawerLayoutSnapshot, setDrawerLayoutSnapshot] =
     useState<RightDrawerLayoutValue | null>(null);
   const handleDrawerLayout = useCallback((layout: RightDrawerLayoutValue) => {
@@ -235,6 +241,14 @@ export function PoDrawerForm({
   const [peekPromoEntitlements, setPeekPromoEntitlements] = useState<
     PoPromoEntitlementRow[] | null
   >(null);
+  const [subcontractWipSupplierIds, setSubcontractWipSupplierIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    void loadSubcontractWipSupplierIds().then(setSubcontractWipSupplierIds).catch(() => {
+      setSubcontractWipSupplierIds([]);
+    });
+  }, [open]);
   const [peekPromoLoadError, setPeekPromoLoadError] = useState<string | null>(null);
   const [peekDocumentLayout, setPeekDocumentLayout] = useState<DocumentLayoutTemplate | null>(
     null
@@ -565,6 +579,7 @@ export function PoDrawerForm({
           form.ultimate_destination_location_id?.trim() ||
           form.destination_location_id,
         po_fulfillment_stage_override: form.po_fulfillment_stage_override || "",
+        is_subcontract_job: form.is_subcontract_job,
         lines: savableLines.map((line) => {
           const discount = normalizePoLineDiscountForSave(line);
           const parentKey = line.linked_parent_line_key;
@@ -727,6 +742,8 @@ export function PoDrawerForm({
   const canReceive =
     detail?.document_status === "ISSUED_ACTIVE" ||
     detail?.document_status === "PARTIALLY_FULFILLED";
+  const canCreateImportShipment =
+    canReceive && importsEnabled && detail?.tax_supply_nature === "IMPORT_GOODS";
 
   const isDraftOrder = detail?.document_status === "DRAFT";
   const isPendingApprovalOrder =
@@ -878,6 +895,11 @@ export function PoDrawerForm({
             </Link>
           </Button>
         ) : null}
+        {canCreateImportShipment ? (
+          <Button type="button" size="sm" variant="outline" asChild>
+            <Link href={importShipmentCreateFromPoHref(detail.id)}>Create shipment</Link>
+          </Button>
+        ) : null}
         {editAccessGranted && onDuplicate ? (
           <Button
             type="button"
@@ -994,6 +1016,7 @@ export function PoDrawerForm({
         taxCodeOptions={taxCodeOptions}
         tenantCountry={organizationBillTo?.country_code ?? null}
         tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
+        subcontractWipSupplierIds={subcontractWipSupplierIds}
         organizationBillTo={organizationBillTo}
         isPending={isPending}
         layoutOverride={drawerLayoutSnapshot}
@@ -1107,13 +1130,17 @@ export function PoDrawerForm({
         }}
         onRequestClose={handleRequestClose}
         title={drawerTitle}
+        description={
+          surface === "peek" && detail?.supplier_name ? detail.supplier_name : undefined
+        }
         titleContent={drawerTitleContent}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
-        className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
         bodyClassName={
           surface === "peek"
-            ? "module-drawer-peek-body"
+            ? peekBodyClassName
             : isMutating
               ? cn(
                   "module-drawer-form-body",

@@ -9,6 +9,7 @@ type OnboardingContextValue = {
   setOnboardingComplete: (v: boolean) => void;
   hasWorkspaceAccess: boolean;
   setHasWorkspaceAccess: (v: boolean) => void;
+  importsEnabled: boolean;
 };
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
@@ -17,14 +18,17 @@ export function OnboardingProvider({
   children,
   initialComplete,
   initialWorkspaceAccess,
+  initialImportsEnabled = false,
 }: {
   children: React.ReactNode;
   initialComplete: boolean;
   initialWorkspaceAccess: boolean;
+  initialImportsEnabled?: boolean;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isOnboardingComplete, setOnboardingComplete] = useState(initialComplete);
   const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState(initialWorkspaceAccess);
+  const [importsEnabled, setImportsEnabled] = useState(initialImportsEnabled);
 
   useEffect(() => {
     setOnboardingComplete(initialComplete);
@@ -33,6 +37,10 @@ export function OnboardingProvider({
   useEffect(() => {
     setHasWorkspaceAccess(initialWorkspaceAccess);
   }, [initialWorkspaceAccess]);
+
+  useEffect(() => {
+    setImportsEnabled(initialImportsEnabled);
+  }, [initialImportsEnabled]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
@@ -47,8 +55,9 @@ export function OnboardingProvider({
       setOnboardingComplete,
       hasWorkspaceAccess,
       setHasWorkspaceAccess,
+      importsEnabled,
     }),
-    [sidebarCollapsed, isOnboardingComplete, hasWorkspaceAccess]
+    [sidebarCollapsed, isOnboardingComplete, hasWorkspaceAccess, importsEnabled]
   );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;

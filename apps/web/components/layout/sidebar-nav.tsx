@@ -11,6 +11,7 @@ import {
   navIconSlotClass,
 } from "@/components/layout/nav-link-content";
 import { moduleNavItems, type ModuleNavItem } from "@/components/layout/module-nav";
+import { filterModuleNavItems } from "@/lib/procurement/import-logistics-capability";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -213,12 +214,13 @@ function SidebarNavLink({
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { sidebarCollapsed, setSidebarCollapsed } = useOnboardingContext();
+  const { sidebarCollapsed, setSidebarCollapsed, importsEnabled } = useOnboardingContext();
+  const navItems = filterModuleNavItems(moduleNavItems, importsEnabled);
 
   return (
     <aside
       className={cn(
-        "hidden h-full shrink-0 flex-col overflow-x-hidden border-r border-white/10 bg-card/40 backdrop-blur-xl transition-[width] duration-200 ease-in-out md:flex",
+        "glass-v2-app-sidebar hidden h-full shrink-0 flex-col overflow-x-hidden border-r backdrop-blur-xl transition-[width] duration-200 ease-in-out md:flex",
         sidebarWidthClass(sidebarCollapsed)
       )}
     >
@@ -226,7 +228,7 @@ export function SidebarNav() {
         aria-label="Module navigation"
         className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 pt-3"
       >
-        {moduleNavItems.map((item) =>
+        {navItems.map((item) =>
           item.children?.length ? (
             <SidebarNavGroup
               key={item.href}

@@ -13,6 +13,7 @@ import {
 } from "@/components/settings/document-templates/document-templates-context-toolbar";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PRESENTATION_MODULE_DEFINITIONS } from "@/lib/documents/print/presentation-catalog";
@@ -230,6 +231,7 @@ export function DocumentTemplatesSettingsTerminal({
       ) : null}
 
       {selectedModule ? (
+        <SettingsGlassShell className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <>
           <DocumentTemplatesContextToolbar
             modules={PRESENTATION_MODULE_DEFINITIONS}
@@ -283,6 +285,7 @@ export function DocumentTemplatesSettingsTerminal({
             )}
           </div>
         </>
+        </SettingsGlassShell>
       ) : null}
     </div>
   );

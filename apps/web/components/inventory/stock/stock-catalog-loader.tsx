@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { StockCatalogPageSkeleton } from "@/components/inventory/stock/stock-catalog-page-skeleton";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import {
   fetchStockAdjustmentsPage,
   fetchStockBalancesPage,
@@ -25,6 +26,7 @@ export async function StockCatalogLoader() {
   ]);
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="inventory-stock">
     <StockManagementTerminal
       initialBalances={balancesPage.rows}
       listTotalCount={balancesPage.totalCount}
@@ -34,5 +36,6 @@ export async function StockCatalogLoader() {
       adjustmentsHasMore={adjustmentsPage.hasMore}
       locations={locations}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

@@ -20,7 +20,7 @@ export function MobileBottomNav({ onOpenMore }: Props) {
   return (
     <nav
       aria-label="Module navigation"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-background/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+      className="glass-v2-app-mobile-nav fixed inset-x-0 bottom-0 z-50 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
     >
       <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${cellCount}, minmax(0, 1fr))` }}>
         {primaryItems.map((item) => {

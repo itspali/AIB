@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PackageCheck, RotateCcw, Truck, Warehouse } from "lucide-react";
 import { ModuleOverview, type ModuleOverviewCard } from "@/components/layout/module-overview";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
+import { OverviewKpiTile } from "@/components/layout/overview-primitives";
 import {
   FULFILLMENT_SHIPPING_HREF,
 } from "@/lib/fulfillment/shipping/navigation";
@@ -49,6 +51,7 @@ const WORKFLOW_CARDS: ModuleOverviewCard[] = [
 
 export function FulfillmentOverviewTerminal({ stats }: Props) {
   return (
+    <OverviewGlassShell>
     <div className="canvas-scroll-endpad space-y-5">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Fulfillment</h1>
@@ -64,26 +67,17 @@ export function FulfillmentOverviewTerminal({ stats }: Props) {
       </header>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <div className="surface-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Ready to ship
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{stats.ready_to_ship_count}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Confirmed orders awaiting dispatch</p>
-        </div>
-        <div className="surface-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            In transit
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{stats.in_transit_count}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Shipments not yet delivered</p>
-        </div>
-        <div className="surface-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Total shipments
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{stats.shipment_count}</p>
-        </div>
+        <OverviewKpiTile
+          label="Ready to ship"
+          value={String(stats.ready_to_ship_count)}
+          subtitle="Confirmed orders awaiting dispatch"
+        />
+        <OverviewKpiTile
+          label="In transit"
+          value={String(stats.in_transit_count)}
+          subtitle="Shipments not yet delivered"
+        />
+        <OverviewKpiTile label="Total shipments" value={String(stats.shipment_count)} />
       </div>
 
       <ModuleOverview
@@ -93,5 +87,6 @@ export function FulfillmentOverviewTerminal({ stats }: Props) {
         headingLevel={2}
       />
     </div>
+    </OverviewGlassShell>
   );
 }

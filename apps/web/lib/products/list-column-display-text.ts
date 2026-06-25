@@ -1,15 +1,11 @@
-import { formatCurrency, formatDate } from "@/lib/dashboard/format";
+import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import { classificationLabel } from "@/lib/products/classification-labels";
 import { resolveProductListRowPresentation } from "@/lib/products/list-row-presentation";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductListRow } from "@/lib/products/types";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
-
-function formatOptionalCurrency(value: string | null): string {
-  if (!value || value.trim() === "") return "—";
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? formatCurrency(parsed) : value;
-}
+import { isBlankMatrixDisplayValue } from "@/lib/layout/matrix-blank-value";
 
 function formatBooleanText(value: boolean): string {
   return value ? "Yes" : "No";
@@ -72,19 +68,15 @@ export function getProductListCellDisplayTexts(
     case "is_returnable":
       return [formatBooleanText(product.is_returnable)];
     case "selling_price":
-      return [formatOptionalCurrency(product.selling_price)];
+      return [formatListCurrency(product.selling_price)];
     case "mrp":
-      return [formatOptionalCurrency(product.mrp)];
+      return [formatListCurrency(product.mrp)];
     case "purchase_price":
-      return [formatOptionalCurrency(product.purchase_price)];
+      return [formatListCurrency(product.purchase_price)];
     case "supplier_name":
       return [product.supplier_name?.trim() || "—"];
-    case "stock_on_hand": {
-      const qty = product.stock_on_hand;
-      if (qty == null || qty.trim() === "") return ["—"];
-      const parsed = Number(qty);
-      return [Number.isFinite(parsed) ? parsed.toLocaleString() : qty];
-    }
+    case "stock_on_hand":
+      return [formatListQuantity(product.stock_on_hand)];
     case "created_at":
       return [formatDate(product.created_at)];
     case "updated_at":
@@ -92,4 +84,16 @@ export function getProductListCellDisplayTexts(
     default:
       return ["—"];
   }
+}
+
+/** True when a matrix table cell has no value to render (skip accent/underline styling). */
+export function isProductListMatrixCellBlank(
+  columnId: ProductListColumnId,
+  product: ProductListRow,
+  options?: ProductListCellDisplayTextOptions
+): boolean {
+  if (columnId === "image") return true;
+  const texts = getProductListCellDisplayTexts(columnId, product, options);
+  if (texts.length === 0) return true;
+  return texts.every((text) => isBlankMatrixDisplayValue(text));
 }

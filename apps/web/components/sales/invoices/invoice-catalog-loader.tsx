@@ -1,4 +1,5 @@
 import { InvoiceManagementTerminal } from "@/components/sales/invoices/invoice-management-terminal";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { resolveSalesOrderEditAccess } from "@/lib/sales/access";
 import { fetchSalesApprovalSettings } from "@/lib/sales/approval-settings-server";
@@ -50,6 +51,7 @@ export async function InvoiceCatalogLoader() {
   const tenantCountry = (tenantRow.data?.billing_country_code as string | undefined) ?? null;
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="sales-invoices">
     <InvoiceManagementTerminal
       initialInvoices={invoicesPage.rows}
       listTotalCount={invoicesPage.totalCount}
@@ -69,5 +71,6 @@ export async function InvoiceCatalogLoader() {
       isOwner={editAccess.isOwner}
       financeSetupComplete={bootstrap.financeSetupComplete}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

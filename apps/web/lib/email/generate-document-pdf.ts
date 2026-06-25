@@ -33,7 +33,10 @@ async function resolveLaunchOptions(): Promise<LaunchOptions> {
   };
 }
 
-export async function generatePdfFromHtml(html: string): Promise<GeneratePdfResult> {
+export async function generatePdfFromHtml(
+  html: string,
+  options?: { landscape?: boolean }
+): Promise<GeneratePdfResult> {
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
 
   try {
@@ -43,6 +46,7 @@ export async function generatePdfFromHtml(html: string): Promise<GeneratePdfResu
     await page.setContent(html, { waitUntil: "load" });
     const pdf = await page.pdf({
       format: "A4",
+      landscape: options?.landscape ?? false,
       printBackground: true,
       margin: { top: "12mm", bottom: "12mm", left: "10mm", right: "10mm" },
     });

@@ -1,17 +1,19 @@
 import type { DeviceClass } from "@/lib/layout/device-class";
+import { LIST_TABLE_CELL_PADDING_INLINE_PX } from "@/lib/layout/list-table-chrome";
 import {
-  clampUserColumnWidth,
+  clampAutoFitColumnWidth,
   getColumnResizeBounds,
 } from "@/lib/list-columns/sizing";
 import {
   measureMaxContentWidth,
+  resolveHeaderLabelTypographyElement,
   resolveMeasureClassName,
 } from "@/lib/list-columns/measure-content-width";
 import type { ListColumnDef } from "@/lib/list-columns/types";
 
-const DEFAULT_HEADER_PADDING_PX = 20;
-const DEFAULT_BODY_PADDING_PX = 20;
-const SORT_INDICATOR_EXTRA_PX = 22;
+/** Left + right cell padding included in border-box column widths. */
+const DEFAULT_HEADER_PADDING_PX = LIST_TABLE_CELL_PADDING_INLINE_PX * 2;
+const DEFAULT_BODY_PADDING_PX = LIST_TABLE_CELL_PADDING_INLINE_PX * 2;
 const STATUS_BADGE_EXTRA_PX = 20;
 
 export type ListColumnAutoWidthMeasureHints = {
@@ -21,12 +23,16 @@ export type ListColumnAutoWidthMeasureHints = {
   bodyPaddingPx?: number;
   sortIndicatorExtraPx?: number;
   statusBadgeExtraPx?: number;
+  /** Extra classes for header measurement only (body classes stay separate). */
+  headerClassName?: string;
 };
 
 export type ResolveListColumnAutoWidthOptions<TId extends string> = {
   column: ListColumnDef<TId>;
   deviceClass: DeviceClass;
   headerElement?: HTMLElement | null;
+  /** Plain-text header label when it differs from `column.label`. */
+  headerLabel?: string;
   bodyTexts: readonly string[];
   sortable?: boolean;
   measure?: ListColumnAutoWidthMeasureHints;
@@ -37,6 +43,7 @@ export function resolveListColumnAutoWidth<TId extends string>({
   column,
   deviceClass,
   headerElement,
+  headerLabel,
   bodyTexts,
   sortable = false,
   measure,
@@ -47,12 +54,14 @@ export function resolveListColumnAutoWidth<TId extends string>({
   });
   const headerPadding = measure?.headerPaddingPx ?? DEFAULT_HEADER_PADDING_PX;
   const bodyPadding = measure?.bodyPaddingPx ?? DEFAULT_BODY_PADDING_PX;
-  const sortExtra = sortable ? (measure?.sortIndicatorExtraPx ?? SORT_INDICATOR_EXTRA_PX) : 0;
+  const sortExtra = 0;
+  const headerText = headerLabel ?? column.label;
+  const headerTypographyElement = resolveHeaderLabelTypographyElement(headerElement);
 
   const headerWidth = measureMaxContentWidth({
-    texts: [column.label],
-    referenceElement: headerElement,
-    className: measureClass,
+    texts: [headerText],
+    typographyElement: headerTypographyElement,
+    className: measure?.headerClassName,
     paddingPx: headerPadding,
     extraPx: sortExtra,
   });
@@ -65,7 +74,7 @@ export function resolveListColumnAutoWidth<TId extends string>({
     extraPx: measure?.statusBadgeExtraPx ?? 0,
   });
 
-  return clampUserColumnWidth(column, deviceClass, Math.max(headerWidth, bodyWidth));
+  return clampAutoFitColumnWidth(column, deviceClass, Math.max(headerWidth, bodyWidth));
 }
 
 export function measureHintsFromValueKind<TId extends string>(

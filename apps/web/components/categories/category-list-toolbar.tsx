@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpDown, ListTree, Rows3, Table2 } from "lucide-react";
+import { ArrowUpDown, ListTree, Table2 } from "lucide-react";
 import { CategoryListColumnSettings } from "@/components/categories/category-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
@@ -145,8 +145,6 @@ export function CategoryListToolbar({
                 <span className="flex items-center">
                   {prefs.viewMode === "tree" ? (
                     <ListTree className="h-4 w-4" aria-hidden />
-                  ) : prefs.viewMode === "compact" ? (
-                    <Rows3 className="h-4 w-4" aria-hidden />
                   ) : (
                     <Table2 className="h-4 w-4" aria-hidden />
                   )}
@@ -163,12 +161,6 @@ export function CategoryListToolbar({
                   <span className="flex items-center gap-2">
                     <Table2 className="h-4 w-4" aria-hidden />
                     Table
-                  </span>
-                </SelectItem>
-                <SelectItem value="compact">
-                  <span className="flex items-center gap-2">
-                    <Rows3 className="h-4 w-4" aria-hidden />
-                    Compact
                   </span>
                 </SelectItem>
               </SelectContent>
@@ -205,19 +197,6 @@ export function CategoryListToolbar({
             >
               <Table2 className="h-4 w-4" />
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className={listToolbarViewToggleSegmentClass(prefs.viewMode === "compact")}
-              disabled={controlsDisabled}
-              onClick={() => setViewMode("compact")}
-              title="Compact table"
-              aria-label="Compact table"
-              aria-pressed={prefs.viewMode === "compact"}
-            >
-              <Rows3 className="h-4 w-4" />
-            </Button>
           </div>
 
           {isTableLike ? (
@@ -226,6 +205,7 @@ export function CategoryListToolbar({
               onChange={onPrefsChange}
               detectedDeviceClass={detectedDeviceClass}
               disabled={controlsDisabled}
+              workspaceLayout="matrix"
             />
           ) : null}
         </>

@@ -7,6 +7,7 @@ import {
 } from "@/app/(workspace)/procurement/quality-inspection/actions";
 import { QcLineInspectionForm } from "@/components/procurement/quality-inspection/qc-line-inspection-form";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { Spinner } from "@/components/ui/spinner";
 import { PROCUREMENT_GRN_HREF } from "@/lib/procurement/navigation";
 import type {
@@ -30,6 +31,7 @@ export function QcInspectionDrawerForm({
   onOpenChange,
   onCompleted,
 }: Props) {
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(open);
   const [row, setRow] = useState<QcInspectionQueueRow | null>(peekRow);
   const [template, setTemplate] = useState<QcTestTemplate | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,7 +84,9 @@ export function QcInspectionDrawerForm({
       title={row ? `Inspect ${row.variant_sku}` : "Quality inspection"}
       preferredWidthVw={60}
       allowBackgroundInteraction
-      bodyClassName="module-drawer-form-body"
+      peekMode
+      className={peekShellClassName}
+      bodyClassName={peekBodyClassName ?? "module-drawer-form-body"}
       showCloseButton
     >
       {loading || !row ? (

@@ -29,8 +29,13 @@ import {
   type EntityPartyNatureFilter,
 } from "@/components/entities/entity-list-toolbar";
 import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { scopeFromModuleName } from "@/lib/search/views/module-view-registry";
 import { useDeviceClass } from "@/hooks/use-device-class";
@@ -58,6 +63,11 @@ import type { EntityCustomFieldDefinition } from "@/lib/entities/custom-field-de
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityCategoryRow } from "@/lib/entity-categories/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapEntityListRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { filterEntitiesByAst } from "@/lib/search/executor/client-scopes";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
@@ -231,6 +241,20 @@ export function EntityManagementTerminal({
     partyNatureFilter
   );
 
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.name,
+      row.code,
+      row.legal_name,
+      row.primary_contact_name,
+      row.primary_contact_email,
+      row.company_email,
+      row.customer_category_name,
+      row.supplier_category_name,
+    ],
+  });
+
   const selectedId = drawer.recordId;
   const peekListRow =
     drawer.recordId != null
@@ -240,8 +264,8 @@ export function EntityManagementTerminal({
   const tableViewMode = prefs.viewMode === "compact" ? "compact" : "table";
 
   const listRows = useMemo(
-    () => sortEntityListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortEntityListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const visibleEntityIds = useMemo(() => listRows.map((row) => row.id), [listRows]);
@@ -509,6 +533,45 @@ export function EntityManagementTerminal({
       </div>
     );
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={rows.length}
+      totalCount={entityServerTotalCount}
+      hasMore={entityHasMore}
+      isLoadingMore={entityLoadingMore}
+      onLoadMore={loadMoreEntities}
+      noun={config.title.toLowerCase()}
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: listRows,
+    selectedId,
+    onSelect: handleSelectEntity,
+    mapRow: mapEntityListRowToSplitFeed,
+    hasAnyData: rows.length > 0,
+    emptyMessage: `No ${config.title.toLowerCase()} match the current filters.`,
+    footer: listFooter,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <EntityEmptyState workspace={workspace} onCreate={drawer.openCreate} />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No {config.singularLabel.toLowerCase()}s match the current filters.
+        </div>
+      </div>
+    ),
+    bulkEnabled: true,
+    bulkSelectedIds,
+    pageAllSelected,
+    pageSomeSelected,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+  });
+
   const bulkToolbar =
     rows.length > 0 && bulkSelectionCount > 0 ? (
       <EntityBulkActionToolbar
@@ -530,45 +593,57 @@ export function EntityManagementTerminal({
       />
     ) : null;
 
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title={config.title}
-            description={config.description}
-            createLabel={config.createLabel}
-            onCreate={drawer.openCreate}
-            aboutAriaLabel={`About ${config.title}`}
+            count={`${listRows.length}/${totalCount}`}
+            onNew={drawer.openCreate}
+            newAriaLabel={config.createLabel}
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              rows.length > 0 ? (
+                <EntityListToolbar
+                  workspace={workspace}
+                  registryKey={registryKey}
+                  categoryRows={categoryRows}
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  activeStatusFilter={activeStatusFilter}
+                  onActiveStatusFilterChange={setActiveStatusFilter}
+                  categoryFilter={categoryFilter}
+                  onCategoryFilterChange={setCategoryFilter}
+                  partyNatureFilter={partyNatureFilter}
+                  onPartyNatureFilterChange={setPartyNatureFilter}
+                  detectedDeviceClass={deviceClass}
+                  resultCount={resultCount}
+                  totalCount={entityServerTotalCount}
+                  compactCountLabel={drawer.isOpen}
+                  hideCount
+                  prefsHydrated={prefsHydrated}
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          rows.length > 0 ? (
-            <EntityListToolbar
-              workspace={workspace}
-              registryKey={registryKey}
-              categoryRows={categoryRows}
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              activeStatusFilter={activeStatusFilter}
-              onActiveStatusFilterChange={setActiveStatusFilter}
-              categoryFilter={categoryFilter}
-              onCategoryFilterChange={setCategoryFilter}
-              partyNatureFilter={partyNatureFilter}
-              onPartyNatureFilterChange={setPartyNatureFilter}
-              detectedDeviceClass={deviceClass}
-              resultCount={resultCount}
-              totalCount={entityServerTotalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={bulkToolbar}
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle={`Select a ${config.singularLabel.toLowerCase()}`}
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -596,6 +671,7 @@ export function EntityManagementTerminal({
         onDeleted={handleEntityDeleted}
         onDeactivated={handleEntityDeactivated}
       />
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

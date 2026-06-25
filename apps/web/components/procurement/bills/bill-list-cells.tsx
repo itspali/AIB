@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency } from "@/lib/list-columns/format-list-value";
 import { booleanValueKey } from "@/lib/list-columns/chip-colors";
 import {
   getPurchaseBillColumnDef,
@@ -53,7 +54,7 @@ export function renderPurchaseBillListCell(
       });
     }
     case "liability":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_liability_amount}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatListCurrency(row.total_liability_amount)}</span>;
     case "paid": {
       const column = getPurchaseBillColumnDef("paid");
       const label = row.is_paid ? "Paid" : "Unpaid";

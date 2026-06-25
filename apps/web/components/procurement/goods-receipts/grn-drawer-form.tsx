@@ -4,11 +4,12 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import { toast } from "sonner";
 import {
   loadGoodsReceiptDetail,
+  loadGrnSubcontractPreview,
   loadGrnVariantQcPolicies,
   loadImportLogisticsSettingsForGrn,
   loadReceivableImportShipments,
   postGoodsReceipt,
-} from "@/app/procurement/goods-receipts/actions";
+} from "@/app/(workspace)/procurement/goods-receipts/actions";
 import {
   filterSavableGrnLandedCharges,
   GrnLandedChargesPanel,
@@ -22,10 +23,13 @@ import {
   mapReceivablePoLineToGrnDraft,
   type GrnDraftLine,
 } from "@/components/procurement/goods-receipts/grn-line-entry-table";
+import { computeGrnLineQuantities } from "@/lib/procurement/goods-receipts/grn-line-validation";
 import { GrnGitLinkPanel } from "@/components/procurement/goods-receipts/grn-git-link-panel";
 import { GrnImportTaxPeekPanel } from "@/components/procurement/goods-receipts/grn-import-tax-peek-panel";
 import { DocumentPrintButton } from "@/components/documents/document-print-button";
+import { GrnSubcontractPanel } from "@/components/procurement/goods-receipts/grn-subcontract-panel";
 import { GrnQcReleasePanel } from "@/components/procurement/goods-receipts/grn-qc-release-panel";
+import type { GrnSubcontractPreview } from "@/lib/procurement/subcontract/grn-preview";
 import {
   DocumentLinePeekItemCell,
   DocumentLinePeekTable,
@@ -35,6 +39,7 @@ import { DocumentPostingSummaryPanel } from "@/components/documents/document-pos
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { PoPromoEntitlementsPanel } from "@/components/procurement/purchase-orders/po-promo-entitlements-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import { grnLineHasImportTax } from "@/lib/procurement/goods-receipts/grn-import-tax";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
@@ -190,6 +195,9 @@ export function GrnDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
@@ -227,6 +235,8 @@ export function GrnDrawerForm({
     importLogisticsSettingsProp ?? null
   );
   const [shipments, setShipments] = useState<ReceivableImportShipmentOption[]>([]);
+  const [subcontractPreview, setSubcontractPreview] = useState<GrnSubcontractPreview | null>(null);
+  const [subcontractPreviewLoading, setSubcontractPreviewLoading] = useState(false);
 
   useEffect(() => {
     if (!open || importLogisticsSettingsProp) return;
@@ -416,11 +426,75 @@ export function GrnDrawerForm({
   const selectedReceivablePo = form.purchase_order_id
     ? receivableOrders.find((order) => order.id === form.purchase_order_id)
     : null;
+
+  useEffect(() => {
+    if (!open || !isMutating || !form.purchase_order_id || !selectedReceivablePo?.is_subcontract_job) {
+      setSubcontractPreview(null);
+      setSubcontractPreviewLoading(false);
+      return;
+    }
+
+    const previewLines = filterSavableGrnLines(form.lines)
+      .filter((line) => line.variant_id && line.item_id)
+      .map((line) => {
+        const received = Number(line.quantity_received);
+        const exceptionQty = line.exception_quantity ?? line.quantity_rejected ?? "0";
+        const computed = computeGrnLineQuantities(line.quantity_received, exceptionQty);
+        const accepted = line.quantity_accepted?.trim()
+          ? Number(line.quantity_accepted)
+          : Number(computed.quantity_accepted);
+        return {
+          variant_id: line.variant_id,
+          item_id: line.item_id,
+          quantity_accepted: accepted,
+          is_promotional: line.is_promotional,
+        };
+      })
+      .filter((line) => line.quantity_accepted > 0);
+
+    if (!previewLines.length) {
+      setSubcontractPreview({
+        is_subcontract_job: true,
+        wip_location_id: null,
+        wip_location_name: null,
+        bom_lines: [],
+        has_insufficient_wip: false,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setSubcontractPreviewLoading(true);
+    void loadGrnSubcontractPreview({
+      purchase_order_id: form.purchase_order_id,
+      supplier_id: null,
+      lines: previewLines,
+    })
+      .then((preview) => {
+        if (!cancelled) setSubcontractPreview(preview);
+      })
+      .finally(() => {
+        if (!cancelled) setSubcontractPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    open,
+    isMutating,
+    form.purchase_order_id,
+    form.lines,
+    selectedReceivablePo?.is_subcontract_job,
+  ]);
+
   const selectedShipment = form.shipment_id
     ? shipments.find((shipment) => shipment.id === form.shipment_id) ?? null
     : null;
   const isImportGoodsPo = selectedReceivablePo?.tax_supply_nature === "IMPORT_GOODS";
   const logisticsSettings = importLogisticsSettingsProp ?? importLogisticsSettings;
+  const importLogisticsActive =
+    isImportGoodsPo && logisticsSettings?.imports_enabled === true;
   const receiptContext = useMemo(() => {
     if (!logisticsSettings) return null;
     return resolveGrnReceiptContext(
@@ -584,7 +658,11 @@ export function GrnDrawerForm({
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
-        bodyClassName={isMutating ? "module-drawer-form-body" : undefined}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
+        bodyClassName={
+          surface === "peek" ? peekBodyClassName : isMutating ? "module-drawer-form-body" : undefined
+        }
         scrollable={!(isMutating && lineTableFillHeight)}
         showCloseButton
       >
@@ -758,7 +836,14 @@ export function GrnDrawerForm({
               />
             ) : null}
 
-            {form.purchase_order_id && isImportGoodsPo && shipments.length > 0 ? (
+            {selectedReceivablePo?.is_subcontract_job ? (
+              <GrnSubcontractPanel
+                preview={subcontractPreview}
+                loading={subcontractPreviewLoading}
+              />
+            ) : null}
+
+            {form.purchase_order_id && importLogisticsActive && shipments.length > 0 ? (
               <div className="space-y-2 shrink-0">
                 <Label>Import shipment</Label>
                 <Select
@@ -796,7 +881,7 @@ export function GrnDrawerForm({
               </div>
             ) : null}
 
-            {isImportGoodsPo && receiptContext?.showStageSelector ? (
+            {importLogisticsActive && receiptContext?.showStageSelector ? (
               <div className="space-y-2 shrink-0">
                 <Label>Receipt stage</Label>
                 <Select
@@ -825,7 +910,7 @@ export function GrnDrawerForm({
               </div>
             ) : null}
 
-            {form.purchase_order_id && isImportGoodsPo ? (
+            {form.purchase_order_id && importLogisticsActive ? (
               <GrnGitLinkPanel
                 purchaseOrderId={form.purchase_order_id}
                 shipmentId={form.shipment_id}
@@ -841,7 +926,7 @@ export function GrnDrawerForm({
               />
             ) : null}
 
-            {isImportGoodsPo ? (
+            {importLogisticsActive ? (
               <div className="surface-inset grid shrink-0 grid-cols-1 gap-4 p-4 sm:grid-cols-2">
                 <p className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Import / Bill of entry

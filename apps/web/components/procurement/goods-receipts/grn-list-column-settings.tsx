@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ListColumnSettings,
-  type ColumnSettingsDevice,
-} from "@/components/list-columns/list-column-settings";
+import { ListModuleTableColumnSettings } from "@/components/list-columns/list-module-table-column-settings";
 import { GRN_LIST_COLUMN_REGISTRY } from "@/lib/procurement/goods-receipts/list-columns";
-import type { GoodsReceiptListPrefs } from "@/lib/procurement/goods-receipts/list-prefs";
+import {
+  getGoodsReceiptColumnPrefsSlice,
+  setGoodsReceiptColumnPrefsSlice,
+  setGoodsReceiptColumnPrefsSliceAllDevices,
+  type GoodsReceiptListPrefs,
+} from "@/lib/procurement/goods-receipts/list-prefs";
 import type { DeviceClass } from "@/lib/layout/device-class";
 
 type Props = {
@@ -22,29 +23,23 @@ export function GrnListColumnSettings({
   detectedDeviceClass,
   disabled = false,
 }: Props) {
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
-
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
-
   return (
-    <ListColumnSettings
+    <ListModuleTableColumnSettings
       registry={GRN_LIST_COLUMN_REGISTRY}
-      prefs={prefs.columnPrefs}
-      allowedColumnIds={GRN_LIST_COLUMN_REGISTRY.ids}
-      editingLayout="table"
-      editingDevice={editingDevice}
-      detectedDevice={detectedDeviceClass}
-      onEditingLayoutChange={() => {}}
-      onEditingDeviceChange={setEditingDevice}
-      onChange={(columnPrefs) => onChange({ ...prefs, columnPrefs })}
+      detectedDeviceClass={detectedDeviceClass}
+      resolveColumnPrefs={(device) =>
+        getGoodsReceiptColumnPrefsSlice(prefs, device as DeviceClass)
+      }
+      commitColumnPrefs={(device, columnPrefs) =>
+        onChange(setGoodsReceiptColumnPrefsSlice(prefs, device as DeviceClass, columnPrefs))
+      }
+      commitColumnPrefsAllDevices={(columnPrefs) =>
+        onChange(setGoodsReceiptColumnPrefsSliceAllDevices(prefs, columnPrefs))
+      }
       frozenColumnCount={prefs.frozenColumnCount}
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
-      showLayoutSwitcher={false}
-      showDeviceSwitcher={false}
       disabled={disabled}
     />
   );

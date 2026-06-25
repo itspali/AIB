@@ -10,6 +10,8 @@ import {
   type BusinessModel,
 } from "@/lib/onboarding/business-model";
 import { isFinanceSetupComplete } from "@/lib/onboarding/finance-setup-gate";
+import { fetchImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
+import { isImportLogisticsEnabled } from "@/lib/procurement/import-logistics-capability";
 
 export type AppShellBootstrap = {
   tenantId: string | null;
@@ -28,6 +30,7 @@ export type AppShellBootstrap = {
   onboardingComplete: boolean;
   financeSetupComplete: boolean;
   hasWorkspaceAccess: boolean;
+  importsEnabled: boolean;
 };
 
 async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
@@ -49,11 +52,12 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
       onboardingComplete: false,
       financeSetupComplete: false,
       hasWorkspaceAccess: false,
+      importsEnabled: false,
     };
   }
 
   const supabase = await createClient();
-  const [{ data: tenant }, { count: locationCount }] = await Promise.all([
+  const [{ data: tenant }, { count: locationCount }, importLogisticsSettings] = await Promise.all([
     supabase
       .from("tenants")
       .select("name, trade_name, organization_code, onboarding_status, metadata_json")
@@ -63,6 +67,7 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
       .from("tenant_locations")
       .select("*", { count: "exact", head: true })
       .eq("tenant_id", tenantId),
+    fetchImportLogisticsSettings(supabase, tenantId),
   ]);
 
   const resolvedLocationCount = locationCount ?? 0;
@@ -89,6 +94,7 @@ async function loadAppShellBootstrap(): Promise<AppShellBootstrap> {
     onboardingComplete: financeSetupComplete,
     financeSetupComplete,
     hasWorkspaceAccess: resolvedLocationCount > 0,
+    importsEnabled: isImportLogisticsEnabled(importLogisticsSettings),
   };
 }
 

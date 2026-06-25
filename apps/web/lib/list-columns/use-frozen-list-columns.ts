@@ -6,17 +6,20 @@ import {
   type FrozenColumnPref,
 } from "@/lib/products/list-prefs";
 import {
-  LIST_TABLE_FROZEN_CELL_BG,
-  LIST_TABLE_FROZEN_EDGE_SHADOW,
-  LIST_TABLE_HEADER_CELL_BG,
-  listTableBodyCellInteractionClass,
+  LIST_TABLE_FROZEN_CELL,
+  LIST_TABLE_FROZEN_EDGE,
+  LIST_WORKSPACE_REGISTRY_HEADER,
 } from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
 export type ListFrozenColumnCount = 0 | 1 | 2 | 3;
 
-export const FROZEN_CELL_BG = LIST_TABLE_FROZEN_CELL_BG;
-export const FROZEN_EDGE_SHADOW = LIST_TABLE_FROZEN_EDGE_SHADOW;
+export const FROZEN_CELL = LIST_TABLE_FROZEN_CELL;
+
+/** @deprecated Classic surface muted fill — not used on matrix registry frozen lanes. */
+export const FROZEN_CELL_BG = "bg-muted";
+export const FROZEN_EDGE = LIST_TABLE_FROZEN_EDGE;
+export const FROZEN_EDGE_SHADOW = LIST_TABLE_FROZEN_EDGE;
 
 const TABLE_HEADER_Z = 10;
 const FROZEN_HEADER_Z_BASE = 40;
@@ -48,7 +51,7 @@ export function resolveListFrozenColumnCount(
 }
 
 export function rowEdgeClass(isLastFrozenColumn = false) {
-  return isLastFrozenColumn ? FROZEN_EDGE_SHADOW : undefined;
+  return isLastFrozenColumn ? FROZEN_EDGE : undefined;
 }
 
 type StickyStyle = {
@@ -123,13 +126,24 @@ export function useFrozenListColumns({
       return;
     }
 
-    let left = leadingColumnRef?.current?.offsetWidth ?? 0;
-    const offsets: number[] = [];
-    for (let index = 0; index < effectiveFrozenCount; index += 1) {
-      offsets.push(left);
-      left += headerRefs.current[index]?.offsetWidth ?? 0;
-    }
-    setStickyOffsets(offsets);
+    const measureOffsets = () => {
+      let left = leadingColumnRef?.current?.offsetWidth ?? 0;
+      const offsets: number[] = [];
+      for (let index = 0; index < effectiveFrozenCount; index += 1) {
+        offsets.push(left);
+        left += headerRefs.current[index]?.offsetWidth ?? 0;
+      }
+      setStickyOffsets(offsets);
+    };
+
+    measureOffsets();
+
+    const leadingEl = leadingColumnRef?.current;
+    if (!leadingEl) return;
+
+    const observer = new ResizeObserver(measureOffsets);
+    observer.observe(leadingEl);
+    return () => observer.disconnect();
   }, [columnCount, effectiveFrozenCount, remeasureKey, leadingColumnRef]);
 
   const getStickyCellProps = (index: number, variant: "header" | "body"): StickyStyle => {
@@ -142,8 +156,17 @@ export function useFrozenListColumns({
       (variant === "header" ? FROZEN_HEADER_Z_BASE : FROZEN_BODY_Z_BASE) + stackOrder;
 
     return {
-      className: cn("sticky isolate overflow-hidden", variant === "header" && "top-0"),
-      style: { left: stickyOffsets[index] ?? 0, zIndex },
+      className: cn(
+        "sticky isolate",
+        LIST_TABLE_FROZEN_CELL,
+        variant === "header" && "top-0"
+      ),
+      style: {
+        position: "sticky",
+        ...(variant === "header" ? { top: 0 } : {}),
+        left: stickyOffsets[index] ?? 0,
+        zIndex,
+      },
     };
   };
 
@@ -151,20 +174,15 @@ export function useFrozenListColumns({
     const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
     const isLastFrozenColumn = effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
     return cn(
-      LIST_TABLE_HEADER_CELL_BG,
-      isFrozen && isLastFrozenColumn && FROZEN_EDGE_SHADOW
+      LIST_WORKSPACE_REGISTRY_HEADER,
+      isFrozen && isLastFrozenColumn && FROZEN_EDGE
     );
   };
 
-  const bodyCellClass = (index: number, selected: boolean) => {
+  const bodyCellClass = (index: number, _selected?: boolean) => {
     const isFrozen = effectiveFrozenCount > 0 && index < effectiveFrozenCount;
     const isLastFrozenColumn = effectiveFrozenCount > 0 && index === effectiveFrozenCount - 1;
-    return cn(
-      rowEdgeClass(isFrozen && isLastFrozenColumn),
-      isFrozen
-        ? listTableBodyCellInteractionClass(selected, { frozen: true })
-        : listTableBodyCellInteractionClass(selected)
-    );
+    return rowEdgeClass(isFrozen && isLastFrozenColumn);
   };
 
   return {

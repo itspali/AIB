@@ -415,6 +415,8 @@ export async function fetchAllocatableImportPurchaseOrders(
       voucher_number,
       supplier_id,
       destination_location_id,
+      receipt_location_id,
+      ultimate_destination_location_id,
       supplier:entities!purchase_orders_supplier_tenant_fk (name),
       destination_location:tenant_locations!purchase_orders_location_tenant_fk (name),
       po_lines:purchase_order_items!purchase_order_items_po_tenant_fk (
@@ -471,6 +473,9 @@ export async function fetchAllocatableImportPurchaseOrders(
         supplier_name: supplier?.name ?? "",
         destination_location_id: String(row.destination_location_id),
         destination_location_name: destination?.name ?? "",
+        receipt_location_id: (row.receipt_location_id as string | null) ?? null,
+        ultimate_destination_location_id:
+          (row.ultimate_destination_location_id as string | null) ?? null,
         lines,
       } satisfies AllocatableImportPurchaseOrderOption;
     })

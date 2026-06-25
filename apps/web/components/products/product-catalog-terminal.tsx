@@ -157,7 +157,7 @@ function ItemsPageTitleHeader({ onNewItem }: { onNewItem: () => void }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <Button type="button" size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs" onClick={onNewItem}>
+      <Button type="button" size="sm" className="h-8 w-8 shrink-0 px-0 sm:w-auto sm:gap-1.5 sm:px-2.5" onClick={onNewItem}>
         <NewItemLinkContent />
       </Button>
     </div>
@@ -1913,7 +1913,7 @@ export function ProductCatalogTerminal({
             : undefined
         }
         className={cn(
-          "flex min-h-0 flex-col overflow-hidden",
+          "list-module-shell-root flex min-h-0 flex-col overflow-hidden",
           catalogViewportHeight == null && LIST_MODULE_VIEWPORT_FALLBACK_HEIGHT,
           LIST_MODULE_VIEWPORT_OFFSET
         )}
@@ -1922,7 +1922,7 @@ export function ProductCatalogTerminal({
           {...streamPanelProps}
           renderLayout={({ toolbar, bulkToolbar, body }) => (
             <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden">
-              <div className={LIST_MODULE_PAGE_CHROME}>
+              <div className={cn(LIST_MODULE_PAGE_CHROME)}>
                 <div className="space-y-2.5">
                   <ItemsPageTitleHeader onNewItem={handleNewItem} />
                   {toolbar}

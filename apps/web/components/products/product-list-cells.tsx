@@ -1,14 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Package } from "lucide-react";
 import {
   columnSupportsWrapControl,
   defaultWrapModeForValueKind,
   textWrapModeClassName,
   type TextWrapMode,
 } from "@/lib/display/text-wrap";
-import { formatCurrency, formatDate } from "@/lib/dashboard/format";
+import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import { booleanValueKey } from "@/lib/list-columns/chip-colors";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
@@ -29,12 +29,28 @@ import {
   LIST_TABLE_CELL_PRIMARY,
   LIST_TABLE_CELL_SUBLINE,
 } from "@/lib/layout/list-table-chrome";
+import { isBlankMatrixDisplayValue } from "@/lib/layout/matrix-blank-value";
 import { cn } from "@/lib/utils";
 import type { ProductListViewMode } from "@/lib/products/list-prefs";
-function formatOptionalCurrency(value: string | null): string {
-  if (!value || value.trim() === "") return "—";
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? formatCurrency(parsed) : value;
+import { ProductListItemImage } from "@/components/products/product-list-item-image";
+
+type ProductListCellSurface = "list" | "matrix";
+
+function isMatrixSurface(surface?: ProductListCellSurface): boolean {
+  return surface === "matrix";
+}
+
+function listTypography(surface: ProductListCellSurface | undefined, token: string): string | undefined {
+  return isMatrixSurface(surface) ? undefined : token;
+}
+
+function matrixMutedClass(surface: ProductListCellSurface | undefined, muted?: boolean): string | undefined {
+  if (!muted) return undefined;
+  if (isMatrixSurface(surface)) return undefined;
+  return "text-muted-foreground";
+}
+function matrixCellEmpty(surface?: ProductListCellSurface): ReactNode {
+  return isMatrixSurface(surface) ? null : "—";
 }
 
 function formatBooleanText(value: boolean): string {
@@ -44,7 +60,8 @@ function formatBooleanText(value: boolean): string {
 function formatBoolean(
   columnId: ProductListColumnId,
   value: boolean,
-  chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>
+  chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>,
+  surface?: ProductListCellSurface
 ): ReactNode {
   const column = getColumnDef(columnId);
   const label = formatBooleanText(value);
@@ -52,19 +69,28 @@ function formatBoolean(
     column,
     valueKey: booleanValueKey(value),
     label,
-    textNode: <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>,
+    textNode: isMatrixSurface(surface) ? (
+      <span>{label}</span>
+    ) : (
+      <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>
+    ),
     chipDisplay: chipDisplay?.[columnId],
   });
 }
 
-function formatActiveStatusText(value: boolean): ReactNode {
+function formatActiveStatusText(value: boolean, surface?: ProductListCellSurface): ReactNode {
   const label = value ? "Active" : "Inactive";
-  return <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>;
+  return isMatrixSurface(surface) ? (
+    <span>{label}</span>
+  ) : (
+    <span className={LIST_TABLE_CELL_CHIP_FALLBACK}>{label}</span>
+  );
 }
 
 export function renderProductListActiveStatus(
   value: boolean,
-  chipDisplay?: ColumnChipDisplay
+  chipDisplay?: ColumnChipDisplay,
+  surface?: ProductListCellSurface
 ): ReactNode {
   const column = getColumnDef("is_active");
   const label = value ? "Active" : "Inactive";
@@ -72,7 +98,7 @@ export function renderProductListActiveStatus(
     column,
     valueKey: booleanValueKey(value),
     label,
-    textNode: formatActiveStatusText(value),
+    textNode: formatActiveStatusText(value, surface),
     chipDisplay,
   });
 }
@@ -98,14 +124,14 @@ export function resolveProductListCellTextWrapClass(
 function wrappedTextValue(
   value: string | null,
   wrapClass: string,
-  options?: { muted?: boolean; block?: boolean }
+  options?: { muted?: boolean; block?: boolean; surface?: ProductListCellSurface }
 ): ReactNode {
-  if (!value?.trim()) return "—";
+  if (!value?.trim()) return matrixCellEmpty(options?.surface);
   return (
     <span
       className={cn(
         options?.block && "block",
-        options?.muted && "text-muted-foreground",
+        matrixMutedClass(options?.surface, options?.muted),
         wrapClass
       )}
     >
@@ -119,6 +145,7 @@ type RenderProductListCellOptions = {
   showVariants?: boolean;
   wrapMode?: TextWrapMode;
   chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
+  surface?: ProductListCellSurface;
 };
 
 export function renderProductListCell(
@@ -126,42 +153,16 @@ export function renderProductListCell(
   product: ProductListRow,
   options?: RenderProductListCellOptions
 ): ReactNode {
+  const surface = options?.surface;
+
   switch (columnId) {
     case "image":
-      if (product.image_url && options?.onImageClick) {
-        return (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              options.onImageClick?.(product);
-            }}
-            className="inline-flex h-8 w-8 shrink-0 cursor-zoom-in items-center justify-center overflow-hidden rounded bg-muted transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            aria-label={`View images for ${product.name}`}
-          >
-            <img
-              src={product.image_url}
-              alt=""
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          </button>
-        );
-      }
-
       return (
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-          {product.image_url ? (
-            <img
-              src={product.image_url}
-              alt=""
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <Package className="h-4 w-4 text-muted-foreground" aria-hidden />
-          )}
-        </span>
+        <ProductListItemImage
+          product={product}
+          onImageClick={options?.onImageClick}
+          size="table"
+        />
       );
     case "name": {
       const showVariants = options?.showVariants ?? false;
@@ -171,14 +172,22 @@ export function renderProductListCell(
       const nameWrapClass = resolveProductListCellTextWrapClass("name", wrapMode);
       const nameTextClass =
         wrapMode === "wrap"
-          ? cn("block", LIST_TABLE_CELL_PRIMARY, nameWrapClass)
-          : cn("block min-w-0", LIST_TABLE_CELL_PRIMARY, nameWrapClass);
+          ? cn("block", listTypography(surface, LIST_TABLE_CELL_PRIMARY), nameWrapClass)
+          : cn("block min-w-0", listTypography(surface, LIST_TABLE_CELL_PRIMARY), nameWrapClass);
 
       return (
         <div className={productListVariantNameIndentClass(presentation, showVariants)}>
-          <span className={nameTextClass}>{product.name?.trim() ? product.name : "—"}</span>
+          <span className={nameTextClass}>
+            {product.name?.trim() ? product.name : matrixCellEmpty(surface)}
+          </span>
           {subline ? (
-            <span className={cn("mt-0.5 block truncate font-normal", LIST_TABLE_CELL_SUBLINE)}>
+            <span
+              className={cn(
+                isMatrixSurface(surface)
+                  ? "matrix-table__subline truncate"
+                  : cn("mt-0.5 block truncate font-normal", LIST_TABLE_CELL_SUBLINE)
+              )}
+            >
               {subline}
             </span>
           ) : null}
@@ -188,15 +197,12 @@ export function renderProductListCell(
     case "default_sku": {
       const showVariants = options?.showVariants ?? false;
       const presentation = resolveProductListRowPresentation(product, showVariants);
-      return (
-        <span className="font-mono text-muted-foreground">
-          {presentation.displaySku ?? "—"}
-        </span>
-      );
+      const sku = presentation.displaySku;
+      return <span>{sku?.trim() ? sku : matrixCellEmpty(surface)}</span>;
     }
     case "barcode":
       return (
-        <span className="font-mono text-muted-foreground">{product.barcode ?? "—"}</span>
+        <span>{product.barcode?.trim() ? product.barcode : matrixCellEmpty(surface)}</span>
       );
     case "classification": {
       const label = classificationLabel(product.classification);
@@ -216,6 +222,7 @@ export function renderProductListCell(
       });
     }
     case "category_name": {
+      if (isMatrixSurface(surface) && !product.category_name?.trim()) return null;
       const label = product.category_name?.trim() || "—";
       const column = getColumnDef("category_name");
       const valueKey = product.category_name?.trim() || CHIP_DEFAULT_FALLBACK_KEY;
@@ -225,7 +232,8 @@ export function renderProductListCell(
         label,
         textNode: wrappedTextValue(
           product.category_name,
-          resolveProductListCellTextWrapClass("category_name", options?.wrapMode)
+          resolveProductListCellTextWrapClass("category_name", options?.wrapMode),
+          { surface }
         ),
         chipDisplay: options?.chipDisplay?.category_name,
       });
@@ -234,7 +242,7 @@ export function renderProductListCell(
       return wrappedTextValue(
         product.description,
         resolveProductListCellTextWrapClass("description", options?.wrapMode),
-        { muted: true, block: true }
+        { muted: true, block: true, surface }
       );
     case "base_unit_of_measure": {
       const label = product.base_unit_of_measure;
@@ -243,14 +251,14 @@ export function renderProductListCell(
         column,
         valueKey: label,
         label,
-        textNode: <span className="font-mono">{label}</span>,
+        textNode: <span>{label}</span>,
         chipDisplay: options?.chipDisplay?.base_unit_of_measure,
       });
     }
     case "hsn_sac_code":
-      return product.hsn_sac_code ?? "—";
+      return product.hsn_sac_code?.trim() ? product.hsn_sac_code : matrixCellEmpty(surface);
     case "has_variants":
-      return formatBoolean("has_variants", product.has_variants, options?.chipDisplay);
+      return formatBoolean("has_variants", product.has_variants, options?.chipDisplay, surface);
     case "default_tax_category": {
       const normalized = normalizeTaxCategory(product.default_tax_category);
       const label = taxCategoryLabel(product.default_tax_category);
@@ -275,43 +283,65 @@ export function renderProductListCell(
     case "is_active":
       return renderProductListActiveStatus(
         product.is_active,
-        options?.chipDisplay?.is_active
+        options?.chipDisplay?.is_active,
+        surface
       );
     case "is_purchasable":
-      return formatBoolean("is_purchasable", product.is_purchasable, options?.chipDisplay);
+      return formatBoolean("is_purchasable", product.is_purchasable, options?.chipDisplay, surface);
     case "is_salable":
-      return formatBoolean("is_salable", product.is_salable, options?.chipDisplay);
+      return formatBoolean("is_salable", product.is_salable, options?.chipDisplay, surface);
     case "is_returnable":
-      return formatBoolean("is_returnable", product.is_returnable, options?.chipDisplay);
-    case "selling_price":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatOptionalCurrency(product.selling_price)}</span>;
-    case "mrp":
-      return <span className={LIST_TABLE_CELL_COUNT}>{formatOptionalCurrency(product.mrp)}</span>;
-    case "purchase_price":
+      return formatBoolean("is_returnable", product.is_returnable, options?.chipDisplay, surface);
+    case "selling_price": {
+      const formatted = formatListCurrency(product.selling_price);
+      if (isMatrixSurface(surface) && isBlankMatrixDisplayValue(formatted)) return null;
       return (
-        <span className={LIST_TABLE_CELL_COUNT}>{formatOptionalCurrency(product.purchase_price)}</span>
+        <span className={listTypography(surface, LIST_TABLE_CELL_AMOUNT)}>{formatted}</span>
       );
+    }
+    case "mrp": {
+      const formatted = formatListCurrency(product.mrp);
+      if (isMatrixSurface(surface) && isBlankMatrixDisplayValue(formatted)) return null;
+      return (
+        <span className={listTypography(surface, LIST_TABLE_CELL_COUNT)}>{formatted}</span>
+      );
+    }
+    case "purchase_price": {
+      const formatted = formatListCurrency(product.purchase_price);
+      if (isMatrixSurface(surface) && isBlankMatrixDisplayValue(formatted)) return null;
+      return (
+        <span className={listTypography(surface, LIST_TABLE_CELL_COUNT)}>{formatted}</span>
+      );
+    }
     case "supplier_name":
       return wrappedTextValue(
         product.supplier_name,
-        resolveProductListCellTextWrapClass("supplier_name", options?.wrapMode)
+        resolveProductListCellTextWrapClass("supplier_name", options?.wrapMode),
+        { surface }
       );
     case "stock_on_hand": {
       const qty = product.stock_on_hand;
-      if (qty == null || qty.trim() === "") return "—";
-      const parsed = Number(qty);
+      if (qty == null || qty.trim() === "") return matrixCellEmpty(surface);
       return (
-        <span className={LIST_TABLE_CELL_COUNT}>
-          {Number.isFinite(parsed) ? parsed.toLocaleString() : qty}
+        <span className={listTypography(surface, LIST_TABLE_CELL_COUNT)}>
+          {formatListQuantity(qty)}
         </span>
       );
     }
     case "created_at":
-      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(product.created_at)}</span>;
+      return (
+        <span className={listTypography(surface, LIST_TABLE_CELL_DATE)}>
+          {formatDate(product.created_at)}
+        </span>
+      );
     case "updated_at":
-      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(product.updated_at)}</span>;
+      return (
+        <span className={listTypography(surface, LIST_TABLE_CELL_DATE)}>
+          {formatDate(product.updated_at)}
+        </span>
+      );
     default:
-      return "—";
+      return matrixCellEmpty(surface);
   }
 }
 

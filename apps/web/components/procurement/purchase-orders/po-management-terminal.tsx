@@ -11,16 +11,23 @@ import { PoEmptyState } from "@/components/procurement/purchase-orders/po-empty-
 import { Skeleton } from "@/components/ui/skeleton";
 import { PoListTable } from "@/components/procurement/purchase-orders/po-list-table";
 import { PoListToolbar } from "@/components/procurement/purchase-orders/po-list-toolbar";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultPurchaseOrderListPrefs,
+  getPurchaseOrderColumnPrefsSlice,
   loadPurchaseOrderListPrefs,
   savePurchaseOrderListPrefs,
   setPurchaseOrderColumnWidth,
   type PurchaseOrderListPrefs,
 } from "@/lib/procurement/purchase-orders/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortPurchaseOrderListRows,
   type PurchaseOrderListSortDirection,
@@ -37,6 +44,11 @@ import type {
 } from "@/lib/procurement/shared/types";
 import { buildModuleHref } from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapPurchaseOrderRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 import { useFinanceSetupCreateGate } from "@/lib/onboarding/use-finance-setup-create-gate";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
@@ -50,8 +62,6 @@ import {
 } from "@/lib/procurement/approval-settings";
 import type { PoFulfillmentStage } from "@/lib/procurement/import-logistics-settings-shared";
 
-const PO_PAGE_DESCRIPTION =
-  "Raise draft purchase orders, issue them to suppliers, and receive stock on goods receipts.";
 
 const PoDrawerForm = lazyClientExport(
   () => import("@/components/procurement/purchase-orders/po-drawer-form"),
@@ -154,6 +164,7 @@ export function PoManagementTerminal({
   );
   const [prefs, setPrefs] = useState<PurchaseOrderListPrefs>(getDefaultPurchaseOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -164,10 +175,11 @@ export function PoManagementTerminal({
 
   const isRowBulkApprovable = useCallback(
     (row: PurchaseOrderRow) => {
+      if (!canBulkApprove) return false;
       if (isOwner) return row.document_status === "PENDING_APPROVAL";
       return isPurchaseOrderApprovableByUser(row, currentUserId, approvalSettings, { isOwner });
     },
-    [approvalSettings, currentUserId, isOwner]
+    [approvalSettings, canBulkApprove, currentUserId, isOwner]
   );
 
   useEffect(() => {
@@ -269,9 +281,20 @@ export function PoManagementTerminal({
   const hasAnyData = purchaseOrders.length > 0;
   const filteredRows = ordersView.filteredRows;
 
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.voucher_number,
+      row.supplier_name,
+      row.destination_location_name,
+      row.destination_location_code,
+      row.document_status,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortPurchaseOrderListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortPurchaseOrderListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const approvableMatchingIds = useMemo(
@@ -293,6 +316,9 @@ export function PoManagementTerminal({
   const bulkSelectionCount = bulkSelectAllMatching
     ? approvableMatchingIds.length
     : bulkSelectedIds.size;
+
+  const showBulkSelectionColumn =
+    canBulkApprove && approvableMatchingIds.length > 0;
 
   const clearBulkSelection = useCallback(() => {
     setBulkSelectedIds(new Set());
@@ -428,17 +454,17 @@ export function PoManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <PoListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleSortChange}
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setPurchaseOrderColumnWidth(current, columnId, width))
+          setPrefs((current) => setPurchaseOrderColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         onSelect={handleSelect}
-        bulkSelectionEnabled={canBulkApprove}
+        bulkSelectionEnabled={showBulkSelectionColumn}
         bulkSelectedIds={bulkSelectedIds}
         pageAllSelected={pageAllSelected}
         pageSomeSelected={pageSomeSelected}
@@ -456,6 +482,56 @@ export function PoManagementTerminal({
       />
     </div>
   );
+
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={purchaseOrders.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="purchase orders"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapPurchaseOrderRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No purchase orders match the current filters.",
+    footer: listFooter,
+    loading: isListBootstrapping ? (
+      <div className="spatial-master-feed-pane p-2" aria-busy="true" aria-label="Loading purchase orders">
+        <Skeleton className="h-24 w-full shimmer" />
+        <Skeleton className="mt-2 h-16 w-full shimmer" />
+        <Skeleton className="mt-2 h-16 w-full shimmer" />
+      </div>
+    ) : undefined,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <PoEmptyState
+          onCreate={editAccessGranted ? guardedOpenCreate : undefined}
+          hasLocations={locations.length > 0}
+          hasSuppliers={suppliers.length > 0}
+        />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No purchase orders match the current filters.
+        </div>
+      </div>
+    ),
+    bulkEnabled: showBulkSelectionColumn,
+    bulkSelectedIds,
+    pageAllSelected,
+    pageSomeSelected,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+  });
 
   const bulkToolbar =
     hasAnyData && canBulkApprove && bulkSelectionCount > 0 ? (
@@ -477,36 +553,50 @@ export function PoManagementTerminal({
       />
     ) : null;
 
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Purchase Orders"
-            description={PO_PAGE_DESCRIPTION}
-            createLabel="New purchase order"
-            onCreate={editAccessGranted ? guardedOpenCreate : undefined}
-            aboutAriaLabel="About Purchase Orders"
+            count={
+              hasAnyData ? `${sortedRows.length}/${ordersView.totalCount}` : undefined
+            }
+            onNew={editAccessGranted ? guardedOpenCreate : undefined}
+            newAriaLabel="New purchase order"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <PoListToolbar
+                  prefs={prefs}
+                  onPrefsChange={handlePrefsChange}
+                  locations={locations}
+                  resultCount={ordersView.resultCount}
+                  totalCount={ordersView.totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          hasAnyData ? (
-            <PoListToolbar
-              prefs={prefs}
-              onPrefsChange={handlePrefsChange}
-              locations={locations}
-              resultCount={ordersView.resultCount}
-              totalCount={ordersView.totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={bulkToolbar}
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a purchase order"
+          splitEmptyMessage="Choose a PO from the registry to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -543,6 +633,7 @@ export function PoManagementTerminal({
           tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

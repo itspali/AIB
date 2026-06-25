@@ -8,10 +8,20 @@ import { QcInspectionEmptyState } from "@/components/procurement/quality-inspect
 import { QcInspectionListTable } from "@/components/procurement/quality-inspection/qc-inspection-list-table";
 import { QcInspectionListToolbar } from "@/components/procurement/quality-inspection/qc-inspection-list-toolbar";
 import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapQcInspectionQueueRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 import {
   getDefaultQcQueueListPrefs,
   loadQcQueueListPrefs,
@@ -19,6 +29,7 @@ import {
   setQcQueueColumnWidth,
   type QcQueueListPrefs,
 } from "@/lib/procurement/quality-inspection/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortQcQueueListRows,
   type QcQueueListSortDirection,
@@ -28,9 +39,6 @@ import { useFilteredQcQueueRows } from "@/lib/procurement/quality-inspection/use
 import { PROCUREMENT_QC_INSPECTION_HREF } from "@/lib/procurement/navigation";
 import type { QcInspectionQueueRow } from "@/lib/procurement/quality-inspection/types";
 import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
-
-const PAGE_DESCRIPTION =
-  "Inspect goods receipt lines held in QC quarantine — record test results and post pass or reject quantities to stock.";
 
 type Props = {
   initialRows: QcInspectionQueueRow[];
@@ -50,6 +58,7 @@ export function QcInspectionManagementTerminal({
   const drawer = useModuleDrawerUrl(PROCUREMENT_QC_INSPECTION_HREF);
   const [prefs, setPrefs] = useState<QcQueueListPrefs>(getDefaultQcQueueListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -88,9 +97,22 @@ export function QcInspectionManagementTerminal({
   }, [prefs, prefsHydrated]);
 
   const queueView = useFilteredQcQueueRows(queueRows, prefs, searchQuery);
+
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: queueView.filteredRows,
+    extractSearchable: (row) => [
+      row.item_name,
+      row.variant_sku,
+      row.grn_number,
+      row.purchase_order_number,
+      row.destination_location_name,
+      row.destination_location_code,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortQcQueueListRows(queueView.filteredRows, prefs.sortField, prefs.sortDirection),
-    [queueView.filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortQcQueueListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const selectedId = drawer.recordId;
@@ -147,7 +169,7 @@ export function QcInspectionManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <QcInspectionListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
@@ -155,7 +177,7 @@ export function QcInspectionManagementTerminal({
           setPrefs((current) => ({ ...current, sortField: field, sortDirection: direction }))
         }
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setQcQueueColumnWidth(current, columnId, width))
+          setPrefs((current) => setQcQueueColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         selectedIds={selectedIds}
@@ -175,29 +197,68 @@ export function QcInspectionManagementTerminal({
     </div>
   );
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={sortedRows.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="QC lines"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapQcInspectionQueueRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No lines match the current filters.",
+    footer: listFooter,
+    empty: <QcInspectionEmptyState />,
+    filteredEmpty: (
+      <p className="p-4 text-sm text-muted-foreground">No lines match the current filters.</p>
+    ),
+    bulkEnabled: true,
+    bulkSelectedIds: selectedIds,
+    pageAllSelected,
+    pageSomeSelected: pageAllSelected ? false : sortedRows.some((row) => selectedIds.has(row.id)),
+    onBulkRowToggle: handleToggleSelected,
+    onBulkPageToggle: handleTogglePageSelected,
+  });
+
+  const peekOpen = drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Quality inspection"
-            description={PAGE_DESCRIPTION}
-            createLabel=""
+            count={hasAnyData ? `${queueView.filteredCount}/${totalCount}` : undefined}
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <QcInspectionListToolbar
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  locations={locations}
+                  searchQuery={searchQuery}
+                  onSearchQueryChange={setSearchQuery}
+                  resultCount={queueView.filteredCount}
+                  totalCount={totalCount}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          hasAnyData ? (
-            <QcInspectionListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              locations={locations}
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-              resultCount={queueView.filteredCount}
-              totalCount={totalCount}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={
           <QcInspectionBulkToolbar
@@ -207,15 +268,23 @@ export function QcInspectionManagementTerminal({
           />
         }
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {!qcModuleEnabled ? (
-            <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-              QC before stocking is disabled in procurement settings. Lines may still appear here if
-              they were routed to QC hold before the policy changed.
-            </div>
-          ) : null}
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a QC line"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={
+            <>
+              {!qcModuleEnabled ? (
+                <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                  QC before stocking is disabled in procurement settings. Lines may still appear here if
+                  they were routed to QC hold before the policy changed.
+                </div>
+              ) : null}
+              {listPrimary}
+            </>
+          }
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       <QcInspectionDrawerForm
@@ -227,6 +296,7 @@ export function QcInspectionManagementTerminal({
         }}
         onCompleted={handleAfterInspection}
       />
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

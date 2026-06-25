@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ListColumnSettings,
-  type ColumnSettingsDevice,
-} from "@/components/list-columns/list-column-settings";
+import { ListModuleTableColumnSettings } from "@/components/list-columns/list-module-table-column-settings";
 import {
   getStockColumnPrefs,
   getStockColumnRegistry,
-  setStockColumnPrefs,
+  setStockBalanceColumnPrefsSlice,
+  setStockBalanceColumnPrefsSliceAllDevices,
+  setStockAdjustmentColumnPrefsSlice,
+  setStockAdjustmentColumnPrefsSliceAllDevices,
   type StockListPrefs,
 } from "@/lib/inventory/stock/list-prefs";
 import type { DeviceClass } from "@/lib/layout/device-class";
+import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import type { StockAdjustmentColumnId, StockBalanceColumnId } from "@/lib/inventory/stock/list-columns";
 
 type Props = {
   prefs: StockListPrefs;
@@ -27,37 +28,47 @@ export function StockListColumnSettings({
   disabled = false,
 }: Props) {
   const registry = getStockColumnRegistry(prefs);
-  const slice = getStockColumnPrefs(prefs);
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
-
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
+  const isAdjustments = prefs.viewMode === "adjustments";
 
   return (
-    <ListColumnSettings
+    <ListModuleTableColumnSettings
       registry={registry}
-      prefs={slice}
-      allowedColumnIds={registry.ids}
-      editingLayout="table"
-      editingDevice={editingDevice}
-      detectedDevice={detectedDeviceClass}
-      onEditingLayoutChange={() => {}}
-      onEditingDeviceChange={setEditingDevice}
-      onChange={(columnPrefs) =>
+      detectedDeviceClass={detectedDeviceClass}
+      resolveColumnPrefs={(device) =>
+        getStockColumnPrefs(prefs, device as DeviceClass)
+      }
+      commitColumnPrefs={(device, columnPrefs) =>
         onChange(
-          setStockColumnPrefs(
-            prefs,
-            columnPrefs as Parameters<typeof setStockColumnPrefs>[1]
-          )
+          isAdjustments
+            ? setStockAdjustmentColumnPrefsSlice(
+                prefs,
+                device as DeviceClass,
+                columnPrefs as ListColumnPrefs<StockAdjustmentColumnId>
+              )
+            : setStockBalanceColumnPrefsSlice(
+                prefs,
+                device as DeviceClass,
+                columnPrefs as ListColumnPrefs<StockBalanceColumnId>
+              )
+        )
+      }
+      commitColumnPrefsAllDevices={(columnPrefs) =>
+        onChange(
+          isAdjustments
+            ? setStockAdjustmentColumnPrefsSliceAllDevices(
+                prefs,
+                columnPrefs as ListColumnPrefs<StockAdjustmentColumnId>
+              )
+            : setStockBalanceColumnPrefsSliceAllDevices(
+                prefs,
+                columnPrefs as ListColumnPrefs<StockBalanceColumnId>
+              )
         )
       }
       frozenColumnCount={prefs.frozenColumnCount}
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
-      showLayoutSwitcher={false}
-      showDeviceSwitcher={false}
       disabled={disabled}
     />
   );

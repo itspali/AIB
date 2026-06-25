@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { EntityCatalogPageSkeleton } from "@/components/entities/entity-catalog-page-skeleton";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { fetchEntityListPage } from "@/lib/entities/list-queries";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityWorkspace } from "@/lib/entities/types";
@@ -34,6 +35,7 @@ export async function EntityCatalogLoader({ workspace }: Props) {
     : null;
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId={`entities-${workspace}`}>
     <EntityManagementTerminal
       workspace={workspace}
       tenantId={tenantId}
@@ -42,5 +44,6 @@ export async function EntityCatalogLoader({ workspace }: Props) {
       initialHasMore={page.hasMore}
       initialSavedView={initialSavedView}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

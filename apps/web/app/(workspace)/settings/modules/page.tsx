@@ -1,8 +1,11 @@
 import { ShoppingCart, Package, FileText, Truck } from "lucide-react";
 import { ModuleOverview } from "@/components/layout/module-overview";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
 
 export default function ModuleSettingsPage() {
   return (
+    <OverviewGlassShell>
+    <div className="canvas-scroll-endpad">
     <ModuleOverview
       title="Module settings"
       description="Configure how operational modules behave — policies, approvals, and module-specific options."
@@ -35,5 +38,7 @@ export default function ModuleSettingsPage() {
         },
       ]}
     />
+    </div>
+    </OverviewGlassShell>
   );
 }

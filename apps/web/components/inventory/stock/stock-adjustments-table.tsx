@@ -35,7 +35,6 @@ import {
 } from "@/lib/inventory/stock/list-sort";
 import type { StockAdjustmentRow } from "@/lib/inventory/stock/types";
 import {
-  LIST_TABLE_BODY_CELL,
   LIST_TABLE_HEADER_CELL,
   LIST_TABLE_HEADER_SORTABLE,
   LIST_TABLE_ROOT,
@@ -213,10 +212,9 @@ export function StockAdjustmentsTable({
                     return (
                       <td
                         key={columnId}
-                        className={cn(
-                          LIST_TABLE_BODY_CELL,
-                          sticky.className,
-                          frozen.bodyCellClass(index, selected),
+                          className={cn(
+                            sticky.className,
+                            frozen.bodyCellClass(index, selected),
                           column.align === "right" && "text-right tabular-nums"
                         )}
                         style={mergeColumnCellStyles(sticky.style, widthStyles)}

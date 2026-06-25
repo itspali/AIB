@@ -10,8 +10,13 @@ import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-act
 import { SoEmptyState } from "@/components/sales/orders/so-empty-state";
 import { SoListTable } from "@/components/sales/orders/so-list-table";
 import { SoListToolbar } from "@/components/sales/orders/so-list-toolbar";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { Skeleton } from "@/components/ui/skeleton";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
@@ -21,6 +26,7 @@ import {
   setSalesOrderColumnWidth,
   type SalesOrderListPrefs,
 } from "@/lib/sales/orders/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortSalesOrderListRows,
   type SalesOrderListSortDirection,
@@ -43,6 +49,11 @@ import { useFilteredSalesOrders } from "@/lib/sales/orders/use-filtered-sales-or
 import type { CustomerOption, SalesLocationOption } from "@/lib/sales/shared/types";
 import { buildModuleHref } from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapSalesOrderRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
 import {
   canUserApproveSalesOrders,
@@ -52,9 +63,6 @@ import {
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
-
-const SO_PAGE_DESCRIPTION =
-  "Capture sales orders, route them through approval when required, and confirm for fulfilment.";
 
 const SoDrawerForm = lazyClientExport(
   () => import("@/components/sales/orders/so-drawer-form"),
@@ -146,6 +154,7 @@ export function SoManagementTerminal({
   );
   const [prefs, setPrefs] = useState<SalesOrderListPrefs>(getDefaultSalesOrderListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -279,9 +288,20 @@ export function SoManagementTerminal({
   const hasAnyData = salesOrders.length > 0;
   const filteredRows = ordersView.filteredRows;
 
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.voucher_number,
+      row.customer_name,
+      row.shipping_location_name,
+      row.shipping_location_code,
+      row.commercial_status,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortSalesOrderListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortSalesOrderListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const selectableMatchingIds = useMemo(
@@ -303,6 +323,9 @@ export function SoManagementTerminal({
   const bulkSelectionCount = bulkSelectAllMatching
     ? selectableMatchingIds.length
     : bulkSelectedIds.size;
+
+  const showBulkSelectionColumn =
+    (canBulkApprove || canBulkConfirm) && selectableMatchingIds.length > 0;
 
   const clearBulkSelection = useCallback(() => {
     setBulkSelectedIds(new Set());
@@ -478,17 +501,17 @@ export function SoManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <SoListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleSortChange}
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setSalesOrderColumnWidth(current, columnId, width))
+          setPrefs((current) => setSalesOrderColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         onSelect={handleSelect}
-        bulkSelectionEnabled={canBulkApprove || canBulkConfirm}
+        bulkSelectionEnabled={showBulkSelectionColumn}
         bulkSelectedIds={bulkSelectedIds}
         pageAllSelected={pageAllSelected}
         pageSomeSelected={pageSomeSelected}
@@ -534,36 +557,99 @@ export function SoManagementTerminal({
       />
     ) : null;
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={salesOrders.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="sales orders"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapSalesOrderRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No sales orders match the current filters.",
+    footer: listFooter,
+    loading: isListBootstrapping ? (
+      <div className="spatial-master-feed-pane p-2" aria-busy="true" aria-label="Loading sales orders">
+        <Skeleton className="h-24 w-full shimmer" />
+        <Skeleton className="mt-2 h-16 w-full shimmer" />
+      </div>
+    ) : undefined,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <SoEmptyState
+          onCreate={editAccessGranted ? drawer.openCreate : undefined}
+          hasLocations={locations.length > 0}
+          hasCustomers={customers.length > 0}
+        />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No sales orders match the current filters.
+        </div>
+      </div>
+    ),
+    bulkEnabled: showBulkSelectionColumn,
+    bulkSelectedIds,
+    pageAllSelected,
+    pageSomeSelected,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+  });
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Sales Orders"
-            description={SO_PAGE_DESCRIPTION}
-            createLabel="New sales order"
-            onCreate={editAccessGranted ? drawer.openCreate : undefined}
-            aboutAriaLabel="About Sales Orders"
+            count={
+              hasAnyData ? `${ordersView.resultCount}/${ordersView.totalCount}` : undefined
+            }
+            onNew={editAccessGranted ? drawer.openCreate : undefined}
+            newAriaLabel="New sales order"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <SoListToolbar
+                  prefs={prefs}
+                  onPrefsChange={handlePrefsChange}
+                  locations={locations}
+                  resultCount={ordersView.resultCount}
+                  totalCount={ordersView.totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          hasAnyData ? (
-            <SoListToolbar
-              prefs={prefs}
-              onPrefsChange={handlePrefsChange}
-              locations={locations}
-              resultCount={ordersView.resultCount}
-              totalCount={ordersView.totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={bulkToolbar}
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a sales order"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -597,6 +683,7 @@ export function SoManagementTerminal({
           isOwner={isOwner}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

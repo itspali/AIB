@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency } from "@/lib/list-columns/format-list-value";
 import type { PurchaseBillListColumnId } from "@/lib/procurement/bills/list-columns";
 import { billMatchStatusLabel } from "@/lib/procurement/bills/three-way-match";
 import type { PurchaseBillRow } from "@/lib/procurement/bills/types";
@@ -19,7 +20,7 @@ export function getPurchaseBillListCellDisplayTexts(
     case "match_status":
       return [billMatchStatusLabel(row.match_status)];
     case "liability":
-      return [row.total_liability_amount];
+      return [formatListCurrency(row.total_liability_amount)];
     case "paid":
       return [row.is_paid ? "Paid" : "Unpaid"];
     case "created":

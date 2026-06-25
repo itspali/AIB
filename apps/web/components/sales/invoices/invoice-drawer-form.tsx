@@ -23,6 +23,7 @@ import {
   toSalesDocumentLinkRef,
 } from "@/components/sales/shared/sales-document-link-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,6 +120,9 @@ export function InvoiceDrawerForm({
   const isEditing = surface === "edit";
   const isCreating = surface === "create";
   const isMutating = isCreating || isEditing;
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const { lineTableFillHeight, useDrawerBodyScroll } = useSalesDrawerFormLayout(isMutating);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
@@ -637,10 +641,11 @@ export function InvoiceDrawerForm({
         title={title}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
-        className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
         bodyClassName={
           surface === "peek"
-            ? "module-drawer-peek-body"
+            ? peekBodyClassName
             : isMutating
               ? cn(
                   "module-drawer-form-body",

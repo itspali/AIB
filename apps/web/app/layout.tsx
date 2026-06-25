@@ -50,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <OnboardingProvider
             initialComplete={bootstrap.onboardingComplete}
             initialWorkspaceAccess={bootstrap.hasWorkspaceAccess}
+            initialImportsEnabled={bootstrap.importsEnabled}
           >
             {children}
             <Toaster

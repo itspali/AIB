@@ -8,7 +8,7 @@ export const LIST_TOOLBAR_ROW_GAP = "gap-3 md:gap-4 dark:gap-4 md:dark:gap-5";
 export const LIST_TOOLBAR_TOOLS_GAP = "gap-3 md:gap-3.5 dark:gap-4 md:dark:gap-5";
 
 const TOOLBAR_BORDERLESS_BASE =
-  "border-0 bg-transparent shadow-none hover:bg-accent/50 dark:rounded-md dark:bg-[hsl(224_47%_13%)] dark:hover:bg-[hsl(224_47%_17%)]";
+  "border-0 bg-transparent shadow-none hover:bg-transparent";
 
 export function listToolbarControlActiveClass(active: boolean): string {
   return active
@@ -23,18 +23,14 @@ export function listToolbarSelectClass(active = false): string {
     LIST_TOOLBAR_TEXT,
     TOOLBAR_BORDERLESS_BASE,
     "focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent",
-    "data-[state=open]:ring-0 data-[state=open]:border-transparent data-[state=open]:shadow-none",
+    "data-[state=open]:bg-transparent data-[state=open]:text-primary data-[state=open]:ring-0 data-[state=open]:border-transparent data-[state=open]:shadow-none",
     active && "[&>svg]:text-primary [&>svg]:opacity-100",
     listToolbarControlActiveClass(active)
   );
 }
 
 export function listToolbarViewToggleShellClass(): string {
-  return cn(
-    "inline-flex shrink-0 items-center rounded-md bg-muted/80 p-0.5 ring-1 ring-border/60",
-    "dark:bg-[hsl(224_47%_16%)] dark:ring-border/70",
-    LIST_TOOLBAR_CONTROL_HEIGHT
-  );
+  return cn("inline-flex shrink-0 items-center", LIST_TOOLBAR_CONTROL_HEIGHT);
 }
 
 export function listToolbarViewToggleButtonClass(): string {
@@ -45,10 +41,10 @@ export function listToolbarViewToggleButtonClass(): string {
 export function listToolbarViewToggleSegmentClass(selected = false): string {
   return cn(
     listToolbarViewToggleButtonClass(),
-    "transition-colors duration-200",
+    "bg-transparent transition-colors duration-200 hover:bg-transparent",
     selected
-      ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
-      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      ? "font-medium text-primary hover:text-primary [&_svg]:text-primary"
+      : "text-muted-foreground hover:text-foreground"
   );
 }
 
@@ -57,8 +53,7 @@ export function listToolbarSortTriggerClass(active = false): string {
   return cn(
     listToolbarViewToggleSegmentClass(active),
     "border-0 shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0",
-    !active && "bg-transparent",
-    "data-[state=open]:bg-background data-[state=open]:text-primary data-[state=open]:shadow-sm",
+    "data-[state=open]:bg-transparent data-[state=open]:text-primary data-[state=open]:shadow-none",
     "justify-center gap-0 px-0 [&>span]:hidden [&>svg:last-child]:hidden"
   );
 }
@@ -83,7 +78,7 @@ export function listToolbarModuleViewTriggerClass(active = false): string {
     LIST_TOOLBAR_TEXT,
     TOOLBAR_BORDERLESS_BASE,
     "focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent",
-    "data-[state=open]:ring-0 data-[state=open]:border-transparent data-[state=open]:shadow-none",
+    "data-[state=open]:bg-transparent data-[state=open]:text-primary data-[state=open]:ring-0 data-[state=open]:border-transparent data-[state=open]:shadow-none",
     active && "[&>svg]:text-primary [&>svg]:opacity-100",
     listToolbarControlActiveClass(active)
   );

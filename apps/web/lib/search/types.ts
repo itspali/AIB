@@ -154,6 +154,8 @@ export type NavigationIndexEntry = {
   label: string;
   href: string;
   keywords: string[];
+  /** Omit from omnibar/nav search when tenant import logistics is disabled. */
+  importOnly?: boolean;
 };
 
 export type CustomModuleView = {

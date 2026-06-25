@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import { getEntityColumnDef, type EntityListColumnId } from "@/lib/entities/list-columns";
 import {
   ENTITY_TYPE_LABELS,
@@ -90,11 +91,11 @@ export function renderEntityListCell(
       return row.company_phone ?? "—";
     case "credit_limit":
     case "current_balance":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{row[columnId]}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatListCurrency(row[columnId])}</span>;
     case "payment_terms_days":
       return (
         <span className={LIST_TABLE_CELL_COUNT}>
-          {row.payment_terms_days}
+          {formatListQuantity(row.payment_terms_days)}
           <span> d</span>
         </span>
       );

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListQuantity } from "@/lib/list-columns/format-list-value";
 import {
   getTransferColumnDef,
   type TransferListColumnId,
@@ -61,7 +62,7 @@ export function renderTransferListCell(
       });
     }
     case "lines":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.line_count)}</span>;
     case "created":
       return (
         <span className={LIST_TABLE_CELL_DATE}>

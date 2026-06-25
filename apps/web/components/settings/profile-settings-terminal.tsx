@@ -10,6 +10,7 @@ import { ProfileIdentitySection } from "@/components/settings/profile-identity-s
 import { ProfileLocalizationSection } from "@/components/settings/profile-localization-section";
 import { AccountDangerZoneSection } from "@/components/settings/account-danger-zone-section";
 import { SecurityRail } from "@/components/settings/security-rail";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { Button } from "@/components/ui/button";
 import { parseUserAgentSummary } from "@/lib/settings/format-datetime";
 import { profileSettingsSchema } from "@/lib/settings/schemas";
@@ -112,6 +113,7 @@ export function ProfileSettingsTerminal({ snapshot, tenantId, avatarPreviewUrl }
         </div>
       </header>
 
+      <SettingsGlassShell>
       <div className="grid grid-cols-1 gap-6 pb-8 lg:grid-cols-10">
         <main className="space-y-4 lg:col-span-7">
           <ProfileIdentitySection
@@ -135,6 +137,7 @@ export function ProfileSettingsTerminal({ snapshot, tenantId, avatarPreviewUrl }
           disabled={isPending}
         />
       </div>
+      </SettingsGlassShell>
 
       <div className="canvas-sticky-footer">
         <Button

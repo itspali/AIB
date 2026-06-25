@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { InventoryBelowReorderSection } from "@/components/inventory/inventory-below-reorder-section";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
+import { OverviewSectionShell } from "@/components/layout/overview-primitives";
 import { stockAdjustmentKindLabel } from "@/lib/inventory/stock/labels";
 import { STOCK_HREF } from "@/lib/inventory/stock/navigation";
 import { stockTransferStatusLabel } from "@/lib/inventory/transfers/labels";
@@ -26,13 +28,18 @@ import { Button } from "@/components/ui/button";
 
 type Props = {
   snapshot: InventoryOverviewSnapshot;
+  importsEnabled?: boolean;
 };
 
 const ITEMS_HREF = "/inventory/items";
 const CATEGORIES_HREF = "/inventory/categories";
 
-export function InventoryOverviewTerminal({ snapshot }: Props) {
+export function InventoryOverviewTerminal({
+  snapshot,
+  importsEnabled = false,
+}: Props) {
   return (
+    <OverviewGlassShell>
     <div className="canvas-scroll-endpad">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -75,14 +82,16 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             accent="cyan"
             href={transfersHrefWithStatusFilter("DISPATCHED_IN_TRANSIT")}
           />
-          <MetricCard
-            title="Procurement GIT"
-            value={String(snapshot.procurementGitInTransitCount)}
-            subtitle="Import goods in transit awaiting clearance"
-            icon={Ship}
-            accent="cyan"
-            href={PROCUREMENT_GIT_HREF}
-          />
+          {importsEnabled ? (
+            <MetricCard
+              title="Procurement GIT"
+              value={String(snapshot.procurementGitInTransitCount)}
+              subtitle="Import goods in transit awaiting clearance"
+              icon={Ship}
+              accent="cyan"
+              href={PROCUREMENT_GIT_HREF}
+            />
+          ) : null}
           <MetricCard
             title="Stocked balances"
             value={String(snapshot.stockedBalanceCount)}
@@ -93,10 +102,7 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
         </div>
       </section>
 
-      <section aria-label="Quick links" className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Modules
-        </h2>
+      <OverviewSectionShell title="Modules" className="mb-8">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href={STOCK_HREF}
@@ -139,7 +145,7 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
             <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           </Link>
         </div>
-      </section>
+      </OverviewSectionShell>
 
       <InventoryBelowReorderSection
         rows={snapshot.belowReorderBalances}
@@ -290,5 +296,6 @@ export function InventoryOverviewTerminal({ snapshot }: Props) {
         )}
       </section>
     </div>
+    </OverviewGlassShell>
   );
 }

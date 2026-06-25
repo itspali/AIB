@@ -1,4 +1,5 @@
 import type { NavigationIndexEntry } from "@/lib/search/types";
+import { filterNavigationIndex } from "@/lib/procurement/import-logistics-capability";
 
 export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   {
@@ -90,11 +91,13 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     label: "Import Shipments",
     href: "/procurement/shipments",
     keywords: ["import shipments", "shipment", "inbound", "logistics", "bill of lading", "boe", "procurement"],
+    importOnly: true,
   },
   {
     label: "Goods in Transit",
     href: "/procurement/goods-in-transit",
     keywords: ["goods in transit", "git", "import", "in transit", "procurement"],
+    importOnly: true,
   },
   {
     label: "Quality Inspection",
@@ -208,11 +211,18 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
 ];
 
-export function matchNavigationIndex(query: string): NavigationIndexEntry[] {
+export function matchNavigationIndex(
+  query: string,
+  options?: { importsEnabled?: boolean }
+): NavigationIndexEntry[] {
+  const pool = filterNavigationIndex(
+    GLOBAL_NAVIGATION_INDEX,
+    options?.importsEnabled ?? false
+  );
   const q = query.trim().toLowerCase();
-  if (!q) return GLOBAL_NAVIGATION_INDEX.slice(0, 6);
+  if (!q) return pool.slice(0, 6);
 
-  return GLOBAL_NAVIGATION_INDEX.filter(
+  return pool.filter(
     (entry) =>
       entry.label.toLowerCase().includes(q) ||
       entry.keywords.some((keyword) => keyword.includes(q) || q.includes(keyword))

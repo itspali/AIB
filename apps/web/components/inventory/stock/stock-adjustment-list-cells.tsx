@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListQuantity } from "@/lib/list-columns/format-list-value";
 import {
   getStockAdjustmentColumnDef,
   type StockAdjustmentColumnId,
@@ -56,7 +57,7 @@ export function renderStockAdjustmentListCell(
     case "reason":
       return <div className={cn("line-clamp-2", LIST_TABLE_CELL_SECONDARY)}>{row.reason}</div>;
     case "lines":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.line_count)}</span>;
     case "posted":
       return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.posted_at)}</span>;
     default:

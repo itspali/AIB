@@ -5,9 +5,12 @@ export const PROCUREMENT_QC_INSPECTION_HREF = "/procurement/quality-inspection";
 export const PROCUREMENT_BILLS_HREF = "/procurement/bills";
 export const PROCUREMENT_GIT_HREF = "/procurement/goods-in-transit";
 export const PROCUREMENT_SHIPMENTS_HREF = "/procurement/shipments";
+export const PROCUREMENT_SUBCONTRACT_HREF = "/procurement/subcontract";
+export const INVENTORY_STOCK_HREF = "/inventory/stock";
 export const SETTINGS_LOCATIONS_HREF = "/settings/locations";
 
 export const GRN_DRAWER_PO_PARAM = "po";
+export const IMPORT_SHIPMENT_DRAWER_PO_PARAM = "po";
 export const BILL_DRAWER_PO_PARAM = "po";
 export const PO_COPY_FROM_PARAM = "copyFrom";
 export const PO_STATUS_FILTER_PARAM = "status";
@@ -41,6 +44,14 @@ export function poFullPageEditHref(purchaseOrderId: string): string {
 export function poListReturnHref(purchaseOrderId?: string | null): string {
   if (!purchaseOrderId) return PROCUREMENT_PO_HREF;
   return `${PROCUREMENT_PO_HREF}?id=${encodeURIComponent(purchaseOrderId)}`;
+}
+
+export function importShipmentCreateFromPoHref(purchaseOrderId: string): string {
+  const params = new URLSearchParams({
+    action: "new",
+    [IMPORT_SHIPMENT_DRAWER_PO_PARAM]: purchaseOrderId,
+  });
+  return `${PROCUREMENT_SHIPMENTS_HREF}?${params.toString()}`;
 }
 
 export function billCreateFromPoHref(purchaseOrderId: string): string {

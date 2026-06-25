@@ -28,6 +28,18 @@ function revalidateSubcontractPaths() {
   for (const path of SUBCONTRACT_PATHS) revalidatePath(path);
 }
 
+export async function loadSubcontractWipSupplierIds(): Promise<string[]> {
+  const { supabase, tenantId } = await requireTenantMutation();
+  const { data, error } = await supabase
+    .from("vendor_job_work_locations")
+    .select("supplier_id")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  if (error) throw new Error(error.message);
+  return [...new Set((data ?? []).map((row) => String(row.supplier_id)))];
+}
+
 export async function loadSubcontractAdminContext() {
   const { supabase, tenantId } = await requireTenantMutation();
 

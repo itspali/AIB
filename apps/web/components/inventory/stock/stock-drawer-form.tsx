@@ -18,6 +18,7 @@ import {
   DocumentLinePeekValueCell,
 } from "@/components/documents/document-line-peek-table";
 import { RightDrawer, isNarrowRightDrawer, useRightDrawerLayout } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
@@ -250,6 +251,9 @@ export function StockDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const lineTableFillHeight = useDocumentLineTableFillHeight(isMutating);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
     active: open && isMutating,
@@ -434,7 +438,11 @@ export function StockDrawerForm({
         title={resolveDrawerTitle(surface, detail, peekBalance)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
-        bodyClassName={isMutating ? "module-drawer-form-body" : undefined}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
+        bodyClassName={
+          surface === "peek" ? peekBodyClassName : isMutating ? "module-drawer-form-body" : undefined
+        }
         scrollable={!(isMutating && lineTableFillHeight)}
         showCloseButton
       >

@@ -1,4 +1,5 @@
 import { BillManagementTerminal } from "@/components/procurement/bills/bill-management-terminal";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { fetchPurchaseBillsPage } from "@/lib/procurement/bills/queries";
 import { fetchBillablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
@@ -23,6 +24,7 @@ export async function BillCatalogLoader() {
   const tolerance = Number.isFinite(matchingTolerancePct) ? matchingTolerancePct : 2;
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="procurement-bills">
     <BillManagementTerminal
       initialBills={billsPage.rows}
       listTotalCount={billsPage.totalCount}
@@ -32,5 +34,6 @@ export async function BillCatalogLoader() {
       billableOrders={billableOrders}
       matchingTolerancePct={tolerance}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

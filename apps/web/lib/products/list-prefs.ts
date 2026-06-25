@@ -844,6 +844,20 @@ export function setColumnPrefsSlice(
   };
 }
 
+/** Applies the same column prefs to every device breakpoint (split-feed unified columns). */
+export function setColumnPrefsSliceAllDevices(
+  prefs: ProductListPrefs,
+  viewMode: ProductListViewMode,
+  slice: ListColumnPrefs<ProductListColumnId>,
+  cardContext?: ColumnPrefsCardContext
+): ProductListPrefs {
+  let next = prefs;
+  for (const deviceClass of DEVICE_CLASSES) {
+    next = setColumnPrefsSlice(next, viewMode, deviceClass, slice, cardContext);
+  }
+  return next;
+}
+
 export function setCardGridColumnsSlice(
   prefs: ProductListPrefs,
   deviceClass: DeviceClass,

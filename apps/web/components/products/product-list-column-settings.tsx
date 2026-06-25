@@ -8,10 +8,13 @@ import {
 } from "@/components/products/product-list-view-icons";
 import {
   ListColumnSettings,
-  type ColumnSettingsDevice,
   type ColumnSettingsLayout,
   type ColumnSettingsLayoutPreset,
 } from "@/components/list-columns/list-column-settings";
+import {
+  LIST_MODULE_COLUMN_SETTINGS_CHROME,
+  useColumnSettingsEditingDevice,
+} from "@/lib/list-columns/list-module-column-settings";
 import { resolveViewableColumnIds } from "@/lib/list-columns/types";
 import {
   isProductFieldAllowed,
@@ -22,16 +25,19 @@ import {
   productCardColumnDisabledReason,
 } from "@/lib/products/card-column-applicability";
 import { PRODUCT_LIST_COLUMN_REGISTRY, type ProductListColumnId } from "@/lib/products/list-columns";
+import { ITEMS_WORKSPACE_DISABLED_COLUMNS, ITEMS_WORKSPACE_PINNED_COLUMNS } from "@/lib/items/split-feed-card-plan";
 import {
   getColumnPrefsContextForDisplayPreset,
   getColumnPrefsSlice,
   getProductListDisplayPreset,
   setCardGridColumnsSlice,
   setColumnPrefsSlice,
+  setColumnPrefsSliceAllDevices,
   type DeviceClass,
   type ProductListDisplayPreset,
   type ProductListPrefs,
 } from "@/lib/products/list-prefs";
+import type { ListWorkspaceLayout } from "@/lib/layout/list-workspace";
 
 const PRODUCT_COLUMN_LAYOUT_PRESETS: ColumnSettingsLayoutPreset[] = [
   { id: "list", label: "List", title: "List layout", icon: List },
@@ -53,6 +59,10 @@ type Props = {
   isSaving?: boolean;
   triggerClassName?: string;
   triggerVariant?: "outline" | "ghost";
+  /** Items catalog — full column prefs; card layout presets hidden (workspace uses table). */
+  mode?: "default" | "items-matrix";
+  /** Split layout — unified columns across breakpoints; hides screen/freeze controls. */
+  workspaceLayout?: ListWorkspaceLayout;
 };
 
 function presetToEditingLayout(preset: ProductListDisplayPreset): ColumnSettingsLayout {
@@ -68,18 +78,20 @@ export function ProductListColumnSettings({
   isSaving = false,
   triggerClassName,
   triggerVariant,
+  mode = "default",
+  workspaceLayout,
 }: Props) {
+  const isItemsMatrix = mode === "items-matrix";
+  const isSplitWorkspace = isItemsMatrix && workspaceLayout === "split";
   const activePreset = getProductListDisplayPreset(prefs);
-  const [editingPreset, setEditingPreset] = useState<ProductListDisplayPreset>(activePreset);
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
-
+  const [editingPreset, setEditingPreset] = useState<ProductListDisplayPreset>(
+    isItemsMatrix ? "list" : activePreset
+  );
   useEffect(() => {
-    setEditingPreset(activePreset);
-  }, [activePreset]);
+    if (!isItemsMatrix) setEditingPreset(activePreset);
+  }, [activePreset, isItemsMatrix]);
 
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
+  const [editingDevice, setEditingDevice] = useColumnSettingsEditingDevice(detectedDeviceClass);
 
   const editingLayout = presetToEditingLayout(editingPreset);
   const cardColumnContext = getColumnPrefsContextForDisplayPreset(editingPreset);
@@ -112,27 +124,39 @@ export function ProductListColumnSettings({
       detectedDevice={detectedDeviceClass}
       onEditingLayoutChange={() => {}}
       onEditingDeviceChange={setEditingDevice}
-      layoutPresets={PRODUCT_COLUMN_LAYOUT_PRESETS}
-      editingLayoutPreset={editingPreset}
-      onEditingLayoutPresetChange={(presetId) =>
-        setEditingPreset(presetId as ProductListDisplayPreset)
+      layoutPresets={isItemsMatrix ? undefined : PRODUCT_COLUMN_LAYOUT_PRESETS}
+      editingLayoutPreset={isItemsMatrix ? "list" : editingPreset}
+      onEditingLayoutPresetChange={
+        isItemsMatrix
+          ? undefined
+          : (presetId) => setEditingPreset(presetId as ProductListDisplayPreset)
       }
-      hideCardVariantControls
-      controlBarLayout="split"
+      showDeviceSwitcher={!isItemsMatrix || workspaceLayout !== "split"}
+      {...LIST_MODULE_COLUMN_SETTINGS_CHROME}
+      showLayoutSwitcher={!isItemsMatrix}
       onChange={(columnPrefs) =>
         onChange(
-          setColumnPrefsSlice(
-            prefs,
-            editingLayout,
-            editingDevice as DeviceClass,
-            columnPrefs,
-            cardColumnContext
-          )
+          isSplitWorkspace
+            ? setColumnPrefsSliceAllDevices(
+                prefs,
+                editingLayout === "card" ? "card" : "table",
+                columnPrefs,
+                cardColumnContext
+              )
+            : setColumnPrefsSlice(
+                prefs,
+                editingLayout,
+                editingDevice as DeviceClass,
+                columnPrefs,
+                cardColumnContext
+              )
         )
       }
-      frozenColumnCount={prefs.frozenColumnCount}
-      onFrozenColumnCountChange={(frozenColumnCount) =>
-        onChange({ ...prefs, frozenColumnCount })
+      frozenColumnCount={isSplitWorkspace ? undefined : prefs.frozenColumnCount}
+      onFrozenColumnCountChange={
+        isSplitWorkspace
+          ? undefined
+          : (frozenColumnCount) => onChange({ ...prefs, frozenColumnCount })
       }
       cardGridColumns={prefs.cardGridColumns[editingDevice as DeviceClass]}
       onCardGridColumnsChange={(columns) =>
@@ -159,6 +183,9 @@ export function ProductListColumnSettings({
               cardOrientation
             )
       }
+      lockedColumnIds={isItemsMatrix ? ITEMS_WORKSPACE_PINNED_COLUMNS : undefined}
+      disabledColumnIds={isItemsMatrix ? ITEMS_WORKSPACE_DISABLED_COLUMNS : undefined}
+      disabledColumnReason="Inactive items use row styling instead"
       disabled={disabled}
       isSaving={isSaving}
       triggerClassName={triggerClassName}

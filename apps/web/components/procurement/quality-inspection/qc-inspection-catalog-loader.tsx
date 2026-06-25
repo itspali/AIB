@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { QcInspectionCatalogPageSkeleton } from "@/components/procurement/quality-inspection/qc-inspection-catalog-page-skeleton";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { fetchQcInspectionQueuePage } from "@/lib/procurement/quality-inspection/queries";
 import { fetchProcurementLocations } from "@/lib/procurement/shared/queries";
 import { fetchProcurementSettings } from "@/lib/procurement/settings";
@@ -23,6 +24,7 @@ export async function QcInspectionCatalogLoader() {
   ]);
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="procurement-quality-inspection">
     <QcInspectionManagementTerminal
       initialRows={queuePage.rows}
       listTotalCount={queuePage.totalCount}
@@ -30,5 +32,6 @@ export async function QcInspectionCatalogLoader() {
       locations={locations}
       qcModuleEnabled={procurementSettings.is_qc_required_before_stocking}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

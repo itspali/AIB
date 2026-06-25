@@ -123,6 +123,19 @@ export function formatGoodsReceiptRpcError(
     };
   }
 
+  if (message.toLowerCase().includes("insufficient subcontract wip")) {
+    return {
+      message: message.replace(
+        /^insufficient subcontract wip for /i,
+        "Insufficient subcontract WIP for "
+      ),
+      action: {
+        href: "/inventory/stock",
+        label: "Review stock at WIP",
+      },
+    };
+  }
+
   return {
     message: replaceLocationTokens(message, context),
   };

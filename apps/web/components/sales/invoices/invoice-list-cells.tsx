@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { SalesListDocumentRefLink } from "@/components/sales/shared/sales-list-document-ref-link";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency } from "@/lib/list-columns/format-list-value";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import {
@@ -79,9 +80,11 @@ export function renderSalesInvoiceListCell(
         />
       );
     case "net_amount":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_net_amount}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatListCurrency(row.total_net_amount)}</span>;
     case "paid_amount":
-      return <span className={LIST_TABLE_CELL_SECONDARY}>{row.total_paid_amount}</span>;
+      return (
+        <span className={LIST_TABLE_CELL_AMOUNT}>{formatListCurrency(row.total_paid_amount)}</span>
+      );
     case "created":
       return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "updated":

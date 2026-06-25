@@ -34,6 +34,8 @@ export type ModuleNavChild = {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Hidden unless tenant has import logistics enabled. */
+  importOnly?: boolean;
   /** Section is planned but not yet built; links to a "coming soon" view. */
   comingSoon?: boolean;
 };
@@ -91,6 +93,7 @@ export const moduleNavItems: ModuleNavItem[] = [
         href: "/procurement/shipments",
         label: "Import Shipments",
         icon: Ship,
+        importOnly: true,
       },
       {
         href: "/procurement/quality-inspection",
@@ -101,6 +104,7 @@ export const moduleNavItems: ModuleNavItem[] = [
         href: "/procurement/goods-in-transit",
         label: "Goods in Transit",
         icon: Truck,
+        importOnly: true,
       },
       {
         href: "/procurement/subcontract",

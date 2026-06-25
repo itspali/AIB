@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import { purchaseOrderStatusDisplayLabel } from "@/lib/procurement/purchase-orders/labels";
 import type { PurchaseOrderListColumnId } from "@/lib/procurement/purchase-orders/list-columns";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
@@ -22,9 +23,9 @@ export function getPurchaseOrderListCellDisplayTexts(
     case "status":
       return [purchaseOrderStatusDisplayLabel(row)];
     case "lines":
-      return [String(row.line_count)];
+      return [formatListQuantity(row.line_count)];
     case "net_amount":
-      return [row.total_net_amount];
+      return [formatListCurrency(row.total_net_amount)];
     case "created":
       return [formatDate(row.created_at)];
     case "created_by":

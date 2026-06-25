@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import type {
   StockAdjustmentColumnId,
   StockBalanceColumnId,
@@ -25,18 +26,18 @@ export function getStockBalanceCellDisplayTexts(
       return [row.variant_sku];
     case "on_hand":
       return row.below_reorder
-        ? [String(row.total_quantity_on_hand), "Low"]
-        : [String(row.total_quantity_on_hand)];
+        ? [formatListQuantity(row.total_quantity_on_hand), "Low"]
+        : [formatListQuantity(row.total_quantity_on_hand)];
     case "available":
-      return [String(row.quantity_available)];
+      return [formatListQuantity(row.quantity_available)];
     case "reserved":
-      return [String(row.quantity_reserved)];
+      return [formatListQuantity(row.quantity_reserved)];
     case "promo_on_hand":
-      return [row.promo_quantity_on_hand ?? "—"];
+      return [formatListQuantity(row.promo_quantity_on_hand)];
     case "avg_cost":
-      return [row.current_average_cost];
+      return [formatListCurrency(row.current_average_cost)];
     case "reorder":
-      return [row.reorder_point ?? "—"];
+      return [formatListQuantity(row.reorder_point)];
     default:
       return ["—"];
   }
@@ -59,7 +60,7 @@ export function getStockAdjustmentCellDisplayTexts(
     case "reason":
       return [row.reason?.trim() || "—"];
     case "lines":
-      return [String(row.line_count)];
+      return [formatListQuantity(row.line_count)];
     case "posted":
       return [formatDate(row.posted_at)];
     default:

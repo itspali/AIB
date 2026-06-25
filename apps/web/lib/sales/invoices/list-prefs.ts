@@ -1,11 +1,20 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   INVOICE_LIST_COLUMN_REGISTRY,
   type SalesInvoiceListColumnId,
@@ -21,7 +30,7 @@ import type { SalesPaymentStatus } from "@/lib/sales/orders/types";
 import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-prefs";
 
 const STORAGE_KEY = "aib:sales-invoice-list-prefs";
-const PREFS_VERSION = 1;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export type SalesInvoiceListPrefs = {
   customerId: string | null;
@@ -29,7 +38,7 @@ export type SalesInvoiceListPrefs = {
   paymentStatus: SalesPaymentStatus | "all";
   sortField: SalesInvoiceListSortField;
   sortDirection: SalesInvoiceListSortDirection;
-  columnPrefs: ListColumnPrefs<SalesInvoiceListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<SalesInvoiceListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
@@ -40,8 +49,36 @@ export function getDefaultSalesInvoiceListPrefs(): SalesInvoiceListPrefs {
     paymentStatus: "all",
     sortField: DEFAULT_INVOICE_SORT_FIELD,
     sortDirection: DEFAULT_INVOICE_SORT_DIRECTION,
-    columnPrefs: getDefaultListColumnPrefs(INVOICE_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(INVOICE_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getSalesInvoiceColumnPrefsSlice(
+  prefs: SalesInvoiceListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<SalesInvoiceListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setSalesInvoiceColumnPrefsSlice(
+  prefs: SalesInvoiceListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<SalesInvoiceListColumnId>
+): SalesInvoiceListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setSalesInvoiceColumnPrefsSliceAllDevices(
+  prefs: SalesInvoiceListPrefs,
+  slice: ListColumnPrefs<SalesInvoiceListColumnId>
+): SalesInvoiceListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -55,10 +92,14 @@ export function loadSalesInvoiceListPrefs(): SalesInvoiceListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(INVOICE_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(INVOICE_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(
+          INVOICE_LIST_COLUMN_REGISTRY,
+          legacyDesktop
+        ),
       };
     }
 
@@ -73,10 +114,15 @@ export function loadSalesInvoiceListPrefs(): SalesInvoiceListPrefs {
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(INVOICE_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(INVOICE_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      INVOICE_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       customerId: parsed.customerId ?? null,
@@ -98,25 +144,25 @@ export function saveSalesInvoiceListPrefs(prefs: SalesInvoiceListPrefs): void {
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(INVOICE_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    INVOICE_LIST_COLUMN_REGISTRY,
+    getSalesInvoiceColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setSalesInvoiceColumnWidth(
   prefs: SalesInvoiceListPrefs,
+  deviceClass: DeviceClass,
   columnId: SalesInvoiceListColumnId,
   width: number | null
 ): SalesInvoiceListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

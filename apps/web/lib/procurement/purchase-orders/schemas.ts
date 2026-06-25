@@ -122,6 +122,7 @@ export const savePurchaseOrderSchema = z.object({
   receipt_location_id: z.string().uuid().optional().or(z.literal("")),
   ultimate_destination_location_id: z.string().uuid().optional().or(z.literal("")),
   po_fulfillment_stage_override: z.enum(["", "COMMERCIAL", "FINAL"]).optional(),
+  is_subcontract_job: z.boolean().optional().default(false),
 });
 
 export type SavePurchaseOrderInput = z.infer<typeof savePurchaseOrderSchema>;

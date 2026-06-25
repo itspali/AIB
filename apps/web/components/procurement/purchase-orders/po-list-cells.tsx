@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import {
   getPurchaseOrderColumnDef,
   type PurchaseOrderListColumnId,
@@ -56,9 +57,9 @@ export function renderPurchaseOrderListCell(
       });
     }
     case "lines":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.line_count)}</span>;
     case "net_amount":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_net_amount}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatListCurrency(row.total_net_amount)}</span>;
     case "created":
       return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
     case "created_by":

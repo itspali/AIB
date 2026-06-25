@@ -9,7 +9,6 @@ import {
   useState,
   useTransition,
 } from "react";
-import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   bulkActivateCategories,
@@ -18,21 +17,34 @@ import {
   loadCategoryItemCounts,
   loadCategoryRows,
 } from "@/app/items/categories/actions";
+import { CategoryDetailCanvas } from "@/components/categories/category-detail-canvas";
 import { CategoryEmptyState } from "@/components/categories/category-empty-state";
+import { CategoryMatrixPeekDrawer } from "@/components/categories/category-matrix-peek-drawer";
+import { CategoryMatrixRegistryPane } from "@/components/categories/category-matrix-registry-pane";
+import {
+  CategoryToolbarControls,
+  CategoryToolbarCount,
+} from "@/components/categories/category-toolbar-controls";
+import { CategoriesUnifiedCatalogHeader } from "@/components/categories/categories-unified-catalog-header";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
-import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
-import { Button } from "@/components/ui/button";
+import { ListWorkspaceMatrixLayout } from "@/components/layout/list-workspace-matrix-layout";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ListWorkspaceSplitLayout,
+  useListWorkspaceSplitDesktop,
+} from "@/components/layout/list-workspace-split-layout";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
+import { LIST_WORKSPACE_GLASS_V2_ROOT } from "@/lib/layout/list-module-chrome";
+import { useListWorkspace, type ListWorkspaceLayout } from "@/lib/layout/list-workspace";
+import { isMutationSurface } from "@/lib/layout/module-drawer-url";
+import { filterCategoryListRowsByFeedQuery } from "@/lib/categories/feed-filter";
+import { withoutCategoriesWorkspaceDisabledColumns } from "@/lib/categories/category-row-meta";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { CATEGORIES_HREF } from "@/lib/categories/category-navigation";
 import { enrichCategoryListRows } from "@/lib/categories/list-row";
 import {
+  AUTO_LAYOUT_PREF,
   getColumnPrefsSlice,
   getDefaultCategoryListPrefs,
   getOrderedVisibleColumns,
@@ -42,7 +54,6 @@ import {
   saveCategoryListPrefs,
   setColumnWidthSlice,
   type CategoryListPrefs,
-  type CategoryTableViewMode,
 } from "@/lib/categories/list-prefs";
 import type { CategoryListColumnId } from "@/lib/categories/list-columns";
 import { sortCategoryListRows, type CategoryListSortDirection, type CategoryListSortField } from "@/lib/categories/list-sort";
@@ -52,14 +63,12 @@ import {
   upsertCategoryRow,
 } from "@/lib/categories/row-state";
 import type { CategoryRow } from "@/lib/categories/types";
-import { flattenTree } from "@/lib/categories/tree";
+import { filterCategoryTree, flattenTree } from "@/lib/categories/tree";
 import { useFilteredCategories } from "@/lib/categories/use-filtered-categories";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
-
-const CATEGORIES_PAGE_DESCRIPTION =
-  "Configure hierarchical item categories and inherited attribute templates.";
+import { cn } from "@/lib/utils";
 
 const CategoryDrawerForm = lazyClientExport(
   () => import("@/components/categories/category-drawer-form"),
@@ -72,16 +81,6 @@ const CategoryDeleteDialogLazy = lazyClientExport(
 const CategoryBulkDeleteAlertLazy = lazyClientExport(
   () => import("@/components/categories/category-bulk-delete-alert"),
   "CategoryBulkDeleteAlert"
-);
-
-const CategoryListTable = lazyClientExport(
-  () => import("@/components/categories/category-list-table"),
-  "CategoryListTable"
-);
-
-const CategoryListToolbar = lazyClientExport(
-  () => import("@/components/categories/category-list-toolbar"),
-  "CategoryListToolbar"
 );
 
 const CategoryBulkActionToolbar = lazyClientExport(
@@ -108,36 +107,6 @@ type Props = {
   initialSavedView?: SavedViewSnapshot | null;
 };
 
-function CategoriesPageTitleHeader({ onNewCategory }: { onNewCategory: () => void }) {
-  return (
-    <div className="mb-4 flex items-center justify-between gap-2.5 sm:mb-5">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">Categories</h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-              aria-label="About Categories"
-            >
-              <Info className="h-4 w-4" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72 p-3">
-            <p className="text-sm leading-snug text-muted-foreground">
-              {CATEGORIES_PAGE_DESCRIPTION}
-            </p>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <Button type="button" className="shrink-0 gap-1.5" onClick={onNewCategory}>
-        <Plus className="h-4 w-4" aria-hidden />
-        New
-      </Button>
-    </div>
-  );
-}
-
 function resolveBulkCategoryIds(
   bulkSelectAllMatching: boolean,
   bulkSelectedIds: Set<string>,
@@ -152,6 +121,8 @@ export function CategoryManagementTerminal({
   itemCountByCategoryId: initialItemCountByCategoryId = {},
   initialSavedView = null,
 }: Props) {
+  const { setLayout } = useListWorkspace();
+  const isSplitDesktop = useListWorkspaceSplitDesktop();
   const drawer = useModuleDrawerUrl(CATEGORIES_HREF, { canonicalizeLegacy: true });
   const omnibar = useOptionalOmnibarContext();
   const serverViewHydratedRef = useRef(false);
@@ -171,6 +142,15 @@ export function CategoryManagementTerminal({
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+  const [feedFilterQuery, setFeedFilterQuery] = useState("");
+
+  const handlePrefsChange = useCallback(
+    (next: CategoryListPrefs) => {
+      setPrefs(next);
+      setLayout(next.viewMode === "tree" ? "split" : "matrix");
+    },
+    [setLayout]
+  );
 
   useEffect(() => {
     if (initialRows.length > 0) return;
@@ -200,8 +180,15 @@ export function CategoryManagementTerminal({
       ? (rows.find((row) => row.id === drawer.recordId) ?? null)
       : null;
 
-  const tableViewMode: CategoryTableViewMode =
-    prefs.viewMode === "compact" ? "compact" : "table";
+  const tableViewMode = prefs.viewMode === "table";
+  const isTreeView = !tableViewMode;
+  const useInlineSplitDetail = isTreeView && isSplitDesktop;
+  const workspaceLayout: ListWorkspaceLayout = isTreeView ? "split" : "matrix";
+
+  const listRowById = useMemo(() => {
+    const enriched = enrichCategoryListRows(filteredRows, rows, itemCountByCategoryId);
+    return new Map(enriched.map((row) => [row.id, row]));
+  }, [filteredRows, rows, itemCountByCategoryId]);
 
   const listRows = useMemo(() => {
     const enriched = enrichCategoryListRows(
@@ -218,12 +205,22 @@ export function CategoryManagementTerminal({
     prefs.sortField,
   ]);
 
+  const feedFilteredListRows = useMemo(
+    () => filterCategoryListRowsByFeedQuery(listRows, feedFilterQuery),
+    [listRows, feedFilterQuery]
+  );
+
+  const feedFilteredTree = useMemo(() => {
+    if (!feedFilterQuery.trim()) return filteredTree;
+    return filterCategoryTree(filteredTree, feedFilterQuery);
+  }, [filteredTree, feedFilterQuery]);
+
   const visibleCategoryIds = useMemo(() => {
     if (isCategoryTableLikeViewMode(prefs.viewMode)) {
-      return listRows.map((row) => row.id);
+      return feedFilteredListRows.map((row) => row.id);
     }
-    return flattenTree(filteredTree).map((node) => node.id);
-  }, [filteredTree, listRows, prefs.viewMode]);
+    return flattenTree(feedFilteredTree).map((node) => node.id);
+  }, [feedFilteredListRows, feedFilteredTree, prefs.viewMode]);
 
   const matchingCategoryIds = useMemo(
     () => filteredRows.map((row) => row.id),
@@ -238,14 +235,13 @@ export function CategoryManagementTerminal({
 
   const visibleColumns = useMemo(
     () =>
-      isCategoryTableLikeViewMode(prefs.viewMode)
-        ? getOrderedVisibleColumns(prefs, tableViewMode, deviceClass)
-        : [],
-    [deviceClass, prefs, tableViewMode]
+      withoutCategoriesWorkspaceDisabledColumns(
+        getOrderedVisibleColumns(prefs, deviceClass)
+      ),
+    [deviceClass, prefs]
   );
 
-  const columnPrefsSlice = getColumnPrefsSlice(prefs, tableViewMode, deviceClass);
-  const frozenColumnCount = resolveFrozenColumnCount(prefs, deviceClass);
+  const columnPrefsSlice = getColumnPrefsSlice(prefs, deviceClass);
 
   const bulkSelectionCount = bulkSelectAllMatching
     ? matchingCategoryIds.length
@@ -265,6 +261,13 @@ export function CategoryManagementTerminal({
   const handleSelectCategory = useCallback(
     (categoryId: string) => {
       drawer.openPeek(categoryId);
+    },
+    [drawer]
+  );
+
+  const handleEditCategory = useCallback(
+    (category: CategoryRow) => {
+      drawer.openEdit(category.id);
     },
     [drawer]
   );
@@ -475,6 +478,11 @@ export function CategoryManagementTerminal({
 
   useEffect(() => {
     if (!prefsHydrated) return;
+    setLayout(prefs.viewMode === "tree" ? "split" : "matrix");
+  }, [prefs.viewMode, prefsHydrated, setLayout]);
+
+  useEffect(() => {
+    if (!prefsHydrated) return;
     saveCategoryListPrefs(prefs);
   }, [prefs, prefsHydrated]);
 
@@ -482,56 +490,88 @@ export function CategoryManagementTerminal({
     setPendingDelete(category);
   };
 
-  const listPrimary = rowsLoading ? (
-    <Skeleton className="h-full min-h-[240px] w-full" />
-  ) : rows.length === 0 ? (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
-        <CategoryEmptyState onCreate={drawer.openCreate} hasExistingCategories={false} />
-      </div>
-    ) : isCategoryTableLikeViewMode(prefs.viewMode) ? (
-      <CategoryListTable
-        rows={listRows}
-        columns={visibleColumns}
-        columnWrapModes={columnPrefsSlice.columnWrapModes}
-        columnChipDisplay={columnPrefsSlice.columnChipDisplay}
-        columnWidths={columnPrefsSlice.columnWidths}
-        deviceClass={deviceClass}
-        selectedId={selectedId}
-        bulkSelectedIds={bulkSelectedIds}
-        pageAllSelected={pageAllSelected}
-        pageSomeSelected={pageSomeSelected}
-        sortField={prefs.sortField}
-        sortDirection={prefs.sortDirection}
-        frozenColumnCount={frozenColumnCount}
-        freezeColumnsAuto
-        compactRows={prefs.viewMode === "compact"}
-        onSortChange={(sortField: CategoryListSortField, sortDirection: CategoryListSortDirection) =>
-          setPrefs((current) => ({ ...current, sortField, sortDirection }))
-        }
-        onColumnWidthChange={(columnId: CategoryListColumnId, width: number | null) =>
-          setPrefs((current) =>
-            setColumnWidthSlice(current, tableViewMode, deviceClass, columnId, width)
-          )
-        }
-        onSelect={handleSelectCategory}
-        onBulkRowToggle={handleBulkRowToggle}
-        onBulkPageToggle={handleBulkPageToggle}
-      />
-    ) : (
-      <CategoryTreePanel
-        filteredTree={filteredTree}
-        totalRows={totalCount}
-        selectedId={selectedId}
-        bulkSelectedIds={bulkSelectedIds}
-        onSelect={handleSelectCategory}
-        onBulkRowToggle={handleBulkRowToggle}
-      />
-    );
+  const catalogEmpty = rows.length === 0;
+  const filterEmptyMessage = "No categories match the current filter.";
+  const peekDrawerOpen = drawer.isOpen && drawer.surface === "peek";
+  const mutationDrawerOpen = drawer.isOpen && isMutationSurface(drawer.surface);
+  const usePeekDrawer = !useInlineSplitDetail;
 
-  const body = (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-      {listPrimary}
+  const toolbarControls = (
+    <CategoryToolbarControls
+      prefs={prefs}
+      onPrefsChange={handlePrefsChange}
+      detectedDeviceClass={deviceClass}
+      prefsHydrated={prefsHydrated}
+      workspaceLayout={workspaceLayout}
+    />
+  );
+
+  const toolbarCount = (
+    <CategoryToolbarCount resultCount={resultCount} totalCount={totalCount} />
+  );
+
+  const treePanel = (
+    <CategoryTreePanel
+      filteredTree={feedFilteredTree}
+      totalRows={totalCount}
+      listRowById={listRowById}
+      metaColumns={visibleColumns}
+      selectedId={selectedId}
+      bulkSelectedIds={bulkSelectedIds}
+      onSelect={handleSelectCategory}
+      onBulkRowToggle={handleBulkRowToggle}
+    />
+  );
+
+  const tablePane = (
+    <CategoryMatrixRegistryPane
+      rows={feedFilteredListRows}
+      columns={visibleColumns}
+      columnWrapModes={columnPrefsSlice.columnWrapModes}
+      columnChipDisplay={columnPrefsSlice.columnChipDisplay}
+      columnWidths={columnPrefsSlice.columnWidths}
+      deviceClass={deviceClass}
+      selectedId={selectedId}
+      onSelect={handleSelectCategory}
+      catalogEmpty={catalogEmpty}
+      emptyMessage={filterEmptyMessage}
+      sortField={prefs.sortField}
+      sortDirection={prefs.sortDirection}
+      onSortChange={(sortField: CategoryListSortField, sortDirection: CategoryListSortDirection) =>
+        handlePrefsChange({ ...prefs, sortField, sortDirection })
+      }
+      onColumnWidthChange={(columnId: CategoryListColumnId, width: number | null) =>
+        handlePrefsChange(setColumnWidthSlice(prefs, deviceClass, columnId, width))
+      }
+      bulkSelectedIds={bulkSelectedIds}
+      onBulkRowToggle={handleBulkRowToggle}
+      onBulkPageToggle={handleBulkPageToggle}
+      frozenColumnCount={resolveFrozenColumnCount(prefs, deviceClass)}
+      freezeColumnsAuto={prefs.frozenColumnCount === AUTO_LAYOUT_PREF}
+    />
+  );
+
+  const listBody = rowsLoading ? (
+    <Skeleton className="h-full min-h-[240px] w-full" />
+  ) : catalogEmpty ? (
+    <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+      <CategoryEmptyState onCreate={drawer.openCreate} hasExistingCategories={false} />
     </div>
+  ) : isTreeView ? (
+    treePanel
+  ) : (
+    tablePane
+  );
+
+  const peekDrawer = (
+    <CategoryMatrixPeekDrawer
+      open={peekDrawerOpen && usePeekDrawer}
+      category={peekCategory}
+      allRows={rows}
+      onClose={() => drawer.close()}
+      onEdit={handleEditCategory}
+      onDelete={openDelete}
+    />
   );
 
   const bulkToolbar =
@@ -554,29 +594,55 @@ export function CategoryManagementTerminal({
       />
     ) : null;
 
-  const drawerOpen = drawer.isOpen;
+  const drawerOpen = mutationDrawerOpen;
 
   return (
     <>
-      <ListModuleShell
-        title={<CategoriesPageTitleHeader onNewCategory={drawer.openCreate} />}
-        toolbar={
-          rows.length > 0 ? (
-            <CategoryListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              detectedDeviceClass={deviceClass}
-              resultCount={resultCount}
-              totalCount={totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
-        }
-        bulkToolbar={bulkToolbar}
+      <div
+        data-list-workspace-layout={workspaceLayout}
+        data-ui-header-chrome="unified"
+        className={cn("flex min-h-0 flex-1 flex-col", LIST_WORKSPACE_GLASS_V2_ROOT)}
       >
-        {body}
-      </ListModuleShell>
+        <ListModuleShell
+          surface="classic"
+          title={
+            <CategoriesUnifiedCatalogHeader
+              onNewCategory={drawer.openCreate}
+              count={toolbarCount}
+              controls={toolbarControls}
+              layout={workspaceLayout}
+              feedFilter={{ value: feedFilterQuery, onChange: setFeedFilterQuery }}
+            />
+          }
+          bulkToolbar={bulkToolbar}
+          className="list-module-shell-root"
+        >
+          {useInlineSplitDetail ? (
+            <ListWorkspaceSplitLayout
+              detailOpen={peekDrawerOpen}
+              mobileDetailOpen={false}
+              listPane={
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {listBody}
+                </div>
+              }
+              detailPane={
+                <CategoryDetailCanvas
+                  category={peekCategory}
+                  allRows={rows}
+                  onEdit={handleEditCategory}
+                  onDelete={openDelete}
+                />
+              }
+            />
+          ) : (
+            <>
+              <ListWorkspaceMatrixLayout>{listBody}</ListWorkspaceMatrixLayout>
+              {peekDrawer}
+            </>
+          )}
+        </ListModuleShell>
+      </div>
 
       {drawerOpen ? (
         <CategoryDrawerForm

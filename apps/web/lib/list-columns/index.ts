@@ -54,3 +54,23 @@ export {
 } from "@/lib/list-columns/sizing";
 export type { DeviceClass } from "@/lib/layout/device-class";
 export { DEVICE_CLASSES, readDeviceClassFromViewportWidth } from "@/lib/layout/device-class";
+export type {
+  TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
+export {
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  migrateFlatToDeviceColumnPrefs,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+} from "@/lib/list-columns/device-column-prefs";
+export { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
+export {
+  LIST_MODULE_COLUMN_SETTINGS_CHROME,
+  resolveColumnSettingsDeviceSwitcher,
+  useColumnSettingsEditingDevice,
+  isSplitWorkspaceLayout,
+} from "@/lib/list-columns/list-module-column-settings";

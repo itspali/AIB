@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CommandHubHeader } from "@/components/dashboard/command-hub-header";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
 import { SetupReminderBanner } from "@/components/dashboard/setup-reminder-banner";
 import { ApprovalQueuePanel } from "@/components/dashboard/approval-queue-panel";
 import { GettingStartedChecklistLazy } from "@/components/dashboard/getting-started-checklist-lazy";
@@ -31,6 +32,7 @@ export default async function DashboardPage() {
     bootstrap.hasWorkspaceAccess && !bootstrap.financeSetupComplete;
 
   return (
+    <OverviewGlassShell>
     <div className="canvas-scroll-endpad">
       <CommandHubHeader approvalAlertCount={approvalAlertCount} />
 
@@ -54,5 +56,6 @@ export default async function DashboardPage() {
         <TaxPolicySection />
       </Suspense>
     </div>
+    </OverviewGlassShell>
   );
 }

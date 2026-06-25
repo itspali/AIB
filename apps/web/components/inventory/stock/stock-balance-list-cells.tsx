@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import type { StockBalanceColumnId } from "@/lib/inventory/stock/list-columns";
 import type { StockBalanceRow } from "@/lib/inventory/stock/types";
 import {
@@ -41,7 +42,7 @@ export function renderStockBalanceListCell(
     case "on_hand":
       return (
         <div className="inline-flex items-center justify-end gap-2">
-          <span className={LIST_TABLE_CELL_AMOUNT}>{row.total_quantity_on_hand}</span>
+          <span className={LIST_TABLE_CELL_AMOUNT}>{formatListQuantity(row.total_quantity_on_hand)}</span>
           {row.below_reorder ? (
             <Badge variant="action_required" className="text-[10px]">
               Low
@@ -50,17 +51,19 @@ export function renderStockBalanceListCell(
         </div>
       );
     case "available":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.quantity_available}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatListQuantity(row.quantity_available)}</span>;
     case "reserved":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.quantity_reserved}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.quantity_reserved)}</span>;
     case "promo_on_hand":
       return (
-        <span className={LIST_TABLE_CELL_COUNT}>{row.promo_quantity_on_hand ?? "—"}</span>
+        <span className={LIST_TABLE_CELL_COUNT}>
+          {formatListQuantity(row.promo_quantity_on_hand)}
+        </span>
       );
     case "avg_cost":
-      return <span className={LIST_TABLE_CELL_AMOUNT}>{row.current_average_cost}</span>;
+      return <span className={LIST_TABLE_CELL_AMOUNT}>{formatListCurrency(row.current_average_cost)}</span>;
     case "reorder":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.reorder_point ?? "—"}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.reorder_point)}</span>;
     default:
       return null;
   }

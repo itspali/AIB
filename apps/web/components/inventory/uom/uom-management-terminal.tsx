@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteUom, seedDefaultUoms } from "@/app/settings/uom/actions";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { UomDrawerForm } from "@/components/inventory/uom/uom-drawer-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,7 @@ export function UomManagementTerminal({ initialRows, canManage }: Props) {
         )}
       </header>
 
+      <SettingsGlassShell>
       {!canManage && (
         <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
           You have read-only access to units of measure. Editing requires an owner or admin role.
@@ -167,6 +169,7 @@ export function UomManagementTerminal({ initialRows, canManage }: Props) {
           </table>
         </Card>
       )}
+      </SettingsGlassShell>
 
       {canManage && (
         <UomDrawerForm

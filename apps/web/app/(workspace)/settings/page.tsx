@@ -11,9 +11,12 @@ import {
   User,
 } from "lucide-react";
 import { ModuleOverview } from "@/components/layout/module-overview";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
 
 export default function AdministrationPage() {
   return (
+    <OverviewGlassShell>
+    <div className="canvas-scroll-endpad">
     <ModuleOverview
       title="Administration"
       description="Workspace governance — organization profile, enterprise group, locations, tax, and access."
@@ -81,5 +84,7 @@ export default function AdministrationPage() {
         },
       ]}
     />
+    </div>
+    </OverviewGlassShell>
   );
 }

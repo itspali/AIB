@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { formatDate } from "@/lib/dashboard/format";
 import {
   SHIPPING_CARRIER_OPTIONS,
@@ -58,6 +59,9 @@ export function FulfillmentShippingDrawerForm({
   onClose,
   onAfterPost,
 }: Props) {
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const [error, setError] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<UserFacingErrorAction | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -162,6 +166,10 @@ export function FulfillmentShippingDrawerForm({
           </Button>
         ) : null
       }
+      allowBackgroundInteraction={surface === "peek"}
+      peekMode={surface === "peek"}
+      className={peekShellClassName}
+      bodyClassName={surface === "peek" ? peekBodyClassName : undefined}
     >
       {error ? (
         <UserFacingErrorMessage

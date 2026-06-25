@@ -19,12 +19,12 @@ import {
 
 export type { DeviceClass } from "@/lib/layout/device-class";
 
-export type CategoryListViewMode = "tree" | "table" | "compact";
+export type CategoryListViewMode = "tree" | "table";
 
-export const CATEGORY_TABLE_VIEW_MODES: CategoryListViewMode[] = ["table", "compact"];
+export const CATEGORY_TABLE_VIEW_MODES: CategoryListViewMode[] = ["table"];
 
 export function isCategoryTableLikeViewMode(viewMode: CategoryListViewMode): boolean {
-  return viewMode === "table" || viewMode === "compact";
+  return viewMode === "table";
 }
 
 export type CategoryListFrozenColumnCount = 0 | 1 | 2 | 3;
@@ -32,12 +32,10 @@ export type CategoryListFrozenColumnCount = 0 | 1 | 2 | 3;
 export const AUTO_LAYOUT_PREF = "auto" as const;
 export type FrozenColumnPref = CategoryListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const CATEGORY_LIST_PREFS_VERSION = 3;
-
-export type CategoryTableViewMode = "table" | "compact";
+export const CATEGORY_LIST_PREFS_VERSION = 4;
 
 export type CategoryListColumnPrefsByContext = Record<
-  CategoryTableViewMode,
+  "table",
   Record<DeviceClass, ListColumnPrefs<CategoryListColumnId>>
 >;
 
@@ -124,10 +122,7 @@ export function getDefaultCategoryListColumnPrefsByContext(): CategoryListColumn
     tablet: buildContextPrefs(TABLE_TABLET_VISIBLE),
     mobile: buildContextPrefs(TABLE_MOBILE_VISIBLE),
   };
-  return {
-    table,
-    compact: cloneDeviceColumnPrefs(table),
-  };
+  return { table };
 }
 
 function parseFrozenColumnCount(value: unknown): FrozenColumnPref {
@@ -137,9 +132,26 @@ function parseFrozenColumnCount(value: unknown): FrozenColumnPref {
 }
 
 function parseViewMode(value: unknown): CategoryListViewMode {
-  if (value === "table" || value === "compact" || value === "tree") return value;
-  if (value === "list") return "table";
+  if (value === "table" || value === "tree") return value;
+  if (value === "compact" || value === "list") return "table";
   return "tree";
+}
+
+function normalizeStoredColumnPrefs(
+  raw: unknown,
+  defaults: CategoryListColumnPrefsByContext
+): CategoryListColumnPrefsByContext {
+  if (!raw || typeof raw !== "object") return defaults;
+  const record = raw as Partial<CategoryListColumnPrefsByContext> & {
+    compact?: Record<DeviceClass, ListColumnPrefs<CategoryListColumnId>>;
+  };
+  if (record.table) {
+    return { table: cloneDeviceColumnPrefs(record.table) };
+  }
+  if (record.compact) {
+    return { table: cloneDeviceColumnPrefs(record.compact) };
+  }
+  return defaults;
 }
 
 export function getDefaultCategoryListPrefs(): CategoryListPrefs {
@@ -167,10 +179,7 @@ export function coerceCategoryListPrefs(raw: unknown): CategoryListPrefs {
   const sortDirection =
     record.sortDirection === "desc" ? "desc" : defaults.sortDirection;
 
-  let columnPrefs = defaults.columnPrefs;
-  if (record.columnPrefs && typeof record.columnPrefs === "object") {
-    columnPrefs = record.columnPrefs as CategoryListColumnPrefsByContext;
-  }
+  const columnPrefs = normalizeStoredColumnPrefs(record.columnPrefs, defaults.columnPrefs);
 
   return {
     prefsVersion: CATEGORY_LIST_PREFS_VERSION,
@@ -207,53 +216,60 @@ export function saveCategoryListPrefs(prefs: CategoryListPrefs): void {
 
 export function getColumnPrefsSlice(
   prefs: CategoryListPrefs,
-  viewMode: CategoryTableViewMode,
   deviceClass: DeviceClass
 ): ListColumnPrefs<CategoryListColumnId> {
-  return prefs.columnPrefs[viewMode][deviceClass];
+  return prefs.columnPrefs.table[deviceClass];
 }
 
 export function setColumnPrefsSlice(
   prefs: CategoryListPrefs,
-  viewMode: CategoryTableViewMode,
   deviceClass: DeviceClass,
   slice: ListColumnPrefs<CategoryListColumnId>
 ): CategoryListPrefs {
   return {
     ...prefs,
     columnPrefs: {
-      ...prefs.columnPrefs,
-      [viewMode]: {
-        ...prefs.columnPrefs[viewMode],
+      table: {
+        ...prefs.columnPrefs.table,
         [deviceClass]: slice,
       },
     },
   };
 }
 
+/** Applies the same column prefs to every device breakpoint (split-feed unified columns). */
+export function setColumnPrefsSliceAllDevices(
+  prefs: CategoryListPrefs,
+  slice: ListColumnPrefs<CategoryListColumnId>
+): CategoryListPrefs {
+  let next = prefs;
+  for (const deviceClass of DEVICE_CLASSES) {
+    next = setColumnPrefsSlice(next, deviceClass, slice);
+  }
+  return next;
+}
+
 export function getOrderedVisibleColumns(
   prefs: CategoryListPrefs,
-  viewMode: CategoryTableViewMode,
   deviceClass: DeviceClass
 ): CategoryListColumnId[] {
-  return getOrderedVisibleListColumns(getColumnPrefsSlice(prefs, viewMode, deviceClass));
+  return getOrderedVisibleListColumns(getColumnPrefsSlice(prefs, deviceClass));
 }
 
 export function setColumnWidthSlice(
   prefs: CategoryListPrefs,
-  viewMode: CategoryTableViewMode,
   deviceClass: DeviceClass,
   columnId: CategoryListColumnId,
   width: number | null
 ): CategoryListPrefs {
-  const slice = getColumnPrefsSlice(prefs, viewMode, deviceClass);
+  const slice = getColumnPrefsSlice(prefs, deviceClass);
   const columnWidths = { ...(slice.columnWidths ?? {}) };
   if (width == null) {
     delete columnWidths[columnId];
   } else {
     columnWidths[columnId] = width;
   }
-  return setColumnPrefsSlice(prefs, viewMode, deviceClass, {
+  return setColumnPrefsSlice(prefs, deviceClass, {
     ...slice,
     columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
   });

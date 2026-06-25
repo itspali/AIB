@@ -15,6 +15,7 @@ import {
 } from "@/lib/layout/shell-queries";
 import type { WorkspaceDeletionStatus } from "@/lib/organization/deletion";
 import type { OperatorProfile } from "@/lib/user/types";
+import { GLASS_V2_APP_SHELL_ROOT } from "@/lib/layout/list-module-chrome";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -59,7 +60,7 @@ export function DashboardShell({
 
   return (
     <OmnibarProviderLazy operatorProfile={liveOperatorProfile} tenantId={tenantId}>
-      <div className="flex h-screen flex-col overflow-hidden bg-background">
+      <div className={cn("flex h-screen flex-col overflow-hidden", GLASS_V2_APP_SHELL_ROOT)}>
         {impersonation ? (
           <ImpersonationBanner
             tenantName={impersonation.tenantName}
@@ -68,7 +69,7 @@ export function DashboardShell({
           />
         ) : null}
         {workspaceDeletion ? <WorkspaceDeletionBanner deletion={workspaceDeletion} /> : null}
-        <div className="relative z-20 w-full shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
+        <div className="glass-v2-app-top-strip relative z-20 w-full shrink-0 border-b backdrop-blur-xl">
           <TopUtilityStrip
             orgName={orgName}
             progressPercent={progressPercent}

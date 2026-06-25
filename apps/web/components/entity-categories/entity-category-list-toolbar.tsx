@@ -3,6 +3,7 @@
 import { ArrowUpDown, ListTree, Rows3, Table2 } from "lucide-react";
 import { EntityCategoryListColumnSettings } from "@/components/entity-categories/entity-category-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
+import { ListWorkspaceLayoutToggleControl } from "@/components/layout/list-workspace-layout-toggle-control";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
@@ -45,6 +46,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -56,6 +58,7 @@ export function EntityCategoryListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const omnibar = useOptionalOmnibarContext();
@@ -85,6 +88,7 @@ export function EntityCategoryListToolbar({
       countNoun="category"
       countNounPlural="categories"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters />
@@ -137,6 +141,8 @@ export function EntityCategoryListToolbar({
               </Select>
             </div>
           ) : null}
+
+          <ListWorkspaceLayoutToggleControl />
 
           <div className="shrink-0 sm:hidden">
             <Select

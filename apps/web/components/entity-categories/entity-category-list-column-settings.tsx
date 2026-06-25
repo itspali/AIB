@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import {
   ListColumnSettings,
-  type ColumnSettingsDevice,
   type ColumnSettingsLayout,
 } from "@/components/list-columns/list-column-settings";
+import { useColumnSettingsEditingDevice } from "@/lib/list-columns/list-module-column-settings";
 import { getEntityCategoryListColumnRegistry } from "@/lib/entity-categories/list-columns";
 import {
   getColumnPrefsSlice,
@@ -42,15 +42,11 @@ export function EntityCategoryListColumnSettings({
     prefs.viewMode === "compact" ? "compact" : "table";
 
   const [editingLayout, setEditingLayout] = useState<ColumnSettingsLayout>(tableViewMode);
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
+  const [editingDevice, setEditingDevice] = useColumnSettingsEditingDevice(detectedDeviceClass);
 
   useEffect(() => {
     setEditingLayout(tableViewMode);
   }, [tableViewMode]);
-
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
 
   const slice = getColumnPrefsSlice(
     prefs,
@@ -86,6 +82,8 @@ export function EntityCategoryListColumnSettings({
       isSaving={isSaving}
       triggerClassName={triggerClassName}
       triggerVariant={triggerVariant}
+      hideCardVariantControls
+      showLayoutSwitcher
     />
   );
 }

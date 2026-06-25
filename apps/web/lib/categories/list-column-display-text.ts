@@ -1,6 +1,7 @@
 import { formatDate } from "@/lib/dashboard/format";
 import type { CategoryListColumnId } from "@/lib/categories/list-columns";
 import type { CategoryListRow } from "@/lib/categories/list-row";
+import { isBlankMatrixDisplayValue } from "@/lib/layout/matrix-blank-value";
 
 export function getCategoryListCellDisplayTexts(
   columnId: CategoryListColumnId,
@@ -28,4 +29,14 @@ export function getCategoryListCellDisplayTexts(
     default:
       return ["—"];
   }
+}
+
+/** True when a matrix table cell has no value to render (skip accent/underline styling). */
+export function isCategoryListMatrixCellBlank(
+  columnId: CategoryListColumnId,
+  row: CategoryListRow
+): boolean {
+  const texts = getCategoryListCellDisplayTexts(columnId, row);
+  if (texts.length === 0) return true;
+  return texts.every((text) => isBlankMatrixDisplayValue(text));
 }

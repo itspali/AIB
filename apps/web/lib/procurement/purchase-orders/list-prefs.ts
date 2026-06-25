@@ -1,11 +1,21 @@
 import {
   getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   PO_LIST_COLUMN_REGISTRY,
   type PurchaseOrderListColumnId,
@@ -20,14 +30,14 @@ import type { PurchaseOrderStatus } from "@/lib/procurement/purchase-orders/type
 import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-prefs";
 
 const STORAGE_KEY = "aib:procurement-po-list-prefs";
-const PREFS_VERSION = 2;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export type PurchaseOrderListPrefs = {
   status: PurchaseOrderStatus | "all";
   locationId: string | null;
   sortField: PurchaseOrderListSortField;
   sortDirection: PurchaseOrderListSortDirection;
-  columnPrefs: ListColumnPrefs<PurchaseOrderListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<PurchaseOrderListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
@@ -37,8 +47,36 @@ export function getDefaultPurchaseOrderListPrefs(): PurchaseOrderListPrefs {
     locationId: null,
     sortField: DEFAULT_PO_SORT_FIELD,
     sortDirection: DEFAULT_PO_SORT_DIRECTION,
-    columnPrefs: getDefaultListColumnPrefs(PO_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(PO_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getPurchaseOrderColumnPrefsSlice(
+  prefs: PurchaseOrderListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<PurchaseOrderListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setPurchaseOrderColumnPrefsSlice(
+  prefs: PurchaseOrderListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<PurchaseOrderListColumnId>
+): PurchaseOrderListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setPurchaseOrderColumnPrefsSliceAllDevices(
+  prefs: PurchaseOrderListPrefs,
+  slice: ListColumnPrefs<PurchaseOrderListColumnId>
+): PurchaseOrderListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -52,10 +90,11 @@ export function loadPurchaseOrderListPrefs(): PurchaseOrderListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(PO_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(PO_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(PO_LIST_COLUMN_REGISTRY, legacyDesktop),
       };
     }
 
@@ -70,10 +109,15 @@ export function loadPurchaseOrderListPrefs(): PurchaseOrderListPrefs {
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(PO_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(PO_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      PO_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       status: parsed.status ?? "all",
@@ -94,25 +138,25 @@ export function savePurchaseOrderListPrefs(prefs: PurchaseOrderListPrefs): void 
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(PO_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    PO_LIST_COLUMN_REGISTRY,
+    getPurchaseOrderColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setPurchaseOrderColumnWidth(
   prefs: PurchaseOrderListPrefs,
+  deviceClass: DeviceClass,
   columnId: PurchaseOrderListColumnId,
   width: number | null
 ): PurchaseOrderListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

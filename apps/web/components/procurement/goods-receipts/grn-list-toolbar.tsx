@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUpDown } from "lucide-react";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { GrnListColumnSettings } from "@/components/procurement/goods-receipts/grn-list-column-settings";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
@@ -34,6 +35,7 @@ type Props = {
   totalCount: number;
   compactCountLabel?: boolean;
   prefsHydrated?: boolean;
+  hideCount?: boolean;
 };
 
 export function GrnListToolbar({
@@ -44,6 +46,7 @@ export function GrnListToolbar({
   totalCount,
   compactCountLabel = false,
   prefsHydrated = true,
+  hideCount = false,
 }: Props) {
   const { deviceClass } = useDeviceClass();
   const controlsDisabled = !prefsHydrated;
@@ -61,6 +64,7 @@ export function GrnListToolbar({
       countNoun="receipt"
       countNounPlural="receipts"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -162,11 +166,15 @@ export function GrnListToolbar({
             </Select>
           </div>
 
-          <GrnListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <GrnListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

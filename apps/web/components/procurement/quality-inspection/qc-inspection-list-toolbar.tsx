@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUpDown } from "lucide-react";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { QcInspectionListColumnSettings } from "@/components/procurement/quality-inspection/qc-inspection-list-column-settings";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
@@ -36,6 +37,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   prefsHydrated?: boolean;
+  hideCount?: boolean;
 };
 
 export function QcInspectionListToolbar({
@@ -47,6 +49,7 @@ export function QcInspectionListToolbar({
   resultCount,
   totalCount,
   prefsHydrated = true,
+  hideCount = false,
 }: Props) {
   const { deviceClass } = useDeviceClass();
   const controlsDisabled = !prefsHydrated;
@@ -63,6 +66,7 @@ export function QcInspectionListToolbar({
       totalCount={totalCount}
       countNoun="line"
       countNounPlural="lines"
+      hideCount={hideCount}
       controls={
         <>
           <Input
@@ -172,11 +176,15 @@ export function QcInspectionListToolbar({
             </Select>
           </div>
 
-          <QcInspectionListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <QcInspectionListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

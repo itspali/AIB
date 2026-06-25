@@ -10,8 +10,13 @@ import { QuoteEmptyState } from "@/components/sales/quotes/quote-empty-state";
 import { QuoteListTable } from "@/components/sales/quotes/quote-list-table";
 import { QuoteListToolbar } from "@/components/sales/quotes/quote-list-toolbar";
 import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
@@ -21,6 +26,7 @@ import {
   setSalesQuoteColumnWidth,
   type SalesQuoteListPrefs,
 } from "@/lib/sales/quotes/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortSalesQuoteListRows,
   type SalesQuoteListSortDirection,
@@ -34,6 +40,11 @@ import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapSalesQuoteRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesDocumentConversionMode } from "@/lib/sales/document-conversion-settings";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
@@ -41,9 +52,6 @@ import {
   canUserApproveSalesQuotes,
   isSalesQuoteApprovableByUser,
 } from "@/lib/sales/approval-settings";
-
-const QUOTE_PAGE_DESCRIPTION =
-  "Create sales quotations, route them through approval, and convert to orders or invoices.";
 
 const QuoteDrawerForm = lazyClientExport(
   () => import("@/components/sales/quotes/quote-drawer-form"),
@@ -120,6 +128,7 @@ export function QuoteManagementTerminal({
   );
   const [prefs, setPrefs] = useState<SalesQuoteListPrefs>(getDefaultSalesQuoteListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -199,9 +208,21 @@ export function QuoteManagementTerminal({
 
   const hasAnyData = quotes.length > 0;
   const filteredRows = quotesView.filteredRows;
+
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.quotation_number,
+      row.customer_name,
+      row.origin_location_name,
+      row.origin_location_code,
+      row.commercial_status,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortSalesQuoteListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [prefs.sortDirection, prefs.sortField, filteredRows]
+    () => sortSalesQuoteListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [prefs.sortDirection, prefs.sortField, feedFilteredRows]
   );
 
   const approvableMatchingIds = useMemo(
@@ -223,6 +244,9 @@ export function QuoteManagementTerminal({
   const bulkSelectionCount = bulkSelectAllMatching
     ? approvableMatchingIds.length
     : bulkSelectedIds.size;
+
+  const showBulkSelectionColumn =
+    canBulkApprove && approvableMatchingIds.length > 0;
 
   const clearBulkSelection = useCallback(() => {
     setBulkSelectedIds(new Set());
@@ -318,17 +342,17 @@ export function QuoteManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <QuoteListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleSortChange}
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setSalesQuoteColumnWidth(current, columnId, width))
+          setPrefs((current) => setSalesQuoteColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         onSelect={handleSelect}
-        bulkSelectionEnabled={canBulkApprove}
+        bulkSelectionEnabled={showBulkSelectionColumn}
         bulkSelectedIds={bulkSelectedIds}
         pageAllSelected={pageAllSelected}
         pageSomeSelected={pageSomeSelected}
@@ -372,36 +396,89 @@ export function QuoteManagementTerminal({
       />
     ) : null;
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={quotes.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="quotes"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapSalesQuoteRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No quotes match the current filters.",
+    footer: listFooter,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <QuoteEmptyState onCreate={drawer.openCreate} hasCustomers={customers.length > 0} />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No quotes match the current filters.
+        </div>
+      </div>
+    ),
+    bulkEnabled: showBulkSelectionColumn,
+    bulkSelectedIds,
+    pageAllSelected,
+    pageSomeSelected,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+  });
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Quotes"
-            description={QUOTE_PAGE_DESCRIPTION}
-            createLabel="New quote"
-            onCreate={editAccessGranted ? drawer.openCreate : undefined}
-            aboutAriaLabel="About Sales Quotes"
+            count={
+              hasAnyData ? `${quotesView.resultCount}/${quotesView.totalCount}` : undefined
+            }
+            onNew={editAccessGranted ? drawer.openCreate : undefined}
+            newAriaLabel="New quote"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <QuoteListToolbar
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  customers={customers}
+                  resultCount={quotesView.resultCount}
+                  totalCount={quotesView.totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          hasAnyData ? (
-            <QuoteListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              customers={customers}
-              resultCount={quotesView.resultCount}
-              totalCount={quotesView.totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={bulkToolbar}
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a quote"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -431,6 +508,7 @@ export function QuoteManagementTerminal({
           onOpenEdit={handleOpenEdit}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

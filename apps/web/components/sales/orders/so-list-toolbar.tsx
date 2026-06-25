@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUpDown } from "lucide-react";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { SoListColumnSettings } from "@/components/sales/orders/so-list-column-settings";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
@@ -46,6 +47,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -126,6 +128,7 @@ export function SoListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const { deviceClass } = useDeviceClass();
@@ -146,6 +149,7 @@ export function SoListToolbar({
       countNoun="order"
       countNounPlural="orders"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -233,11 +237,15 @@ export function SoListToolbar({
             </Select>
           </div>
 
-          <SoListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <SoListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

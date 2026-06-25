@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CategoryTreeNodeRow } from "@/components/categories/category-tree-node";
+import type { CategoryListColumnId } from "@/lib/categories/list-columns";
+import type { CategoryListRow } from "@/lib/categories/list-row";
 import type { CategoryTreeNode } from "@/lib/categories/types";
 import { collectExpandableCategoryIds } from "@/lib/categories/tree";
 
 type Props = {
   filteredTree: CategoryTreeNode[];
   totalRows: number;
+  listRowById: Map<string, CategoryListRow>;
+  metaColumns: CategoryListColumnId[];
   selectedId: string | null;
   bulkSelectedIds: Set<string>;
   onSelect: (id: string) => void;
@@ -17,6 +21,8 @@ type Props = {
 export function CategoryTreePanel({
   filteredTree,
   totalRows,
+  listRowById,
+  metaColumns,
   selectedId,
   bulkSelectedIds,
   onSelect,
@@ -43,7 +49,7 @@ export function CategoryTreePanel({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto overscroll-contain scrollbar-none px-0.5 pt-2">
+    <div className="glass-v2-tree-scroll">
       <div className="min-h-0 flex-1 space-y-1 pb-2">
         {filteredTree.length === 0 ? (
           <p className="px-2 py-4 text-sm text-muted-foreground">
@@ -54,6 +60,8 @@ export function CategoryTreePanel({
             <CategoryTreeNodeRow
               key={node.id}
               node={node}
+              listRowById={listRowById}
+              metaColumns={metaColumns}
               selectedId={selectedId}
               bulkSelectedIds={bulkSelectedIds}
               onSelect={onSelect}

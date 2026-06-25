@@ -450,6 +450,7 @@ export function TaxCodeDrawerForm({
         }}
         title={resolveDrawerTitle(surface, row)}
         allowBackgroundInteraction={surface === "peek"}
+        peekMode={surface === "peek"}
         bodyClassName={cn(surface === "peek" && "module-drawer-peek-body")}
       >
         {drawerBody}

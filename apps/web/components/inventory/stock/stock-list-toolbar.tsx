@@ -2,6 +2,7 @@
 
 import { ArrowUpDown } from "lucide-react";
 import { StockListColumnSettings } from "@/components/inventory/stock/stock-list-column-settings";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import {
@@ -44,6 +45,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -103,6 +105,7 @@ export function StockListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const { deviceClass } = useDeviceClass();
@@ -136,6 +139,7 @@ export function StockListToolbar({
       countNoun={countNoun}
       countNounPlural={countNounPlural}
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -259,11 +263,15 @@ export function StockListToolbar({
                 </Select>
               </div>
 
-              <StockListColumnSettings
-                prefs={prefs}
-                onChange={onPrefsChange}
-                detectedDeviceClass={deviceClass}
-                disabled={controlsDisabled}
+              <CatalogToolbarTrailingControls
+                columnSettings={
+                  <StockListColumnSettings
+                    prefs={prefs}
+                    onChange={onPrefsChange}
+                    detectedDeviceClass={deviceClass}
+                    disabled={controlsDisabled}
+                  />
+                }
               />
             </>
           ) : null}

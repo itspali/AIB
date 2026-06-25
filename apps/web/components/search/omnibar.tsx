@@ -7,6 +7,7 @@ import { listFilterValueOptions } from "@/app/search/actions";
 import { HintDrawer } from "@/components/search/hint-drawer";
 import { OmnibarScopeSelect } from "@/components/search/omnibar-scope-select";
 import { useOmnibarContext } from "@/components/search/omnibar-provider";
+import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import { buildFieldDict } from "@/lib/search/permissions/resolve-field-dict";
 import {
   analyzeActiveSegment,
@@ -55,6 +56,7 @@ export function Omnibar({
     applyQueryDirect,
     setInlinePreview,
   } = useOmnibarContext();
+  const { importsEnabled } = useOnboardingContext();
 
   const [focused, setFocused] = useState(false);
   const [cursor, setCursor] = useState(0);
@@ -149,6 +151,7 @@ export function Omnibar({
     return buildOmnibarHints(rawQuery, cursor, scope, fieldDict, {
       valueOptions,
       analysis: segmentAnalysis,
+      importsEnabled,
     });
   }, [
     focused,
@@ -161,6 +164,7 @@ export function Omnibar({
     fieldDict,
     valueOptions,
     segmentAnalysis,
+    importsEnabled,
   ]);
 
   const inValuePhase = focused && !showRecent && segmentAnalysis.phase === "value";

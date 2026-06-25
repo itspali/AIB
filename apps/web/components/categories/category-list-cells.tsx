@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListQuantity } from "@/lib/list-columns/format-list-value";
 import { booleanValueKey } from "@/lib/list-columns/chip-colors";
 import { renderChipOrText } from "@/lib/list-columns/render-chip-value";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
@@ -15,6 +16,16 @@ import {
 } from "@/lib/layout/list-table-chrome";
 import { cn } from "@/lib/utils";
 
+type CategoryListCellSurface = "list" | "matrix";
+
+function isMatrixSurface(surface?: CategoryListCellSurface): boolean {
+  return surface === "matrix";
+}
+
+function matrixCellEmpty(surface?: CategoryListCellSurface): ReactNode {
+  return isMatrixSurface(surface) ? null : "—";
+}
+
 export function categoryListCellClassName(columnId: CategoryListColumnId): string {
   if (columnId === "name") return LIST_TABLE_CELL_PRIMARY;
   if (columnId === "parent_name") return "text-muted-foreground";
@@ -26,6 +37,7 @@ export function categoryListCellClassName(columnId: CategoryListColumnId): strin
 
 type RenderCategoryListCellOptions = {
   chipDisplay?: Partial<Record<CategoryListColumnId, ColumnChipDisplay>>;
+  surface?: CategoryListCellSurface;
 };
 
 function formatBooleanCell(
@@ -49,11 +61,13 @@ export function renderCategoryListCell(
   row: CategoryListRow,
   options?: RenderCategoryListCellOptions
 ): ReactNode {
+  const matrix = isMatrixSurface(options?.surface);
+
   switch (columnId) {
     case "name":
       return row.name;
     case "parent_name":
-      return row.parent_name;
+      return row.parent_name?.trim() ? row.parent_name : matrixCellEmpty(options?.surface);
     case "is_active": {
       const column = getCategoryColumnDef("is_active");
       const label = row.is_active ? "Active" : "Inactive";
@@ -66,7 +80,7 @@ export function renderCategoryListCell(
       });
     }
     case "item_count":
-      return row.item_count;
+      return formatListQuantity(row.item_count);
     case "default_variant_strategy": {
       const column = getCategoryColumnDef("default_variant_strategy");
       const label = row.default_variant_strategy.replace(/_/g, " ");
@@ -81,7 +95,7 @@ export function renderCategoryListCell(
     case "default_item_type": {
       const column = getCategoryColumnDef("default_item_type");
       const raw = row.default_item_type;
-      if (!raw) return "—";
+      if (!raw) return matrixCellEmpty(options?.surface);
       const label = raw.replace(/_/g, " ");
       return renderChipOrText({
         column,
@@ -92,7 +106,7 @@ export function renderCategoryListCell(
       });
     }
     case "attribute_count":
-      return row.attribute_count;
+      return formatListQuantity(row.attribute_count);
     case "inherit_parent_attributes":
       return formatBooleanCell(
         "inherit_parent_attributes",
@@ -100,11 +114,19 @@ export function renderCategoryListCell(
         options?.chipDisplay
       );
     case "created_at":
-      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>;
+      return matrix ? (
+        formatDate(row.created_at)
+      ) : (
+        <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.created_at)}</span>
+      );
     case "updated_at":
-      return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>;
+      return matrix ? (
+        formatDate(row.updated_at)
+      ) : (
+        <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.updated_at)}</span>
+      );
     default:
-      return "—";
+      return matrixCellEmpty(options?.surface);
   }
 }
 

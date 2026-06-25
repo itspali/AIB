@@ -1,11 +1,20 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   GRN_LIST_COLUMN_REGISTRY,
   type GoodsReceiptListColumnId,
@@ -19,13 +28,13 @@ import {
 import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-prefs";
 
 const STORAGE_KEY = "aib:procurement-grn-list-prefs";
-const PREFS_VERSION = 2;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export type GoodsReceiptListPrefs = {
   locationId: string | null;
   sortField: GoodsReceiptListSortField;
   sortDirection: GoodsReceiptListSortDirection;
-  columnPrefs: ListColumnPrefs<GoodsReceiptListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<GoodsReceiptListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
@@ -34,8 +43,36 @@ export function getDefaultGoodsReceiptListPrefs(): GoodsReceiptListPrefs {
     locationId: null,
     sortField: DEFAULT_GRN_SORT_FIELD,
     sortDirection: DEFAULT_GRN_SORT_DIRECTION,
-    columnPrefs: getDefaultListColumnPrefs(GRN_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(GRN_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getGoodsReceiptColumnPrefsSlice(
+  prefs: GoodsReceiptListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<GoodsReceiptListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setGoodsReceiptColumnPrefsSlice(
+  prefs: GoodsReceiptListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<GoodsReceiptListColumnId>
+): GoodsReceiptListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setGoodsReceiptColumnPrefsSliceAllDevices(
+  prefs: GoodsReceiptListPrefs,
+  slice: ListColumnPrefs<GoodsReceiptListColumnId>
+): GoodsReceiptListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -49,10 +86,11 @@ export function loadGoodsReceiptListPrefs(): GoodsReceiptListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(GRN_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(GRN_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(GRN_LIST_COLUMN_REGISTRY, legacyDesktop),
       };
     }
 
@@ -67,10 +105,15 @@ export function loadGoodsReceiptListPrefs(): GoodsReceiptListPrefs {
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(GRN_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(GRN_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      GRN_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       locationId: parsed.locationId ?? null,
@@ -90,25 +133,25 @@ export function saveGoodsReceiptListPrefs(prefs: GoodsReceiptListPrefs): void {
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(GRN_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    GRN_LIST_COLUMN_REGISTRY,
+    getGoodsReceiptColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setGoodsReceiptColumnWidth(
   prefs: GoodsReceiptListPrefs,
+  deviceClass: DeviceClass,
   columnId: GoodsReceiptListColumnId,
   width: number | null
 ): GoodsReceiptListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

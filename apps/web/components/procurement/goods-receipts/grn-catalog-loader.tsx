@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { GrnCatalogPageSkeleton } from "@/components/procurement/goods-receipts/grn-catalog-page-skeleton";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { fetchGoodsReceiptsPage } from "@/lib/procurement/goods-receipts/queries";
 import { fetchReceivablePurchaseOrders } from "@/lib/procurement/purchase-orders/queries";
 import { fetchProcurementLocations } from "@/lib/procurement/shared/queries";
@@ -30,6 +31,7 @@ export async function GrnCatalogLoader() {
   ]);
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="procurement-goods-receipts">
     <GrnManagementTerminal
       initialGoodsReceipts={goodsReceiptsPage.rows}
       listTotalCount={goodsReceiptsPage.totalCount}
@@ -42,5 +44,6 @@ export async function GrnCatalogLoader() {
         procurementSettings.landed_cost_allocation_method as LandedCostAllocationMethod
       }
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

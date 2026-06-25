@@ -8,6 +8,7 @@ import {
 
 const stagingGitSettings = {
   ...DEFAULT_IMPORT_LOGISTICS_SETTINGS,
+  imports_enabled: true,
   import_receipt_document_strategy: "SEPARATE_GRNS_PER_STAGE" as const,
   import_receipt_mode: "STAGING_THEN_GIT" as const,
   po_fulfillment_stage: "COMMERCIAL" as const,
@@ -93,6 +94,7 @@ describe("resolveGrnReceiptContext", () => {
     const ctx = resolveGrnReceiptContext(
       {
         ...DEFAULT_IMPORT_LOGISTICS_SETTINGS,
+        imports_enabled: true,
         import_receipt_document_strategy: "SINGLE_FINAL_ONLY",
       },
       po,
@@ -100,5 +102,15 @@ describe("resolveGrnReceiptContext", () => {
     );
     expect(ctx.allowedStages).toEqual(["FINAL"]);
     expect(ctx.showStageSelector).toBe(false);
+  });
+
+  it("limits stages to FINAL when imports are disabled", () => {
+    const ctx = resolveGrnReceiptContext(
+      { ...DEFAULT_IMPORT_LOGISTICS_SETTINGS, imports_enabled: false },
+      po,
+      null
+    );
+    expect(ctx.allowedStages).toEqual(["FINAL"]);
+    expect(ctx.receiptStage).toBe("FINAL");
   });
 });

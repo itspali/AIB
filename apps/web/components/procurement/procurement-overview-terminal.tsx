@@ -1,19 +1,8 @@
 import Link from "next/link";
-import {
-  Building2,
-  ClipboardCheck,
-  ClipboardList,
-  FolderTree,
-  PackageCheck,
-  ScrollText,
-  Ship,
-  Truck,
-} from "lucide-react";
-import { ModuleOverview, type ModuleOverviewCard } from "@/components/layout/module-overview";
+import { ModuleOverview } from "@/components/layout/module-overview";
 import { ProcurementPolicySummary } from "@/components/procurement/procurement-policy-summary";
-import { SUPPLIERS_HREF } from "@/lib/entities/entity-navigation";
-import { supplierCategoriesHref } from "@/lib/entity-categories/navigation";
 import type { EntityOverviewStats } from "@/lib/entities/types";
+import { resolveProcurementOverviewCards } from "@/lib/procurement/overview-cards";
 import type { ProcurementSettings } from "@/lib/procurement/settings";
 
 type Props = {
@@ -28,54 +17,16 @@ type Props = {
     | "po_auto_round_off_enabled"
   >;
   supplierStats: Pick<EntityOverviewStats, "supplier_count" | "active_supplier_count">;
+  importsEnabled?: boolean;
 };
 
-const CARDS: ModuleOverviewCard[] = [
-  {
-    href: "/procurement/purchase-orders",
-    label: "Purchase Orders",
-    description: "Create draft POs, issue to suppliers, and track fulfillment status.",
-    icon: ClipboardList,
-  },
-  {
-    href: "/procurement/goods-receipts",
-    label: "Goods Receipts",
-    description: "Post GRNs against purchase orders or receive stock directly at a location.",
-    icon: PackageCheck,
-  },
-  {
-    href: "/procurement/goods-in-transit",
-    label: "Goods in Transit",
-    description: "Move stock to GIT holding nodes and clear them when import receipts land.",
-    icon: Ship,
-  },
-  {
-    href: "/procurement/subcontract",
-    label: "Subcontracting",
-    description: "Vendor job work locations and BOM backflush for finished goods receipts.",
-    icon: Truck,
-  },
-  {
-    href: SUPPLIERS_HREF,
-    label: "Suppliers",
-    description: "Vendor master profiles, contacts, and purchasing terms.",
-    icon: Building2,
-  },
-  {
-    href: supplierCategoriesHref(),
-    label: "Supplier Categories",
-    description: "Hierarchical supplier taxonomy and inherited attribute templates.",
-    icon: FolderTree,
-  },
-  {
-    href: "/procurement/bills",
-    label: "Bills",
-    description: "Supplier invoices, three-way match, and accounts payable posting.",
-    icon: ScrollText,
-  },
-];
+export function ProcurementOverviewTerminal({
+  procurementSettings,
+  supplierStats,
+  importsEnabled = false,
+}: Props) {
+  const cards = resolveProcurementOverviewCards(importsEnabled);
 
-export function ProcurementOverviewTerminal({ procurementSettings, supplierStats }: Props) {
   return (
     <div className="canvas-scroll-endpad space-y-5">
       <header>
@@ -108,7 +59,7 @@ export function ProcurementOverviewTerminal({ procurementSettings, supplierStats
       <ModuleOverview
         title="Workflows"
         description="Open a procurement area to continue work."
-        cards={CARDS}
+        cards={cards}
         headingLevel={2}
       />
     </div>

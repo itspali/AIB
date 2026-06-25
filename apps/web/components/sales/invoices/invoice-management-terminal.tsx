@@ -14,8 +14,13 @@ import { InvoiceEmptyState } from "@/components/sales/invoices/invoice-empty-sta
 import { InvoiceListTable } from "@/components/sales/invoices/invoice-list-table";
 import { InvoiceListToolbar } from "@/components/sales/invoices/invoice-list-toolbar";
 import { SalesBulkActionToolbar } from "@/components/sales/shared/sales-bulk-action-toolbar";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { notifyApprovalAlertChanged } from "@/lib/layout/approval-alert-events";
 import {
   getDefaultSalesInvoiceListPrefs,
@@ -24,6 +29,7 @@ import {
   setSalesInvoiceColumnWidth,
   type SalesInvoiceListPrefs,
 } from "@/lib/sales/invoices/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortSalesInvoiceListRows,
   type SalesInvoiceListSortDirection,
@@ -43,6 +49,11 @@ import type { DocumentLayoutTemplate } from "@/lib/documents/types";
 import type { PoLineTaxCodeOption } from "@/lib/procurement/purchase-orders/po-line-tax-codes";
 import { canEditSalesDocument } from "@/lib/sales/shared/document-status";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapSalesInvoiceRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 import { useFinanceSetupCreateGate } from "@/lib/onboarding/use-finance-setup-create-gate";
 import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
@@ -51,9 +62,6 @@ import {
   isSalesInvoiceApprovableByUser,
   isSalesInvoicePostableByUser,
 } from "@/lib/sales/approval-settings";
-
-const INVOICE_PAGE_DESCRIPTION =
-  "Issue customer invoices, post to accounts receivable, and track payment status.";
 
 const InvoiceDrawerForm = lazyClientExport(
   () => import("@/components/sales/invoices/invoice-drawer-form"),
@@ -138,6 +146,7 @@ export function InvoiceManagementTerminal({
   );
   const [prefs, setPrefs] = useState<SalesInvoiceListPrefs>(getDefaultSalesInvoiceListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -248,9 +257,21 @@ export function InvoiceManagementTerminal({
 
   const hasAnyData = invoices.length > 0;
   const filteredRows = invoicesView.filteredRows;
+
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.invoice_number,
+      row.customer_name,
+      row.origin_location_name,
+      row.origin_location_code,
+      row.commercial_status,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortSalesInvoiceListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortSalesInvoiceListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const selectableMatchingIds = useMemo(
@@ -272,6 +293,9 @@ export function InvoiceManagementTerminal({
   const bulkSelectionCount = bulkSelectAllMatching
     ? selectableMatchingIds.length
     : bulkSelectedIds.size;
+
+  const showBulkSelectionColumn =
+    (canBulkApprove || canBulkPost) && selectableMatchingIds.length > 0;
 
   const clearBulkSelection = useCallback(() => {
     setBulkSelectedIds(new Set());
@@ -406,17 +430,17 @@ export function InvoiceManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <InvoiceListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleSortChange}
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setSalesInvoiceColumnWidth(current, columnId, width))
+          setPrefs((current) => setSalesInvoiceColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         onSelect={handleSelect}
-        bulkSelectionEnabled={canBulkApprove || canBulkPost}
+        bulkSelectionEnabled={showBulkSelectionColumn}
         bulkSelectedIds={bulkSelectedIds}
         pageAllSelected={pageAllSelected}
         pageSomeSelected={pageSomeSelected}
@@ -462,36 +486,89 @@ export function InvoiceManagementTerminal({
       />
     ) : null;
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={invoices.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="invoices"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapSalesInvoiceRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No invoices match the current filters.",
+    footer: listFooter,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <InvoiceEmptyState onCreate={guardedOpenCreate} hasCustomers={customers.length > 0} />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No invoices match the current filters.
+        </div>
+      </div>
+    ),
+    bulkEnabled: showBulkSelectionColumn,
+    bulkSelectedIds,
+    pageAllSelected,
+    pageSomeSelected,
+    onBulkRowToggle: handleBulkRowToggle,
+    onBulkPageToggle: handleBulkPageToggle,
+  });
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Invoices"
-            description={INVOICE_PAGE_DESCRIPTION}
-            createLabel="New invoice"
-            onCreate={editAccessGranted ? guardedOpenCreate : undefined}
-            aboutAriaLabel="About Sales Invoices"
+            count={
+              hasAnyData ? `${invoicesView.resultCount}/${invoicesView.totalCount}` : undefined
+            }
+            onNew={editAccessGranted ? guardedOpenCreate : undefined}
+            newAriaLabel="New invoice"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <InvoiceListToolbar
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  customers={customers}
+                  resultCount={invoicesView.resultCount}
+                  totalCount={invoicesView.totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
-        }
-        toolbar={
-          hasAnyData ? (
-            <InvoiceListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              customers={customers}
-              resultCount={invoicesView.resultCount}
-              totalCount={invoicesView.totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
         }
         bulkToolbar={bulkToolbar}
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select an invoice"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -521,6 +598,7 @@ export function InvoiceManagementTerminal({
           onOpenEdit={handleOpenEdit}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

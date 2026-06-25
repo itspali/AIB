@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Mail, MessageSquare, Smartphone } from "lucide-react";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { NotificationTemplateEditor } from "@/components/settings/notifications/notification-template-editor";
 import {
   NotificationChannelStatusBadge,
@@ -101,6 +102,7 @@ export function NotificationSettingsTerminal({
         </div>
       ) : null}
 
+      <SettingsGlassShell>
       <OrgSettingsSection
         title="Template library"
         description="Choose a document event, then edit each channel template with merge fields and live preview."
@@ -216,6 +218,7 @@ export function NotificationSettingsTerminal({
           ))}
         </Tabs>
       </OrgSettingsSection>
+      </SettingsGlassShell>
     </div>
   );
 }

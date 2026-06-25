@@ -33,14 +33,12 @@ import {
 } from "@/lib/inventory/stock/list-sort";
 import type { StockBalanceRow } from "@/lib/inventory/stock/types";
 import {
-  LIST_TABLE_BODY_CELL,
   LIST_TABLE_HEADER_CELL,
   LIST_TABLE_HEADER_CELL_BG,
   LIST_TABLE_HEADER_SORTABLE,
   LIST_TABLE_ROOT,
   LIST_TABLE_SCROLL,
   LIST_TABLE_SURFACE,
-  listTableBodyCellInteractionClass,
   listTableElementClass,
   listTableHeaderCornerClass,
   listTableRowClass,
@@ -237,7 +235,6 @@ export function StockBalancesTable({
                         <td
                           key={columnId}
                           className={cn(
-                            LIST_TABLE_BODY_CELL,
                             sticky.className,
                             frozen.bodyCellClass(index, selected),
                             column.align === "right" && "text-right tabular-nums"
@@ -249,13 +246,7 @@ export function StockBalancesTable({
                       );
                     })}
                     {onAdjust ? (
-                      <td
-                        className={cn(
-                          LIST_TABLE_BODY_CELL,
-                          "text-right",
-                          listTableBodyCellInteractionClass(selected)
-                        )}
-                      >
+                      <td className="text-right">
                         <Button
                           type="button"
                           variant="outline"

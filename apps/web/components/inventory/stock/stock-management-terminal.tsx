@@ -12,8 +12,13 @@ import {
 import { StockEmptyState } from "@/components/inventory/stock/stock-empty-state";
 import { StockListToolbar } from "@/components/inventory/stock/stock-list-toolbar";
 import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import {
@@ -24,6 +29,7 @@ import {
   setStockSortPrefs,
   type StockListPrefs,
 } from "@/lib/inventory/stock/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import type { StockAdjustmentColumnId, StockBalanceColumnId } from "@/lib/inventory/stock/list-columns";
 import {
   sortStockAdjustmentRows,
@@ -51,9 +57,12 @@ import {
 import { isPromoBalanceEligibleForReclassification } from "@/lib/procurement/promo/reclassification-helpers";
 import type { PromotionalBatchRow } from "@/lib/procurement/promo/reclassification-helpers";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
-
-const STOCK_PAGE_DESCRIPTION =
-  "Review on-hand balances by location and post location-scoped stock adjustments.";
+import {
+  buildCatalogSplitListPane,
+  mapStockAdjustmentRowToSplitFeed,
+  mapStockBalanceRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 
 const StockDrawerForm = lazyClientExport(
   () => import("@/components/inventory/stock/stock-drawer-form"),
@@ -149,6 +158,12 @@ export function StockManagementTerminal({
   );
   const [prefs, setPrefs] = useState<StockListPrefs>(getDefaultStockListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeBalanceColumnPrefs } = useActiveTableColumnPrefs(
+    prefs.balanceColumnPrefs
+  );
+  const { slice: activeAdjustmentColumnPrefs } = useActiveTableColumnPrefs(
+    prefs.adjustmentColumnPrefs
+  );
   const [, startRefreshTransition] = useTransition();
 
   useEffect(() => {
@@ -224,6 +239,28 @@ export function StockManagementTerminal({
   const balancesView = useFilteredStockBalances(balances, prefs.locationId);
   const adjustmentsView = useFilteredStockAdjustments(adjustments, prefs.locationId);
 
+  const { feedFilteredRows: feedFilteredBalances, feedFilterProps: balanceFeedFilterProps } =
+    useListWorkspaceFeedFilter({
+      rows: balancesView.filteredRows,
+      extractSearchable: (row) => [
+        row.variant_sku,
+        row.item_name,
+        row.location_name,
+        row.location_code,
+      ],
+    });
+
+  const { feedFilteredRows: feedFilteredAdjustments, feedFilterProps: adjustmentFeedFilterProps } =
+    useListWorkspaceFeedFilter({
+      rows: adjustmentsView.filteredRows,
+      extractSearchable: (row) => [
+        row.adjustment_number,
+        row.location_name,
+        row.reason,
+        row.kind,
+      ],
+    });
+
   const scopedPromoBalances = useMemo(() => {
     if (!prefs.locationId) return promoBalances;
     return promoBalances.filter((row) => row.location_id === prefs.locationId);
@@ -240,6 +277,12 @@ export function StockManagementTerminal({
   const isAdjustmentsView = prefs.viewMode === "adjustments";
   const isInventoryPoolsView = prefs.viewMode === "inventory_pools";
   const isPromoReclassificationView = prefs.viewMode === "promo_reclassification";
+
+  const feedFilterProps = isBalancesView
+    ? balanceFeedFilterProps
+    : isAdjustmentsView
+      ? adjustmentFeedFilterProps
+      : undefined;
 
   const inventoryPoolsCount = useMemo(
     () =>
@@ -354,21 +397,21 @@ export function StockManagementTerminal({
   const sortedBalanceRows = useMemo(
     () =>
       sortStockBalanceRows(
-        attachPromoQuantitiesToBalances(balancesView.filteredRows, promoQtyMap),
+        attachPromoQuantitiesToBalances(feedFilteredBalances, promoQtyMap),
         prefs.balanceSortField,
         prefs.balanceSortDirection
       ),
-    [balancesView.filteredRows, promoQtyMap, prefs.balanceSortField, prefs.balanceSortDirection]
+    [feedFilteredBalances, promoQtyMap, prefs.balanceSortField, prefs.balanceSortDirection]
   );
 
   const sortedAdjustmentRows = useMemo(
     () =>
       sortStockAdjustmentRows(
-        adjustmentsView.filteredRows,
+        feedFilteredAdjustments,
         prefs.adjustmentSortField,
         prefs.adjustmentSortDirection
       ),
-    [adjustmentsView.filteredRows, prefs.adjustmentSortField, prefs.adjustmentSortDirection]
+    [feedFilteredAdjustments, prefs.adjustmentSortField, prefs.adjustmentSortDirection]
   );
 
   const handleBalanceSortChange = useCallback(
@@ -417,13 +460,13 @@ export function StockManagementTerminal({
         <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
           <StockBalancesTable
             rows={sortedBalanceRows}
-            columnPrefs={prefs.balanceColumnPrefs}
+            columnPrefs={activeBalanceColumnPrefs}
             sortField={prefs.balanceSortField}
             sortDirection={prefs.balanceSortDirection}
             frozenColumnCount={prefs.frozenColumnCount}
             onSortChange={handleBalanceSortChange}
             onColumnWidthChange={(columnId: StockBalanceColumnId, width: number | null) =>
-              setPrefs((current) => setStockColumnWidth(current, columnId, width))
+              setPrefs((current) => setStockColumnWidth(current, deviceClass, columnId, width))
             }
             selectedId={peekBalance?.id ?? null}
             onSelect={(row: StockBalanceRow) => handleSelectBalance(row.id)}
@@ -449,13 +492,13 @@ export function StockManagementTerminal({
       <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
         <StockAdjustmentsTable
           rows={sortedAdjustmentRows}
-          columnPrefs={prefs.adjustmentColumnPrefs}
+          columnPrefs={activeAdjustmentColumnPrefs}
           sortField={prefs.adjustmentSortField}
           sortDirection={prefs.adjustmentSortDirection}
           frozenColumnCount={prefs.frozenColumnCount}
           onSortChange={handleAdjustmentSortChange}
           onColumnWidthChange={(columnId: StockAdjustmentColumnId, width: number | null) =>
-            setPrefs((current) => setStockColumnWidth(current, columnId, width))
+            setPrefs((current) => setStockColumnWidth(current, deviceClass, columnId, width))
           }
           selectedId={selectedDrawerId}
           onSelect={handleSelectAdjustment}
@@ -471,35 +514,125 @@ export function StockManagementTerminal({
       </div>
     );
 
-  return (
-    <>
-      <ListModuleShell
-        title={
-          <ListModulePageTitleHeader
-            title="Stock"
-            description={STOCK_PAGE_DESCRIPTION}
-            createLabel="New adjustment"
+  const balanceListFooter = (
+    <ListLoadMoreFooter
+      visibleCount={balances.length}
+      totalCount={balanceServerTotalCount}
+      hasMore={balanceHasMore}
+      isLoadingMore={balanceLoadingMore}
+      onLoadMore={loadMoreBalances}
+      noun="balances"
+    />
+  );
+
+  const adjustmentListFooter = (
+    <ListLoadMoreFooter
+      visibleCount={adjustments.length}
+      totalCount={adjustmentServerTotalCount}
+      hasMore={adjustmentHasMore}
+      isLoadingMore={adjustmentLoadingMore}
+      onLoadMore={loadMoreAdjustments}
+      noun="adjustments"
+    />
+  );
+
+  const splitListPrimary = isBalancesView ? (
+    buildCatalogSplitListPane({
+      rows: sortedBalanceRows,
+      selectedId: peekBalance?.id ?? null,
+      onSelect: handleSelectBalance,
+      mapRow: mapStockBalanceRowToSplitFeed,
+      hasAnyData,
+      emptyMessage: "No balances match the current filters.",
+      footer: balanceListFooter,
+      empty: (
+        <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+          <StockEmptyState
+            viewMode={prefs.viewMode}
             onCreate={drawer.openCreate}
-            aboutAriaLabel="About Stock"
+            hasLocations={locations.length > 0}
+          />
+        </div>
+      ),
+      filteredEmpty: (
+        <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+          <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+            No balances match the current filters.
+          </div>
+        </div>
+      ),
+    })
+  ) : isAdjustmentsView ? (
+    buildCatalogSplitListPane({
+      rows: sortedAdjustmentRows,
+      selectedId: selectedDrawerId,
+      onSelect: handleSelectAdjustment,
+      mapRow: mapStockAdjustmentRowToSplitFeed,
+      hasAnyData,
+      emptyMessage: "No adjustments match the current filters.",
+      footer: adjustmentListFooter,
+      empty: (
+        <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+          <StockEmptyState
+            viewMode={prefs.viewMode}
+            onCreate={drawer.openCreate}
+            hasLocations={locations.length > 0}
+          />
+        </div>
+      ),
+      filteredEmpty: (
+        <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+          <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+            No adjustments match the current filters.
+          </div>
+        </div>
+      ),
+    })
+  ) : (
+    listPrimary
+  );
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
+  return (
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
+      <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
+        title={
+          <UnifiedCatalogHeader
+            title="Stock"
+            count={hasAnyData ? `${resultCount}/${totalCount}` : undefined}
+            onNew={drawer.openCreate}
+            newAriaLabel="New adjustment"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <StockListToolbar
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  locations={locations}
+                  resultCount={resultCount}
+                  totalCount={totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
         }
-        toolbar={
-          hasAnyData ? (
-            <StockListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              locations={locations}
-              resultCount={resultCount}
-              totalCount={totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
-        }
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{listPrimary}</div>
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a stock record"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -515,6 +648,7 @@ export function StockManagementTerminal({
           onAfterSave={handleAfterSave}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

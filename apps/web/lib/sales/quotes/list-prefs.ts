@@ -1,11 +1,20 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   QUOTE_LIST_COLUMN_REGISTRY,
   type SalesQuoteListColumnId,
@@ -20,7 +29,7 @@ import type { SalesDocumentStatus } from "@/lib/sales/shared/document-status";
 import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-prefs";
 
 const STORAGE_KEY = "aib:sales-quote-list-prefs";
-const PREFS_VERSION = 1;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export type SalesQuoteListStatusFilter = SalesDocumentStatus | "all" | "SENT";
 
@@ -29,7 +38,7 @@ export type SalesQuoteListPrefs = {
   status: SalesQuoteListStatusFilter;
   sortField: SalesQuoteListSortField;
   sortDirection: SalesQuoteListSortDirection;
-  columnPrefs: ListColumnPrefs<SalesQuoteListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<SalesQuoteListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
@@ -39,8 +48,36 @@ export function getDefaultSalesQuoteListPrefs(): SalesQuoteListPrefs {
     status: "all",
     sortField: DEFAULT_QUOTE_SORT_FIELD,
     sortDirection: DEFAULT_QUOTE_SORT_DIRECTION,
-    columnPrefs: getDefaultListColumnPrefs(QUOTE_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(QUOTE_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getSalesQuoteColumnPrefsSlice(
+  prefs: SalesQuoteListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<SalesQuoteListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setSalesQuoteColumnPrefsSlice(
+  prefs: SalesQuoteListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<SalesQuoteListColumnId>
+): SalesQuoteListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setSalesQuoteColumnPrefsSliceAllDevices(
+  prefs: SalesQuoteListPrefs,
+  slice: ListColumnPrefs<SalesQuoteListColumnId>
+): SalesQuoteListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -54,10 +91,11 @@ export function loadSalesQuoteListPrefs(): SalesQuoteListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(QUOTE_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(QUOTE_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(QUOTE_LIST_COLUMN_REGISTRY, legacyDesktop),
       };
     }
 
@@ -72,10 +110,15 @@ export function loadSalesQuoteListPrefs(): SalesQuoteListPrefs {
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(QUOTE_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(QUOTE_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      QUOTE_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       customerId: parsed.customerId ?? null,
@@ -96,25 +139,25 @@ export function saveSalesQuoteListPrefs(prefs: SalesQuoteListPrefs): void {
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(QUOTE_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    QUOTE_LIST_COLUMN_REGISTRY,
+    getSalesQuoteColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setSalesQuoteColumnWidth(
   prefs: SalesQuoteListPrefs,
+  deviceClass: DeviceClass,
   columnId: SalesQuoteListColumnId,
   width: number | null
 ): SalesQuoteListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

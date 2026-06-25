@@ -107,7 +107,6 @@ export function resolveColumnWidthSpec<TId extends string>(
   const boostedMin = applyWrapBoost(minPx, wrapMode, column.wrapWidthBoost);
 
   return {
-    ...base,
     min: boostedMin != null ? Math.max(boostedMin, GLOBAL_MIN_PX) : base.min ?? GLOBAL_MIN_PX,
   };
 }
@@ -122,6 +121,15 @@ export function getColumnResizeBounds<TId extends string>(
     min: USER_COLUMN_RESIZE_MIN_PX,
     max: Math.max(USER_COLUMN_RESIZE_MIN_PX, Math.min(registryMax, USER_COLUMN_RESIZE_MAX_PX)),
   };
+}
+
+export function clampAutoFitColumnWidth<TId extends string>(
+  column: ListColumnDef<TId>,
+  deviceClass: DeviceClass,
+  widthPx: number
+): number {
+  const { min } = getColumnResizeBounds(column, deviceClass);
+  return Math.round(Math.max(min, widthPx));
 }
 
 export function clampUserColumnWidth<TId extends string>(
@@ -141,7 +149,6 @@ export function resolveColumnWidthStyles<TId extends string>(
 ): CSSProperties {
   const spec = resolveColumnWidthSpec(column, deviceClass, wrapMode, userWidthPx);
   const minWidth = toCssLength(spec.min);
-  const maxWidth = toCssLength(spec.max);
   const width = toCssLength(spec.preferred);
 
   const style: CSSProperties = {};
@@ -152,7 +159,6 @@ export function resolveColumnWidthStyles<TId extends string>(
     return style;
   }
   if (minWidth) style.minWidth = minWidth;
-  if (maxWidth) style.maxWidth = maxWidth;
   if (width) style.width = width;
   return style;
 }

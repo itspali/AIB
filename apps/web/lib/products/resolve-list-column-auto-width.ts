@@ -1,15 +1,20 @@
 import type { DeviceClass } from "@/lib/layout/device-class";
-import { clampUserColumnWidth } from "@/lib/list-columns/sizing";
+import { LIST_TABLE_CELL_PADDING_INLINE_PX } from "@/lib/layout/list-table-chrome";
+import { clampAutoFitColumnWidth } from "@/lib/list-columns/sizing";
 import {
   measureHintsFromValueKind,
   resolveListColumnAutoWidth,
+  type ListColumnAutoWidthMeasureHints,
 } from "@/lib/list-columns/resolve-column-auto-width";
+import {
+  measureMaxContentWidth,
+  resolveHeaderLabelTypographyElement,
+} from "@/lib/list-columns/measure-content-width";
 import { getProductListCellDisplayTexts } from "@/lib/products/list-column-display-text";
 import { getColumnDef, type ProductListColumnId } from "@/lib/products/list-columns";
 import { isSortableColumn } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
 
-const IMAGE_CELL_PADDING_PX = 8;
 const IMAGE_CONTENT_WIDTH_PX = 48;
 
 export type ResolveProductListColumnAutoWidthInput = {
@@ -18,6 +23,9 @@ export type ResolveProductListColumnAutoWidthInput = {
   deviceClass: DeviceClass;
   showVariants?: boolean;
   headerElement?: HTMLElement | null;
+  /** Override header plain-text used for measurement (e.g. matrix registry labels). */
+  headerLabel?: string;
+  measureOverrides?: Partial<ListColumnAutoWidthMeasureHints>;
 };
 
 export function resolveProductListColumnAutoWidth({
@@ -26,15 +34,26 @@ export function resolveProductListColumnAutoWidth({
   deviceClass,
   showVariants = false,
   headerElement,
+  headerLabel,
+  measureOverrides,
 }: ResolveProductListColumnAutoWidthInput): number {
   const column = getColumnDef(columnId);
 
   if (columnId === "image") {
-    return clampUserColumnWidth(
-      column,
-      deviceClass,
-      IMAGE_CONTENT_WIDTH_PX + IMAGE_CELL_PADDING_PX
-    );
+    const bodyPadding =
+      measureOverrides?.bodyPaddingPx ?? LIST_TABLE_CELL_PADDING_INLINE_PX * 2;
+    const headerPadding =
+      measureOverrides?.headerPaddingPx ?? LIST_TABLE_CELL_PADDING_INLINE_PX * 2;
+    const bodyFloor = IMAGE_CONTENT_WIDTH_PX + bodyPadding;
+    const headerText = headerLabel ?? column.label;
+
+    const headerWidth = measureMaxContentWidth({
+      texts: [headerText],
+      typographyElement: resolveHeaderLabelTypographyElement(headerElement),
+      paddingPx: headerPadding,
+    });
+
+    return clampAutoFitColumnWidth(column, deviceClass, Math.max(bodyFloor, headerWidth));
   }
 
   const bodyTexts = products.flatMap((product) =>
@@ -42,9 +61,10 @@ export function resolveProductListColumnAutoWidth({
   );
 
   return resolveListColumnAutoWidth({
-    column,
+    column: getColumnDef(columnId),
     deviceClass,
     headerElement,
+    headerLabel,
     bodyTexts,
     sortable: isSortableColumn(columnId),
     measure: {
@@ -61,6 +81,7 @@ export function resolveProductListColumnAutoWidth({
         columnId === "stock_on_hand" ||
         columnId === "created_at" ||
         columnId === "updated_at",
+      ...measureOverrides,
     },
   });
 }

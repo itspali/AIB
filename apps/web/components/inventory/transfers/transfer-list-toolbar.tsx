@@ -2,6 +2,7 @@
 
 import { ArrowUpDown } from "lucide-react";
 import { TransferListColumnSettings } from "@/components/inventory/transfers/transfer-list-column-settings";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import {
@@ -43,6 +44,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -123,6 +125,7 @@ export function TransferListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const { deviceClass } = useDeviceClass();
@@ -144,6 +147,7 @@ export function TransferListToolbar({
       countNoun="transfer"
       countNounPlural="transfers"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -235,11 +239,15 @@ export function TransferListToolbar({
             </Select>
           </div>
 
-          <TransferListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <TransferListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

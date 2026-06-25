@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ArrowUpDown, Rows3, Table2 } from "lucide-react";
 import { EntityListColumnSettings } from "@/components/entities/entity-list-column-settings";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
+import { ListWorkspaceLayoutToggleControl } from "@/components/layout/list-workspace-layout-toggle-control";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import { ModuleViewSelect } from "@/components/search/module-view-select";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
@@ -60,6 +61,8 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  /** Omit count row when embedded in UnifiedCatalogHeader. */
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -79,6 +82,7 @@ export function EntityListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
@@ -129,6 +133,7 @@ export function EntityListToolbar({
       countNoun={countNoun}
       countNounPlural={countNounPlural}
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -303,6 +308,8 @@ export function EntityListToolbar({
               </Select>
             </div>
           ) : null}
+
+          <ListWorkspaceLayoutToggleControl />
 
           <div className="shrink-0 sm:hidden">
             <Select

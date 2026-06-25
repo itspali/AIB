@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import type { GoodsInTransitRow } from "@/lib/procurement/git/types";
 import { gitVoucherStatusLabel } from "@/lib/procurement/git/types";
 import type { ReceivablePurchaseOrderOption } from "@/lib/procurement/purchase-orders/types";
@@ -58,6 +59,8 @@ export function GitDrawerForm({
   const [lines, setLines] = useState<GitLineDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const isPeekMode = Boolean(peekVoucher);
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(isPeekMode);
 
   const selectedPo = useMemo(
     () => receivableOrders.find((order) => order.id === purchaseOrderId) ?? null,
@@ -130,6 +133,9 @@ export function GitDrawerForm({
         title={peekVoucher.voucher_number}
         headerActions={headerActions}
         allowBackgroundInteraction
+        peekMode
+        className={peekShellClassName}
+        bodyClassName={peekBodyClassName}
         showCloseButton
       >
         <div className="space-y-4 text-sm">

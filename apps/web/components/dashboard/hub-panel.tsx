@@ -42,7 +42,7 @@ export function HubPanel({ children, className, accent = "cyan", icon: Icon }: H
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-border bg-card shadow-md shadow-black/[0.05] backdrop-blur-xl transition-all duration-200 hover:border-primary/30 hover:shadow-lg dark:bg-card/70 dark:shadow-lg dark:shadow-black/25 dark:hover:shadow-xl",
+        "hub-panel surface-panel group relative overflow-hidden p-0 transition-all duration-200 hover:border-primary/30",
         styles.glow,
         className
       )}

@@ -29,6 +29,7 @@ import {
 import { resolvePoGstContextFromForm } from "@/lib/procurement/purchase-orders/po-tax-supply";
 import type { PoAutoRoundOffPolicy } from "@/lib/procurement/purchase-orders/po-auto-round-off";
 import { PoImportLogisticsPanel } from "@/components/procurement/purchase-orders/po-import-logistics-panel";
+import { PoSubcontractJobPanel } from "@/components/procurement/purchase-orders/po-subcontract-job-panel";
 import type { PoFulfillmentStage } from "@/lib/procurement/import-logistics-settings-shared";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,7 @@ export type PoDocumentEditorShellProps = {
   taxCodeOptions?: readonly PoLineTaxCodeOption[];
   tenantCountry?: string | null;
   tenantDefaultFulfillmentStage?: PoFulfillmentStage;
+  subcontractWipSupplierIds?: string[];
   organizationBillTo?: OrganizationBillToSnapshot | null;
   isPending: boolean;
   layoutOverride?: RightDrawerLayoutValue | null;
@@ -84,6 +86,7 @@ export function PoDocumentEditorShell({
   taxCodeOptions = [],
   tenantCountry = null,
   tenantDefaultFulfillmentStage = "COMMERCIAL",
+  subcontractWipSupplierIds = [],
   organizationBillTo = null,
   isPending,
   layoutOverride = null,
@@ -229,15 +232,23 @@ export function PoDocumentEditorShell({
   const summaryStackProps = {
     showNotesSection,
     importLogisticsSection: (
-      <PoImportLogisticsPanel
-        form={form}
-        locations={locations}
-        suppliers={suppliers}
-        tenantCountry={tenantCountry}
-        tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
-        disabled={isPending}
-        onPatch={onPatch}
-      />
+      <>
+        <PoSubcontractJobPanel
+          form={form}
+          supplierHasSubcontractWip={subcontractWipSupplierIds.includes(form.supplier_id)}
+          disabled={isPending}
+          onPatch={onPatch}
+        />
+        <PoImportLogisticsPanel
+          form={form}
+          locations={locations}
+          suppliers={suppliers}
+          tenantCountry={tenantCountry}
+          tenantDefaultFulfillmentStage={tenantDefaultFulfillmentStage}
+          disabled={isPending}
+          onPatch={onPatch}
+        />
+      </>
     ),
     totalsPanelProps,
     detailsPanelProps: {

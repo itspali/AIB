@@ -30,6 +30,7 @@ import {
 } from "@/components/sales/shared/sales-document-link-panel";
 import { loadInvoicesLinkedToSalesOrder } from "@/app/sales/link-actions";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
@@ -151,6 +152,9 @@ export function SoDrawerForm({
   const router = useRouter();
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const { lineTableFillHeight, useDrawerBodyScroll } = useSalesDrawerFormLayout(isMutating);
   const entryLineKey = useId();
   const [form, setForm] = useState<SoDraftFormState>(() =>
@@ -961,10 +965,11 @@ export function SoDrawerForm({
         title={title}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
-        className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
         bodyClassName={
           surface === "peek"
-            ? "module-drawer-peek-body"
+            ? peekBodyClassName
             : isMutating
               ? cn(
                   "module-drawer-form-body",

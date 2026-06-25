@@ -106,6 +106,12 @@ type Props<TId extends string> = {
   onCardMetaDisplayChange?: (display: ProductCardMetaDisplay) => void;
   isColumnApplicable?: (columnId: TId) => boolean;
   columnDisabledReason?: (columnId: TId) => string | undefined;
+  /** Columns that stay visible and cannot be toggled off (e.g. split-feed SKU + name). */
+  lockedColumnIds?: readonly TId[];
+  lockedColumnReason?: string;
+  /** Columns that cannot be enabled in this workspace (e.g. items status via row styling). */
+  disabledColumnIds?: readonly TId[];
+  disabledColumnReason?: string;
   disabled?: boolean;
   isSaving?: boolean;
   triggerClassName?: string;
@@ -122,6 +128,8 @@ type Props<TId extends string> = {
   hideCardVariantControls?: boolean;
   /** Devices left, views (+ card/freeze count) right on one row. */
   controlBarLayout?: "default" | "split";
+  /** Extra classes on the dropdown surface (e.g. list workspace theme). */
+  panelClassName?: string;
 };
 
 const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
@@ -129,6 +137,9 @@ const DEVICE_LABEL: Record<ColumnSettingsDevice, string> = {
   tablet: "Tablet",
   desktop: "Desktop",
 };
+
+/** Elevated white column settings surface — Items matrix master; default for all list modules. */
+export const LIST_WORKSPACE_COLUMN_SETTINGS_PANEL = "list-workspace-column-settings-panel";
 
 function segmentIconButtonClass(selected: boolean, className?: string) {
   return cn(listToolbarViewToggleSegmentClass(selected), className);
@@ -156,6 +167,10 @@ export function ListColumnSettings<TId extends string>({
   onCardMetaDisplayChange,
   isColumnApplicable,
   columnDisabledReason,
+  lockedColumnIds,
+  lockedColumnReason = "Always shown on item cards",
+  disabledColumnIds,
+  disabledColumnReason = "Not available in this workspace",
   disabled = false,
   isSaving = false,
   triggerClassName,
@@ -166,12 +181,21 @@ export function ListColumnSettings<TId extends string>({
   editingLayoutPreset,
   onEditingLayoutPresetChange,
   hideCardVariantControls = false,
-  controlBarLayout = "default",
+  controlBarLayout = "split",
+  panelClassName,
 }: Props<TId>) {
   const dragIdRef = useRef<TId | null>(null);
   const [dragOverId, setDragOverId] = useState<TId | null>(null);
   const [open, setOpen] = useState(false);
   const [expandedChipColumnId, setExpandedChipColumnId] = useState<TId | null>(null);
+  const lockedColumnSet = useMemo(
+    () => new Set(lockedColumnIds ?? []),
+    [lockedColumnIds]
+  );
+  const disabledColumnSet = useMemo(
+    () => new Set(disabledColumnIds ?? []),
+    [disabledColumnIds]
+  );
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -232,8 +256,11 @@ export function ListColumnSettings<TId extends string>({
   };
 
   const toggleVisible = (columnId: TId, visible: boolean) => {
+    if (disabledColumnSet.has(columnId)) return;
+    if (!visible && lockedColumnSet.has(columnId)) return;
+
     const visibleColumns = visible
-      ? [...new Set([...prefs.visibleColumns, columnId])]
+      ? [...new Set([...prefs.visibleColumns, columnId, ...(lockedColumnIds ?? [])])]
       : prefs.visibleColumns.filter((id) => id !== columnId);
 
     if (visibleColumns.length === 0) return;
@@ -306,8 +333,13 @@ export function ListColumnSettings<TId extends string>({
       : editingLayout === "compact"
         ? "Compact"
         : "Card";
-  const editingLabel = `${layoutLabel} · ${DEVICE_LABEL[editingDevice]}`;
+  const editingLabel = showDeviceSwitcher
+    ? `${layoutLabel} · ${DEVICE_LABEL[editingDevice]}`
+    : layoutLabel;
   const useSplitControlBar = controlBarLayout === "split";
+  const resolvedPanelClassName = panelClassName ?? LIST_WORKSPACE_COLUMN_SETTINGS_PANEL;
+  const useListWorkspacePanel =
+    resolvedPanelClassName === LIST_WORKSPACE_COLUMN_SETTINGS_PANEL;
 
   const layoutSwitcher = showLayoutSwitcher && layoutPresets?.length ? (
     <div
@@ -595,8 +627,11 @@ export function ListColumnSettings<TId extends string>({
     const column = getColumnDef(registry, columnId);
     const applicable = isColumnApplicable?.(columnId) ?? true;
     const disabledReason = columnDisabledReason?.(columnId);
-    const rowDisabled = disabled || !applicable;
-    const visible = prefs.visibleColumns.includes(columnId);
+    const isLocked = lockedColumnSet.has(columnId);
+    const isDisabledColumn = disabledColumnSet.has(columnId);
+    const rowDisabled = disabled || !applicable || isLocked || isDisabledColumn;
+    const visible =
+      isLocked || (!isDisabledColumn && prefs.visibleColumns.includes(columnId));
     const isDragOver = dragOverId === columnId;
     const chipEnabled =
       resolveChipDisplayMode(column, prefs.columnChipDisplay?.[columnId]) === "chip";
@@ -628,7 +663,9 @@ export function ListColumnSettings<TId extends string>({
           !applicable && "opacity-45",
           isDragOver && applicable && "bg-accent/60 ring-1 ring-primary/30"
         )}
-        title={disabledReason}
+        title={
+          isLocked ? lockedColumnReason : isDisabledColumn ? disabledColumnReason : disabledReason
+        }
       >
         <div className="flex items-center gap-1">
           <button
@@ -744,7 +781,9 @@ export function ListColumnSettings<TId extends string>({
       <DropdownMenuContent
         align="end"
         className={cn(
-          "column-settings-panel z-50 border p-0 text-xs ring-1 ring-border/80 dark:ring-primary/25",
+          "z-50 border p-0 text-xs ring-1 ring-border/80 dark:ring-primary/25",
+          resolvedPanelClassName,
+          useListWorkspacePanel && "!bg-white",
           useSplitControlBar
             ? "w-[min(20rem,calc(100vw-2rem))] min-w-[19rem]"
             : "w-[min(18rem,calc(100vw-2rem))] min-w-[16rem]"

@@ -1,5 +1,6 @@
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import { PoManagementTerminal } from "@/components/procurement/purchase-orders/po-management-terminal";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { resolvePurchaseOrderEditAccess } from "@/lib/procurement/access";
 import {
   filterProcurementLocationsByScope,
@@ -65,6 +66,7 @@ export async function PoCatalogLoader() {
   );
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="procurement-purchase-orders">
     <PoManagementTerminal
       initialPurchaseOrders={purchaseOrdersPage.rows}
       listTotalCount={purchaseOrdersPage.totalCount}
@@ -92,5 +94,6 @@ export async function PoCatalogLoader() {
       financeSetupComplete={bootstrap.financeSetupComplete}
       tenantDefaultFulfillmentStage={importLogisticsSettings.po_fulfillment_stage}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

@@ -1,10 +1,20 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
+import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import { TAX_LIST_COLUMN_REGISTRY, isTaxKindFilter, type TaxListColumnId } from "@/lib/tax/list-columns";
 import {
   DEFAULT_TAX_SORT_DIRECTION,
@@ -12,7 +22,6 @@ import {
   type TaxListSortDirection,
   type TaxListSortField,
 } from "@/lib/tax/list-sort";
-import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
 import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-prefs";
 import type { TaxCodeKind } from "@/lib/tax/types";
 
@@ -24,12 +33,12 @@ export type TaxListPrefs = {
   sortDirection: TaxListSortDirection;
   activeStatusFilter: TaxActiveStatusFilter;
   kindFilter: TaxKindFilter;
-  columnPrefs: ListColumnPrefs<TaxListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<TaxListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
 const STORAGE_KEY = "aib-tax-list-prefs";
-const PREFS_VERSION = 1;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export function getDefaultTaxListPrefs(): TaxListPrefs {
   return {
@@ -37,8 +46,36 @@ export function getDefaultTaxListPrefs(): TaxListPrefs {
     sortDirection: DEFAULT_TAX_SORT_DIRECTION,
     activeStatusFilter: "all",
     kindFilter: "all",
-    columnPrefs: getDefaultListColumnPrefs(TAX_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(TAX_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getTaxColumnPrefsSlice(
+  prefs: TaxListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<TaxListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setTaxColumnPrefsSlice(
+  prefs: TaxListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<TaxListColumnId>
+): TaxListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setTaxColumnPrefsSliceAllDevices(
+  prefs: TaxListPrefs,
+  slice: ListColumnPrefs<TaxListColumnId>
+): TaxListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -62,10 +99,11 @@ export function loadTaxListPrefs(): TaxListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(TAX_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(TAX_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(TAX_LIST_COLUMN_REGISTRY, legacyDesktop),
       };
     }
 
@@ -82,10 +120,15 @@ export function loadTaxListPrefs(): TaxListPrefs {
     const sortDirection =
       parsed.sortDirection === "desc" ? "desc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(TAX_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(TAX_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      TAX_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       sortField,
@@ -107,7 +150,10 @@ export function saveTaxListPrefs(prefs: TaxListPrefs): void {
       STORAGE_KEY,
       JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
     );
-    saveListColumnPrefs(TAX_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+    saveListColumnPrefs(
+      TAX_LIST_COLUMN_REGISTRY,
+      getTaxColumnPrefsSlice(prefs, "desktop")
+    );
   } catch {
     // ignore quota errors
   }
@@ -115,20 +161,17 @@ export function saveTaxListPrefs(prefs: TaxListPrefs): void {
 
 export function setTaxColumnWidth(
   prefs: TaxListPrefs,
+  deviceClass: DeviceClass,
   columnId: TaxListColumnId,
   width: number | null
 ): TaxListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

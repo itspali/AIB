@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ProcurementApprovalsPanel } from "@/components/settings/modules/procurement-approvals-panel";
@@ -16,6 +17,8 @@ import type {
 } from "@/lib/procurement/settings";
 import type { ImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
 import { ImportLogisticsPoliciesPanel } from "@/components/settings/modules/import-logistics-policies-panel";
+import { ProcurementImportEnablePanel } from "@/components/settings/modules/procurement-import-enable-panel";
+import { isImportLogisticsEnabled } from "@/lib/procurement/import-logistics-capability";
 import type { WorkspaceEligibleUser } from "@/lib/organization/queries";
 
 type Props = {
@@ -62,10 +65,11 @@ export function ProcurementModuleSettingsTerminal({
 }: Props) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
+  const importsEnabled = isImportLogisticsEnabled(importLogisticsSettings);
   const initialTab =
     tabParam === "approvals"
       ? "approvals"
-      : tabParam === "import"
+      : tabParam === "import" && importsEnabled
         ? "import"
         : "policies";
 
@@ -82,25 +86,30 @@ export function ProcurementModuleSettingsTerminal({
         <h1 className="text-lg font-semibold tracking-tight">Procurement</h1>
       </div>
 
+      <SettingsGlassShell>
       <Tabs defaultValue={initialTab}>
         <TabsList className="h-8">
           <TabsTrigger value="policies" className="h-7 px-3 text-xs">
             Policies
           </TabsTrigger>
-          <TabsTrigger value="import" className="h-7 px-3 text-xs">
-            Import & logistics
-          </TabsTrigger>
+          {importsEnabled ? (
+            <TabsTrigger value="import" className="h-7 px-3 text-xs">
+              Import & logistics
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="approvals" className="h-7 px-3 text-xs">
             Approvals
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="import" className="mt-2">
-          <ImportLogisticsPoliciesPanel
-            canEdit={canEdit}
-            initialSettings={importLogisticsSettings}
-          />
-        </TabsContent>
+        {importsEnabled ? (
+          <TabsContent value="import" className="mt-2">
+            <ImportLogisticsPoliciesPanel
+              canEdit={canEdit}
+              initialSettings={importLogisticsSettings}
+            />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="approvals" className="mt-2">
           <ProcurementApprovalsPanel
@@ -114,6 +123,10 @@ export function ProcurementModuleSettingsTerminal({
 
         <TabsContent value="policies" className="mt-2">
           <div className="space-y-4">
+            <ProcurementImportEnablePanel
+              canEdit={canEdit}
+              initialSettings={importLogisticsSettings}
+            />
             <ProcurementPoliciesPanel
               canEdit={canEdit}
               initialSettings={{
@@ -141,10 +154,12 @@ export function ProcurementModuleSettingsTerminal({
               assetAccounts={assetAccounts}
               liabilityAccounts={liabilityAccounts}
               canEdit={canEdit}
+              importsEnabled={importsEnabled}
             />
           </div>
         </TabsContent>
       </Tabs>
+      </SettingsGlassShell>
     </div>
   );
 }

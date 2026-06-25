@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useOnboardingContext } from "@/components/onboarding/onboarding-context";
 import {
   Select,
   SelectContent,
@@ -246,6 +247,7 @@ export function LocationDrawerForm({
     form.presence_type === "VIRTUAL" &&
     !form.is_git_holding &&
     !form.is_subcontract_wip;
+  const { importsEnabled } = useOnboardingContext();
 
   return (
     <>
@@ -349,11 +351,13 @@ export function LocationDrawerForm({
             disabled={stockToggleDisabled}
             onCheckedChange={(checked) => updateField("is_stock_holding", checked)}
           />
-          <SwitchRow
-            label="GIT holding node (in-transit inventory)"
-            checked={form.is_git_holding}
-            onCheckedChange={(checked) => updateField("is_git_holding", checked)}
-          />
+          {importsEnabled ? (
+            <SwitchRow
+              label="GIT holding node (in-transit inventory)"
+              checked={form.is_git_holding}
+              onCheckedChange={(checked) => updateField("is_git_holding", checked)}
+            />
+          ) : null}
           <SwitchRow
             label="Subcontract WIP (vendor job work)"
             checked={form.is_subcontract_wip}
@@ -361,10 +365,12 @@ export function LocationDrawerForm({
           />
           {form.presence_type === "VIRTUAL" && stockToggleDisabled ? (
             <p className="text-xs text-muted-foreground">
-              Enable GIT holding or subcontract WIP to activate stock on a virtual node.
+              {importsEnabled
+                ? "Enable GIT holding or subcontract WIP to activate stock on a virtual node."
+                : "Enable subcontract WIP to activate stock on a virtual node."}
             </p>
           ) : null}
-          {form.is_git_holding ? (
+          {importsEnabled && form.is_git_holding ? (
             <p className="text-xs text-muted-foreground">
               Used by Procurement → Goods in transit. Prefer a virtual presence node for GIT
               holding.

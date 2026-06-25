@@ -1,19 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ListColumnSettings,
-  type ColumnSettingsDevice,
-  type ColumnSettingsLayout,
-} from "@/components/list-columns/list-column-settings";
+import { ListModuleTableColumnSettings } from "@/components/list-columns/list-module-table-column-settings";
 import { CATEGORY_LIST_COLUMN_REGISTRY } from "@/lib/categories/list-columns";
+import { CATEGORIES_WORKSPACE_DISABLED_COLUMNS } from "@/lib/categories/category-row-meta";
 import {
   getColumnPrefsSlice,
   setColumnPrefsSlice,
+  setColumnPrefsSliceAllDevices,
   type CategoryListPrefs,
-  type CategoryTableViewMode,
   type DeviceClass,
 } from "@/lib/categories/list-prefs";
+import type { ListWorkspaceLayout } from "@/lib/layout/list-workspace";
 
 type Props = {
   prefs: CategoryListPrefs;
@@ -23,6 +20,7 @@ type Props = {
   isSaving?: boolean;
   triggerClassName?: string;
   triggerVariant?: "outline" | "ghost";
+  workspaceLayout?: ListWorkspaceLayout;
 };
 
 export function CategoryListColumnSettings({
@@ -33,51 +31,25 @@ export function CategoryListColumnSettings({
   isSaving = false,
   triggerClassName,
   triggerVariant,
+  workspaceLayout,
 }: Props) {
-  const tableViewMode: CategoryTableViewMode =
-    prefs.viewMode === "compact" ? "compact" : "table";
-
-  const [editingLayout, setEditingLayout] = useState<ColumnSettingsLayout>(tableViewMode);
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
-
-  useEffect(() => {
-    setEditingLayout(tableViewMode);
-  }, [tableViewMode]);
-
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
-
-  const slice = getColumnPrefsSlice(
-    prefs,
-    editingLayout as CategoryTableViewMode,
-    editingDevice as DeviceClass
-  );
-
   return (
-    <ListColumnSettings
+    <ListModuleTableColumnSettings
       registry={CATEGORY_LIST_COLUMN_REGISTRY}
-      prefs={slice}
-      allowedColumnIds={CATEGORY_LIST_COLUMN_REGISTRY.ids}
-      editingLayout={editingLayout}
-      editingDevice={editingDevice}
-      detectedDevice={detectedDeviceClass}
-      onEditingLayoutChange={setEditingLayout}
-      onEditingDeviceChange={setEditingDevice}
-      onChange={(columnPrefs) =>
-        onChange(
-          setColumnPrefsSlice(
-            prefs,
-            editingLayout as CategoryTableViewMode,
-            editingDevice as DeviceClass,
-            columnPrefs
-          )
-        )
+      detectedDeviceClass={detectedDeviceClass}
+      resolveColumnPrefs={(device) => getColumnPrefsSlice(prefs, device as DeviceClass)}
+      commitColumnPrefs={(device, columnPrefs) =>
+        onChange(setColumnPrefsSlice(prefs, device as DeviceClass, columnPrefs))
       }
+      commitColumnPrefsAllDevices={(columnPrefs) =>
+        onChange(setColumnPrefsSliceAllDevices(prefs, columnPrefs))
+      }
+      workspaceLayout={workspaceLayout}
       frozenColumnCount={prefs.frozenColumnCount}
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
+      disabledColumnIds={CATEGORIES_WORKSPACE_DISABLED_COLUMNS}
       disabled={disabled}
       isSaving={isSaving}
       triggerClassName={triggerClassName}

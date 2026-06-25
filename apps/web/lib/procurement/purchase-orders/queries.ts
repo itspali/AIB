@@ -73,21 +73,33 @@ type PoSelectShape = {
   includeLineIds: boolean;
   includeTaxColumns: boolean;
   includeHeaderCharges: boolean;
+  includeSubcontractJob?: boolean;
 };
 
-const PO_LIST_SELECT_SHAPES: PoSelectShape[] = [
-  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
-  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
-];
+function withSubcontractJobFallback(shapes: PoSelectShape[]): PoSelectShape[] {
+  return [
+    ...shapes.map((shape) => ({ ...shape, includeSubcontractJob: true })),
+    ...shapes.map((shape) => ({ ...shape, includeSubcontractJob: false })),
+  ];
+}
 
-const PO_DETAIL_SELECT_SHAPES: PoSelectShape[] = [
+function buildPoSubcontractJobField(includeSubcontractJob: boolean): string {
+  return includeSubcontractJob ? "is_subcontract_job," : "";
+}
+
+const PO_LIST_SELECT_SHAPES: PoSelectShape[] = withSubcontractJobFallback([
   { includeAddresses: true, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
   { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
   { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
   { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
-];
+]);
+
+const PO_DETAIL_SELECT_SHAPES: PoSelectShape[] = withSubcontractJobFallback([
+  { includeAddresses: true, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: true },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
+  { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
+]);
 
 function buildPoHeaderChargeFields(includeHeaderCharges: boolean): string {
   if (!includeHeaderCharges) return "";
@@ -136,6 +148,7 @@ function buildPurchaseOrderListSelect(options: PoSelectShape): string {
       receipt_location_id,
       ultimate_destination_location_id,
       po_fulfillment_stage_override,
+      ${buildPoSubcontractJobField(options.includeSubcontractJob ?? true)}
       supplier_id,
       document_status,
       currency_code,
@@ -168,6 +181,7 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
       receipt_location_id,
       ultimate_destination_location_id,
       po_fulfillment_stage_override,
+      ${buildPoSubcontractJobField(options.includeSubcontractJob ?? true)}
       supplier_id,
       document_status,
       currency_code,
@@ -206,7 +220,10 @@ function buildPurchaseOrderDetailSelect(options: PoSelectShape): string {
     `;
 }
 
-function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string {
+function buildReceivablePurchaseOrderSelect(
+  includeTaxColumns: boolean,
+  includeSubcontractJob = true
+): string {
   return `
       id,
       voucher_number,
@@ -214,6 +231,7 @@ function buildReceivablePurchaseOrderSelect(includeTaxColumns: boolean): string 
       receipt_location_id,
       ultimate_destination_location_id,
       po_fulfillment_stage_override,
+      ${buildPoSubcontractJobField(includeSubcontractJob)}
       document_status,
       ${DESTINATION_LOCATION_EMBED} (name, code),
       ${SUPPLIER_EMBED} (name),
@@ -416,6 +434,7 @@ type PoListDbRow = {
   receipt_location_id?: string | null;
   ultimate_destination_location_id?: string | null;
   po_fulfillment_stage_override?: string | null;
+  is_subcontract_job?: boolean | null;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
   po_lines: Array<{ id: string }> | null;
@@ -470,6 +489,7 @@ type ReceivablePoDbRow = {
   receipt_location_id?: string | null;
   ultimate_destination_location_id?: string | null;
   po_fulfillment_stage_override?: string | null;
+  is_subcontract_job?: boolean | null;
   tax_supply_nature?: string | null;
   destination_location: LocationEmbed;
   supplier: SupplierEmbed;
@@ -654,6 +674,7 @@ function mapPoListRow(row: PoListDbRow): PurchaseOrderRow {
         : row.po_fulfillment_stage_override === "COMMERCIAL"
           ? "COMMERCIAL"
           : null,
+    is_subcontract_job: row.is_subcontract_job === true,
   };
 }
 
@@ -754,17 +775,22 @@ export async function fetchReceivablePurchaseOrders(
   tenantId: string,
   options?: { locationId?: string | null }
 ): Promise<ReceivablePurchaseOrderOption[]> {
-  const receivableShapes: PoSelectShape[] = [
+  const receivableShapes: PoSelectShape[] = withSubcontractJobFallback([
     { includeAddresses: false, includeLineIds: true, includeTaxColumns: true, includeHeaderCharges: false },
     { includeAddresses: false, includeLineIds: true, includeTaxColumns: false, includeHeaderCharges: false },
-  ];
+  ]);
 
   const { data, error } = await runPoSelectWithFallback<ReceivablePoDbRow[]>(
     receivableShapes,
     (shape) => {
       let query = supabase
         .from("purchase_orders")
-        .select(buildReceivablePurchaseOrderSelect(shape.includeTaxColumns))
+        .select(
+          buildReceivablePurchaseOrderSelect(
+            shape.includeTaxColumns,
+            shape.includeSubcontractJob ?? true
+          )
+        )
         .eq("tenant_id", tenantId)
         .in("document_status", ["ISSUED_ACTIVE", "PARTIALLY_FULFILLED"])
         .order("voucher_number");
@@ -802,6 +828,7 @@ export async function fetchReceivablePurchaseOrders(
             : typed.po_fulfillment_stage_override === "COMMERCIAL"
               ? "COMMERCIAL"
               : null,
+        is_subcontract_job: typed.is_subcontract_job === true,
         supplier_name: supplier?.name ?? "",
         tax_supply_nature: isPoTaxSupplyNature(String(typed.tax_supply_nature ?? ""))
           ? (typed.tax_supply_nature as PoTaxSupplyNature)

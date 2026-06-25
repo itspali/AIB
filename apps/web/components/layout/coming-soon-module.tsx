@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Sparkles } from "lucide-react";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
 
 type Props = {
   title: string;
@@ -11,6 +12,7 @@ type Props = {
 /** Placeholder shell for modules that are planned but not yet built. */
 export function ComingSoonModule({ title, description, icon: Icon, plannedSections }: Props) {
   return (
+    <OverviewGlassShell>
     <div className="canvas-scroll-endpad">
       <header className="mb-5">
         <div className="flex items-center gap-2">
@@ -47,5 +49,6 @@ export function ComingSoonModule({ title, description, icon: Icon, plannedSectio
         ) : null}
       </div>
     </div>
+    </OverviewGlassShell>
   );
 }

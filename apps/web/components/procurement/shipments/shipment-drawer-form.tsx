@@ -9,10 +9,15 @@ import {
   saveImportShipment,
   updateImportShipmentStatus,
 } from "@/app/(workspace)/procurement/shipments/actions";
+import { IncotermsSelect } from "@/components/procurement/import-logistics/incoterms-select";
+import { ImportLogisticsFieldLabel } from "@/components/procurement/import-logistics/import-logistics-field-label";
+import { ImportPortCombobox } from "@/components/procurement/import-logistics/import-port-combobox";
+import { PoSupplierCombobox } from "@/components/procurement/purchase-orders/po-supplier-combobox";
+import { ProcurementLocationCombobox } from "@/components/procurement/shared/procurement-location-combobox";
+import { ProcurementOptionalSupplierCombobox } from "@/components/procurement/shared/procurement-optional-supplier-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -21,7 +26,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
+import { SubsectionHeading } from "@/components/ui/field-label-info";
 import { formatDate } from "@/lib/dashboard/format";
+import {
+  IMPORT_SHIPMENT_HELP,
+  IMPORT_SHIPMENT_LABELS,
+  IMPORT_TRANSPORT_MODE_OPTIONS,
+  type ImportTransportMode,
+} from "@/lib/procurement/import-logistics/field-labels";
+import { resolveShipmentPrefillFromPo } from "@/lib/procurement/shipments/prefill-from-po";
 import type {
   AllocatableImportPurchaseOrderOption,
   ImportShipmentLineDraft,
@@ -43,21 +57,60 @@ type DrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shipmentId: string | null;
+  prefillPurchaseOrderId?: string | null;
   suppliers: ProcurementSupplierOption[];
   locations: ProcurementLocationOption[];
   allocatableOrders: AllocatableImportPurchaseOrderOption[];
   onSaved: () => void;
 };
 
+function resetDraftFormState(
+  suppliers: ProcurementSupplierOption[],
+  locations: ProcurementLocationOption[]
+) {
+  return {
+    supplierId: suppliers[0]?.id ?? "",
+    forwarderEntityId: null as string | null,
+    stagingLocationId: null as string | null,
+    ultimateDestinationLocationId: locations[0]?.id ?? null,
+    incotermsCode: "",
+    transportMode: "SEA" as ImportTransportMode,
+    billOfLading: "",
+    containerInput: "",
+    awb: "",
+    vesselName: "",
+    portOfLoading: "",
+    portOfDischarge: "",
+    etd: "",
+    eta: "",
+    billOfEntryNumber: "",
+    billOfEntryDate: "",
+    portCode: "",
+    exchangeRate: "1",
+    assessableValue: "0",
+    customsDutyAmount: "0",
+    importIgstAmount: "0",
+    notes: "",
+    selectedPoId: null as string | null,
+    lines: [] as ImportShipmentLineDraft[],
+    status: "DRAFT" as ImportShipmentStatus,
+    shipmentNumber: null as string | null,
+    prefillPoNumber: null as string | null,
+  };
+}
+
 export function ShipmentDrawerForm({
   open,
   onOpenChange,
   shipmentId,
+  prefillPurchaseOrderId = null,
   suppliers,
   locations,
   allocatableOrders,
   onSaved,
 }: DrawerProps) {
+  const isPeekMode = Boolean(shipmentId);
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(isPeekMode);
   const [supplierId, setSupplierId] = useState("");
   const [forwarderEntityId, setForwarderEntityId] = useState<string | null>(null);
   const [stagingLocationId, setStagingLocationId] = useState<string | null>(null);
@@ -65,6 +118,7 @@ export function ShipmentDrawerForm({
     null
   );
   const [incotermsCode, setIncotermsCode] = useState("");
+  const [transportMode, setTransportMode] = useState<ImportTransportMode>("SEA");
   const [billOfLading, setBillOfLading] = useState("");
   const [containerInput, setContainerInput] = useState("");
   const [awb, setAwb] = useState("");
@@ -86,6 +140,7 @@ export function ShipmentDrawerForm({
   const [savedShipmentId, setSavedShipmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<ImportShipmentStatus>("DRAFT");
   const [shipmentNumber, setShipmentNumber] = useState<string | null>(null);
+  const [prefillPoNumber, setPrefillPoNumber] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -102,31 +157,53 @@ export function ShipmentDrawerForm({
     setSavedShipmentId(shipmentId);
     setSelectedPoId(null);
     setLines([]);
+    setPrefillPoNumber(null);
 
     if (!shipmentId) {
-      setSupplierId(suppliers[0]?.id ?? "");
-      setForwarderEntityId(null);
-      setStagingLocationId(null);
-      setUltimateDestinationLocationId(locations[0]?.id ?? null);
-      setIncotermsCode("");
-      setBillOfLading("");
-      setContainerInput("");
-      setAwb("");
-      setVesselName("");
-      setPortOfLoading("");
-      setPortOfDischarge("");
-      setEtd("");
-      setEta("");
-      setBillOfEntryNumber("");
-      setBillOfEntryDate("");
-      setPortCode("");
-      setExchangeRate("1");
-      setAssessableValue("0");
-      setCustomsDutyAmount("0");
-      setImportIgstAmount("0");
-      setNotes("");
-      setStatus("DRAFT");
-      setShipmentNumber(null);
+      const draft = resetDraftFormState(suppliers, locations);
+      setSupplierId(draft.supplierId);
+      setForwarderEntityId(draft.forwarderEntityId);
+      setStagingLocationId(draft.stagingLocationId);
+      setUltimateDestinationLocationId(draft.ultimateDestinationLocationId);
+      setIncotermsCode(draft.incotermsCode);
+      setTransportMode(draft.transportMode);
+      setBillOfLading(draft.billOfLading);
+      setContainerInput(draft.containerInput);
+      setAwb(draft.awb);
+      setVesselName(draft.vesselName);
+      setPortOfLoading(draft.portOfLoading);
+      setPortOfDischarge(draft.portOfDischarge);
+      setEtd(draft.etd);
+      setEta(draft.eta);
+      setBillOfEntryNumber(draft.billOfEntryNumber);
+      setBillOfEntryDate(draft.billOfEntryDate);
+      setPortCode(draft.portCode);
+      setExchangeRate(draft.exchangeRate);
+      setAssessableValue(draft.assessableValue);
+      setCustomsDutyAmount(draft.customsDutyAmount);
+      setImportIgstAmount(draft.importIgstAmount);
+      setNotes(draft.notes);
+      setStatus(draft.status);
+      setShipmentNumber(draft.shipmentNumber);
+
+      const prefillId = prefillPurchaseOrderId?.trim() || null;
+      if (prefillId) {
+        const order = allocatableOrders.find((row) => row.id === prefillId);
+        if (order) {
+          const prefill = resolveShipmentPrefillFromPo(order, suppliers);
+          setSupplierId(prefill.supplierId);
+          setStagingLocationId(prefill.stagingLocationId);
+          setUltimateDestinationLocationId(prefill.ultimateDestinationLocationId);
+          setIncotermsCode(prefill.incotermsCode);
+          setSelectedPoId(prefill.selectedPoId);
+          setLines(prefill.lines);
+          setPrefillPoNumber(order.voucher_number);
+        } else {
+          setError(
+            "This purchase order cannot be linked yet. Issue the PO and ensure it is an import order with open quantity."
+          );
+        }
+      }
       return;
     }
 
@@ -142,6 +219,7 @@ export function ShipmentDrawerForm({
       setStagingLocationId(shipment.staging_location_id);
       setUltimateDestinationLocationId(shipment.ultimate_destination_location_id);
       setIncotermsCode(shipment.incoterms_code ?? "");
+      setTransportMode(shipment.awb?.trim() && !shipment.bill_of_lading?.trim() ? "AIR" : "SEA");
       setBillOfLading(shipment.bill_of_lading ?? "");
       setContainerInput(shipment.container_numbers.join(", "));
       setAwb(shipment.awb ?? "");
@@ -171,16 +249,13 @@ export function ShipmentDrawerForm({
         }))
       );
     });
-  }, [open, shipmentId, suppliers, locations]);
+  }, [open, shipmentId, prefillPurchaseOrderId, suppliers, locations, allocatableOrders]);
 
   useEffect(() => {
-    if (!selectedPo) return;
+    if (!selectedPo || isDraft === false) return;
     if (supplierId && selectedPo.supplier_id !== supplierId) return;
     if (!supplierId) setSupplierId(selectedPo.supplier_id);
-    if (!ultimateDestinationLocationId) {
-      setUltimateDestinationLocationId(selectedPo.destination_location_id);
-    }
-  }, [selectedPo, supplierId, ultimateDestinationLocationId]);
+  }, [selectedPo, supplierId, isDraft]);
 
   const handleAddPoLines = () => {
     if (!selectedPo) return;
@@ -212,13 +287,16 @@ export function ShipmentDrawerForm({
         staging_location_id: stagingLocationId,
         ultimate_destination_location_id: ultimateDestinationLocationId,
         incoterms_code: incotermsCode || null,
-        bill_of_lading: billOfLading || null,
-        container_numbers: containerInput
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-        awb: awb || null,
-        vessel_name: vesselName || null,
+        bill_of_lading: transportMode === "AIR" ? null : billOfLading || null,
+        container_numbers:
+          transportMode === "SEA"
+            ? containerInput
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean)
+            : [],
+        awb: transportMode === "AIR" ? awb || null : null,
+        vessel_name: transportMode === "SEA" ? vesselName || null : null,
         port_of_loading: portOfLoading || null,
         port_of_discharge: portOfDischarge || null,
         etd: etd || null,
@@ -327,12 +405,17 @@ export function ShipmentDrawerForm({
   if (!open) return null;
 
   const nextStatus = NEXT_STATUS[status];
+  const transportHelp = IMPORT_TRANSPORT_MODE_OPTIONS.find((row) => row.value === transportMode)?.help;
 
   return (
     <RightDrawer
       open={open}
       onOpenChange={onOpenChange}
       title={shipmentNumber ? `Shipment ${shipmentNumber}` : "New import shipment"}
+      allowBackgroundInteraction={isPeekMode}
+      peekMode={isPeekMode}
+      className={peekShellClassName}
+      bodyClassName={peekBodyClassName}
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -342,135 +425,169 @@ export function ShipmentDrawerForm({
           {shipmentNumber ? <span className="font-mono text-sm">{shipmentNumber}</span> : null}
         </div>
 
+        {prefillPoNumber ? (
+          <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            Creating shipment for purchase order{" "}
+            <span className="font-mono font-medium text-foreground">{prefillPoNumber}</span>. Review
+            the prefilled fields and save.
+          </p>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <Label>Supplier</Label>
-            <Select value={supplierId} onValueChange={setSupplierId} disabled={!isDraft}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Forwarder / CHA (optional)</Label>
-            <Select
-              value={forwarderEntityId ?? "none"}
-              onValueChange={(value) => setForwarderEntityId(value === "none" ? null : value)}
+            <PoSupplierCombobox
+              suppliers={suppliers}
+              value={supplierId}
               disabled={!isDraft}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={`fwd-${supplier.id}`} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Staging location</Label>
-            <Select
-              value={stagingLocationId ?? "none"}
-              onValueChange={(value) => setStagingLocationId(value === "none" ? null : value)}
-              disabled={!isDraft}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Agent / port" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Not set</SelectItem>
-                {locations.map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    {location.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Ultimate destination</Label>
-            <Select
-              value={ultimateDestinationLocationId ?? "none"}
-              onValueChange={(value) =>
-                setUltimateDestinationLocationId(value === "none" ? null : value)
-              }
-              disabled={!isDraft}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Main warehouse" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Not set</SelectItem>
-                {locations.map((location) => (
-                  <SelectItem key={`dest-${location.id}`} value={location.id}>
-                    {location.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Incoterms</Label>
-            <Input value={incotermsCode} onChange={(e) => setIncotermsCode(e.target.value)} disabled={!isDraft} />
-          </div>
-          <div className="space-y-2">
-            <Label>Bill of lading</Label>
-            <Input value={billOfLading} onChange={(e) => setBillOfLading(e.target.value)} disabled={!isDraft} />
-          </div>
-          <div className="space-y-2">
-            <Label>AWB</Label>
-            <Input value={awb} onChange={(e) => setAwb(e.target.value)} disabled={!isDraft} />
-          </div>
-          <div className="space-y-2">
-            <Label>Vessel</Label>
-            <Input value={vesselName} onChange={(e) => setVesselName(e.target.value)} disabled={!isDraft} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Container numbers (comma-separated)</Label>
-            <Input
-              value={containerInput}
-              onChange={(e) => setContainerInput(e.target.value)}
-              disabled={!isDraft}
+              labelField={{ label: IMPORT_SHIPMENT_LABELS.supplier }}
+              help={IMPORT_SHIPMENT_HELP.supplier}
+              onChange={setSupplierId}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Port of loading</Label>
-            <Input value={portOfLoading} onChange={(e) => setPortOfLoading(e.target.value)} disabled={!isDraft} />
+
+          <div className="sm:col-span-2">
+            <ProcurementOptionalSupplierCombobox
+              suppliers={suppliers}
+              value={forwarderEntityId}
+              disabled={!isDraft}
+              label={IMPORT_SHIPMENT_LABELS.customsAgent}
+              help={IMPORT_SHIPMENT_HELP.customsAgent}
+              onChange={setForwarderEntityId}
+            />
           </div>
+
+          <ProcurementLocationCombobox
+            locations={locations}
+            value={stagingLocationId}
+            disabled={!isDraft}
+            label={IMPORT_SHIPMENT_LABELS.firstReceivingLocation}
+            help={IMPORT_SHIPMENT_HELP.firstReceivingLocation}
+            allowEmpty
+            onChange={setStagingLocationId}
+          />
+
+          <ProcurementLocationCombobox
+            locations={locations}
+            value={ultimateDestinationLocationId}
+            disabled={!isDraft}
+            label={IMPORT_SHIPMENT_LABELS.finalWarehouse}
+            help={IMPORT_SHIPMENT_HELP.finalWarehouse}
+            onChange={setUltimateDestinationLocationId}
+          />
+
+          <IncotermsSelect
+            value={incotermsCode}
+            disabled={!isDraft}
+            label={IMPORT_SHIPMENT_LABELS.deliveryTerms}
+            help={IMPORT_SHIPMENT_HELP.deliveryTerms}
+            onChange={setIncotermsCode}
+          />
+
           <div className="space-y-2">
-            <Label>Port of discharge</Label>
-            <Input value={portOfDischarge} onChange={(e) => setPortOfDischarge(e.target.value)} disabled={!isDraft} />
+            <ImportLogisticsFieldLabel
+              label={IMPORT_SHIPMENT_LABELS.transportMode}
+              help={transportHelp ?? IMPORT_SHIPMENT_HELP.transportMode}
+            />
+            <Select
+              value={transportMode}
+              disabled={!isDraft}
+              onValueChange={(value) => setTransportMode(value as ImportTransportMode)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {IMPORT_TRANSPORT_MODE_OPTIONS.map((row) => (
+                  <SelectItem key={row.value} value={row.value}>
+                    {row.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          {transportMode === "SEA" ? (
+            <>
+              <div className="space-y-2">
+                <ImportLogisticsFieldLabel
+                  label={IMPORT_SHIPMENT_LABELS.billOfLading}
+                  help={IMPORT_SHIPMENT_HELP.billOfLading}
+                />
+                <Input
+                  value={billOfLading}
+                  onChange={(e) => setBillOfLading(e.target.value)}
+                  disabled={!isDraft}
+                />
+              </div>
+              <div className="space-y-2">
+                <ImportLogisticsFieldLabel
+                  label={IMPORT_SHIPMENT_LABELS.vessel}
+                  help={IMPORT_SHIPMENT_HELP.vessel}
+                />
+                <Input
+                  value={vesselName}
+                  onChange={(e) => setVesselName(e.target.value)}
+                  disabled={!isDraft}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <ImportLogisticsFieldLabel
+                  label={IMPORT_SHIPMENT_LABELS.containers}
+                  help={IMPORT_SHIPMENT_HELP.containers}
+                />
+                <Input
+                  value={containerInput}
+                  onChange={(e) => setContainerInput(e.target.value)}
+                  disabled={!isDraft}
+                />
+              </div>
+            </>
+          ) : null}
+
+          {transportMode === "AIR" ? (
+            <div className="space-y-2 sm:col-span-2">
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.awb}
+                help={IMPORT_SHIPMENT_HELP.awb}
+              />
+              <Input value={awb} onChange={(e) => setAwb(e.target.value)} disabled={!isDraft} />
+            </div>
+          ) : null}
+
+          <ImportPortCombobox
+            value={portOfLoading}
+            disabled={!isDraft}
+            label={IMPORT_SHIPMENT_LABELS.originPort}
+            help={IMPORT_SHIPMENT_HELP.originPort}
+            onChange={setPortOfLoading}
+          />
+
+          <ImportPortCombobox
+            value={portOfDischarge}
+            disabled={!isDraft}
+            label={IMPORT_SHIPMENT_LABELS.arrivalPort}
+            help={IMPORT_SHIPMENT_HELP.arrivalPort}
+            onChange={setPortOfDischarge}
+          />
+
           <div className="space-y-2">
-            <Label>ETD</Label>
+            <ImportLogisticsFieldLabel label={IMPORT_SHIPMENT_LABELS.etd} help={IMPORT_SHIPMENT_HELP.etd} />
             <Input type="date" value={etd} onChange={(e) => setEtd(e.target.value)} disabled={!isDraft} />
           </div>
           <div className="space-y-2">
-            <Label>ETA</Label>
+            <ImportLogisticsFieldLabel label={IMPORT_SHIPMENT_LABELS.eta} help={IMPORT_SHIPMENT_HELP.eta} />
             <Input type="date" value={eta} onChange={(e) => setEta(e.target.value)} disabled={!isDraft} />
           </div>
         </div>
 
         <div className="rounded-lg border border-border p-3 space-y-3">
-          <p className="text-sm font-medium">Bill of entry (master)</p>
+          <SubsectionHeading title={IMPORT_SHIPMENT_LABELS.boeSection} info={IMPORT_SHIPMENT_HELP.boeSection} compact />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>BoE number</Label>
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.boeNumber}
+                help={IMPORT_SHIPMENT_HELP.boeNumber}
+              />
               <Input
                 value={billOfEntryNumber}
                 onChange={(e) => setBillOfEntryNumber(e.target.value)}
@@ -478,7 +595,10 @@ export function ShipmentDrawerForm({
               />
             </div>
             <div className="space-y-2">
-              <Label>BoE date</Label>
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.boeDate}
+                help={IMPORT_SHIPMENT_HELP.boeDate}
+              />
               <Input
                 type="date"
                 value={billOfEntryDate}
@@ -486,12 +606,19 @@ export function ShipmentDrawerForm({
                 disabled={!isDraft}
               />
             </div>
+            <ImportPortCombobox
+              value={portCode}
+              disabled={!isDraft}
+              label={IMPORT_SHIPMENT_LABELS.customsPortCode}
+              help={IMPORT_SHIPMENT_HELP.customsPortCode}
+              placeholder="Search customs port codes…"
+              onChange={setPortCode}
+            />
             <div className="space-y-2">
-              <Label>Port code</Label>
-              <Input value={portCode} onChange={(e) => setPortCode(e.target.value)} disabled={!isDraft} />
-            </div>
-            <div className="space-y-2">
-              <Label>Exchange rate</Label>
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.exchangeRate}
+                help={IMPORT_SHIPMENT_HELP.exchangeRate}
+              />
               <Input
                 className="font-mono"
                 value={exchangeRate}
@@ -500,7 +627,10 @@ export function ShipmentDrawerForm({
               />
             </div>
             <div className="space-y-2">
-              <Label>Assessable value</Label>
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.assessableValue}
+                help={IMPORT_SHIPMENT_HELP.assessableValue}
+              />
               <Input
                 className="font-mono"
                 value={assessableValue}
@@ -509,7 +639,10 @@ export function ShipmentDrawerForm({
               />
             </div>
             <div className="space-y-2">
-              <Label>Customs duty</Label>
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.customsDuty}
+                help={IMPORT_SHIPMENT_HELP.customsDuty}
+              />
               <Input
                 className="font-mono"
                 value={customsDutyAmount}
@@ -518,7 +651,10 @@ export function ShipmentDrawerForm({
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label>Import IGST</Label>
+              <ImportLogisticsFieldLabel
+                label={IMPORT_SHIPMENT_LABELS.importIgst}
+                help={IMPORT_SHIPMENT_HELP.importIgst}
+              />
               <Input
                 className="font-mono"
                 value={importIgstAmount}
@@ -531,10 +667,17 @@ export function ShipmentDrawerForm({
 
         {isDraft ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
-            <p className="text-sm font-medium">PO line allocation</p>
+            <SubsectionHeading
+              title={IMPORT_SHIPMENT_LABELS.poAllocation}
+              info={IMPORT_SHIPMENT_HELP.poAllocation}
+              compact
+            />
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[12rem] flex-1 space-y-2">
-                <Label>Import purchase order</Label>
+                <ImportLogisticsFieldLabel
+                  label={IMPORT_SHIPMENT_LABELS.importPo}
+                  help={IMPORT_SHIPMENT_HELP.importPo}
+                />
                 <Select
                   value={selectedPoId ?? "none"}
                   onValueChange={(value) => setSelectedPoId(value === "none" ? null : value)}
@@ -589,7 +732,7 @@ export function ShipmentDrawerForm({
         ) : null}
 
         <div className="space-y-2">
-          <Label>Notes</Label>
+          <ImportLogisticsFieldLabel label={IMPORT_SHIPMENT_LABELS.notes} help={IMPORT_SHIPMENT_HELP.notes} />
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!isDraft} />
         </div>
 
@@ -643,8 +786,8 @@ export function ShipmentList({ shipments, onRefresh, onEdit }: ListProps) {
     <div className="space-y-4">
       {shipments.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          No import shipments yet. Create a shipment to allocate overseas purchase order lines and
-          track inbound logistics.
+          No import shipments yet. Create a shipment from an issued import purchase order or use New
+          shipment to plan inbound logistics.
         </div>
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border">

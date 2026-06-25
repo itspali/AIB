@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ListColumnSettings,
-  type ColumnSettingsDevice,
-} from "@/components/list-columns/list-column-settings";
+import { ListModuleTableColumnSettings } from "@/components/list-columns/list-module-table-column-settings";
 import { TAX_LIST_COLUMN_REGISTRY } from "@/lib/tax/list-columns";
-import type { TaxListPrefs } from "@/lib/tax/list-prefs";
+import {
+  getTaxColumnPrefsSlice,
+  setTaxColumnPrefsSlice,
+  setTaxColumnPrefsSliceAllDevices,
+  type TaxListPrefs,
+} from "@/lib/tax/list-prefs";
 import type { DeviceClass } from "@/lib/layout/device-class";
 
 type Props = {
@@ -22,29 +23,23 @@ export function TaxListColumnSettings({
   detectedDeviceClass,
   disabled = false,
 }: Props) {
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
-
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
-
   return (
-    <ListColumnSettings
+    <ListModuleTableColumnSettings
       registry={TAX_LIST_COLUMN_REGISTRY}
-      prefs={prefs.columnPrefs}
-      allowedColumnIds={TAX_LIST_COLUMN_REGISTRY.ids}
-      editingLayout="table"
-      editingDevice={editingDevice}
-      detectedDevice={detectedDeviceClass}
-      onEditingLayoutChange={() => {}}
-      onEditingDeviceChange={setEditingDevice}
-      onChange={(columnPrefs) => onChange({ ...prefs, columnPrefs })}
+      detectedDeviceClass={detectedDeviceClass}
+      resolveColumnPrefs={(device) =>
+        getTaxColumnPrefsSlice(prefs, device as DeviceClass)
+      }
+      commitColumnPrefs={(device, columnPrefs) =>
+        onChange(setTaxColumnPrefsSlice(prefs, device as DeviceClass, columnPrefs))
+      }
+      commitColumnPrefsAllDevices={(columnPrefs) =>
+        onChange(setTaxColumnPrefsSliceAllDevices(prefs, columnPrefs))
+      }
       frozenColumnCount={prefs.frozenColumnCount}
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
-      showLayoutSwitcher={false}
-      showDeviceSwitcher={false}
       disabled={disabled}
     />
   );

@@ -14,7 +14,7 @@ describe("resolveColumnWidthSpec", () => {
 
     expect(resolveColumnWidthSpec(column, "mobile", "truncate").min).toBe(120);
     expect(resolveColumnWidthSpec(column, "desktop", "truncate").min).toBe(180);
-    expect(resolveColumnWidthSpec(column, "desktop", "truncate").max).toBe(320);
+    expect(resolveColumnWidthSpec(column, "desktop", "truncate").max).toBeUndefined();
   });
 
   it("uses user width override and bypasses registry min", () => {
@@ -70,7 +70,6 @@ describe("resolveColumnWidthSpec", () => {
 
     expect(resolveColumnWidthSpec(column, "desktop", "truncate")).toEqual({
       min: 120,
-      max: 240,
     });
   });
 
@@ -79,6 +78,6 @@ describe("resolveColumnWidthSpec", () => {
     const styles = resolveColumnWidthStyles(column, "desktop", "truncate");
 
     expect(styles.minWidth).toBe("96px");
-    expect(styles.maxWidth).toBe("168px");
+    expect(styles.maxWidth).toBeUndefined();
   });
 });

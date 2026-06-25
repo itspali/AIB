@@ -7,8 +7,13 @@ import { GrnEmptyState } from "@/components/procurement/goods-receipts/grn-empty
 import { GrnListTable } from "@/components/procurement/goods-receipts/grn-list-table";
 import { GrnListToolbar } from "@/components/procurement/goods-receipts/grn-list-toolbar";
 import { ListLoadMoreFooter } from "@/components/layout/list-load-more-footer";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import {
@@ -18,6 +23,7 @@ import {
   setGoodsReceiptColumnWidth,
   type GoodsReceiptListPrefs,
 } from "@/lib/procurement/goods-receipts/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortGoodsReceiptListRows,
   type GoodsReceiptListSortDirection,
@@ -31,9 +37,12 @@ import type { ProcurementLocationOption } from "@/lib/procurement/shared/types";
 import type { ImportLogisticsSettings } from "@/lib/procurement/import-logistics-settings";
 import type { LandedCostAllocationMethod, ProcurementSettings } from "@/lib/procurement/settings";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapGoodsReceiptRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 
-const GRN_PAGE_DESCRIPTION =
-  "Post goods receipts to increase on-hand stock — against purchase orders or as standalone receipts.";
 
 const GrnDrawerForm = lazyClientExport(
   () => import("@/components/procurement/goods-receipts/grn-drawer-form"),
@@ -85,6 +94,7 @@ export function GrnManagementTerminal({
   const [receivableOrders, setReceivableOrders] = useState(initialReceivableOrders);
   const [prefs, setPrefs] = useState<GoodsReceiptListPrefs>(getDefaultGoodsReceiptListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
 
   useEffect(() => {
     const loaded = loadGoodsReceiptListPrefs();
@@ -138,9 +148,21 @@ export function GrnManagementTerminal({
   const hasAnyData = goodsReceipts.length > 0;
   const filteredRows = receiptsView.filteredRows;
 
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.voucher_number,
+      row.purchase_order_number,
+      row.destination_location_name,
+      row.destination_location_code,
+      row.bill_of_entry_number,
+      row.port_code,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortGoodsReceiptListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortGoodsReceiptListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const handleSortChange = useCallback(
@@ -164,13 +186,13 @@ export function GrnManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <GrnListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleSortChange}
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setGoodsReceiptColumnWidth(current, columnId, width))
+          setPrefs((current) => setGoodsReceiptColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         onSelect={handleSelect}
@@ -186,35 +208,82 @@ export function GrnManagementTerminal({
     </div>
   );
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={sortedRows.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="goods receipts"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapGoodsReceiptRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No goods receipts match the current filters.",
+    footer: listFooter,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <GrnEmptyState onCreate={drawer.openCreate} hasLocations={locations.length > 0} />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No goods receipts match the current filters.
+        </div>
+      </div>
+    ),
+  });
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Goods Receipts"
-            description={GRN_PAGE_DESCRIPTION}
-            createLabel="New goods receipt"
-            onCreate={drawer.openCreate}
-            aboutAriaLabel="About Goods Receipts"
+            count={
+              hasAnyData ? `${receiptsView.resultCount}/${receiptsView.totalCount}` : undefined
+            }
+            onNew={drawer.openCreate}
+            newAriaLabel="New goods receipt"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <GrnListToolbar
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  locations={locations}
+                  resultCount={receiptsView.resultCount}
+                  totalCount={receiptsView.totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
         }
-        toolbar={
-          hasAnyData ? (
-            <GrnListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              locations={locations}
-              resultCount={receiptsView.resultCount}
-              totalCount={receiptsView.totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
-        }
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a goods receipt"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -233,6 +302,7 @@ export function GrnManagementTerminal({
           onReceiptUpdated={refreshList}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

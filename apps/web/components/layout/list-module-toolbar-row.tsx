@@ -52,6 +52,8 @@ type Props = {
   countNoun?: string;
   countNounPlural?: string;
   compactCountLabel?: boolean;
+  /** When true, count is omitted (shown in UnifiedCatalogHeader instead). */
+  hideCount?: boolean;
   controls: ReactNode;
   className?: string;
 };
@@ -62,6 +64,7 @@ export function ListModuleToolbarRow({
   countNoun = "item",
   countNounPlural,
   compactCountLabel = false,
+  hideCount = false,
   controls,
   className,
 }: Props) {
@@ -70,6 +73,20 @@ export function ListModuleToolbarRow({
   const fullCountText = `Showing ${resultCount} of ${totalCount} ${label}.`;
   const shortCountText = `Showing ${resultCount} of ${totalCount}`;
   const ratioCountText = `${resultCount}/${totalCount}`;
+
+  if (hideCount) {
+    return (
+      <div
+        className={cn(
+          "revamp-catalog-toolbar revamp-catalog-toolbar--strip flex min-h-9 min-w-0 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-visible md:gap-2.5",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          className
+        )}
+      >
+        {controls}
+      </div>
+    );
+  }
 
   return (
     <div className={cn("space-y-2", className)}>

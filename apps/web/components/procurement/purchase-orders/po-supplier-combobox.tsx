@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { DocumentLayoutLabel } from "@/components/documents/document-layout-label";
+import { FieldLabelInfo } from "@/components/ui/field-label-info";
 import type { DocumentColumnPref } from "@/lib/documents/types";
 import { entityCreateHref } from "@/lib/entities/entity-navigation";
 import { popoverAboveDrawerClassName } from "@/lib/layout/overlay-z-index";
@@ -17,6 +19,7 @@ type Props = {
   disabled?: boolean;
   className?: string;
   labelField?: Pick<DocumentColumnPref, "label" | "typography">;
+  help?: ReactNode;
   onChange: (supplierId: string) => void;
 };
 
@@ -26,6 +29,7 @@ export function PoSupplierCombobox({
   disabled = false,
   className,
   labelField,
+  help,
   onChange,
 }: Props) {
   const listboxId = useId();
@@ -57,7 +61,12 @@ export function PoSupplierCombobox({
 
   return (
     <div className={cn("min-w-0 w-full space-y-2", className)}>
-      <DocumentLayoutLabel field={labelField} fallbackLabel="Supplier" />
+      <div className="flex items-center gap-1.5">
+        <DocumentLayoutLabel field={labelField} fallbackLabel="Supplier" />
+        {help ? (
+          <FieldLabelInfo label={labelField?.label ?? "Supplier"}>{help}</FieldLabelInfo>
+        ) : null}
+      </div>
       <div ref={anchorRef} className="relative min-w-0 w-full">
         <Input
           value={query}

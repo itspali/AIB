@@ -59,6 +59,9 @@ function stageIsPoFulfilling(
 }
 
 function resolveAllowedStages(settings: ImportLogisticsSettings): GrnReceiptStage[] {
+  if (!settings.imports_enabled) {
+    return ["FINAL"];
+  }
   if (settings.import_receipt_document_strategy === "SINGLE_FINAL_ONLY") {
     return ["FINAL"];
   }
@@ -146,6 +149,7 @@ export function resolveGrnReceiptContext(
   );
 
   const showGitLink =
+    tenantSettings.imports_enabled &&
     tenantSettings.git_enabled &&
     tenantSettings.import_receipt_mode === "STAGING_THEN_GIT" &&
     (receiptStage === "GIT_CLEARANCE" || receiptStage === "FINAL");

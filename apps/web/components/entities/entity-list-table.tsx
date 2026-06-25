@@ -1,9 +1,15 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useCallback, useMemo, useRef } from "react";
 import { renderEntityListCell } from "@/components/entities/entity-list-cells";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import {
+  ListWorkspaceRegistryHeaderCell,
+  ListWorkspaceRegistrySelectBodyCell,
+  ListWorkspaceRegistrySelectHeaderCell,
+  ListWorkspaceRegistryTableFrame,
+  ListWorkspaceRegistryBodyCell,
+} from "@/components/layout/list-workspace-registry-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { getEntityListCellDisplayTexts } from "@/lib/entities/list-column-display-text";
@@ -17,16 +23,10 @@ import {
 } from "@/lib/entities/list-sort";
 import type { EntityListRow } from "@/lib/entities/types";
 import {
-  LIST_TABLE_BODY_CELL,
-  LIST_TABLE_CHECKBOX_CLASS,
-  LIST_TABLE_HEADER_CELL,
-  LIST_TABLE_HEADER_CELL_BG,
-  LIST_TABLE_HEADER_SORTABLE,
-  LIST_TABLE_ROOT,
-  LIST_TABLE_SCROLL,
-  LIST_TABLE_SURFACE,
+  LIST_TABLE_FROZEN_EDGE_SHADOW,
+  LIST_WORKSPACE_BULK_CHECKBOX_CLASS,
+  MATRIX_TABLE_COLUMN_RESIZE_HANDLE_CLASS,
   listTableElementClass,
-  listTableLeadingCellInteractionClass,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import {
@@ -68,22 +68,6 @@ type Props = {
   onBulkRowToggle: (entityId: string, checked: boolean) => void;
   onBulkPageToggle: (checked: boolean) => void;
 };
-
-function SortIndicator({
-  active,
-  direction,
-}: {
-  active: boolean;
-  direction: EntityListSortDirection;
-}) {
-  if (!active) {
-    return <ArrowUpDown className="h-3.5 w-3.5 opacity-40" aria-hidden />;
-  }
-  if (direction === "asc") {
-    return <ArrowUp className="h-3.5 w-3.5 text-primary" aria-hidden />;
-  }
-  return <ArrowDown className="h-3.5 w-3.5 text-primary" aria-hidden />;
-}
 
 export function EntityListTable({
   rows,
@@ -145,128 +129,101 @@ export function EntityListTable({
     resolveAutoWidth,
   });
 
-  const selectionHeaderClass = cn(
-    LIST_TABLE_HEADER_CELL,
-    "w-10 p-0 text-center",
-    frozen.effectiveFrozenCount > 0 && LIST_TABLE_HEADER_CELL_BG
+  const selectionColumnShowsEdge =
+    frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
+
+  const selectionHeaderClass = cn(selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW);
+
+  const selectionBodyEdgeClass = cn(
+    selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
   );
 
-  const selectionBodyClass = (selected: boolean) =>
-    cn(
-      cellPadding,
-      "text-center",
-      listTableLeadingCellInteractionClass(selected)
-    );
-
   return (
-    <div className={LIST_TABLE_ROOT}>
-      <div className={LIST_TABLE_SURFACE}>
-        <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
+    <ListWorkspaceRegistryTableFrame scrollRef={frozen.scrollContainerRef}>
           <table className={listTableElementClass("wide", compactRows)}>
             <thead>
-              <tr className="text-left">
-                <th
-                  ref={selectionColumnRef}
-                  scope="col"
+              <tr>
+                <ListWorkspaceRegistrySelectHeaderCell
+                  cellRef={selectionColumnRef}
                   className={cn(
-                    "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
-                    LIST_TABLE_HEADER_CELL_BG,
+                    "sticky left-0 top-0 isolate overflow-hidden",
                     selectionHeaderClass
                   )}
-                style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <Checkbox
-                  className={LIST_TABLE_CHECKBOX_CLASS}
-                  checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
-                  onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
-                  aria-label="Select all listed entities"
-                />
-              </th>
-              {columns.map((columnId, index) => {
-                const column = getEntityColumnDef(columnId);
-                const sortable = isSortableEntityColumn(columnId);
-                const isActiveSort = sortField === columnId;
-                const sticky = frozen.getStickyCellProps(index, "header");
-                const widthStyles = resize.resolveWidthStyles(columnId, index);
-                const isFrozen =
-                  frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
+                  style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
+                >
+                  <Checkbox
+                    className={LIST_WORKSPACE_BULK_CHECKBOX_CLASS}
+                    checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                    onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
+                    aria-label="Select all listed entities"
+                  />
+                </ListWorkspaceRegistrySelectHeaderCell>
+                {columns.map((columnId, index) => {
+                  const column = getEntityColumnDef(columnId);
+                  const sortable = isSortableEntityColumn(columnId);
+                  const isActiveSort = sortField === columnId;
+                  const sticky = frozen.getStickyCellProps(index, "header");
+                  const widthStyles = resize.resolveWidthStyles(columnId, index);
+                  const isFrozen =
+                    frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
 
-                return (
-                  <th
-                    key={columnId}
-                    ref={(element) => {
-                      frozen.headerRefs.current[index] = element;
-                    }}
-                    scope="col"
-                    className={cn(
-                      "relative overflow-hidden",
-                      LIST_TABLE_HEADER_CELL,
-                      sortable && LIST_TABLE_HEADER_SORTABLE,
-                      sticky.className,
-                      frozen.headerCellClass(index),
-                      column.align === "center" && "text-center",
-                      column.align === "right" && "text-right",
-                      isActiveSort && "text-foreground",
-                      index === columns.length - 1 && "rounded-tr-lg"
-                    )}
-                    style={mergeColumnCellStyles(
-                      sticky.style,
-                      widthStyles,
-                      !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
-                    )}
-                    aria-sort={
-                      sortable
-                        ? isActiveSort
-                          ? sortDirection === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : "none"
-                        : undefined
-                    }
-                    onClick={() => {
-                      if (!sortable) return;
-                      const next = toggleEntityColumnSort(columnId, sortField, sortDirection);
-                      onSortChange(next.field, next.direction);
-                    }}
-                  >
-                    {sortable ? (
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1",
-                          column.align === "right" && "justify-end",
-                          column.align === "center" && "justify-center"
-                        )}
-                      >
-                        {column.label}
-                        <SortIndicator active={isActiveSort} direction={sortDirection} />
-                      </span>
-                    ) : (
-                      column.label
-                    )}
-                    {onColumnWidthChange ? (
-                      <ListColumnResizeHandle
-                        ariaLabel={`Resize ${column.label} column`}
-                        getWidth={() => resize.getHeaderWidthPx(columnId, index)}
-                        minWidth={getColumnResizeBounds(column, deviceClass).min}
-                        maxWidth={getColumnResizeBounds(column, deviceClass).max}
-                        onPreview={(width) => resize.setPreviewWidth(columnId, width)}
-                        onCommit={(width) => {
-                          resize.clearPreviewWidth(columnId);
-                          onColumnWidthChange(columnId, width);
-                        }}
-                        onAutoFit={() =>
-                          resize.autoFitColumn(columnId, index, (width) =>
-                            onColumnWidthChange(columnId, width)
-                          )
-                        }
-                      />
-                    ) : null}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
+                  return (
+                    <ListWorkspaceRegistryHeaderCell
+                      key={columnId}
+                      label={column.label}
+                      sortable={sortable}
+                      active={isActiveSort}
+                      sortDirection={sortDirection}
+                      onSort={() => {
+                        const next = toggleEntityColumnSort(columnId, sortField, sortDirection);
+                        onSortChange(next.field, next.direction);
+                      }}
+                      align={
+                        column.align === "center"
+                          ? "center"
+                          : column.align === "right"
+                            ? "right"
+                            : undefined
+                      }
+                      headerRef={(element) => {
+                        frozen.headerRefs.current[index] = element;
+                      }}
+                      className={cn(
+                        "relative",
+                        sticky.className,
+                        frozen.headerCellClass(index)
+                      )}
+                      style={mergeColumnCellStyles(
+                        sticky.style,
+                        widthStyles,
+                        !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
+                      )}
+                      resizeHandle={
+                        onColumnWidthChange ? (
+                          <ListColumnResizeHandle
+                            className={MATRIX_TABLE_COLUMN_RESIZE_HANDLE_CLASS}
+                            ariaLabel={`Resize ${column.label} column`}
+                            getWidth={() => resize.getHeaderWidthPx(columnId, index)}
+                            minWidth={getColumnResizeBounds(column, deviceClass).min}
+                            maxWidth={getColumnResizeBounds(column, deviceClass).max}
+                            onPreview={(width) => resize.setPreviewWidth(columnId, width)}
+                            onCommit={(width) => {
+                              resize.clearPreviewWidth(columnId);
+                              onColumnWidthChange(columnId, width);
+                            }}
+                            onAutoFit={() =>
+                              resize.autoFitColumn(columnId, index, (width) =>
+                                onColumnWidthChange(columnId, width)
+                              )
+                            }
+                          />
+                        ) : undefined
+                      }
+                    />
+                  );
+                })}
+              </tr>
+            </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
@@ -287,10 +244,7 @@ export function EntityListTable({
                     key={row.id}
                     tabIndex={0}
                     role="button"
-                    className={cn(
-                      listTableRowClass(selected),
-                      !row.is_active && "opacity-60"
-                    )}
+                    className={listTableRowClass(selected, true, !row.is_active)}
                     onClick={() => onSelect(row.id)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -299,44 +253,37 @@ export function EntityListTable({
                       }
                     }}
                   >
-                    <td
-                      className={cn(
-                        "sticky left-0 isolate",
-                        LIST_TABLE_BODY_CELL,
-                        selectionBodyClass(selected)
-                      )}
+                    <ListWorkspaceRegistrySelectBodyCell
+                      className={selectionBodyEdgeClass}
                       style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
                     >
                       <Checkbox
-                        className={LIST_TABLE_CHECKBOX_CLASS}
+                        className={LIST_WORKSPACE_BULK_CHECKBOX_CLASS}
                         checked={bulkSelected}
                         onCheckedChange={(checked) =>
                           onBulkRowToggle(row.id, checked === true)
                         }
                         aria-label={`Select ${row.name}`}
                       />
-                    </td>
+                    </ListWorkspaceRegistrySelectBodyCell>
                     {columns.map((columnId, index) => {
                       const column = getEntityColumnDef(columnId);
                       const sticky = frozen.getStickyCellProps(index, "body");
                       const widthStyles = resize.resolveWidthStyles(columnId, index);
                       return (
-                        <td
+                        <ListWorkspaceRegistryBodyCell
                           key={columnId}
+                          column={column}
+                          columnId={columnId}
                           className={cn(
-                            LIST_TABLE_BODY_CELL,
                             cellPadding,
                             sticky.className,
-                            frozen.bodyCellClass(index, selected),
-                            column.align === "center" && "text-center",
-                            column.align === "right" && "text-right tabular-nums"
+                            frozen.bodyCellClass(index, selected)
                           )}
                           style={mergeColumnCellStyles(sticky.style, widthStyles)}
                         >
                           {renderEntityListCell(columnId, row, { chipDisplay: columnChipDisplay })}
-                        </td>
+                        </ListWorkspaceRegistryBodyCell>
                       );
                     })}
                   </tr>
@@ -345,8 +292,6 @@ export function EntityListTable({
             )}
           </tbody>
         </table>
-        </div>
-      </div>
-    </div>
+    </ListWorkspaceRegistryTableFrame>
   );
 }

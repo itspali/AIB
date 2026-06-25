@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useCallback, useMemo, useRef } from "react";
 import {
   categoryListCellClassName,
@@ -8,6 +7,12 @@ import {
   renderCategoryListCell,
 } from "@/components/categories/category-list-cells";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import {
+  ListWorkspaceRegistryHeaderCell,
+  ListWorkspaceRegistrySelectBodyCell,
+  ListWorkspaceRegistrySelectHeaderCell,
+  ListWorkspaceRegistryTableFrame,
+} from "@/components/layout/list-workspace-registry-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { DeviceClass } from "@/lib/layout/device-class";
 import { getCategoryListCellDisplayTexts } from "@/lib/categories/list-column-display-text";
@@ -27,15 +32,10 @@ import { getColumnResizeBounds, mergeColumnCellStyles } from "@/lib/list-columns
 import type { TextWrapMode } from "@/lib/display/text-wrap";
 import type { ColumnChipDisplay } from "@/lib/list-columns/types";
 import {
-  LIST_TABLE_BODY_CELL,
   LIST_TABLE_FROZEN_EDGE_SHADOW,
-  LIST_TABLE_CHECKBOX_CLASS,
-  LIST_TABLE_HEADER_CELL_BG,
-  LIST_TABLE_ROOT,
-  LIST_TABLE_SCROLL,
-  LIST_TABLE_SURFACE,
+  LIST_WORKSPACE_BULK_CHECKBOX_CLASS,
+  MATRIX_TABLE_COLUMN_RESIZE_HANDLE_CLASS,
   listTableElementClass,
-  listTableLeadingCellInteractionClass,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import {
@@ -73,25 +73,6 @@ type Props = {
   onBulkRowToggle: (categoryId: string, checked: boolean) => void;
   onBulkPageToggle: (checked: boolean) => void;
 };
-
-function SortIndicator({
-  active,
-  direction,
-}: {
-  active: boolean;
-  direction: CategoryListSortDirection;
-}) {
-  if (!active) {
-    return <ArrowUpDown className="h-3.5 w-3.5 opacity-40" aria-hidden />;
-  }
-  if (direction === "asc") {
-    return <ArrowUp className="h-3.5 w-3.5 text-primary" aria-hidden />;
-  }
-  return <ArrowDown className="h-3.5 w-3.5 text-primary" aria-hidden />;
-}
-
-const HEADER_HOVER =
-  "hover:bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))] dark:hover:bg-[color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--muted)))]";
 
 function cellPadding(compactRows: boolean): string {
   return compactRows ? "p-1.5" : "p-2.5";
@@ -161,42 +142,33 @@ export function CategoryListTable({
     frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
 
   const selectionHeaderClass = cn(
-    "w-10 p-0 font-medium text-muted-foreground",
-    LIST_TABLE_HEADER_CELL_BG,
     selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
   );
 
-  const selectionBodyClass = (selected: boolean) =>
-    cn(
-      "w-10 p-0 text-center",
-      selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW,
-      listTableLeadingCellInteractionClass(selected)
-    );
+  const selectionBodyEdgeClass = cn(
+    selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
+  );
 
   return (
-    <div className={LIST_TABLE_ROOT}>
-      <div className={LIST_TABLE_SURFACE}>
-        <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
+    <ListWorkspaceRegistryTableFrame scrollRef={frozen.scrollContainerRef}>
           <table className={listTableElementClass("narrow", compactRows)}>
             <thead>
-              <tr className="text-left">
-                <th
-                  ref={selectionColumnRef}
+              <tr>
+                <ListWorkspaceRegistrySelectHeaderCell
+                  cellRef={selectionColumnRef}
                   className={cn(
-                    "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
+                    "sticky left-0 top-0 isolate overflow-hidden",
                     selectionHeaderClass
                   )}
                   style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
                 >
-                  <div className={cn("flex items-center justify-center", cellPadding(compactRows))}>
-                    <Checkbox
-                      className={LIST_TABLE_CHECKBOX_CLASS}
-                      checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
-                      onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
-                      aria-label="Select all categories on this page"
-                    />
-                  </div>
-                </th>
+                  <Checkbox
+                    className={LIST_WORKSPACE_BULK_CHECKBOX_CLASS}
+                    checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                    onCheckedChange={(checked) => onBulkPageToggle(checked === true)}
+                    aria-label="Select all categories on this page"
+                  />
+                </ListWorkspaceRegistrySelectHeaderCell>
                 {columns.map((columnId, index) => {
                   const column = getCategoryColumnDef(columnId);
                   const sortable = isSortableCategoryColumn(columnId);
@@ -207,79 +179,62 @@ export function CategoryListTable({
                     frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
 
                   return (
-                    <th
+                    <ListWorkspaceRegistryHeaderCell
                       key={columnId}
-                      ref={(element) => {
+                      label={column.label}
+                      sortable={sortable}
+                      active={isActiveSort}
+                      sortDirection={sortDirection}
+                      onSort={() => {
+                        const next = toggleCategoryColumnSort(
+                          columnId,
+                          sortField,
+                          sortDirection
+                        );
+                        onSortChange(next.field, next.direction);
+                      }}
+                      align={
+                        column.align === "center"
+                          ? "center"
+                          : column.align === "right"
+                            ? "right"
+                            : undefined
+                      }
+                      headerRef={(element) => {
                         frozen.headerRefs.current[index] = element;
                       }}
                       className={cn(
-                        "relative sticky top-0 overflow-hidden p-0 font-medium text-muted-foreground",
+                        "relative",
                         sticky.className,
-                        frozen.headerCellClass(index),
-                        column.align === "center" && "text-center",
-                        column.align === "right" && "text-right",
-                        index === columns.length - 1 && "rounded-tr-lg"
+                        frozen.headerCellClass(index)
                       )}
                       style={mergeColumnCellStyles(
                         sticky.style,
                         widthStyles,
                         !isFrozen ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) } : {}
                       )}
-                    >
-                      {sortable ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = toggleCategoryColumnSort(
-                              columnId,
-                              sortField,
-                              sortDirection
-                            );
-                            onSortChange(next.field, next.direction);
-                          }}
-                          className={cn(
-                            "inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden transition-colors duration-[25ms] hover:text-foreground",
-                            cellPadding(compactRows),
-                            HEADER_HOVER,
-                            column.align === "center" && "justify-center",
-                            column.align === "right" && "justify-end",
-                            isActiveSort && "text-foreground"
-                          )}
-                          aria-label={`Sort by ${column.label}${
-                            isActiveSort
-                              ? ` (${sortDirection === "asc" ? "ascending" : "descending"})`
-                              : ""
-                          }`}
-                        >
-                          <span className="truncate">{column.label}</span>
-                          <span className="shrink-0">
-                            <SortIndicator active={isActiveSort} direction={sortDirection} />
-                          </span>
-                        </button>
-                      ) : (
-                        <span className={cn("block truncate", cellPadding(compactRows))}>
-                          {column.label}
-                        </span>
-                      )}
-                      {onColumnWidthChange ? (
-                        <ListColumnResizeHandle
-                          ariaLabel={`Resize ${column.label} column`}
-                          getWidth={() => resize.getHeaderWidthPx(columnId, index)}
-                          minWidth={getColumnResizeBounds(column, deviceClass).min}
-                          maxWidth={getColumnResizeBounds(column, deviceClass).max}
-                          onPreview={(width) => resize.setPreviewWidth(columnId, width)}
-                          onCommit={(width) => {
-                            resize.clearPreviewWidth(columnId);
-                            onColumnWidthChange(columnId, width);
-                          }}
-                          onAutoFit={() =>
-                            resize.autoFitColumn(columnId, index, (width) =>
-                              onColumnWidthChange(columnId, width)
-                            )
-                          }
-                        />
-                      ) : null}
-                    </th>
+                      resizeHandle={
+                        onColumnWidthChange ? (
+                          <ListColumnResizeHandle
+                            className={MATRIX_TABLE_COLUMN_RESIZE_HANDLE_CLASS}
+                            ariaLabel={`Resize ${column.label} column`}
+                            getWidth={() => resize.getHeaderWidthPx(columnId, index)}
+                            minWidth={getColumnResizeBounds(column, deviceClass).min}
+                            maxWidth={getColumnResizeBounds(column, deviceClass).max}
+                            onPreview={(width) => resize.setPreviewWidth(columnId, width)}
+                            onCommit={(width) => {
+                              resize.clearPreviewWidth(columnId);
+                              onColumnWidthChange(columnId, width);
+                            }}
+                            onAutoFit={() =>
+                              resize.autoFitColumn(columnId, index, (width) =>
+                                onColumnWidthChange(columnId, width)
+                              )
+                            }
+                          />
+                        ) : undefined
+                      }
+                    />
                   );
                 })}
               </tr>
@@ -311,31 +266,21 @@ export function CategoryListTable({
                           onSelect(row.id);
                         }
                       }}
-                      className={cn(listTableRowClass(selected), !row.is_active && "opacity-50")}
+                      className={listTableRowClass(selected, true, !row.is_active)}
                     >
-                      <td
-                        className={cn(
-                          "sticky left-0 isolate",
-                          LIST_TABLE_BODY_CELL,
-                          selectionBodyClass(selected)
-                        )}
+                      <ListWorkspaceRegistrySelectBodyCell
+                        className={selectionBodyEdgeClass}
                         style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
                       >
-                        <div
-                          className={cn("flex items-center justify-center", cellPadding(compactRows))}
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => event.stopPropagation()}
-                        >
-                          <Checkbox
-                            className={LIST_TABLE_CHECKBOX_CLASS}
-                            checked={bulkSelected}
-                            onCheckedChange={(checked) =>
-                              onBulkRowToggle(row.id, checked === true)
-                            }
-                            aria-label={`Select ${row.name}`}
-                          />
-                        </div>
-                      </td>
+                        <Checkbox
+                          className={LIST_WORKSPACE_BULK_CHECKBOX_CLASS}
+                          checked={bulkSelected}
+                          onCheckedChange={(checked) =>
+                            onBulkRowToggle(row.id, checked === true)
+                          }
+                          aria-label={`Select ${row.name}`}
+                        />
+                      </ListWorkspaceRegistrySelectBodyCell>
                       {columns.map((columnId, index) => {
                         const column = getCategoryColumnDef(columnId);
                         const sticky = frozen.getStickyCellProps(index, "body");
@@ -345,7 +290,6 @@ export function CategoryListTable({
                           <td
                             key={columnId}
                             className={cn(
-                              LIST_TABLE_BODY_CELL,
                               "overflow-visible",
                               cellPadding(compactRows),
                               categoryListCellClassName(columnId),
@@ -370,8 +314,6 @@ export function CategoryListTable({
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
+    </ListWorkspaceRegistryTableFrame>
   );
 }

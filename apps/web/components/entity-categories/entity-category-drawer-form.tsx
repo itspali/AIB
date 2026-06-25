@@ -7,6 +7,7 @@ import {
   ENTITY_CATEGORY_SECTION_BASICS_ID,
 } from "@/components/entity-categories/entity-category-editor-shell";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { Button } from "@/components/ui/button";
 import { getEntityCategoryWorkspaceConfig } from "@/lib/entity-categories/config";
 import type { EntityCategoryRow, EntityCategoryWorkspace } from "@/lib/entity-categories/types";
@@ -50,6 +51,9 @@ export function EntityCategoryDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isMutating = isMutationSurface(surface);
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const editingCategory = surface === "create" ? null : peekCategory;
 
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
@@ -178,6 +182,9 @@ export function EntityCategoryDrawerForm({
         title={resolveDrawerTitle(workspace, surface, peekCategory)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
+        bodyClassName={surface === "peek" ? peekBodyClassName : undefined}
         scrollable={false}
         bodyRef={bodyRef}
         showCloseButton

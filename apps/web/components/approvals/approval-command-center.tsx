@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 import { HubPanel, HubSectionHeading } from "@/components/dashboard/hub-panel";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ApprovalTaskRow, ApprovalDocumentType } from "@/lib/approvals/types";
@@ -36,7 +37,7 @@ function resolveDocumentHref(task: ApprovalTaskRow): string {
 
 export function ApprovalTaskCard({ task }: { task: ApprovalTaskRow }) {
   return (
-    <article className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/30">
+    <article className="surface-panel transition-colors hover:border-primary/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -66,7 +67,8 @@ export function ApprovalTaskCard({ task }: { task: ApprovalTaskRow }) {
 
 export function ApprovalCommandCenter({ tasks }: ApprovalCommandCenterProps) {
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <OverviewGlassShell>
+    <div className="canvas-scroll-endpad mx-auto w-full max-w-5xl">
       <div className="mb-6">
         <div className="flex items-center gap-2">
           <ClipboardCheck className="h-7 w-7 text-primary" />
@@ -115,5 +117,6 @@ export function ApprovalCommandCenter({ tasks }: ApprovalCommandCenterProps) {
         .
       </p>
     </div>
+    </OverviewGlassShell>
   );
 }

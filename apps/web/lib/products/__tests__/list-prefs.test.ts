@@ -13,6 +13,7 @@ import {
   resolvePrefsOnMount,
   resolveProductListExpandVariants,
   setColumnPrefsSlice,
+  setColumnPrefsSliceAllDevices,
   shouldPersistPrefsImmediately,
 } from "@/lib/products/list-prefs";
 import { resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
@@ -474,6 +475,26 @@ describe("product list display presets", () => {
       cardOrientation: "vertical",
     });
     expect(verticalCard.cardOrientation).toBe("horizontal");
+  });
+});
+
+describe("setColumnPrefsSliceAllDevices", () => {
+  it("writes the same table slice to mobile, tablet, and desktop", () => {
+    let prefs = getDefaultProductListPrefs();
+    const slice = {
+      columnOrder: ["name", "default_sku", "selling_price", "category_name"],
+      visibleColumns: ["name", "default_sku", "selling_price"],
+    };
+
+    prefs = setColumnPrefsSliceAllDevices(prefs, "table", slice);
+
+    for (const device of ["mobile", "tablet", "desktop"] as const) {
+      expect(getOrderedVisibleColumns(prefs, "table", device)).toEqual([
+        "name",
+        "default_sku",
+        "selling_price",
+      ]);
+    }
   });
 });
 

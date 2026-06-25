@@ -4,8 +4,14 @@ import { useCallback, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadSalesShipments } from "@/app/fulfillment/shipping/actions";
 import { FulfillmentShippingListTable } from "@/components/fulfillment/shipping/fulfillment-shipping-list-table";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
+import { ListWorkspaceLayoutToggleControl } from "@/components/layout/list-workspace-layout-toggle-control";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import {
   FULFILLMENT_SHIPPING_HREF,
@@ -13,9 +19,11 @@ import {
 } from "@/lib/fulfillment/shipping/navigation";
 import type { SalesShipmentRow } from "@/lib/fulfillment/shipping/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
-
-const PAGE_DESCRIPTION =
-  "Post customer shipments against confirmed sales orders and move reserved stock out of inventory.";
+import {
+  buildCatalogSplitListPane,
+  mapSalesShipmentRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 
 const FulfillmentShippingDrawerForm = lazyClientExport(
   () => import("@/components/fulfillment/shipping/fulfillment-shipping-drawer-form"),
@@ -51,26 +59,63 @@ export function FulfillmentShippingManagementTerminal({ initialShipments }: Prop
     [drawer, refreshShipments]
   );
 
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: shipments,
+    extractSearchable: (row) => [
+      row.tracking_number,
+      row.sales_order_voucher,
+      row.customer_name,
+      row.origin_location_name,
+      row.origin_location_code,
+      row.carrier_provider,
+    ],
+  });
+
+  const listPrimary = (
+    <FulfillmentShippingListTable
+      shipments={feedFilteredRows}
+      selectedId={drawer.recordId}
+      onSelect={drawer.openPeek}
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: feedFilteredRows,
+    selectedId: drawer.recordId,
+    onSelect: drawer.openPeek,
+    mapRow: mapSalesShipmentRowToSplitFeed,
+    hasAnyData: shipments.length > 0,
+    emptyMessage: "No shipments match the current filters.",
+  });
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Fulfillment & Shipping"
-            description={PAGE_DESCRIPTION}
-            createLabel="New shipment"
-            onCreate={() => drawer.openCreate()}
-            aboutAriaLabel="About Fulfillment and Shipping"
+            count={shipments.length > 0 ? String(feedFilteredRows.length) : undefined}
+            onNew={() => drawer.openCreate()}
+            newAriaLabel="New shipment"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={<ListWorkspaceLayoutToggleControl />}
           />
         }
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          <FulfillmentShippingListTable
-            shipments={shipments}
-            selectedId={drawer.recordId}
-            onSelect={drawer.openPeek}
-          />
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a shipment"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -83,6 +128,7 @@ export function FulfillmentShippingManagementTerminal({ initialShipments }: Prop
           onAfterPost={handleAfterPost}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

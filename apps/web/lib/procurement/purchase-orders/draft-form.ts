@@ -68,6 +68,8 @@ export type PoDraftFormState = {
   ultimate_destination_location_id: string;
   /** COMMERCIAL | FINAL | empty = tenant default. */
   po_fulfillment_stage_override: "" | "COMMERCIAL" | "FINAL";
+  /** When true, GRN posting backflushes subcontract BOM from vendor WIP. */
+  is_subcontract_job: boolean;
 };
 
 export function createEmptyPoLine(key?: string): PoDraftLine {
@@ -246,6 +248,7 @@ export function defaultPoDraftForm(
     receipt_location_id: "",
     ultimate_destination_location_id: "",
     po_fulfillment_stage_override: "",
+    is_subcontract_job: false,
   };
 }
 
@@ -362,6 +365,7 @@ export function mapPurchaseOrderToDraft(order: PurchaseOrderRow): PoDraftFormSta
     receipt_location_id: order.receipt_location_id ?? "",
     ultimate_destination_location_id: order.ultimate_destination_location_id ?? "",
     po_fulfillment_stage_override: order.po_fulfillment_stage_override ?? "",
+    is_subcontract_job: order.is_subcontract_job === true,
     lines:
       order.lines?.length
         ? ensureTrailingPoLine(

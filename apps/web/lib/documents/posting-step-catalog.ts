@@ -142,6 +142,13 @@ export const POSTING_STEP_CATALOG: Record<string, PostingStepDefinition> = {
     description: "Extra costs such as freight or customs were spread across receipt lines using your allocation method.",
     documents: ["GRN"],
   },
+  grn_subcontract_backflush: {
+    id: "grn_subcontract_backflush",
+    label: "Subcontract components consumed",
+    description:
+      "Finished goods receipt triggered backflush of BOM components from the vendor subcontract WIP location.",
+    documents: ["GRN"],
+  },
   bill_invoice_recorded: {
     id: "bill_invoice_recorded",
     label: "Supplier invoice recorded",

@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LIST_MODULE_PAGE_CHROME,
   LIST_MODULE_VIEWPORT_OFFSET,
+  LIST_WORKSPACE_GLASS_V2_ROOT,
 } from "@/lib/layout/list-module-chrome";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +12,8 @@ export function ProductCatalogPageSkeleton() {
     <div
       className={cn(
         "flex min-h-0 flex-col overflow-hidden",
-        LIST_MODULE_VIEWPORT_OFFSET
+        LIST_MODULE_VIEWPORT_OFFSET,
+      LIST_WORKSPACE_GLASS_V2_ROOT
       )}
       aria-busy="true"
       aria-label="Loading items catalog"

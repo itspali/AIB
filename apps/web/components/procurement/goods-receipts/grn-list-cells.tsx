@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { FieldValueChip } from "@/components/list-columns/field-value-chip";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListQuantity } from "@/lib/list-columns/format-list-value";
 import {
   LIST_TABLE_CELL_COUNT,
   LIST_TABLE_CELL_DATE,
@@ -40,7 +41,7 @@ export function renderGoodsReceiptListCell(
     case "purchase_order":
       return <span className={LIST_TABLE_CELL_MONO_REF}>{row.purchase_order_number ?? "—"}</span>;
     case "lines":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.line_count}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.line_count)}</span>;
     case "received":
       return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.received_at)}</span>;
     default:

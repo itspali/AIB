@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { createTenantGroup, saveGroupSettings } from "@/app/settings/group/actions";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { CopyableReadonlyField } from "@/components/settings/copyable-readonly-field";
 import { GroupDeleteConfirmDialog } from "@/components/settings/group/group-delete-confirm-dialog";
 import { GroupEntityFieldsSection } from "@/components/settings/group/group-entity-fields-section";
@@ -63,8 +64,8 @@ export function GroupSettingsTerminal({
 
   if (!snapshot) {
     return (
-      <div className="canvas-scroll-endpad mx-auto max-w-2xl space-y-4">
-        <div className="surface-panel">
+      <SettingsGlassShell className="canvas-scroll-endpad mx-auto max-w-2xl space-y-4">
+        <div>
           <h2 className="text-lg font-semibold">Enterprise group</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Create a group to manage multiple organizations under one enterprise account.
@@ -107,7 +108,7 @@ export function GroupSettingsTerminal({
             </p>
           )}
         </div>
-      </div>
+      </SettingsGlassShell>
     );
   }
 
@@ -130,6 +131,7 @@ export function GroupSettingsTerminal({
   });
 
   return (
+    <SettingsGlassShell>
     <form
       onSubmit={onSave}
       className="canvas-scroll-endpad flex flex-col gap-4 lg:grid lg:grid-cols-[13fr_7fr] lg:gap-5"
@@ -264,5 +266,6 @@ export function GroupSettingsTerminal({
         onOpenChange={setDeleteDialogOpen}
       />
     </form>
+    </SettingsGlassShell>
   );
 }

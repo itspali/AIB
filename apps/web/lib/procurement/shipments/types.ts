@@ -83,6 +83,8 @@ export type AllocatableImportPurchaseOrderOption = {
   supplier_name: string;
   destination_location_id: string;
   destination_location_name: string;
+  receipt_location_id: string | null;
+  ultimate_destination_location_id: string | null;
   lines: Array<{
     id: string;
     variant_id: string;

@@ -79,10 +79,14 @@ export function ListColumnResizeHandle({
       onDoubleClick={handleDoubleClick}
       onClick={(event) => event.stopPropagation()}
       className={cn(
-        "absolute inset-y-0 right-0 z-[1] w-2 translate-x-1/2 touch-none",
+        "list-column-resize-handle",
+        "absolute inset-y-0 right-0 z-[1] w-0 touch-none",
         "cursor-col-resize border-0 bg-transparent p-0",
-        "after:absolute after:inset-y-2 after:right-1/2 after:w-px after:translate-x-1/2 after:bg-border/80",
-        "hover:after:bg-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        /* 2px grab strip aligned to the trailing cell edge. */
+        "before:absolute before:inset-y-0 before:right-0 before:w-0.5 before:content-['']",
+        /* 1px column rule on the trailing edge. */
+        "after:pointer-events-none after:absolute after:inset-y-2 after:right-0 after:w-px after:bg-border/80",
+        "hover:after:bg-primary/60 focus-visible:outline-none focus-visible:before:ring-2 focus-visible:before:ring-ring",
         disabled && "pointer-events-none opacity-0",
         className
       )}

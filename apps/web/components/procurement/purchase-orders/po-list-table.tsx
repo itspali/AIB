@@ -1,9 +1,15 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useCallback, useMemo, useRef } from "react";
 import { renderPurchaseOrderListCell } from "@/components/procurement/purchase-orders/po-list-cells";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
+import {
+  ListWorkspaceRegistryHeaderCell,
+  ListWorkspaceRegistrySelectBodyCell,
+  ListWorkspaceRegistrySelectHeaderCell,
+  ListWorkspaceRegistryTableFrame,
+  ListWorkspaceRegistryBodyCell,
+} from "@/components/layout/list-workspace-registry-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import { getOrderedVisibleColumns } from "@/lib/list-columns/prefs";
@@ -35,18 +41,10 @@ import {
 } from "@/lib/procurement/purchase-orders/list-sort";
 import type { PurchaseOrderRow } from "@/lib/procurement/purchase-orders/types";
 import {
-  LIST_TABLE_BODY_CELL,
-  LIST_TABLE_CHECKBOX_CLASS,
   LIST_TABLE_FROZEN_EDGE_SHADOW,
-  LIST_TABLE_HEADER_CELL,
-  LIST_TABLE_HEADER_CELL_BG,
-  LIST_TABLE_HEADER_SORTABLE,
-  LIST_TABLE_ROOT,
-  LIST_TABLE_SCROLL,
-  LIST_TABLE_SURFACE,
+  LIST_WORKSPACE_BULK_CHECKBOX_CLASS,
+  MATRIX_TABLE_COLUMN_RESIZE_HANDLE_CLASS,
   listTableElementClass,
-  listTableHeaderCornerClass,
-  listTableLeadingCellInteractionClass,
   listTableRowClass,
 } from "@/lib/layout/list-table-chrome";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
@@ -138,72 +136,56 @@ export function PoListTable({
   const selectionColumnShowsEdge =
     bulkSelectionEnabled && frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
 
-  const selectionHeaderClass = cn(
-    "w-10 p-0 font-medium text-muted-foreground",
-    LIST_TABLE_HEADER_CELL_BG,
+  const selectionHeaderClass = cn(selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW);
+
+  const selectionBodyEdgeClass = cn(
     selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW
   );
 
-  const selectionBodyClass = (selected: boolean) =>
-    cn(
-      "w-10 p-0 text-center",
-      selectionColumnShowsEdge && LIST_TABLE_FROZEN_EDGE_SHADOW,
-      listTableLeadingCellInteractionClass(selected)
-    );
-
   return (
-    <div className={LIST_TABLE_ROOT}>
-      <div className={LIST_TABLE_SURFACE}>
-        <div ref={frozen.scrollContainerRef} className={LIST_TABLE_SCROLL}>
+    <ListWorkspaceRegistryTableFrame scrollRef={frozen.scrollContainerRef}>
           <table className={listTableElementClass("wide")}>
             <thead>
-              <tr className="text-left">
+              <tr>
                 {bulkSelectionEnabled ? (
-                  <th
-                    ref={selectionColumnRef}
-                    className={cn(
-                      "sticky left-0 top-0 isolate overflow-hidden rounded-tl-lg",
-                      selectionHeaderClass
-                    )}
+                  <ListWorkspaceRegistrySelectHeaderCell
+                    cellRef={selectionColumnRef}
+                    className={selectionHeaderClass}
                     style={{ zIndex: LIST_SELECTION_COLUMN_Z_HEADER }}
                   >
-                    <div className="flex items-center justify-center p-2.5">
-                      <Checkbox
-                        className={LIST_TABLE_CHECKBOX_CLASS}
-                        checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
-                        onCheckedChange={(checked) => onBulkPageToggle?.(checked === true)}
-                        aria-label="Select all approvable purchase orders on this page"
-                      />
-                    </div>
-                  </th>
+                    <Checkbox
+                      className={LIST_WORKSPACE_BULK_CHECKBOX_CLASS}
+                      checked={pageAllSelected ? true : pageSomeSelected ? "indeterminate" : false}
+                      onCheckedChange={(checked) => onBulkPageToggle?.(checked === true)}
+                      aria-label="Select all purchase orders on this page"
+                    />
+                  </ListWorkspaceRegistrySelectHeaderCell>
                 ) : null}
                 {columns.map((columnId, index) => {
                   const column = getPurchaseOrderColumnDef(columnId);
                   const active = sortField === columnId;
+                  const sortable = isSortablePurchaseOrderColumn(columnId);
                   const sticky = frozen.getStickyCellProps(index, "header");
                   const widthStyles = resize.resolveWidthStyles(columnId, index);
                   const isFrozen =
                     frozen.effectiveFrozenCount > 0 && index < frozen.effectiveFrozenCount;
 
                   return (
-                    <th
+                    <ListWorkspaceRegistryHeaderCell
                       key={columnId}
-                      ref={(element) => {
+                      label={column.label}
+                      sortable={sortable}
+                      active={active}
+                      sortDirection={sortDirection}
+                      onSort={() => handleHeaderSort(columnId)}
+                      align={column.align === "right" ? "right" : undefined}
+                      headerRef={(element) => {
                         frozen.headerRefs.current[index] = element;
                       }}
-                      scope="col"
                       className={cn(
-                        "relative overflow-hidden",
-                        LIST_TABLE_HEADER_CELL,
-                        LIST_TABLE_HEADER_SORTABLE,
+                        "relative",
                         sticky.className,
-                        frozen.headerCellClass(index),
-                        column.align === "right" && "text-right",
-                        active && "text-foreground",
-                        listTableHeaderCornerClass(
-                          bulkSelectionEnabled ? index + 1 : index,
-                          bulkSelectionEnabled ? columns.length : columns.length - 1
-                        )
+                        frozen.headerCellClass(index)
                       )}
                       style={{
                         ...mergeColumnCellStyles(sticky.style, widthStyles),
@@ -211,47 +193,28 @@ export function PoListTable({
                           ? { zIndex: LIST_TABLE_HEADER_Z + (columns.length - index) }
                           : {}),
                       }}
-                      aria-sort={
-                        active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"
+                      resizeHandle={
+                        onColumnWidthChange ? (
+                          <ListColumnResizeHandle
+                            className={MATRIX_TABLE_COLUMN_RESIZE_HANDLE_CLASS}
+                            ariaLabel={`Resize ${column.label} column`}
+                            getWidth={() => resize.getHeaderWidthPx(columnId, index)}
+                            minWidth={getColumnResizeBounds(column, deviceClass).min}
+                            maxWidth={getColumnResizeBounds(column, deviceClass).max}
+                            onPreview={(width) => resize.setPreviewWidth(columnId, width)}
+                            onCommit={(width) => {
+                              resize.clearPreviewWidth(columnId);
+                              onColumnWidthChange(columnId, width);
+                            }}
+                            onAutoFit={() =>
+                              resize.autoFitColumn(columnId, index, (width) =>
+                                onColumnWidthChange(columnId, width)
+                              )
+                            }
+                          />
+                        ) : undefined
                       }
-                      onClick={() => handleHeaderSort(columnId)}
-                    >
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1",
-                          column.align === "right" && "justify-end"
-                        )}
-                      >
-                        {column.label}
-                        {active ? (
-                          sortDirection === "asc" ? (
-                            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-                          ) : (
-                            <ArrowDown className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-                          )
-                        ) : (
-                          <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
-                        )}
-                      </span>
-                      {onColumnWidthChange ? (
-                        <ListColumnResizeHandle
-                          ariaLabel={`Resize ${column.label} column`}
-                          getWidth={() => resize.getHeaderWidthPx(columnId, index)}
-                          minWidth={getColumnResizeBounds(column, deviceClass).min}
-                          maxWidth={getColumnResizeBounds(column, deviceClass).max}
-                          onPreview={(width) => resize.setPreviewWidth(columnId, width)}
-                          onCommit={(width) => {
-                            resize.clearPreviewWidth(columnId);
-                            onColumnWidthChange(columnId, width);
-                          }}
-                          onAutoFit={() =>
-                            resize.autoFitColumn(columnId, index, (width) =>
-                              onColumnWidthChange(columnId, width)
-                            )
-                          }
-                        />
-                      ) : null}
-                    </th>
+                    />
                   );
                 })}
               </tr>
@@ -269,51 +232,40 @@ export function PoListTable({
                     onClick={() => onSelect(row.id)}
                   >
                     {bulkSelectionEnabled ? (
-                      <td
-                        className={cn(
-                          "sticky left-0 isolate",
-                          LIST_TABLE_BODY_CELL,
-                          selectionBodyClass(selected)
-                        )}
+                      <ListWorkspaceRegistrySelectBodyCell
+                        className={selectionBodyEdgeClass}
                         style={{ zIndex: LIST_SELECTION_COLUMN_Z_BODY }}
                       >
-                        {bulkSelectable ? (
-                          <div
-                            className="flex items-center justify-center p-2.5"
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => event.stopPropagation()}
-                          >
-                            <Checkbox
-                              className={LIST_TABLE_CHECKBOX_CLASS}
-                              checked={bulkSelected}
-                              onCheckedChange={(checked) =>
-                                onBulkRowToggle?.(row.id, checked === true)
-                              }
-                              aria-label={`Select ${row.voucher_number}`}
-                            />
-                          </div>
-                        ) : null}
-                      </td>
+                        <Checkbox
+                          className={LIST_WORKSPACE_BULK_CHECKBOX_CLASS}
+                          checked={bulkSelectable ? bulkSelected : false}
+                          disabled={!bulkSelectable}
+                          onCheckedChange={(checked) =>
+                            onBulkRowToggle?.(row.id, checked === true)
+                          }
+                          aria-label={`Select ${row.voucher_number}`}
+                        />
+                      </ListWorkspaceRegistrySelectBodyCell>
                     ) : null}
                     {columns.map((columnId, index) => {
                       const column = getPurchaseOrderColumnDef(columnId);
                       const sticky = frozen.getStickyCellProps(index, "body");
                       const widthStyles = resize.resolveWidthStyles(columnId, index);
                       return (
-                        <td
+                        <ListWorkspaceRegistryBodyCell
                           key={columnId}
+                          column={column}
+                          columnId={columnId}
                           className={cn(
-                            LIST_TABLE_BODY_CELL,
                             sticky.className,
-                            frozen.bodyCellClass(index, selected),
-                            column.align === "right" && "text-right tabular-nums"
+                            frozen.bodyCellClass(index, selected)
                           )}
                           style={mergeColumnCellStyles(sticky.style, widthStyles)}
                         >
                           {renderPurchaseOrderListCell(columnId, row, {
                             chipDisplay: columnPrefs.columnChipDisplay,
                           })}
-                        </td>
+                        </ListWorkspaceRegistryBodyCell>
                       );
                     })}
                   </tr>
@@ -321,8 +273,6 @@ export function PoListTable({
               })}
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
+    </ListWorkspaceRegistryTableFrame>
   );
 }

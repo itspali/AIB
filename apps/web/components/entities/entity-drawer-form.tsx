@@ -16,6 +16,7 @@ import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import { useEntityForm } from "@/lib/entities/use-entity-form";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import { isMutationSurface, type DrawerSurface } from "@/lib/layout/module-drawer-url";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { saveEntity } from "@/app/entities/actions";
 
 type Props = {
@@ -211,6 +212,10 @@ export function EntityDrawerForm({
 
   if (!open || surface === "closed") return discardDialog;
 
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
+
   const showLoadingBody =
     isLoading || ((surface === "peek" || surface === "edit") && !editingEntity);
 
@@ -226,6 +231,9 @@ export function EntityDrawerForm({
         title={resolveDrawerTitle(workspace, surface, editingEntity)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
+        bodyClassName={peekBodyClassName}
         scrollable={false}
         bodyRef={bodyRef}
         showCloseButton

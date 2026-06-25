@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { reactivateLocation } from "@/app/settings/locations/actions";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { LocationDeleteDialog } from "@/components/locations/location-delete-dialog";
 import { LocationDetailViewport } from "@/components/locations/location-detail-viewport";
 import { LocationGovernanceBanner } from "@/components/locations/location-governance-banner";
 import { LocationHierarchyRail } from "@/components/locations/location-hierarchy-rail";
-import { LocationListColumnSettings } from "@/components/locations/location-list-column-settings";
+import { LocationListColumnSettings, getLocationChipDisplay } from "@/components/locations/location-list-column-settings";
 import { LocationModuleHeader } from "@/components/locations/location-module-header";
 import { LocationPristineCanvas } from "@/components/locations/location-pristine-canvas";
 import { LocationProvisionForm } from "@/components/locations/location-provision-form";
@@ -108,7 +109,8 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
       <LocationModuleHeader activeTab="directory" />
       <LocationGovernanceBanner governance={moduleContext.governance} />
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <SettingsGlassShell className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Hierarchical location and logistical command center for tenant-scoped facility nodes.
         </p>
@@ -145,7 +147,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
             selectedId={selectedId}
             onSelect={handleSelect}
             centralHqLocationId={moduleContext.centralHqLocationId}
-            columnChipDisplay={listPrefs.columnPrefs.columnChipDisplay}
+            columnChipDisplay={getLocationChipDisplay(listPrefs)}
           />
         </aside>
 
@@ -181,6 +183,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
           )}
         </section>
       </div>
+      </SettingsGlassShell>
 
       {isPending && <span className="sr-only">Updating facility node…</span>}
 

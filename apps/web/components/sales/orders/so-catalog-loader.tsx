@@ -1,4 +1,5 @@
 import { SoManagementTerminal } from "@/components/sales/orders/so-management-terminal";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import { resolveEffectiveDocumentLayout } from "@/lib/documents/resolve-effective-document-layout";
 import {
   filterProcurementLocationsByScope,
@@ -71,6 +72,7 @@ export async function SoCatalogLoader() {
   );
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="sales-orders">
     <SoManagementTerminal
       initialSalesOrders={salesOrdersPage.rows}
       listTotalCount={salesOrdersPage.totalCount}
@@ -91,5 +93,6 @@ export async function SoCatalogLoader() {
       isOwner={editAccess.isOwner}
       documentConversionMode={salesSettings.document_conversion_mode}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

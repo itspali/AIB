@@ -27,6 +27,8 @@ import {
   parsePostGoodsReceiptRpcResult,
 } from "@/lib/documents/posting-queries";
 import type { PostingStepResult } from "@/lib/documents/posting-types";
+import { fetchGrnSubcontractPreview } from "@/lib/procurement/subcontract/grn-preview";
+import type { GrnSubcontractPreview } from "@/lib/procurement/subcontract/grn-preview";
 import { formatRpcDeployError, isMissingRpcError } from "@/lib/supabase/rpc-error";
 import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 
@@ -215,17 +217,6 @@ export async function postGoodsReceipt(
       return { error: "Goods receipt posted but the response was invalid." };
     }
 
-    if (values.purchase_order_id) {
-      const { error: backflushError } = await supabase.rpc("apply_subcontract_backflush_for_grn", {
-        p_goods_receipt_id: parsedResult.goodsReceiptId,
-      });
-      if (backflushError && !isMissingRpcError(backflushError)) {
-        return {
-          error: `Receipt posted but subcontract backflush failed: ${backflushError.message}`,
-        };
-      }
-    }
-
     revalidateGoodsReceiptPaths();
     return {
       success: true as const,
@@ -286,23 +277,30 @@ export async function postGoodsReceipt(
     return { error: "Goods receipt posted but the response was invalid." };
   }
 
-  if (values.purchase_order_id) {
-    const { error: backflushError } = await supabase.rpc("apply_subcontract_backflush_for_grn", {
-      p_goods_receipt_id: parsedResult.goodsReceiptId,
-    });
-    if (backflushError && !isMissingRpcError(backflushError)) {
-      return {
-        error: `Receipt posted but subcontract backflush failed: ${backflushError.message}`,
-      };
-    }
-  }
-
   revalidateGoodsReceiptPaths();
   return {
     success: true as const,
     goodsReceiptId: parsedResult.goodsReceiptId,
     steps: parsedResult.steps,
   };
+}
+
+export async function loadGrnSubcontractPreview(input: {
+  purchase_order_id: string | null;
+  supplier_id: string | null;
+  lines: Array<{
+    variant_id: string;
+    item_id: string;
+    quantity_accepted: number;
+    is_promotional?: boolean;
+  }>;
+}): Promise<GrnSubcontractPreview | null> {
+  const { supabase, tenantId } = await requireTenantMutation();
+  return fetchGrnSubcontractPreview(supabase, tenantId, {
+    purchaseOrderId: input.purchase_order_id,
+    supplierId: input.supplier_id,
+    lines: input.lines,
+  });
 }
 
 export async function loadGoodsReceiptPostingRun(goodsReceiptId: string): Promise<{

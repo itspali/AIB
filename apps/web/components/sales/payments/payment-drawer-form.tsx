@@ -8,6 +8,7 @@ import {
 } from "@/app/sales/payments/actions";
 import { PaymentApplicationPanel } from "@/components/sales/payments/payment-application-panel";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +58,9 @@ export function PaymentDrawerForm({
 }: Props) {
   const readOnly = surface === "peek";
   const isCreating = surface === "create";
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const [detail, setDetail] = useState<CustomerPaymentRow | null>(peekPayment);
   const [detailLoading, setDetailLoading] = useState(false);
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
@@ -145,8 +149,9 @@ export function PaymentDrawerForm({
           ) : null
         }
         allowBackgroundInteraction={surface === "peek"}
-        className={surface === "peek" ? "module-drawer-peek-shell" : undefined}
-        bodyClassName={surface === "peek" ? "module-drawer-peek-body" : "module-drawer-form-body"}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
+        bodyClassName={surface === "peek" ? peekBodyClassName : "module-drawer-form-body"}
         showCloseButton
       >
       {readOnly ? (

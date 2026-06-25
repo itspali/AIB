@@ -9,6 +9,8 @@ import {
   Users,
 } from "lucide-react";
 import { ModuleOverview, type ModuleOverviewCard } from "@/components/layout/module-overview";
+import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
+import { OverviewKpiTile } from "@/components/layout/overview-primitives";
 import { CUSTOMERS_HREF } from "@/lib/entities/entity-navigation";
 import { customerCategoriesHref } from "@/lib/entity-categories/navigation";
 import { FULFILLMENT_SHIPPING_HREF } from "@/lib/fulfillment/shipping/navigation";
@@ -77,6 +79,7 @@ const CARDS: ModuleOverviewCard[] = [
 
 export function SalesOverviewTerminal({ stats }: Props) {
   return (
+    <OverviewGlassShell>
     <div className="canvas-scroll-endpad space-y-5">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Sales</h1>
@@ -92,31 +95,19 @@ export function SalesOverviewTerminal({ stats }: Props) {
       </header>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <div className="surface-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Customers
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{stats.customer_count}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {stats.active_customer_count} active
-          </p>
-        </div>
-        <div className="surface-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Credit limit exposure
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">
-            {formatCurrency(stats.total_credit_limit)}
-          </p>
-        </div>
-        <div className="surface-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Accounts receivable
-          </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">
-            {formatCurrency(stats.total_current_balance)}
-          </p>
-        </div>
+        <OverviewKpiTile
+          label="Customers"
+          value={String(stats.customer_count)}
+          subtitle={`${stats.active_customer_count} active`}
+        />
+        <OverviewKpiTile
+          label="Credit limit exposure"
+          value={formatCurrency(stats.total_credit_limit)}
+        />
+        <OverviewKpiTile
+          label="Accounts receivable"
+          value={formatCurrency(stats.total_current_balance)}
+        />
       </div>
 
       <ModuleOverview
@@ -126,5 +117,6 @@ export function SalesOverviewTerminal({ stats }: Props) {
         headingLevel={2}
       />
     </div>
+    </OverviewGlassShell>
   );
 }

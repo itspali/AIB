@@ -2,6 +2,7 @@
 
 import { ArrowUpDown, Sparkles } from "lucide-react";
 import { TaxListColumnSettings } from "@/components/settings/tax/tax-list-column-settings";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import { Button } from "@/components/ui/button";
@@ -230,11 +231,15 @@ export function TaxListToolbar({
             </Select>
           </div>
 
-          <TaxListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass={deviceClass}
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <TaxListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass={deviceClass}
+                disabled={controlsDisabled}
+              />
+            }
           />
 
           {canEdit && onLoadDefaults ? (

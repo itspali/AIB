@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { TransferCatalogPageSkeleton } from "@/components/inventory/transfers/transfer-catalog-page-skeleton";
+import { ListWorkspaceCatalogLoaderRoot } from "@/components/layout/list-workspace-catalog-loader-root";
 import {
   fetchStockTransfersPage,
   fetchTransferLocations,
@@ -23,11 +24,13 @@ export async function TransferCatalogLoader() {
   ]);
 
   return (
+    <ListWorkspaceCatalogLoaderRoot moduleId="inventory-transfers">
     <TransferManagementTerminal
       initialTransfers={transfersPage.rows}
       listTotalCount={transfersPage.totalCount}
       listHasMore={transfersPage.hasMore}
       locations={locations}
     />
+    </ListWorkspaceCatalogLoaderRoot>
   );
 }

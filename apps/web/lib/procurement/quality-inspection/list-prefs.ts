@@ -1,11 +1,20 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   QC_QUEUE_LIST_COLUMN_REGISTRY,
   type QcQueueListColumnId,
@@ -26,20 +35,48 @@ export type QcQueueListPrefs = {
   locationId: string | null;
   sortField: QcQueueListSortField;
   sortDirection: QcQueueListSortDirection;
-  columnPrefs: ListColumnPrefs<QcQueueListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<QcQueueListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
 const STORAGE_KEY = "aib:procurement-qc-queue-list-prefs";
-const PREFS_VERSION = 1;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export function getDefaultQcQueueListPrefs(): QcQueueListPrefs {
   return {
     locationId: null,
     sortField: "received",
     sortDirection: "desc",
-    columnPrefs: getDefaultListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(QC_QUEUE_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getQcQueueColumnPrefsSlice(
+  prefs: QcQueueListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<QcQueueListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setQcQueueColumnPrefsSlice(
+  prefs: QcQueueListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<QcQueueListColumnId>
+): QcQueueListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setQcQueueColumnPrefsSliceAllDevices(
+  prefs: QcQueueListPrefs,
+  slice: ListColumnPrefs<QcQueueListColumnId>
+): QcQueueListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -53,10 +90,14 @@ export function loadQcQueueListPrefs(): QcQueueListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(
+          QC_QUEUE_LIST_COLUMN_REGISTRY,
+          legacyDesktop
+        ),
       };
     }
 
@@ -70,10 +111,16 @@ export function loadQcQueueListPrefs(): QcQueueListPrefs {
         ? parsed.sortField
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY);
+
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      QC_QUEUE_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       locationId: parsed.locationId ?? null,
@@ -85,7 +132,10 @@ export function loadQcQueueListPrefs(): QcQueueListPrefs {
   } catch {
     return {
       ...defaults,
-      columnPrefs: loadListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY),
+      columnPrefs: buildDefaultTableColumnPrefsByDevice(
+        QC_QUEUE_LIST_COLUMN_REGISTRY,
+        loadListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY)
+      ),
     };
   }
 }
@@ -96,25 +146,25 @@ export function saveQcQueueListPrefs(prefs: QcQueueListPrefs): void {
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(QC_QUEUE_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    QC_QUEUE_LIST_COLUMN_REGISTRY,
+    getQcQueueColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setQcQueueColumnWidth(
   prefs: QcQueueListPrefs,
+  deviceClass: DeviceClass,
   columnId: QcQueueListColumnId,
   width: number | null
 ): QcQueueListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { SalesApprovalsPanel } from "@/components/settings/modules/sales-approvals-panel";
 import { SalesPoliciesPanel } from "@/components/settings/modules/sales-policies-panel";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SalesApprovalSettings } from "@/lib/sales/approval-settings";
@@ -43,6 +44,7 @@ export function SalesModuleSettingsTerminal({
         <h1 className="text-lg font-semibold tracking-tight">Sales</h1>
       </div>
 
+      <SettingsGlassShell>
       <Tabs defaultValue={initialTab}>
         <TabsList className="h-8">
           <TabsTrigger value="policies" className="h-7 px-3 text-xs">
@@ -69,6 +71,7 @@ export function SalesModuleSettingsTerminal({
           />
         </TabsContent>
       </Tabs>
+      </SettingsGlassShell>
     </div>
   );
 }

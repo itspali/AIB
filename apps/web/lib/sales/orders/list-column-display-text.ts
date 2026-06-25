@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListCurrency, formatListQuantity } from "@/lib/list-columns/format-list-value";
 import { salesOrderStatusLabel } from "@/lib/sales/orders/labels";
 import type { SalesOrderListColumnId } from "@/lib/sales/orders/list-columns";
 import type { SalesOrderRow } from "@/lib/sales/orders/types";
@@ -24,9 +25,9 @@ export function getSalesOrderListCellDisplayTexts(
     case "source_quote":
       return [row.source_quotation_number?.trim() || "—"];
     case "lines":
-      return [String(row.line_count)];
+      return [formatListQuantity(row.line_count)];
     case "net_amount":
-      return [row.total_net_amount];
+      return [formatListCurrency(row.total_net_amount)];
     case "created":
       return [formatDate(row.created_at)];
     case "created_by":

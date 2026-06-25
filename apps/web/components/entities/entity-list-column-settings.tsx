@@ -3,9 +3,14 @@
 import { useEffect, useState } from "react";
 import {
   ListColumnSettings,
-  type ColumnSettingsDevice,
   type ColumnSettingsLayout,
 } from "@/components/list-columns/list-column-settings";
+import {
+  LIST_MODULE_COLUMN_SETTINGS_CHROME,
+  resolveColumnSettingsDeviceSwitcher,
+  useColumnSettingsEditingDevice,
+} from "@/lib/list-columns/list-module-column-settings";
+import { useOptionalListWorkspace } from "@/lib/layout/list-workspace";
 import {
   getEntityListColumnRegistry,
   type EntityListColumnRegistryKey,
@@ -33,19 +38,16 @@ export function EntityListColumnSettings({
   detectedDeviceClass,
   disabled = false,
 }: Props) {
+  const workspace = useOptionalListWorkspace();
   const tableViewMode: EntityListViewMode = prefs.viewMode === "compact" ? "compact" : "table";
   const registry = getEntityListColumnRegistry(registryKey);
 
   const [editingLayout, setEditingLayout] = useState<ColumnSettingsLayout>(tableViewMode);
-  const [editingDevice, setEditingDevice] = useState<ColumnSettingsDevice>(detectedDeviceClass);
+  const [editingDevice, setEditingDevice] = useColumnSettingsEditingDevice(detectedDeviceClass);
 
   useEffect(() => {
     setEditingLayout(tableViewMode);
   }, [tableViewMode]);
-
-  useEffect(() => {
-    setEditingDevice(detectedDeviceClass);
-  }, [detectedDeviceClass]);
 
   const slice = getColumnPrefsSlice(
     prefs,
@@ -77,8 +79,9 @@ export function EntityListColumnSettings({
       onFrozenColumnCountChange={(frozenColumnCount) =>
         onChange({ ...prefs, frozenColumnCount })
       }
-      showLayoutSwitcher={false}
+      showDeviceSwitcher={resolveColumnSettingsDeviceSwitcher(workspace?.layout)}
       disabled={disabled}
+      {...LIST_MODULE_COLUMN_SETTINGS_CHROME}
     />
   );
 }

@@ -264,10 +264,16 @@ export function buildOmnibarHints(
   cursor: number,
   scope: FilterScope,
   fieldDict: ResolvedFieldDictEntry[],
-  options?: { valueOptions?: FilterValueOption[]; analysis?: SegmentAnalysis }
+  options?: {
+    valueOptions?: FilterValueOption[];
+    analysis?: SegmentAnalysis;
+    importsEnabled?: boolean;
+  }
 ): OmnibarHint[] {
   if (scope === "all") {
-    return matchNavigationIndex(query).map((entry) => ({
+    return matchNavigationIndex(query, {
+      importsEnabled: options?.importsEnabled,
+    }).map((entry) => ({
       label: entry.label,
       insertText: entry.label,
       kind: "navigation" as const,

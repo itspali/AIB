@@ -1,11 +1,20 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   BILL_LIST_COLUMN_REGISTRY,
   type PurchaseBillListColumnId,
@@ -20,7 +29,7 @@ import type { BillMatchStatus } from "@/lib/procurement/bills/three-way-match";
 import { AUTO_LAYOUT_PREF, type FrozenColumnPref } from "@/lib/products/list-prefs";
 
 const STORAGE_KEY = "aib:procurement-bill-list-prefs";
-const PREFS_VERSION = 2;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export type PurchaseBillListPrefs = {
   supplierId: string | null;
@@ -32,7 +41,7 @@ export type PurchaseBillListPrefs = {
   createdTo: string | null;
   sortField: PurchaseBillListSortField;
   sortDirection: PurchaseBillListSortDirection;
-  columnPrefs: ListColumnPrefs<PurchaseBillListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<PurchaseBillListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
@@ -45,8 +54,36 @@ export function getDefaultPurchaseBillListPrefs(): PurchaseBillListPrefs {
     createdTo: null,
     sortField: DEFAULT_BILL_SORT_FIELD,
     sortDirection: DEFAULT_BILL_SORT_DIRECTION,
-    columnPrefs: getDefaultListColumnPrefs(BILL_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(BILL_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getPurchaseBillColumnPrefsSlice(
+  prefs: PurchaseBillListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<PurchaseBillListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setPurchaseBillColumnPrefsSlice(
+  prefs: PurchaseBillListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<PurchaseBillListColumnId>
+): PurchaseBillListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setPurchaseBillColumnPrefsSliceAllDevices(
+  prefs: PurchaseBillListPrefs,
+  slice: ListColumnPrefs<PurchaseBillListColumnId>
+): PurchaseBillListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -60,10 +97,11 @@ export function loadPurchaseBillListPrefs(): PurchaseBillListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(BILL_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(BILL_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(BILL_LIST_COLUMN_REGISTRY, legacyDesktop),
       };
     }
 
@@ -78,10 +116,15 @@ export function loadPurchaseBillListPrefs(): PurchaseBillListPrefs {
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(BILL_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(BILL_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      BILL_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       supplierId: parsed.supplierId ?? null,
@@ -105,25 +148,25 @@ export function savePurchaseBillListPrefs(prefs: PurchaseBillListPrefs): void {
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(BILL_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    BILL_LIST_COLUMN_REGISTRY,
+    getPurchaseBillColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setPurchaseBillColumnWidth(
   prefs: PurchaseBillListPrefs,
+  deviceClass: DeviceClass,
   columnId: PurchaseBillListColumnId,
   width: number | null
 ): PurchaseBillListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

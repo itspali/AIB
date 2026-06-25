@@ -75,21 +75,17 @@ function BulkSelectionMenu({
   visibleCount,
   totalMatchingCount,
   selectionScope,
-  displayCount,
   isPending,
   onSelectPage,
   onSelectAllMatching,
-  onClearSelection,
   triggerClassName,
 }: {
   visibleCount: number;
   totalMatchingCount: number;
   selectionScope: SelectionScope;
-  displayCount: number;
   isPending: boolean;
   onSelectPage: () => void;
   onSelectAllMatching: () => void;
-  onClearSelection: () => void;
   triggerClassName?: string;
 }) {
   const hasMoreThanListed = totalMatchingCount > visibleCount;
@@ -134,15 +130,35 @@ function BulkSelectionMenu({
             All matching includes items not yet loaded in the list.
           </p>
         ) : null}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={isPending || displayCount <= 0}
-          onClick={() => onClearSelection()}
-        >
-          Clear selection
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function BulkClearSelectionButton({
+  displayCount,
+  isPending,
+  onClearSelection,
+  className,
+}: {
+  displayCount: number;
+  isPending: boolean;
+  onClearSelection: () => void;
+  className?: string;
+}) {
+  if (displayCount <= 0) return null;
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      className={cn(SELECTION_TRIGGER, className)}
+      disabled={isPending}
+      onClick={onClearSelection}
+    >
+      Clear selection
+    </Button>
   );
 }
 
@@ -228,12 +244,16 @@ export function ProductBulkActionToolbar({
           visibleCount={visibleCount}
           totalMatchingCount={totalMatchingCount}
           selectionScope={selectionScope}
-          displayCount={displayCount}
           isPending={isPending}
           onSelectPage={onSelectPage}
           onSelectAllMatching={onSelectAllMatching}
-          onClearSelection={onClearSelection}
           triggerClassName={INLINE_BUTTON}
+        />
+        <BulkClearSelectionButton
+          displayCount={displayCount}
+          isPending={isPending}
+          onClearSelection={onClearSelection}
+          className={INLINE_BUTTON}
         />
         {isPending ? (
           <Spinner className="h-3.5 w-3.5 text-muted-foreground" label="Processing bulk action" />
@@ -337,8 +357,9 @@ export function ProductBulkActionToolbar({
     <div
       className={listControlShellClassName(
         cn(
-          !embedded && "sticky top-0 z-30",
-          "animate-in fade-in slide-in-from-top-2 duration-200 backdrop-blur-sm supports-[backdrop-filter]:bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))]"
+          !embedded && "sticky top-0 z-30 animate-in fade-in slide-in-from-top-2 duration-200",
+          embedded && "shadow-none",
+          "backdrop-blur-sm supports-[backdrop-filter]:bg-[color-mix(in_srgb,hsl(var(--primary))_8%,hsl(var(--background)))]"
         )
       )}
       role="toolbar"
@@ -367,10 +388,13 @@ export function ProductBulkActionToolbar({
               visibleCount={visibleCount}
               totalMatchingCount={totalMatchingCount}
               selectionScope={selectionScope}
-              displayCount={displayCount}
               isPending={isPending}
               onSelectPage={onSelectPage}
               onSelectAllMatching={onSelectAllMatching}
+            />
+            <BulkClearSelectionButton
+              displayCount={displayCount}
+              isPending={isPending}
               onClearSelection={onClearSelection}
             />
           </div>

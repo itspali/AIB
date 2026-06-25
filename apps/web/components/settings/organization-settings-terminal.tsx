@@ -14,10 +14,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { saveOrganizationSettings } from "@/app/settings/organization/actions";
-import { OrganizationAccessSection } from "@/components/settings/organization-access-section";
+import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { OrganizationDangerZoneSection } from "@/components/settings/organization-danger-zone-section";
 import { OrganizationEntityFieldsSection } from "@/components/settings/organization-entity-fields-section";
 import { OrganizationProcurementSection } from "@/components/settings/organization-procurement-section";
+import { OrganizationAccessSection } from "@/components/settings/organization-access-section";
 import { OrganizationAccountingSection } from "@/components/settings/organization-accounting-section";
 import { OrganizationBillingFiscalSection } from "@/components/settings/organization-billing-fiscal-section";
 import { OrganizationBrandSection } from "@/components/settings/organization-brand-section";
@@ -340,7 +341,7 @@ export function OrganizationSettingsTerminal({
         </div>
       </div>
 
-      <div className="hidden rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5 lg:block">
+      <SettingsGlassShell className="hidden lg:block">
         <div className="flex flex-col gap-3">
           <div className="min-w-0">
             <p className="text-sm text-muted-foreground">Organization settings</p>
@@ -350,7 +351,7 @@ export function OrganizationSettingsTerminal({
           </div>
           <OrganizationPolicySummary snapshot={snapshot} form={form} variant="header" />
         </div>
-      </div>
+      </SettingsGlassShell>
 
       <OrganizationPolicySummary snapshot={snapshot} form={form} variant="panel" className="lg:hidden" />
 

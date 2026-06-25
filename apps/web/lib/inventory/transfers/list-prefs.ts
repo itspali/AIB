@@ -1,10 +1,18 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
 import { TRANSFER_LIST_COLUMN_REGISTRY, type TransferListColumnId } from "@/lib/inventory/transfers/list-columns";
 import {
   DEFAULT_TRANSFER_SORT_DIRECTION,
@@ -14,18 +22,19 @@ import {
 } from "@/lib/inventory/transfers/list-sort";
 import type { StockTransferStatus } from "@/lib/inventory/transfers/types";
 import { parseFrozenColumnPref } from "@/lib/list-columns/use-frozen-list-columns";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import type { FrozenColumnPref } from "@/lib/products/list-prefs";
 import { AUTO_LAYOUT_PREF } from "@/lib/products/list-prefs";
 
 const STORAGE_KEY = "aib:inventory-transfers-list-prefs";
-const PREFS_VERSION = 3;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 export type TransferListPrefs = {
   status: StockTransferStatus | "all";
   sourceLocationId: string | null;
   sortField: TransferListSortField;
   sortDirection: TransferListSortDirection;
-  columnPrefs: ListColumnPrefs<TransferListColumnId>;
+  columnPrefs: TableColumnPrefsByDevice<TransferListColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
@@ -35,8 +44,36 @@ export function getDefaultTransferListPrefs(): TransferListPrefs {
     sourceLocationId: null,
     sortField: DEFAULT_TRANSFER_SORT_FIELD,
     sortDirection: DEFAULT_TRANSFER_SORT_DIRECTION,
-    columnPrefs: getDefaultListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY),
+    columnPrefs: buildDefaultTableColumnPrefsByDevice(TRANSFER_LIST_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getTransferColumnPrefsSlice(
+  prefs: TransferListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<TransferListColumnId> {
+  return getTableColumnPrefsSlice(prefs.columnPrefs, deviceClass);
+}
+
+export function setTransferColumnPrefsSlice(
+  prefs: TransferListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<TransferListColumnId>
+): TransferListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSlice(prefs.columnPrefs, deviceClass, slice),
+  };
+}
+
+export function setTransferColumnPrefsSliceAllDevices(
+  prefs: TransferListPrefs,
+  slice: ListColumnPrefs<TransferListColumnId>
+): TransferListPrefs {
+  return {
+    ...prefs,
+    columnPrefs: setTableColumnPrefsSliceAllDevices(prefs.columnPrefs, slice),
   };
 }
 
@@ -50,10 +87,14 @@ export function loadTransferListPrefs(): TransferListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyDesktop = loadListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        columnPrefs: loadListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY),
+        columnPrefs: buildDefaultTableColumnPrefsByDevice(
+          TRANSFER_LIST_COLUMN_REGISTRY,
+          legacyDesktop
+        ),
       };
     }
 
@@ -68,10 +109,15 @@ export function loadTransferListPrefs(): TransferListPrefs {
         : defaults.sortField;
     const sortDirection = parsed.sortDirection === "asc" ? "asc" : defaults.sortDirection;
 
-    const columnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.columnPrefs
-        ? normalizeListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY, parsed.columnPrefs)
-        : loadListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY);
+    const columnPrefs = parseStoredTableColumnPrefsByDevice(
+      TRANSFER_LIST_COLUMN_REGISTRY,
+      parsed.columnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyDesktop,
+      }
+    );
 
     return {
       status: parsed.status ?? "all",
@@ -92,25 +138,25 @@ export function saveTransferListPrefs(prefs: TransferListPrefs): void {
     STORAGE_KEY,
     JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
   );
-  saveListColumnPrefs(TRANSFER_LIST_COLUMN_REGISTRY, prefs.columnPrefs);
+  saveListColumnPrefs(
+    TRANSFER_LIST_COLUMN_REGISTRY,
+    getTransferColumnPrefsSlice(prefs, "desktop")
+  );
 }
 
 export function setTransferColumnWidth(
   prefs: TransferListPrefs,
+  deviceClass: DeviceClass,
   columnId: TransferListColumnId,
   width: number | null
 ): TransferListPrefs {
-  const columnWidths = { ...(prefs.columnPrefs.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId];
-  } else {
-    columnWidths[columnId] = width;
-  }
   return {
     ...prefs,
-    columnPrefs: {
-      ...prefs.columnPrefs,
-      columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-    },
+    columnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.columnPrefs,
+      deviceClass,
+      columnId,
+      width
+    ),
   };
 }

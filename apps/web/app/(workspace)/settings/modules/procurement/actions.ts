@@ -234,6 +234,7 @@ export async function saveProcurementPolicies(raw: unknown) {
 }
 
 const saveImportLogisticsSettingsSchema = z.object({
+  imports_enabled: z.boolean(),
   import_receipt_document_strategy: z.enum([
     "SINGLE_GRN_WITH_STAGES",
     "SEPARATE_GRNS_PER_STAGE",

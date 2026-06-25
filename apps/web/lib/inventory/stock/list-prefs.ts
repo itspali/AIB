@@ -1,10 +1,19 @@
 import {
-  getDefaultListColumnPrefs,
   loadListColumnPrefs,
-  normalizeListColumnPrefs,
   saveListColumnPrefs,
 } from "@/lib/list-columns/prefs";
 import type { ListColumnPrefs } from "@/lib/list-columns/types";
+import {
+  buildDefaultTableColumnPrefsByDevice,
+  getTableColumnPrefsSlice,
+  parseStoredTableColumnPrefsByDevice,
+  setTableColumnPrefsSlice,
+  setTableColumnPrefsSliceAllDevices,
+  setTableColumnWidthInDeviceStore,
+  TABLE_COLUMN_PREFS_BY_DEVICE_VERSION,
+  type TableColumnPrefsByDevice,
+} from "@/lib/list-columns/device-column-prefs";
+import type { DeviceClass } from "@/lib/layout/device-class";
 import {
   STOCK_ADJUSTMENT_COLUMN_REGISTRY,
   STOCK_BALANCE_COLUMN_REGISTRY,
@@ -35,13 +44,13 @@ export type StockListPrefs = {
   balanceSortDirection: StockListSortDirection;
   adjustmentSortField: StockAdjustmentSortField;
   adjustmentSortDirection: StockListSortDirection;
-  balanceColumnPrefs: ListColumnPrefs<StockBalanceColumnId>;
-  adjustmentColumnPrefs: ListColumnPrefs<StockAdjustmentColumnId>;
+  balanceColumnPrefs: TableColumnPrefsByDevice<StockBalanceColumnId>;
+  adjustmentColumnPrefs: TableColumnPrefsByDevice<StockAdjustmentColumnId>;
   frozenColumnCount: FrozenColumnPref;
 };
 
 const STORAGE_KEY = "aib-stock-list-prefs";
-const PREFS_VERSION = 4;
+const PREFS_VERSION = TABLE_COLUMN_PREFS_BY_DEVICE_VERSION;
 
 function parseStockListViewMode(value: unknown): StockListViewMode {
   if (
@@ -61,9 +70,65 @@ export function getDefaultStockListPrefs(): StockListPrefs {
     balanceSortDirection: DEFAULT_STOCK_BALANCE_SORT_DIRECTION,
     adjustmentSortField: DEFAULT_STOCK_ADJUSTMENT_SORT_FIELD,
     adjustmentSortDirection: DEFAULT_STOCK_ADJUSTMENT_SORT_DIRECTION,
-    balanceColumnPrefs: getDefaultListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY),
-    adjustmentColumnPrefs: getDefaultListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY),
+    balanceColumnPrefs: buildDefaultTableColumnPrefsByDevice(STOCK_BALANCE_COLUMN_REGISTRY),
+    adjustmentColumnPrefs: buildDefaultTableColumnPrefsByDevice(STOCK_ADJUSTMENT_COLUMN_REGISTRY),
     frozenColumnCount: AUTO_LAYOUT_PREF,
+  };
+}
+
+export function getStockBalanceColumnPrefsSlice(
+  prefs: StockListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<StockBalanceColumnId> {
+  return getTableColumnPrefsSlice(prefs.balanceColumnPrefs, deviceClass);
+}
+
+export function setStockBalanceColumnPrefsSlice(
+  prefs: StockListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<StockBalanceColumnId>
+): StockListPrefs {
+  return {
+    ...prefs,
+    balanceColumnPrefs: setTableColumnPrefsSlice(prefs.balanceColumnPrefs, deviceClass, slice),
+  };
+}
+
+export function setStockBalanceColumnPrefsSliceAllDevices(
+  prefs: StockListPrefs,
+  slice: ListColumnPrefs<StockBalanceColumnId>
+): StockListPrefs {
+  return {
+    ...prefs,
+    balanceColumnPrefs: setTableColumnPrefsSliceAllDevices(prefs.balanceColumnPrefs, slice),
+  };
+}
+
+export function getStockAdjustmentColumnPrefsSlice(
+  prefs: StockListPrefs,
+  deviceClass: DeviceClass
+): ListColumnPrefs<StockAdjustmentColumnId> {
+  return getTableColumnPrefsSlice(prefs.adjustmentColumnPrefs, deviceClass);
+}
+
+export function setStockAdjustmentColumnPrefsSlice(
+  prefs: StockListPrefs,
+  deviceClass: DeviceClass,
+  slice: ListColumnPrefs<StockAdjustmentColumnId>
+): StockListPrefs {
+  return {
+    ...prefs,
+    adjustmentColumnPrefs: setTableColumnPrefsSlice(prefs.adjustmentColumnPrefs, deviceClass, slice),
+  };
+}
+
+export function setStockAdjustmentColumnPrefsSliceAllDevices(
+  prefs: StockListPrefs,
+  slice: ListColumnPrefs<StockAdjustmentColumnId>
+): StockListPrefs {
+  return {
+    ...prefs,
+    adjustmentColumnPrefs: setTableColumnPrefsSliceAllDevices(prefs.adjustmentColumnPrefs, slice),
   };
 }
 
@@ -81,11 +146,19 @@ export function loadStockListPrefs(): StockListPrefs {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    const legacyBalanceDesktop = loadListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY);
+    const legacyAdjustmentDesktop = loadListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY);
     if (!raw) {
       return {
         ...defaults,
-        balanceColumnPrefs: loadListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY),
-        adjustmentColumnPrefs: loadListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY),
+        balanceColumnPrefs: buildDefaultTableColumnPrefsByDevice(
+          STOCK_BALANCE_COLUMN_REGISTRY,
+          legacyBalanceDesktop
+        ),
+        adjustmentColumnPrefs: buildDefaultTableColumnPrefsByDevice(
+          STOCK_ADJUSTMENT_COLUMN_REGISTRY,
+          legacyAdjustmentDesktop
+        ),
       };
     }
 
@@ -116,15 +189,25 @@ export function loadStockListPrefs(): StockListPrefs {
     const adjustmentSortDirection =
       parsed.adjustmentSortDirection === "desc" ? "desc" : defaults.adjustmentSortDirection;
 
-    const balanceColumnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.balanceColumnPrefs
-        ? normalizeListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY, parsed.balanceColumnPrefs)
-        : loadListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY);
+    const balanceColumnPrefs = parseStoredTableColumnPrefsByDevice(
+      STOCK_BALANCE_COLUMN_REGISTRY,
+      parsed.balanceColumnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyBalanceDesktop,
+      }
+    );
 
-    const adjustmentColumnPrefs =
-      prefsVersion >= PREFS_VERSION && parsed.adjustmentColumnPrefs
-        ? normalizeListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY, parsed.adjustmentColumnPrefs)
-        : loadListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY);
+    const adjustmentColumnPrefs = parseStoredTableColumnPrefsByDevice(
+      STOCK_ADJUSTMENT_COLUMN_REGISTRY,
+      parsed.adjustmentColumnPrefs,
+      {
+        minVersion: PREFS_VERSION,
+        storedVersion: prefsVersion,
+        legacyFlat: legacyAdjustmentDesktop,
+      }
+    );
 
     const frozenColumnCount = parseFrozenColumnPref(parsed.frozenColumnCount);
 
@@ -151,8 +234,14 @@ export function saveStockListPrefs(prefs: StockListPrefs): void {
       STORAGE_KEY,
       JSON.stringify({ ...prefs, prefsVersion: PREFS_VERSION })
     );
-    saveListColumnPrefs(STOCK_BALANCE_COLUMN_REGISTRY, prefs.balanceColumnPrefs);
-    saveListColumnPrefs(STOCK_ADJUSTMENT_COLUMN_REGISTRY, prefs.adjustmentColumnPrefs);
+    saveListColumnPrefs(
+      STOCK_BALANCE_COLUMN_REGISTRY,
+      getStockBalanceColumnPrefsSlice(prefs, "desktop")
+    );
+    saveListColumnPrefs(
+      STOCK_ADJUSTMENT_COLUMN_REGISTRY,
+      getStockAdjustmentColumnPrefsSlice(prefs, "desktop")
+    );
   } catch {
     // ignore quota errors
   }
@@ -193,44 +282,59 @@ export function setStockSortPrefs(
   };
 }
 
-export function getStockColumnPrefs(prefs: StockListPrefs) {
+export function getStockColumnPrefs(prefs: StockListPrefs, deviceClass: DeviceClass) {
   return prefs.viewMode === "adjustments"
-    ? prefs.adjustmentColumnPrefs
-    : prefs.balanceColumnPrefs;
+    ? getStockAdjustmentColumnPrefsSlice(prefs, deviceClass)
+    : getStockBalanceColumnPrefsSlice(prefs, deviceClass);
 }
 
 export function setStockColumnPrefs(
   prefs: StockListPrefs,
-  columnPrefs: ListColumnPrefs<StockBalanceColumnId> | ListColumnPrefs<StockAdjustmentColumnId>
+  deviceClass: DeviceClass,
+  columnPrefs:
+    | ListColumnPrefs<StockBalanceColumnId>
+    | ListColumnPrefs<StockAdjustmentColumnId>
 ): StockListPrefs {
   if (prefs.viewMode === "adjustments") {
-    return {
-      ...prefs,
-      adjustmentColumnPrefs: columnPrefs as ListColumnPrefs<StockAdjustmentColumnId>,
-    };
+    return setStockAdjustmentColumnPrefsSlice(
+      prefs,
+      deviceClass,
+      columnPrefs as ListColumnPrefs<StockAdjustmentColumnId>
+    );
   }
-  return {
-    ...prefs,
-    balanceColumnPrefs: columnPrefs as ListColumnPrefs<StockBalanceColumnId>,
-  };
+  return setStockBalanceColumnPrefsSlice(
+    prefs,
+    deviceClass,
+    columnPrefs as ListColumnPrefs<StockBalanceColumnId>
+  );
 }
 
 export function setStockColumnWidth(
   prefs: StockListPrefs,
+  deviceClass: DeviceClass,
   columnId: StockBalanceColumnId | StockAdjustmentColumnId,
   width: number | null
 ): StockListPrefs {
-  const slice = getStockColumnPrefs(prefs);
-  const columnWidths = { ...(slice.columnWidths ?? {}) };
-  if (width == null) {
-    delete columnWidths[columnId as keyof typeof columnWidths];
-  } else {
-    (columnWidths as Record<string, number>)[columnId] = width;
+  if (prefs.viewMode === "adjustments") {
+    return {
+      ...prefs,
+      adjustmentColumnPrefs: setTableColumnWidthInDeviceStore(
+        prefs.adjustmentColumnPrefs,
+        deviceClass,
+        columnId as StockAdjustmentColumnId,
+        width
+      ),
+    };
   }
-  return setStockColumnPrefs(prefs, {
-    ...slice,
-    columnWidths: Object.keys(columnWidths).length > 0 ? columnWidths : undefined,
-  });
+  return {
+    ...prefs,
+    balanceColumnPrefs: setTableColumnWidthInDeviceStore(
+      prefs.balanceColumnPrefs,
+      deviceClass,
+      columnId as StockBalanceColumnId,
+      width
+    ),
+  };
 }
 
 export function getStockColumnRegistry(prefs: StockListPrefs) {

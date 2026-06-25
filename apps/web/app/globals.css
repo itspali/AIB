@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -131,6 +131,92 @@
       linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)));
   }
 
+  /* â”€â”€ Glass V2 app shell (dashboard chrome) â”€â”€ */
+
+  .glass-v2-app-shell {
+    --gs-bg-canvas: #06080a;
+    --gs-bg-sidebar: rgba(11, 14, 19, 0.92);
+    --gs-bg-top: rgba(11, 14, 19, 0.85);
+    --gs-bg-mobile: rgba(11, 14, 19, 0.92);
+    --gs-border-glow: rgba(255, 255, 255, 0.06);
+    background-color: var(--gs-bg-canvas);
+  }
+
+  .theme-light-warm .glass-v2-app-shell {
+    --gs-bg-canvas: #f3f5f8;
+    --gs-bg-sidebar: rgba(255, 255, 255, 0.88);
+    --gs-bg-top: rgba(255, 255, 255, 0.9);
+    --gs-bg-mobile: rgba(255, 255, 255, 0.92);
+    --gs-border-glow: rgba(0, 0, 0, 0.08);
+  }
+
+  .glass-v2-app-shell .glass-v2-app-top-strip {
+    border-color: var(--gs-border-glow);
+    background-color: var(--gs-bg-top);
+    backdrop-filter: blur(16px);
+  }
+
+  .glass-v2-app-shell .glass-v2-app-sidebar {
+    border-color: var(--gs-border-glow);
+    background-color: var(--gs-bg-sidebar);
+    backdrop-filter: blur(16px);
+  }
+
+  .glass-v2-app-shell .glass-v2-app-mobile-nav {
+    border-color: var(--gs-border-glow);
+    background-color: var(--gs-bg-mobile);
+    backdrop-filter: blur(16px);
+  }
+
+  .glass-v2-app-shell .glass-v2-app-mobile-drawer {
+    border-color: var(--gs-border-glow);
+    background-color: var(--gs-bg-sidebar);
+    backdrop-filter: blur(20px);
+  }
+
+  .glass-v2-app-shell .hub-canvas {
+    background-image:
+      radial-gradient(ellipse 90% 60% at 50% -30%, hsl(var(--glow-cyan) / 0.1), transparent 55%),
+      radial-gradient(ellipse 70% 50% at 100% 80%, hsl(var(--glow-violet) / 0.08), transparent 50%),
+      linear-gradient(to bottom, var(--gs-bg-canvas), var(--gs-bg-canvas));
+  }
+
+  /* â”€â”€ Glass V2 settings panels â”€â”€ */
+
+  .settings-glass-shell {
+    --settings-bg-panel: rgba(18, 24, 32, 0.6);
+    --settings-border-glow: rgba(255, 255, 255, 0.06);
+    --settings-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+    @apply rounded-[10px] border p-4 backdrop-blur-xl md:p-6;
+    background: var(--settings-bg-panel);
+    border-color: var(--settings-border-glow);
+    box-shadow: var(--settings-shadow);
+  }
+
+  .theme-light-warm .settings-glass-shell {
+    --settings-bg-panel: rgba(255, 255, 255, 0.82);
+    --settings-border-glow: rgba(0, 0, 0, 0.08);
+    --settings-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
+  }
+
+  /* ── Glass V2 hub panels (dashboard + module KPIs) ── */
+
+  .hub-panel {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  }
+
+  .theme-light-warm .hub-panel {
+    box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
+  }
+
+  .hub-panel:hover {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
+  }
+
+  .theme-light-warm .hub-panel:hover {
+    box-shadow: 0 8px 24px rgba(31, 38, 135, 0.1);
+  }
+
   .hub-grid {
     background-size: 40px 40px;
     background-image:
@@ -154,14 +240,23 @@
   }
 
   .surface-panel {
-    @apply rounded-xl border border-border bg-card p-4 shadow-md shadow-black/[0.04] dark:bg-card/50 dark:shadow-sm;
+    @apply rounded-[10px] border p-4 backdrop-blur-xl md:p-5;
+    background: rgba(18, 24, 32, 0.6);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  }
+
+  .theme-light-warm .surface-panel {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
   }
 
   .surface-inset {
     @apply rounded-lg border border-border bg-muted/35 shadow-sm dark:bg-muted/20;
   }
 
-  /* Rounded table frames — clip scroll content; radius vars match wrapper rounding. */
+  /* Rounded table frames â€” clip scroll content; radius vars match wrapper rounding. */
   .table-chrome-frame {
     @apply overflow-hidden;
     --table-chrome-radius: 0.5rem;
@@ -217,7 +312,7 @@
     border-top-right-radius: var(--table-chrome-radius, 0.5rem);
   }
 
-  /* Module drawer peek: opaque lifted surface (no transparency — list must not show through). */
+  /* Module drawer peek: opaque lifted surface (no transparency â€” list must not show through). */
   .module-drawer-peek-shell {
     @apply bg-background dark:bg-[hsl(224_47%_11%)];
   }
@@ -397,7 +492,7 @@
     background-color: hsl(224 47% 14%);
   }
 
-  /* Column settings dropdown — elevated above cards (not the same surface as .product-list-card). */
+  /* Column settings dropdown â€” elevated above cards (not the same surface as .product-list-card). */
   .column-settings-panel {
     background-color: hsl(var(--popover)) !important;
     border-color: hsl(var(--border)) !important;
@@ -567,7 +662,7 @@
     display: none;
   }
 
-  /* Workspace content inset — horizontal + top only; no bottom pad (sticky footers sit flush). */
+  /* Workspace content inset â€” horizontal + top only; no bottom pad (sticky footers sit flush). */
   .canvas-workspace-pad {
     @apply px-3 pt-3 md:px-4 md:pt-4 lg:px-6 lg:pt-5;
   }
@@ -599,6 +694,2466 @@
   @media (min-width: 1024px) {
     .item-wizard-workspace {
       height: calc(100dvh - 4rem - 1.25rem);
+    }
+  }
+
+  /* â”€â”€ UI Revamp: command-center layout (scoped to [data-appearance-root]) â”€â”€ */
+
+  :is([data-appearance-root], .overview-glass-root)[data-density="compact"] {
+    --revamp-gap: 1rem;
+    --revamp-gap-lg: 1.25rem;
+    --revamp-pad: 0.875rem;
+    --revamp-pad-lg: 1.125rem;
+    --revamp-radius: 0.75rem;
+    --revamp-hero-title: clamp(1.5rem, 4vw, 2rem);
+    --revamp-bento-hero-min: 7.5rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-density="comfortable"] {
+    --revamp-gap: 1.25rem;
+    --revamp-gap-lg: 1.75rem;
+    --revamp-pad: 1.125rem;
+    --revamp-pad-lg: 1.5rem;
+    --revamp-radius: 0.875rem;
+    --revamp-hero-title: clamp(1.75rem, 4.5vw, 2.375rem);
+    --revamp-bento-hero-min: 9rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--revamp-gap-lg);
+    max-width: 72rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-kicker {
+    @apply text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-kicker--hero {
+    @apply text-primary;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-section-title {
+    @apply text-sm font-semibold tracking-tight text-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-section-sub {
+    @apply mt-0.5 text-xs text-muted-foreground;
+  }
+
+  /* Hero band */
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--revamp-gap);
+    padding-bottom: var(--revamp-pad);
+    border-bottom: 1px solid hsl(var(--border) / 0.65);
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="glass"] .revamp-hero__mesh {
+    position: absolute;
+    inset: -1rem -0.5rem auto;
+    height: 12rem;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 70% at 10% 0%, hsl(var(--primary) / 0.18), transparent 55%),
+      radial-gradient(ellipse 60% 50% at 90% 20%, hsl(var(--accent) / 0.12), transparent 50%);
+    mask-image: linear-gradient(to bottom, black 40%, transparent);
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="flat"] .revamp-hero__mesh {
+    display: none;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero__content {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--revamp-gap);
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero__copy {
+    min-width: 0;
+    flex: 1 1 14rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero__title {
+    font-size: var(--revamp-hero-title);
+    @apply font-bold leading-[1.1] tracking-tight;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="glass"] .revamp-hero__title {
+    @apply gradient-text;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero__tagline {
+    @apply mt-2 max-w-md text-sm leading-relaxed text-muted-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero__actions {
+    @apply flex shrink-0 items-center gap-2;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-cta {
+    @apply h-9 gap-2 px-3 text-sm;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-density="comfortable"] .revamp-cta {
+    @apply h-10 px-4;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-hero__settings {
+    @apply h-9 w-9 shrink-0;
+  }
+
+  /* Inline stat rail â€” not boxed KPI cards */
+  :is([data-appearance-root], .overview-glass-root) .revamp-stat-rail {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-stat__value {
+    @apply text-lg font-bold tabular-nums text-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-density="comfortable"] .revamp-stat__value {
+    @apply text-xl;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-stat__label {
+    @apply text-xs text-muted-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-stat-divider {
+    @apply hidden h-3 w-px bg-border sm:block;
+  }
+
+  /* Workflow journey rail */
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey__track {
+    @apply flex list-none flex-nowrap items-center gap-1 overflow-x-auto pb-1 scrollbar-none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey__step {
+    @apply flex shrink-0 items-center gap-1;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey__link {
+    @apply flex items-center gap-2 rounded-full border border-transparent px-2 py-1.5 transition-colors duration-200;
+    @apply hover:border-primary/25 hover:bg-primary/5;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) button.revamp-journey__link,
+  :is([data-appearance-root], .overview-glass-root) button.revamp-bento-tile {
+    @apply cursor-pointer border-border/80 bg-transparent text-left;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="glass"] button.revamp-bento-tile {
+    @apply border border-border/80 bg-card/50 backdrop-blur-md dark:bg-card/35;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="flat"] button.revamp-bento-tile {
+    @apply border border-border bg-card dark:border-white/10;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey__node {
+    @apply flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/25;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey__label {
+    @apply whitespace-nowrap text-xs font-medium text-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-journey__connector {
+    @apply h-3.5 w-3.5 shrink-0 text-muted-foreground/50;
+  }
+
+  /* Bento launchpad â€” asymmetric, label-first tiles */
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+
+  @media (min-width: 768px) {
+    :is([data-appearance-root], .overview-glass-root) .revamp-bento__grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento__utility-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+
+  @media (min-width: 640px) {
+    :is([data-appearance-root], .overview-glass-root) .revamp-bento__utility-row {
+      grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    }
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.375rem;
+    min-height: 5.5rem;
+    padding: var(--revamp-pad);
+    border-radius: var(--revamp-radius);
+    overflow: hidden;
+    width: 100%;
+    text-align: left;
+    transition:
+      transform 200ms ease,
+      border-color 200ms ease,
+      box-shadow 200ms ease;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="glass"] .revamp-bento-tile {
+    @apply border border-border/80 bg-card/50 backdrop-blur-md dark:bg-card/35;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="flat"] .revamp-bento-tile {
+    @apply border border-border bg-card dark:border-white/10;
+  }
+
+  .theme-light-warm :is([data-appearance-root], .overview-glass-root)[data-visual="flat"] .revamp-bento-tile {
+    @apply border-black/[0.06] shadow-sm;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile:hover {
+    @apply -translate-y-0.5 border-primary/35;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="glass"] .revamp-bento-tile:hover {
+    box-shadow: 0 12px 32px hsl(var(--primary) / 0.12);
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile__glow {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background: radial-gradient(circle at 80% 20%, hsl(var(--primary) / 0.15), transparent 55%);
+    transition: opacity 200ms ease;
+    pointer-events: none;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile:hover .revamp-bento-tile__glow {
+    opacity: 1;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--hero {
+    grid-column: 1 / -1;
+    min-height: var(--revamp-bento-hero-min);
+  }
+
+  @media (min-width: 768px) {
+    :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--hero {
+      grid-column: span 2;
+      grid-row: span 2;
+      min-height: 0;
+    }
+
+    :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--primary {
+      grid-column: span 1;
+      min-height: 6.5rem;
+    }
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--utility {
+    min-height: 4.25rem;
+    @apply flex-row items-center justify-start gap-2.5;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile__icon {
+    @apply h-5 w-5 text-primary;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--hero .revamp-bento-tile__icon {
+    @apply h-7 w-7;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--utility .revamp-bento-tile__icon {
+    @apply h-4 w-4;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile__label {
+    @apply text-sm font-semibold leading-tight text-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--hero .revamp-bento-tile__label {
+    @apply text-base;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--utility .revamp-bento-tile__label {
+    @apply text-xs font-medium;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile__arrow {
+    @apply absolute right-3 top-3 h-4 w-4 text-primary;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-bento-tile--utility .revamp-bento-tile__arrow {
+    @apply static ml-auto h-3.5 w-3.5;
+  }
+
+  /* Policy chip rail â€” not a definition list panel */
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding-top: 0.25rem;
+    border-top: 1px dashed hsl(var(--border) / 0.7);
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-rail__head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-rail__chips {
+    @apply flex flex-wrap gap-2;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-chip {
+    @apply inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 dark:bg-muted/20;
+  }
+
+  :is([data-appearance-root], .overview-glass-root)[data-visual="glass"] .revamp-policy-chip {
+    @apply bg-card/40 backdrop-blur-sm;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-chip__label {
+    @apply truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-chip__value {
+    @apply text-xs font-semibold tabular-nums;
+  }
+
+  :is([data-appearance-root], .overview-glass-root) .revamp-policy-chip--toggle {
+    @apply cursor-pointer text-xs font-medium text-primary transition-colors hover:border-primary/30 hover:bg-primary/5;
+  }
+
+  /* â”€â”€ Revamp catalog list (Items) â€” component-driven modifiers â”€â”€ */
+
+  .list-module-revamp .revamp-catalog-header {
+    position: relative;
+    margin-bottom: 0.25rem;
+  }
+
+  .list-module-revamp .revamp-catalog-header__mesh {
+    position: absolute;
+    inset: -0.5rem -0.25rem auto;
+    height: 4.5rem;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .list-module-revamp--glass .revamp-catalog-header__mesh {
+    opacity: 1;
+    background: radial-gradient(
+      ellipse 90% 100% at 0% 0%,
+      hsl(var(--primary) / 0.22),
+      transparent 70%
+    );
+  }
+
+  .list-module-revamp .revamp-catalog-header__row {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .list-module-revamp .revamp-catalog-header__title {
+    @apply font-bold leading-tight tracking-tight;
+    font-size: 1.125rem;
+  }
+
+  .list-module-revamp--comfortable .revamp-catalog-header__title {
+    font-size: 1.375rem;
+  }
+
+  .list-module-revamp .revamp-catalog-header__sub {
+    @apply mt-0.5 text-xs text-muted-foreground;
+  }
+
+  .list-module-revamp--comfortable .revamp-catalog-header__sub {
+    @apply text-sm;
+  }
+
+  .list-module-revamp .revamp-catalog-header__cta {
+    @apply h-8 shrink-0;
+  }
+
+  .list-module-revamp .revamp-catalog-chrome {
+    @apply rounded-xl border border-transparent;
+  }
+
+  .list-module-revamp .revamp-catalog-chrome--unified {
+    @apply min-h-9 items-center;
+  }
+
+  .list-module-revamp--glass .revamp-catalog-chrome {
+    @apply border-primary/25 bg-card/40 shadow-md shadow-primary/10 backdrop-blur-xl dark:bg-card/25;
+  }
+
+  .list-module-revamp--flat .revamp-catalog-chrome {
+    @apply border-border bg-card shadow-sm dark:border-white/10;
+  }
+
+  .theme-light-warm .list-module-revamp--flat .revamp-catalog-chrome {
+    @apply border-black/[0.08];
+  }
+
+  .list-module-revamp--compact .revamp-catalog-chrome {
+    @apply px-2.5 py-2 md:px-3;
+  }
+
+  .list-module-revamp--comfortable .revamp-catalog-chrome {
+    @apply px-3 py-2.5 md:px-4 md:py-3;
+  }
+
+  .list-module-revamp .revamp-catalog-toolbar {
+    @apply rounded-lg border border-border/60 bg-muted/25 px-2 py-1.5 dark:bg-muted/15;
+  }
+
+  .list-module-revamp--glass .revamp-catalog-toolbar {
+    @apply border-primary/20 bg-primary/[0.06] backdrop-blur-sm;
+  }
+
+  .list-module-revamp--flat .revamp-catalog-toolbar {
+    @apply border-border bg-muted/30 shadow-none;
+  }
+
+  .list-module-revamp--compact .revamp-catalog-toolbar {
+    @apply py-1;
+  }
+
+  .list-module-revamp .revamp-catalog-toolbar.revamp-catalog-toolbar--strip,
+  .list-module-revamp--glass .revamp-catalog-toolbar.revamp-catalog-toolbar--strip,
+  .list-module-revamp--flat .revamp-catalog-toolbar.revamp-catalog-toolbar--strip {
+    @apply rounded-none border-0 bg-transparent p-0 shadow-none;
+    backdrop-filter: none;
+  }
+
+  .list-module-revamp--compact .revamp-catalog-toolbar.revamp-catalog-toolbar--strip {
+    @apply py-0;
+  }
+
+  .list-module-revamp--compact .revamp-catalog-chrome__stack {
+    @apply space-y-1.5;
+  }
+
+  .list-module-revamp .revamp-catalog-body {
+    @apply pt-1.5;
+  }
+
+  .list-module-revamp--glass .revamp-catalog-body .surface-inset.table-chrome-frame {
+    background-color: hsl(var(--card) / 0.42) !important;
+    border-color: hsl(var(--primary) / 0.28) !important;
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.08),
+      0 12px 40px hsl(var(--primary) / 0.12) !important;
+    backdrop-filter: blur(14px);
+  }
+
+  .list-module-revamp--flat .revamp-catalog-body .surface-inset.table-chrome-frame {
+    background-color: hsl(var(--card)) !important;
+    border-color: hsl(var(--border)) !important;
+    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.04) !important;
+    backdrop-filter: none;
+  }
+
+  .theme-light-warm .list-module-revamp--flat .revamp-catalog-body .surface-inset.table-chrome-frame {
+    border-color: hsl(0 0% 0% / 0.08) !important;
+  }
+
+  .list-module-revamp--compact .revamp-catalog-body .table-chrome th,
+  .list-module-revamp--compact .revamp-catalog-body .table-chrome td {
+    padding: 0.375rem 0.5rem !important;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+  }
+
+  .list-module-revamp--comfortable .revamp-catalog-body .table-chrome th,
+  .list-module-revamp--comfortable .revamp-catalog-body .table-chrome td {
+    padding: 0.625rem 0.75rem !important;
+  }
+
+  .list-module-revamp--glass .revamp-catalog-body .product-list-card {
+    @apply border-primary/20 bg-card/60 backdrop-blur-sm;
+  }
+
+  .list-module-revamp--glass .revamp-catalog-body .product-list-card:hover {
+    @apply border-primary/40 shadow-lg shadow-primary/10;
+  }
+
+  .list-module-revamp--flat .revamp-catalog-body .product-list-card {
+    @apply bg-card shadow-sm;
+  }
+
+  .list-module-revamp--compact .revamp-catalog-body .product-list-card {
+    @apply p-2.5;
+  }
+
+  /* Procurement / overview revamp â€” stronger glass vs flat contrast */
+  [data-appearance-root][data-ui-generation="preview"][data-visual="glass"] .revamp-shell {
+    @apply rounded-xl border border-primary/20 bg-gradient-to-b from-primary/[0.06] to-transparent p-0.5;
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-visual="flat"] .revamp-shell {
+    @apply rounded-none border-0 bg-transparent p-0;
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-visual="glass"] .revamp-bento-tile {
+    border-color: hsl(var(--primary) / 0.3) !important;
+    background-color: hsl(var(--card) / 0.55) !important;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 28px hsl(var(--primary) / 0.14);
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-visual="flat"] .revamp-bento-tile {
+    border-color: hsl(var(--border)) !important;
+    background-color: hsl(var(--card)) !important;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-density="compact"] .revamp-shell {
+    gap: 0.875rem;
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-density="comfortable"] .revamp-shell {
+    gap: 1.75rem;
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-density="compact"] .revamp-hero__title {
+    font-size: 1.375rem;
+  }
+
+  [data-appearance-root][data-ui-generation="preview"][data-density="comfortable"] .revamp-hero__title {
+    font-size: 2.125rem;
+  }
+
+  /* Revamp hero CTAs â€” icon-only on small screens */
+  [data-appearance-root] .revamp-cta__label {
+    @apply hidden sm:inline;
+  }
+
+  [data-appearance-root] .revamp-cta {
+    @apply h-9 w-9 px-0 sm:w-auto sm:px-4;
+  }
+
+  /* â”€â”€ Items spatial split (Revamp catalog) â”€â”€ */
+
+  [data-appearance-root] .spatial-split-root {
+    @apply min-h-0;
+  }
+
+  [data-appearance-root] .spatial-split-container {
+    @apply flex h-full min-h-0 flex-1 overflow-hidden;
+  }
+
+  [data-appearance-root] .spatial-master-feed-pane {
+    @apply flex min-h-0 w-full min-w-0 shrink-0 flex-col border-r border-border bg-background;
+    width: min(100%, 380px);
+    max-width: 380px;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-master-feed-pane {
+    @apply border-primary/15 bg-card/40 backdrop-blur-md;
+  }
+
+  [data-appearance-root][data-visual="flat"] .spatial-master-feed-pane {
+    @apply bg-card;
+  }
+
+  [data-appearance-root] .spatial-feed-identity {
+    @apply flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2.5;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-feed-identity {
+    @apply border-primary/10 bg-card/30;
+  }
+
+  [data-appearance-root] .spatial-identity-capsule {
+    @apply flex min-w-0 items-center gap-2;
+  }
+
+  [data-appearance-root] .spatial-avatar-frame {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-xs font-semibold text-primary ring-1 ring-primary/25;
+  }
+
+  [data-appearance-root] .spatial-identity-meta {
+    @apply flex min-w-0 flex-col leading-tight;
+  }
+
+  [data-appearance-root] .spatial-meta-user {
+    @apply text-sm font-semibold text-foreground;
+  }
+
+  [data-appearance-root] .spatial-meta-org {
+    @apply text-[11px] text-muted-foreground;
+  }
+
+  [data-appearance-root] .spatial-action-trigger {
+    @apply inline-flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-action-trigger {
+    @apply border-primary/15 bg-card/50 backdrop-blur-sm;
+  }
+
+  [data-appearance-root] .spatial-pulse-badge {
+    @apply absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.65)];
+  }
+
+  [data-appearance-root] .spatial-feed-search {
+    @apply relative shrink-0 px-3 py-2;
+  }
+
+  [data-appearance-root] .spatial-feed-search__icon {
+    @apply pointer-events-none absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground;
+  }
+
+  [data-appearance-root] .spatial-feed-search__input {
+    @apply h-9 border-border bg-card pl-9 text-sm shadow-sm;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-feed-search__input {
+    @apply border-primary/15 bg-card/45 backdrop-blur-sm;
+  }
+
+  [data-appearance-root] .spatial-feed-scroll {
+    @apply flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-3;
+  }
+
+  [data-appearance-root] .spatial-master-card-row {
+    @apply rounded-lg border border-transparent transition-colors;
+  }
+
+  [data-appearance-root] .spatial-master-card-row--active {
+    @apply border-primary/40 bg-primary/[0.08] ring-1 ring-primary/20;
+  }
+
+  [data-appearance-root] .spatial-master-card-row--inactive {
+    @apply border-border/60 bg-muted/70;
+  }
+
+  [data-appearance-root] .spatial-master-card-row--inactive:hover {
+    @apply bg-muted/80;
+  }
+
+  [data-appearance-root] .spatial-master-card-row--inactive.spatial-master-card-row--active {
+    @apply border-primary/40 bg-muted/80 ring-1 ring-primary/20;
+  }
+
+  [data-appearance-root] .spatial-master-card-row--inactive .spatial-card-id {
+    @apply text-primary/55;
+  }
+
+  [data-appearance-root] .spatial-master-card-row--inactive .spatial-card-name {
+    @apply font-medium text-muted-foreground;
+  }
+
+  [data-appearance-root] .spatial-master-card {
+    @apply flex w-full flex-col gap-0.5 rounded-lg border border-transparent bg-transparent px-3 py-2.5 text-left transition-colors;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-master-card {
+    @apply border-transparent bg-transparent hover:border-transparent hover:bg-transparent;
+  }
+
+  [data-appearance-root][data-visual="flat"] .spatial-master-card {
+    @apply hover:border-transparent hover:bg-transparent;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-master-card-row:hover:not(.spatial-master-card-row--inactive) {
+    @apply border-border/60 bg-card/35;
+  }
+
+  [data-appearance-root][data-visual="flat"] .spatial-master-card-row:hover:not(.spatial-master-card-row--inactive) {
+    @apply border-border bg-muted/40;
+  }
+
+  [data-appearance-root] .spatial-master-card--active {
+    @apply border-transparent bg-transparent ring-0;
+  }
+
+  [data-appearance-root] .spatial-master-card--inactive {
+    @apply border-transparent bg-transparent;
+  }
+
+  [data-appearance-root] .spatial-master-card--inactive.spatial-master-card--active {
+    @apply border-transparent bg-transparent ring-0;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-master-card-row--active {
+    @apply bg-primary/[0.12] shadow-md shadow-primary/10;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-master-card--active {
+    @apply bg-transparent shadow-none;
+  }
+
+  [data-appearance-root] .spatial-card-top-row {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  [data-appearance-root] .spatial-card-id {
+    @apply font-mono text-xs font-semibold text-primary;
+  }
+
+  [data-appearance-root] .spatial-card-value {
+    @apply shrink-0 text-xs font-medium text-foreground;
+  }
+
+  [data-appearance-root] .spatial-card-name {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  [data-appearance-root] .spatial-card-meta {
+    @apply text-[11px] text-muted-foreground;
+  }
+
+  [data-appearance-root] .spatial-detail-pane {
+    @apply flex min-h-0 min-w-0 flex-1 flex-col bg-background;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-detail-pane {
+    @apply bg-gradient-to-b from-primary/[0.04] to-background;
+  }
+
+  [data-appearance-root] .spatial-detail-pane--empty {
+    @apply items-stretch justify-stretch;
+  }
+
+  [data-appearance-root] .spatial-detail-header {
+    @apply flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3 md:px-5 md:py-4;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-detail-header {
+    @apply border-primary/10 bg-card/25 backdrop-blur-sm;
+  }
+
+  [data-appearance-root] .spatial-detail-id {
+    @apply font-mono text-lg font-bold tracking-tight text-primary md:text-xl;
+  }
+
+  [data-appearance-root] .spatial-detail-name {
+    @apply text-sm text-muted-foreground;
+  }
+
+  [data-appearance-root] .spatial-detail-body {
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 md:p-5;
+  }
+
+  [data-appearance-root] .spatial-glass-block {
+    @apply rounded-xl border border-border bg-card p-4 shadow-sm;
+  }
+
+  [data-appearance-root][data-visual="glass"] .spatial-glass-block {
+    @apply border-primary/20 bg-card/55 backdrop-blur-md shadow-md shadow-primary/5;
+  }
+
+  [data-appearance-root][data-visual="flat"] .spatial-glass-block {
+    @apply shadow-none;
+  }
+
+  [data-appearance-root] .spatial-detail-grid {
+    @apply grid grid-cols-2 gap-4;
+  }
+
+  [data-appearance-root] .spatial-field-label {
+    @apply block text-[11px] font-medium uppercase tracking-wide text-muted-foreground;
+  }
+
+  [data-appearance-root] .spatial-field-value {
+    @apply mt-0.5 block text-sm font-medium text-foreground;
+  }
+
+  [data-appearance-root] .spatial-field-value--mono {
+    @apply font-mono text-primary;
+  }
+
+  [data-appearance-root][data-density="compact"] .spatial-master-card {
+    @apply py-2;
+  }
+
+  [data-appearance-root][data-density="compact"] .spatial-detail-header {
+    @apply py-2.5;
+  }
+
+  [data-appearance-root][data-density="compact"] .spatial-glass-block {
+    @apply p-3;
+  }
+
+  [data-appearance-root][data-density="comfortable"] .spatial-master-card {
+    @apply py-3;
+  }
+
+  [data-appearance-root][data-density="comfortable"] .spatial-detail-body {
+    @apply gap-4 p-5 md:p-6;
+  }
+
+  @media (max-width: 900px) {
+    [data-appearance-root] .spatial-split-container {
+      @apply relative;
+    }
+
+    [data-appearance-root] .spatial-master-feed-pane {
+      @apply max-w-none border-r-0;
+      width: 100%;
+    }
+
+    [data-appearance-root] .spatial-master-feed-pane--hidden-mobile {
+      @apply invisible;
+    }
+
+    [data-appearance-root] .spatial-detail-pane {
+      @apply absolute inset-0 z-10 translate-x-full transition-transform duration-300 ease-out;
+    }
+
+    [data-appearance-root] .spatial-detail-pane--mobile-open {
+      @apply translate-x-0;
+    }
+  }
+
+  /* â”€â”€ Items input matrix workspace (Revamp catalog alt) â”€â”€ */
+
+  [data-appearance-root] .matrix-workspace-root {
+    @apply min-h-0 p-0;
+  }
+
+  [data-appearance-root] .matrix-glass-card {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-md md:p-[18px];
+  }
+
+  [data-appearance-root][data-visual="glass"] .matrix-glass-card {
+    @apply border-primary/15 bg-card/55 shadow-lg shadow-black/20 backdrop-blur-xl;
+  }
+
+  [data-appearance-root][data-visual="flat"] .matrix-glass-card {
+    @apply bg-card shadow-sm;
+  }
+
+  [data-appearance-root] .matrix-table-header {
+    @apply mb-3.5 flex shrink-0 items-center justify-between gap-3;
+  }
+
+  [data-appearance-root] .matrix-table-title {
+    @apply text-base font-semibold tracking-tight text-foreground md:text-[1.05rem];
+  }
+
+  [data-appearance-root] .matrix-table-sub {
+    @apply mt-0.5 text-[11px] text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-table-toolbar {
+    @apply relative mb-3 shrink-0;
+  }
+
+  [data-appearance-root] .matrix-toolbar-search-icon {
+    @apply pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-toolbar-search {
+    @apply h-9 border-border bg-muted/20 pl-9 text-sm;
+  }
+
+  [data-appearance-root][data-visual="glass"] .matrix-toolbar-search {
+    @apply border-primary/10 bg-card/40 backdrop-blur-sm;
+  }
+
+  [data-appearance-root] .matrix-table-wrapper {
+    @apply w-full overflow-x-auto;
+  }
+
+  [data-appearance-root] .matrix-table {
+    @apply w-full border-collapse text-left text-[0.85rem];
+  }
+
+  [data-appearance-root] .matrix-table__header {
+    @apply border-b border-border px-2.5 py-2.5 text-[0.72rem] font-medium uppercase tracking-wide text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-table__header-btn {
+    @apply font-[inherit] text-[inherit];
+  }
+
+  [data-appearance-root] .matrix-table td {
+    @apply border-b border-border/40 px-2.5 py-3;
+  }
+
+  [data-appearance-root] .matrix-table tbody tr {
+    @apply cursor-pointer transition-colors hover:bg-muted/30;
+  }
+
+  [data-appearance-root] .matrix-table__row--active {
+    @apply bg-primary/[0.08] ring-1 ring-inset ring-primary/25;
+  }
+
+  [data-appearance-root] .matrix-table__row--inactive {
+    @apply bg-muted/35;
+  }
+
+  [data-appearance-root] .matrix-table__row--inactive.matrix-table__row--active {
+    @apply bg-muted/45 ring-1 ring-inset ring-primary/25;
+  }
+
+  [data-appearance-root] .matrix-table__prose--primary {
+    @apply font-medium text-foreground;
+  }
+
+  [data-appearance-root] .matrix-table__prose--muted {
+    @apply text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-table__code {
+    @apply font-mono text-xs font-medium text-primary;
+  }
+
+  [data-appearance-root] .matrix-table__numeric {
+    @apply font-mono text-sm font-medium text-foreground;
+  }
+
+  [data-appearance-root] .matrix-table__numeric--muted {
+    @apply font-mono text-sm font-medium text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-btn {
+    @apply inline-flex items-center justify-center rounded-lg border border-transparent px-3.5 py-2 text-[0.8rem] font-semibold transition-colors;
+  }
+
+  [data-appearance-root] .matrix-btn--primary {
+    @apply bg-primary text-primary-foreground shadow-glow-sm hover:bg-primary/90;
+  }
+
+  [data-appearance-root][data-visual="glass"] .matrix-btn--primary {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)),
+      hsl(var(--primary) / 0.72)
+    );
+  }
+
+  [data-appearance-root] .matrix-btn--secondary {
+    @apply border-border bg-muted/30 text-foreground hover:bg-muted/50;
+  }
+
+  [data-appearance-root] .matrix-create-btn {
+    @apply h-9;
+  }
+
+  [data-appearance-root] .matrix-drawer-backdrop {
+    @apply pointer-events-none fixed inset-0 z-[190] bg-black/0 opacity-0 transition-opacity duration-300;
+  }
+
+  [data-appearance-root] .matrix-drawer-backdrop--open {
+    @apply pointer-events-auto bg-black/40 opacity-100;
+  }
+
+  [data-appearance-root] .matrix-creation-drawer {
+    @apply fixed bottom-0 right-[-460px] top-0 z-[200] flex w-[min(460px,100vw)] flex-col border-l border-border bg-background p-6 shadow-[-8px_0_30px_rgba(0,0,0,0.18)] transition-[right,bottom] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)];
+  }
+
+  [data-appearance-root][data-visual="glass"] .matrix-creation-drawer {
+    @apply border-primary/10 bg-background/95 backdrop-blur-xl;
+  }
+
+  [data-appearance-root] .matrix-creation-drawer--open {
+    @apply right-0;
+  }
+
+  [data-appearance-root] .matrix-form-scroll {
+    @apply mb-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1;
+  }
+
+  [data-appearance-root] .matrix-drawer-head {
+    @apply mb-2 flex items-start justify-between gap-3;
+  }
+
+  [data-appearance-root] .matrix-drawer-title {
+    @apply text-[1.05rem] font-semibold text-foreground md:text-[1.15rem];
+  }
+
+  [data-appearance-root] .matrix-drawer-sub {
+    @apply mt-0.5 text-xs text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-drawer-close {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/30 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground;
+  }
+
+  [data-appearance-root] .matrix-form-section-title {
+    @apply mb-3 text-[0.72rem] font-semibold uppercase tracking-wide text-primary;
+  }
+
+  [data-appearance-root] .matrix-form-stack {
+    @apply flex flex-col gap-4;
+  }
+
+  [data-appearance-root] .matrix-input-row-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+  }
+
+  [data-appearance-root] .matrix-input-group {
+    @apply flex flex-col gap-1.5;
+  }
+
+  [data-appearance-root] .matrix-input-label {
+    @apply text-[0.72rem] font-medium uppercase tracking-wide text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-field-display {
+    @apply rounded-t border-b-[1.5px] border-border bg-muted/10 px-1 py-2 text-[0.9rem] text-foreground;
+  }
+
+  [data-appearance-root] .matrix-field-display--mono {
+    @apply font-mono text-primary;
+  }
+
+  [data-appearance-root] .matrix-form-hint {
+    @apply text-[0.7rem] text-muted-foreground;
+  }
+
+  [data-appearance-root] .matrix-drawer-toolbar {
+    @apply flex shrink-0 items-center justify-end gap-2.5 border-t border-border pt-4;
+  }
+
+  [data-appearance-root][data-density="compact"] .matrix-glass-card {
+    @apply p-3;
+  }
+
+  [data-appearance-root][data-density="compact"] .matrix-table td {
+    @apply py-2;
+  }
+
+  [data-appearance-root][data-density="comfortable"] .matrix-glass-card {
+    @apply p-5 md:p-6;
+  }
+
+  [data-appearance-root][data-density="comfortable"] .matrix-form-scroll {
+    @apply gap-6;
+  }
+
+  @media (max-width: 768px) {
+    [data-appearance-root] .matrix-btn__label {
+      @apply hidden;
+    }
+
+    [data-appearance-root] .matrix-create-btn {
+      @apply h-10 w-10 px-0;
+    }
+
+    [data-appearance-root] .matrix-drawer-toolbar .matrix-btn {
+      @apply h-10 w-10 px-0;
+    }
+
+    [data-appearance-root] .matrix-creation-drawer {
+      @apply right-0 top-auto h-[85vh] w-full rounded-t-2xl border-l-0 border-t border-border;
+      bottom: -100%;
+    }
+
+    [data-appearance-root] .matrix-creation-drawer--open {
+      @apply bottom-0;
+    }
+
+    [data-appearance-root] .matrix-input-row-grid {
+      @apply grid-cols-1;
+    }
+  }
+
+  /* â”€â”€ Shared list workspace (Items + future modules) â”€â”€ */
+
+  /* â”€â”€ Glass v2 â€” list image chrome â”€â”€ */
+
+  .glass-v2-list-image {
+    @apply inline-flex items-center justify-center overflow-hidden rounded-md;
+    border: 1px solid hsl(var(--border) / 0.55);
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .glass-v2-list-image--placeholder {
+    border-color: hsl(var(--border) / 0.45);
+    background-color: hsl(var(--muted) / 0.85);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-list-image {
+    border-color: var(--lw-border-glow);
+    background: color-mix(in srgb, var(--lw-bg-elevated) 92%, transparent);
+    color: var(--lw-text-muted);
+    backdrop-filter: blur(10px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-list-image--placeholder {
+    background: color-mix(in srgb, var(--lw-bg-panel) 72%, var(--lw-bg-elevated));
+    border-color: color-mix(in srgb, var(--lw-border-glow) 88%, hsl(var(--primary) / 0.14));
+    color: color-mix(in srgb, var(--lw-text-muted) 90%, hsl(var(--primary) / 0.4));
+  }
+
+  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) .glass-v2-list-image {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.75),
+      0 1px 3px rgba(31, 38, 135, 0.06);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) {
+    --lw-bg-canvas: #06080a;
+    --lw-bg-sidebar: #0b0e13;
+    --lw-bg-panel: rgba(18, 24, 32, 0.6);
+    --lw-bg-elevated: #121820;
+    --lw-border-glow: rgba(255, 255, 255, 0.04);
+    --lw-border-active: hsl(var(--primary) / 0.4);
+    --lw-shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --lw-text-body: hsl(var(--foreground));
+    --lw-text-muted: hsl(var(--muted-foreground));
+    --lw-text-accent: hsl(var(--primary));
+    /* Opaque sticky lanes (select + frozen) — composited solids, no alpha bleed on scroll */
+    --lw-matrix-lane-rest: color-mix(in srgb, rgb(18 24 32) 60%, var(--lw-bg-canvas));
+    --lw-matrix-lane-hover: color-mix(in srgb, rgb(125 125 125) 4%, var(--lw-matrix-lane-rest));
+    --lw-matrix-lane-active: color-mix(in srgb, hsl(var(--primary)) 8%, var(--lw-matrix-lane-rest));
+    --lw-matrix-lane-inactive: color-mix(in srgb, hsl(var(--muted)) 35%, var(--lw-matrix-lane-rest));
+    --lw-matrix-lane-inactive-active: color-mix(in srgb, hsl(var(--muted)) 45%, var(--lw-matrix-lane-rest));
+    --lw-matrix-header: hsl(var(--card));
+    /* 1px rules — header bottom, frozen trailing edge, column separators */
+    --lw-matrix-column-rule: hsl(var(--muted));
+    --lw-matrix-cell-inline: 10px;
+    @apply min-h-0;
+  }
+
+  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) {
+    --lw-bg-canvas: #f3f5f8;
+    --lw-bg-sidebar: #ffffff;
+    --lw-bg-panel: rgba(255, 255, 255, 0.8);
+    --lw-bg-elevated: #ffffff;
+    --lw-border-glow: rgba(0, 0, 0, 0.06);
+    --lw-shadow-subtle: 0 4px 16px rgba(31, 38, 135, 0.04);
+    --lw-text-body: hsl(var(--foreground));
+    --lw-text-muted: hsl(var(--muted-foreground));
+    --lw-text-accent: hsl(var(--primary));
+    --lw-matrix-lane-rest: color-mix(in srgb, rgb(255 255 255) 80%, var(--lw-bg-canvas));
+    --lw-matrix-lane-hover: color-mix(in srgb, rgb(125 125 125) 4%, var(--lw-matrix-lane-rest));
+    --lw-matrix-lane-active: color-mix(in srgb, hsl(var(--primary)) 8%, var(--lw-matrix-lane-rest));
+    --lw-matrix-lane-inactive: color-mix(in srgb, hsl(var(--muted)) 35%, var(--lw-matrix-lane-rest));
+    --lw-matrix-lane-inactive-active: color-mix(in srgb, hsl(var(--muted)) 45%, var(--lw-matrix-lane-rest));
+    --lw-matrix-header: hsl(var(--card));
+    --lw-matrix-column-rule: hsl(var(--muted));
+    --lw-matrix-cell-inline: 10px;
+  }
+
+  /* Portaled column settings — elevated white panel (list workspace / Items matrix) */
+  .list-workspace-column-settings-panel {
+    background-color: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    color: hsl(var(--foreground)) !important;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.06),
+      0 12px 32px rgba(31, 38, 135, 0.1) !important;
+  }
+
+  .theme-light-warm .list-workspace-column-settings-panel {
+    background-color: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.06),
+      0 12px 32px rgba(31, 38, 135, 0.1) !important;
+  }
+
+  .dark .list-workspace-column-settings-panel {
+    background-color: #ffffff !important;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.08),
+      0 12px 40px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .list-workspace-column-settings-panel [data-radix-collection-item],
+  .list-workspace-column-settings-panel label,
+  .list-workspace-column-settings-panel span {
+    color: inherit;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-module-shell-root > div > div:last-child {
+    background-color: var(--lw-bg-canvas);
+  }
+
+  .list-workspace-split-container {
+    @apply flex h-full min-h-0 flex-1 overflow-hidden;
+  }
+
+  .list-workspace-split-list-pane {
+    @apply flex min-h-0 w-full min-w-0 shrink-0 flex-col;
+    width: min(100%, var(--lw-split-list-pane-width, 380px));
+    max-width: var(--lw-split-list-pane-width, 380px);
+    background-color: var(--lw-bg-sidebar);
+    border-right: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="split"] .items-unified-catalog-header--split,
+  :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="matrix"] .items-unified-catalog-header--split {
+    display: grid;
+    grid-template-columns: min(100%, var(--lw-split-list-pane-width, 380px)) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    min-width: 0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="split"] .items-unified-catalog-header__list-rail,
+  :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="matrix"] .items-unified-catalog-header__list-rail {
+    @apply flex min-h-9 min-w-0 flex-nowrap items-center gap-2 md:gap-2.5;
+    width: 100%;
+    max-width: var(--lw-split-list-pane-width, 380px);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="split"] .items-unified-catalog-header__global-actions,
+  :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="matrix"] .items-unified-catalog-header__global-actions {
+    @apply flex min-h-9 min-w-0 flex-nowrap items-center justify-end gap-2 md:gap-2.5;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .items-catalog-header-mobile-panel__controls > div {
+    @apply flex w-full min-w-0 flex-wrap items-center justify-start gap-2;
+    overflow: visible;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .items-catalog-header-mobile-panel__transfer {
+    @apply flex flex-col gap-1;
+  }
+
+  .list-workspace-split-detail-pane {
+    @apply flex min-h-0 min-w-0 flex-1 flex-col;
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-split-detail-host {
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-split-detail-host [data-drawer-root] {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-split-detail-host [data-drawer-root] > header {
+    @apply shrink-0 items-start justify-between gap-3 px-4 py-3.5 md:px-6;
+    background-color: var(--lw-bg-sidebar);
+    border-bottom: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-split-detail-host [data-drawer-root] h2 {
+    @apply font-mono text-lg font-bold tracking-tight text-primary md:text-xl;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-split-detail-host [data-drawer-root] header p {
+    @apply font-mono text-xs text-muted-foreground;
+  }
+
+  .list-workspace-matrix-layout {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden pb-1;
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-feed-pane {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-feed-search {
+    @apply relative shrink-0 px-3.5 py-2.5;
+    border-bottom: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-feed-search__icon {
+    @apply pointer-events-none absolute left-6 top-1/2 z-10 -translate-y-1/2 text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-feed-search__input {
+    @apply h-9 w-full rounded-md pl-9 text-sm outline-none;
+    background-color: var(--lw-bg-canvas);
+    border: 1px solid var(--lw-border-glow);
+    color: hsl(var(--foreground));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-feed-scroll {
+    @apply flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-3;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+    border-radius: 0.125rem;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox {
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox[data-state="checked"],
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox[data-state="indeterminate"] {
+    border-color: hsl(var(--primary));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox svg {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row {
+    @apply rounded-lg border border-transparent;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row:hover:not(.spatial-master-card-row--inactive) {
+    background: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row--active {
+    background: rgba(125, 125, 125, 0.04);
+    border-color: var(--lw-border-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row--inactive {
+    @apply border-border/60 bg-muted/70;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row--inactive:hover {
+    @apply bg-muted/80;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row--inactive.spatial-master-card-row--active {
+    @apply bg-muted/80;
+    border-color: var(--lw-border-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row--inactive .spatial-card-id {
+    @apply text-primary/55;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-row--inactive .spatial-card-name {
+    @apply text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card {
+    @apply flex w-full cursor-pointer flex-col gap-1 rounded-none border-0 bg-transparent p-3 text-left;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card:hover {
+    background: transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--active {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--inactive {
+    @apply border-0 bg-transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--inactive:hover {
+    @apply bg-transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--inactive.spatial-master-card--active {
+    @apply bg-transparent;
+    border-color: transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--with-image {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.125rem;
+    align-items: center;
+    @apply py-2.5;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-image-cell {
+    grid-row: 1 / 3;
+    grid-column: 1;
+    align-self: center;
+    width: 2.625rem;
+    height: 2.625rem;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-image-cell .spatial-master-card-image {
+    display: flex !important;
+    height: 100% !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    max-width: 100% !important;
+    aspect-ratio: auto !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-image-cell .spatial-master-card-image img {
+    display: block;
+    height: 100%;
+    width: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: cover;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--with-image .spatial-master-card-sku-cell {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: end;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--with-image .spatial-master-card-name-cell {
+    grid-row: 2;
+    grid-column: 2;
+    align-self: start;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--with-image .spatial-master-card-meta-cell {
+    grid-row: 3;
+    grid-column: 2;
+    align-self: start;
+    padding-top: 0.125rem;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-checkbox--with-image {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+
+  /* Glass v2 â€” category tree rows (reference for non-split list modules) */
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row {
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row:hover:not(.glass-v2-tree-row--selected) {
+    background: color-mix(in srgb, var(--lw-bg-panel) 65%, transparent);
+    border-color: var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row--selected {
+    background: color-mix(in srgb, hsl(var(--primary) / 0.12) 100%, var(--lw-bg-elevated));
+    border-color: var(--lw-border-active);
+    color: hsl(var(--primary));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row--inactive {
+    @apply border-border/60 bg-muted/70;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row--inactive:hover {
+    @apply bg-muted/80;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row--inactive.glass-v2-tree-row--selected {
+    @apply bg-muted/80;
+    border-color: var(--lw-border-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row--inactive .category-tree-row__name {
+    @apply text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-row--inactive .spatial-card-meta {
+    @apply text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .glass-v2-tree-scroll {
+    @apply flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain scrollbar-none px-1 pt-2;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .revamp-catalog-body {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden pb-1;
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .revamp-catalog-body .surface-inset.table-chrome-frame {
+    background-color: color-mix(in srgb, var(--lw-bg-panel) 88%, transparent) !important;
+    border-color: var(--lw-border-glow) !important;
+    backdrop-filter: blur(14px);
+    box-shadow: var(--lw-shadow-subtle);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .revamp-catalog-body
+    .surface-inset.table-chrome-frame
+    [class~="bg-background"] {
+    background-color: transparent !important;
+  }
+
+  /* Registry header stickiness — per-cell only (`thead` sticky breaks horizontal freeze). */
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table thead {
+    @apply bg-transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .revamp-catalog-body .table-chrome tbody td {
+    border-bottom-color: var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .revamp-catalog-body
+    .table-chrome
+    tbody
+    td[class~="bg-background"] {
+    background-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .revamp-catalog-body
+    .table-chrome
+    tbody
+    td[class~="bg-muted"]:not(:hover) {
+    background: color-mix(in srgb, var(--lw-bg-panel) 72%, transparent) !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-module-shell-root > div > div:first-child {
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-card-top-row {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-card-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    @apply text-primary;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-card-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    @apply shrink-0 text-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-card-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    @apply text-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-card-meta {
+    font-size: 0.72rem;
+    @apply text-muted-foreground;
+  }
+
+  .list-workspace-matrix-card {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] p-0 backdrop-blur-xl;
+    background: var(--lw-bg-panel);
+    border: 1px solid var(--lw-border-glow);
+    box-shadow: var(--lw-shadow-subtle);
+  }
+
+  .list-workspace-matrix-body {
+    @apply min-h-0 flex-1;
+  }
+
+  .list-workspace-matrix-footer {
+    @apply shrink-0 px-2;
+    border-top: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-pane {
+    @apply flex min-h-0 min-w-0 flex-1 flex-col;
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-header {
+    @apply flex shrink-0 items-start justify-between gap-3 px-4 py-3.5 md:px-6 md:py-3.5;
+    background-color: var(--lw-bg-sidebar);
+    border-bottom: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-id {
+    @apply font-mono text-lg font-bold tracking-tight text-primary md:text-xl;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-name {
+    @apply text-sm text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-body {
+    @apply flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-glass-block {
+    @apply rounded-[10px] p-4 backdrop-blur-md;
+    background: var(--lw-bg-panel);
+    border: 1px solid var(--lw-border-glow);
+    box-shadow: var(--lw-shadow-subtle);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-section-title {
+    @apply mb-3 text-[0.72rem] font-semibold uppercase tracking-wide text-primary;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-grid {
+    @apply grid grid-cols-2 gap-4;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-field-label {
+    @apply block text-[11px] font-medium uppercase tracking-wide text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-field-value {
+    @apply mt-0.5 block text-sm font-medium text-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-field-value--mono {
+    @apply font-mono text-primary;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-hero {
+    @apply flex items-center gap-3 rounded-[10px] p-3 backdrop-blur-sm;
+    background: var(--lw-bg-panel);
+    border: 1px solid var(--lw-border-glow);
+    box-shadow: var(--lw-shadow-subtle);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-hero__media {
+    @apply flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg;
+    background-color: var(--lw-bg-canvas);
+    border: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-status {
+    @apply inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-status--active {
+    @apply bg-primary/15 text-primary ring-1 ring-primary/25;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-status--warning {
+    @apply bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-300;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-status--inactive {
+    @apply bg-muted text-muted-foreground ring-1 ring-border;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-flags {
+    @apply flex flex-wrap gap-2;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-flag {
+    @apply rounded-full px-2.5 py-1 text-[11px] font-medium;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-flag--on {
+    @apply bg-primary/[0.12] text-primary ring-1 ring-primary/20;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-flag--off {
+    @apply bg-muted/50 text-muted-foreground ring-1 ring-border/70;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-action {
+    background: rgba(125, 125, 125, 0.05);
+    border: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-action--primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.78));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-detail-footer {
+    @apply px-1 text-[11px] text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] p-0 backdrop-blur-xl;
+    background: var(--lw-bg-panel);
+    border: 1px solid var(--lw-border-glow);
+    box-shadow: var(--lw-shadow-subtle);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table-header {
+    @apply mb-3.5 flex shrink-0 items-center justify-between gap-3;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table-title {
+    @apply text-base font-semibold tracking-tight text-foreground md:text-[1.05rem];
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table-sub {
+    @apply mt-0.5 text-[11px] text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table-body {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 pt-0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table-wrapper {
+    @apply min-h-0 w-full min-w-0 flex-1 overflow-auto;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table {
+    @apply w-full border-separate border-spacing-0 text-left;
+    font-size: 0.85rem;
+    color: var(--lw-text-body);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table th,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td {
+    box-sizing: border-box;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table th {
+    border-bottom: none;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table th.matrix-table__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    overflow: visible;
+    padding: 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: none !important;
+    box-shadow: inset 0 -1px 0 0 var(--lw-matrix-column-rule) !important;
+    background-color: var(--lw-matrix-header) !important;
+    color: var(--lw-text-muted);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    th.matrix-table__header.matrix-table__frozen {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    background-color: var(--lw-matrix-header) !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    th.matrix-table__header.matrix-table__select {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    background-color: var(--lw-matrix-header) !important;
+  }
+
+  /* Frozen column trailing edge — same 1px inset rule as header bottom edge */
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    td.matrix-table__frozen-edge:not(.matrix-table__select) {
+    box-shadow: inset -1px 0 0 0 var(--lw-matrix-column-rule);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    td.matrix-table__select.matrix-table__frozen-edge {
+    box-shadow: inset -1px 0 0 0 var(--lw-matrix-column-rule);
+    padding-right: var(--lw-matrix-cell-inline);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    th.matrix-table__header.matrix-table__frozen-edge:not(.matrix-table__select) {
+    box-shadow:
+      inset -1px 0 0 0 var(--lw-matrix-column-rule),
+      inset 0 -1px 0 0 var(--lw-matrix-column-rule) !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    th.matrix-table__header.matrix-table__select.matrix-table__frozen-edge {
+    box-shadow:
+      inset -1px 0 0 0 var(--lw-matrix-column-rule),
+      inset 0 -1px 0 0 var(--lw-matrix-column-rule) !important;
+    padding-right: var(--lw-matrix-cell-inline);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    th.matrix-table__header:not(:last-child):not(.matrix-table__select):not(
+      .matrix-table__frozen-edge
+    )::after {
+    content: "";
+    position: absolute;
+    top: 0.5rem;
+    right: 0;
+    bottom: 0.5rem;
+    width: 0;
+    border-right: 1px solid var(--lw-matrix-column-rule);
+    pointer-events: none;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    th.matrix-table__header:not(:last-child):not(.matrix-table__select):has(
+      .matrix-table__resize-handle:hover
+    )::after {
+    border-right-color: hsl(var(--primary) / 0.6);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__resize-handle {
+    width: 2px;
+    cursor: col-resize;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__resize-handle::before,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__resize-handle::after {
+    content: none;
+    display: none;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__header-label {
+    @apply min-w-0 flex-1 truncate;
+    overflow: hidden;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__header-btn {
+    @apply inline-flex w-full min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-left uppercase transition-colors;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    font-variant-numeric: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__header-btn:hover {
+    color: var(--lw-text-body);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__header-btn--active,
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__header-btn--active:hover {
+    color: hsl(var(--primary));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__select {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 10px 0 10px 0.25rem;
+    text-align: left;
+    vertical-align: middle;
+    background-color: var(--lw-matrix-lane-rest);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table th.matrix-table__header.matrix-table__select {
+    left: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 10px 0 10px 0.25rem;
+    text-align: left;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody tr:hover td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-hover);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__row--active td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__row--inactive td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-inactive);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-table__row--inactive.matrix-table__row--active
+    td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-inactive-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--lw-border-glow) 35%, transparent);
+    color: var(--lw-text-body);
+    @apply align-middle;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody tr {
+    @apply cursor-pointer transition-colors;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody td[class~="bg-background"]:not(.matrix-table__select),
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody td[class~="bg-muted"]:not(.matrix-table__select) {
+    background-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody tr:hover {
+    background: rgba(125, 125, 125, 0.04);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody tr:hover td:not(.matrix-table__select):not(.matrix-table__frozen) {
+    background: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table tbody tr.matrix-table__row--active td:not(.matrix-table__select):not(.matrix-table__frozen) {
+    background: transparent !important;
+  }
+
+  /* Frozen data columns — opaque sticky lanes (same tokens as bulk-select) */
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    tbody
+    td.matrix-table__frozen:not(.matrix-table__select) {
+    position: sticky;
+    background-color: var(--lw-matrix-lane-rest);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    tbody
+    tr:hover
+    td.matrix-table__frozen:not(.matrix-table__select) {
+    background-color: var(--lw-matrix-lane-hover);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    tbody
+    tr.matrix-table__row--active
+    td.matrix-table__frozen:not(.matrix-table__select) {
+    background-color: var(--lw-matrix-lane-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    tbody
+    tr.matrix-table__row--inactive
+    td.matrix-table__frozen:not(.matrix-table__select) {
+    background-color: var(--lw-matrix-lane-inactive);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .list-workspace-registry-table
+    tbody
+    tr.matrix-table__row--inactive.matrix-table__row--active
+    td.matrix-table__frozen:not(.matrix-table__select) {
+    background-color: var(--lw-matrix-lane-inactive-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__row--active {
+    @apply bg-primary/[0.08] ring-1 ring-inset ring-primary/25;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__row--inactive {
+    @apply bg-muted/35;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__row--inactive.matrix-table__row--active {
+    @apply bg-muted/45 ring-1 ring-inset ring-primary/25;
+  }
+
+  /*
+   * Document-style `.table-chrome` lists inside Items-master `.matrix-glass-card`
+   * (PO, GRN, entities, stock, …) — visual parity with `.matrix-table`.
+   */
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome-frame {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome-frame [class~="bg-background"] {
+    background-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody td {
+    padding: 12px 10px !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--lw-border-glow) 35%, transparent) !important;
+    color: var(--lw-text-body);
+    vertical-align: middle;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody td[class~="bg-background"],
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody td[class~="bg-muted"] {
+    background-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    td.matrix-table__frozen:not(.matrix-table__select),
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-rest);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    th.matrix-table__header.matrix-table__frozen,
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    th.matrix-table__header.matrix-table__select {
+    background-color: var(--lw-matrix-header) !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr:hover
+    td.matrix-table__frozen:not(.matrix-table__select),
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr:hover
+    td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-hover) !important;
+    border-top-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr.matrix-table__row--active
+    td.matrix-table__frozen:not(.matrix-table__select),
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr.matrix-table__row--active
+    td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-active) !important;
+    box-shadow: none !important;
+    border-top-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr.matrix-table__row--inactive
+    td.matrix-table__frozen:not(.matrix-table__select),
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr.matrix-table__row--inactive
+    td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-inactive);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr.matrix-table__row--inactive.matrix-table__row--active
+    td.matrix-table__frozen:not(.matrix-table__select),
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-glass-card
+    .table-chrome
+    tbody
+    tr.matrix-table__row--inactive.matrix-table__row--active
+    td.matrix-table__select {
+    background-color: var(--lw-matrix-lane-inactive-active);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr:hover td:not(.matrix-table__frozen) {
+    background: transparent !important;
+    border-top-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr:hover {
+    background: rgba(125, 125, 125, 0.04);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr.matrix-table__row--active td:not(.matrix-table__frozen) {
+    background: transparent !important;
+    box-shadow: none !important;
+    border-top-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr.matrix-table__row--active {
+    background: hsl(var(--primary) / 0.08);
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.25);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr.matrix-table__row--active:hover {
+    background: hsl(var(--primary) / 0.1);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr[class*="ring-inset"] td {
+    background: transparent !important;
+    box-shadow: none !important;
+    border-top-color: transparent !important;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr[class*="ring-inset"] {
+    background: hsl(var(--primary) / 0.08);
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.25);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome tbody tr[class*="ring-inset"]:hover {
+    background: hsl(var(--primary) / 0.1);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-glass-card .table-chrome {
+    font-size: 0.85rem;
+    color: var(--lw-text-body);
+  }
+
+  /* Matrix peek — document drawers inside Items-master shell */
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll > div > header {
+    @apply mb-2 flex shrink-0 items-start justify-between gap-3 border-b px-0 pb-4 pt-0;
+    border-color: var(--lw-border-glow);
+    background: transparent;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll h2 {
+    color: var(--lw-text-accent);
+    @apply font-mono text-[1.05rem] font-bold tracking-tight md:text-[1.15rem];
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll header p {
+    color: var(--lw-text-muted);
+    @apply mt-0.5 font-mono text-xs;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer.module-drawer-peek-shell .matrix-form-scroll > div > div[class*="overflow"] {
+    background-color: var(--lw-bg-canvas);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__cell-content {
+    color: inherit;
+  }
+
+  /* Matrix cell typography â€” prose, code (IDs), numeric (amounts/dates) */
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__prose,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__prose {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--lw-text-body);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__prose--primary,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__prose--primary {
+    font-weight: 600;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__prose--muted,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__prose--muted {
+    color: var(--lw-text-muted);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__prose .matrix-table__cell-content,
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__prose .matrix-table__subline {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__prose--muted .matrix-table__cell-content {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__prose .matrix-table__subline {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--lw-text-muted);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__code,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--lw-text-accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__code--muted {
+    color: var(--lw-text-muted);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__code .matrix-table__cell-content,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__code .matrix-table__cell-content {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  /* Matches split-view .spatial-card-value (master feed selling rate) */
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__numeric,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__numeric {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--lw-text-body);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__numeric.matrix-table__numeric--muted,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__numeric.matrix-table__numeric--muted {
+    color: var(--lw-text-muted);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table td.matrix-table__numeric .matrix-table__cell-content,
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-registry-table .matrix-table__numeric .matrix-table__cell-content {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-table__image {
+    width: 3rem;
+    min-width: 3rem;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-form-section {
+    @apply flex flex-col;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-form-section-title {
+    color: var(--lw-text-accent);
+    @apply mb-3 text-[0.72rem] font-semibold uppercase tracking-wide;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-form-stack {
+    @apply flex flex-col gap-4;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-input-row-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-input-group {
+    @apply flex flex-col gap-1.5;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-input-label {
+    color: var(--lw-text-muted);
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-field-display {
+    color: var(--lw-text-body);
+    @apply rounded-t border-b-[1.5px] px-1 py-2 text-[0.9rem];
+    border-color: var(--lw-border-glow);
+    background: rgba(125, 125, 125, 0.04);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-field-display--mono {
+    color: var(--lw-text-accent);
+    @apply font-mono;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-form-hint {
+    @apply text-[11px] text-muted-foreground;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-head {
+    @apply mb-2 flex items-start justify-between gap-3 border-b pb-4;
+    border-color: var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-title {
+    color: var(--lw-text-accent);
+    @apply font-mono text-[1.05rem] font-bold tracking-tight md:text-[1.15rem];
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-sub {
+    color: var(--lw-text-muted);
+    @apply mt-0.5 text-sm;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-close {
+    color: var(--lw-text-muted);
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors hover:text-[var(--lw-text-body)];
+    border-color: var(--lw-border-glow);
+    background: rgba(125, 125, 125, 0.06);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-close:hover {
+    background: rgba(125, 125, 125, 0.1);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-form-scroll {
+    @apply mb-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1;
+    background-color: var(--lw-bg-canvas);
+    margin-inline: -1.5rem;
+    padding: 1rem 1.5rem 0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-toolbar {
+    @apply mt-auto flex shrink-0 items-center justify-end gap-2 pt-4;
+    border-top: 1px solid var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-btn {
+    @apply inline-flex items-center justify-center rounded-lg border border-transparent px-3.5 py-2 text-[0.8rem] font-semibold transition-colors;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-btn--primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.72));
+    @apply text-primary-foreground shadow-glow-sm hover:opacity-95;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-btn--secondary {
+    @apply border text-foreground hover:opacity-90;
+    background: rgba(125, 125, 125, 0.05);
+    border-color: var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {
+    @apply fixed bottom-0 right-[-460px] top-0 z-[200] flex w-[min(460px,100vw)] flex-col border-l p-6 backdrop-blur-xl transition-[right,bottom] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)];
+    background-color: var(--lw-bg-sidebar);
+    border-color: var(--lw-border-glow);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.35);
+    color: var(--lw-text-body);
+  }
+
+  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {
+    box-shadow: -8px 0 32px rgba(31, 38, 135, 0.08);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer--open {
+    @apply right-0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-backdrop {
+    @apply pointer-events-none fixed inset-0 z-[190] bg-black/0 opacity-0 transition-opacity duration-300;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-backdrop--open {
+    @apply pointer-events-auto bg-black/40 opacity-100;
+  }
+
+  @media (max-width: 900px) {
+    .list-workspace-split-container {
+      @apply relative;
+    }
+
+    :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="split"] .items-unified-catalog-header--split-mobile,
+    :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="matrix"] .items-unified-catalog-header--split-mobile {
+      @apply flex min-h-9 min-w-0 flex-nowrap items-center gap-2;
+    }
+
+    :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="split"] .items-unified-catalog-header--split,
+    :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="matrix"] .items-unified-catalog-header--split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="split"] .items-unified-catalog-header__list-rail,
+    :is(.list-workspace-root, .glass-v2-root)[data-list-workspace-layout="matrix"] .items-unified-catalog-header__list-rail {
+      max-width: none;
+    }
+
+    .list-workspace-split-list-pane {
+      @apply max-w-none border-r-0;
+      width: 100%;
+      flex: 1 1 0%;
+    }
+
+    .list-workspace-split-list-pane--hidden-mobile {
+      @apply invisible;
+    }
+
+    .list-workspace-split-detail-pane {
+      @apply absolute inset-0 z-10 flex translate-x-full transition-transform duration-300 ease-out;
+    }
+
+    .list-workspace-split-detail-pane--mobile-open {
+      @apply translate-x-0;
+    }
+  }
+
+  @media (max-width: 768px) {
+    :is(.list-workspace-root, .glass-v2-root) .matrix-input-row-grid {
+      @apply grid-cols-1;
+    }
+
+    :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {
+      @apply right-0 top-auto h-[85vh] w-full rounded-t-2xl border-l-0 border-t;
+      bottom: -100%;
+      border-color: var(--lw-border-glow);
+    }
+
+    :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer--open {
+      @apply bottom-0;
     }
   }
 }

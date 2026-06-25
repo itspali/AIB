@@ -363,6 +363,7 @@ export async function savePurchaseOrder(raw: unknown) {
       values.ultimate_destination_location_id?.trim() ||
       values.destination_location_id,
     p_po_fulfillment_stage_override: values.po_fulfillment_stage_override?.trim() || null,
+    p_is_subcontract_job: values.is_subcontract_job ?? false,
   });
 
   if (error) {

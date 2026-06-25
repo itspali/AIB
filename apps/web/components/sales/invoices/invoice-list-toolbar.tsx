@@ -1,6 +1,7 @@
 "use client";
 
 import { InvoiceListColumnSettings } from "@/components/sales/invoices/invoice-list-column-settings";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import {
@@ -44,6 +45,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -156,6 +158,7 @@ export function InvoiceListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const controlsDisabled = !prefsHydrated;
@@ -172,6 +175,7 @@ export function InvoiceListToolbar({
       countNoun="invoice"
       countNounPlural="invoices"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -245,11 +249,15 @@ export function InvoiceListToolbar({
             triggerClassName="hidden min-w-[9rem] md:inline-flex"
           />
 
-          <InvoiceListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass="desktop"
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <InvoiceListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass="desktop"
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

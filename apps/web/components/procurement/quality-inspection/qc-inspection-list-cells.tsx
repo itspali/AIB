@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/dashboard/format";
+import { formatListQuantity } from "@/lib/list-columns/format-list-value";
 import {
   LIST_TABLE_CELL_COUNT,
   LIST_TABLE_CELL_DATE,
@@ -39,7 +40,7 @@ export function renderQcInspectionListCell(
         </>
       );
     case "on_hold":
-      return <span className={LIST_TABLE_CELL_COUNT}>{row.quantity_on_hold}</span>;
+      return <span className={LIST_TABLE_CELL_COUNT}>{formatListQuantity(row.quantity_on_hold)}</span>;
     case "received":
       return <span className={LIST_TABLE_CELL_DATE}>{formatDate(row.received_at)}</span>;
     default:

@@ -47,11 +47,12 @@ export function ListModulePageTitleHeader({
         <Button
           type="button"
           size="sm"
-          className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+          className="h-8 w-8 shrink-0 px-0 sm:w-auto sm:gap-1.5 sm:px-2.5"
           onClick={onCreate}
         >
           <Plus className="h-4 w-4" aria-hidden />
-          {createLabel}
+          <span className="hidden sm:inline">{createLabel}</span>
+          <span className="sr-only sm:hidden">{createLabel}</span>
         </Button>
       ) : null}
     </div>

@@ -9,8 +9,13 @@ import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { BillEmptyState } from "@/components/procurement/bills/bill-empty-state";
 import { BillListTable } from "@/components/procurement/bills/bill-list-table";
 import { BillListToolbar } from "@/components/procurement/bills/bill-list-toolbar";
-import { ListModulePageTitleHeader } from "@/components/layout/list-module-page-title-header";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { ListModuleShell } from "@/components/layout/list-module-shell";
+import {
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
 import {
   getDefaultPurchaseBillListPrefs,
   loadPurchaseBillListPrefs,
@@ -18,6 +23,7 @@ import {
   setPurchaseBillColumnWidth,
   type PurchaseBillListPrefs,
 } from "@/lib/procurement/bills/list-prefs";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
 import {
   sortPurchaseBillListRows,
   type PurchaseBillListSortDirection,
@@ -39,9 +45,12 @@ import type {
 } from "@/lib/procurement/shared/types";
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapPurchaseBillRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
 
-const BILL_PAGE_DESCRIPTION =
-  "Record vendor invoices, link goods receipts, and run three-way matching.";
 
 const BillDrawerForm = lazyClientExport(
   () => import("@/components/procurement/bills/bill-drawer-form"),
@@ -91,6 +100,7 @@ export function BillManagementTerminal({
   );
   const [prefs, setPrefs] = useState<PurchaseBillListPrefs>(getDefaultPurchaseBillListPrefs);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
 
   useEffect(() => {
     setPrefs(loadPurchaseBillListPrefs());
@@ -173,9 +183,21 @@ export function BillManagementTerminal({
   const hasAnyData = bills.length > 0;
   const filteredRows = billsView.filteredRows;
 
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [
+      row.invoice_number_vendor,
+      row.system_voucher_number,
+      row.supplier_name,
+      row.purchase_order_number,
+      row.match_status,
+      row.document_status,
+    ],
+  });
+
   const sortedRows = useMemo(
-    () => sortPurchaseBillListRows(filteredRows, prefs.sortField, prefs.sortDirection),
-    [filteredRows, prefs.sortDirection, prefs.sortField]
+    () => sortPurchaseBillListRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
   );
 
   const handleSortChange = useCallback(
@@ -203,13 +225,13 @@ export function BillManagementTerminal({
     <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
       <BillListTable
         rows={sortedRows}
-        columnPrefs={prefs.columnPrefs}
+        columnPrefs={activeColumnPrefs}
         sortField={prefs.sortField}
         sortDirection={prefs.sortDirection}
         frozenColumnCount={prefs.frozenColumnCount}
         onSortChange={handleSortChange}
         onColumnWidthChange={(columnId, width) =>
-          setPrefs((current) => setPurchaseBillColumnWidth(current, columnId, width))
+          setPrefs((current) => setPurchaseBillColumnWidth(current, deviceClass, columnId, width))
         }
         selectedId={selectedId}
         onSelect={handleSelect}
@@ -225,35 +247,84 @@ export function BillManagementTerminal({
     </div>
   );
 
+  const listFooter = (
+    <ListLoadMoreFooter
+      visibleCount={bills.length}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
+      noun="supplier bills"
+    />
+  );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId,
+    onSelect: handleSelect,
+    mapRow: mapPurchaseBillRowToSplitFeed,
+    hasAnyData,
+    emptyMessage: "No supplier bills match the current filters.",
+    footer: listFooter,
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <BillEmptyState
+          onCreate={drawer.openCreate}
+          hasBillableOrders={billableOrders.length > 0}
+          hasSuppliers={suppliers.length > 0}
+        />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No supplier bills match the current filters.
+        </div>
+      </div>
+    ),
+  });
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
       <ListModuleShell
+        surface="classic"
+        className="list-module-shell-root"
         title={
-          <ListModulePageTitleHeader
+          <UnifiedCatalogHeader
             title="Supplier bills"
-            description={BILL_PAGE_DESCRIPTION}
-            createLabel="New bill"
-            onCreate={drawer.openCreate}
-            aboutAriaLabel="About Supplier Bills"
+            count={hasAnyData ? `${billsView.resultCount}/${billsView.totalCount}` : undefined}
+            onNew={drawer.openCreate}
+            newAriaLabel="New bill"
+            layout={layout}
+            feedFilter={feedFilterProps}
+            controls={
+              hasAnyData ? (
+                <BillListToolbar
+                  prefs={prefs}
+                  onPrefsChange={setPrefs}
+                  suppliers={suppliers}
+                  resultCount={billsView.resultCount}
+                  totalCount={billsView.totalCount}
+                  compactCountLabel={drawer.isOpen}
+                  prefsHydrated={prefsHydrated}
+                  hideCount
+                />
+              ) : undefined
+            }
           />
         }
-        toolbar={
-          hasAnyData ? (
-            <BillListToolbar
-              prefs={prefs}
-              onPrefsChange={setPrefs}
-              suppliers={suppliers}
-              resultCount={billsView.resultCount}
-              totalCount={billsView.totalCount}
-              compactCountLabel={drawer.isOpen}
-              prefsHydrated={prefsHydrated}
-            />
-          ) : null
-        }
       >
-        <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
-          {listPrimary}
-        </div>
+        <ListWorkspaceCatalogBody
+          peekOpen={peekOpen}
+          splitEmptyTitle="Select a supplier bill"
+          splitEmptyMessage="Choose a row from the list to inspect details here."
+          listContent={listPrimary}
+          splitListContent={splitListPrimary}
+        />
       </ListModuleShell>
 
       {drawer.isOpen ? (
@@ -274,6 +345,7 @@ export function BillManagementTerminal({
           onEditNotAllowed={handleEditNotAllowed}
         />
       ) : null}
-    </>
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

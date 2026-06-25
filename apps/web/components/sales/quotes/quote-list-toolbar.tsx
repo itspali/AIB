@@ -1,6 +1,7 @@
 "use client";
 
 import { QuoteListColumnSettings } from "@/components/sales/quotes/quote-list-column-settings";
+import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
 import { ListModuleToolbarRow } from "@/components/layout/list-module-toolbar-row";
 import { ModuleListToolbarFilters } from "@/components/search/module-list-toolbar-filters";
 import {
@@ -35,6 +36,7 @@ type Props = {
   resultCount: number;
   totalCount: number;
   compactCountLabel?: boolean;
+  hideCount?: boolean;
   prefsHydrated?: boolean;
 };
 
@@ -118,6 +120,7 @@ export function QuoteListToolbar({
   resultCount,
   totalCount,
   compactCountLabel = false,
+  hideCount = false,
   prefsHydrated = true,
 }: Props) {
   const controlsDisabled = !prefsHydrated;
@@ -132,6 +135,7 @@ export function QuoteListToolbar({
       countNoun="quote"
       countNounPlural="quotes"
       compactCountLabel={compactCountLabel}
+      hideCount={hideCount}
       controls={
         <>
           <ModuleListToolbarFilters
@@ -182,11 +186,15 @@ export function QuoteListToolbar({
             triggerClassName="hidden min-w-[8.5rem] md:inline-flex"
           />
 
-          <QuoteListColumnSettings
-            prefs={prefs}
-            onChange={onPrefsChange}
-            detectedDeviceClass="desktop"
-            disabled={controlsDisabled}
+          <CatalogToolbarTrailingControls
+            columnSettings={
+              <QuoteListColumnSettings
+                prefs={prefs}
+                onChange={onPrefsChange}
+                detectedDeviceClass="desktop"
+                disabled={controlsDisabled}
+              />
+            }
           />
         </>
       }

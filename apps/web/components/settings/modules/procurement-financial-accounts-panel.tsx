@@ -24,6 +24,7 @@ type Props = {
   assetAccounts: ExpenseAccountOption[];
   liabilityAccounts: ExpenseAccountOption[];
   canEdit: boolean;
+  importsEnabled?: boolean;
 };
 
 export function ProcurementFinancialAccountsPanel({
@@ -32,6 +33,7 @@ export function ProcurementFinancialAccountsPanel({
   assetAccounts,
   liabilityAccounts,
   canEdit,
+  importsEnabled = false,
 }: Props) {
   const [settings, setSettings] = useState(initialSettings);
   const [isPending, startTransition] = useTransition();
@@ -52,7 +54,11 @@ export function ProcurementFinancialAccountsPanel({
   return (
     <OrgSettingsSection
       title="Billing GL accounts"
-      description="Configure accounts used for purchase price variance, promotional contra, goods-in-transit holding, and vendor prepayments."
+      description={
+        importsEnabled
+          ? "Configure accounts used for purchase price variance, promotional contra, goods-in-transit holding, and vendor prepayments."
+          : "Configure accounts used for purchase price variance, promotional contra, and vendor prepayments."
+      }
     >
       <div className="space-y-4">
         <div className="grid gap-2">
@@ -113,6 +119,7 @@ export function ProcurementFinancialAccountsPanel({
           </p>
         </div>
 
+        {importsEnabled ? (
         <div className="grid gap-2">
           <Label htmlFor="git-holding-account">GIT holding account</Label>
           <Select
@@ -142,6 +149,7 @@ export function ProcurementFinancialAccountsPanel({
             (Dr GIT holding / Cr inventory on post; reversed on clearance).
           </p>
         </div>
+        ) : null}
 
         <div className="grid gap-2">
           <Label htmlFor="vendor-prepayment-account">Vendor prepayment account</Label>

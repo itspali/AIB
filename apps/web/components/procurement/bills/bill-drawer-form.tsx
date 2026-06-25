@@ -18,6 +18,7 @@ import { DocumentPrintButton } from "@/components/documents/document-print-butto
 import { DocumentPostingSummaryPanel } from "@/components/documents/document-posting-summary-panel";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -116,6 +117,7 @@ export function BillDrawerForm({
   onEditNotAllowed,
 }: Props) {
   const readOnly = surface === "peek";
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(readOnly);
   const isEditing = surface === "edit";
   const isCreating = surface === "create";
   const isMutating = isCreating || isEditing;
@@ -528,7 +530,10 @@ export function BillDrawerForm({
         (isEditing ? "Edit supplier bill" : "New supplier bill")
       }
       headerActions={headerActions}
-      bodyClassName={!readOnly ? "module-drawer-form-body" : undefined}
+      allowBackgroundInteraction={readOnly}
+      peekMode={readOnly}
+      className={peekShellClassName}
+      bodyClassName={readOnly ? peekBodyClassName : "module-drawer-form-body"}
       scrollable={!( !readOnly && lineTableFillHeight )}
     >
       {error ? <UserFacingErrorMessage message={error} className="mb-4" /> : null}

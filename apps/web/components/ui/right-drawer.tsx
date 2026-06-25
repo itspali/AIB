@@ -19,6 +19,11 @@ import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet
 import { Button } from "@/components/ui/button";
 import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
 import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
+import { useListWorkspaceSplitDetailHost } from "@/lib/layout/list-workspace-split-detail-context";
+import {
+  useRightDrawerPresentation,
+  type RightDrawerPresentation,
+} from "@/lib/layout/use-right-drawer-presentation";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "aib-right-drawer-width";
@@ -103,6 +108,10 @@ type RightDrawerProps = {
   footer?: React.ReactNode;
   /** Pin footer inside the scroll body with a floating backdrop (forms with long content). */
   footerFloating?: boolean;
+  /** When true, peek surfaces adapt to list workspace split/matrix layout. */
+  peekMode?: boolean;
+  /** Override workspace-driven peek presentation. */
+  presentation?: RightDrawerPresentation;
 };
 
 function readStoredWidthVw(): number {
@@ -168,6 +177,7 @@ type DrawerChromeProps = {
   footerFloating?: boolean;
   /** When true, use Radix SheetTitle (mobile sheet only). */
   inSheet: boolean;
+  workspacePresentation?: RightDrawerPresentation;
   children: ReactNode;
 };
 
@@ -197,11 +207,16 @@ function DrawerChrome({
   panelClassName,
   footer,
   footerFloating = false,
+  workspacePresentation = "overlay",
   children,
 }: DrawerChromeProps) {
+  const overlayChrome = workspacePresentation === "overlay";
+  const splitInlineChrome = workspacePresentation === "inline-panel";
+  const showPartialDrawerChrome = overlayChrome && isPartialDrawer;
+
   return (
     <>
-      {isPartialDrawer ? (
+      {showPartialDrawerChrome ? (
         <div
           role="separator"
           aria-orientation="vertical"
@@ -231,13 +246,17 @@ function DrawerChrome({
 
       <SheetHeader
         className={cn(
-          "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 text-left border-b border-border/80 border-black/[0.06] dark:border-white/10",
-          APP_HEADER_HEIGHT_CLASS,
-          APP_HEADER_PADDING_X_CLASS
+          splitInlineChrome
+            ? "spatial-detail-header shrink-0"
+            : cn(
+                "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 text-left border-b border-border/80 border-black/[0.06] dark:border-white/10",
+                APP_HEADER_HEIGHT_CLASS,
+                APP_HEADER_PADDING_X_CLASS
+              )
         )}
       >
         <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2">
-          {isPartialDrawer ? (
+          {showPartialDrawerChrome ? (
             <Button
               type="button"
               variant="ghost"
@@ -267,9 +286,23 @@ function DrawerChrome({
               </>
             ) : (
               <>
-                <h2 className={cn(drawerTitleClassName, "min-w-0 w-full truncate text-left")}>{title}</h2>
+                <h2
+                  className={cn(
+                    splitInlineChrome
+                      ? "spatial-detail-id min-w-0 w-full truncate text-left"
+                      : cn(drawerTitleClassName, "min-w-0 w-full truncate text-left")
+                  )}
+                >
+                  {title}
+                </h2>
                 {description ? (
-                  <p className={drawerDescriptionClassName}>{description}</p>
+                  <p
+                    className={cn(
+                      splitInlineChrome ? "spatial-detail-name truncate" : drawerDescriptionClassName
+                    )}
+                  >
+                    {description}
+                  </p>
                 ) : (
                   <p className="sr-only">{title}</p>
                 )}
@@ -316,7 +349,8 @@ function DrawerChrome({
           <div
             ref={bodyRef}
             className={cn(
-              "flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6",
+              "flex min-h-0 flex-1 flex-col",
+              splitInlineChrome ? "spatial-detail-body" : "px-4 py-4 sm:px-6",
               scrollable ? "overflow-x-hidden overflow-y-auto" : "overflow-hidden",
               panelClassName
             )}
@@ -354,10 +388,31 @@ export function RightDrawer({
   bodyClassName,
   footer,
   footerFloating,
+  peekMode = false,
+  presentation: presentationOverride,
 }: RightDrawerProps) {
   const [widthVw, setWidthVw] = useState(DEFAULT_WIDTH_VW);
   const [portalReady, setPortalReady] = useState(false);
   const isPartialDrawer = usePartialDrawerLayout();
+  const splitDetailHost = useListWorkspaceSplitDetailHost();
+  const autoPresentation = useRightDrawerPresentation({ peekMode });
+  const resolvedPresentation = presentationOverride ?? autoPresentation;
+  const [inlineHostReady, setInlineHostReady] = useState(false);
+
+  useEffect(() => {
+    if (resolvedPresentation !== "inline-panel" || !open) {
+      setInlineHostReady(false);
+      return;
+    }
+    const sync = () => {
+      if (splitDetailHost?.hostRef.current) {
+        setInlineHostReady(true);
+      }
+    };
+    sync();
+    const frame = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(frame);
+  }, [open, resolvedPresentation, splitDetailHost?.hostRef]);
 
   useEffect(() => {
     setPortalReady(true);
@@ -449,17 +504,30 @@ export function RightDrawer({
     });
   };
 
+  const effectiveShowClose =
+    showCloseButton && resolvedPresentation === "overlay";
+
+  const layoutProviderValue = useMemo(() => {
+    if (resolvedPresentation === "inline-panel") {
+      return { widthVw: DEFAULT_WIDTH_VW, isPartialDrawer: false };
+    }
+    if (resolvedPresentation === "matrix-panel") {
+      return { widthVw: PRESET_WIDTHS[1], isPartialDrawer: false };
+    }
+    return { widthVw, isPartialDrawer };
+  }, [isPartialDrawer, resolvedPresentation, widthVw]);
+
   const chromeProps: DrawerChromeProps = {
     title,
     description,
     titleLeading,
     titleContent,
     headerActions,
-    showCloseButton,
+    showCloseButton: effectiveShowClose,
     onClose: () => requestClose(),
     inSheet: false,
-    isPartialDrawer,
-    widthVw,
+    isPartialDrawer: layoutProviderValue.isPartialDrawer,
+    widthVw: layoutProviderValue.widthVw,
     onCycleWidth: cycleWidth,
     onNudgeWidth: nudgeWidth,
     onResizePointerDown: handleResizePointerDown,
@@ -470,16 +538,64 @@ export function RightDrawer({
     panelClassName: bodyClassName,
     footer,
     footerFloating,
+    workspacePresentation: resolvedPresentation,
     children,
   };
 
   if (!open) return null;
 
   const drawerLayout = (
-    <RightDrawerLayoutProvider widthVw={widthVw} isPartialDrawer={isPartialDrawer}>
+    <RightDrawerLayoutProvider
+      widthVw={layoutProviderValue.widthVw}
+      isPartialDrawer={layoutProviderValue.isPartialDrawer}
+    >
       <DrawerChrome {...chromeProps} />
     </RightDrawerLayoutProvider>
   );
+
+  if (resolvedPresentation === "matrix-panel") {
+    const matrixPanel = (
+      <>
+        <div
+          className={cn("matrix-drawer-backdrop", "matrix-drawer-backdrop--open")}
+          onClick={() => requestClose()}
+          aria-hidden={false}
+        />
+        <aside
+          className={cn("matrix-creation-drawer", "matrix-creation-drawer--open", className)}
+          aria-hidden={false}
+          aria-label={title}
+          role="dialog"
+        >
+          <div className="matrix-form-scroll flex min-h-0 flex-1 flex-col">{drawerLayout}</div>
+        </aside>
+      </>
+    );
+    return matrixPanel;
+  }
+
+  if (resolvedPresentation === "inline-panel") {
+    const inlineHost = splitDetailHost?.hostRef.current;
+    const inlinePanel = (
+      <div
+        role="dialog"
+        aria-modal={false}
+        aria-label={title}
+        data-drawer-root
+        className={cn(
+          "spatial-detail-pane flex h-full min-h-0 w-full flex-col overflow-hidden",
+          className
+        )}
+      >
+        {drawerLayout}
+      </div>
+    );
+    if (inlineHost && portalReady && inlineHostReady) {
+      return createPortal(inlinePanel, inlineHost);
+    }
+    if (!inlineHostReady) return null;
+    return inlinePanel;
+  }
 
   const panel = (
     <div

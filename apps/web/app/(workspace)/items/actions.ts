@@ -6,7 +6,14 @@ import {
   normalizeGtinInput,
   parseCatalogItemSettings,
 } from "@/lib/products/catalog-item-settings";
+import { fetchCategoryRows } from "@/lib/categories/queries";
+import { generatePdfFromHtml } from "@/lib/email/generate-document-pdf";
 import { enrichProductDetailSnapshot } from "@/lib/products/detail-enrichment";
+import { renderProductListExportTableHtml, resolveProductListPdfLandscape } from "@/lib/products/list-export";
+import {
+  buildProductMasterInputFromImportRow,
+  type ProductListImportRow,
+} from "@/lib/products/list-import";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import {
   fetchProductListByIds,
@@ -726,6 +733,67 @@ export async function fetchProductListByFilterIds(
     ...page,
     rows: redactProductListRows(page.rows, permissions.allowedFields),
   };
+}
+
+export async function exportProductListPdf(input: {
+  headers: string[];
+  rows: string[][];
+  title?: string;
+}) {
+  if (!input.headers.length || !input.rows.length) {
+    return { error: "Nothing to export." };
+  }
+
+  await requireTenantMutation();
+
+  const landscape = resolveProductListPdfLandscape(input.headers.length);
+  const html = renderProductListExportTableHtml(
+    { headers: input.headers, rows: input.rows, columnIds: [] },
+    input.title ?? "Items export",
+    { landscape }
+  );
+  const pdfResult = await generatePdfFromHtml(html, { landscape });
+  if (!pdfResult.ok) {
+    return { error: pdfResult.error };
+  }
+
+  return {
+    filename: "items-export.pdf",
+    pdfBase64: pdfResult.buffer.toString("base64"),
+    landscape,
+  };
+}
+
+export async function importProductListRows(
+  rows: ProductListImportRow[]
+): Promise<
+  | { imported: number; failed: number }
+  | { error: string }
+> {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { error: "No rows to import." };
+  }
+
+  const { supabase, tenantId } = await requireTenantMutation();
+  const categories = await fetchCategoryRows(supabase, tenantId);
+
+  let imported = 0;
+  let failed = 0;
+
+  for (const row of rows) {
+    const payload = buildProductMasterInputFromImportRow(row, categories);
+    if (!payload) continue;
+
+    const result = await saveProductMasterProfile(payload);
+    if ("error" in result) {
+      failed += 1;
+      continue;
+    }
+    imported += 1;
+  }
+
+  revalidatePath("/items");
+  return { imported, failed };
 }
 
 export async function hydrateProductListImageUrls(itemIds: string[]) {

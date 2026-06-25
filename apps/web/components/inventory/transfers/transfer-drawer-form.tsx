@@ -26,6 +26,7 @@ import {
 } from "@/components/documents/document-line-peek-table";
 import { DocumentPeekActivityShell } from "@/components/activity/document-peek-activity-shell";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
 import type { UserFacingErrorAction } from "@/lib/errors/user-facing-error";
 import { Button } from "@/components/ui/button";
@@ -185,6 +186,9 @@ export function TransferDrawerForm({
   onOpenEdit,
 }: Props) {
   const isDraftForm = surface === "create" || surface === "edit";
+  const { peekShellClassName, peekBodyClassName } = useModuleDrawerPeekPresentation(
+    surface === "peek"
+  );
   const isMutating = isMutationSurface(surface);
   const lineTableFillHeight = useDocumentLineTableFillHeight(isDraftForm);
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({
@@ -550,7 +554,11 @@ export function TransferDrawerForm({
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
-        bodyClassName={isDraftForm ? "module-drawer-form-body" : undefined}
+        peekMode={surface === "peek"}
+        className={peekShellClassName}
+        bodyClassName={
+          surface === "peek" ? peekBodyClassName : isDraftForm ? "module-drawer-form-body" : undefined
+        }
         scrollable={!(isDraftForm && lineTableFillHeight)}
         showCloseButton
       >
