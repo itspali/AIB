@@ -26,12 +26,12 @@ export function withoutItemsWorkspaceDisabledColumns(
 }
 
 /** First matching visible column wins the top-right value slot. */
-export const SPLIT_FEED_TOP_RIGHT_ORDER: ProductListColumnId[] = [
+export const SPLIT_FEED_TOP_RIGHT_ORDER = [
   "selling_price",
   "mrp",
   "purchase_price",
   "stock_on_hand",
-];
+] as const satisfies readonly ProductListColumnId[];
 
 /** Max optional fields on the split-feed meta line (excludes pinned SKU/name and top-right value). */
 export const SPLIT_FEED_META_SEGMENT_CAP = 5;
@@ -213,7 +213,7 @@ export function buildSplitFeedCardPlan(
   product: ProductListRow,
   showVariants: boolean
 ): SplitFeedCardPlan {
-  const optionalOrdered = visibleColumns.filter(
+  const optionalOrdered: ProductListColumnId[] = visibleColumns.filter(
     (columnId) => !isPinnedColumn(columnId) && columnId !== "image"
   );
 
