@@ -145,6 +145,12 @@ export function ProductListTable({
     resolveAutoWidth,
   });
 
+  const handleHeaderSort = (field: ProductListColumnId) => {
+    if (!isSortableColumn(field)) return;
+    const next = toggleColumnSort(field, sortField, sortDirection);
+    onSortChange(next.field, next.direction);
+  };
+
   const selectionColumnShowsEdge =
     frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
 
@@ -189,10 +195,7 @@ export function ProductListTable({
                       sortable={sortable}
                       active={isActiveSort}
                       sortDirection={sortDirection}
-                      onSort={() => {
-                        const next = toggleColumnSort(columnId, sortField, sortDirection);
-                        onSortChange(next.field, next.direction);
-                      }}
+                      onSort={() => handleHeaderSort(columnId)}
                       align={
                         column.align === "center"
                           ? "center"

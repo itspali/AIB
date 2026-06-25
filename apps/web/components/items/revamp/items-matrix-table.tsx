@@ -160,6 +160,12 @@ export function ItemsMatrixTable({
     resolveAutoWidth,
   });
 
+  const handleHeaderSort = (field: ProductListColumnId) => {
+    if (!isSortableColumn(field)) return;
+    const next = toggleColumnSort(field, sortField, sortDirection);
+    onSortChange(next.field, next.direction);
+  };
+
   const displayedRowKeys = useMemo(
     () => products.map((row) => productListRowKey(row, showVariants)),
     [products, showVariants]
@@ -216,10 +222,7 @@ export function ItemsMatrixTable({
                   sortable={sortable}
                   active={isActiveSort}
                   sortDirection={sortDirection}
-                  onSort={() => {
-                    const next = toggleColumnSort(columnId, sortField, sortDirection);
-                    onSortChange(next.field, next.direction);
-                  }}
+                  onSort={() => handleHeaderSort(columnId)}
                   align={
                     column.align === "right"
                       ? "right"
