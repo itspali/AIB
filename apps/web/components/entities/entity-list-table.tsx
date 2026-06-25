@@ -129,6 +129,12 @@ export function EntityListTable({
     resolveAutoWidth,
   });
 
+  const handleHeaderSort = (field: EntityListColumnId) => {
+    if (!isSortableEntityColumn(field)) return;
+    const next = toggleEntityColumnSort(field, sortField, sortDirection);
+    onSortChange(next.field, next.direction);
+  };
+
   const selectionColumnShowsEdge =
     frozen.hasHorizontalScroll && frozen.effectiveFrozenCount === 0;
 
@@ -174,10 +180,7 @@ export function EntityListTable({
                       sortable={sortable}
                       active={isActiveSort}
                       sortDirection={sortDirection}
-                      onSort={() => {
-                        const next = toggleEntityColumnSort(columnId, sortField, sortDirection);
-                        onSortChange(next.field, next.direction);
-                      }}
+                      onSort={() => handleHeaderSort(columnId)}
                       align={
                         column.align === "center"
                           ? "center"
