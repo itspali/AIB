@@ -6,18 +6,23 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { blurActiveElement } from "@/lib/dom/focus";
-import { Maximize2, X } from "lucide-react";
+import { X } from "lucide-react";
+import { DrawerPopOutButton } from "@/components/layout/drawer-pop-out-button";
 import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { APP_HEADER_HEIGHT_CLASS, APP_HEADER_PADDING_X_CLASS } from "@/lib/layout/app-chrome";
+import {
+  DRAWER_WIDTH_MUTATE_VW,
+  DRAWER_WIDTH_PEEK_VW,
+  type DrawerWidthPolicy,
+  resolveDrawerWidthVw,
+} from "@/lib/layout/drawer-width-policy";
 import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
 import { useListWorkspaceSplitDetailHost } from "@/lib/layout/list-workspace-split-detail-context";
 import {
@@ -26,15 +31,16 @@ import {
 } from "@/lib/layout/use-right-drawer-presentation";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "aib-right-drawer-width";
-export const RIGHT_DRAWER_PRESET_WIDTHS = [40, 60, 80, 100] as const;
-const PRESET_WIDTHS = RIGHT_DRAWER_PRESET_WIDTHS;
+/** @deprecated Fixed-width policy replaces preset cycling — kept for layout helpers. */
+export const RIGHT_DRAWER_PRESET_WIDTHS = [
+  DRAWER_WIDTH_PEEK_VW,
+  DRAWER_WIDTH_MUTATE_VW,
+  80,
+  100,
+] as const;
+
 export const RIGHT_DRAWER_FULL_WIDTH_VW =
   RIGHT_DRAWER_PRESET_WIDTHS[RIGHT_DRAWER_PRESET_WIDTHS.length - 1];
-const DEFAULT_WIDTH_VW = 40;
-const MIN_WIDTH_VW = 28;
-const MAX_WIDTH_VW = RIGHT_DRAWER_FULL_WIDTH_VW;
-const PRESET_CYCLE_LABEL = RIGHT_DRAWER_PRESET_WIDTHS.map((width) => `${width}%`).join(" / ");
 
 /** Below this width the drawer uses full viewport (phone). Tablet+ uses partial panel. */
 const PARTIAL_DRAWER_MEDIA = "(min-width: 768px)";
@@ -50,11 +56,11 @@ export function useRightDrawerLayout() {
   return useContext(RightDrawerLayoutContext);
 }
 
-/** True when the partial drawer is at the 40vw peek preset (or narrower). */
+/** True when the partial drawer uses the narrow peek width. */
 export function isNarrowRightDrawer(layout: RightDrawerLayoutValue | null): boolean {
   return (
     layout?.isPartialDrawer === true &&
-    layout.widthVw <= RIGHT_DRAWER_PRESET_WIDTHS[0] + 0.5
+    layout.widthVw <= DRAWER_WIDTH_PEEK_VW + 0.5
   );
 }
 
@@ -100,8 +106,17 @@ type RightDrawerProps = {
   onRequestClose?: () => void;
   /** When false, Escape does not dismiss the drawer (e.g. create forms). Default true. */
   closeOnEscape?: boolean;
-  /** On open, bump stored width up to this minimum when still at the default 40vw peek size. */
+  /**
+   * Fixed partial-drawer width. Defaults to `"mutate"` (60vw).
+   * Use `"peek"` for read-only peeks (42vw).
+   */
+  widthPolicy?: DrawerWidthPolicy;
+  /**
+   * @deprecated Use {@link widthPolicy}. Ignored when `widthPolicy` is set.
+   */
   preferredWidthVw?: number;
+  /** Open the same record in a new tab or pop-out window (replaces width cycle control). */
+  popOutHref?: string;
   /** Classes applied to the scrollable body region below the header. */
   bodyClassName?: string;
   /** Sticky action bar below the scrollable body (e.g. Save / Cancel). */
@@ -114,31 +129,9 @@ type RightDrawerProps = {
   presentation?: RightDrawerPresentation;
 };
 
-function readStoredWidthVw(): number {
-  if (typeof window === "undefined") return DEFAULT_WIDTH_VW;
-  try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    const parsed = stored ? parseFloat(stored) : DEFAULT_WIDTH_VW;
-    if (Number.isFinite(parsed)) {
-      return Math.min(MAX_WIDTH_VW, Math.max(MIN_WIDTH_VW, parsed));
-    }
-  } catch {
-    /* ignore */
-  }
-  return DEFAULT_WIDTH_VW;
-}
-
-/** Session-stored drawer width — for components rendered outside RightDrawerLayoutProvider. */
+/** @deprecated Session width storage removed — returns default mutate width. */
 export function readRightDrawerStoredWidthVw(): number {
-  return readStoredWidthVw();
-}
-
-function persistWidthVw(width: number) {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, String(Math.round(width * 10) / 10));
-  } catch {
-    /* ignore */
-  }
+  return DRAWER_WIDTH_MUTATE_VW;
 }
 
 function usePartialDrawerLayout(): boolean {
@@ -164,12 +157,7 @@ type DrawerChromeProps = {
   showCloseButton: boolean;
   onClose: () => void;
   isPartialDrawer: boolean;
-  widthVw: number;
-  onCycleWidth: () => void;
-  onNudgeWidth: (deltaVw: number) => void;
-  onResizePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onResizePointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onResizePointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  popOutHref?: string;
   bodyRef?: RefObject<HTMLDivElement | null>;
   scrollable: boolean;
   panelClassName?: string;
@@ -196,12 +184,7 @@ function DrawerChrome({
   onClose,
   inSheet,
   isPartialDrawer,
-  widthVw,
-  onCycleWidth,
-  onNudgeWidth,
-  onResizePointerDown,
-  onResizePointerMove,
-  onResizePointerEnd,
+  popOutHref,
   bodyRef,
   scrollable,
   panelClassName,
@@ -212,38 +195,10 @@ function DrawerChrome({
 }: DrawerChromeProps) {
   const overlayChrome = workspacePresentation === "overlay";
   const splitInlineChrome = workspacePresentation === "inline-panel";
-  const showPartialDrawerChrome = overlayChrome && isPartialDrawer;
+  const showPopOut = overlayChrome && isPartialDrawer && Boolean(popOutHref?.trim());
 
   return (
     <>
-      {showPartialDrawerChrome ? (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize drawer"
-          aria-valuenow={Math.round(widthVw)}
-          aria-valuemin={MIN_WIDTH_VW}
-          aria-valuemax={MAX_WIDTH_VW}
-          tabIndex={0}
-          title="Drag to resize panel"
-          onPointerDown={onResizePointerDown}
-          onPointerMove={onResizePointerMove}
-          onPointerUp={onResizePointerEnd}
-          onPointerCancel={onResizePointerEnd}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowLeft") onNudgeWidth(4);
-            if (event.key === "ArrowRight") onNudgeWidth(-4);
-          }}
-          className={cn(
-            "absolute inset-y-0 left-0 z-30 w-2 -translate-x-1/2 touch-none cursor-col-resize border-0 bg-transparent p-0",
-            "after:pointer-events-none after:absolute after:inset-y-4 after:left-1/2 after:w-px after:-translate-x-1/2",
-            "after:bg-border/50 after:transition-colors",
-            "hover:after:bg-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0",
-            "active:after:bg-muted-foreground/35"
-          )}
-        />
-      ) : null}
-
       <SheetHeader
         className={cn(
           splitInlineChrome
@@ -256,18 +211,8 @@ function DrawerChrome({
         )}
       >
         <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2">
-          {showPartialDrawerChrome ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9 w-9 shrink-0 p-0"
-              onClick={onCycleWidth}
-              title={`Panel width ${Math.round(widthVw)}% — click to cycle (${PRESET_CYCLE_LABEL})`}
-              aria-label={`Panel width ${Math.round(widthVw)}%, click to cycle presets`}
-            >
-              <Maximize2 className="h-4 w-4" aria-hidden />
-            </Button>
+          {showPopOut && popOutHref ? (
+            <DrawerPopOutButton href={popOutHref} />
           ) : null}
           {titleLeading ? <div className="shrink-0">{titleLeading}</div> : null}
           <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
@@ -384,14 +329,16 @@ export function RightDrawer({
   showCloseButton = true,
   onRequestClose,
   closeOnEscape = true,
-  preferredWidthVw,
+  widthPolicy = "mutate",
+  preferredWidthVw: _preferredWidthVw,
+  popOutHref,
   bodyClassName,
   footer,
   footerFloating,
   peekMode = false,
   presentation: presentationOverride,
 }: RightDrawerProps) {
-  const [widthVw, setWidthVw] = useState(DEFAULT_WIDTH_VW);
+  const widthVw = resolveDrawerWidthVw(widthPolicy);
   const [portalReady, setPortalReady] = useState(false);
   const isPartialDrawer = usePartialDrawerLayout();
   const splitDetailHost = useListWorkspaceSplitDetailHost();
@@ -416,38 +363,6 @@ export function RightDrawer({
 
   useEffect(() => {
     setPortalReady(true);
-  }, []);
-
-  useEffect(() => {
-    const stored = readStoredWidthVw();
-    if (
-      preferredWidthVw != null &&
-      stored <= DEFAULT_WIDTH_VW + 0.5 &&
-      preferredWidthVw > stored
-    ) {
-      setWidthVw(preferredWidthVw);
-      persistWidthVw(preferredWidthVw);
-      return;
-    }
-    setWidthVw(stored);
-  }, [open, preferredWidthVw]);
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-  const cycleWidth = useCallback(() => {
-    setWidthVw((current) => {
-      const idx = PRESET_WIDTHS.findIndex((w) => w >= current - 0.5);
-      const next = PRESET_WIDTHS[(idx + 1) % PRESET_WIDTHS.length];
-      persistWidthVw(next);
-      return next;
-    });
-  }, []);
-
-  const nudgeWidth = useCallback((deltaVw: number) => {
-    setWidthVw((w) => {
-      const next = Math.min(MAX_WIDTH_VW, Math.max(MIN_WIDTH_VW, w + deltaVw));
-      persistWidthVw(next);
-      return next;
-    });
   }, []);
 
   const panelStyle = isPartialDrawer
@@ -476,43 +391,15 @@ export function RightDrawer({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeOnEscape, open, requestClose]);
 
-  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!isPartialDrawer) return;
-    event.preventDefault();
-    dragStateRef.current = { startX: event.clientX, startWidth: widthVw };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleResizePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragStateRef.current;
-    if (!drag) return;
-    const deltaPx = drag.startX - event.clientX;
-    const deltaVw = (deltaPx / window.innerWidth) * 100;
-    const next = Math.min(MAX_WIDTH_VW, Math.max(MIN_WIDTH_VW, drag.startWidth + deltaVw));
-    setWidthVw(next);
-  };
-
-  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragStateRef.current) return;
-    dragStateRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    setWidthVw((current) => {
-      persistWidthVw(current);
-      return current;
-    });
-  };
-
   const effectiveShowClose =
     showCloseButton && resolvedPresentation === "overlay";
 
   const layoutProviderValue = useMemo(() => {
     if (resolvedPresentation === "inline-panel") {
-      return { widthVw: DEFAULT_WIDTH_VW, isPartialDrawer: false };
+      return { widthVw: DRAWER_WIDTH_PEEK_VW, isPartialDrawer: false };
     }
     if (resolvedPresentation === "matrix-panel") {
-      return { widthVw: PRESET_WIDTHS[1], isPartialDrawer: false };
+      return { widthVw: DRAWER_WIDTH_MUTATE_VW, isPartialDrawer: false };
     }
     return { widthVw, isPartialDrawer };
   }, [isPartialDrawer, resolvedPresentation, widthVw]);
@@ -527,12 +414,7 @@ export function RightDrawer({
     onClose: () => requestClose(),
     inSheet: false,
     isPartialDrawer: layoutProviderValue.isPartialDrawer,
-    widthVw: layoutProviderValue.widthVw,
-    onCycleWidth: cycleWidth,
-    onNudgeWidth: nudgeWidth,
-    onResizePointerDown: handleResizePointerDown,
-    onResizePointerMove: handleResizePointerMove,
-    onResizePointerEnd: endResize,
+    popOutHref,
     bodyRef,
     scrollable,
     panelClassName: bodyClassName,

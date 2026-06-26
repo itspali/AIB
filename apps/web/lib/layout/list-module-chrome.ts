@@ -9,6 +9,9 @@ export const GLASS_V2_APP_SHELL_ROOT = "glass-v2-app-shell";
 /** Glass V2 module overview / command-center scope (live production path). */
 export const OVERVIEW_GLASS_ROOT_CLASS = "overview-glass-root";
 
+/** Glass V2 scope for catalog mutation drawers and item detail panels. */
+export const MUTATION_GLASS_ROOT_CLASS = "mutation-glass-root glass-v2-root";
+
 /** Glass v2 — list workspace shell (`glass-v2-root` + `list-workspace-root` + revamp glass + compact). */
 export const LIST_WORKSPACE_GLASS_V2_ROOT =
   "glass-v2-root list-workspace-root list-module-revamp list-module-revamp--glass list-module-revamp--compact";

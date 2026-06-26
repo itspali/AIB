@@ -10,12 +10,10 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import Link from "next/link";
-import { ExternalLink, LayoutList, Pencil, Table2, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { bulkArchiveItems, getItemEditability } from "@/app/items/actions";
 import { ProductItemArchiveAlert } from "@/components/products/product-item-archive-alert";
-import { PanelMutationPrimaryButton } from "@/components/products/panel-mutation-primary-button";
 
 import {
   ProductEditorShell,
@@ -50,30 +48,14 @@ import {
   itemFullPageHref,
   ITEMS_HREF,
 } from "@/lib/products/item-navigation";
-import { ProductItemSummaryCard } from "@/components/products/product-item-summary-card";
+import { ItemDetailView } from "@/components/items/item-detail-view";
+import { ItemCatalogWizardEditor } from "@/components/items/item-editor/item-catalog-wizard-editor";
+import { MutationGlassRoot } from "@/components/layout/mutation-form/mutation-glass-root";
 import { VariantCatalogEditForm } from "@/components/products/variant-drawer-form";
-
-export type PanelViewLayout = "compact" | "full";
-
-const LAYOUT_CYCLE: PanelViewLayout[] = ["compact", "full"];
-
-function nextLayout(current: PanelViewLayout): PanelViewLayout {
-  const idx = LAYOUT_CYCLE.indexOf(current);
-  return LAYOUT_CYCLE[(idx + 1) % LAYOUT_CYCLE.length];
-}
-
-const LAYOUT_META: Record<PanelViewLayout, { icon: React.ReactNode; label: string; next: string }> = {
-  compact: {
-    icon: <LayoutList className="h-4 w-4" aria-hidden />,
-    label: "Profile summary",
-    next: "Switch to full form",
-  },
-  full: {
-    icon: <Table2 className="h-4 w-4" aria-hidden />,
-    label: "Full form",
-    next: "Switch to profile summary",
-  },
-};
+import {
+  CatalogEditActionBar,
+  CatalogWizardActionBar,
+} from "@/components/layout/mutation-form/catalog-wizard-action-bar";
 
 export type ProductPanelUrlNavigation = {
   onOpenEdit: () => void;
@@ -142,8 +124,6 @@ type PanelContextValue = {
   fieldPermissions: ProductFieldPermissions;
   mutationHeader: ProductPanelMutationHeader | null;
   setMutationHeader: (header: ProductPanelMutationHeader | null) => void;
-  viewLayout: PanelViewLayout;
-  setViewLayout: (layout: PanelViewLayout) => void;
   onItemArchived?: (itemId: string) => void;
   catalogContext: ProductCatalogContext | null;
 };
@@ -166,28 +146,6 @@ function resolveFullPageHref(mode: ProductFormMode, detail: ProductDetailSnapsho
 }
 
 /** Shares panel edit/save state between the detail header actions and editor body. */
-const PANEL_LAYOUT_KEY = "aib-item-drawer-layout";
-
-function readStoredLayout(): PanelViewLayout {
-  if (typeof window === "undefined") return "compact";
-  try {
-    const stored = sessionStorage.getItem(PANEL_LAYOUT_KEY);
-    if (stored === "minimal-form") return "full";
-    if (stored === "full" || stored === "compact") return stored;
-    return "compact";
-  } catch {
-    return "compact";
-  }
-}
-
-function persistLayout(layout: PanelViewLayout) {
-  try {
-    sessionStorage.setItem(PANEL_LAYOUT_KEY, layout);
-  } catch {
-    /* ignore */
-  }
-}
-
 export function ProductPanelScope({
   mode,
   tenantId,
@@ -215,30 +173,8 @@ export function ProductPanelScope({
 }: PanelProps) {
   const [lockedFields, setLockedFields] = useState<string[]>([]);
   const [mutationHeader, setMutationHeader] = useState<ProductPanelMutationHeader | null>(null);
-  const [viewLayout, setViewLayoutState] = useState<PanelViewLayout>("compact");
   const [isLoadingEditability, startEditabilityTransition] = useTransition();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  const setViewLayout = useCallback(
-    (layout: PanelViewLayout) => {
-      if (mode !== "view") {
-        persistLayout(layout);
-      }
-      setViewLayoutState(layout);
-      if (layout === "full" && detail?.detail_scope === "peek") {
-        onRequestFullDetail?.();
-      }
-    },
-    [detail?.detail_scope, mode, onRequestFullDetail]
-  );
-
-  useEffect(() => {
-    if (mode === "view") {
-      setViewLayoutState("compact");
-      return;
-    }
-    setViewLayoutState(readStoredLayout());
-  }, [mode, detail?.id, detail?.variant_id]);
 
   useEffect(() => {
     if (mode === "view") setMutationHeader(null);
@@ -360,8 +296,6 @@ export function ProductPanelScope({
       fieldPermissions,
       mutationHeader,
       setMutationHeader,
-      viewLayout,
-      setViewLayout,
       onItemArchived,
       catalogContext,
     }),
@@ -376,8 +310,6 @@ export function ProductPanelScope({
       onDismiss,
       fieldPermissions,
       mutationHeader,
-      viewLayout,
-      setViewLayout,
       onItemArchived,
       catalogContext,
     ]
@@ -411,8 +343,8 @@ export function ProductPanelScope({
     (needsCatalogForBody && !catalogContext) ||
     (mode === "view" && !detail) ? (
       <ProductEditorSkeleton />
-    ) : mode === "view" && detail && viewLayout === "compact" ? (
-      <ProductItemSummaryCard
+    ) : mode === "view" && detail ? (
+      <ItemDetailView
         detail={detail}
         currency={catalogContext?.base_currency ?? "USD"}
         catalogContext={catalogContext}
@@ -435,8 +367,8 @@ export function ProductPanelScope({
           onMediaChanged={onExtensionsChanged}
         />
       </div>
-    ) : catalogContext ? (
-      <ProductEditorShell
+    ) : catalogContext && wizard ? (
+      <ItemCatalogWizardEditor
         key={`${detail?.id ?? "new"}-${mode}`}
         layout="panel"
         mode={mode}
@@ -450,7 +382,7 @@ export function ProductPanelScope({
         initialValues={initialValues}
         lockedFields={lockedFields}
         fieldPermissions={fieldPermissions}
-        onCancel={mode === "view" ? handleCancel : handleRequestCancel}
+        onCancel={handleRequestCancel}
         onSaved={handleSaved}
         onExtensionsChanged={onExtensionsChanged}
         onVariantPatch={onVariantPatch}
@@ -459,6 +391,32 @@ export function ProductPanelScope({
         onMutationHeaderChange={setMutationHeader}
         onDirtyChange={setHasUnsavedChanges}
       />
+    ) : catalogContext ? (
+      <MutationGlassRoot className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <ProductEditorShell
+          key={`${detail?.id ?? "new"}-${mode}`}
+          layout="panel"
+          mode={mode}
+          tenantId={tenantId}
+          categories={categories}
+          catalogContext={catalogContext}
+          detail={detail}
+          valuations={detail?.valuations}
+          variants={detail?.variants}
+          media={detail?.media}
+          initialValues={initialValues}
+          lockedFields={lockedFields}
+          fieldPermissions={fieldPermissions}
+          onCancel={mode === "view" ? handleCancel : handleRequestCancel}
+          onSaved={handleSaved}
+          onExtensionsChanged={onExtensionsChanged}
+          onVariantPatch={onVariantPatch}
+          onVariantsReload={onVariantsReload}
+          wizard={wizard}
+          onMutationHeaderChange={setMutationHeader}
+          onDirtyChange={setHasUnsavedChanges}
+        />
+      </MutationGlassRoot>
     ) : (
       <ProductEditorSkeleton />
     );
@@ -480,13 +438,10 @@ export function ProductPanelHeaderActions() {
     canEdit,
     isLoadingEditability,
     isDetailRefreshing,
-    fullPageHref,
     onEdit,
     onDismiss,
     onItemArchived,
     mutationHeader,
-    viewLayout,
-    setViewLayout,
   } = useProductPanelContext();
 
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -514,59 +469,7 @@ export function ProductPanelHeaderActions() {
   }, [detail, onDismiss, onItemArchived]);
 
   if (mutationHeader) {
-    if (mutationHeader.variant === "wizard") {
-      const {
-        isFirst,
-        isLast,
-        onBack,
-        onSkip,
-        onPrimary,
-        isPending,
-        isNavigatePending,
-        primaryLabel,
-      } = mutationHeader;
-      return (
-        <>
-          {!isFirst ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={isPending || isNavigatePending}
-              onClick={onBack}
-            >
-              Back
-            </Button>
-          ) : null}
-          {!isFirst && !isLast ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={isPending || isNavigatePending}
-              onClick={onSkip}
-              title="Save and finish later"
-            >
-              Skip
-            </Button>
-          ) : null}
-          <PanelMutationPrimaryButton
-            label={primaryLabel}
-            disabled={isPending || isNavigatePending}
-            onClick={onPrimary}
-          />
-        </>
-      );
-    }
-
-    const { onSave, isPending, isNavigatePending, saveLabel } = mutationHeader;
-    return (
-      <PanelMutationPrimaryButton
-        label={saveLabel}
-        disabled={isPending || isNavigatePending}
-        onClick={() => void onSave()}
-      />
-    );
+    return null;
   }
 
   const showDelete = mode === "view" && detail != null && canEdit;
@@ -575,19 +478,6 @@ export function ProductPanelHeaderActions() {
     <>
       {isDetailRefreshing ? (
         <Spinner className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Loading item" />
-      ) : null}
-      {mode === "view" && detail ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-9 w-9 shrink-0 p-0"
-          onClick={() => setViewLayout(nextLayout(viewLayout))}
-          aria-label={LAYOUT_META[viewLayout].next}
-          title={`${LAYOUT_META[viewLayout].label} — click to ${LAYOUT_META[viewLayout].next.toLowerCase()}`}
-        >
-          {LAYOUT_META[viewLayout].icon}
-        </Button>
       ) : null}
       {mode === "view" && detail && canEdit ? (
         <Button
@@ -617,18 +507,6 @@ export function ProductPanelHeaderActions() {
           <Trash2 className="h-4 w-4" aria-hidden />
         </Button>
       ) : null}
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="h-9 w-9 shrink-0 p-0"
-        aria-label="Open full page"
-        title="Open full page"
-      >
-        <Link href={fullPageHref} prefetch>
-          <ExternalLink className="h-4 w-4" aria-hidden />
-        </Link>
-      </Button>
       {detail ? (
         <ProductItemArchiveAlert
           open={archiveDialogOpen}
@@ -639,6 +517,47 @@ export function ProductPanelHeaderActions() {
         />
       ) : null}
     </>
+  );
+}
+
+export function ProductPanelFooterActions() {
+  const { mutationHeader } = useProductPanelContext();
+
+  if (!mutationHeader) return null;
+
+  if (mutationHeader.variant === "wizard") {
+    const {
+      isFirst,
+      isLast,
+      onBack,
+      onSkip,
+      onPrimary,
+      isPending,
+      isNavigatePending,
+      primaryLabel,
+    } = mutationHeader;
+    return (
+      <CatalogWizardActionBar
+        isFirst={isFirst}
+        isLast={isLast}
+        onBack={onBack}
+        onSkip={onSkip}
+        onPrimary={onPrimary}
+        primaryLabel={primaryLabel}
+        isPending={isPending}
+        isNavigatePending={isNavigatePending}
+      />
+    );
+  }
+
+  const { onSave, isPending, isNavigatePending, saveLabel } = mutationHeader;
+  return (
+    <CatalogEditActionBar
+      saveLabel={saveLabel}
+      onSave={onSave}
+      isPending={isPending}
+      isNavigatePending={isNavigatePending}
+    />
   );
 }
 

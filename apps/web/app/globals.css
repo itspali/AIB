@@ -199,6 +199,37 @@
     --settings-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
   }
 
+  /* ── Glass V2 mutation forms (catalog drawers, item detail) ── */
+
+  .mutation-glass-root {
+    @apply min-h-0 space-y-4;
+  }
+
+  .mutation-glass-root .surface-panel {
+    @apply rounded-[10px] border p-4 backdrop-blur-xl md:p-5;
+    background: rgba(18, 24, 32, 0.6);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  }
+
+  .theme-light-warm .mutation-glass-root .surface-panel {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
+  }
+
+  .item-editor-shell {
+    @apply gap-2 px-0;
+  }
+
+  .item-editor-shell .product-editor-panel {
+    @apply bg-transparent;
+  }
+
+  .item-editor-shell .product-editor-form {
+    @apply bg-transparent;
+  }
+
   /* ── Glass V2 hub panels (dashboard + module KPIs) ── */
 
   .hub-panel {

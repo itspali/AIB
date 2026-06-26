@@ -1,6 +1,5 @@
 "use client";
 
-import { X, Zap } from "lucide-react";
 import { useCallback, useMemo, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ListColumnResizeHandle } from "@/components/list-columns/list-column-resize-handle";
@@ -10,7 +9,6 @@ import {
   ListWorkspaceRegistrySelectHeaderCell,
   ListWorkspaceRegistryTableScroll,
 } from "@/components/layout/list-workspace-registry-table";
-import { ItemsRecordDetailBody, buildItemsRecordDetailView } from "@/components/items/revamp/items-record-detail-body";
 import {
   productListCellWrapClassName,
   renderProductListCell,
@@ -47,7 +45,7 @@ import {
   type ProductListSortDirection,
   type ProductListSortField,
 } from "@/lib/products/list-sort";
-import type { ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
+import type { ProductListRow } from "@/lib/products/types";
 import { isProductListRowInactive, productListRowKey } from "@/lib/products/list-row-key";
 import { isBlankMatrixDisplayValue } from "@/lib/layout/matrix-blank-value";
 import { isProductListMatrixCellBlank } from "@/lib/products/list-column-display-text";
@@ -360,89 +358,5 @@ export function ItemsMatrixField({ label, value, mono = false, hint }: MatrixFie
       </div>
       {hint ? <span className="matrix-form-hint">{hint}</span> : null}
     </div>
-  );
-}
-
-type PeekDrawerProps = {
-  open: boolean;
-  detail: ProductDetailSnapshot | null;
-  selectedRow: ProductListRow | null;
-  loading: boolean;
-  onClose: () => void;
-  onEdit: () => void;
-};
-
-export function ItemsMatrixPeekDrawer({
-  open,
-  detail,
-  selectedRow,
-  loading,
-  onClose,
-  onEdit,
-}: PeekDrawerProps) {
-  const view = buildItemsRecordDetailView(detail, selectedRow);
-
-  return (
-    <>
-      <div
-        className={cn("matrix-drawer-backdrop", open && "matrix-drawer-backdrop--open")}
-        onClick={onClose}
-        aria-hidden={!open}
-      />
-      <aside
-        className={cn("matrix-creation-drawer", open && "matrix-creation-drawer--open")}
-        aria-hidden={!open}
-        aria-label="Item record workspace"
-      >
-        <div className="matrix-form-scroll">
-          <div className="matrix-drawer-head">
-            <div className="min-w-0">
-              <h3 className="matrix-drawer-title">{view.skuDisplay}</h3>
-              <p className="matrix-drawer-sub truncate">{view.name}</p>
-            </div>
-            <button
-              type="button"
-              className="matrix-drawer-close"
-              onClick={onClose}
-              aria-label="Close drawer"
-            >
-              <X className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-
-          {loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Loading record…</p>
-          ) : (
-            <>
-              <div className="matrix-form-section">
-                <h4 className="matrix-form-section-title">Core identity</h4>
-                <div className="matrix-form-stack">
-                  <ItemsMatrixField label="Display name" value={view.name} />
-                  <ItemsMatrixField label="SKU identifier" value={view.sku} mono />
-                  <ItemsMatrixField label="Classification" value={view.classification} />
-                </div>
-              </div>
-
-              <ItemsRecordDetailBody detail={detail} row={selectedRow} variant="matrix" />
-            </>
-          )}
-        </div>
-
-        <div className="matrix-drawer-toolbar">
-          <button type="button" className="matrix-btn matrix-btn--secondary" onClick={onClose}>
-            <span className="matrix-btn__label">Close</span>
-          </button>
-          <button
-            type="button"
-            className="matrix-btn matrix-btn--primary gap-1.5"
-            onClick={onEdit}
-            disabled={loading || (!detail && !selectedRow)}
-          >
-            <Zap className="h-3.5 w-3.5 shrink-0 md:hidden" aria-hidden />
-            <span className="matrix-btn__label">Edit item</span>
-          </button>
-        </div>
-      </aside>
-    </>
   );
 }

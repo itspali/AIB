@@ -1,22 +1,33 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowLeft, ExternalLink, Package, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { useMemo } from "react";
+import { ArrowLeft, Package, Pencil } from "lucide-react";
+import { ItemDetailView } from "@/components/items/item-detail-view";
+import { MutationIconButton } from "@/components/layout/mutation-form/mutation-icon-button";
 import {
   buildItemsRecordDetailView,
   ItemsRecordDetailBody,
   ItemsRecordDetailHero,
 } from "@/components/items/revamp/items-record-detail-body";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
+import type { CategoryRow } from "@/lib/categories/types";
 import { itemFullPageHref } from "@/lib/products/item-navigation";
-import type { ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
+import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
+import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 import { cn } from "@/lib/utils";
+import { DrawerPopOutButton } from "@/components/layout/drawer-pop-out-button";
 
 type Props = {
   detail: ProductDetailSnapshot | null;
   selectedRow: ProductListRow | null;
   loading: boolean;
+  catalogContext?: ProductCatalogContext | null;
+  categories?: CategoryRow[];
+  peekPanel?: ProductPeekPanelId;
+  onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
+  peekPanelLoading?: ProductPeekPanelId | null;
   onEdit: () => void;
   onBack?: () => void;
   showMobileBack?: boolean;
@@ -27,11 +38,21 @@ export function ItemsDetailCanvas({
   detail,
   selectedRow,
   loading,
+  catalogContext = null,
+  categories = [],
+  peekPanel,
+  onPeekPanelChange,
+  peekPanelLoading,
   onEdit,
   onBack,
   showMobileBack = false,
   className,
 }: Props) {
+  const categoryTemplates = useMemo(() => {
+    if (!detail?.category_id || categories.length === 0) return [];
+    return resolveEffectiveAttributeTemplates(detail.category_id, categories);
+  }, [categories, detail?.category_id]);
+
   if (!selectedRow && !detail) {
     return (
       <section className={cn("spatial-detail-pane spatial-detail-pane--empty", className)}>
@@ -49,15 +70,21 @@ export function ItemsDetailCanvas({
   }
 
   const view = buildItemsRecordDetailView(detail, selectedRow);
+  const popOutHref = view.itemId
+    ? itemFullPageHref("view", view.itemId, { fromCatalog: true })
+    : undefined;
 
   return (
     <section className={cn("spatial-detail-pane", className)}>
       <header className="spatial-detail-header">
-        <div className="min-w-0 flex-1">
-          <h2 className="spatial-detail-id truncate">{view.skuDisplay}</h2>
-          <p className="spatial-detail-name truncate">{view.name}</p>
+        <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2">
+          {popOutHref ? <DrawerPopOutButton href={popOutHref} label="Open item outside panel" /> : null}
+          <div className="min-w-0 flex-1">
+            <h2 className="spatial-detail-id truncate">{view.skuDisplay}</h2>
+            <p className="spatial-detail-name truncate">{view.name}</p>
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1">
           {showMobileBack && onBack ? (
             <Button
               type="button"
@@ -71,38 +98,44 @@ export function ItemsDetailCanvas({
             </Button>
           ) : null}
           {view.itemId ? (
-            <Button variant="outline" size="sm" className="spatial-detail-action h-8 gap-1.5" asChild>
-              <Link
-                href={itemFullPageHref("view", view.itemId, { fromCatalog: true })}
-                aria-label="Open full page"
-              >
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden sm:inline">Open</span>
-              </Link>
-            </Button>
+            <MutationIconButton
+              label="Edit item"
+              icon={Pencil}
+              onClick={onEdit}
+              className="h-8 w-8"
+            />
           ) : null}
-          <Button
-            type="button"
-            size="sm"
-            className="spatial-detail-action spatial-detail-action--primary h-8 gap-1.5 shadow-glow-sm"
-            onClick={onEdit}
-          >
-            <Pencil className="h-3.5 w-3.5" aria-hidden />
-            <span className="hidden sm:inline">Edit item</span>
-            <span className="sr-only sm:hidden">Edit item</span>
-          </Button>
         </div>
       </header>
 
-      <div className="spatial-detail-body">
-        <ItemsRecordDetailHero detail={detail} row={selectedRow} />
-
-        {loading ? (
-          <div className="flex flex-1 items-center justify-center py-12">
-            <Spinner className="h-6 w-6 text-primary" />
-          </div>
+      <div className="spatial-detail-body min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+        {detail ? (
+          loading ? (
+            <div className="flex flex-1 items-center justify-center py-12">
+              <Spinner className="h-6 w-6 text-primary" />
+            </div>
+          ) : (
+            <ItemDetailView
+              detail={detail}
+              currency={catalogContext?.base_currency ?? "USD"}
+              catalogContext={catalogContext}
+              categoryTemplates={categoryTemplates}
+              peekPanel={peekPanel}
+              onPeekPanelChange={onPeekPanelChange}
+              peekPanelLoading={peekPanelLoading}
+            />
+          )
         ) : (
-          <ItemsRecordDetailBody detail={detail} row={selectedRow} variant="spatial" />
+          <>
+            <ItemsRecordDetailHero detail={detail} row={selectedRow} />
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center py-12">
+                <Spinner className="h-6 w-6 text-primary" />
+              </div>
+            ) : (
+              <ItemsRecordDetailBody detail={detail} row={selectedRow} variant="spatial" />
+            )}
+          </>
         )}
       </div>
     </section>

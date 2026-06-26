@@ -30,7 +30,6 @@ import { Button } from "@/components/ui/button";
 import { ItemsDetailCanvas } from "@/components/items/revamp/items-detail-canvas";
 import { ItemsMasterFeed } from "@/components/items/revamp/items-master-feed";
 import { ItemsMatrixRegistryPane } from "@/components/items/items-matrix-registry-pane";
-import { ItemsMatrixPeekDrawer } from "@/components/items/revamp/items-matrix-table";
 import {
   ProductListWorkspaceHost,
   useItemsCatalogExpandVariants,
@@ -62,10 +61,12 @@ import type {
   ProductVariantSnapshot,
 } from "@/lib/products/types";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
+import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import type { ListWorkspaceLayout } from "@/lib/layout/list-workspace";
 import { ITEMS_HREF } from "@/lib/products/item-navigation";
 import { allocateItemsRouteSession } from "@/lib/products/items-route-generation";
+import { useProductPeekPanel } from "@/lib/products/use-product-peek-panel";
 import { cn } from "@/lib/utils";
 import type { CategoryRow } from "@/lib/categories/types";
 
@@ -430,6 +431,17 @@ function ItemsListWorkspaceTerminalInner({
 
   const peekDrawerOpen = drawer.isOpen && drawer.surface === "peek";
   const mutationDrawerOpen = drawer.isOpen && isMutationSurface(drawer.surface);
+
+  const { peekPanel, peekPanelLoading, onPeekPanelChange } = useProductPeekPanel({
+    basePath: ITEMS_HREF,
+    drawer,
+    detail: peekDetail,
+    setDetail: setPeekDetail,
+    detailCacheRef,
+    detailCacheKey,
+    catalogContext: catalogContext ?? null,
+  });
+
   const splitLayoutActive = layout === "split";
   const splitDetailOpen = splitLayoutActive && peekDrawerOpen;
   const listCountPending = deepLinkBootstrapRef.current && products.length === 0;
@@ -513,6 +525,9 @@ function ItemsListWorkspaceTerminalInner({
           peekDetail={peekDetail}
           selectedRow={selectedRow}
           peekLoading={peekLoading}
+          peekPanel={peekPanel}
+          peekPanelLoading={peekPanelLoading}
+          onPeekPanelChange={onPeekPanelChange}
           drawer={drawer}
           handleSelect={handleSelect}
           handleNewItem={handleNewItem}
@@ -525,6 +540,7 @@ function ItemsListWorkspaceTerminalInner({
           drawerIsLoading={drawerIsLoading}
           urlNavigation={urlNavigation}
           loadMutationDetail={loadMutationDetail}
+          loadPeekDetail={loadPeekDetail}
           setDrawerDetail={setDrawerDetail}
           handleSaved={handleSaved}
           onItemArchived={(itemId) => {
@@ -566,6 +582,9 @@ type ItemsListWorkspaceChromeProps = {
   peekDetail: ProductDetailSnapshot | null;
   selectedRow: ProductListRow | null;
   peekLoading: boolean;
+  peekPanel: ProductPeekPanelId;
+  peekPanelLoading: ProductPeekPanelId | null;
+  onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
   drawer: ReturnType<typeof useModuleDrawerUrl>;
   handleSelect: (productId: string, variantId?: string | null) => void;
   handleNewItem: () => void;
@@ -582,6 +601,7 @@ type ItemsListWorkspaceChromeProps = {
     onClose: () => void;
   };
   loadMutationDetail: (itemId: string, variantId: string | null) => void;
+  loadPeekDetail: (itemId: string, variantId: string | null) => void;
   setDrawerDetail: React.Dispatch<React.SetStateAction<ProductDetailSnapshot | null>>;
   handleSaved: (itemId: string, savedDetail?: ProductDetailSnapshot | null) => void;
   onItemArchived: (itemId: string) => void;
@@ -615,6 +635,9 @@ function ItemsListWorkspaceChrome({
   peekDetail,
   selectedRow,
   peekLoading,
+  peekPanel,
+  peekPanelLoading,
+  onPeekPanelChange,
   drawer,
   handleSelect,
   handleNewItem,
@@ -627,6 +650,7 @@ function ItemsListWorkspaceChrome({
   drawerIsLoading,
   urlNavigation,
   loadMutationDetail,
+  loadPeekDetail,
   setDrawerDetail,
   handleSaved,
   onItemArchived,
@@ -765,6 +789,11 @@ function ItemsListWorkspaceChrome({
                 detail={peekDetail}
                 selectedRow={selectedRow}
                 loading={peekLoading}
+                catalogContext={catalogContext}
+                categories={categories}
+                peekPanel={peekPanel}
+                onPeekPanelChange={onPeekPanelChange}
+                peekPanelLoading={peekPanelLoading}
                 onEdit={handleEdit}
                 onBack={() => setMobileDetailOpen(false)}
                 showMobileBack={mobileDetailOpen && !isSplitDesktop}
@@ -772,23 +801,35 @@ function ItemsListWorkspaceChrome({
             }
           />
         ) : (
-          <>
-            <ListWorkspaceMatrixLayout footer={loadMoreFooter ?? undefined}>
-              {matrixPane}
-            </ListWorkspaceMatrixLayout>
-            <ItemsMatrixPeekDrawer
-              open={peekDrawerOpen}
-              detail={peekDetail}
-              selectedRow={selectedRow}
-              loading={peekLoading}
-              onClose={() => drawer.close()}
-              onEdit={handleEdit}
-            />
-          </>
+          <ListWorkspaceMatrixLayout footer={loadMoreFooter ?? undefined}>
+            {matrixPane}
+          </ListWorkspaceMatrixLayout>
         )}
       </ListModuleShell>
 
       <ProductListBulkDialogs {...bulk.dialogProps} />
+
+      {peekDrawerOpen && !splitLayoutActive ? (
+        <ProductItemDrawer
+          open={peekDrawerOpen}
+          surface="peek"
+          tenantId={tenantId}
+          categories={categories}
+          catalogContext={catalogContext ?? null}
+          detail={peekDetail}
+          fieldPermissions={fieldPermissions}
+          isLoading={peekLoading}
+          urlNavigation={urlNavigation}
+          peekPanel={peekPanel}
+          onPeekPanelChange={onPeekPanelChange}
+          peekPanelLoading={peekPanelLoading}
+          onExtensionsChanged={() => {
+            if (!peekDetail?.id) return;
+            loadPeekDetail(peekDetail.id, peekDetail.variant_id ?? null);
+          }}
+          onItemArchived={onItemArchived}
+        />
+      ) : null}
 
       {mutationDrawerOpen ? (
         <ProductItemDrawer

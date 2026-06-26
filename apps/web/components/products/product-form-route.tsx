@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { ProductFormEditLinkContent } from "@/components/products/product-form-edit-link-content";
+import { ItemCatalogWizardEditor } from "@/components/items/item-editor/item-catalog-wizard-editor";
 import {
   ProductEditorShell,
   type EditorWizardChrome,
@@ -286,26 +287,48 @@ export function ProductFormRoute({
           wizardActive && "flex min-h-0 flex-1 flex-col overflow-hidden"
         )}
       >
-        <ProductEditorShell
-          key={`${detail?.id ?? "new"}-${mode}`}
-        mode={mode}
-        tenantId={tenantId}
-        categories={categories}
-        catalogContext={catalogContext}
-        detail={detail}
-        valuations={detail?.valuations}
-        variants={detail?.variants}
-        media={detail?.media}
-        initialValues={initialValues}
-        lockedFields={lockedFields}
-        onCancel={handleHeaderClose}
-        onSaved={handleSaved}
-        isNavigatePending={isNavigating}
-        onPendingChange={setIsSaving}
-        onDirtyChange={setHasUnsavedChanges}
-        onExtensionsChanged={() => refresh()}
-          wizard={wizard}
-        />
+        {wizard ? (
+          <ItemCatalogWizardEditor
+            key={`${detail?.id ?? "new"}-${mode}`}
+            mode={mode}
+            tenantId={tenantId}
+            categories={categories}
+            catalogContext={catalogContext}
+            detail={detail}
+            valuations={detail?.valuations}
+            variants={detail?.variants}
+            media={detail?.media}
+            initialValues={initialValues}
+            lockedFields={lockedFields}
+            onCancel={handleHeaderClose}
+            onSaved={handleSaved}
+            isNavigatePending={isNavigating}
+            onPendingChange={setIsSaving}
+            onDirtyChange={setHasUnsavedChanges}
+            onExtensionsChanged={() => refresh()}
+            wizard={wizard}
+          />
+        ) : (
+          <ProductEditorShell
+            key={`${detail?.id ?? "new"}-${mode}`}
+            mode={mode}
+            tenantId={tenantId}
+            categories={categories}
+            catalogContext={catalogContext}
+            detail={detail}
+            valuations={detail?.valuations}
+            variants={detail?.variants}
+            media={detail?.media}
+            initialValues={initialValues}
+            lockedFields={lockedFields}
+            onCancel={handleHeaderClose}
+            onSaved={handleSaved}
+            isNavigatePending={isNavigating}
+            onPendingChange={setIsSaving}
+            onDirtyChange={setHasUnsavedChanges}
+            onExtensionsChanged={() => refresh()}
+          />
+        )}
       </div>
       {discardDialog}
     </div>

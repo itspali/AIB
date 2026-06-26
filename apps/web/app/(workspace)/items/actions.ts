@@ -466,7 +466,7 @@ export async function loadProductPeekSection(
   if (!patch) return { error: "Product section not found." };
 
   // Storefront labels are enriched client-side from SSR/catalogContext cache
-  // (see ProductCatalogTerminal.loadPeekPanelSection).
+  // (see useProductPeekPanel lazy section loading).
   return { section, patch };
 }
 

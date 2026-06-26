@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ProductPanelBody,
   ProductPanelScope,
+  ProductPanelFooterActions,
   ProductPanelHeaderActions,
   resolveProductPanelDescription,
   resolveProductPanelTitle,
@@ -21,6 +22,7 @@ import {
   type ProductVariantSnapshot,
 } from "@/lib/products/types";
 import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
+import type { DrawerWidthPolicy } from "@/lib/layout/drawer-width-policy";
 import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 import { useProductCreateWizard } from "@/lib/products/use-product-create-wizard";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
@@ -64,8 +66,13 @@ function surfaceToMode(surface: DrawerSurface, persistedCreateId: string | null)
   return "view";
 }
 
+function resolveItemDrawerWidthPolicy(surface: DrawerSurface): DrawerWidthPolicy {
+  return surface === "peek" ? "peek" : "mutate";
+}
+
 function ProductItemDrawerSheet({
   open,
+  surface,
   title,
   description,
   mode,
@@ -76,6 +83,7 @@ function ProductItemDrawerSheet({
   showHeaderThumbnail,
 }: {
   open: boolean;
+  surface: DrawerSurface;
   title: string;
   description?: string;
   mode: ProductFormMode;
@@ -85,7 +93,7 @@ function ProductItemDrawerSheet({
   closeOnEscape: boolean;
   showHeaderThumbnail: boolean;
 }) {
-  const { onDismiss } = useProductPanelContext();
+  const { onDismiss, fullPageHref, mutationHeader } = useProductPanelContext();
 
   return (
     <RightDrawer
@@ -102,7 +110,10 @@ function ProductItemDrawerSheet({
         ) : undefined
       }
       headerActions={<ProductPanelHeaderActions />}
+      footer={mutationHeader ? <ProductPanelFooterActions /> : undefined}
       allowBackgroundInteraction={allowBackgroundInteraction}
+      widthPolicy={resolveItemDrawerWidthPolicy(surface)}
+      popOutHref={fullPageHref}
       scrollable={mode === "view"}
       showCloseButton
       closeOnEscape={closeOnEscape}
@@ -242,6 +253,7 @@ export function ProductItemDrawer({
     >
       <ProductItemDrawerSheet
         open={open}
+        surface={surface}
         title={title}
         description={description}
         mode={mode}

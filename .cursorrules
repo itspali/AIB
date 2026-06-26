@@ -8,3 +8,11 @@
 - **Language Uniformity**: All frontend interfaces and server-side routines must be authored strictly in **TypeScript**.
 - **Database Engine Rules**: All relational maps reference `packages/database/schema.sql`. You must never write queries or data scripts that bypass PostgreSQL Row Level Security (RLS) policies. Every operation must isolate by a valid `tenant_id`.
 - **UX Constraint**: Raw HTML or un-mapped Tailwind utility declarations for base buttons or tables are strictly prohibited. centralize through a uniform element kit.
+
+## 3. Glass V2 UI tokens (list workspaces, settings, overviews)
+- **List workspace root:** `LIST_WORKSPACE_GLASS_V2_ROOT` / `.list-workspace-root` / `.glass-v2-root` — see `apps/web/lib/layout/list-module-chrome.ts` and `globals.css` § Shared list workspace.
+- **App shell chrome:** `GLASS_V2_APP_SHELL_ROOT` / `.glass-v2-app-shell` — dashboard sidebar, top strip, mobile nav.
+- **List module opt-in:** `ListModuleShell` defaults to `surface="glass-v2"`. Frozen Items/Categories use external `LIST_WORKSPACE_GLASS_V2_ROOT` + `surface="classic"` until consolidation.
+- **Settings panels:** `SettingsGlassShell` / `.settings-glass-shell` and shared `.surface-panel` for form sections.
+- **Module overviews:** `OverviewGlassShell` / `.overview-glass-root` with `OverviewKpiTile`, `OverviewShortcutCard`, `OverviewSectionShell` from `components/layout/overview-primitives.tsx`.
+- **Frozen reference (Items + Item categories):** do not refactor list terminals without explicit sign-off; see `docs/GLASS_V2_PLAN.md`.
