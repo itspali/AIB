@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   resetNotificationTemplate,
   saveNotificationTemplate,
-} from "@/app/settings/notifications/actions";
+} from "@/app/settings/presentation/notifications/actions";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import {
   NotificationMergeFieldChips,

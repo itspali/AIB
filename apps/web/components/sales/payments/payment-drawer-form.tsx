@@ -7,6 +7,7 @@ import {
   saveCustomerPayment,
 } from "@/app/sales/payments/actions";
 import { PaymentApplicationPanel } from "@/components/sales/payments/payment-application-panel";
+import { DocumentPosActionBar } from "@/components/layout/mutation-form/document-pos-action-bar";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import { Button } from "@/components/ui/button";
@@ -138,16 +139,17 @@ export function PaymentDrawerForm({
         title={title}
         headerActions={
           !readOnly ? (
-            <Button
-              type="button"
-              size="sm"
+            <DocumentPosActionBar
+              onCancel={onClose}
+              saveLabel={isPending ? "Saving…" : "Save"}
+              onSave={handleSave}
+              primaryLabel={isPending ? "Saving…" : "Record payment"}
+              onPrimary={handleSave}
               disabled={isPending || !editAccessGranted}
-              onClick={handleSave}
-            >
-              {isPending ? "Saving…" : "Save payment"}
-            </Button>
+            />
           ) : null
         }
+        widthPolicy={surface === "peek" ? "peek" : "document"}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}
         className={peekShellClassName}

@@ -1135,6 +1135,7 @@ export function PoDrawerForm({
         }
         titleContent={drawerTitleContent}
         headerActions={headerActions}
+        widthPolicy={surface === "peek" ? "peek" : "document"}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}
         className={peekShellClassName}

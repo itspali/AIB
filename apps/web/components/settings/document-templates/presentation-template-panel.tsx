@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, RotateCcw } from "lucide-react";
@@ -9,7 +10,7 @@ import {
   loadPresentationTemplatePreview,
   resetPresentationTemplate,
   savePresentationTemplate,
-} from "@/app/settings/documents/templates/actions";
+} from "@/app/settings/presentation/documents/actions";
 import {
   DocumentLayoutScopeSelect,
   type DocumentLayoutLocationOption,
@@ -183,7 +184,7 @@ export function PresentationTemplatePanel({
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/settings/documents/templates">
+          <Link href={SETTINGS_ROUTES.presentationDocuments}>
             <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
             All templates
           </Link>

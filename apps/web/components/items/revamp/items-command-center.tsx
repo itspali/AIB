@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ChevronRight, Plus, Settings2 } from "lucide-react";
@@ -99,7 +100,7 @@ function CatalogSignals({ stats }: { stats: ItemsOverviewStats }) {
       <div className="revamp-policy-rail__head">
         <span className="revamp-kicker">Catalog signals</span>
         <Button variant="ghost" size="sm" className="revamp-policy-rail__manage h-7 px-2 text-xs" asChild>
-          <Link href="/settings/uom">
+          <Link href={SETTINGS_ROUTES.catalogsUom}>
             <Settings2 className="mr-1 h-3.5 w-3.5" aria-hidden />
             UOM settings
           </Link>

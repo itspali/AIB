@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 import { HubPanel, HubSectionHeading } from "@/components/dashboard/hub-panel";
@@ -103,15 +104,15 @@ export function ApprovalCommandCenter({ tasks }: ApprovalCommandCenterProps) {
 
       <p className="mt-6 text-xs text-muted-foreground">
         Configure bands, levels, and approver pools under{" "}
-        <Link href="/settings/modules/procurement?tab=approvals" className="text-primary hover:underline">
+        <Link href={`${SETTINGS_ROUTES.operationsProcurement}?tab=approvals`} className="text-primary hover:underline">
           Procurement › Approvals
         </Link>{" "}
         or{" "}
-        <Link href="/settings/modules/sales?tab=approvals" className="text-primary hover:underline">
+        <Link href={`${SETTINGS_ROUTES.operationsSales}?tab=approvals`} className="text-primary hover:underline">
           Sales › Approvals
         </Link>
         . Notification templates live under{" "}
-        <Link href="/settings/notifications" className="text-primary hover:underline">
+        <Link href={SETTINGS_ROUTES.presentationNotifications} className="text-primary hover:underline">
           Administration › Notification templates
         </Link>
         .

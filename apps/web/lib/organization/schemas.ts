@@ -60,8 +60,6 @@ export const organizationSettingsSchema = z.object({
   sku_auto_prefix: z.string().trim().min(1).max(24),
   allow_line_item_discounts: z.boolean(),
   allow_transaction_discounts: z.boolean(),
-  allow_edit_issued_purchase_orders: z.boolean(),
-  purchase_prices_tax_inclusive: z.boolean(),
   accounting_period_closing_date: z.string().trim(),
   search_financial_fields_mode: z.enum(["role_default", "enabled", "disabled"]),
   default_theme: z.enum(THEMES as [Theme, ...Theme[]]),

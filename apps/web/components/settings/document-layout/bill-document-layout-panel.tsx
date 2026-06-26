@@ -4,7 +4,7 @@ import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout
 import {
   loadPurchaseInvoiceDocumentLayout,
   savePurchaseInvoiceDocumentLayout,
-} from "@/app/settings/modules/procurement/actions";
+} from "@/app/settings/operations/procurement/actions";
 import { DocumentLayoutPanel } from "@/components/settings/document-layout/document-layout-panel";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import type { DocumentLayoutTemplate } from "@/lib/documents/types";

@@ -1,3 +1,4 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,7 @@ export function LocationModuleHeader({ activeTab }: Props) {
         </p>
         <nav className="mt-3 flex gap-2 text-sm" aria-label="Location module sub-navigation">
           <Link
-            href="/settings/locations"
+            href={SETTINGS_ROUTES.workspaceLocations}
             className={cn(
               "rounded-md px-2.5 py-1 transition-colors duration-200",
               activeTab === "directory"
@@ -32,7 +33,7 @@ export function LocationModuleHeader({ activeTab }: Props) {
             Directory
           </Link>
           <Link
-            href="/settings/locations/topology"
+            href={SETTINGS_ROUTES.workspaceLocationsTopology}
             className={cn(
               "rounded-md px-2.5 py-1 transition-colors duration-200",
               activeTab === "topology"

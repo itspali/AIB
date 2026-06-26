@@ -160,8 +160,18 @@ export async function fetchDashboardMetrics(
   tenantId: string
 ): Promise<DashboardMetrics> {
   const sparklineCutoff = sparklineHistoryCutoffIso();
-  const [glResult, apResult, valuationResult, fullyPaid, dispatched, creditHold, glHistory, invHistory, orderHistory] =
-    await Promise.all([
+  const [
+    glResult,
+    apResult,
+    valuationResult,
+    fullyPaid,
+    dispatched,
+    creditHold,
+    glHistory,
+    invHistory,
+    orderHistory,
+    pendingApprovals,
+  ] = await Promise.all([
     supabase
       .from("general_ledger_entries")
       .select("debit_amount, credit_amount, created_at, accounts!inner(account_code)")
@@ -198,6 +208,7 @@ export async function fetchDashboardMetrics(
       .eq("tenant_id", tenantId)
       .gte("created_at", sparklineCutoff)
       .order("created_at", { ascending: true }),
+    fetchApprovalAlertCount(supabase, tenantId),
   ]);
 
   let arNet = 0;
@@ -272,6 +283,10 @@ export async function fetchDashboardMetrics(
       netCapital: netCapitalSpark,
       inventory: inventorySpark,
       pipeline: pipelineSpark,
+    },
+    kpiCounts: {
+      pendingApprovals,
+      creditHolds: creditHold,
     },
   };
 }

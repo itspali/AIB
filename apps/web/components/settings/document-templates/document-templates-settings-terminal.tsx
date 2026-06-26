@@ -6,7 +6,7 @@ import { FileOutput } from "lucide-react";
 import {
   loadDocumentTemplateCatalogFieldSuggestions,
   loadDocumentTemplatesModuleBundle,
-} from "@/app/settings/documents/templates/actions";
+} from "@/app/settings/presentation/documents/actions";
 import {
   DocumentTemplatesContextToolbar,
   type TemplateDesignerViewContext,

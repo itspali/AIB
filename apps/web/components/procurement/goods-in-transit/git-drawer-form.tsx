@@ -132,6 +132,7 @@ export function GitDrawerForm({
         onOpenChange={onOpenChange}
         title={peekVoucher.voucher_number}
         headerActions={headerActions}
+        widthPolicy="peek"
         allowBackgroundInteraction
         peekMode
         className={peekShellClassName}
@@ -179,7 +180,7 @@ export function GitDrawerForm({
   }
 
   return (
-    <RightDrawer open={open} onOpenChange={onOpenChange} title="Post goods in transit">
+      <RightDrawer open={open} onOpenChange={onOpenChange} title="Post goods in transit" widthPolicy="document">
       <div className="space-y-4">
         <div className="space-y-2">
           <Label>Import purchase order</Label>

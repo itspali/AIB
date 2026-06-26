@@ -413,6 +413,7 @@ export function ShipmentDrawerForm({
       onOpenChange={onOpenChange}
       title={shipmentNumber ? `Shipment ${shipmentNumber}` : "New import shipment"}
       allowBackgroundInteraction={isPeekMode}
+      widthPolicy={isPeekMode ? "peek" : "document"}
       peekMode={isPeekMode}
       className={peekShellClassName}
       bodyClassName={peekBodyClassName}

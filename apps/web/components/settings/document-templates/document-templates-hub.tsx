@@ -1,6 +1,5 @@
-"use client";
-
 import Link from "next/link";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { FileText, Printer } from "lucide-react";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +20,7 @@ export function DocumentTemplatesHub({ deployError }: Props) {
         <p className="mt-1 text-sm text-muted-foreground">
           Configure letterhead, sections, and appearance for print and PDF output across modules.
           Field visibility is managed under{" "}
-          <Link href="/settings/modules" className="text-primary underline-offset-4 hover:underline">
+          <Link href={SETTINGS_ROUTES.operations} className="text-primary underline-offset-4 hover:underline">
             Module settings
           </Link>
           .
@@ -44,7 +43,7 @@ export function DocumentTemplatesHub({ deployError }: Props) {
             {groups[domain].map((module) => (
               <Link
                 key={module.moduleKey}
-                href={`/settings/documents/templates/${module.moduleKey}`}
+                href={`${SETTINGS_ROUTES.presentationDocuments}/${module.moduleKey}`}
                 className={cn(
                   "surface-inset flex items-start gap-3 rounded-lg p-4 transition-colors",
                   "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import type { UseFormReturn } from "react-hook-form";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
@@ -81,7 +82,7 @@ export function OrganizationLocationSection({ form, locations, disabled }: Props
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Link
-          href="/settings/locations"
+          href={SETTINGS_ROUTES.workspaceLocations}
           className="rounded-lg border border-border px-4 py-3 text-sm transition-colors duration-200 hover:bg-accent"
         >
           <p className="font-medium">Manage locations</p>
@@ -90,7 +91,7 @@ export function OrganizationLocationSection({ form, locations, disabled }: Props
           </p>
         </Link>
         <Link
-          href="/settings/locations/topology"
+          href={SETTINGS_ROUTES.workspaceLocationsTopology}
           className="rounded-lg border border-border px-4 py-3 text-sm transition-colors duration-200 hover:bg-accent"
         >
           <p className="font-medium">Topology explorer</p>

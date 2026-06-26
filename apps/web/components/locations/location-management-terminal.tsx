@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { reactivateLocation } from "@/app/settings/locations/actions";
+import { reactivateLocation } from "@/app/settings/workspace/locations/actions";
+import { SettingsWorkspaceShell } from "@/components/settings/shells/settings-workspace-shell";
 import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { LocationDeleteDialog } from "@/components/locations/location-delete-dialog";
 import { LocationDetailViewport } from "@/components/locations/location-detail-viewport";
@@ -105,6 +106,7 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
   };
 
   return (
+    <SettingsWorkspaceShell>
     <>
       <LocationModuleHeader activeTab="directory" />
       <LocationGovernanceBanner governance={moduleContext.governance} />
@@ -199,5 +201,6 @@ export function LocationManagementTerminal({ initialRows, moduleContext }: Locat
         }}
       />
     </>
+    </SettingsWorkspaceShell>
   );
 }

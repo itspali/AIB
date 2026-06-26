@@ -28,8 +28,8 @@ export function MobileDrawerNavGroup({
   const children = item.children ?? [];
 
   useEffect(() => {
-    if (defaultExpanded) setExpanded(true);
-  }, [defaultExpanded]);
+    setExpanded(defaultExpanded);
+  }, [pathname, defaultExpanded]);
 
   return (
     <div className="flex flex-col gap-0.5">

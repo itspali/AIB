@@ -23,6 +23,7 @@ import type { CustomerPaymentRow } from "@/lib/sales/payments/types";
 import type { SalesQuoteRow } from "@/lib/sales/quotes/types";
 import { salesDocumentStatusLabel } from "@/lib/sales/shared/document-status";
 import { taxCodeKindLabel, type TaxCodeRow } from "@/lib/tax/types";
+import { uomFamilyLabel, type UomRow } from "@/lib/uom/types";
 
 function joinMeta(parts: Array<string | null | undefined>): string | undefined {
   const value = parts.filter(Boolean).join(" · ");
@@ -215,6 +216,17 @@ export function mapTaxCodeRowToSplitFeed(row: TaxCodeRow): DocumentSplitFeedRow 
     title: row.name,
     meta: taxCodeKindLabel(row.kind),
     trailing: row.is_active ? "Active" : "Inactive",
+    inactive: !row.is_active,
+  };
+}
+
+export function mapUomRowToSplitFeed(row: UomRow): DocumentSplitFeedRow {
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.name,
+    meta: uomFamilyLabel(row.family),
+    trailing: row.is_family_base ? "Base" : String(row.factor_to_base),
     inactive: !row.is_active,
   };
 }

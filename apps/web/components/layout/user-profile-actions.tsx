@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, LogOut, Settings } from "lucide-react";
@@ -35,7 +36,7 @@ export function UserProfileActions({ profile, onboardingOnly = false, onNavigate
     <div className="space-y-0.5 px-1 pb-1">
       {!onboardingOnly ? (
         <>
-          <ProfileNavLink href="/settings/profile" icon={Settings} onNavigate={onNavigate}>
+          <ProfileNavLink href={SETTINGS_ROUTES.account} icon={Settings} onNavigate={onNavigate}>
             Account Settings &amp; Security
           </ProfileNavLink>
 

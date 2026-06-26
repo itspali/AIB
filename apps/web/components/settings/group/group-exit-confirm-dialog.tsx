@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { completeGroupExit } from "@/app/settings/group/actions";
+import { completeGroupExit } from "@/app/settings/enterprise/actions";
 import {
   AlertDialog,
   AlertDialogAction,

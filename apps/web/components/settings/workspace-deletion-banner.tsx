@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { AlertTriangle } from "lucide-react";
 import type { WorkspaceDeletionStatus } from "@/lib/organization/deletion";
 import { formatDateTime } from "@/lib/dashboard/format";
@@ -25,7 +26,7 @@ export function WorkspaceDeletionBanner({ deletion }: Props) {
           </span>
         </p>
         <Link
-          href="/settings/organization#access"
+          href={`${SETTINGS_ROUTES.company}#org-section-entities`}
           className="font-medium text-destructive underline-offset-4 hover:underline"
         >
           Cancel deletion

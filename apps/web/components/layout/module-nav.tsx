@@ -3,32 +3,25 @@
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
-  Bell,
   Boxes,
   Building2,
   ClipboardList,
   ClipboardCheck,
   CreditCard,
   FileText,
-  FileOutput,
   FolderTree,
   LayoutDashboard,
-  LayoutTemplate,
-  MapPin,
   Package,
   PackageCheck,
   Receipt,
-  Ruler,
   ScrollText,
   Settings2,
-  Shield,
   Ship,
   ShoppingCart,
   Truck,
-  User,
   Users,
-  Network,
 } from "lucide-react";
+import { flattenSettingsNavChildren } from "@/lib/settings/navigation";
 
 export type ModuleNavChild = {
   href: string;
@@ -174,21 +167,6 @@ export const moduleNavItems: ModuleNavItem[] = [
     label: "Administration",
     shortLabel: "Admin",
     icon: Settings2,
-    children: [
-      { href: "/settings/organization", label: "Organization", icon: Building2 },
-      { href: "/settings/group", label: "Group", icon: Network },
-      { href: "/settings/locations", label: "Locations", icon: MapPin },
-      {
-        href: "/settings/documents/templates",
-        label: "Document templates",
-        icon: FileOutput,
-      },
-      { href: "/settings/modules", label: "Module settings", icon: LayoutTemplate },
-      { href: "/settings/notifications", label: "Notification templates", icon: Bell },
-      { href: "/settings/uom", label: "Units of Measure", icon: Ruler },
-      { href: "/settings/tax", label: "Tax", icon: Receipt },
-      { href: "/settings/users", label: "Users & Roles", icon: Shield, comingSoon: true },
-      { href: "/settings/profile", label: "My Account", icon: User },
-    ],
+    children: flattenSettingsNavChildren(),
   },
 ];

@@ -4,11 +4,32 @@ export type PipelineCounts = {
   creditHold: number;
 };
 
+export type DashboardKpiCounts = {
+  pendingApprovals: number;
+  creditHolds: number;
+};
+
 export type DashboardMetrics = {
   netCapitalExposure: number;
   inventoryValuation: number;
   pipelineCounts: PipelineCounts;
   sparklines: MetricSparklines;
+  kpiCounts: DashboardKpiCounts;
+};
+
+export type DashboardAttentionKind =
+  | "APPROVAL"
+  | "CREDIT_HOLD"
+  | "TRANSFER_APPROVAL";
+
+export type DashboardAttentionItem = {
+  id: string;
+  kind: DashboardAttentionKind;
+  title: string;
+  subtitle: string | null;
+  amountLabel: string | null;
+  href: string;
+  submittedAt: string | null;
 };
 
 export type MetricSparklines = {

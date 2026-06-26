@@ -1,7 +1,7 @@
 "use client";
 
 import { EntityCustomFieldsSettingsPanel } from "@/components/settings/entity-custom-fields-settings-panel";
-import { saveOrganizationEntityCustomFields } from "@/app/settings/organization/actions";
+import { saveOrganizationEntityCustomFields } from "@/app/settings/company/actions";
 import type { OrganizationSettingsAccess } from "@/lib/organization/access";
 import type { OrganizationSettingsSnapshot } from "@/lib/organization/types";
 

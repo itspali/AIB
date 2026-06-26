@@ -1,6 +1,8 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
+
 export const TRANSFERS_HREF = "/inventory/transfers";
 
-export const SETTINGS_LOCATIONS_HREF = "/settings/locations";
+export const SETTINGS_LOCATIONS_HREF = SETTINGS_ROUTES.workspaceLocations;
 
 /** Pre-fills the create drawer when transferring to restock a low site. */
 export const TRANSFER_DRAWER_SOURCE_PARAM = "src";

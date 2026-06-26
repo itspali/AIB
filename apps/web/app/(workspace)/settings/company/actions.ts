@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import {
   entitySettingsWorkspaceKey,
   sanitizeEntityCustomFieldDefinitions,
@@ -32,7 +33,7 @@ import {
   type ChannelSuggestion,
 } from "@/lib/onboarding/business-model";
 
-const ORGANIZATION_PATHS = ["/settings/organization", "/dashboard"];
+const ORGANIZATION_PATHS = [SETTINGS_ROUTES.company, "/dashboard"];
 
 export async function saveOrganizationSettings(raw: unknown) {
   const parsed = organizationSettingsSchema.safeParse(raw);
@@ -114,10 +115,8 @@ export async function saveOrganizationSettings(raw: unknown) {
     supabase.rpc("upsert_tenant_workspace_control", {
       p_registry_key: "PROCUREMENT_SETTINGS",
       p_metadata_patch: {
-        allow_edit_issued_purchase_orders: values.allow_edit_issued_purchase_orders,
         allow_line_item_discounts: values.allow_line_item_discounts,
         allow_transaction_discounts: values.allow_transaction_discounts,
-        purchase_prices_tax_inclusive: values.purchase_prices_tax_inclusive,
       },
     }),
     supabase.rpc("upsert_tenant_workspace_control", {
@@ -203,7 +202,7 @@ export async function grantOrganizationSettingsDelegate(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   return { success: true as const };
 }
 
@@ -226,7 +225,7 @@ export async function revokeOrganizationSettingsDelegate(userId: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   return { success: true as const };
 }
 
@@ -254,7 +253,7 @@ export async function grantPurchaseOrderEditDelegate(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   revalidatePath("/procurement/purchase-orders");
   return { success: true as const };
 }
@@ -278,7 +277,7 @@ export async function revokePurchaseOrderEditDelegate(userId: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   revalidatePath("/procurement/purchase-orders");
   return { success: true as const };
 }
@@ -308,7 +307,7 @@ export async function grantPoApprovalDelegate(raw: unknown) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   revalidatePath("/approvals");
   revalidatePath("/procurement/purchase-orders");
   return { success: true as const };
@@ -333,7 +332,7 @@ export async function revokePoApprovalDelegate(delegatorUserId: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   revalidatePath("/approvals");
   revalidatePath("/procurement/purchase-orders");
   return { success: true as const };
@@ -466,8 +465,8 @@ export async function saveTenantReportingLines(
       return { error: error.message };
     }
 
-    revalidatePath("/settings/organization");
-    revalidatePath("/settings/modules/procurement");
+    revalidatePath(SETTINGS_ROUTES.company);
+    revalidatePath(SETTINGS_ROUTES.operationsProcurement);
     return { success: true as const };
   } catch (error) {
     return {

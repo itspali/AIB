@@ -1,3 +1,4 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { LinkPendingStatus } from "@/components/ui/link-pending-status";
 import type { OrganizationLocationGovernanceConfig } from "@/lib/organization/types";
@@ -14,7 +15,7 @@ export function LocationGovernanceBanner({ governance }: Props) {
         <p className="mt-1 text-muted-foreground">
           Regional hierarchy and DOM routing controls are enabled. Adjust governance in{" "}
           <Link
-            href="/settings/organization"
+            href={SETTINGS_ROUTES.company}
             prefetch
             className="text-primary underline-offset-4 hover:underline"
           >
@@ -33,7 +34,7 @@ export function LocationGovernanceBanner({ governance }: Props) {
         <p className="mt-1 text-muted-foreground">
           Enable multi-location in{" "}
           <Link
-            href="/settings/organization"
+            href={SETTINGS_ROUTES.company}
             prefetch
             className="text-primary underline-offset-4 hover:underline"
           >

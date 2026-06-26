@@ -10,7 +10,7 @@ import {
   revokeGroupInvitation,
   suspendGroupOrganization,
   switchActiveTenantMembership,
-} from "@/app/settings/group/actions";
+} from "@/app/settings/enterprise/actions";
 import { createClient } from "@/lib/supabase/client";
 import { GroupExitConfirmDialog } from "@/components/settings/group/group-exit-confirm-dialog";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";

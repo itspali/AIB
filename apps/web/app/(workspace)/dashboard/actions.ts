@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { requireTenantMutation } from "@/lib/supabase/require-tenant";
 import type { TaxRateSlabInput } from "@/lib/dashboard/types";
 
@@ -97,6 +98,6 @@ export async function markOrgSettingsReviewed() {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard");
-  revalidatePath("/settings/organization");
+  revalidatePath(SETTINGS_ROUTES.company);
   return { success: true as const };
 }

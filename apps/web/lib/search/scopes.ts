@@ -85,6 +85,7 @@ const ROUTE_SCOPE_RULES: { prefix: string; scope: FilterScope }[] = [
   { prefix: "/inventory/stock", scope: "stock" },
   { prefix: "/procurement/purchase-orders", scope: "purchase-orders" },
   { prefix: "/procurement/bills", scope: "bills" },
+  { prefix: "/settings/workspace/locations", scope: "locations" },
   { prefix: "/settings/locations", scope: "locations" },
   { prefix: "/settings", scope: "settings" },
 ];

@@ -1,10 +1,11 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveSalesApprovalSettings } from "@/app/settings/modules/sales/actions";
+import { saveSalesApprovalSettings } from "@/app/settings/operations/sales/actions";
 import { ApprovalExtraStepsEditor } from "@/components/settings/approvals/approval-extra-steps-editor";
 import {
   ApprovalWorkflowTemplatePicker,
@@ -734,7 +735,7 @@ export function SalesApprovalsPanel({
           Approvals
         </Link>
         . Email/SMS wording:{" "}
-        <Link href="/settings/notifications" className="text-primary hover:underline">
+        <Link href={SETTINGS_ROUTES.presentationNotifications} className="text-primary hover:underline">
           Notification templates
         </Link>
         .

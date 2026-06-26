@@ -640,6 +640,7 @@ export function InvoiceDrawerForm({
         onRequestClose={() => requestClose(onClose)}
         title={title}
         headerActions={headerActions}
+        widthPolicy={surface === "peek" ? "peek" : "document"}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}
         className={peekShellClassName}

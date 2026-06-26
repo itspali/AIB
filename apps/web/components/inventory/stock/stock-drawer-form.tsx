@@ -437,6 +437,7 @@ export function StockDrawerForm({
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(surface, detail, peekBalance)}
         headerActions={headerActions}
+        widthPolicy={surface === "peek" ? "peek" : "document"}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}
         className={peekShellClassName}

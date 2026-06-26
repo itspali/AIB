@@ -1,5 +1,6 @@
 import type { UserFacingError } from "@/lib/errors/user-facing-error";
 import { SETTINGS_LOCATIONS_HREF } from "@/lib/inventory/stock/navigation";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 
 export function formatStockLocationLabel(
   name: string | null | undefined,
@@ -11,7 +12,7 @@ export function formatStockLocationLabel(
   return trimmedCode ? `${trimmedName} (${trimmedCode})` : trimmedName;
 }
 
-export const SETTINGS_ORGANIZATION_HREF = "/settings/organization";
+export const SETTINGS_ORGANIZATION_HREF = SETTINGS_ROUTES.company;
 
 export type InventoryValuationEngine = "FIFO" | "MWAC" | "STANDARD";
 

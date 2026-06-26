@@ -38,7 +38,7 @@ export function sidebarWidthClass(collapsed: boolean): string {
 }
 
 const childLinkClass =
-  "flex items-center gap-2 rounded-md py-2 pl-8 pr-2.5 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex shrink-0 items-center gap-2 rounded-md py-2 pl-8 pr-2.5 text-sm transition-colors duration-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function SidebarNavGroup({
   item,
@@ -56,8 +56,8 @@ function SidebarNavGroup({
   const children = item.children ?? [];
 
   useEffect(() => {
-    if (defaultExpanded) setExpanded(true);
-  }, [defaultExpanded]);
+    setExpanded(defaultExpanded);
+  }, [pathname, defaultExpanded]);
 
   const groupTrigger = (
     <Button
@@ -100,39 +100,41 @@ function SidebarNavGroup({
 
   if (collapsed) {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>{groupTrigger}</DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" className="w-48">
-          <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
-          {children.map((child) => {
-            const childActive = isModuleNavChildActive(child, pathname, item);
-            return (
-              <DropdownMenuItem key={child.href} asChild>
-                <Link
-                  href={child.href}
-                  prefetch
-                  className={cn(
-                    "flex cursor-pointer items-center gap-2",
-                    childActive && "bg-primary/10 font-medium text-primary"
-                  )}
-                >
-                  <NavTextLinkContent
-                    icon={child.icon}
-                    iconClassName={childActive ? "text-primary" : undefined}
+      <div className="shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>{groupTrigger}</DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-48">
+            <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
+            {children.map((child) => {
+              const childActive = isModuleNavChildActive(child, pathname, item);
+              return (
+                <DropdownMenuItem key={child.href} asChild>
+                  <Link
+                    href={child.href}
+                    prefetch
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2",
+                      childActive && "bg-primary/10 font-medium text-primary"
+                    )}
                   >
-                    {child.label}
-                  </NavTextLinkContent>
-                </Link>
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+                    <NavTextLinkContent
+                      icon={child.icon}
+                      iconClassName={childActive ? "text-primary" : undefined}
+                    >
+                      {child.label}
+                    </NavTextLinkContent>
+                  </Link>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex shrink-0 flex-col gap-0.5">
       <div
         className={cn(
           "flex items-center rounded-lg",
@@ -195,6 +197,7 @@ function SidebarNavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         navLinkClass,
+        "shrink-0",
         active && "nav-glow-active bg-primary/10 text-primary"
       )}
       title={collapsed ? item.label : undefined}
@@ -226,7 +229,7 @@ export function SidebarNav() {
     >
       <nav
         aria-label="Module navigation"
-        className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 pt-3"
+        className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 pt-3"
       >
         {navItems.map((item) =>
           item.children?.length ? (

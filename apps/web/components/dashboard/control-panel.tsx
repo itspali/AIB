@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { Settings2 } from "lucide-react";
 import { HubPanel, HubSectionHeading } from "@/components/dashboard/hub-panel";
@@ -22,7 +23,7 @@ export function ControlPanel() {
             delegated admin access from the centralized organization settings workspace.
           </p>
           <Button asChild className="mt-4" variant="outline">
-            <Link href="/settings/organization" prefetch>
+            <Link href={SETTINGS_ROUTES.company} prefetch>
               <LinkPendingStatus>Open Organization Settings</LinkPendingStatus>
             </Link>
           </Button>

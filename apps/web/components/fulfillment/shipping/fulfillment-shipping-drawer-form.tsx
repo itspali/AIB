@@ -166,6 +166,7 @@ export function FulfillmentShippingDrawerForm({
           </Button>
         ) : null
       }
+      widthPolicy={surface === "peek" ? "peek" : "document"}
       allowBackgroundInteraction={surface === "peek"}
       peekMode={surface === "peek"}
       className={peekShellClassName}

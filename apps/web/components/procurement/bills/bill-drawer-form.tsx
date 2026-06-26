@@ -530,6 +530,7 @@ export function BillDrawerForm({
         (isEditing ? "Edit supplier bill" : "New supplier bill")
       }
       headerActions={headerActions}
+      widthPolicy={readOnly ? "peek" : "document"}
       allowBackgroundInteraction={readOnly}
       peekMode={readOnly}
       className={peekShellClassName}

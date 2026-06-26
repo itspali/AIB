@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveTaxCode } from "@/app/settings/tax/actions";
+import { saveTaxCode } from "@/app/settings/catalogs/tax/actions";
 import { TaxPeekPanel } from "@/components/settings/tax/tax-peek-panel";
 import { TaxSlabEditor } from "@/components/settings/tax-slab-editor";
 import { TaxRulePreview } from "@/components/settings/tax-rule-preview";
@@ -449,6 +449,7 @@ export function TaxCodeDrawerForm({
           closeDrawer();
         }}
         title={resolveDrawerTitle(surface, row)}
+        widthPolicy={surface === "peek" ? "peek" : "mutate"}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}
         bodyClassName={cn(surface === "peek" && "module-drawer-peek-body")}

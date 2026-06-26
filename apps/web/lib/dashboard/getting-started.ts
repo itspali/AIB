@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { entityCreateHref } from "@/lib/entities/entity-navigation";
 import { orderGettingStartedTasks } from "@/lib/onboarding/business-model";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 
 export type GettingStartedTaskId =
   | "first_product"
@@ -89,13 +90,13 @@ const BASE_TASKS: Record<
     id: "org_settings",
     title: "Review organization settings",
     description: "Confirm billing identity, fiscal profile, and governance defaults.",
-    href: "/settings/organization",
+    href: SETTINGS_ROUTES.company,
   },
   locations: {
     id: "locations",
     title: "Configure warehouse locations",
     description: "Add or refine stock-holding sites beyond your onboarding home location.",
-    href: "/settings/locations",
+    href: SETTINGS_ROUTES.workspaceLocations,
   },
 };
 
@@ -142,6 +143,6 @@ export async function fetchGettingStartedSnapshot(
     completedCount,
     totalCount: tasks.length,
     dismissed,
-    visible: isLive && !dismissed,
+    visible: isLive && !dismissed && completedCount < tasks.length,
   };
 }

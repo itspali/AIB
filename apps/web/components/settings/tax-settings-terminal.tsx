@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteTaxCode, loadDefaultTaxCodes } from "@/app/settings/tax/actions";
+import { deleteTaxCode, loadDefaultTaxCodes } from "@/app/settings/catalogs/tax/actions";
 import { TaxCodeDrawerForm } from "@/components/settings/tax-code-drawer-form";
 import { TaxDeleteDialog } from "@/components/settings/tax/tax-delete-dialog";
 import { TaxEmptyState } from "@/components/settings/tax/tax-empty-state";

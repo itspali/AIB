@@ -1,3 +1,5 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
+
 export const PROCUREMENT_HREF = "/procurement";
 export const PROCUREMENT_PO_HREF = "/procurement/purchase-orders";
 export const PROCUREMENT_GRN_HREF = "/procurement/goods-receipts";
@@ -7,7 +9,7 @@ export const PROCUREMENT_GIT_HREF = "/procurement/goods-in-transit";
 export const PROCUREMENT_SHIPMENTS_HREF = "/procurement/shipments";
 export const PROCUREMENT_SUBCONTRACT_HREF = "/procurement/subcontract";
 export const INVENTORY_STOCK_HREF = "/inventory/stock";
-export const SETTINGS_LOCATIONS_HREF = "/settings/locations";
+export const SETTINGS_LOCATIONS_HREF = SETTINGS_ROUTES.workspaceLocations;
 
 export const GRN_DRAWER_PO_PARAM = "po";
 export const IMPORT_SHIPMENT_DRAWER_PO_PARAM = "po";

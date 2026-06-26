@@ -62,6 +62,7 @@ export function TenantPeekDrawer({ open, onOpenChange, tenant, className }: Tena
         onOpenChange={onOpenChange}
         title="Tenant"
         description="Select a tenant row to preview details."
+        widthPolicy="peek"
         className={className}
       >
         <p className="text-sm text-muted-foreground">No tenant selected.</p>
@@ -75,6 +76,7 @@ export function TenantPeekDrawer({ open, onOpenChange, tenant, className }: Tena
       onOpenChange={onOpenChange}
       title={tenant.companyName}
       description={tenant.orgCode}
+      widthPolicy="peek"
       className={className}
       footer={
         <div className="flex justify-end gap-2 border-t border-border px-4 py-3">

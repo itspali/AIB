@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { createTenantGroup, saveGroupSettings } from "@/app/settings/group/actions";
+import { createTenantGroup, saveGroupSettings } from "@/app/settings/enterprise/actions";
 import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
 import { CopyableReadonlyField } from "@/components/settings/copyable-readonly-field";
 import { GroupDeleteConfirmDialog } from "@/components/settings/group/group-delete-confirm-dialog";

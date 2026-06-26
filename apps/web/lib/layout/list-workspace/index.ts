@@ -26,6 +26,7 @@ export {
   mapCustomerPaymentRowToSplitFeed,
   mapSalesShipmentRowToSplitFeed,
   mapTaxCodeRowToSplitFeed,
+  mapUomRowToSplitFeed,
   mapSalesInvoiceRowToSplitFeed,
   mapSalesOrderRowToSplitFeed,
   mapSalesQuoteRowToSplitFeed,

@@ -1,5 +1,8 @@
 import type { NavigationIndexEntry } from "@/lib/search/types";
 import { filterNavigationIndex } from "@/lib/procurement/import-logistics-capability";
+import { buildSettingsNavigationIndex } from "@/lib/settings/navigation";
+
+const SETTINGS_NAVIGATION_INDEX = buildSettingsNavigationIndex();
 
 export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   {
@@ -59,17 +62,17 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
   },
   {
     label: "Inventory Locations",
-    href: "/settings/locations",
+    href: "/settings/workspace/locations",
     keywords: ["inventory", "locations", "warehouses", "facilities"],
   },
   {
     label: "Location Topology",
-    href: "/settings/locations/topology",
+    href: "/settings/workspace/locations/topology",
     keywords: ["topology", "hierarchy", "locations tree"],
   },
   {
     label: "Units of Measure",
-    href: "/settings/uom",
+    href: "/settings/catalogs/uom",
     keywords: ["uom", "units", "measure", "measurement", "conversion", "factor", "inventory"],
   },
   {
@@ -159,56 +162,7 @@ export const GLOBAL_NAVIGATION_INDEX: NavigationIndexEntry[] = [
     href: "/financials",
     keywords: ["financials", "finance", "accounting", "ledger"],
   },
-  {
-    label: "Administration",
-    href: "/settings/organization",
-    keywords: ["administration", "admin", "settings", "configuration", "setup"],
-  },
-  {
-    label: "Organization Settings",
-    href: "/settings/organization",
-    keywords: ["organization", "company", "tenant", "workspace"],
-  },
-  {
-    label: "Group Settings",
-    href: "/settings/group",
-    keywords: ["group", "enterprise", "holding", "subsidiary", "multi-org"],
-  },
-  {
-    label: "Document templates",
-    href: "/settings/documents/templates",
-    keywords: ["print", "pdf", "document template", "letterhead", "appearance", "presentation", "on-screen", "drawer", "peek", "screen layout"],
-  },
-  {
-    label: "Module settings",
-    href: "/settings/modules",
-    keywords: ["module", "procurement settings", "sales settings", "policies", "approvals", "preferences"],
-  },
-  {
-    label: "Procurement policies",
-    href: "/settings/modules/procurement",
-    keywords: ["procurement", "purchase order", "policies", "approvals", "grn", "matching"],
-  },
-  {
-    label: "Sales policies",
-    href: "/settings/modules/sales",
-    keywords: ["sales", "quotation", "quote", "sales order", "invoice", "policies", "approvals"],
-  },
-  {
-    label: "Tax Settings",
-    href: "/settings/tax",
-    keywords: ["tax", "gst", "vat", "tax rule", "tax code", "slab", "rate", "settings"],
-  },
-  {
-    label: "Users & Roles",
-    href: "/settings/users",
-    keywords: ["users", "roles", "team", "members", "access", "rbac", "delegation"],
-  },
-  {
-    label: "Profile Settings",
-    href: "/settings/profile",
-    keywords: ["profile", "settings", "account", "user", "my account"],
-  },
+  ...SETTINGS_NAVIGATION_INDEX,
 ];
 
 export function matchNavigationIndex(

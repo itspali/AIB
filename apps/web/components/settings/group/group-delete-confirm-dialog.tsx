@@ -1,9 +1,10 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteTenantGroup } from "@/app/settings/group/actions";
+import { deleteTenantGroup } from "@/app/settings/enterprise/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +46,7 @@ export function GroupDeleteConfirmDialog({ groupId, groupName, open, onOpenChang
       toast.success("Enterprise group deleted");
       setConfirmation("");
       onOpenChange(false);
-      router.push("/settings/organization");
+      router.push(SETTINGS_ROUTES.company);
       router.refresh();
     });
   };

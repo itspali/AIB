@@ -1,4 +1,6 @@
-export const TAX_HREF = "/settings/tax";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
+
+export const TAX_HREF = SETTINGS_ROUTES.catalogsTax;
 
 export {
   buildModuleHref,

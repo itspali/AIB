@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ProcurementApprovalsPanel } from "@/components/settings/modules/procurement-approvals-panel";
 import { ProcurementFinancialAccountsPanel } from "@/components/settings/modules/procurement-financial-accounts-panel";
 import { ProcurementPoliciesPanel } from "@/components/settings/modules/procurement-policies-panel";
-import { saveProcurementApprovalSettings } from "@/app/settings/modules/procurement/actions";
+import { saveProcurementApprovalSettings } from "@/app/settings/operations/procurement/actions";
 import type { ProcurementApprovalSettings } from "@/lib/procurement/approval-settings";
 import type {
   ExpenseAccountOption,
@@ -77,7 +78,7 @@ export function ProcurementModuleSettingsTerminal({
     <div className="canvas-scroll-endpad space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" className="-ml-2 h-7 px-2 text-xs" asChild>
-          <Link href="/settings/modules">
+          <Link href={SETTINGS_ROUTES.operations}>
             <ArrowLeft className="mr-1 h-3.5 w-3.5" aria-hidden />
             Modules
           </Link>

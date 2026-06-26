@@ -180,6 +180,7 @@ export function CategoryDrawerForm({
         }}
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(surface, peekCategory)}
+        widthPolicy={surface === "peek" ? "peek" : "mutate"}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
         scrollable={false}

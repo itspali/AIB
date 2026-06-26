@@ -1,11 +1,11 @@
 "use client";
 
-import { Activity, Wallet, Warehouse } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Wallet, Warehouse } from "lucide-react";
+import { OverviewSectionShell } from "@/components/layout/overview-primitives";
 import { formatCurrency } from "@/lib/dashboard/format";
 import type { DashboardMetrics } from "@/lib/dashboard/types";
-import { HubSectionHeading } from "@/components/dashboard/hub-panel";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import { PipelineVelocityCard } from "@/components/dashboard/pipeline-velocity-card";
+import { soCreditHoldListHref } from "@/lib/sales/navigation";
 
 type MetricGaugeCardsProps = {
   metrics: DashboardMetrics;
@@ -13,34 +13,47 @@ type MetricGaugeCardsProps = {
 
 export function MetricGaugeCards({ metrics }: MetricGaugeCardsProps) {
   return (
-    <section aria-label="Operational analytical gauges" className="mb-10">
-      <HubSectionHeading
-        step="01"
-        title="Live Operational Gauges"
-        description="Real-time capital, inventory, and order pipeline signals from Supabase."
-      />
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <OverviewSectionShell
+      title="Operational summary"
+      description="Live capital, inventory, and pipeline signals from your workspace."
+      className="mb-8"
+    >
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          title="Net Capital Cash Flow Exposure"
+          title="Net capital exposure"
           value={formatCurrency(metrics.netCapitalExposure)}
-          subtitle="1200-AR net balance minus unpaid vendor liabilities"
+          subtitle="AR net balance minus unpaid vendor liabilities"
           icon={Wallet}
           accent="cyan"
           sparkline={metrics.sparklines.netCapital}
+          href="/financials"
         />
         <MetricCard
-          title="Multi-Warehouse Inventory Valuation"
+          title="Inventory valuation"
           value={formatCurrency(metrics.inventoryValuation)}
-          subtitle="On-hand quantity × average cost across all locations"
+          subtitle="On-hand quantity × average cost across locations"
           icon={Warehouse}
           accent="emerald"
           sparkline={metrics.sparklines.inventory}
+          href="/inventory"
         />
-        <PipelineVelocityCard
-          counts={metrics.pipelineCounts}
-          sparkline={metrics.sparklines.pipeline}
+        <MetricCard
+          title="Pending approvals"
+          value={String(metrics.kpiCounts.pendingApprovals)}
+          subtitle="Documents and transfers awaiting managerial action"
+          icon={ClipboardCheck}
+          accent="amber"
+          href="/approvals"
+        />
+        <MetricCard
+          title="Credit holds"
+          value={String(metrics.kpiCounts.creditHolds)}
+          subtitle="Sales orders blocked on credit policy"
+          icon={AlertTriangle}
+          accent="violet"
+          href={soCreditHoldListHref()}
         />
       </div>
-    </section>
+    </OverviewSectionShell>
   );
 }

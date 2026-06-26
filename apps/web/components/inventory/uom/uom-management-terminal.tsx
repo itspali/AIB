@@ -1,26 +1,45 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteUom, seedDefaultUoms } from "@/app/settings/uom/actions";
-import { SettingsGlassShell } from "@/components/settings/settings-glass-shell";
+import { deleteUom, seedDefaultUoms } from "@/app/settings/catalogs/uom/actions";
+import { UomDeleteDialog } from "@/components/inventory/uom/uom-delete-dialog";
 import { UomDrawerForm } from "@/components/inventory/uom/uom-drawer-form";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { UomEmptyState } from "@/components/inventory/uom/uom-empty-state";
+import { UomListToolbar } from "@/components/inventory/uom/uom-list-toolbar";
+import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
+import { ListModuleShell } from "@/components/layout/list-module-shell";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { UOM_FAMILIES, uomFamilyLabel, type UomFamily, type UomRow } from "@/lib/uom/types";
+  ListWorkspaceCatalogBody,
+  ListWorkspaceModuleFrame,
+  useListWorkspaceCatalogLayout,
+} from "@/components/layout/list-workspace-catalog-module";
+import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
+import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
+import {
+  buildCatalogSplitListPane,
+  mapUomRowToSplitFeed,
+  useListWorkspaceFeedFilter,
+} from "@/lib/layout/list-workspace";
+import { useActiveTableColumnPrefs } from "@/lib/list-columns/use-active-table-column-prefs";
+import {
+  getDefaultUomListPrefs,
+  loadUomListPrefs,
+  saveUomListPrefs,
+  setUomColumnWidth,
+  type UomListPrefs,
+} from "@/lib/uom/list-prefs";
+import { sortUomRows, type UomListSortDirection, type UomListSortField } from "@/lib/uom/list-sort";
+import { UOM_HREF } from "@/lib/uom/navigation";
+import { useFilteredUoms } from "@/lib/uom/use-filtered-uoms";
+import type { UomListColumnId } from "@/lib/uom/list-columns";
+import type { UomRow } from "@/lib/uom/types";
+
+const UomListTable = lazyClientExport(
+  () => import("@/components/inventory/uom/uom-list-table"),
+  "UomListTable"
+);
 
 type Props = {
   initialRows: UomRow[];
@@ -29,25 +48,51 @@ type Props = {
 
 export function UomManagementTerminal({ initialRows, canManage }: Props) {
   const router = useRouter();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<UomRow | null>(null);
+  const drawer = useModuleDrawerUrl(UOM_HREF);
+  const [rows, setRows] = useState(initialRows);
+  const [prefs, setPrefs] = useState<UomListPrefs>(getDefaultUomListPrefs);
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const { deviceClass, slice: activeColumnPrefs } = useActiveTableColumnPrefs(prefs.columnPrefs);
   const [pendingDelete, setPendingDelete] = useState<UomRow | null>(null);
   const [isDeleting, startDelete] = useTransition();
   const [isSeeding, startSeed] = useTransition();
 
-  const grouped = useMemo(() => {
-    const byFamily = new Map<UomFamily, UomRow[]>();
-    for (const row of initialRows) {
-      const list = byFamily.get(row.family) ?? [];
-      list.push(row);
-      byFamily.set(row.family, list);
-    }
-    return UOM_FAMILIES.map((family) => ({ family, rows: byFamily.get(family) ?? [] })).filter(
-      (group) => group.rows.length > 0
-    );
+  useEffect(() => {
+    setRows(initialRows);
   }, [initialRows]);
 
-  const loadDefaults = () => {
+  useEffect(() => {
+    setPrefs(loadUomListPrefs());
+    setPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!prefsHydrated) return;
+    saveUomListPrefs(prefs);
+  }, [prefs, prefsHydrated]);
+
+  const { filteredRows, totalCount, resultCount } = useFilteredUoms({
+    rows,
+    activeStatusFilter: prefs.activeStatusFilter,
+    familyFilter: prefs.familyFilter,
+  });
+
+  const { feedFilteredRows, feedFilterProps } = useListWorkspaceFeedFilter({
+    rows: filteredRows,
+    extractSearchable: (row) => [row.code, row.name, row.family],
+  });
+
+  const sortedRows = useMemo(
+    () => sortUomRows(feedFilteredRows, prefs.sortField, prefs.sortDirection),
+    [feedFilteredRows, prefs.sortDirection, prefs.sortField]
+  );
+
+  const peekRow = useMemo(() => {
+    if (!drawer.recordId) return null;
+    return rows.find((row) => row.id === drawer.recordId) ?? null;
+  }, [drawer.recordId, rows]);
+
+  const loadDefaults = useCallback(() => {
     startSeed(async () => {
       const result = await seedDefaultUoms();
       if ("error" in result) {
@@ -61,19 +106,9 @@ export function UomManagementTerminal({ initialRows, canManage }: Props) {
       );
       router.refresh();
     });
-  };
+  }, [router]);
 
-  const openCreate = () => {
-    setEditing(null);
-    setDrawerOpen(true);
-  };
-
-  const openEdit = (row: UomRow) => {
-    setEditing(row);
-    setDrawerOpen(true);
-  };
-
-  const confirmDelete = () => {
+  const confirmDelete = useCallback(() => {
     if (!pendingDelete) return;
     const target = pendingDelete;
     startDelete(async () => {
@@ -88,190 +123,173 @@ export function UomManagementTerminal({ initialRows, canManage }: Props) {
           : "Unit deleted."
       );
       setPendingDelete(null);
+      setRows((current) =>
+        result.outcome === "DEACTIVATED"
+          ? current.map((row) => (row.id === target.id ? { ...row, is_active: false } : row))
+          : current.filter((row) => row.id !== target.id)
+      );
+      if (drawer.recordId === target.id) {
+        drawer.close();
+      }
       router.refresh();
     });
-  };
+  }, [drawer, pendingDelete, router]);
 
-  return (
-    <>
-      <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Units of measure</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Define the units items are counted, weighed, and sold in. Each family has one base unit;
-            other units convert to it by a factor.
-          </p>
-        </div>
-        {canManage && (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" onClick={loadDefaults} disabled={isSeeding}>
-              <Sparkles className="h-4 w-4" />
-              Load defaults
-            </Button>
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" />
-              New unit
-            </Button>
-          </div>
-        )}
-      </header>
-
-      <SettingsGlassShell>
-      {!canManage && (
-        <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          You have read-only access to units of measure. Editing requires an owner or admin role.
-        </div>
-      )}
-
-      {initialRows.length === 0 ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center dark:border-white/10">
-          <p className="max-w-md text-sm font-medium">No units defined yet.</p>
-          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-            Load a standard set (Pieces, Kilogram, Litre, Metre…) to get started, then add your own.
-          </p>
-          {canManage && (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <Button variant="outline" onClick={loadDefaults} disabled={isSeeding}>
-                <Sparkles className="h-4 w-4" />
-                Load default units
-              </Button>
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" />
-                Create first unit
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <Card className="overflow-hidden p-0">
-          <table className="table-chrome w-full border-separate border-spacing-0 text-sm">
-            <thead>
-              <tr className="border-b border-border/80 text-xs uppercase tracking-wide text-muted-foreground dark:border-white/10">
-                <th className="px-4 py-2.5 text-left font-medium">Code</th>
-                <th className="px-4 py-2.5 text-left font-medium">Name</th>
-                <th className="px-4 py-2.5 text-right font-medium">Factor to base</th>
-                <th className="px-4 py-2.5 text-left font-medium">Status</th>
-                {canManage && <th className="w-24 px-4 py-2.5 text-right font-medium">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {grouped.map((group) => (
-                <FamilyGroup
-                  key={group.family}
-                  family={group.family}
-                  rows={group.rows}
-                  canManage={canManage}
-                  onEdit={openEdit}
-                  onDelete={setPendingDelete}
-                />
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
-      </SettingsGlassShell>
-
-      {canManage && (
-        <UomDrawerForm
-          open={drawerOpen}
-          onOpenChange={setDrawerOpen}
-          editing={editing}
-          onSaved={() => router.refresh()}
-        />
-      )}
-
-      <AlertDialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(next) => !next && setPendingDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete unit?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingDelete ? (
-                <>
-                  &ldquo;{pendingDelete.name}&rdquo; will be removed. If it is currently assigned to
-                  any items, it will be deactivated instead so existing records stay intact.
-                </>
-              ) : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={isDeleting} onClick={confirmDelete}>
-              {isDeleting ? "Removing…" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+  const handleSelectRow = useCallback(
+    (row: UomRow) => {
+      drawer.openPeek(row.id);
+    },
+    [drawer]
   );
-}
 
-type FamilyGroupProps = {
-  family: UomFamily;
-  rows: UomRow[];
-  canManage: boolean;
-  onEdit: (row: UomRow) => void;
-  onDelete: (row: UomRow) => void;
-};
+  const handleAfterSave = useCallback(
+    (uomId: string) => {
+      router.refresh();
+      drawer.afterSave(uomId);
+    },
+    [drawer, router]
+  );
 
-function FamilyGroup({ family, rows, canManage, onEdit, onDelete }: FamilyGroupProps) {
-  const colSpan = canManage ? 5 : 4;
+  const listPrimary =
+    rows.length === 0 ? (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <UomEmptyState
+          canManage={canManage}
+          isLoadingDefaults={isSeeding}
+          onCreate={canManage ? drawer.openCreate : undefined}
+          onLoadDefaults={canManage ? loadDefaults : undefined}
+        />
+      </div>
+    ) : sortedRows.length === 0 ? (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No units match the current filters.
+        </div>
+      </div>
+    ) : (
+      <div className="flex h-full min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+        <UomListTable
+          rows={sortedRows}
+          columnPrefs={activeColumnPrefs}
+          sortField={prefs.sortField}
+          sortDirection={prefs.sortDirection}
+          frozenColumnCount={prefs.frozenColumnCount}
+          onSortChange={(field: UomListSortField, direction: UomListSortDirection) =>
+            setPrefs((current) => ({
+              ...current,
+              sortField: field,
+              sortDirection: direction,
+            }))
+          }
+          onColumnWidthChange={(columnId: UomListColumnId, width: number | null) =>
+            setPrefs((current) => setUomColumnWidth(current, deviceClass, columnId, width))
+          }
+          selectedId={drawer.surface === "peek" ? drawer.recordId : null}
+          onSelect={handleSelectRow}
+        />
+      </div>
+    );
+
+  const splitListPrimary = buildCatalogSplitListPane({
+    rows: sortedRows,
+    selectedId: drawer.surface === "peek" ? drawer.recordId : null,
+    onSelect: (uomId) => drawer.openPeek(uomId),
+    mapRow: mapUomRowToSplitFeed,
+    hasAnyData: rows.length > 0,
+    emptyMessage: "No units match the current filters.",
+    empty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <UomEmptyState
+          canManage={canManage}
+          isLoadingDefaults={isSeeding}
+          onCreate={canManage ? drawer.openCreate : undefined}
+          onLoadDefaults={canManage ? loadDefaults : undefined}
+        />
+      </div>
+    ),
+    filteredEmpty: (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-4">
+        <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          No units match the current filters.
+        </div>
+      </div>
+    ),
+  });
+
+  const peekOpen = drawer.isOpen && drawer.surface === "peek";
+  const { layout } = useListWorkspaceCatalogLayout();
+
   return (
-    <>
-      <tr className="bg-muted/40">
-        <td
-          colSpan={colSpan}
-          className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+    <ListWorkspaceModuleFrame peekOpen={peekOpen}>
+      <>
+        <ListModuleShell
+          surface="classic"
+          className="list-module-shell-root"
+          title={
+            <UnifiedCatalogHeader
+              title="Units of measure"
+              count={rows.length > 0 ? `${resultCount}/${totalCount}` : undefined}
+              onNew={canManage ? drawer.openCreate : undefined}
+              newAriaLabel="New unit"
+              layout={layout}
+              feedFilter={feedFilterProps}
+              controls={
+                rows.length > 0 ? (
+                  <UomListToolbar
+                    prefs={prefs}
+                    onPrefsChange={setPrefs}
+                    resultCount={resultCount}
+                    totalCount={totalCount}
+                    prefsHydrated={prefsHydrated}
+                    canManage={canManage}
+                    isLoadingDefaults={isSeeding}
+                    onLoadDefaults={loadDefaults}
+                  />
+                ) : undefined
+              }
+            />
+          }
         >
-          {uomFamilyLabel(family)}
-        </td>
-      </tr>
-      {rows.map((row) => (
-        <tr
-          key={row.id}
-          className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30 dark:border-white/5"
-        >
-          <td className="px-4 py-2.5 font-mono font-semibold">{row.code}</td>
-          <td className="px-4 py-2.5">{row.name}</td>
-          <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-            {row.factor_to_base}
-          </td>
-          <td className="px-4 py-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {row.is_family_base && <Badge variant="active">Base</Badge>}
-              <Badge variant={row.is_active ? "completed" : "locked"}>
-                {row.is_active ? "Active" : "Inactive"}
-              </Badge>
+          {!canManage ? (
+            <div className="mx-1 mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+              You have read-only access to units of measure. Editing requires an owner or admin
+              role.
             </div>
-          </td>
-          {canManage && (
-            <td className="px-4 py-2.5">
-              <div className="flex items-center justify-end gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Edit unit"
-                  onClick={() => onEdit(row)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Delete unit"
-                  onClick={() => onDelete(row)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </td>
-          )}
-        </tr>
-      ))}
-    </>
+          ) : null}
+          <ListWorkspaceCatalogBody
+            peekOpen={peekOpen}
+            splitEmptyTitle="Select a unit"
+            splitEmptyMessage="Choose a row from the list to inspect details here."
+            listContent={listPrimary}
+            splitListContent={splitListPrimary}
+          />
+        </ListModuleShell>
+
+        {drawer.isOpen ? (
+          <UomDrawerForm
+            open={drawer.isOpen}
+            surface={drawer.surface}
+            row={drawer.surface === "create" ? null : peekRow}
+            canManage={canManage}
+            onClose={drawer.close}
+            onAfterSave={handleAfterSave}
+            onEdit={
+              canManage && peekRow ? () => drawer.openEdit(peekRow.id) : undefined
+            }
+            onDelete={
+              canManage && peekRow ? () => setPendingDelete(peekRow) : undefined
+            }
+          />
+        ) : null}
+
+        <UomDeleteDialog
+          row={pendingDelete}
+          open={Boolean(pendingDelete)}
+          isDeleting={isDeleting}
+          onOpenChange={(next) => !next && setPendingDelete(null)}
+          onConfirm={confirmDelete}
+        />
+      </>
+    </ListWorkspaceModuleFrame>
   );
 }

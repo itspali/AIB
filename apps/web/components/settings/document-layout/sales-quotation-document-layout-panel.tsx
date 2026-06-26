@@ -3,7 +3,7 @@
 import {
   loadSalesQuotationDocumentLayout,
   saveSalesQuotationDocumentLayout,
-} from "@/app/settings/modules/sales/actions";
+} from "@/app/settings/operations/sales/actions";
 import { DocumentLayoutPanel } from "@/components/settings/document-layout/document-layout-panel";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import { DOCUMENT_LAYOUT_MODULE_ADAPTERS } from "@/lib/documents/document-layout-module-adapters";

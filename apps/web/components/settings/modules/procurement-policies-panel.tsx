@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveProcurementPolicies } from "@/app/settings/modules/procurement/actions";
+import { saveProcurementPolicies } from "@/app/settings/operations/procurement/actions";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

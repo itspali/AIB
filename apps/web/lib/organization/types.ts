@@ -182,8 +182,6 @@ export type OrganizationSettingsFormValues = {
   sku_auto_prefix: string;
   allow_line_item_discounts: boolean;
   allow_transaction_discounts: boolean;
-  allow_edit_issued_purchase_orders: boolean;
-  purchase_prices_tax_inclusive: boolean;
   accounting_period_closing_date: string;
   search_financial_fields_mode: SearchFinancialFieldsMode;
   default_theme: Theme;
@@ -286,8 +284,6 @@ export function snapshotToFormValues(
     sku_auto_prefix: snapshot.accounting_config.catalog_items.sku_auto_prefix,
     allow_line_item_discounts: snapshot.allow_line_item_discounts,
     allow_transaction_discounts: snapshot.allow_transaction_discounts,
-    allow_edit_issued_purchase_orders: snapshot.allow_edit_issued_purchase_orders,
-    purchase_prices_tax_inclusive: snapshot.purchase_prices_tax_inclusive,
     accounting_period_closing_date: snapshot.accounting_period_closing_date
       ? snapshot.accounting_period_closing_date.slice(0, 10)
       : "",

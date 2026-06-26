@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { moduleNavItems } from "@/components/layout/module-nav";
 import {
   getActiveModuleNavChild,
@@ -30,15 +31,15 @@ describe("module-nav-active", () => {
   });
 
   it("highlights Administration on locations, document templates, and uom routes", () => {
-    expect(isModuleNavItemActive(administrationItem, "/settings/locations")).toBe(true);
-    expect(isModuleNavItemActive(administrationItem, "/settings/documents/templates")).toBe(true);
-    expect(isModuleNavItemActive(administrationItem, "/settings/uom")).toBe(true);
+    expect(isModuleNavItemActive(administrationItem, SETTINGS_ROUTES.workspaceLocations)).toBe(true);
+    expect(isModuleNavItemActive(administrationItem, SETTINGS_ROUTES.presentationDocuments)).toBe(true);
+    expect(isModuleNavItemActive(administrationItem, SETTINGS_ROUTES.catalogsUom)).toBe(true);
     expect(
-      getActiveModuleNavChild(administrationItem, "/settings/documents/templates/SALES_INVOICE")
+      getActiveModuleNavChild(administrationItem, "/settings/presentation/documents/SALES_INVOICE")
         ?.label
     ).toBe("Document templates");
     expect(
-      getActiveModuleNavChild(administrationItem, "/settings/locations/topology")?.label
+      getActiveModuleNavChild(administrationItem, SETTINGS_ROUTES.workspaceLocationsTopology)?.label
     ).toBe("Locations");
   });
 

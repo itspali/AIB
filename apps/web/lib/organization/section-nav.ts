@@ -6,7 +6,6 @@ import {
   Globe2,
   Network,
   Palette,
-  ShieldCheck,
   Wallet,
 } from "lucide-react";
 
@@ -18,6 +17,7 @@ export const ORG_SETTINGS_TAB_IDS = {
   locations: "locations",
   accounting: "accounting",
   entities: "entities",
+  /** Used by access settings page field-tab mapping only */
   access: "access",
 } as const;
 
@@ -68,7 +68,7 @@ export const ORG_SETTINGS_TABS: OrgSettingsTabItem[] = [
   },
   {
     id: ORG_SETTINGS_TAB_IDS.locations,
-    label: "Locations",
+    label: "Location defaults",
     shortLabel: "Locations",
     icon: Network,
   },
@@ -83,12 +83,6 @@ export const ORG_SETTINGS_TABS: OrgSettingsTabItem[] = [
     label: "Entities",
     shortLabel: "Entities",
     icon: Contact2,
-  },
-  {
-    id: ORG_SETTINGS_TAB_IDS.access,
-    label: "Access",
-    shortLabel: "Access",
-    icon: ShieldCheck,
   },
 ];
 

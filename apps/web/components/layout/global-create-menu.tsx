@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { FolderTree, MapPin, Package, Plus, Users, Building2 } from "lucide-react";
 import { NavTextLinkContent } from "@/components/layout/nav-link-content";
@@ -23,7 +24,7 @@ const CREATE_ACTIONS = [
   { href: categoryNewHref(), label: "New Category", icon: FolderTree },
   { href: entityCreateHref("customer"), label: "New Customer", icon: Users },
   { href: entityCreateHref("supplier"), label: "New Supplier", icon: Building2 },
-  { href: "/settings/locations", label: "New Location", icon: MapPin },
+  { href: SETTINGS_ROUTES.workspaceLocations, label: "New Location", icon: MapPin },
 ];
 
 const createTriggerClassName = "h-9 w-9 shrink-0 px-0 shadow-none";

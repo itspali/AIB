@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { FolderTree, Package, Plus, Ruler } from "lucide-react";
 import { ITEMS_HREF } from "@/lib/products/item-navigation";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 
 export type ItemsJourneyStep = {
   id: string;
@@ -69,7 +70,7 @@ export const ITEMS_BENTO_TILES: ItemsBentoTile[] = [
   {
     id: "uom",
     label: "Units of measure",
-    href: "/settings/uom",
+    href: SETTINGS_ROUTES.catalogsUom,
     icon: Ruler,
     tier: "utility",
   },

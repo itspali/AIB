@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   acceptGroupInvitation,
   rejectGroupInvitation,
-} from "@/app/settings/group/actions";
+} from "@/app/settings/enterprise/actions";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dashboard/format";
 import type { GroupInvitationRow } from "@/lib/group/types";

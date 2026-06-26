@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { deactivateLocation, deleteLocation } from "@/app/settings/locations/actions";
+import { deactivateLocation, deleteLocation } from "@/app/settings/workspace/locations/actions";
 import {
   AlertDialog,
   AlertDialogAction,

@@ -1,29 +1,24 @@
-import { HubPanel } from "@/components/dashboard/hub-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function MetricCardSkeleton() {
   return (
-    <HubPanel accent="cyan">
-      <div className="space-y-3 p-6">
-        <Skeleton className="h-4 w-40 shimmer" />
-        <Skeleton className="ml-auto h-9 w-36 shimmer" />
-        <Skeleton className="ml-auto h-3 w-48 shimmer" />
-      </div>
-    </HubPanel>
+    <div className="overview-kpi-tile surface-panel space-y-3 p-4">
+      <Skeleton className="h-3 w-32 shimmer" />
+      <Skeleton className="h-8 w-24 shimmer" />
+      <Skeleton className="h-3 w-40 shimmer" />
+    </div>
   );
 }
 
 export function MetricGaugeSkeleton() {
   return (
-    <div className="mb-10">
-      <div className="mb-5 flex gap-3">
-        <Skeleton className="h-7 w-7 rounded-lg shimmer" />
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-48 shimmer" />
-          <Skeleton className="h-3 w-64 shimmer" />
-        </div>
+    <div className="mb-8">
+      <div className="mb-3 space-y-2">
+        <Skeleton className="h-4 w-40 shimmer" />
+        <Skeleton className="h-3 w-64 shimmer" />
       </div>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCardSkeleton />
         <MetricCardSkeleton />
         <MetricCardSkeleton />
         <MetricCardSkeleton />
@@ -32,48 +27,34 @@ export function MetricGaugeSkeleton() {
   );
 }
 
-export function ControlPanelSkeleton() {
+export function WorkspaceStatusSkeleton() {
   return (
-    <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-2">
-      <HubPanel accent="cyan">
-        <div className="space-y-3 p-6">
-          <Skeleton className="h-5 w-56 shimmer" />
-          <Skeleton className="h-12 w-full shimmer" />
-        </div>
-      </HubPanel>
-      <HubPanel accent="amber">
-        <div className="space-y-3 p-6">
-          <Skeleton className="h-5 w-56 shimmer" />
-          <Skeleton className="h-10 w-full shimmer" />
-        </div>
-      </HubPanel>
+    <div className="surface-panel mb-8 space-y-2 p-4">
+      <Skeleton className="h-4 w-36 shimmer" />
+      <Skeleton className="h-3 w-56 shimmer" />
     </div>
-  );
-}
-
-export function TaxPolicyGridSkeleton() {
-  return (
-    <HubPanel accent="violet">
-      <div className="space-y-3 p-6">
-        <Skeleton className="h-5 w-48 shimmer" />
-        <Skeleton className="h-10 w-full shimmer" />
-        <Skeleton className="h-10 w-full shimmer" />
-        <Skeleton className="h-10 w-full shimmer" />
-      </div>
-    </HubPanel>
   );
 }
 
 export function DashboardPageSkeleton() {
   return (
     <div className="canvas-scroll-endpad" aria-busy="true" aria-label="Loading dashboard">
-      <div className="mb-8 space-y-3">
-        <Skeleton className="h-8 w-56 shimmer" />
+      <div className="mb-8 space-y-2">
+        <Skeleton className="h-3 w-40 shimmer" />
+        <Skeleton className="h-8 w-48 shimmer" />
         <Skeleton className="h-4 w-72 shimmer" />
       </div>
       <MetricGaugeSkeleton />
-      <ControlPanelSkeleton />
-      <TaxPolicyGridSkeleton />
+      <div className="mb-8 space-y-2">
+        <Skeleton className="h-4 w-36 shimmer" />
+        <Skeleton className="h-20 w-full shimmer rounded-lg" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton className="h-24 w-full shimmer rounded-lg" />
+        <Skeleton className="h-24 w-full shimmer rounded-lg" />
+        <Skeleton className="h-24 w-full shimmer rounded-lg" />
+        <Skeleton className="h-24 w-full shimmer rounded-lg" />
+      </div>
     </div>
   );
 }

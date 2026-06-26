@@ -180,6 +180,7 @@ export function EntityCategoryDrawerForm({
         }}
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(workspace, surface, peekCategory)}
+        widthPolicy={surface === "peek" ? "peek" : "mutate"}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}

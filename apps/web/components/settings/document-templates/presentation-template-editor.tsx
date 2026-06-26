@@ -9,7 +9,7 @@ import {
   loadPresentationTemplatePreview,
   resetPresentationTemplate,
   savePresentationTemplate,
-} from "@/app/settings/documents/templates/actions";
+} from "@/app/settings/presentation/documents/actions";
 import {
   DocumentLayoutScopeSelect,
   type DocumentLayoutLocationOption,

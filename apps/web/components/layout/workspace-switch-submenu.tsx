@@ -4,7 +4,7 @@ import { useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check } from "lucide-react";
 import { toast } from "sonner";
-import { switchActiveTenantMembership } from "@/app/settings/group/actions";
+import { switchActiveTenantMembership } from "@/app/settings/enterprise/actions";
 import { rowClassName } from "@/components/layout/profile-nav-link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { headers } from "next/headers";
 import { profileSettingsSchema } from "@/lib/settings/schemas";
 import { requireTenantMutation } from "@/lib/supabase/require-tenant";
@@ -9,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { updateUserDutyStatus } from "@/app/account/actions";
 
 const REVALIDATE_PATHS = [
-  "/settings/profile",
+  SETTINGS_ROUTES.account,
   "/account",
   "/dashboard",
   "/items/categories",

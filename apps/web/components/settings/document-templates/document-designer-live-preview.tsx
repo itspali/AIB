@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Check } from "lucide-react";
-import { loadDocumentDesignerPreview } from "@/app/settings/documents/templates/actions";
+import { loadDocumentDesignerPreview } from "@/app/settings/presentation/documents/actions";
 import { DocumentDesignerPreviewToolbar } from "@/components/settings/document-templates/document-designer-preview-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { layoutScopeKey, type DocumentLayoutScope } from "@/lib/documents/layout-scope";

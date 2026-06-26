@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { loadPresentationTemplate, savePresentationTemplate } from "@/app/settings/documents/templates/actions";
+import { loadPresentationTemplate, savePresentationTemplate } from "@/app/settings/presentation/documents/actions";
 import type { DocumentLayoutLocationOption } from "@/components/settings/document-layout/document-layout-scope-select";
 import type { DocumentLayoutEmbeddedToolbarActions } from "@/components/settings/document-layout/document-layout-panel";
 import {

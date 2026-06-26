@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   cancelWorkspaceDeletion,
   requestWorkspaceDeletion,
-} from "@/app/settings/organization/actions";
+} from "@/app/settings/company/actions";
 import { GroupExitConfirmDialog } from "@/components/settings/group/group-exit-confirm-dialog";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import {

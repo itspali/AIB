@@ -1,9 +1,11 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
+
 export const SALES_HREF = "/sales";
 export const SALES_ORDERS_HREF = "/sales/orders";
 export const SALES_QUOTES_HREF = "/sales/quotes";
 export const SALES_INVOICES_HREF = "/sales/invoices";
 export const SALES_PAYMENTS_HREF = "/sales/payments";
-export const SETTINGS_LOCATIONS_HREF = "/settings/locations";
+export const SETTINGS_LOCATIONS_HREF = SETTINGS_ROUTES.workspaceLocations;
 
 export const SO_DRAWER_QUOTE_PARAM = "quote";
 export const INVOICE_DRAWER_SO_PARAM = "so";
@@ -16,6 +18,11 @@ export const INVOICE_DRAWER_PAYMENT_PARAM = "payment";
 
 export function soPendingApprovalListHref(): string {
   const params = new URLSearchParams({ [SO_STATUS_FILTER_PARAM]: "PENDING_APPROVAL" });
+  return `${SALES_ORDERS_HREF}?${params.toString()}`;
+}
+
+export function soCreditHoldListHref(): string {
+  const params = new URLSearchParams({ [SO_STATUS_FILTER_PARAM]: "CREDIT_HOLD" });
   return `${SALES_ORDERS_HREF}?${params.toString()}`;
 }
 

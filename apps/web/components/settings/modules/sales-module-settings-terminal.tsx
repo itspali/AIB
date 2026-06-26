@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -35,7 +36,7 @@ export function SalesModuleSettingsTerminal({
     <div className="canvas-scroll-endpad space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" className="-ml-2 h-7 px-2 text-xs" asChild>
-          <Link href="/settings/modules">
+          <Link href={SETTINGS_ROUTES.operations}>
             <ArrowLeft className="mr-1 h-3.5 w-3.5" aria-hidden />
             Modules
           </Link>

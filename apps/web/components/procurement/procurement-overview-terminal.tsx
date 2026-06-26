@@ -1,3 +1,4 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { ModuleOverview } from "@/components/layout/module-overview";
 import { ProcurementPolicySummary } from "@/components/procurement/procurement-policy-summary";
@@ -34,7 +35,7 @@ export function ProcurementOverviewTerminal({
         <p className="mt-1 text-sm text-muted-foreground">
           Purchase inbound workflows — raise orders, receive stock, and match supplier bills.{" "}
           <Link
-            href="/settings/modules/procurement"
+            href={SETTINGS_ROUTES.operationsProcurement}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Module settings

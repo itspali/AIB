@@ -1,7 +1,7 @@
 "use client";
 
 import { EntityCustomFieldsSettingsPanel } from "@/components/settings/entity-custom-fields-settings-panel";
-import { saveGroupEntityCustomFields } from "@/app/settings/group/actions";
+import { saveGroupEntityCustomFields } from "@/app/settings/enterprise/actions";
 import type { GroupSettingsAccess, GroupSettingsSnapshot } from "@/lib/group/types";
 
 type Props = {

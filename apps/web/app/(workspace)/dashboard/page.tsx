@@ -2,60 +2,55 @@ import { Suspense } from "react";
 import { CommandHubHeader } from "@/components/dashboard/command-hub-header";
 import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
 import { SetupReminderBanner } from "@/components/dashboard/setup-reminder-banner";
-import { ApprovalQueuePanel } from "@/components/dashboard/approval-queue-panel";
 import { GettingStartedChecklistLazy } from "@/components/dashboard/getting-started-checklist-lazy";
 import { MetricGaugeGrid } from "@/components/dashboard/metric-gauge-grid";
+import { NeedsAttentionSection } from "@/components/dashboard/needs-attention-section";
+import { DashboardModuleShortcuts } from "@/components/dashboard/dashboard-module-shortcuts";
+import { WorkspaceStatusSection } from "@/components/dashboard/workspace-status-section";
 import { fetchGettingStartedSnapshot } from "@/lib/dashboard/getting-started";
+import { fetchDashboardAttentionItems } from "@/lib/dashboard/attention";
 import { getAppShellBootstrap } from "@/lib/layout/app-shell-bootstrap";
-import { ControlPanelSection } from "@/components/dashboard/control-panel-section";
-import { TaxPolicySection } from "@/components/dashboard/tax-policy-section";
 import {
-  ControlPanelSkeleton,
   MetricGaugeSkeleton,
-  TaxPolicyGridSkeleton,
+  WorkspaceStatusSkeleton,
 } from "@/components/dashboard/dashboard-skeletons";
-import { fetchApprovalAlertCount, fetchPendingPurchaseOrderApprovals } from "@/lib/dashboard/queries";
+import { fetchApprovalAlertCount } from "@/lib/dashboard/queries";
 import { getModulePageContext } from "@/lib/layout/module-page";
 
 export default async function DashboardPage() {
-  const { supabase, tenantId } = await getModulePageContext();
+  const { supabase, tenantId, orgName } = await getModulePageContext();
   const bootstrap = await getAppShellBootstrap();
 
-  const [approvalAlertCount, gettingStarted, pendingPurchaseOrderApprovals] =
-    await Promise.all([
-      fetchApprovalAlertCount(supabase, tenantId),
-      fetchGettingStartedSnapshot(supabase, tenantId),
-      fetchPendingPurchaseOrderApprovals(supabase, tenantId),
-    ]);
+  const [approvalAlertCount, gettingStarted, attentionItems] = await Promise.all([
+    fetchApprovalAlertCount(supabase, tenantId),
+    fetchGettingStartedSnapshot(supabase, tenantId),
+    fetchDashboardAttentionItems(supabase, tenantId),
+  ]);
 
   const showSetupReminder =
     bootstrap.hasWorkspaceAccess && !bootstrap.financeSetupComplete;
 
   return (
     <OverviewGlassShell>
-    <div className="canvas-scroll-endpad">
-      <CommandHubHeader approvalAlertCount={approvalAlertCount} />
+      <div className="canvas-scroll-endpad">
+        <CommandHubHeader orgName={orgName} approvalAlertCount={approvalAlertCount} />
 
-      <ApprovalQueuePanel pendingPurchaseOrders={pendingPurchaseOrderApprovals} />
+        {showSetupReminder ? <SetupReminderBanner /> : null}
 
-      {showSetupReminder ? (
-        <SetupReminderBanner />
-      ) : null}
+        <GettingStartedChecklistLazy snapshot={gettingStarted} />
 
-      <GettingStartedChecklistLazy snapshot={gettingStarted} />
+        <Suspense fallback={<MetricGaugeSkeleton />}>
+          <MetricGaugeGrid />
+        </Suspense>
 
-      <Suspense fallback={<MetricGaugeSkeleton />}>
-        <MetricGaugeGrid />
-      </Suspense>
+        <NeedsAttentionSection items={attentionItems} />
 
-      <Suspense fallback={<ControlPanelSkeleton />}>
-        <ControlPanelSection />
-      </Suspense>
+        <DashboardModuleShortcuts />
 
-      <Suspense fallback={<TaxPolicyGridSkeleton />}>
-        <TaxPolicySection />
-      </Suspense>
-    </div>
+        <Suspense fallback={<WorkspaceStatusSkeleton />}>
+          <WorkspaceStatusSection />
+        </Suspense>
+      </div>
     </OverviewGlassShell>
   );
 }

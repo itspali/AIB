@@ -1,3 +1,4 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -86,7 +87,7 @@ export function SalesOverviewTerminal({ stats }: Props) {
         <p className="mt-1 text-sm text-muted-foreground">
           Customer relationships, quotes, orders, and receivables.{" "}
           <Link
-            href="/settings/modules/sales"
+            href={SETTINGS_ROUTES.operationsSales}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Module settings

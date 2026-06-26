@@ -229,6 +229,7 @@ export function EntityDrawerForm({
         }}
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(workspace, surface, editingEntity)}
+        widthPolicy={surface === "peek" ? "peek" : "mutate"}
         headerActions={headerActions}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { PackageCheck, RotateCcw, Truck, Warehouse } from "lucide-react";
 import { ModuleOverview, type ModuleOverviewCard } from "@/components/layout/module-overview";
 import { OverviewGlassShell } from "@/components/layout/overview-glass-shell";
@@ -58,7 +59,7 @@ export function FulfillmentOverviewTerminal({ stats }: Props) {
         <p className="mt-1 text-sm text-muted-foreground">
           Warehouse execution — ship orders, manage returns, and connect carriers.{" "}
           <Link
-            href="/settings/modules/logistics"
+            href={`${SETTINGS_ROUTES.operations}/logistics`}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Module settings

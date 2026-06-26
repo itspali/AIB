@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2 } from "lucide-react";
@@ -14,7 +15,7 @@ import { ApprovalSettingsSaveDialog } from "@/components/settings/approvals/appr
 import {
   fetchPendingPoApprovalRunCount,
   runPoApprovalSlaReminders,
-} from "@/app/settings/modules/procurement/actions";
+} from "@/app/settings/operations/procurement/actions";
 import { defaultPoApprovalRules, hasEnabledPoApprovalRules, type PoApprovalRule } from "@/lib/approvals/approval-rules";
 import {
   buildManagerChainFinanceLevels,
@@ -630,7 +631,7 @@ export function ProcurementApprovalsPanel({
               Approvals
             </Link>
             . Email/SMS wording:{" "}
-            <Link href="/settings/notifications" className="text-primary hover:underline">
+            <Link href={SETTINGS_ROUTES.presentationNotifications} className="text-primary hover:underline">
               Notification templates
             </Link>
             .

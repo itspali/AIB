@@ -82,7 +82,7 @@ export function QcInspectionDrawerForm({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Inspect ${row.variant_sku}` : "Quality inspection"}
-      preferredWidthVw={60}
+      widthPolicy="document"
       allowBackgroundInteraction
       peekMode
       className={peekShellClassName}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ export function ProcurementPolicySummary({ settings, className }: Props) {
           </p>
         </div>
         <Button variant="outline" size="sm" className="h-7 shrink-0 text-xs" asChild>
-          <Link href="/settings/modules/procurement?tab=policies">
+          <Link href={`${SETTINGS_ROUTES.operationsProcurement}?tab=policies`}>
             <Settings2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             Edit policies
           </Link>

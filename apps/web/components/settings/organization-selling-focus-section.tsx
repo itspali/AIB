@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
-import { saveSellingFocus } from "@/app/settings/organization/actions";
+import { saveSellingFocus } from "@/app/settings/company/actions";
 import { BusinessModelSelector } from "@/components/auth/business-model-selector";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Button } from "@/components/ui/button";

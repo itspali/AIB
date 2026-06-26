@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveProductFieldsAccess } from "@/app/settings/organization/actions";
+import { saveProductFieldsAccess } from "@/app/settings/company/actions";
 import { Switch } from "@/components/ui/switch";
 import {
   buildDefaultProductFieldsAccessMatrix,

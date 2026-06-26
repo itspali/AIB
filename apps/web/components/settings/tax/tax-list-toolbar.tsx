@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowUpDown, Sparkles } from "lucide-react";
 import { TaxListColumnSettings } from "@/components/settings/tax/tax-list-column-settings";
 import { CatalogToolbarTrailingControls } from "@/components/layout/catalog-toolbar-trailing-controls";
@@ -26,6 +27,7 @@ import {
   type TaxListSortDirection,
 } from "@/lib/tax/list-sort";
 import { TAX_CODE_KINDS, taxCodeKindLabel } from "@/lib/tax/types";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -255,6 +257,16 @@ export function TaxListToolbar({
               Load defaults
             </Button>
           ) : null}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="hidden h-7 px-2.5 text-xs lg:inline-flex"
+            asChild
+          >
+            <Link href={SETTINGS_ROUTES.catalogsTaxGstr}>GSTR export</Link>
+          </Button>
         </>
       }
     />

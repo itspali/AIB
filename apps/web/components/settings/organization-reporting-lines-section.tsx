@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveTenantReportingLines } from "@/app/settings/organization/actions";
+import { saveTenantReportingLines } from "@/app/settings/company/actions";
 import { OrgSettingsSection } from "@/components/settings/org-settings-section";
 import { Label } from "@/components/ui/label";
 import {
@@ -56,11 +57,11 @@ export function OrganizationReportingLinesSection({ initialLines, canEdit }: Pro
     >
       <p className="text-xs text-muted-foreground">
         Set a manager for submitters and approvers. Manager-chain workflows use these lines — see{" "}
-        <Link href="/settings/modules/procurement?tab=approvals" className="text-primary hover:underline">
+        <Link href={`${SETTINGS_ROUTES.operationsProcurement}?tab=approvals`} className="text-primary hover:underline">
           Procurement approvals
         </Link>{" "}
         and{" "}
-        <Link href="/settings/modules/sales?tab=approvals" className="text-primary hover:underline">
+        <Link href={`${SETTINGS_ROUTES.operationsSales}?tab=approvals`} className="text-primary hover:underline">
           Sales approvals
         </Link>
         .

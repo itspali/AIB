@@ -1,6 +1,8 @@
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
+
 export const STOCK_HREF = "/inventory/stock";
 
-export const SETTINGS_LOCATIONS_HREF = "/settings/locations";
+export const SETTINGS_LOCATIONS_HREF = SETTINGS_ROUTES.workspaceLocations;
 
 /** Pre-fills the create drawer location when adjusting from a balance row. */
 export const STOCK_DRAWER_LOCATION_PARAM = "loc";

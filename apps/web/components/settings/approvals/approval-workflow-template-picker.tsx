@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
@@ -98,7 +99,7 @@ export function ApprovalWorkflowTemplatePicker({
         <div className="mt-3 space-y-3 border-t border-border pt-3">
           <p className="text-xs text-muted-foreground">
             Requires{" "}
-            <Link href="/settings/organization#org-section-access" className="text-primary hover:underline">
+            <Link href={SETTINGS_ROUTES.access} className="text-primary hover:underline">
               reporting lines
             </Link>{" "}
             on the organization settings page.

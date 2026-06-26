@@ -657,6 +657,7 @@ export function GrnDrawerForm({
         onRequestClose={handleRequestClose}
         title={resolveDrawerTitle(surface, detail)}
         headerActions={headerActions}
+        widthPolicy={surface === "peek" ? "peek" : "document"}
         allowBackgroundInteraction={surface === "peek"}
         peekMode={surface === "peek"}
         className={peekShellClassName}

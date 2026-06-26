@@ -1,5 +1,6 @@
 "use client";
 
+import { SETTINGS_ROUTES } from "@/lib/settings/navigation";
 import Link from "next/link";
 import { ArrowRight, ChevronRight, Plus, Settings2 } from "lucide-react";
 import { useState } from "react";
@@ -59,7 +60,7 @@ function PolicyRail({ settings }: { settings: PolicySnapshot }) {
       <div className="revamp-policy-rail__head">
         <span className="revamp-kicker">Governance</span>
         <Button variant="ghost" size="sm" className="revamp-policy-rail__manage h-7 px-2 text-xs" asChild>
-          <Link href="/settings/modules/procurement?tab=policies">
+          <Link href={`${SETTINGS_ROUTES.operationsProcurement}?tab=policies`}>
             <Settings2 className="mr-1 h-3.5 w-3.5" aria-hidden />
             Policies
           </Link>
@@ -125,7 +126,7 @@ export function ProcurementCommandCenter({
               </Link>
             </Button>
             <Button variant="outline" size="icon" className="revamp-hero__settings" asChild>
-              <Link href="/settings/modules/procurement" aria-label="Procurement module settings">
+              <Link href={SETTINGS_ROUTES.operationsProcurement} aria-label="Procurement module settings">
                 <Settings2 className="h-4 w-4" />
               </Link>
             </Button>

@@ -2,13 +2,13 @@ import {
   saveGoodsReceiptDocumentLayout,
   savePurchaseInvoiceDocumentLayout,
   savePurchaseOrderDocumentLayout,
-} from "@/app/settings/modules/procurement/actions";
+} from "@/app/settings/operations/procurement/actions";
 import {
   saveSalesInvoiceDocumentLayout,
   saveSalesOrderDocumentLayout,
   saveSalesQuotationDocumentLayout,
-} from "@/app/settings/modules/sales/actions";
-import type { SaveDocumentLayoutInput } from "@/app/settings/modules/procurement/actions";
+} from "@/app/settings/operations/sales/actions";
+import type { SaveDocumentLayoutInput } from "@/app/settings/operations/procurement/actions";
 import type { DocumentModuleKey } from "@/lib/documents/types";
 
 export type DocumentLayoutSaveFn = (
