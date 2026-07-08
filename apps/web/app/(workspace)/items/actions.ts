@@ -2636,6 +2636,63 @@ export async function bulkArchiveItems(target: ResolveBulkTargetInput) {
   return { success: true as const, affectedCount: (data as number) ?? idsResult.itemIds.length };
 }
 
+export type BulkDeleteItemsResult = {
+  deletedIds: string[];
+  archivedIds: string[];
+  skippedIds: string[];
+};
+
+export async function bulkDeleteItems(
+  target: ResolveBulkTargetInput
+): Promise<{ success: true } & BulkDeleteItemsResult | { error: string }> {
+  const idsResult = await resolveBulkItemIds(target);
+  if ("error" in idsResult) {
+    return { error: idsResult.error ?? "No items selected for bulk action." };
+  }
+
+  const { supabase } = await requireTenantMutation();
+
+  const { data, error } = await supabase.rpc("bulk_delete_items", {
+    p_item_ids: idsResult.itemIds,
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("bulk_delete_items") };
+    }
+    return { error: error.message };
+  }
+
+  const raw = (data ?? {}) as {
+    deleted_ids?: string[];
+    archived_ids?: string[];
+    skipped_ids?: string[];
+  };
+
+  const deletedIds = Array.isArray(raw.deleted_ids) ? raw.deleted_ids : [];
+  const archivedIds = Array.isArray(raw.archived_ids) ? raw.archived_ids : [];
+  const skippedIds = Array.isArray(raw.skipped_ids) ? raw.skipped_ids : [];
+
+  if (deletedIds.length + archivedIds.length === 0 && skippedIds.length > 0) {
+    return {
+      error:
+        "Selected items could not be deleted because they still have inventory balances. Clear stock first or archive individually.",
+    };
+  }
+
+  if (deletedIds.length + archivedIds.length === 0) {
+    return { error: "No items were deleted." };
+  }
+
+  revalidatePath("/items");
+  return {
+    success: true as const,
+    deletedIds,
+    archivedIds,
+    skippedIds,
+  };
+}
+
 async function runBulkRpc(
   target: ResolveBulkTargetInput,
   rpc: string,

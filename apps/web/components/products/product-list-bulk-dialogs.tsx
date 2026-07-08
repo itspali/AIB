@@ -13,9 +13,9 @@ const ProductBulkJurisdictionDialog = lazyClientExport(
   () => import("@/components/products/product-bulk-jurisdiction-dialog"),
   "ProductBulkJurisdictionDialog"
 );
-const ProductBulkArchiveAlert = lazyClientExport(
-  () => import("@/components/products/product-bulk-archive-alert"),
-  "ProductBulkArchiveAlert"
+const ProductBulkDeleteAlert = lazyClientExport(
+  () => import("@/components/products/product-bulk-delete-alert"),
+  "ProductBulkDeleteAlert"
 );
 const ProductBulkCategoryDialog = lazyClientExport(
   () => import("@/components/products/product-bulk-secondary-dialogs"),
@@ -51,8 +51,8 @@ export type ProductListBulkDialogProps = {
   setPricingDialogOpen: (open: boolean) => void;
   jurisdictionDialogOpen: boolean;
   setJurisdictionDialogOpen: (open: boolean) => void;
-  archiveDialogOpen: boolean;
-  setArchiveDialogOpen: (open: boolean) => void;
+  deleteDialogOpen: boolean;
+  setDeleteDialogOpen: (open: boolean) => void;
   categoryDialogOpen: boolean;
   setCategoryDialogOpen: (open: boolean) => void;
   classificationDialogOpen: boolean;
@@ -71,7 +71,7 @@ export type ProductListBulkDialogProps = {
     value: string;
   }) => void;
   runBulkJurisdiction: (payload: { category_id: string; tax_code_id: string }) => void;
-  runBulkArchive: () => void;
+  runBulkDelete: () => void;
   runBulkCategory: (payload: { category_id: string }) => void;
   runBulkClassification: (payload: { classification: ProductListRow["classification"] }) => void;
   runBulkTaxCategory: (payload: {
@@ -98,8 +98,8 @@ export function ProductListBulkDialogs({
   setPricingDialogOpen,
   jurisdictionDialogOpen,
   setJurisdictionDialogOpen,
-  archiveDialogOpen,
-  setArchiveDialogOpen,
+  deleteDialogOpen,
+  setDeleteDialogOpen,
   categoryDialogOpen,
   setCategoryDialogOpen,
   classificationDialogOpen,
@@ -114,7 +114,7 @@ export function ProductListBulkDialogs({
   setStorefrontDialogOpen,
   runBulkPricing,
   runBulkJurisdiction,
-  runBulkArchive,
+  runBulkDelete,
   runBulkCategory,
   runBulkClassification,
   runBulkTaxCategory,
@@ -147,13 +147,13 @@ export function ProductListBulkDialogs({
         />
       ) : null}
 
-      {archiveDialogOpen ? (
-        <ProductBulkArchiveAlert
-          open={archiveDialogOpen}
-          onOpenChange={setArchiveDialogOpen}
+      {deleteDialogOpen ? (
+        <ProductBulkDeleteAlert
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
           selectedCount={bulkSelectionCount}
           isPending={isBulkPending}
-          onConfirm={runBulkArchive}
+          onConfirm={runBulkDelete}
         />
       ) : null}
 

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 export type BulkToolbarAction =
   | "pricing"
   | "jurisdiction"
-  | "archive"
+  | "delete"
   | "reactivate"
   | "category"
   | "classification"
@@ -212,9 +212,9 @@ export function ProductBulkActionToolbar({
     { id: "export", label: "Export selected", show: true },
   ];
 
-  const archiveAction: ToolbarActionItem = {
-    id: "archive",
-    label: "Archive",
+  const deleteAction: ToolbarActionItem = {
+    id: "delete",
+    label: "Delete",
     show: true,
     variant: "destructive",
   };
@@ -224,7 +224,7 @@ export function ProductBulkActionToolbar({
   const mobileMenuActions = [
     ...visiblePrimary,
     ...visibleSecondary,
-    archiveAction,
+    deleteAction,
   ].filter((action) => action.show);
 
   if (!canShowToolbar) return null;
@@ -275,11 +275,11 @@ export function ProductBulkActionToolbar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               {mobileMenuActions.map((action, index) => {
-                const isArchive = action.id === "archive";
+                const isDelete = action.id === "delete";
                 const prevIsExport = mobileMenuActions[index - 1]?.id === "export";
                 return (
                   <div key={action.id}>
-                    {isArchive ? <DropdownMenuSeparator /> : null}
+                    {isDelete ? <DropdownMenuSeparator /> : null}
                     {action.id === "export" && index > 0 && !prevIsExport ? (
                       <DropdownMenuSeparator />
                     ) : null}
@@ -319,9 +319,9 @@ export function ProductBulkActionToolbar({
             variant="destructive"
             className={INLINE_BUTTON}
             disabled={isPending}
-            onClick={() => onAction("archive")}
+            onClick={() => onAction("delete")}
           >
-            Archive
+            Delete
           </Button>
           )}
           {!hasSelection ? null : visibleSecondary.length > 0 ? (
@@ -414,11 +414,11 @@ export function ProductBulkActionToolbar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               {mobileMenuActions.map((action, index) => {
-                const isArchive = action.id === "archive";
+                const isDelete = action.id === "delete";
                 const prevIsExport = mobileMenuActions[index - 1]?.id === "export";
                 return (
                   <div key={action.id}>
-                    {isArchive ? <DropdownMenuSeparator /> : null}
+                    {isDelete ? <DropdownMenuSeparator /> : null}
                     {action.id === "export" && index > 0 && !prevIsExport ? (
                       <DropdownMenuSeparator />
                     ) : null}
@@ -455,9 +455,9 @@ export function ProductBulkActionToolbar({
             size="sm"
             variant="destructive"
             disabled={isPending}
-            onClick={() => onAction("archive")}
+            onClick={() => onAction("delete")}
           >
-            Archive
+            Delete
           </Button>
           )}
           {!hasSelection ? null : visibleSecondary.length > 0 ? (

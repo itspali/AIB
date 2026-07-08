@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   bulkAdjustItemPricing,
   bulkAdjustPurchasePricing,
-  bulkArchiveItems,
+  bulkDeleteItems,
   bulkModifyItemTags,
   bulkReactivateItems,
   bulkSetItemCategory,
@@ -63,7 +63,7 @@ export function useProductListBulkOperations({
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
   const [jurisdictionDialogOpen, setJurisdictionDialogOpen] = useState(false);
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [classificationDialogOpen, setClassificationDialogOpen] = useState(false);
   const [taxCategoryDialogOpen, setTaxCategoryDialogOpen] = useState(false);
@@ -154,10 +154,18 @@ export function useProductListBulkOperations({
     [setProducts]
   );
 
+  const removeBulkDeletedRows = useCallback(
+    (itemIds: string[]) => {
+      const idSet = new Set(itemIds);
+      setProducts((current) => current.filter((row) => !idSet.has(row.id)));
+    },
+    [setProducts]
+  );
+
   const closeAllBulkDialogs = useCallback(() => {
     setPricingDialogOpen(false);
     setJurisdictionDialogOpen(false);
-    setArchiveDialogOpen(false);
+    setDeleteDialogOpen(false);
     setCategoryDialogOpen(false);
     setClassificationDialogOpen(false);
     setTaxCategoryDialogOpen(false);
@@ -281,8 +289,8 @@ export function useProductListBulkOperations({
         case "jurisdiction":
           setJurisdictionDialogOpen(true);
           break;
-        case "archive":
-          setArchiveDialogOpen(true);
+        case "delete":
+          setDeleteDialogOpen(true);
           break;
         case "reactivate":
           executeBulkAction(bulkReactivateItems, "reactivate");
@@ -315,9 +323,57 @@ export function useProductListBulkOperations({
     [executeBulkAction, handleBulkExport]
   );
 
-  const runBulkArchive = useCallback(() => {
-    executeBulkAction(bulkArchiveItems, "archive");
-  }, [executeBulkAction]);
+  const runBulkDelete = useCallback(() => {
+    const target = buildBulkTarget();
+    runBulkTransition(async () => {
+      const resolved = await resolveBulkTargetItemIds(target);
+      if ("error" in resolved) {
+        toast.error(resolved.error);
+        return;
+      }
+
+      const result = await bulkDeleteItems(target);
+      if ("error" in result) {
+        toast.error(result.error ?? "Unable to delete items.");
+        return;
+      }
+
+      const { deletedIds, archivedIds, skippedIds } = result;
+      if (deletedIds.length > 0) {
+        removeBulkDeletedRows(deletedIds);
+      }
+      if (archivedIds.length > 0) {
+        patchBulkActiveRows(archivedIds, false);
+      }
+
+      const parts: string[] = [];
+      if (deletedIds.length > 0) {
+        parts.push(
+          `${deletedIds.length} permanently deleted`
+        );
+      }
+      if (archivedIds.length > 0) {
+        parts.push(`${archivedIds.length} archived (used in transactions)`);
+      }
+      if (skippedIds.length > 0) {
+        toast.warning(
+          `${parts.join("; ")}. ${skippedIds.length} skipped due to inventory balances.`
+        );
+      } else {
+        toast.success(parts.join("; ") + ".");
+      }
+
+      clearBulkSelection();
+      closeAllBulkDialogs();
+    });
+  }, [
+    buildBulkTarget,
+    clearBulkSelection,
+    closeAllBulkDialogs,
+    patchBulkActiveRows,
+    removeBulkDeletedRows,
+    runBulkTransition,
+  ]);
 
   const runBulkPricing = useCallback(
     (payload: {
@@ -442,8 +498,8 @@ export function useProductListBulkOperations({
       setPricingDialogOpen,
       jurisdictionDialogOpen,
       setJurisdictionDialogOpen,
-      archiveDialogOpen,
-      setArchiveDialogOpen,
+      deleteDialogOpen,
+      setDeleteDialogOpen,
       categoryDialogOpen,
       setCategoryDialogOpen,
       classificationDialogOpen,
@@ -458,7 +514,7 @@ export function useProductListBulkOperations({
       setStorefrontDialogOpen,
       runBulkPricing,
       runBulkJurisdiction,
-      runBulkArchive,
+      runBulkDelete,
       runBulkCategory,
       runBulkClassification,
       runBulkTaxCategory,
@@ -467,7 +523,7 @@ export function useProductListBulkOperations({
       runBulkStorefront,
     }),
     [
-      archiveDialogOpen,
+      deleteDialogOpen,
       bulkSelectionCount,
       categories,
       classificationDialogOpen,
@@ -477,7 +533,7 @@ export function useProductListBulkOperations({
       isBulkPending,
       jurisdictionDialogOpen,
       pricingDialogOpen,
-      runBulkArchive,
+      runBulkDelete,
       runBulkCategory,
       runBulkClassification,
       runBulkFlags,

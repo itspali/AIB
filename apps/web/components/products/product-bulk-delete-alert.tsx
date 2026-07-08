@@ -20,7 +20,7 @@ type Props = {
   onConfirm: () => void;
 };
 
-export function ProductBulkArchiveAlert({
+export function ProductBulkDeleteAlert({
   open,
   onOpenChange,
   selectedCount,
@@ -31,17 +31,16 @@ export function ProductBulkArchiveAlert({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Archive selected products?</AlertDialogTitle>
+          <AlertDialogTitle>Delete selected products?</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                This archives {selectedCount} product{selectedCount === 1 ? "" : "s"} and all
-                linked SKU variants by setting them inactive. Historical financial lines, purchase
-                orders, and sales records remain intact.
+                Items with no transaction history are permanently removed, including variants,
+                media, and catalog links. Items used on orders, invoices, receipts, or stock
+                movements are archived instead so history stays intact.
               </p>
               <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
-                Hard deletion is never attempted. Archived rows stay in storage but are excluded
-                from operational flows.
+                Permanent removal cannot be undone. Items with inventory balances may be skipped.
               </p>
             </div>
           </AlertDialogDescription>
@@ -50,7 +49,7 @@ export function ProductBulkArchiveAlert({
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <Button type="button" variant="destructive" disabled={isPending} onClick={() => onConfirm()}>
             {isPending ? <Spinner /> : null}
-            Archive items
+            Delete {selectedCount} item{selectedCount === 1 ? "" : "s"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
