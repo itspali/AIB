@@ -17,6 +17,7 @@ import {
   shouldComposeVariants,
   shouldLockProductCode,
   shouldLockVariantAxisPicker,
+  shouldShowSingleSkuEntryFields,
   splitTemplatesByAxis,
 } from "@/lib/products/variant-composition";
 import { skuMaskCoversAllAxes, suggestSkuMask } from "@/lib/products/sku-mask";
@@ -35,6 +36,7 @@ import {
   EXTRA_SKU_OPTIONS_SECTION_LABEL,
   PRODUCT_CODE_FIELD_LABEL,
   SKUS_SAVE_FIRST_HINT,
+  VARIANT_ROWS_STAGE_HINT,
   SKUS_SECTION_HELP,
   SKUS_SECTION_HELP_MULTI,
   SKUS_SECTION_HELP_SINGLE,
@@ -152,12 +154,19 @@ export function ItemSkusSection({
     );
   }
 
-  const helpText =
-    sellableVariantCount >= 2 || isMultiSku
+  const showSingleSkuEntry = shouldShowSingleSkuEntryFields({
+    isMultiSku,
+    variantAxisKeys,
+    sellableVariantCount,
+    variants,
+  });
+  const showVariantRowsInEssentials = showSingleSkuEntry;
+
+  const helpText = showSingleSkuEntry
+    ? SKUS_SECTION_HELP_SINGLE
+    : sellableVariantCount >= 2
       ? SKUS_SECTION_HELP_MULTI
-      : sellableVariantCount === 0 && isMultiSku
-        ? SKUS_SECTION_HELP
-        : SKUS_SECTION_HELP_SINGLE;
+      : SKUS_SECTION_HELP;
 
   const composeVariants = shouldComposeVariants({
     isMultiSku,
@@ -183,10 +192,11 @@ export function ItemSkusSection({
   };
 
   const handleExtraSkuOptionsChange = (rows: AttributeTemplateEntry[]) => {
-    const finalized = finalizeAttributeTemplateRows(rows);
-    const previousKeys = new Set(extraSkuOptions.map((entry) => entry.key));
-    const nextKeys = new Set(finalized.map((entry) => entry.key));
-    setValue("extra_sku_options", finalized, { shouldDirty: true });
+    const previousFinalized = finalizeAttributeTemplateRows(extraSkuOptions);
+    const nextFinalized = finalizeAttributeTemplateRows(rows);
+    const previousKeys = new Set(previousFinalized.map((entry) => entry.key));
+    const nextKeys = new Set(nextFinalized.map((entry) => entry.key));
+    setValue("extra_sku_options", rows, { shouldDirty: true });
 
     const removedKeys = [...previousKeys].filter((key) => !nextKeys.has(key));
     if (removedKeys.length === 0) return;
@@ -212,26 +222,7 @@ export function ItemSkusSection({
     <div className={cn("space-y-4", editorPanelDividerClass())}>
       <p className="text-xs text-muted-foreground">{helpText}</p>
 
-      {isMultiSku ? (
-        <EditorField
-          label={PRODUCT_CODE_FIELD_LABEL}
-          htmlFor="sku"
-          error={skuError}
-          hint={
-            productCodeLocked
-              ? ITEM_EDITOR_FIELD_HELP.productCodeLocked
-              : ITEM_EDITOR_FIELD_HELP.productCodeMultiSku
-          }
-          locked={productCodeLocked}
-        >
-          <Input
-            id="sku"
-            disabled={disableInput("sku") || productCodeLocked}
-            className="font-mono"
-            {...register("sku")}
-          />
-        </EditorField>
-      ) : (
+      {showSingleSkuEntry ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <EditorField
             label="SKU"
@@ -255,6 +246,25 @@ export function ItemSkusSection({
             />
           </EditorField>
         </div>
+      ) : (
+        <EditorField
+          label={PRODUCT_CODE_FIELD_LABEL}
+          htmlFor="sku"
+          error={skuError}
+          hint={
+            productCodeLocked
+              ? ITEM_EDITOR_FIELD_HELP.productCodeLocked
+              : ITEM_EDITOR_FIELD_HELP.productCodeMultiSku
+          }
+          locked={productCodeLocked}
+        >
+          <Input
+            id="sku"
+            disabled={disableInput("sku") || productCodeLocked}
+            className="font-mono"
+            {...register("sku")}
+          />
+        </EditorField>
       )}
 
       {showCategoryAxisPicker ? (
@@ -310,7 +320,7 @@ export function ItemSkusSection({
         ) : null}
       </div>
 
-      {itemId ? (
+      {showVariantRowsInEssentials && itemId ? (
         <ProductVariantPanel
           itemId={itemId}
           variants={variants}
@@ -334,11 +344,12 @@ export function ItemSkusSection({
             height_cm: heightCm,
           }}
           variantStrategy={
-            isMultiSku || (composeVariants && variantAxisKeys.length > 0)
+            !showSingleSkuEntry &&
+            (isMultiSku || (composeVariants && variantAxisKeys.length > 0))
               ? "MULTI_SKU"
               : "SINGLE_SKU"
           }
-          defaultShowDimensionColumns={isMultiSku}
+          defaultShowDimensionColumns={isMultiSku && !showSingleSkuEntry}
           compositionMode={variantCompositionMode}
           onRegisterVariantCommit={onRegisterVariantCommit}
           onCompositionDraftChange={onCompositionDraftChange}
@@ -350,9 +361,13 @@ export function ItemSkusSection({
           onMediaChanged={onMediaChanged}
           showAxisPicker={false}
         />
-      ) : (
+      ) : showVariantRowsInEssentials ? (
         <p className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
           {SKUS_SAVE_FIRST_HINT}
+        </p>
+      ) : (
+        <p className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          {VARIANT_ROWS_STAGE_HINT}
         </p>
       )}
     </div>

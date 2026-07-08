@@ -12,7 +12,7 @@ import {
 } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { bulkArchiveItems, getItemEditability } from "@/app/items/actions";
+import { bulkArchiveItems, deleteItem, getItemEditability } from "@/app/items/actions";
 import { ProductItemArchiveAlert } from "@/components/products/product-item-archive-alert";
 
 import {
@@ -130,6 +130,7 @@ type PanelContextValue = {
   setMutationHeader: (header: ProductPanelMutationHeader | null) => void;
   onItemArchived?: (itemId: string) => void;
   catalogContext: ProductCatalogContext | null;
+  canPermanentlyDelete: boolean;
 };
 
 const ProductPanelContext = createContext<PanelContextValue | null>(null);
@@ -176,6 +177,7 @@ export function ProductPanelScope({
   children,
 }: PanelProps) {
   const [lockedFields, setLockedFields] = useState<string[]>([]);
+  const [canPermanentlyDelete, setCanPermanentlyDelete] = useState(false);
   const [mutationHeader, setMutationHeader] = useState<ProductPanelMutationHeader | null>(null);
   const [isLoadingEditability, startEditabilityTransition] = useTransition();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -212,14 +214,20 @@ export function ProductPanelScope({
       if ("error" in result) {
         toast.error(result.error ?? "Unable to load edit restrictions.");
         setLockedFields([]);
+        setCanPermanentlyDelete(false);
         return;
       }
       setLockedFields(result.editability.locked_fields);
+      setCanPermanentlyDelete(result.editability.can_permanently_delete);
     });
   }, [detail]);
 
   useEffect(() => {
-    if (mode === "edit" && detail && !isVariantCatalogEditMode(mode, detail)) {
+    if (!detail) {
+      setCanPermanentlyDelete(false);
+      return;
+    }
+    if (mode === "view" || (mode === "edit" && !isVariantCatalogEditMode(mode, detail))) {
       loadEditability();
     }
   }, [detail?.id, loadEditability, mode]);
@@ -306,6 +314,7 @@ export function ProductPanelScope({
       setMutationHeader,
       onItemArchived,
       catalogContext,
+      canPermanentlyDelete,
     }),
     [
       mode,
@@ -320,6 +329,7 @@ export function ProductPanelScope({
       mutationHeader,
       onItemArchived,
       catalogContext,
+      canPermanentlyDelete,
     ]
   );
 
@@ -450,6 +460,7 @@ export function ProductPanelHeaderActions() {
     onDismiss,
     onItemArchived,
     mutationHeader,
+    canPermanentlyDelete,
   } = useProductPanelContext();
 
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -461,20 +472,22 @@ export function ProductPanelHeaderActions() {
   const handleConfirmArchive = useCallback(() => {
     if (!detail) return;
     startArchiveTransition(async () => {
-      const result = await bulkArchiveItems({
-        selectAllMatching: false,
-        selectedIds: [detail.id],
-      });
+      const result = canPermanentlyDelete
+        ? await deleteItem(detail.id)
+        : await bulkArchiveItems({
+            selectAllMatching: false,
+            selectedIds: [detail.id],
+          });
       if ("error" in result) {
         toast.error(result.error ?? "Unable to delete item.");
         return;
       }
-      toast.success("Item deleted.");
+      toast.success(canPermanentlyDelete ? "Item permanently deleted." : "Item archived.");
       setArchiveDialogOpen(false);
       onItemArchived?.(detail.id);
       onDismiss();
     });
-  }, [detail, onDismiss, onItemArchived]);
+  }, [canPermanentlyDelete, detail, onDismiss, onItemArchived]);
 
   if (mutationHeader) {
     return null;
@@ -508,7 +521,7 @@ export function ProductPanelHeaderActions() {
           size="sm"
           className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
           onClick={() => setArchiveDialogOpen(true)}
-          disabled={isArchiving}
+          disabled={isArchiving || isLoadingEditability}
           aria-label="Delete item"
           title="Delete item"
         >
@@ -521,6 +534,7 @@ export function ProductPanelHeaderActions() {
           onOpenChange={setArchiveDialogOpen}
           itemLabel={archiveItemLabel}
           isPending={isArchiving}
+          canPermanentlyDelete={canPermanentlyDelete}
           onConfirm={() => void handleConfirmArchive()}
         />
       ) : null}

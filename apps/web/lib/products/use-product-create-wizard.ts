@@ -11,6 +11,7 @@ import {
   type EditorStageId,
 } from "@/lib/products/editor-stages";
 import type { ProductDetailSnapshot } from "@/lib/products/types";
+import { variantsWizardStageFromDetail } from "@/lib/products/variant-composition";
 
 export type WizardNav =
   | { type: "primary" }
@@ -36,6 +37,7 @@ export function useProductCreateWizard({
   const [stage, setStage] = useState<EditorStageId>("essentials");
   const [resolvedStrategy, setResolvedStrategy] = useState(variantStrategy);
   const [resolvedComposition, setResolvedComposition] = useState(hasComposition);
+  const [resolvedShowVariantsWizardStage, setResolvedShowVariantsWizardStage] = useState(false);
   const navRef = useRef<WizardNav>({ type: "primary" });
   const submitRef = useRef<((nav: WizardNav) => void) | null>(null);
 
@@ -49,10 +51,10 @@ export function useProductCreateWizard({
 
   const stageOrderInput = useMemo(
     () => ({
-      isMultiSku: resolvedStrategy === "MULTI_SKU",
+      showVariantsWizardStage: resolvedShowVariantsWizardStage,
       hasComposition: resolvedComposition,
     }),
-    [resolvedComposition, resolvedStrategy]
+    [resolvedComposition, resolvedShowVariantsWizardStage]
   );
 
   const renderOrder = editorStageOrder(stageOrderInput);
@@ -62,16 +64,19 @@ export function useProductCreateWizard({
     (savedItemId: string, savedDetail?: ProductDetailSnapshot | null) => {
       if (!active) return;
 
-      const multi =
-        (savedDetail?.variant_strategy ?? resolvedStrategy ?? "SINGLE_SKU") === "MULTI_SKU";
       const composition = savedDetail?.is_bundle ?? resolvedComposition;
       if (savedDetail?.variant_strategy) {
         setResolvedStrategy(savedDetail.variant_strategy);
       }
       setResolvedComposition(composition);
+      if (savedDetail) {
+        setResolvedShowVariantsWizardStage(variantsWizardStageFromDetail(savedDetail));
+      }
 
       const order = editorStageOrder({
-        isMultiSku: multi,
+        showVariantsWizardStage: savedDetail
+          ? variantsWizardStageFromDetail(savedDetail)
+          : resolvedShowVariantsWizardStage,
         hasComposition: composition,
       });
       const at = Math.max(0, order.indexOf(stage));
@@ -102,13 +107,14 @@ export function useProductCreateWizard({
         onFinished(savedItemId);
       }
     },
-    [active, onFinished, resolvedComposition, resolvedStrategy, stage]
+    [active, onFinished, resolvedComposition, resolvedShowVariantsWizardStage, resolvedStrategy, stage]
   );
 
   const resetWizard = useCallback(() => {
     setStage("essentials");
     setResolvedStrategy(variantStrategy);
     setResolvedComposition(hasComposition);
+    setResolvedShowVariantsWizardStage(false);
     navRef.current = { type: "primary" };
   }, [hasComposition, variantStrategy]);
 

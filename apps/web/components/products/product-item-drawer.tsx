@@ -67,8 +67,9 @@ function surfaceToMode(surface: DrawerSurface, persistedCreateId: string | null)
   return "view";
 }
 
-function resolveItemDrawerWidthPolicy(surface: DrawerSurface): DrawerWidthPolicy {
-  return surface === "peek" ? "peek" : "mutate";
+/** Item peek, create, and edit share the mutate drawer width (60vw). */
+function resolveItemDrawerWidthPolicy(_surface: DrawerSurface): DrawerWidthPolicy {
+  return "mutate";
 }
 
 function ProductItemDrawerSheet({

@@ -37,6 +37,7 @@ export type UseItemEditorWizardChromeInput = {
   isPhysical: boolean;
   hasComposition: boolean;
   showVariantsSection: boolean;
+  showVariantsWizardStage: boolean;
   showCompositeItemSection: boolean;
   pinnedSections?: EditorSectionId[];
   itemId: string | null;
@@ -54,6 +55,7 @@ export function useItemEditorWizardChrome({
   isPhysical,
   hasComposition,
   showVariantsSection,
+  showVariantsWizardStage,
   showCompositeItemSection,
   pinnedSections,
   itemId,
@@ -110,10 +112,11 @@ export function useItemEditorWizardChrome({
   const wizardStages = useMemo(
     () =>
       EDITOR_STAGES.filter((stage) => {
+        if (stage.id === "versions" && !showVariantsWizardStage) return false;
         if (stage.id === "composition" && !hasComposition) return false;
         return true;
       }),
-    [hasComposition]
+    [hasComposition, showVariantsWizardStage]
   );
 
   const applicableWizardSections = useCallback(
@@ -122,11 +125,12 @@ export function useItemEditorWizardChrome({
         (section) =>
           (section !== "inventory" || isPhysical) &&
           (section !== "variants" || showVariantsSection) &&
+          (section !== "variant_rows" || showVariantsWizardStage) &&
           (section !== "composition" || hasComposition) &&
           (section !== "composite_item" || showCompositeItemSection) &&
           (section !== "item_logistics" || isPhysical)
       ),
-    [hasComposition, isPhysical, showVariantsSection, showCompositeItemSection]
+    [hasComposition, isPhysical, showVariantsSection, showVariantsWizardStage, showCompositeItemSection]
   );
 
   const wizardStageStatuses = useMemo(() => {

@@ -70,6 +70,7 @@ export function useItemEditorSectionStatus(input: UseItemEditorSectionStatusInpu
       purchasable: false,
       inventory: false,
       variants: false,
+      variant_rows: false,
       composite_item: false,
       alternate_uoms: false,
       item_logistics: false,
@@ -109,6 +110,8 @@ export function useItemEditorSectionStatus(input: UseItemEditorSectionStatusInpu
           return Number(standardCost) > 0 ? "complete" : "empty";
         }
         case "variants":
+          return "empty";
+        case "variant_rows":
           if (compositionDraft?.includedCount) return "complete";
           return variants.some((variant) => !variant.is_master) ? "complete" : "empty";
         case "composite_item":

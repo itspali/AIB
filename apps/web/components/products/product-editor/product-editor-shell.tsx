@@ -141,7 +141,9 @@ import {
   countSellableVariants,
   defaultVariantAxisKeys,
   pickDescriptiveVariantAttributes,
+  resolveFormVariantStrategy,
   resolveVariantCompositionMode,
+  shouldShowVariantsWizardStage,
   splitTemplatesByAxis,
   usedVariantAttributeKeys,
 } from "@/lib/products/variant-composition";
@@ -573,10 +575,23 @@ export function ProductEditorShell({
       persistedStrategy: variantStrategy,
       selectedAxisCount: variantAxisKeys.length,
     });
-    if (inferred !== variantStrategy) {
-      setValue("variant_strategy", inferred, { shouldDirty: false });
+    const effective = resolveFormVariantStrategy(inferred, {
+      itemId: resolvedItemId,
+      variantAxisKeys,
+      sellableVariantCount,
+      variants,
+    });
+    if (effective !== variantStrategy) {
+      setValue("variant_strategy", effective, { shouldDirty: false });
     }
-  }, [sellableVariantCount, variants.length, variantStrategy, variantAxisKeys.length, setValue]);
+  }, [
+    sellableVariantCount,
+    variants,
+    variantStrategy,
+    variantAxisKeys,
+    resolvedItemId,
+    setValue,
+  ]);
 
   const name = watch("name");
   const sku = watch("sku");
@@ -704,6 +719,13 @@ export function ProductEditorShell({
     storefrontVisibility,
   });
 
+  const showVariantsWizardStage = shouldShowVariantsWizardStage({
+    isMultiSku,
+    variantAxisKeys,
+    sellableVariantCount,
+    variants,
+  });
+
   const {
     activeWizardStage,
     sectionVisible,
@@ -721,6 +743,7 @@ export function ProductEditorShell({
     isPhysical,
     hasComposition,
     showVariantsSection,
+    showVariantsWizardStage,
     showCompositeItemSection,
     pinnedSections,
     itemId: resolvedItemId,
@@ -816,6 +839,7 @@ export function ProductEditorShell({
       isSectionMounted("purchasable") ||
       isSectionMounted("salable") ||
       isSectionMounted("variants") ||
+      isSectionMounted("variant_rows") ||
       isSectionMounted("visibility"));
 
   // Category attributes that compose SKUs; category suggests defaults, author choice persists on item.

@@ -26,18 +26,12 @@ import {
   COMPOSITE_ITEM_SECTION_LABEL,
   ALTERNATE_UNITS_SECTION_LABEL,
   DIMENSIONS_SECTION_LABEL,
-  INSPECTION_TESTS_SECTION_DESCRIPTION,
-  INSPECTION_TESTS_SECTION_LABEL,
-  PRICE_BOOK_SECTION_DESCRIPTION,
-  PRICE_BOOK_SECTION_LABEL,
   SKUS_SECTION_DESCRIPTION,
   SKUS_SECTION_LABEL,
 } from "@/lib/products/product-user-labels";
 import { ItemAlternateUnitsSection } from "@/components/items/item-editor/item-alternate-units-section";
 import { ItemCompositeSection } from "@/components/items/item-editor/item-composite-section";
 import { ItemDimensionsSection } from "@/components/items/item-editor/item-dimensions-section";
-import { ItemPriceBookSection } from "@/components/items/item-editor/item-price-book-section";
-import { ItemQualityInspectionSection } from "@/components/items/item-editor/item-quality-inspection-section";
 import { ItemSkusSection } from "@/components/items/item-editor/item-skus-section";
 import { itemTypeSupportsComposition } from "@/lib/products/composition";
 import { ITEM_EDITOR_TOGGLE_HELP } from "@/lib/products/item-editor-field-help";
@@ -147,7 +141,6 @@ export function ItemEssentialsStage({ model }: Props) {
     stageAccordionHeader,
     sectionVisible,
     registerSection,
-    isSectionMounted,
     isPanelLayout,
     wizard,
     readOnly,
@@ -189,10 +182,7 @@ export function ItemEssentialsStage({ model }: Props) {
     media,
     onExtensionsChanged,
     sellableVariantCount,
-    trackInventory,
-    name,
     fieldDisabled,
-    priceBookUomCodes,
     register,
     errors,
     setValue,
@@ -203,8 +193,6 @@ export function ItemEssentialsStage({ model }: Props) {
 
   const glassSections = useEditorGlassSections();
   const showCompositeItemSection = itemTypeSupportsComposition(itemType);
-  const hasGeneratedSku =
-    Boolean(itemId) && variants.some((variant) => variant.is_sellable !== false);
   const alertBannerClass = cn(
     "mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/30",
     isPanelLayout && !glassSections && "mb-3 rounded-md px-3 py-2.5",
@@ -350,44 +338,6 @@ export function ItemEssentialsStage({ model }: Props) {
             register={register}
             errors={errors}
             disableInput={disableInput}
-          />
-        </EditorSectionBlock>
-      ) : null}
-
-      {hasGeneratedSku ? (
-        <EditorSectionBlock
-          id="salable"
-          title={PRICE_BOOK_SECTION_LABEL}
-          description={PRICE_BOOK_SECTION_DESCRIPTION}
-          registerRef={registerSection("salable")}
-          hidden={!sectionVisible("salable")}
-          panel={isPanelLayout}
-        >
-          <ItemPriceBookSection
-            isPanelLayout={isPanelLayout}
-            isSalable={isSalable}
-            itemId={itemId}
-            variants={variants}
-            priceBookUomCodes={priceBookUomCodes}
-            readOnly={readOnly || disableInput("selling_price")}
-            isMounted={isSectionMounted("salable")}
-          />
-        </EditorSectionBlock>
-      ) : null}
-
-      {isPhysical && trackInventory && hasGeneratedSku ? (
-        <EditorSectionBlock
-          id="quality_inspection"
-          title={INSPECTION_TESTS_SECTION_LABEL}
-          description={INSPECTION_TESTS_SECTION_DESCRIPTION}
-          registerRef={registerSection("quality_inspection")}
-          hidden={!sectionVisible("quality_inspection")}
-          panel={isPanelLayout}
-        >
-          <ItemQualityInspectionSection
-            itemId={itemId}
-            readOnly={readOnly}
-            name={name}
           />
         </EditorSectionBlock>
       ) : null}

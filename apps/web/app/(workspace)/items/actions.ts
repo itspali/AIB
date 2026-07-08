@@ -603,6 +603,7 @@ export async function hydrateProductDetailMedia(itemId: string) {
 
 type ItemEditability = {
   has_history: boolean;
+  can_permanently_delete: boolean;
   locked_fields: string[];
 };
 
@@ -618,12 +619,39 @@ export async function getItemEditability(itemId: string) {
   }
 
   const raw = (data ?? {}) as Partial<ItemEditability>;
+  const hasHistory = Boolean(raw.has_history);
   return {
     editability: {
-      has_history: Boolean(raw.has_history),
+      has_history: hasHistory,
+      can_permanently_delete:
+        typeof raw.can_permanently_delete === "boolean"
+          ? raw.can_permanently_delete
+          : !hasHistory,
       locked_fields: Array.isArray(raw.locked_fields) ? raw.locked_fields : [],
     } satisfies ItemEditability,
   };
+}
+
+export async function deleteItem(itemId: string) {
+  const { supabase } = await requireTenantMutation();
+  const { error } = await supabase.rpc("delete_item", { p_item_id: itemId });
+
+  if (error) {
+    if (isMissingRpcError(error)) {
+      return { error: formatRpcDeployError("delete_item") };
+    }
+    const message = error.message ?? "";
+    if (message.includes("ITEM_IN_USE")) {
+      return {
+        error:
+          "This item is used in a transaction and cannot be permanently deleted. Archive it instead.",
+      };
+    }
+    return { error: message || "Unable to delete item." };
+  }
+
+  revalidatePath("/items");
+  return { success: true as const };
 }
 
 export type SimilarItem = {

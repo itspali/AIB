@@ -13,11 +13,14 @@ import {
   hasVariantAxisCandidates,
   moveVariantAxisKey,
   pickDescriptiveVariantAttributes,
+  resolveFormVariantStrategy,
   resolveVariantCompositionMode,
   sanitizeVariantAxisKeys,
   shouldComposeVariants,
   shouldLockProductCode,
   shouldLockVariantAxisPicker,
+  shouldShowSingleSkuEntryFields,
+  shouldShowVariantsWizardStage,
   splitTemplatesByAxis,
   toggleVariantAxisKey,
   usedVariantAttributeKeys,
@@ -326,6 +329,111 @@ describe("countVariantSkuRows", () => {
     expect(
       countVariantSkuRows([{ is_master: true }, { is_master: false }, { is_master: false }])
     ).toBe(2);
+  });
+});
+
+describe("shouldShowSingleSkuEntryFields", () => {
+  it("shows single entry for non-multi items", () => {
+    expect(
+      shouldShowSingleSkuEntryFields({
+        isMultiSku: false,
+        variantAxisKeys: [],
+        sellableVariantCount: 0,
+        variants: [],
+      })
+    ).toBe(true);
+  });
+
+  it("shows single entry for multi items before axes or variant rows exist", () => {
+    expect(
+      shouldShowSingleSkuEntryFields({
+        isMultiSku: true,
+        variantAxisKeys: [],
+        sellableVariantCount: 0,
+        variants: [{ is_master: true }],
+      })
+    ).toBe(true);
+  });
+
+  it("hides single entry when variant axes are selected", () => {
+    expect(
+      shouldShowSingleSkuEntryFields({
+        isMultiSku: true,
+        variantAxisKeys: ["size"],
+        sellableVariantCount: 0,
+        variants: [],
+      })
+    ).toBe(false);
+  });
+
+  it("hides single entry when variant SKU rows exist", () => {
+    expect(
+      shouldShowSingleSkuEntryFields({
+        isMultiSku: true,
+        variantAxisKeys: [],
+        sellableVariantCount: 1,
+        variants: [{ is_master: true }, { is_master: false }],
+      })
+    ).toBe(false);
+  });
+});
+
+describe("resolveFormVariantStrategy", () => {
+  it("forces SINGLE_SKU for unsaved items without axes or SKU rows", () => {
+    expect(
+      resolveFormVariantStrategy("MULTI_SKU", {
+        itemId: null,
+        variantAxisKeys: [],
+        sellableVariantCount: 0,
+        variants: [],
+      })
+    ).toBe("SINGLE_SKU");
+  });
+
+  it("preserves MULTI_SKU when axes are selected before save", () => {
+    expect(
+      resolveFormVariantStrategy("MULTI_SKU", {
+        itemId: null,
+        variantAxisKeys: ["size"],
+        sellableVariantCount: 0,
+        variants: [],
+      })
+    ).toBe("MULTI_SKU");
+  });
+
+  it("preserves inferred strategy for persisted items", () => {
+    expect(
+      resolveFormVariantStrategy("MULTI_SKU", {
+        itemId: "item-1",
+        variantAxisKeys: [],
+        sellableVariantCount: 0,
+        variants: [{ is_master: true }],
+      })
+    ).toBe("MULTI_SKU");
+  });
+});
+
+describe("shouldShowVariantsWizardStage", () => {
+  it("is false for single-SKU items", () => {
+    expect(
+      shouldShowVariantsWizardStage({
+        isMultiSku: false,
+        variantAxisKeys: [],
+        sellableVariantCount: 0,
+        variants: [],
+      })
+    ).toBe(false);
+  });
+
+  it("is true when variant axes are selected", () => {
+    expect(
+      shouldShowVariantsWizardStage({
+        isMultiSku: false,
+        variantAxisKeys: ["size"],
+        sellableVariantCount: 0,
+        variants: [],
+      })
+    ).toBe(true);
   });
 });
 

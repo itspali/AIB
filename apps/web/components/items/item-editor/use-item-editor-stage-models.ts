@@ -21,7 +21,7 @@ import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type { EditorStageId } from "@/lib/products/editor-stages";
 import type { ItemType } from "@/lib/products/item-model";
 import type { ItemTaxCodePickerOption } from "@/lib/tax/item-tax-code-picker";
-import { shouldLockProductCode } from "@/lib/products/variant-composition";
+import { shouldLockProductCode, shouldShowVariantsWizardStage } from "@/lib/products/variant-composition";
 import type { UomOption } from "@/lib/products/uom-options";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import type {
@@ -336,6 +336,8 @@ export function useItemEditorStageModels(
       valuations,
       name,
       categoryTemplates,
+      compositionTemplates,
+      extraSkuOptions,
       variantAxisKeys,
       suggestedVariantAxisKeys,
       sku,
@@ -428,6 +430,8 @@ export function useItemEditorStageModels(
       valuations,
       name,
       categoryTemplates,
+      compositionTemplates,
+      extraSkuOptions,
       variantAxisKeys,
       suggestedVariantAxisKeys,
       sku,
@@ -452,7 +456,92 @@ export function useItemEditorStageModels(
     ]
   );
 
-  const variantsModel = useMemo<ItemVariantsStageModel | null>(() => null, []);
+  const showVariantsWizardStage = shouldShowVariantsWizardStage({
+    isMultiSku,
+    variantAxisKeys,
+    sellableVariantCount,
+    variants,
+  });
+
+  const variantsModel = useMemo<ItemVariantsStageModel | null>(() => {
+    if (!showVariantsWizardStage) return null;
+    return {
+      stageAccordionHeader: renderStageAccordionHeader("versions"),
+      sectionVisible,
+      registerSection,
+      isPanelLayout,
+      isMultiSku,
+      itemId,
+      variants,
+      categoryTemplates: compositionTemplates,
+      variantAxisKeys,
+      suggestedVariantAxisKeys,
+      setValue,
+      skuMask,
+      sku,
+      sellingPrice,
+      purchasePrice,
+      standardCost,
+      matrixMrpDefault,
+      hsnSacCode,
+      supplierId,
+      deadWeightKg,
+      shippingVolume,
+      lengthCm,
+      widthCm,
+      heightCm,
+      variantStrategy,
+      isPhysical,
+      variantCompositionMode,
+      onRegisterVariantCommit: (commit) => {
+        variantCommitRef.current = commit;
+      },
+      onCompositionDraftChange: setCompositionDraft,
+      readOnly,
+      onVariantPatch,
+      onVariantsReload,
+      tenantId,
+      media,
+      onExtensionsChanged,
+    };
+  }, [
+    showVariantsWizardStage,
+    renderStageAccordionHeader,
+    sectionVisible,
+    registerSection,
+    isPanelLayout,
+    isMultiSku,
+    itemId,
+    variants,
+    compositionTemplates,
+    variantAxisKeys,
+    suggestedVariantAxisKeys,
+    setValue,
+    skuMask,
+    sku,
+    sellingPrice,
+    purchasePrice,
+    standardCost,
+    matrixMrpDefault,
+    hsnSacCode,
+    supplierId,
+    deadWeightKg,
+    shippingVolume,
+    lengthCm,
+    widthCm,
+    heightCm,
+    variantStrategy,
+    isPhysical,
+    variantCompositionMode,
+    variantCommitRef,
+    setCompositionDraft,
+    readOnly,
+    onVariantPatch,
+    onVariantsReload,
+    tenantId,
+    media,
+    onExtensionsChanged,
+  ]);
 
   const composition = useMemo<ItemCompositionStageModel | null>(() => {
     if (!itemId || !hasComposition) return null;
@@ -547,6 +636,9 @@ export function useItemEditorStageModels(
       purchaseCommerceUomOptions,
       purchaseUnitConversionHint,
       baseUom,
+      isSalable,
+      priceBookUomCodes,
+      name,
     };
   }, [
     itemId,
@@ -601,6 +693,9 @@ export function useItemEditorStageModels(
     purchaseCommerceUomOptions,
     purchaseUnitConversionHint,
     baseUom,
+    isSalable,
+    priceBookUomCodes,
+    name,
   ]);
 
   return useMemo(

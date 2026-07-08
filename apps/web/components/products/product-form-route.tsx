@@ -23,6 +23,7 @@ import {
   isEditorStageId,
   type EditorStageId,
 } from "@/lib/products/editor-stages";
+import { variantsWizardStageFromDetail } from "@/lib/products/variant-composition";
 import type { WizardNav } from "@/lib/products/use-product-create-wizard";
 import { SAVE_ITEM_LABEL, UPDATE_ITEM_LABEL } from "@/lib/products/product-user-labels";
 import {
@@ -85,8 +86,7 @@ export function ProductFormRoute({
   // --- Guided item wizard (create + edit) ------------------------------------
   const stageParam = searchParams.get("stage");
   const wizardActive = mode === "create" || mode === "edit";
-  const resolvedStageParam =
-    stageParam === "versions" ? "essentials" : stageParam;
+  const resolvedStageParam = stageParam;
   const currentStage: EditorStageId =
     mode === "create"
       ? "essentials"
@@ -94,19 +94,22 @@ export function ProductFormRoute({
         ? resolvedStageParam
         : "essentials";
 
-  const renderMultiSku = (detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
-  const renderHasComposition = detail?.is_bundle ?? false;
-  const renderOrder = editorStageOrder({
-    isMultiSku: renderMultiSku,
-    hasComposition: renderHasComposition,
-  });
-  const renderIndex = Math.max(0, renderOrder.indexOf(currentStage));
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [wizardPrimaryLabel, setWizardPrimaryLabel] = useState<string | null>(null);
   const [createPersistedId, setCreatePersistedId] = useState<string | null>(null);
   const [createDetail, setCreateDetail] = useState<ProductDetailSnapshot | null>(null);
   const effectiveDetail = detail ?? createDetail;
+
+  const renderShowVariantsWizardStage = effectiveDetail
+    ? variantsWizardStageFromDetail(effectiveDetail)
+    : false;
+  const renderHasComposition = effectiveDetail?.is_bundle ?? false;
+  const renderOrder = editorStageOrder({
+    showVariantsWizardStage: renderShowVariantsWizardStage,
+    hasComposition: renderHasComposition,
+  });
+  const renderIndex = Math.max(0, renderOrder.indexOf(currentStage));
   const wizardItemId = effectiveDetail?.id ?? createPersistedId;
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({ hasUnsavedChanges });
 
@@ -155,12 +158,11 @@ export function ProductFormRoute({
 
     // Recompute the stage order from the just-saved strategy so single-SKU
     // products skip optional stages when strategy changed during Essentials.
-    const multi =
-      (savedDetail?.variant_strategy ?? effectiveDetail?.variant_strategy ?? "SINGLE_SKU") ===
-      "MULTI_SKU";
     const composition = savedDetail?.is_bundle ?? effectiveDetail?.is_bundle ?? false;
     const order = editorStageOrder({
-      isMultiSku: multi,
+      showVariantsWizardStage: savedDetail
+        ? variantsWizardStageFromDetail(savedDetail)
+        : renderShowVariantsWizardStage,
       hasComposition: composition,
     });
     const at = Math.max(0, order.indexOf(currentStage));

@@ -50,6 +50,8 @@ export const EXTRA_SKU_OPTIONS_SECTION_HELP =
   "Only for this product — use when category fields do not cover how this item splits into SKUs.";
 export const ADD_EXTRA_SKU_OPTION_LABEL = "Add option for this product";
 export const SKUS_SAVE_FIRST_HINT = "Save the product once to add and generate additional SKUs.";
+export const VARIANT_ROWS_STAGE_HINT =
+  "Save the item, then open the Variants step to pick option values and generate SKUs.";
 
 /** @deprecated Use SKUS_SECTION_LABEL in item editor Essentials. */
 export const VARIANTS_SECTION_LABEL = "Variants";

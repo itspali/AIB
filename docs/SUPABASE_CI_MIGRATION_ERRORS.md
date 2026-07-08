@@ -63,6 +63,87 @@ Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 - **Already-applied migrations are never re-run** on remote. Editing them after a successful deploy has **no effect** unless the remote history is repaired manually.
 - **Local Supabase CLI is not used for deploy** in normal workflow — schema ships via Git only ([`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md)).
 
+### Git commands — apply migrations via CI (do not use local `db push`)
+
+Schema reaches Supabase **only** when migration files land on `develop` (sandbox) or `main` (production). GitHub Actions runs `supabase db push --yes --include-all` — you do not run that locally.
+
+#### 1. Add a new migration file
+
+```powershell
+# Confirm your timestamp sorts after the latest file
+Get-ChildItem supabase/migrations/*.sql | Sort-Object Name | Select-Object -Last 3 Name
+
+# Create the file (timestamp must be unique and increasing)
+# Example: supabase/migrations/20260808120000_permanent_item_delete.sql
+```
+
+#### 2. Commit and push to sandbox (develop)
+
+```bash
+git checkout develop
+git pull origin develop
+
+git add supabase/migrations/YYYYMMDDHHMMSS_your_migration.sql
+git status
+
+git commit -m "db: add YYYYMMDDHHMMSS_your_migration (brief purpose)"
+git push origin develop
+```
+
+After push, open **GitHub → Actions → CI/CD Supabase Deployment Engine** and confirm **Link & Push Migrations to AIB Sandbox** succeeds.
+
+#### 3. Feature branch → develop (optional)
+
+```bash
+git checkout -b db/your-migration-name
+git add supabase/migrations/YYYYMMDDHHMMSS_your_migration.sql
+git commit -m "db: add YYYYMMDDHHMMSS_your_migration (brief purpose)"
+git push -u origin db/your-migration-name
+```
+
+Open a PR into `develop`. When the PR merges, CI applies migrations to sandbox on the merge commit.
+
+#### 4. Promote sandbox-tested migrations to production (main)
+
+```bash
+git checkout main
+git pull origin main
+git merge develop
+git push origin main
+```
+
+CI runs the same push against **AIB Production**. Only merge to `main` after sandbox deploy is green.
+
+#### 5. Fix a migration that failed CI (never applied on remote)
+
+```bash
+git checkout develop
+git pull origin develop
+
+# Edit the same migration file (the one that failed — not a new timestamp yet)
+git add supabase/migrations/YYYYMMDDHHMMSS_failed_migration.sql
+git commit -m "fix: YYYYMMDDHHMMSS_failed_migration (CI error summary)"
+git push origin develop
+```
+
+#### 6. Fix after a migration already applied on sandbox
+
+Do **not** edit the applied file. Add a **new** forward migration with a later timestamp, then:
+
+```bash
+git add supabase/migrations/YYYYMMDDHHMMSS_fix_forward.sql
+git commit -m "db: fix forward after YYYYMMDDHHMMSS_original"
+git push origin develop
+```
+
+#### What not to run
+
+| Do not | Why |
+|--------|-----|
+| `supabase db push` locally | Bypasses Git; causes `schema_migrations` drift |
+| MCP / Dashboard DDL for core schema | Same drift; reconcile with no-op migration (see §8) |
+| Edit an already-applied migration file | Remote will not re-run it |
+
 ---
 
 ## 1. CI / infrastructure errors (no SQL executed)
@@ -458,4 +539,4 @@ DB: 20260607180000_foo.sql — append-only change to product_list_workspace_rows
 
 ---
 
-*Last updated: 2026-06-07 — includes failures from commits `f3794b3` / fix `56a9b79`, duplicate timestamp `f3ca196`, and CI `--include-all` `6667747`.*
+*Last updated: 2026-07-08 — added Git workflow commands for CI deploy (develop → sandbox, main → production).*

@@ -10,7 +10,10 @@ import type {
   VariantCompositionMode,
 } from "@/components/products/variant-matrix-generator";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { VARIANTS_SECTION_LABEL } from "@/lib/products/product-user-labels";
+import {
+  SKUS_SAVE_FIRST_HINT,
+  VARIANTS_SECTION_LABEL,
+} from "@/lib/products/product-user-labels";
 import { computeVolumeCm3FromDimensions } from "@/lib/products/shipping-dimensions";
 import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type {
@@ -26,7 +29,7 @@ export type ItemVariantsStageModel = {
   registerSection: (id: EditorSectionId) => (el: HTMLDivElement | null) => void;
   isPanelLayout: boolean;
   isMultiSku: boolean;
-  itemId: string;
+  itemId: string | null;
   variants: ProductVariantSnapshot[];
   categoryTemplates: AttributeTemplateEntry[];
   variantAxisKeys: string[];
@@ -107,59 +110,64 @@ export function ItemVariantsStage({ model }: Props) {
     <>
       {stageAccordionHeader}
       <EditorSectionBlock
-        id="variants"
+        id="variant_rows"
         title={VARIANTS_SECTION_LABEL}
         description={
           isPanelLayout
             ? undefined
-            : isMultiSku
-              ? "Choose what varies, then add or generate sellable variants (SKUs)."
-              : "Category attributes and any additional variants for this product."
+            : "Choose option values, then add or generate sellable SKU rows."
         }
-        registerRef={registerSection("variants")}
-        hidden={!sectionVisible("variants")}
+        registerRef={registerSection("variant_rows")}
+        hidden={!sectionVisible("variant_rows")}
         panel={isPanelLayout}
       >
         <div className={cn(isPanelLayout ? "space-y-4" : "space-y-6")}>
-          <ProductVariantPanel
-            itemId={itemId}
-            variants={variants}
-            categoryTemplates={categoryTemplates}
-            variantAxisKeys={isMultiSku ? variantAxisKeys : undefined}
-            suggestedVariantAxisKeys={isMultiSku ? suggestedVariantAxisKeys : undefined}
-            onVariantAxisKeysChange={
-              isMultiSku
-                ? (keys) => setValue("variant_axes", keys, { shouldDirty: true })
-                : undefined
-            }
-            skuMask={skuMask}
-            baseSku={sku}
-            defaultSellingPrice={sellingPrice}
-            defaultPurchasePrice={purchasePrice}
-            defaultStandardCost={standardCost}
-            defaultMrp={matrixMrpDefault}
-            defaultSupplierId={supplierId}
-            variantDefaults={{
-              price: sellingPrice,
-              dead_weight_kg: deadWeightKg,
-              volume:
-                computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm) || shippingVolume,
-              length_cm: lengthCm,
-              width_cm: widthCm,
-              height_cm: heightCm,
-            }}
-            variantStrategy={variantStrategy}
-            defaultShowDimensionColumns={isPhysical && isMultiSku}
-            compositionMode={variantCompositionMode}
-            onRegisterVariantCommit={onRegisterVariantCommit}
-            onCompositionDraftChange={onCompositionDraftChange}
-            readOnly={readOnly}
-            onVariantPatch={onVariantPatch}
-            onVariantsReload={onVariantsReload}
-            tenantId={tenantId}
-            media={media}
-            onMediaChanged={() => onExtensionsChanged?.()}
-          />
+          {itemId ? (
+            <ProductVariantPanel
+              itemId={itemId}
+              variants={variants}
+              categoryTemplates={categoryTemplates}
+              variantAxisKeys={isMultiSku ? variantAxisKeys : undefined}
+              suggestedVariantAxisKeys={isMultiSku ? suggestedVariantAxisKeys : undefined}
+              onVariantAxisKeysChange={
+                isMultiSku
+                  ? (keys) => setValue("variant_axes", keys, { shouldDirty: true })
+                  : undefined
+              }
+              skuMask={skuMask}
+              baseSku={sku}
+              defaultSellingPrice={sellingPrice}
+              defaultPurchasePrice={purchasePrice}
+              defaultStandardCost={standardCost}
+              defaultMrp={matrixMrpDefault}
+              defaultSupplierId={supplierId}
+              variantDefaults={{
+                price: sellingPrice,
+                dead_weight_kg: deadWeightKg,
+                volume:
+                  computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm) || shippingVolume,
+                length_cm: lengthCm,
+                width_cm: widthCm,
+                height_cm: heightCm,
+              }}
+              variantStrategy={variantStrategy}
+              defaultShowDimensionColumns={isPhysical && isMultiSku}
+              compositionMode={variantCompositionMode}
+              onRegisterVariantCommit={onRegisterVariantCommit}
+              onCompositionDraftChange={onCompositionDraftChange}
+              readOnly={readOnly}
+              onVariantPatch={onVariantPatch}
+              onVariantsReload={onVariantsReload}
+              tenantId={tenantId}
+              media={media}
+              onMediaChanged={() => onExtensionsChanged?.()}
+              showAxisPicker={false}
+            />
+          ) : (
+            <p className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+              {SKUS_SAVE_FIRST_HINT}
+            </p>
+          )}
         </div>
       </EditorSectionBlock>
     </>

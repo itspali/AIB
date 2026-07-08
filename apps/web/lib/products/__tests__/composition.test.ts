@@ -91,7 +91,7 @@ describe("validateCompositionDraftRows", () => {
 
 describe("editorStageOrder", () => {
   it("includes composition stage when sold as a set", () => {
-    expect(editorStageOrder({ isMultiSku: false, hasComposition: true })).toEqual([
+    expect(editorStageOrder({ showVariantsWizardStage: false, hasComposition: true })).toEqual([
       "essentials",
       "composition",
       "reach",

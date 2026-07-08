@@ -18,6 +18,8 @@ import {
   EditorSectionBlock,
 } from "@/components/products/product-editor/editor-form-primitives";
 import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
+import { ItemPriceBookSection } from "@/components/items/item-editor/item-price-book-section";
+import { ItemQualityInspectionSection } from "@/components/items/item-editor/item-quality-inspection-section";
 import { fieldHelpText, SubsectionHeading } from "@/components/ui/field-label-info";
 import type { UomOption } from "@/lib/products/uom-options";
 import { editorCatalogBlockClass } from "@/lib/products/editor-chrome";
@@ -25,6 +27,10 @@ import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type { EditorStageId } from "@/lib/products/editor-stages";
 import {
+  INSPECTION_TESTS_SECTION_DESCRIPTION,
+  INSPECTION_TESTS_SECTION_LABEL,
+  PRICE_BOOK_SECTION_DESCRIPTION,
+  PRICE_BOOK_SECTION_LABEL,
   CATALOG_REACH_DISTRIBUTION_LOADING,
   CATEGORY_FIELDS_SECTION_HELP,
   CUSTOM_FIELDS_SECTION_HELP,
@@ -107,6 +113,9 @@ export type ItemReachStageModel = {
   purchaseCommerceUomOptions: UomOption[];
   purchaseUnitConversionHint?: string;
   baseUom: string;
+  isSalable: boolean;
+  priceBookUomCodes: string[];
+  name: string;
 };
 
 type Props = {
@@ -158,7 +167,12 @@ export function ItemReachStage({ model }: Props) {
     errors,
     disableInput,
     isPurchasable,
+    isSalable,
+    priceBookUomCodes,
+    name,
   } = model;
+
+  const hasGeneratedSku = variants.some((variant) => variant.is_sellable !== false);
 
   return (
     <>
@@ -184,6 +198,40 @@ export function ItemReachStage({ model }: Props) {
               Vendor quotes load when you open this section.
             </p>
           )}
+        </EditorSectionBlock>
+      ) : null}
+
+      {hasGeneratedSku ? (
+        <EditorSectionBlock
+          id="salable"
+          title={PRICE_BOOK_SECTION_LABEL}
+          description={PRICE_BOOK_SECTION_DESCRIPTION}
+          registerRef={registerSection("salable")}
+          hidden={!sectionVisible("salable")}
+          panel={isPanelLayout}
+        >
+          <ItemPriceBookSection
+            isPanelLayout={isPanelLayout}
+            isSalable={isSalable}
+            itemId={itemId}
+            variants={variants}
+            priceBookUomCodes={priceBookUomCodes}
+            readOnly={readOnly || disableInput("selling_price")}
+            isMounted={isSectionMounted("salable")}
+          />
+        </EditorSectionBlock>
+      ) : null}
+
+      {isPhysical && trackInventory && hasGeneratedSku ? (
+        <EditorSectionBlock
+          id="quality_inspection"
+          title={INSPECTION_TESTS_SECTION_LABEL}
+          description={INSPECTION_TESTS_SECTION_DESCRIPTION}
+          registerRef={registerSection("quality_inspection")}
+          hidden={!sectionVisible("quality_inspection")}
+          panel={isPanelLayout}
+        >
+          <ItemQualityInspectionSection itemId={itemId} readOnly={readOnly} name={name} />
         </EditorSectionBlock>
       ) : null}
 

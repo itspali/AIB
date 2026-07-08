@@ -213,7 +213,10 @@ export function useItemEditorSaveOrchestration({
     if (essentialsLabel) return essentialsLabel;
 
     if (submitPending) {
-      if (activeWizardStage === "essentials" && variantCompositionMode === "draft") {
+      if (
+        (activeWizardStage === "essentials" || activeWizardStage === "versions") &&
+        variantCompositionMode === "draft"
+      ) {
         return "Saving variants…";
       }
       if (activeWizardStage === "composition") {
@@ -290,8 +293,8 @@ export function useItemEditorSaveOrchestration({
           let committedDetail: ProductDetailSnapshot | undefined;
 
           if (
-            activeWizardStage === "essentials" &&
-            variantCompositionMode === "draft" &&
+            (activeWizardStage === "essentials" || activeWizardStage === "versions") &&
+            (activeWizardStage !== "essentials" || variantCompositionMode === "draft") &&
             variantCommitRef.current
           ) {
             const result = await variantCommitRef.current();

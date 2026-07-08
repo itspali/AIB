@@ -21,16 +21,20 @@ export const EDITOR_STAGES: EditorStage[] = [
   {
     id: "essentials",
     label: "Essentials",
-    description: "Identity, SKUs, pricing, and stock.",
+    description: "Identity, SKU setup, units, and stock settings.",
     sections: [
       "overview",
       "variants",
       "composite_item",
       "alternate_uoms",
       "item_logistics",
-      "salable",
-      "quality_inspection",
     ],
+  },
+  {
+    id: "versions",
+    label: "Variants",
+    description: "Pick option values and create sellable SKUs.",
+    sections: ["variant_rows"],
   },
   {
     id: "composition",
@@ -41,8 +45,17 @@ export const EDITOR_STAGES: EditorStage[] = [
   {
     id: "reach",
     label: "Catalog & reach",
-    description: "Vendors, media, tags, custom fields, and where it sells.",
-    sections: ["purchasable", "media", "product_attributes", "custom_fields", "tags", "visibility"],
+    description: "Pricing, vendors, media, tags, custom fields, and where it sells.",
+    sections: [
+      "purchasable",
+      "salable",
+      "quality_inspection",
+      "media",
+      "product_attributes",
+      "custom_fields",
+      "tags",
+      "visibility",
+    ],
   },
 ];
 
@@ -69,16 +82,18 @@ export function stageForSection(sectionId: EditorSectionId): EditorStageId | und
 }
 
 export type EditorStageOrderInput = {
-  isMultiSku: boolean;
+  showVariantsWizardStage: boolean;
   hasComposition: boolean;
 };
 
 /**
  * Stage order for a specific item.
+ * - Variants: when the item uses multi-SKU composition (axes or variant rows)
  * - Composition: when sold as a set (`is_bundle`)
  */
 export function editorStageOrder(input: EditorStageOrderInput): EditorStageId[] {
   return EDITOR_STAGE_IDS.filter((id) => {
+    if (id === "versions" && !input.showVariantsWizardStage) return false;
     if (id === "composition" && !input.hasComposition) return false;
     return true;
   });

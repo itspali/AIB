@@ -17,6 +17,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   itemLabel: string;
   isPending: boolean;
+  /** When true, hard-delete; otherwise soft-archive. */
+  canPermanentlyDelete: boolean;
   onConfirm: () => void;
 };
 
@@ -25,6 +27,7 @@ export function ProductItemArchiveAlert({
   onOpenChange,
   itemLabel,
   isPending,
+  canPermanentlyDelete,
   onConfirm,
 }: Props) {
   return (
@@ -34,14 +37,29 @@ export function ProductItemArchiveAlert({
           <AlertDialogTitle>Delete {itemLabel}?</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>
-                This archives the product and linked variants by setting them inactive.
-                Historical financial lines, purchase orders, and sales records stay intact.
-              </p>
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
-                The record is not permanently removed from storage; it is excluded from operational
-                flows.
-              </p>
+              {canPermanentlyDelete ? (
+                <>
+                  <p>
+                    This permanently removes the product and linked catalog data (variants, media,
+                    tags, and channel visibility). This cannot be undone.
+                  </p>
+                  <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                    Permanent deletion is allowed because this item is not used in any transaction.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    This archives the product and linked variants by setting them inactive.
+                    Historical financial lines, purchase orders, and sales records stay intact.
+                  </p>
+                  <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                    The record is not permanently removed from storage; it is excluded from
+                    operational flows. Permanent delete is blocked while the item appears on
+                    transactions.
+                  </p>
+                </>
+              )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -56,7 +74,7 @@ export function ProductItemArchiveAlert({
             }}
           >
             {isPending ? <Spinner /> : null}
-            Delete item
+            {canPermanentlyDelete ? "Delete permanently" : "Archive item"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

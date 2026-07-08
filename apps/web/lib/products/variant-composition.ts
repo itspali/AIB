@@ -91,6 +91,71 @@ export function shouldLockProductCode(variants: Array<{ is_master?: boolean }>):
   return countVariantSkuRows(variants) >= 1;
 }
 
+/**
+ * True when the SKUs section should show the single-SKU entry row (SKU + GTIN on one form),
+ * not the multi-SKU product-code-only field.
+ */
+export function shouldShowSingleSkuEntryFields(input: {
+  isMultiSku: boolean;
+  variantAxisKeys: string[];
+  sellableVariantCount: number;
+  variants: Array<{ is_master?: boolean }>;
+}): boolean {
+  if (input.variantAxisKeys.length > 0) return false;
+  if (!input.isMultiSku) return true;
+  if (input.sellableVariantCount >= 2) return false;
+  if (countVariantSkuRows(input.variants) >= 1) return false;
+  return true;
+}
+
+/** Multi-variant items get a dedicated Variants wizard stage (axes setup stays in Essentials). */
+export function shouldShowVariantsWizardStage(input: {
+  isMultiSku: boolean;
+  variantAxisKeys: string[];
+  sellableVariantCount: number;
+  variants: Array<{ is_master?: boolean }>;
+}): boolean {
+  return !shouldShowSingleSkuEntryFields(input);
+}
+
+/** Resolve whether the Variants wizard stage applies from a saved item snapshot. */
+export function variantsWizardStageFromDetail(input: {
+  item_type: string;
+  variant_strategy: string;
+  variant_axes?: string[] | null;
+  variants?: Array<{ is_master?: boolean; is_sellable?: boolean }>;
+}): boolean {
+  if (input.item_type !== "PHYSICAL") return false;
+  const variants = input.variants ?? [];
+  return shouldShowVariantsWizardStage({
+    isMultiSku: input.variant_strategy === "MULTI_SKU",
+    variantAxisKeys: input.variant_axes ?? [],
+    sellableVariantCount: countSellableVariants(variants),
+    variants,
+  });
+}
+
+/** Keeps unsaved items in single-SKU form mode until variant axes or SKU rows exist. */
+export function resolveFormVariantStrategy(
+  inferred: "SINGLE_SKU" | "MULTI_SKU",
+  input: {
+    itemId: string | null;
+    variantAxisKeys: string[];
+    sellableVariantCount: number;
+    variants: Array<{ is_master?: boolean }>;
+  }
+): "SINGLE_SKU" | "MULTI_SKU" {
+  if (
+    !input.itemId &&
+    input.variantAxisKeys.length === 0 &&
+    input.sellableVariantCount === 0 &&
+    countVariantSkuRows(input.variants) === 0
+  ) {
+    return "SINGLE_SKU";
+  }
+  return inferred;
+}
+
 /** Lock axis chips once two or more sellable SKU rows exist (not the master-only row). */
 export function shouldLockVariantAxisPicker(
   variants: Array<{ is_master?: boolean; is_sellable?: boolean }>
