@@ -11,6 +11,7 @@ import {
   itemNamesMatchTenantWide,
 } from "@/lib/products/item-name-uniqueness";
 import { finalizeAttributeTemplateRows } from "@/lib/categories/attribute-key";
+import { fetchCategoryRows } from "@/lib/categories/queries";
 import type { ItemSource } from "@/lib/products/item-model";
 import { generatePdfFromHtml } from "@/lib/email/generate-document-pdf";
 import { enrichProductDetailSnapshot } from "@/lib/products/detail-enrichment";

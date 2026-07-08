@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ATTRIBUTE_FIELD_TYPE_VALUES } from "@/lib/categories/attribute-types";
+import { ATTRIBUTE_FIELD_TYPE_VALUES, type AttributeFieldType } from "@/lib/categories/attribute-types";
 import { ITEM_CLASSIFICATIONS } from "@/lib/products/classification-labels";
 import { alternateUomRowSchema, customFieldRowSchema, storefrontVisibilityRowSchema } from "@/lib/products/catalog-schemas";
 import {
@@ -25,7 +25,9 @@ const uomCode = z.string().trim().min(1, "Select a unit of measure").max(32);
 const attributeTemplateEntrySchema = z.object({
   key: z.string().trim().min(1).max(64),
   label: z.string().trim().min(1).max(120),
-  type: z.enum(ATTRIBUTE_FIELD_TYPE_VALUES as unknown as [string, ...string[]]),
+  type: z.enum(
+    ATTRIBUTE_FIELD_TYPE_VALUES as unknown as [AttributeFieldType, ...AttributeFieldType[]]
+  ),
   required: z.boolean().optional(),
   options: z.array(z.string().trim().min(1)).optional(),
   role: z.enum(["axis", "descriptive"]).optional(),
