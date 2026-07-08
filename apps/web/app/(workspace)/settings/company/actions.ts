@@ -79,6 +79,7 @@ export async function saveOrganizationSettings(raw: unknown) {
       sku_auto_generation_enabled: values.sku_auto_generation_enabled,
       sku_auto_pattern: values.sku_auto_pattern,
       sku_auto_prefix: values.sku_auto_prefix,
+      allow_duplicate_item_names: values.allow_duplicate_item_names,
     },
     p_location_governance_config_patch: {
       multi_location_enabled: values.multi_location_enabled,

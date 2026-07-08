@@ -1,6 +1,6 @@
 import {
   VARIANT_STRATEGY_CHOICES,
-  VARIANT_STRATEGY_FIELD_INTRO,
+  VARIANT_STRATEGY_FIELD_FOOTNOTE,
 } from "@/lib/products/variant-strategy";
 
 /** Plain-language hints for item editor field info icons. */
@@ -9,7 +9,9 @@ export const ITEM_EDITOR_FIELD_HELP = {
     "The name shown on orders, bills, and your shop. Example: Standard service package.",
   sku: "Your internal product code. Different sizes or colors get their own codes later.",
   productCodeMultiSku:
-    "Stable code for the product. Sellable SKUs are added under Variants.",
+    "Stable code for the product. Set before generating SKUs — it becomes the base in your SKU pattern.",
+  productCodeLocked:
+    "Locked after variant SKUs exist. Rename individual SKUs in the grid below; changing this would not update them.",
   category:
     "Links size/color options and tax ideas from your category list. Pick a category or leave uncategorized.",
   description:
@@ -33,7 +35,7 @@ export const ITEM_EDITOR_FIELD_HELP = {
   hsnExample: "Example: 8471 for goods or 998314 for services.",
   taxRuleSelect:
     "Pick the GST rate for this item, or choose No tax rule until you have decided.",
-  variantStrategySelect: "Choose how many sellable SKUs this product has.",
+  variantStrategySelect: "Single or multiple variants.",
   supplyChainRoleSelect: "What this item is used for in reports and purchasing.",
   sellingRate:
     "Default sell price for all variants. Override on a variant row or in price book entries. Example: 0.00.",
@@ -152,7 +154,6 @@ export const SUPPLY_FIELD_HELP = {
 export function VariantStrategyFieldHelp() {
   return (
     <>
-      <p>{VARIANT_STRATEGY_FIELD_INTRO}</p>
       <ul className="list-none space-y-1.5 pl-0">
         {VARIANT_STRATEGY_CHOICES.map((choice) => (
           <li key={choice.value}>
@@ -162,6 +163,7 @@ export function VariantStrategyFieldHelp() {
           </li>
         ))}
       </ul>
+      <p className="text-muted-foreground">{VARIANT_STRATEGY_FIELD_FOOTNOTE}</p>
     </>
   );
 }

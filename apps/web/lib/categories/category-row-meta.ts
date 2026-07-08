@@ -6,7 +6,7 @@ import type { CategoryListRow } from "@/lib/categories/list-row";
 export const CATEGORY_ROW_META_COLUMN_IDS: CategoryListColumnId[] = [
   "parent_name",
   "item_count",
-  "default_variant_strategy",
+  "default_item_type",
   "updated_at",
 ];
 

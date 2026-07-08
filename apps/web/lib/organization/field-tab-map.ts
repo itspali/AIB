@@ -39,6 +39,7 @@ const FIELD_TAB: Partial<Record<keyof OrganizationSettingsFormValues, OrgSetting
   sku_auto_generation_enabled: ORG_SETTINGS_TAB_IDS.accounting,
   sku_auto_pattern: ORG_SETTINGS_TAB_IDS.accounting,
   sku_auto_prefix: ORG_SETTINGS_TAB_IDS.accounting,
+  allow_duplicate_item_names: ORG_SETTINGS_TAB_IDS.accounting,
   allow_line_item_discounts: ORG_SETTINGS_TAB_IDS.accounting,
   allow_transaction_discounts: ORG_SETTINGS_TAB_IDS.accounting,
   accounting_period_closing_date: ORG_SETTINGS_TAB_IDS.accounting,

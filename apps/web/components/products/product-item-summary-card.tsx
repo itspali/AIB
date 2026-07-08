@@ -572,7 +572,8 @@ export function ProductItemSummaryCard({
     (variantSkuContext ? null : masterVariant);
 
   const sellableVariants = detail.variants.filter((v) => !v.is_master);
-  const tableVariants = isMultiSku ? sellableVariants : detail.variants;
+  const showSellableVariantRows = isMultiSku || detail.has_variants;
+  const tableVariants = showSellableVariantRows ? sellableVariants : detail.variants;
   const visibleStorefronts = detail.storefront_visibility.filter((s) => s.is_visible);
 
   const totalStock = detail.valuations.reduce(
@@ -620,7 +621,10 @@ export function ProductItemSummaryCard({
   const storefrontVisibleCount = detail.media.filter((entry) => entry.show_on_storefront).length;
   const usePeekTabs = Boolean(onPeekPanelChange);
   const showVariantsTab =
-    isMultiSku || resolveTotalVariantCount(detail) > 1 || detail.variants.length > 1;
+    isMultiSku ||
+    detail.has_variants ||
+    resolveTotalVariantCount(detail) > 1 ||
+    sellableVariants.length > 0;
   const activeSection = peekPanelToSection(peekPanel);
   const isActivePanelLoading =
     Boolean(activeSection) &&
@@ -977,7 +981,8 @@ export function ProductItemSummaryCard({
         </>
         ) : null}
 
-        {showPanel("variants") && (isMultiSku || detail.variants.length > 1) ? (
+        {showPanel("variants") &&
+        (isMultiSku || detail.has_variants || sellableVariants.length > 0 || detail.variants.length > 1) ? (
           <ProfileSectionCard
             title={VARIANTS_SECTION_LABEL}
             description={VARIANTS_PEEK_DESCRIPTION(

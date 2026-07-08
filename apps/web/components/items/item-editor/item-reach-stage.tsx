@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
-import type { UseFormSetValue } from "react-hook-form";
+import type { FieldErrors, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import type { VariantAssortmentCell } from "@/app/items/actions";
 import { ProductCatalogExtensions } from "@/components/products/product-catalog-extensions";
 import { ProductMediaGallery } from "@/components/products/product-media-gallery";
@@ -14,8 +14,13 @@ import {
   VariantOpeningStockMatrix,
   type VariantOpeningStockMatrixHandle,
 } from "@/components/products/variant-opening-stock-matrix";
-import { EditorSectionBlock } from "@/components/products/product-editor/editor-form-primitives";
+import {
+  EditorSectionBlock,
+} from "@/components/products/product-editor/editor-form-primitives";
+import { SupplierCatalogEditor } from "@/components/products/supplier-catalog-editor";
 import { fieldHelpText, SubsectionHeading } from "@/components/ui/field-label-info";
+import type { UomOption } from "@/lib/products/uom-options";
+import { editorCatalogBlockClass } from "@/lib/products/editor-chrome";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type { EditorStageId } from "@/lib/products/editor-stages";
@@ -34,7 +39,6 @@ import {
   VISIBILITY_SECTION_HELP,
   VISIBILITY_SECTION_LABEL,
 } from "@/lib/products/product-user-labels";
-import { editorCatalogBlockClass } from "@/lib/products/editor-chrome";
 import type {
   ProductCatalogContext,
   ProductMasterFormValues,
@@ -90,6 +94,19 @@ export type ItemReachStageModel = {
   purchasePrice: string;
   standardCost: string;
   draftAssortmentCells: VariantAssortmentCell[] | null;
+  register: UseFormRegister<ProductMasterFormValues>;
+  errors: FieldErrors<ProductMasterFormValues>;
+  disableInput: (formField: keyof ProductMasterFormValues | string, lockKey?: string) => boolean;
+  pricingFieldsLocked: boolean;
+  isPurchasable: boolean;
+  showPurchasableAdvanced: boolean;
+  setShowPurchasableAdvanced: (value: boolean | ((prev: boolean) => boolean)) => void;
+  showPurchaseUnitField: boolean;
+  showPurchaseConversionField: boolean;
+  purchaseUom: string;
+  purchaseCommerceUomOptions: UomOption[];
+  purchaseUnitConversionHint?: string;
+  baseUom: string;
 };
 
 type Props = {
@@ -137,11 +154,39 @@ export function ItemReachStage({ model }: Props) {
     purchasePrice,
     standardCost,
     draftAssortmentCells,
+    register,
+    errors,
+    disableInput,
+    isPurchasable,
   } = model;
 
   return (
     <>
       {stageAccordionHeader}
+      {sectionVisible("purchasable") && isPurchasable ? (
+        <EditorSectionBlock
+          id="purchasable"
+          title="Vendor quotes"
+          description="Supplier-specific purchase rates and lead times."
+          registerRef={registerSection("purchasable")}
+          panel={isPanelLayout}
+        >
+          {isSectionMounted("purchasable") ? (
+            <SupplierCatalogEditor
+              embedded
+              itemId={itemId}
+              variants={variants}
+              suppliers={catalogContext.suppliers}
+              readOnly={readOnly || disableInput("purchase_price")}
+            />
+          ) : (
+            <p className="text-xs leading-snug text-muted-foreground">
+              Vendor quotes load when you open this section.
+            </p>
+          )}
+        </EditorSectionBlock>
+      ) : null}
+
             <EditorSectionBlock
               id="media"
               title="Media"

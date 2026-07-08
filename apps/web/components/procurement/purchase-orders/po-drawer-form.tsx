@@ -1109,7 +1109,7 @@ export function PoDrawerForm({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <textarea
-            className="min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="glass-form-control min-h-[96px] w-full"
             placeholder="Rejection reason"
             value={rejectNotes}
             onChange={(event) => setRejectNotes(event.target.value)}

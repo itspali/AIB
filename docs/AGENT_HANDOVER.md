@@ -9,6 +9,7 @@ You are an Elite Enterprise Full-Stack Engineer and Core Database Architect. You
 - **Import logistics (staging receipts, GIT, shipments):** read [`docs/IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md).
 - **Procurement billing (bills, three-way match, AP posting):** read [`docs/PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md).
 - **Procurement PO / GRN / future Sales line-entry docs:** read [`docs/PO_UX_PLAN.md`](./PO_UX_PLAN.md) for commercial UX decisions and [`docs/DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §5.4 for reusable drawer layout.
+- **Job work / subcontracting (principal + job-worker personas, Wave 6 gaps, roadmap):** read [`docs/JOB_WORK_PLAN.md`](./JOB_WORK_PLAN.md).
 
 ## 2. Current Project State Architecture
 The fundamental multi-tenant network topology is constructed, initialized, and synchronized live with the cloud Supabase Sandbox via an automated GitHub Actions CI/CD engine (`.github/workflows/deploy.yml`).

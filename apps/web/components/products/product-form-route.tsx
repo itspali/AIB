@@ -26,6 +26,10 @@ import {
 import type { WizardNav } from "@/lib/products/use-product-create-wizard";
 import { SAVE_ITEM_LABEL, UPDATE_ITEM_LABEL } from "@/lib/products/product-user-labels";
 import {
+  essentialsCreatePrimaryLabel,
+  type ItemSavedOptions,
+} from "@/lib/products/item-editor/editor-shell-shared";
+import {
   ITEM_CATALOG_ORIGIN_PARAM,
   ITEM_CATALOG_ORIGIN_VALUE,
   ITEMS_HREF,
@@ -81,8 +85,14 @@ export function ProductFormRoute({
   // --- Guided item wizard (create + edit) ------------------------------------
   const stageParam = searchParams.get("stage");
   const wizardActive = mode === "create" || mode === "edit";
+  const resolvedStageParam =
+    stageParam === "versions" ? "essentials" : stageParam;
   const currentStage: EditorStageId =
-    mode === "create" ? "essentials" : isEditorStageId(stageParam) ? stageParam : "essentials";
+    mode === "create"
+      ? "essentials"
+      : isEditorStageId(resolvedStageParam)
+        ? resolvedStageParam
+        : "essentials";
 
   const renderMultiSku = (detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
   const renderHasComposition = detail?.is_bundle ?? false;
@@ -93,6 +103,11 @@ export function ProductFormRoute({
   const renderIndex = Math.max(0, renderOrder.indexOf(currentStage));
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [wizardPrimaryLabel, setWizardPrimaryLabel] = useState<string | null>(null);
+  const [createPersistedId, setCreatePersistedId] = useState<string | null>(null);
+  const [createDetail, setCreateDetail] = useState<ProductDetailSnapshot | null>(null);
+  const effectiveDetail = detail ?? createDetail;
+  const wizardItemId = effectiveDetail?.id ?? createPersistedId;
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({ hasUnsavedChanges });
 
   // The shell hands us its submit trigger; nav buttons set intent then save.
@@ -100,28 +115,50 @@ export function ProductFormRoute({
   const navRef = useRef<WizardNav>({ type: "primary" });
 
   const initialValues =
-    detail && mode !== "create"
+    effectiveDetail && mode !== "create"
       ? {
-          ...detailToFormValues(detail),
+          ...detailToFormValues(effectiveDetail),
           storefront_visibility: mergeStorefrontVisibility(
             catalogContext.storefronts,
-            detailToFormValues(detail).storefront_visibility
+            detailToFormValues(effectiveDetail).storefront_visibility
           ),
         }
-      : undefined;
+      : createDetail
+        ? {
+            ...detailToFormValues(createDetail),
+            storefront_visibility: mergeStorefrontVisibility(
+              catalogContext.storefronts,
+              detailToFormValues(createDetail).storefront_visibility
+            ),
+          }
+        : undefined;
 
   const handleSaved = (
     savedItemId: string,
-    savedDetail?: ProductDetailSnapshot | null
+    savedDetail?: ProductDetailSnapshot | null,
+    options?: ItemSavedOptions
   ) => {
     if (!wizardActive) return;
     if (wizardLayout === "accordion") return;
 
+    if (savedDetail) {
+      setCreateDetail(savedDetail);
+    }
+
+    if (options?.advanceWizard === false) {
+      setCreatePersistedId(savedItemId);
+      if (mode === "create") {
+        replace(wizardEditHref(savedItemId, "essentials", fromCatalog));
+      }
+      return;
+    }
+
     // Recompute the stage order from the just-saved strategy so single-SKU
-    // Single-SKU products skip the Variants stage even when strategy changed during Essentials.
+    // products skip optional stages when strategy changed during Essentials.
     const multi =
-      (savedDetail?.variant_strategy ?? detail?.variant_strategy ?? "SINGLE_SKU") === "MULTI_SKU";
-    const composition = savedDetail?.is_bundle ?? detail?.is_bundle ?? false;
+      (savedDetail?.variant_strategy ?? effectiveDetail?.variant_strategy ?? "SINGLE_SKU") ===
+      "MULTI_SKU";
+    const composition = savedDetail?.is_bundle ?? effectiveDetail?.is_bundle ?? false;
     const order = editorStageOrder({
       isMultiSku: multi,
       hasComposition: composition,
@@ -147,6 +184,25 @@ export function ProductFormRoute({
   };
 
   const wizardLayout = mode === "edit" ? "accordion" : "steps";
+
+  const headerPrimaryLabel =
+    wizardPrimaryLabel ??
+    essentialsCreatePrimaryLabel({
+      createEssentialsWizard: wizardLayout === "steps",
+      activeWizardStage: currentStage,
+      itemId: wizardItemId,
+      isDirty: hasUnsavedChanges,
+      submitPending: isSaving,
+    }) ??
+    (isSaving
+      ? "Saving..."
+      : wizardLayout === "accordion"
+        ? mode === "edit"
+          ? UPDATE_ITEM_LABEL
+          : SAVE_ITEM_LABEL
+        : mode === "create"
+          ? "Next"
+          : "Save & continue");
 
   const wizard: EditorWizardChrome | undefined = wizardActive
     ? {
@@ -250,13 +306,7 @@ export function ProductFormRoute({
               onClick={handleHeaderSave}
               title="Save (Cmd/Ctrl + Enter)"
             >
-              {isSaving
-                ? "Saving..."
-                : wizardLayout === "accordion"
-                  ? mode === "edit"
-                    ? UPDATE_ITEM_LABEL
-                    : SAVE_ITEM_LABEL
-                  : "Save & continue"}
+              {headerPrimaryLabel}
             </Button>
           ) : null}
           {mode === "view" && detail ? (
@@ -289,15 +339,15 @@ export function ProductFormRoute({
       >
         {wizard ? (
           <ItemCatalogWizardEditor
-            key={`${detail?.id ?? "new"}-${mode}`}
+            key={`${effectiveDetail?.id ?? createPersistedId ?? "new"}-${mode}`}
             mode={mode}
             tenantId={tenantId}
             categories={categories}
             catalogContext={catalogContext}
-            detail={detail}
-            valuations={detail?.valuations}
-            variants={detail?.variants}
-            media={detail?.media}
+            detail={effectiveDetail}
+            valuations={effectiveDetail?.valuations}
+            variants={effectiveDetail?.variants}
+            media={effectiveDetail?.media}
             initialValues={initialValues}
             lockedFields={lockedFields}
             onCancel={handleHeaderClose}
@@ -305,6 +355,7 @@ export function ProductFormRoute({
             isNavigatePending={isNavigating}
             onPendingChange={setIsSaving}
             onDirtyChange={setHasUnsavedChanges}
+            onWizardPrimaryLabelChange={setWizardPrimaryLabel}
             onExtensionsChanged={() => refresh()}
             wizard={wizard}
           />

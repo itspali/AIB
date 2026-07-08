@@ -35,7 +35,6 @@ import {
   useListWorkspaceSplitDesktop,
 } from "@/components/layout/list-workspace-split-layout";
 import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
-import { LIST_WORKSPACE_GLASS_V2_ROOT } from "@/lib/layout/list-module-chrome";
 import { useListWorkspace, type ListWorkspaceLayout } from "@/lib/layout/list-workspace";
 import { isMutationSurface } from "@/lib/layout/module-drawer-url";
 import { filterCategoryListRowsByFeedQuery } from "@/lib/categories/feed-filter";
@@ -598,14 +597,9 @@ export function CategoryManagementTerminal({
 
   return (
     <>
-      <div
-        data-list-workspace-layout={workspaceLayout}
-        data-ui-header-chrome="unified"
-        className={cn("flex min-h-0 flex-1 flex-col", LIST_WORKSPACE_GLASS_V2_ROOT)}
-      >
-        <ListModuleShell
-          surface="classic"
-          title={
+      <ListModuleShell
+        catalogBody={useInlineSplitDetail}
+        title={
             <CategoriesUnifiedCatalogHeader
               onNewCategory={drawer.openCreate}
               count={toolbarCount}
@@ -642,7 +636,6 @@ export function CategoryManagementTerminal({
             </>
           )}
         </ListModuleShell>
-      </div>
 
       {drawerOpen ? (
         <CategoryDrawerForm

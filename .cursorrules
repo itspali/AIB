@@ -10,9 +10,12 @@
 - **UX Constraint**: Raw HTML or un-mapped Tailwind utility declarations for base buttons or tables are strictly prohibited. centralize through a uniform element kit.
 
 ## 3. Glass V2 UI tokens (list workspaces, settings, overviews)
+- **Light theme:** `theme-light-glass` (cool slate Glass V2 light palette) — see `apps/web/lib/theme/themes.ts` and `globals.css`.
 - **List workspace root:** `LIST_WORKSPACE_GLASS_V2_ROOT` / `.list-workspace-root` / `.glass-v2-root` — see `apps/web/lib/layout/list-module-chrome.ts` and `globals.css` § Shared list workspace.
 - **App shell chrome:** `GLASS_V2_APP_SHELL_ROOT` / `.glass-v2-app-shell` — dashboard sidebar, top strip, mobile nav.
-- **List module opt-in:** `ListModuleShell` defaults to `surface="glass-v2"`. Frozen Items/Categories use external `LIST_WORKSPACE_GLASS_V2_ROOT` + `surface="classic"` until consolidation.
-- **Settings panels:** `SettingsGlassShell` / `.settings-glass-shell` and shared `.surface-panel` for form sections.
+- **List module shell:** `ListModuleShell` defaults to `surface="glass-v2"` (single shell path; no external glass wrapper).
+- **Form controls in glass scopes:** `GLASS_FORM_CONTROL` / `.glass-form-control` for drawer textareas and glass-scoped inputs.
+- **Settings panels:** `SettingsGlassShell` / `.settings-glass-shell`, `.settings-glass-nav`, `.settings-glass-sticky-header`, and shared `.surface-panel` for form sections.
 - **Module overviews:** `OverviewGlassShell` / `.overview-glass-root` with `OverviewKpiTile`, `OverviewShortcutCard`, `OverviewSectionShell` from `components/layout/overview-primitives.tsx`.
-- **Frozen reference (Items + Item categories):** do not refactor list terminals without explicit sign-off; see `docs/GLASS_V2_PLAN.md`.
+- **Items + Item categories:** live Glass V2 reference modules — see `docs/GLASS_V2_PLAN.md`.
+- **Interaction chrome (Glass V2 / mutation drawers):** The warm light palette is retired (`theme-light-glass` is cool slate). Do **not** add new controls that rely on default shadcn `Button` ghost/outline hovers (`hover:bg-accent`) inside `.glass-v2-root`, `.mutation-glass-root`, `.item-editor-shell`, or `.list-workspace-root` — `--accent` hovers read as off-palette. Prefer `Switch`, muted surface hovers (`hover:bg-muted/20`), or tokens from `globals.css` glass scopes. See `docs/GLASS_V2_PLAN.md` guardrails.

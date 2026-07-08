@@ -10,6 +10,8 @@ export type CatalogItemSettings = {
   /** Pattern tokens: {PREFIX}, {SEQ:n} (e.g. {SEQ:6}). */
   sku_auto_pattern: string;
   sku_auto_prefix: string;
+  /** When false, item names must be unique tenant-wide (case-insensitive). */
+  allow_duplicate_item_names: boolean;
 };
 
 export const DEFAULT_CATALOG_ITEM_SETTINGS: CatalogItemSettings = {
@@ -17,6 +19,7 @@ export const DEFAULT_CATALOG_ITEM_SETTINGS: CatalogItemSettings = {
   sku_auto_generation_enabled: false,
   sku_auto_pattern: "{PREFIX}-{SEQ:6}",
   sku_auto_prefix: "ITEM",
+  allow_duplicate_item_names: false,
 };
 
 export function isScanIdentifierPolicy(value: string): value is ScanIdentifierPolicy {
@@ -40,6 +43,10 @@ export function parseCatalogItemSettings(raw: unknown): CatalogItemSettings {
       typeof config.sku_auto_prefix === "string" && config.sku_auto_prefix.trim()
         ? config.sku_auto_prefix.trim()
         : DEFAULT_CATALOG_ITEM_SETTINGS.sku_auto_prefix,
+    allow_duplicate_item_names:
+      config.allow_duplicate_item_names === undefined
+        ? DEFAULT_CATALOG_ITEM_SETTINGS.allow_duplicate_item_names
+        : Boolean(config.allow_duplicate_item_names),
   };
 }
 
@@ -135,6 +142,44 @@ function readSkuSequence(config: Record<string, unknown>): number {
   return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
 }
 
+const MAX_SKU_ALLOCATION_PROBES = 200;
+
+/** Pick the first unused SKU at or after `startSequence` for the workspace pattern. */
+export function findNextAvailableSkuFromSequence(
+  settings: CatalogItemSettings,
+  startSequence: number,
+  isTaken: (sku: string) => boolean,
+  maxProbes = MAX_SKU_ALLOCATION_PROBES
+): { sku: string; nextSequence: number } | null {
+  const start = Number.isFinite(startSequence) && startSequence >= 1 ? Math.floor(startSequence) : 1;
+
+  for (let offset = 0; offset < maxProbes; offset++) {
+    const sequenceValue = start + offset;
+    const sku = formatSkuFromPattern(settings, sequenceValue);
+    if (!isTaken(sku)) {
+      return { sku, nextSequence: sequenceValue + 1 };
+    }
+  }
+
+  return null;
+}
+
+async function isTenantSkuTaken(
+  supabase: SupabaseClient,
+  tenantId: string,
+  sku: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("item_variants")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("sku", sku)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}
+
 /** Allocate the next SKU and persist the incremented counter on the tenant. */
 export async function allocateNextItemSku(
   supabase: SupabaseClient,
@@ -155,11 +200,25 @@ export async function allocateNextItemSku(
       : {};
 
   const sequenceValue = readSkuSequence(config);
-  const sku = formatSkuFromPattern(settings, sequenceValue);
+
+  let chosen: { sku: string; nextSequence: number } | null = null;
+  for (let offset = 0; offset < MAX_SKU_ALLOCATION_PROBES; offset++) {
+    const sequenceProbe = sequenceValue + offset;
+    const sku = formatSkuFromPattern(settings, sequenceProbe);
+    const taken = await isTenantSkuTaken(supabase, tenantId, sku);
+    if (!taken) {
+      chosen = { sku, nextSequence: sequenceProbe + 1 };
+      break;
+    }
+  }
+
+  if (!chosen) {
+    throw new Error("Unable to allocate a unique product code. Enter one manually.");
+  }
 
   const nextConfig = {
     ...config,
-    item_sku_next_value: sequenceValue + 1,
+    item_sku_next_value: chosen.nextSequence,
   };
 
   const { error: updateError } = await supabase
@@ -169,5 +228,5 @@ export async function allocateNextItemSku(
 
   if (updateError) throw new Error(updateError.message);
 
-  return sku;
+  return chosen.sku;
 }

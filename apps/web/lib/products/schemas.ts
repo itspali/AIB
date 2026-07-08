@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ATTRIBUTE_FIELD_TYPE_VALUES } from "@/lib/categories/attribute-types";
 import { ITEM_CLASSIFICATIONS } from "@/lib/products/classification-labels";
 import { alternateUomRowSchema, customFieldRowSchema, storefrontVisibilityRowSchema } from "@/lib/products/catalog-schemas";
 import {
@@ -20,6 +21,15 @@ const decimalPattern = /^\d+(\.\d+)?$/;
 // Units are validated against the tenant's managed UOM catalog at the UI/RPC
 // layer, so the schema only enforces a non-empty code here.
 const uomCode = z.string().trim().min(1, "Select a unit of measure").max(32);
+
+const attributeTemplateEntrySchema = z.object({
+  key: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(120),
+  type: z.enum(ATTRIBUTE_FIELD_TYPE_VALUES as unknown as [string, ...string[]]),
+  required: z.boolean().optional(),
+  options: z.array(z.string().trim().min(1)).optional(),
+  role: z.enum(["axis", "descriptive"]).optional(),
+});
 
 function nonNegativeDecimal(maxDecimals: number, optional = false) {
   return z
@@ -51,6 +61,7 @@ export const productMasterSchema = z.object({
   category_id: z.string().uuid().nullable(),
   variant_strategy: z.enum(PRODUCT_VARIANT_STRATEGIES),
   variant_axes: z.array(z.string().trim().min(1)),
+  extra_sku_options: z.array(attributeTemplateEntrySchema),
   item_type: z.enum(ITEM_TYPES),
   track_inventory: z.boolean(),
   reorder_point: nonNegativeDecimal(4, true),

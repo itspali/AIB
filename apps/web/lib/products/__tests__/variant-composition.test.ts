@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import { suggestSkuMask } from "@/lib/products/sku-mask";
 import {
   categoryHasComposableAxes,
+  countVariantSkuRows,
   defaultVariantAxisKeys,
   filterVariantAxisCandidateTemplates,
   isDefaultAxisTemplate,
   isVariantAxisCandidate,
   formatDescriptiveVariantAttributes,
   formatVariantAxisLabels,
+  hasVariantAxisCandidates,
+  moveVariantAxisKey,
   pickDescriptiveVariantAttributes,
+  resolveVariantCompositionMode,
   sanitizeVariantAxisKeys,
+  shouldComposeVariants,
+  shouldLockProductCode,
+  shouldLockVariantAxisPicker,
   splitTemplatesByAxis,
+  toggleVariantAxisKey,
   usedVariantAttributeKeys,
   validateVariantAxesSelection,
 } from "@/lib/products/variant-composition";
@@ -152,6 +161,34 @@ describe("splitTemplatesByAxis", () => {
     expect(axes.map((t) => t.key)).toEqual(["size"]);
     expect(descriptive.map((t) => t.key)).toEqual(["brand", "color"]);
   });
+
+  it("preserves variant_axes order for SKU generation", () => {
+    const { axes } = splitTemplatesByAxis(templates, ["color", "size"]);
+    expect(axes.map((t) => t.key)).toEqual(["color", "size"]);
+  });
+});
+
+describe("variant axis key helpers", () => {
+  it("appends newly selected axes", () => {
+    expect(toggleVariantAxisKey(["size"], "color")).toEqual(["size", "color"]);
+  });
+
+  it("reorders axes without changing membership", () => {
+    expect(moveVariantAxisKey(["size", "color"], "color", -1)).toEqual(["color", "size"]);
+  });
+
+  it("builds SKU mask tokens in axis order", () => {
+    expect(suggestSkuMask([color, size])).toBe("{BASE}-{color}-{size}");
+    expect(suggestSkuMask([size, color])).toBe("{BASE}-{size}-{color}");
+  });
+});
+
+describe("hasVariantAxisCandidates", () => {
+  it("is true when category has axis-eligible templates", () => {
+    expect(hasVariantAxisCandidates(templates)).toBe(true);
+    expect(hasVariantAxisCandidates([brand])).toBe(true);
+    expect(hasVariantAxisCandidates([])).toBe(false);
+  });
 });
 
 describe("categoryHasComposableAxes", () => {
@@ -235,5 +272,96 @@ describe("validateVariantAxesSelection", () => {
         ],
       })
     ).toMatch(/cannot be used as a variant axis/i);
+  });
+});
+
+describe("resolveVariantCompositionMode", () => {
+  it("uses draft on Essentials create wizard steps", () => {
+    expect(
+      resolveVariantCompositionMode({
+        activeWizardStage: "essentials",
+        wizardActive: true,
+        wizardSteps: true,
+      })
+    ).toBe("draft");
+  });
+
+  it("uses live outside Essentials create wizard", () => {
+    expect(
+      resolveVariantCompositionMode({
+        activeWizardStage: "essentials",
+        wizardActive: true,
+        wizardSteps: false,
+      })
+    ).toBe("live");
+  });
+});
+
+describe("shouldLockVariantAxisPicker", () => {
+  it("stays unlocked for master-only or a single sellable SKU row", () => {
+    expect(
+      shouldLockVariantAxisPicker([{ is_master: true, is_sellable: true }])
+    ).toBe(false);
+    expect(
+      shouldLockVariantAxisPicker([
+        { is_master: true, is_sellable: true },
+        { is_master: false, is_sellable: true },
+      ])
+    ).toBe(false);
+  });
+
+  it("locks once two sellable SKU rows exist", () => {
+    expect(
+      shouldLockVariantAxisPicker([
+        { is_master: false, is_sellable: true },
+        { is_master: false, is_sellable: true },
+      ])
+    ).toBe(true);
+  });
+});
+
+describe("countVariantSkuRows", () => {
+  it("counts non-master variant rows only", () => {
+    expect(countVariantSkuRows([])).toBe(0);
+    expect(
+      countVariantSkuRows([{ is_master: true }, { is_master: false }, { is_master: false }])
+    ).toBe(2);
+  });
+});
+
+describe("shouldLockProductCode", () => {
+  it("stays editable when only the style master row exists", () => {
+    expect(shouldLockProductCode([{ is_master: true }])).toBe(false);
+    expect(shouldLockProductCode([])).toBe(false);
+  });
+
+  it("locks once any variant SKU row exists", () => {
+    expect(
+      shouldLockProductCode([
+        { is_master: true },
+        { is_master: false },
+      ])
+    ).toBe(true);
+  });
+
+  it("locks for non-sellable variant SKU rows", () => {
+    expect(
+      shouldLockProductCode([
+        { is_master: true },
+        { is_master: false },
+      ])
+    ).toBe(true);
+  });
+});
+
+describe("shouldComposeVariants", () => {
+  it("enables composition in Essentials draft even before multi-SKU is inferred", () => {
+    expect(
+      shouldComposeVariants({
+        isMultiSku: false,
+        compositionMode: "draft",
+        variantAxisCount: 0,
+      })
+    ).toBe(true);
   });
 });

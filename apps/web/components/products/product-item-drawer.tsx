@@ -25,6 +25,7 @@ import type { DrawerSurface } from "@/lib/layout/module-drawer-url";
 import type { DrawerWidthPolicy } from "@/lib/layout/drawer-width-policy";
 import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 import { useProductCreateWizard } from "@/lib/products/use-product-create-wizard";
+import type { ItemSavedOptions } from "@/lib/products/item-editor/editor-shell-shared";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 
 type UrlNavigation = {
@@ -113,6 +114,7 @@ function ProductItemDrawerSheet({
       footer={mutationHeader ? <ProductPanelFooterActions /> : undefined}
       allowBackgroundInteraction={allowBackgroundInteraction}
       widthPolicy={resolveItemDrawerWidthPolicy(surface)}
+      surfaceVariant={surface === "peek" ? "default" : "glass"}
       popOutHref={fullPageHref}
       scrollable={mode === "view"}
       showCloseButton
@@ -153,6 +155,7 @@ export function ProductItemDrawer({
   isValuationsLoading = false,
 }: Props) {
   const [persistedCreateId, setPersistedCreateId] = useState<string | null>(null);
+  const [createWizardDetail, setCreateWizardDetail] = useState<ProductDetailSnapshot | null>(null);
   const isCreateFlow = surface === "create";
   const isVariantEdit =
     surface === "edit" && detail != null && isDetailVariantSkuContext(detail);
@@ -172,6 +175,7 @@ export function ProductItemDrawer({
   useEffect(() => {
     if (!open) {
       setPersistedCreateId(null);
+      setCreateWizardDetail(null);
       wizardHost.resetWizard();
       return;
     }
@@ -182,24 +186,32 @@ export function ProductItemDrawer({
 
   const mode = surfaceToMode(surface, persistedCreateId);
   const allowBackgroundInteraction = surface === "peek";
+  const effectiveDetail = detail ?? createWizardDetail;
 
   const handleSaved = useCallback(
-    (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
+    (itemId: string, savedDetail?: ProductDetailSnapshot | null, options?: ItemSavedOptions) => {
+      if (savedDetail && isCreateFlow) {
+        setCreateWizardDetail(savedDetail);
+      }
       if (isCreateFlow && !persistedCreateId) {
         setPersistedCreateId(itemId);
         onCreatePersisted?.(itemId, savedDetail);
+      }
+
+      if (options?.advanceWizard === false) {
         onDetailSaved?.(itemId, savedDetail);
+        return;
+      }
+
+      onDetailSaved?.(itemId, savedDetail);
+
+      if (isWizardFlow && !isEditAccordion) {
         wizardHost.handleSaved(itemId, savedDetail);
         return;
       }
-      if (isWizardFlow) {
-        onDetailSaved?.(itemId, savedDetail);
-        if (!isEditAccordion) {
-          wizardHost.handleSaved(itemId, savedDetail);
-        }
-        return;
+      if (!isWizardFlow) {
+        urlNavigation.onPeekAfterSave(itemId, savedDetail);
       }
-      urlNavigation.onPeekAfterSave(itemId, savedDetail);
     },
     [
       isCreateFlow,
@@ -217,12 +229,12 @@ export function ProductItemDrawer({
     /* URL drives mode. */
   }, []);
 
-  const title = resolveProductPanelTitle(mode, detail);
-  const description = resolveProductPanelDescription(mode, detail);
+  const title = resolveProductPanelTitle(mode, effectiveDetail);
+  const description = resolveProductPanelDescription(mode, effectiveDetail);
   const imageUrl =
-    mode === "create" || !detail
+    mode === "create" || !effectiveDetail
       ? null
-      : pickPrimaryImagePreviewUrl(detail.media, detail.variant_id, detail.variants);
+      : pickPrimaryImagePreviewUrl(effectiveDetail.media, effectiveDetail.variant_id, effectiveDetail.variants);
 
   if (!open || surface === "closed") return null;
 
@@ -232,7 +244,7 @@ export function ProductItemDrawer({
       tenantId={tenantId}
       categories={categories}
       catalogContext={catalogContext}
-      detail={detail}
+      detail={effectiveDetail}
       fieldPermissions={fieldPermissions}
       isLoading={isLoading}
       isDetailRefreshing={isDetailRefreshing}

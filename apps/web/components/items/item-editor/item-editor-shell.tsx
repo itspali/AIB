@@ -2,13 +2,10 @@
 
 import type { ReactNode } from "react";
 import { MutationGlassRoot } from "@/components/layout/mutation-form/mutation-glass-root";
-import { editorStageById, type EditorStageId } from "@/lib/products/editor-stages";
-import type { WizardLayout } from "@/components/products/product-editor/product-editor-shell";
+import { EditorGlassSectionsProvider } from "@/lib/products/editor-chrome";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  stage: EditorStageId;
-  layout?: WizardLayout;
   children: ReactNode;
   className?: string;
 };
@@ -17,10 +14,7 @@ type Props = {
  * Glass V2 scope for the item create/edit wizard — wraps ProductEditorShell
  * while stages are split out incrementally from the monolith.
  */
-export function ItemEditorShell({ stage, layout = "steps", children, className }: Props) {
-  const stageMeta = editorStageById(stage);
-  const showStageIntent = layout === "steps";
-
+export function ItemEditorShell({ children, className }: Props) {
   return (
     <MutationGlassRoot
       className={cn(
@@ -28,12 +22,7 @@ export function ItemEditorShell({ stage, layout = "steps", children, className }
         className
       )}
     >
-      {showStageIntent ? (
-        <header className="shrink-0 space-y-0.5 px-3 pt-1">
-          <p className="text-xs leading-relaxed text-muted-foreground">{stageMeta.description}</p>
-        </header>
-      ) : null}
-      <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+      <EditorGlassSectionsProvider>{children}</EditorGlassSectionsProvider>
     </MutationGlassRoot>
   );
 }

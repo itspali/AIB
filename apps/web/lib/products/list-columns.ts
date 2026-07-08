@@ -11,6 +11,7 @@ import { TAX_CATEGORY_OPTIONS } from "@/lib/products/tax-options";
 export const PRODUCT_LIST_COLUMN_IDS = [
   "image",
   "name",
+  "product_code",
   "default_sku",
   "barcode",
   "classification",
@@ -133,6 +134,14 @@ export const PRODUCT_LIST_COLUMNS: ProductListColumnDef[] = [
     valueKind: "text",
     widths: W_NAME,
     wrapWidthBoost: 32,
+  },
+  {
+    id: "product_code",
+    label: "Product code",
+    defaultVisible: false,
+    group: "Identity",
+    valueKind: "code",
+    widths: W_CODE,
   },
   {
     id: "default_sku",

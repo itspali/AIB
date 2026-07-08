@@ -6,10 +6,56 @@
 export const PRODUCT_LABEL = "Product";
 export const PRODUCT_LABEL_PLURAL = "Products";
 
+export const SKUS_SECTION_LABEL = "SKUs";
+export const SKUS_SECTION_SHORT_LABEL = "SKUs";
+export const SKUS_SECTION_DESCRIPTION =
+  "Product codes, variant options, and sellable rows for this item.";
+export const INSPECTION_TESTS_SECTION_LABEL = "Inspection tests";
+export const INSPECTION_TESTS_SECTION_DESCRIPTION =
+  "Quality checks applied when this item is inspected on receipt.";
+export const INSPECTION_TESTS_SAVE_FIRST_HINT =
+  "Save the product once to define inspection tests for this item.";
+export const COMPOSITE_ITEM_SECTION_LABEL = "Composite item";
+export const ALTERNATE_UNITS_SECTION_LABEL = "Alternate units";
+export const DIMENSIONS_SECTION_LABEL = "Dimensions & weight";
+export const ITEM_LOGISTICS_SECTION_LABEL = DIMENSIONS_SECTION_LABEL;
+export const ITEM_LOGISTICS_SECTION_DESCRIPTION =
+  "Package size and weight for shipping quotes.";
+export const ITEM_LOGISTICS_MULTI_SKU_DESCRIPTION =
+  "Default package size and weight — override per SKU in the SKUs grid.";
+export const ESSENTIALS_SELLABLE_MULTI_DESCRIPTION =
+  "Default rates and return policy for all variants. Override per SKU in the SKUs grid.";
+export const ESSENTIALS_PURCHASABLE_MULTI_DESCRIPTION =
+  "Default purchase rate for all variants. Override per variant under Suppliers.";
+export const ESSENTIALS_INVENTORY_MULTI_DESCRIPTION =
+  "Shared costing and batch tracking. Set reorder levels per SKU in Catalog & reach.";
+export const ESSENTIALS_REORDER_MULTI_HINT =
+  "Reorder levels are set per SKU and location under Catalog & reach → Locations.";
+export const PRICE_BOOK_SECTION_LABEL = "Price book";
+export const PRICE_BOOK_SECTION_DESCRIPTION =
+  "Channel-specific selling prices beyond the default rate in Basics.";
+export const PRICE_BOOK_SAVE_FIRST_HINT =
+  "Save the product once to add price book entries.";
+export const SKUS_SECTION_HELP =
+  "Each row is a stock and transaction code. Use category options to generate many SKUs, or add rows one at a time.";
+export const SKUS_SECTION_HELP_SINGLE =
+  "One code for this product — used for stock, purchase, and sales when enabled below.";
+export const SKUS_SECTION_HELP_MULTI =
+  "Each row is a separate code. Shared name, category, and tax apply to all rows.";
+export const PRODUCT_CODE_FIELD_LABEL = "Product code";
+export const ADD_SKU_LABEL = "Add SKU";
+export const GENERATE_SKUS_FROM_OPTIONS_LABEL = "Generate from options…";
+export const EXTRA_SKU_OPTIONS_SECTION_LABEL = "Extra SKU options";
+export const EXTRA_SKU_OPTIONS_SECTION_HELP =
+  "Only for this product — use when category fields do not cover how this item splits into SKUs.";
+export const ADD_EXTRA_SKU_OPTION_LABEL = "Add option for this product";
+export const SKUS_SAVE_FIRST_HINT = "Save the product once to add and generate additional SKUs.";
+
+/** @deprecated Use SKUS_SECTION_LABEL in item editor Essentials. */
 export const VARIANTS_SECTION_LABEL = "Variants";
 export const VARIANTS_SECTION_SHORT_LABEL = "Variants";
 
-export const VARIANT_STRATEGY_FIELD_LABEL = "Variant SKUs";
+export const VARIANT_STRATEGY_FIELD_LABEL = "Variant";
 
 export const VARIANTS_LIST_TOGGLE_LABEL = "Variants";
 export const VARIANTS_LIST_TOGGLE_HELP =
@@ -46,8 +92,14 @@ export function categoryFieldsSectionTitle(categoryName?: string | null): string
 export const VARIANT_AXES_LABEL = "Varies by";
 export const VARIANT_AXES_HELP =
   "Choose what changes per SKU — for example size or color. Unselected attributes stay the same on every variant. Multi-select fields are product-level only.";
+export const VARIANT_AXES_SELECTED_LABEL = "Selected axes";
+export const VARIANT_AXES_SELECTED_HELP =
+  "These attributes split the product into SKUs. Reorder them to control auto-generated SKU segment order.";
+export const VARIANT_AXES_AVAILABLE_LABEL = "Available attributes";
+export const VARIANT_AXES_ORDER_HELP =
+  "First selected axis becomes the left-most SKU segment when the mask is auto-generated.";
 export const VARIANT_AXES_LOCKED_HELP =
-  "Locked while sellable variants exist. Change axis values per variant below; add more SKUs with the generator.";
+  "Locked while two or more sellable SKUs exist. Change axis values per variant below; add more SKUs with the generator.";
 export const VARIANT_SKU_LABEL = "Variant SKU";
 
 export const SUMMARY_PRODUCT_SECTION = "Product";
@@ -135,9 +187,13 @@ export const SELL_PRICE_COLUMN = "Sell price";
 export const BUY_PRICE_COLUMN = "Buy price";
 export const MRP_COLUMN = "MRP";
 export const VARIANT_DIMENSIONS_TOGGLE_LABEL = "Dimensions";
+export const SHIPPING_DIMENSIONS_SECTION_LABEL = "Dimensions & weight";
+export const SHIPPING_DIMENSIONS_SECTION_HELP =
+  "Package size and weight for shipping quotes. Does not change how stock is counted.";
 export const COST_PRICE_COLUMN = "Cost price";
 export const MRP_PRICE_COLUMN = "MRP";
 export const HSN_COLUMN = "HSN / SAC";
+export const GTIN_BARCODE_COLUMN = "GTIN / Barcode";
 
 export const SUPPLIERS_SECTION_LABEL = "Suppliers";
 export const SUPPLIERS_SECTION_HELP =

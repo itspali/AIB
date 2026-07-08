@@ -160,7 +160,7 @@ export function ThemeSettingsFields({
       <div
         className={cn(
           "rounded-lg border border-border p-3",
-          value.default_theme === "dark" ? "dark" : "theme-light-warm"
+          value.default_theme === "dark" ? "dark" : "theme-light-glass"
         )}
         aria-hidden
       >

@@ -33,6 +33,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   BUY_PRICE_COLUMN,
+  GTIN_BARCODE_COLUMN,
   MRP_COLUMN,
   SELL_PRICE_COLUMN,
   VARIANT_DEFAULT_BADGE,
@@ -55,7 +56,7 @@ import {
 } from "@/lib/products/editor-chrome";
 import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import {
-  countSellableVariants,
+  shouldLockVariantAxisPicker,
   splitTemplatesByAxis,
 } from "@/lib/products/variant-composition";
 import {
@@ -89,7 +90,6 @@ type Props = {
   defaultPurchasePrice?: string;
   defaultStandardCost?: string;
   defaultMrp?: string;
-  defaultHsn?: string;
   defaultSupplierId?: string | null;
   /** Prefill new variants (and empty table cells) from the master product row. */
   variantDefaults?: VariantFormDefaults;
@@ -110,6 +110,8 @@ type Props = {
   tenantId?: string;
   media?: ProductMediaSnapshot[];
   onMediaChanged?: () => void;
+  /** When false, axis chips render only in the parent (e.g. ItemSkusSection). */
+  showAxisPicker?: boolean;
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -185,7 +187,6 @@ export function ProductVariantPanel({
   defaultPurchasePrice = "",
   defaultStandardCost = "",
   defaultMrp = "",
-  defaultHsn = "",
   defaultSupplierId = null,
   variantDefaults,
   variantStrategy = "SINGLE_SKU",
@@ -199,6 +200,7 @@ export function ProductVariantPanel({
   tenantId,
   media,
   onMediaChanged,
+  showAxisPicker = true,
 }: Props) {
   const [showDimensions, setShowDimensions] = useState(defaultShowDimensionColumns);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -285,7 +287,7 @@ export function ProductVariantPanel({
   const [matrixExpanded, setMatrixExpanded] = useState(() => sellableVariants.length === 0);
   const previousSellableCountRef = useRef(sellableVariants.length);
   const isDraftComposition = compositionMode === "draft";
-  const axesLocked = countSellableVariants(variants) > 0 && !isDraftComposition;
+  const axesLocked = shouldLockVariantAxisPicker(variants) && !isDraftComposition;
   const inReviewPhase =
     showVariantList && canUseMatrix && !readOnly && !isDraftComposition;
   const showMatrixGenerator =
@@ -610,7 +612,7 @@ export function ProductVariantPanel({
                   SKU <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
-              <th className="p-3 font-medium text-muted-foreground">GTIN</th>
+              <th className="p-3 font-medium text-muted-foreground">{GTIN_BARCODE_COLUMN}</th>
               {showAxisColumns ? (
                 axisTemplates.map((template) => (
                   <th key={template.key} className="p-3 font-medium text-muted-foreground">
@@ -713,7 +715,7 @@ export function ProductVariantPanel({
                         className="h-8 min-w-[8rem] font-mono text-xs"
                         defaultValue={variant.barcode ?? ""}
                         disabled={isPending}
-                        placeholder="GTIN"
+                        placeholder="Optional"
                         onBlur={(event) => {
                           const next = event.target.value.trim();
                           if (next !== (variant.barcode ?? "").trim()) {
@@ -977,7 +979,7 @@ export function ProductVariantPanel({
             suggestedAxisKeys={suggestedVariantAxisKeys}
             onAxisKeysChange={onVariantAxisKeysChange}
             axesLocked={axesLocked}
-            showAxisPicker
+            showAxisPicker={showAxisPicker}
             variants={variants}
             skuMask={skuMask}
             baseSku={baseSku}
@@ -985,7 +987,6 @@ export function ProductVariantPanel({
             defaultPurchasePrice={defaultPurchasePrice}
             defaultStandardCost={defaultStandardCost}
             defaultMrp={defaultMrp}
-            defaultHsn={defaultHsn}
             defaultSupplierId={defaultSupplierId}
             onGenerated={handleVariantsGenerated}
           />

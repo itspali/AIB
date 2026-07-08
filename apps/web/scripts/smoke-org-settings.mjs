@@ -8,8 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 const BASE_URL = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
-const ORG_SETTINGS_PATH = "/settings/organization";
-const ORG_PAGE_CHUNK = "/_next/static/chunks/app/settings/organization/page.js";
+const ORG_SETTINGS_PATH = "/settings/company";
+const ORG_PAGE_CHUNK = "/_next/static/chunks/app/(workspace)/settings/company/page.js";
 
 function loadEnvLocal() {
   try {
@@ -425,7 +425,7 @@ async function testAuthenticatedPage(cookieHeader, companyName) {
     "org-section-branding",
     "org-section-locations",
     "org-section-accounting",
-    "org-section-access",
+    "org-section-entities",
     "Edit organization settings",
     "ACTIVE",
   ];

@@ -8,7 +8,7 @@ export const STORAGE_KEY = "aib-theme";
 
 export const THEME_CLASS_MAP: Record<Theme, string> = {
   dark: "dark",
-  light: "theme-light-warm",
+  light: "theme-light-glass",
 };
 
 export const THEME_LABELS: Record<Theme, string> = {
@@ -24,7 +24,7 @@ export function isTheme(value: string | null | undefined): value is Theme {
   return THEMES.includes(value as Theme);
 }
 
-/** Map legacy light variant ids to the warm light palette. */
+/** Map legacy light variant ids to the Glass V2 light palette. */
 export function normalizeStoredTheme(value: string | null | undefined): Theme {
   if (
     value === "light" ||

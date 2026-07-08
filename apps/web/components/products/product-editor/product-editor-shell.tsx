@@ -26,8 +26,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  findSimilarItems,
-  type SimilarItem,
   type VariantAssortmentCell,
 } from "@/app/items/actions";
 import { PanelMutationPrimaryButton } from "@/components/products/panel-mutation-primary-button";
@@ -56,12 +54,8 @@ import {
 import {
   ITEM_EDITOR_FIELD_HELP,
   ITEM_EDITOR_TOGGLE_HELP,
-  VariantStrategyFieldHelp,
 } from "@/lib/products/item-editor-field-help";
 import {
-  VARIANT_STRATEGY_FIELD_LABEL,
-  VARIANTS_SECTION_LABEL,
-  VARIANTS_SECTION_SHORT_LABEL,
   MRP_PRICE_COLUMN,
   CUSTOM_FIELDS_SECTION_LABEL,
   DISCOVERY_TAGS_SECTION_LABEL,
@@ -97,8 +91,20 @@ import {
   EditorToggleRow as ToggleRow,
   editorCardClassName,
 } from "@/components/products/product-editor/editor-form-primitives";
+import { EditorFieldHelpToggle, EditorFieldHelpProvider } from "@/components/products/product-editor/editor-field-help";
 import { ItemEditorStageBody } from "@/components/items/item-editor/item-editor-stage-body";
 import { useItemEditorStageModels } from "@/components/items/item-editor/use-item-editor-stage-models";
+import {
+  EDITOR_SHELL_SECTIONS,
+  editorShellSections,
+  type EditorSectionStatus,
+  type SectionId,
+} from "@/lib/products/item-editor/editor-shell-shared";
+import { useItemEditorSectionNav } from "@/lib/products/item-editor/use-item-editor-section-nav";
+import { useItemEditorSectionStatus } from "@/lib/products/item-editor/use-item-editor-section-status";
+import { useItemEditorWizardChrome } from "@/lib/products/item-editor/use-item-editor-wizard-chrome";
+import { useItemEditorSaveOrchestration } from "@/lib/products/item-editor/use-item-editor-save-orchestration";
+import { useItemDuplicateCheck } from "@/lib/products/item-editor/use-item-duplicate-check";
 import {
   ITEM_COSTING_METHODS,
   ITEM_TRACKING_MODES,
@@ -128,17 +134,21 @@ import {
 } from "@/lib/products/uom-options";
 import { gtinFieldHint, skuFieldHint } from "@/lib/products/catalog-item-settings";
 import {
-  VARIANT_STRATEGY_CHOICES,
   canSelectSingleVariantStrategy,
-  variantStrategyLabel,
+  inferVariantStrategy,
 } from "@/lib/products/variant-strategy";
 import {
+  countSellableVariants,
   defaultVariantAxisKeys,
   pickDescriptiveVariantAttributes,
-  sanitizeVariantAxisKeys,
+  resolveVariantCompositionMode,
   splitTemplatesByAxis,
   usedVariantAttributeKeys,
 } from "@/lib/products/variant-composition";
+import {
+  resolveItemCompositionTemplates,
+  sanitizeItemVariantAxisKeys,
+} from "@/lib/products/item-composition-templates";
 import {
   useProductForm,
   type ProductFormMode,
@@ -189,7 +199,9 @@ import {
   editorPanelWizardScrollClass,
   editorPanelWizardFormScrollClass,
   editorWizardTopBarClass,
+  editorWizardTopBarGlassClass,
   editorWizardLeftRailAsideClass,
+  editorWizardLeftRailGlassAsideClass,
   editorWizardLeftRailInnerClass,
   editorWizardLeftRailStickyClass,
   editorPanelBadgesClass,
@@ -204,6 +216,7 @@ import {
   resolveEditorPanelUseTopTabs,
   resolveWizardUseLeftRail,
   EditorPanelContext,
+  useEditorGlassSections,
   useEditorPanelLayout,
 } from "@/lib/products/editor-chrome";
 import { useViewportMatches } from "@/lib/layout/use-viewport-matches";
@@ -216,121 +229,15 @@ import {
 import {
   EDITOR_STAGES,
   editorStageById,
-  stageForSection,
   type EditorStageId,
 } from "@/lib/products/editor-stages";
-import { EditorStageAccordionHeader } from "@/components/products/product-editor/editor-stage-accordion-header";
 import type { WizardNav } from "@/lib/products/use-product-create-wizard";
-import {
-  overallCompletenessPercent,
-  rollUpStageStatus,
-  type StageStatus,
-} from "@/lib/products/item-completeness";
 import { EditorStepper } from "@/components/products/product-editor/editor-stepper";
 import { cn } from "@/lib/utils";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 import { useMountedEditorSections } from "@/lib/products/use-mounted-editor-sections";
 
-type SectionId = EditorSectionId;
-type SectionStatus = "error" | "complete" | "empty";
-
-const SECTIONS: Array<{
-  id: SectionId;
-  label: string;
-  shortLabel: string;
-  icon: typeof Package;
-}> = [
-  { id: "overview", label: "Basics", shortLabel: "Basics", icon: Package },
-  { id: "salable", label: "Salable", shortLabel: "Salable", icon: Wallet },
-  { id: "purchasable", label: "Purchasable", shortLabel: "Purchasable", icon: ShoppingCart },
-  { id: "inventory", label: "Track inventory", shortLabel: "Inventory", icon: Warehouse },
-  { id: "variants", label: VARIANTS_SECTION_LABEL, shortLabel: VARIANTS_SECTION_SHORT_LABEL, icon: Layers },
-  { id: "composition", label: COMPOSITION_SECTION_LABEL, shortLabel: "Set", icon: Boxes },
-  { id: "media", label: "Media", shortLabel: "Media", icon: ListTree },
-  {
-    id: "product_attributes",
-    label: CATEGORY_FIELDS_SECTION_LABEL,
-    shortLabel: "Category",
-    icon: Package,
-  },
-  {
-    id: "custom_fields",
-    label: CUSTOM_FIELDS_SECTION_LABEL,
-    shortLabel: "Fields",
-    icon: Tag,
-  },
-  {
-    id: "tags",
-    label: DISCOVERY_TAGS_SECTION_LABEL,
-    shortLabel: "Tags",
-    icon: Tags,
-  },
-  {
-    id: "visibility",
-    label: VISIBILITY_SECTION_LABEL,
-    shortLabel: "Visibility",
-    icon: Store,
-  },
-];
-
-const SECTION_IDS = SECTIONS.map((section) => section.id);
-
-function editorSections(
-  itemId: string | null | undefined,
-  hasComposition: boolean
-) {
-  const ids = new Set(editorSectionIdsForItem(itemId, { hasComposition }));
-  return SECTIONS.filter((section) => ids.has(section.id));
-}
-
-function resolveEditorScrollSpyOffset(
-  isPanelLayout: boolean,
-  stickyNavHeight: number,
-  panelRailHorizontal: boolean
-): number {
-  const baseOffset = isPanelLayout ? 20 : 96;
-  if (!isPanelLayout && stickyNavHeight > 0) return baseOffset + stickyNavHeight + 8;
-  if (isPanelLayout && panelRailHorizontal && stickyNavHeight > 0) {
-    return baseOffset + stickyNavHeight + 8;
-  }
-  return baseOffset;
-}
-
-// Maps a form field to the section that renders it, so an invalid save can jump
-// the user to the first offending section.
-const FIELD_SECTION: Partial<Record<keyof ProductMasterFormValues, SectionId>> = {
-  classification: "overview",
-  name: "overview",
-  sku: "overview",
-  item_type: "overview",
-  status: "overview",
-  description: "overview",
-  category_id: "overview",
-  variant_strategy: "overview",
-  base_unit_of_measure: "overview",
-  selling_price: "salable",
-  mrp: "salable",
-  selling_uom: "salable",
-  purchase_uom: "purchasable",
-  purchase_uom_conversion: "purchasable",
-  purchase_price: "purchasable",
-  supplier_id: "purchasable",
-  hsn_sac_code: "overview",
-  tax_code_id: "overview",
-  default_tax_category: "overview",
-  is_returnable: "salable",
-  is_bundle: "overview",
-  reorder_point: "inventory",
-  standard_cost: "inventory",
-  barcode: "overview",
-  dead_weight_kg: "overview",
-  volume: "overview",
-  length_cm: "overview",
-  width_cm: "overview",
-  height_cm: "overview",
-  custom_fields: "custom_fields",
-  alternate_uoms: "overview",
-};
+type SectionStatus = EditorSectionStatus;
 
 type Props = {
   tenantId: string;
@@ -347,13 +254,19 @@ type Props = {
   /** Fields locked server-side because the item has transactional history. */
   lockedFields?: string[];
   onCancel: () => void;
-  onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
+  onSaved: (
+    itemId: string,
+    detail?: ProductDetailSnapshot | null,
+    options?: import("@/lib/products/item-editor/editor-shell-shared").ItemSavedOptions
+  ) => void;
   onExtensionsChanged?: () => void;
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
   onVariantsReload?: () => void | Promise<void>;
   isNavigatePending?: boolean;
   onPendingChange?: (pending: boolean) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Full-page wizard header: mirrors drawer footer primary label. */
+  onWizardPrimaryLabelChange?: (label: string | null) => void;
   /** Drawer header: Cancel / Save (panel layout edit and create wizard). */
   onMutationHeaderChange?: (header: ProductPanelMutationHeader | null) => void;
   /**
@@ -421,7 +334,12 @@ function EditorSectionRail({
   horizontal = false,
   railRef,
 }: {
-  sections: typeof SECTIONS;
+  sections: ReadonlyArray<{
+    id: SectionId;
+    label: string;
+    shortLabel: string;
+    icon: typeof Package;
+  }>;
   activeSection: SectionId;
   onSelect: (id: SectionId) => void;
   showStatus: boolean;
@@ -512,6 +430,7 @@ export function ProductEditorShell({
   isNavigatePending = false,
   onPendingChange,
   onDirtyChange,
+  onWizardPrimaryLabelChange,
   onMutationHeaderChange,
   wizard,
   hideNav = false,
@@ -521,18 +440,8 @@ export function ProductEditorShell({
   const effectiveHideNav = hideNav || !!pinnedSections;
   const wizardAccordion = wizard?.layout === "accordion";
   const wizardSteps = Boolean(wizard && !wizardAccordion);
-  const [activeSection, setActiveSection] = useState<SectionId>("overview");
-  const [expandedStage, setExpandedStage] = useState<EditorStageId>("essentials");
-  const activeWizardStage: EditorStageId | null = wizardAccordion
-    ? expandedStage
-    : wizard?.stage ?? null;
-  const stageHeaderRefs = useRef<Partial<Record<EditorStageId, HTMLDivElement>>>({});
-  const isSectionMounted = useMountedEditorSections(activeSection, {
-    wizardStage: activeWizardStage,
-  });
+  const glassWizard = useEditorGlassSections();
   const [tagOptions, setTagOptions] = useState(catalogContext.tags);
-  const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
-  const [duplicates, setDuplicates] = useState<SimilarItem[]>([]);
 
   const lockedSet = useMemo(() => new Set(lockedFields), [lockedFields]);
   const isLocked = useCallback((field: string) => lockedSet.has(field), [lockedSet]);
@@ -554,28 +463,28 @@ export function ProductEditorShell({
         wizardDrawerWidthVw
       )
   );
+  /** Drawer wizard: footer-only navigation — no stage header or stepper rail. */
+  const wizardShowStepper = Boolean(wizard && wizardSteps && !isPanelLayout);
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const locationMatrixRef = useRef<VariantAssortmentMatrixHandle>(null);
   const openingStockMatrixRef = useRef<VariantOpeningStockMatrixHandle>(null);
-  const chipBarRef = useRef<HTMLDivElement | null>(null);
-  const panelRailRef = useRef<HTMLElement | null>(null);
-  const panelScrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollRootRef = useRef<HTMLElement | null>(null);
-  const sectionRefs = useRef<Partial<Record<SectionId, HTMLDivElement | null>>>({});
-  const ignoreSpyUntilRef = useRef(0);
-  const onSavedParentRef = useRef(onSaved);
-  onSavedParentRef.current = onSaved;
-  const [reachSaveErrors, setReachSaveErrors] = useState<ReachPersistFailures | null>(null);
   const [draftAssortmentCells, setDraftAssortmentCells] = useState<
     VariantAssortmentCell[] | null
   >(null);
+  const chipBarRef = useRef<HTMLDivElement | null>(null);
+  const panelRailRef = useRef<HTMLElement | null>(null);
+  const panelScrollRef = useRef<HTMLDivElement | null>(null);
+  const pendingSaveOptionsRef = useRef<
+    import("@/lib/products/item-editor/editor-shell-shared").ItemSavedOptions | undefined
+  >(undefined);
   const itemSavedHandlerRef = useRef<
-    (savedId: string, savedDetail?: ProductDetailSnapshot | null) => Promise<boolean>
-  >(async (savedId, savedDetail) => {
-    onSavedParentRef.current?.(savedId, savedDetail ?? null);
-    return true;
-  });
+    (
+      savedId: string,
+      savedDetail?: ProductDetailSnapshot | null,
+      options?: import("@/lib/products/item-editor/editor-shell-shared").ItemSavedOptions
+    ) => Promise<boolean>
+  >(async () => true);
   const scrollToSectionRef = useRef<(id: SectionId) => void>(() => {});
   const handleItemSaved = useCallback(
     async (savedId: string, savedDetail?: ProductDetailSnapshot | null) =>
@@ -583,7 +492,15 @@ export function ProductEditorShell({
     []
   );
 
-  const itemSaveLabel = mode === "edit" ? UPDATE_ITEM_LABEL : SAVE_ITEM_LABEL;
+  const sellableVariantCount = useMemo(() => countSellableVariants(variants), [variants]);
+
+  const getVariantStrategyContext = useCallback(
+    () => ({
+      sellableVariantCount,
+      totalVariantRows: variants.length,
+    }),
+    [sellableVariantCount, variants.length]
+  );
 
   const {
     form,
@@ -609,14 +526,11 @@ export function ProductEditorShell({
     onPendingChange,
     refreshOnSave: !wizard,
     hydrateOnInitialValuesChange: Boolean(wizard),
+    getVariantStrategyContext,
   });
 
-  const loadExtensionData =
-    Boolean(itemId) &&
-    (isSectionMounted("salable") ||
-      isSectionMounted("purchasable") ||
-      isSectionMounted("variants") ||
-      isSectionMounted("visibility"));
+  /** Form `item_id` plus saved detail fallback (create wizard after first save). */
+  const resolvedItemId = itemId ?? detail?.id ?? null;
 
   const disableInput = useCallback(
     (formField: keyof ProductMasterFormValues | string, lockKey?: string) => {
@@ -643,6 +557,26 @@ export function ProductEditorShell({
     getValues,
     formState: { errors, isDirty },
   } = form;
+
+  const storedVariantAxes = watch("variant_axes");
+  const extraSkuOptions = watch("extra_sku_options") ?? [];
+  const variantAxisKeys = storedVariantAxes ?? [];
+  const compositionTemplates = useMemo(
+    () => resolveItemCompositionTemplates(categoryTemplates, extraSkuOptions),
+    [categoryTemplates, extraSkuOptions]
+  );
+
+  useEffect(() => {
+    const inferred = inferVariantStrategy({
+      sellableVariantCount,
+      totalVariantRows: variants.length,
+      persistedStrategy: variantStrategy,
+      selectedAxisCount: variantAxisKeys.length,
+    });
+    if (inferred !== variantStrategy) {
+      setValue("variant_strategy", inferred, { shouldDirty: false });
+    }
+  }, [sellableVariantCount, variants.length, variantStrategy, variantAxisKeys.length, setValue]);
 
   const name = watch("name");
   const sku = watch("sku");
@@ -694,15 +628,17 @@ export function ProductEditorShell({
     [categoryName]
   );
 
-  const showVariantsSection = isMultiSku || variants.length > 1;
+  const showVariantsSection = isPhysical;
+  const showCompositeItemSection = itemTypeSupportsComposition(itemType);
   const hasComposition = isBundle;
   const visibleSections = useMemo(
     () =>
-      editorSections(itemId, hasComposition)
+      editorShellSections(resolvedItemId, hasComposition)
         .filter((section) => {
+          if (section.id === "purchasable") return false;
+          if (section.id === "salable") return false;
           if (section.id === "variants" && !showVariantsSection) return false;
           if (section.id === "composition" && !hasComposition) return false;
-          if (section.id === "inventory" && !isPhysical) return false;
           return true;
         })
         .map((section) =>
@@ -714,64 +650,209 @@ export function ProductEditorShell({
               }
             : section
         ),
-    [itemId, hasComposition, showVariantsSection, isPhysical, categoryFieldsTitle, categoryName]
+    [resolvedItemId, hasComposition, showVariantsSection, isPhysical, categoryFieldsTitle, categoryName]
   );
   const visibleSectionIds = useMemo(
     () => visibleSections.map((section) => section.id),
     [visibleSections]
   );
 
-  // Which category attributes compose this item's variants. The category
-  // suggests a default (its role hint, choice-typed attrs, or whatever existing
-  // variants use); the author's explicit choice is persisted on the item.
-  const sellableVariantCount = useMemo(
-    () => variants.filter((variant) => variant.is_sellable !== false).length,
-    [variants]
-  );
-  const canSelectSingleSku = canSelectSingleVariantStrategy(sellableVariantCount);
+  const {
+    activeSection,
+    scrollRootRef,
+    ignoreSpyUntilRef,
+    scrollToSection,
+    scrollToSectionRef: sectionNavScrollToSectionRef,
+    registerSection,
+  } = useItemEditorSectionNav({
+    isPanelLayout,
+    panelUseTopSectionTabs,
+    panelRailHorizontal,
+    itemId: resolvedItemId,
+    formRef,
+    panelScrollRef,
+    chipBarRef,
+    panelPaneWidth: panelPaneWidth ?? 0,
+    visibleSectionIds,
+  });
+  scrollToSectionRef.current = sectionNavScrollToSectionRef.current;
 
-  const usedVariantKeys = useMemo(() => usedVariantAttributeKeys(variants), [variants]);
-  const suggestedVariantAxisKeys = useMemo(
-    () => defaultVariantAxisKeys(categoryTemplates, usedVariantKeys),
-    [categoryTemplates, usedVariantKeys]
-  );
-  const storedVariantAxes = watch("variant_axes");
-  const variantAxisKeys = storedVariantAxes ?? [];
-  const descriptiveAttributeTemplates = useMemo(
-    () => splitTemplatesByAxis(categoryTemplates, variantAxisKeys).descriptive,
-    [categoryTemplates, variantAxisKeys]
-  );
   const variantCommitRef = useRef<(() => Promise<VariantMatrixCommitResult>) | null>(null);
   const compositionCommitRef = useRef<(() => Promise<CompositionCommitResult>) | null>(null);
   const [compositionDraft, setCompositionDraft] = useState<VariantMatrixDraftState | null>(null);
   const [compositionSectionDirty, setCompositionSectionDirty] = useState(false);
-  const [wizardSubmitPending, setWizardSubmitPending] = useState(false);
-  const variantCompositionMode =
-    activeWizardStage === "versions" && Boolean(wizard) && isMultiSku ? "draft" : "live";
+
+  const { sectionStatus: baseSectionStatus } = useItemEditorSectionStatus({
+    errors,
+    name,
+    sku,
+    baseUom,
+    isSalable,
+    isPurchasable,
+    isPhysical,
+    sellingPrice,
+    mrp,
+    purchasePrice,
+    trackInventory,
+    standardCost,
+    variants,
+    compositionDraft,
+    media,
+    variantAttributes,
+    customFields,
+    tagIds,
+    storefrontVisibility,
+  });
+
+  const {
+    activeWizardStage,
+    sectionVisible,
+    wizardStages,
+    wizardStageStatuses,
+    wizardPercent,
+    renderStageAccordionHeader,
+    wizardStepperActiveStage,
+    wizardStepperOnSelect,
+  } = useItemEditorWizardChrome({
+    wizard,
+    wizardAccordion,
+    wizardSteps,
+    isPanelLayout,
+    isPhysical,
+    hasComposition,
+    showVariantsSection,
+    showCompositeItemSection,
+    pinnedSections,
+    itemId: resolvedItemId,
+    sectionStatus: baseSectionStatus,
+    panelScrollRef,
+    scrollRootRef,
+    ignoreSpyUntilRef,
+  });
+
+  const variantCompositionMode = resolveVariantCompositionMode({
+    activeWizardStage,
+    wizardActive: Boolean(wizard),
+    wizardSteps,
+  });
   const compositionDeferSave = Boolean(wizard && activeWizardStage === "composition");
+
+  const {
+    handleSave,
+    submitPending,
+    wizardPrimaryLabel,
+    panelPrimaryAction,
+    reachLocationsPersistErrorMessage,
+    reachOpeningPersistErrorMessage,
+    reachOpeningPersistErrorAction,
+  } = useItemEditorSaveOrchestration({
+    mode,
+    isPanelLayout,
+    readOnly,
+    wizard,
+    wizardSteps,
+    activeWizardStage,
+    variantCompositionMode,
+    isMultiSku,
+    hasComposition,
+    isDirty,
+    isPending,
+    isNavigatePending,
+    itemId: resolvedItemId,
+    detail,
+    catalogContext,
+    form,
+    getValues,
+    setValue,
+    handleSubmit,
+    onSubmit,
+    onSaved,
+    onCancel,
+    onMutationHeaderChange,
+    onDirtyChange,
+    compositionDraft,
+    compositionSectionDirty,
+    trackInventory,
+    trackingMode,
+    scrollToSection,
+    scrollToSectionRef,
+    itemSavedHandlerRef,
+    pendingSaveOptionsRef,
+    locationMatrixRef,
+    openingStockMatrixRef,
+    variantCommitRef,
+    compositionCommitRef,
+  });
+
+  useEffect(() => {
+    onWizardPrimaryLabelChange?.(wizard && wizardSteps ? wizardPrimaryLabel : null);
+    return () => onWizardPrimaryLabelChange?.(null);
+  }, [onWizardPrimaryLabelChange, wizard, wizardSteps, wizardPrimaryLabel]);
+
+  const sectionStatus = useCallback(
+    (id: SectionId): SectionStatus => {
+      if (
+        id === "visibility" &&
+        (reachLocationsPersistErrorMessage || reachOpeningPersistErrorMessage)
+      ) {
+        return "error";
+      }
+      return baseSectionStatus(id);
+    },
+    [
+      baseSectionStatus,
+      reachLocationsPersistErrorMessage,
+      reachOpeningPersistErrorMessage,
+    ]
+  );
+
+  const isSectionMounted = useMountedEditorSections(activeSection, {
+    wizardStage: activeWizardStage,
+  });
+
+  const loadExtensionData =
+    Boolean(resolvedItemId) &&
+    (      isSectionMounted("overview") ||
+      isSectionMounted("purchasable") ||
+      isSectionMounted("salable") ||
+      isSectionMounted("variants") ||
+      isSectionMounted("visibility"));
+
+  // Category attributes that compose SKUs; category suggests defaults, author choice persists on item.
+  const canSelectSingleSku = canSelectSingleVariantStrategy(sellableVariantCount);
+
+  const usedVariantKeys = useMemo(() => usedVariantAttributeKeys(variants), [variants]);
+  const suggestedVariantAxisKeys = useMemo(
+    () => defaultVariantAxisKeys(compositionTemplates, usedVariantKeys),
+    [compositionTemplates, usedVariantKeys]
+  );
+  const descriptiveAttributeTemplates = useMemo(
+    () => splitTemplatesByAxis(compositionTemplates, variantAxisKeys).descriptive,
+    [compositionTemplates, variantAxisKeys]
+  );
   const variantAxisCategoryRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const previousCategory = variantAxisCategoryRef.current;
     variantAxisCategoryRef.current = categoryId;
     const current = getValues("variant_axes") ?? [];
-    const filtered = sanitizeVariantAxisKeys(current, categoryTemplates);
+    const filtered = sanitizeItemVariantAxisKeys(current, categoryTemplates, extraSkuOptions);
     const categoryChanged = previousCategory !== undefined && previousCategory !== categoryId;
     if (categoryChanged || filtered.length !== current.length) {
       setValue("variant_axes", filtered, { shouldDirty: categoryChanged });
     }
-  }, [categoryId, categoryTemplates, getValues, setValue]);
+  }, [categoryId, categoryTemplates, extraSkuOptions, getValues, setValue]);
 
   useEffect(() => {
     const current = getValues("variant_attributes") ?? {};
     const descriptiveOnly = pickDescriptiveVariantAttributes(
       current,
-      categoryTemplates,
+      compositionTemplates,
       variantAxisKeys
     );
     if (JSON.stringify(descriptiveOnly) !== JSON.stringify(current)) {
       setValue("variant_attributes", descriptiveOnly, { shouldDirty: false });
     }
-  }, [categoryTemplates, getValues, setValue, variantAxisKeys]);
+  }, [compositionTemplates, getValues, setValue, variantAxisKeys]);
 
   const classificationOptions = useMemo(
     () =>
@@ -793,27 +874,19 @@ export function ProductEditorShell({
     setTagOptions(catalogContext.tags);
   }, [catalogContext.tags]);
 
-  // Best-effort duplicate detection while creating a new item.
-  useEffect(() => {
-    if (itemId || readOnly) {
-      setDuplicates([]);
-      return;
-    }
-    const trimmed = (name ?? "").trim();
-    if (trimmed.length < 2) {
-      setDuplicates([]);
-      return;
-    }
-    let cancelled = false;
-    const handle = window.setTimeout(async () => {
-      const result = await findSimilarItems(trimmed, { categoryId, limit: 5 });
-      if (!cancelled && "matches" in result) setDuplicates(result.matches ?? []);
-    }, 400);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(handle);
-    };
-  }, [name, categoryId, itemId, readOnly]);
+  const {
+    similarItems,
+    nameCheckLoading,
+    similarExpanded,
+    setSimilarExpanded,
+    checkDuplicatesOnNameBlur,
+  } = useItemDuplicateCheck({
+    itemId: resolvedItemId,
+    readOnly,
+    name,
+    allowDuplicateItemNames: catalogContext.catalog_items.allow_duplicate_item_names,
+    form,
+  });
 
   const priceBookUomCodes = useMemo(
     () =>
@@ -835,53 +908,6 @@ export function ProductEditorShell({
       resolveItemCommerceUomOptions(baseUom, alternateUoms ?? [], catalogContext.uoms, purchaseUom),
     [baseUom, alternateUoms, catalogContext.uoms, purchaseUom]
   );
-
-  const hasShippingDimensionValues = useCallback(
-    (values: {
-      dead_weight_kg?: string | null;
-      volume?: string | null;
-      length_cm?: string | null;
-      width_cm?: string | null;
-      height_cm?: string | null;
-    }) =>
-      Number(values.dead_weight_kg) > 0 ||
-      Number(values.length_cm) > 0 ||
-      Number(values.width_cm) > 0 ||
-      Number(values.height_cm) > 0,
-    []
-  );
-
-  const barcode = watch("barcode");
-
-  const [showBasicsAdvanced, setShowBasicsAdvanced] = useState(
-    () => (initialValues?.alternate_uoms?.length ?? 0) > 0
-  );
-
-  const [showBasicsMore, setShowBasicsMore] = useState(
-    () =>
-      Boolean(initialValues?.barcode?.trim()) ||
-      hasShippingDimensionValues(initialValues ?? {})
-  );
-
-  useEffect(() => {
-    if ((alternateUoms?.length ?? 0) > 0) {
-      setShowBasicsAdvanced(true);
-    }
-  }, [alternateUoms?.length]);
-
-  useEffect(() => {
-    if (
-      barcode?.trim() ||
-      hasShippingDimensionValues({
-        dead_weight_kg: deadWeightKg,
-        length_cm: lengthCm,
-        width_cm: widthCm,
-        height_cm: heightCm,
-      })
-    ) {
-      setShowBasicsMore(true);
-    }
-  }, [barcode, deadWeightKg, lengthCm, widthCm, heightCm, hasShippingDimensionValues]);
 
   useEffect(() => {
     const computed = computeVolumeCm3FromDimensions(lengthCm, widthCm, heightCm);
@@ -970,619 +996,6 @@ export function ProductEditorShell({
 
   const showStatus = !readOnly;
 
-  // Resolve scroll root: drawer panel scroll container, else nearest overflow ancestor.
-  useLayoutEffect(() => {
-    if (isPanelLayout && panelScrollRef.current) {
-      scrollRootRef.current = panelScrollRef.current;
-      setScrollRoot(panelScrollRef.current);
-      return;
-    }
-    let el = formRef.current?.parentElement ?? null;
-    while (el) {
-      const overflowY = window.getComputedStyle(el).overflowY;
-      if (overflowY === "auto" || overflowY === "scroll") {
-        scrollRootRef.current = el;
-        setScrollRoot(el);
-        return;
-      }
-      el = el.parentElement;
-    }
-    scrollRootRef.current = null;
-    setScrollRoot(null);
-  }, [isPanelLayout, panelPaneWidth, panelUseTopSectionTabs]);
-
-  // Scroll-spy: highlight the section whose top has most recently crossed the anchor line.
-  useEffect(() => {
-    const scrollRootEl = scrollRootRef.current;
-    if (!scrollRootEl) return;
-
-    const updateActive = () => {
-      if (Date.now() < ignoreSpyUntilRef.current) return;
-
-      const stickyNavHeight = isPanelLayout
-        ? panelUseTopSectionTabs
-          ? (chipBarRef.current?.offsetHeight ?? 0)
-          : 0
-        : (chipBarRef.current?.offsetHeight ?? 0);
-      const anchorLine = resolveScrollSpyAnchorLine(
-        scrollRootEl,
-        resolveEditorScrollSpyOffset(isPanelLayout, stickyNavHeight, panelRailHorizontal)
-      );
-      const nextActive = resolveActiveSectionByScrollPosition(
-        visibleSectionIds,
-        (id) => sectionRefs.current[id as SectionId] ?? null,
-        anchorLine
-      );
-
-      if (nextActive) {
-        setActiveSection(nextActive);
-      }
-    };
-
-    updateActive();
-    scrollRootEl.addEventListener("scroll", updateActive, { passive: true });
-    window.addEventListener("resize", updateActive);
-
-    return () => {
-      scrollRootEl.removeEventListener("scroll", updateActive);
-      window.removeEventListener("resize", updateActive);
-    };
-  }, [isPanelLayout, panelUseTopSectionTabs, scrollRoot, visibleSectionIds]);
-
-  useEffect(() => {
-    if (itemId) return;
-    if (EDITOR_SECTIONS_HIDDEN_WHILE_CREATING.includes(activeSection)) {
-      setActiveSection("overview");
-    }
-  }, [itemId, activeSection]);
-
-  const scrollToSection = useCallback(
-    (id: SectionId) => {
-      ignoreSpyUntilRef.current = Date.now() + 900;
-      setActiveSection(id);
-      const el = sectionRefs.current[id];
-      if (!el) return;
-
-      const stickyNavHeight = isPanelLayout
-        ? panelUseTopSectionTabs
-          ? (chipBarRef.current?.offsetHeight ?? 0)
-          : 0
-        : (chipBarRef.current?.offsetHeight ?? 0);
-      if (isPanelLayout && panelScrollRef.current) {
-        const root = panelScrollRef.current;
-        const rootRect = root.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        const top =
-          root.scrollTop + (elRect.top - rootRect.top) - (stickyNavHeight > 0 ? stickyNavHeight + 8 : 12);
-        root.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-        return;
-      }
-      scrollElementInDashboardRoot(el, {
-        offsetTop: isPanelLayout ? 20 : 96,
-        additionalOffset: stickyNavHeight > 0 ? stickyNavHeight + 8 : 0,
-        scrollRootRef,
-      });
-    },
-    [isPanelLayout, panelUseTopSectionTabs]
-  );
-
-  scrollToSectionRef.current = scrollToSection;
-  itemSavedHandlerRef.current = async (savedId, savedDetail) => {
-    setReachSaveErrors(null);
-    if (savedId && locationMatrixRef.current) {
-      const persistResult = await locationMatrixRef.current.persist({
-        storefrontVisibility: getValues("storefront_visibility"),
-      });
-      if (!persistResult.ok) {
-        setReachSaveErrors(persistResult.failures);
-        scrollToSectionRef.current("visibility");
-        onSavedParentRef.current?.(savedId, savedDetail ?? null);
-        return false;
-      }
-    }
-    if (
-      savedId &&
-      trackInventory &&
-      trackingMode === "NONE" &&
-      openingStockMatrixRef.current
-    ) {
-      const openingResult = await openingStockMatrixRef.current.persist();
-      if (!openingResult.ok) {
-        setReachSaveErrors(openingResult.failures);
-        scrollToSectionRef.current("visibility");
-        onSavedParentRef.current?.(savedId, savedDetail ?? null);
-        return false;
-      }
-    }
-    onSavedParentRef.current?.(savedId, savedDetail ?? null);
-    return true;
-  };
-
-  const registerSection = useCallback(
-    (id: SectionId) => (el: HTMLDivElement | null) => {
-      sectionRefs.current[id] = el;
-    },
-    []
-  );
-
-  const onInvalid = useCallback(
-    (formErrors: FieldErrors<ProductMasterFormValues>) => {
-      const firstField = Object.keys(formErrors)[0] as
-        | keyof ProductMasterFormValues
-        | undefined;
-      const target = firstField ? FIELD_SECTION[firstField] : undefined;
-      if (target) scrollToSection(target);
-      toast.error("Please fix the highlighted fields before saving.");
-    },
-    [scrollToSection]
-  );
-
-  const handleSave = useMemo(
-    () => handleSubmit(onSubmit, onInvalid),
-    [handleSubmit, onSubmit, onInvalid]
-  );
-
-  const submitRef = useRef(handleSave);
-  submitRef.current = handleSave;
-
-  const submitPending = isPending || wizardSubmitPending;
-
-  const wizardPrimaryLabel = useMemo(() => {
-    if (submitPending) {
-      if (activeWizardStage === "versions" && variantCompositionMode === "draft") {
-        return "Saving variantsâ€¦";
-      }
-      if (activeWizardStage === "composition") {
-        return "Saving compositionâ€¦";
-      }
-      return "Savingâ€¦";
-    }
-    if (!wizard) return itemSaveLabel;
-    if (wizard.isLast) return "Finish";
-    if (wizard.isFirst) return "Save & continue";
-    return "Continue";
-  }, [itemSaveLabel, submitPending, variantCompositionMode, wizard]);
-
-  // Hand the save trigger to the wizard host so its nav buttons can save first.
-  useEffect(() => {
-    wizard?.registerSubmit((nav) => {
-      void (async () => {
-        setWizardSubmitPending(true);
-        try {
-          if (nav.type === "back" && !isDirty && itemId) {
-            onSaved(itemId, detail);
-            return;
-          }
-
-          let committedDetail: ProductDetailSnapshot | undefined;
-
-          if (
-            activeWizardStage === "versions" &&
-            isMultiSku &&
-            variantCompositionMode === "draft" &&
-            variantCommitRef.current
-          ) {
-            const result = await variantCommitRef.current();
-            if ("error" in result) {
-              toast.error(result.error);
-              return;
-            }
-            if (result.updatedAt) {
-              setValue("updated_at", result.updatedAt, { shouldDirty: false });
-            }
-            committedDetail = result.detail;
-          }
-
-          if (
-            nav.type === "primary" &&
-            activeWizardStage === "composition" &&
-            hasComposition &&
-            compositionCommitRef.current
-          ) {
-            const result = await compositionCommitRef.current();
-            if ("error" in result) {
-              toast.error(result.error);
-              return;
-            }
-            if (!isDirty && itemId) {
-              onSaved(itemId, detail);
-              return;
-            }
-          }
-
-          const skipProfileSave =
-            nav.type === "primary" &&
-            activeWizardStage === "versions" &&
-            variantCompositionMode === "draft" &&
-            Boolean(committedDetail) &&
-            itemId;
-
-          if (skipProfileSave && committedDetail) {
-            const hydrated = {
-              ...detailToFormValues(committedDetail),
-              storefront_visibility: mergeStorefrontVisibility(
-                catalogContext.storefronts,
-                detailToFormValues(committedDetail).storefront_visibility
-              ),
-            };
-            form.reset(hydrated);
-            onSaved(itemId, committedDetail);
-            return;
-          }
-
-          await handleSave();
-        } finally {
-          setWizardSubmitPending(false);
-        }
-      })();
-    });
-  }, [
-    activeWizardStage,
-    wizard,
-    catalogContext.storefronts,
-    detail,
-    form,
-    handleSave,
-    hasComposition,
-    isDirty,
-    isMultiSku,
-    itemId,
-    onSaved,
-    setValue,
-    variantCompositionMode,
-  ]);
-
-  useEffect(() => {
-    if (!onMutationHeaderChange || !isPanelLayout || readOnly) {
-      onMutationHeaderChange?.(null);
-      return;
-    }
-
-    if (wizard && wizardSteps) {
-      onMutationHeaderChange({
-        variant: "wizard",
-        isFirst: wizard.isFirst,
-        isLast: wizard.isLast,
-        onBack: wizard.onBack,
-        onCancel,
-        onSkip: wizard.onSkip,
-        onPrimary: wizard.onPrimary,
-        isPending: submitPending,
-        isNavigatePending,
-        primaryLabel: wizardPrimaryLabel,
-      });
-      return () => onMutationHeaderChange(null);
-    }
-
-    onMutationHeaderChange({
-      variant: "edit",
-      onCancel,
-      onSave: () => {
-        void handleSave();
-      },
-      isPending: submitPending,
-      isNavigatePending,
-      saveLabel: submitPending ? "Savingâ€¦" : itemSaveLabel,
-    });
-    return () => onMutationHeaderChange(null);
-  }, [
-    itemSaveLabel,
-    onMutationHeaderChange,
-    isPanelLayout,
-    readOnly,
-    wizard,
-    wizardSteps,
-    onCancel,
-    handleSave,
-    submitPending,
-    isNavigatePending,
-    wizardPrimaryLabel,
-  ]);
-
-  const panelPrimaryAction = useMemo(() => {
-    if (readOnly || !isPanelLayout) return null;
-    if (wizard && wizardSteps) {
-      return {
-        label: wizardPrimaryLabel,
-        onClick: wizard.onPrimary,
-      };
-    }
-    return {
-      label: submitPending ? "Savingâ€¦" : itemSaveLabel,
-      onClick: () => {
-        void handleSave();
-      },
-    };
-  }, [
-    itemSaveLabel,
-    readOnly,
-    isPanelLayout,
-    wizard,
-    wizardSteps,
-    submitPending,
-    wizardPrimaryLabel,
-    handleSave,
-  ]);
-
-  useEffect(() => {
-    onDirtyChange?.(
-      isDirty || Boolean(compositionDraft?.isDirty) || compositionSectionDirty
-    );
-  }, [compositionDraft?.isDirty, compositionSectionDirty, isDirty, onDirtyChange]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (readOnly) return;
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        void submitRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [readOnly]);
-
-  const reachLocationsPersistErrorMessage = useMemo(() => {
-    if (!reachSaveErrors) return undefined;
-    const parts = [
-      reachSaveErrors.locations,
-      reachSaveErrors.reorder,
-      reachSaveErrors.channels,
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(" ") : undefined;
-  }, [reachSaveErrors]);
-
-  const reachOpeningPersistErrorMessage = reachSaveErrors?.opening;
-  const reachOpeningPersistErrorAction = reachSaveErrors?.openingAction;
-
-  const sectionErrors = useMemo(() => {
-    const map: Record<SectionId, boolean> = {
-      overview: false,
-      salable: false,
-      purchasable: false,
-      inventory: false,
-      variants: false,
-      composition: false,
-      media: false,
-      product_attributes: false,
-      custom_fields: false,
-      tags: false,
-      visibility: false,
-    };
-    (Object.keys(errors) as Array<keyof ProductMasterFormValues>).forEach((key) => {
-      const section = FIELD_SECTION[key];
-      if (section) map[section] = true;
-    });
-    if (reachLocationsPersistErrorMessage || reachOpeningPersistErrorMessage) {
-      map.visibility = true;
-    }
-    return map;
-  }, [errors, reachLocationsPersistErrorMessage, reachOpeningPersistErrorMessage]);
-
-  const sectionStatus = useCallback(
-    (id: SectionId): SectionStatus => {
-      if (sectionErrors[id]) return "error";
-      switch (id) {
-        case "overview":
-          return name?.trim() && sku?.trim() && baseUom?.trim() ? "complete" : "empty";
-        case "salable":
-          if (!isSalable) return "empty";
-          return Number(sellingPrice) > 0 || Number(mrp) > 0 ? "complete" : "empty";
-        case "purchasable":
-          if (!isPurchasable) return "empty";
-          return Number(purchasePrice) > 0 ? "complete" : "empty";
-        case "inventory": {
-          if (!isPhysical) return "complete";
-          if (!trackInventory) return "empty";
-          return Number(standardCost) > 0 ? "complete" : "empty";
-        }
-        case "variants":
-          if (compositionDraft?.includedCount) return "complete";
-          return variants.some((variant) => !variant.is_master) ? "complete" : "empty";
-        case "composition":
-          return "empty";
-        case "media":
-          return media.length > 0 ? "complete" : "empty";
-        case "product_attributes":
-          return Object.values(variantAttributes).some((value) => String(value ?? "").trim())
-            ? "complete"
-            : "empty";
-        case "custom_fields":
-          return Array.isArray(customFields) && customFields.length > 0 ? "complete" : "empty";
-        case "tags":
-          return Array.isArray(tagIds) && tagIds.length > 0 ? "complete" : "empty";
-        case "visibility":
-          return Array.isArray(storefrontVisibility) &&
-            storefrontVisibility.some((entry) => entry.is_visible)
-            ? "complete"
-            : "empty";
-        default:
-          return "empty";
-      }
-    },
-    [
-      sectionErrors,
-      name,
-      sku,
-      isSalable,
-      isPurchasable,
-      isPhysical,
-      sellingPrice,
-      mrp,
-      purchasePrice,
-      trackInventory,
-      standardCost,
-      deadWeightKg,
-      shippingVolume,
-      lengthCm,
-      widthCm,
-      heightCm,
-      variants.length,
-      compositionDraft?.includedCount,
-      media.length,
-      tagIds,
-      customFields,
-      storefrontVisibility,
-      variantAttributes,
-      alternateUoms,
-      baseUom,
-    ]
-  );
-
-  // --- Wizard (guided create) derived state -------------------------------
-  // Only the active stage's sections render; the rest of the chrome (stepper,
-  // completeness, footer) is computed from the same sectionStatus.
-  const wizardSectionSet = useMemo(
-    () =>
-      wizardSteps && wizard ? new Set(editorStageById(wizard.stage).sections) : null,
-    [wizard, wizardSteps]
-  );
-  const sectionInStage = useCallback(
-    (id: SectionId) => !wizardSectionSet || wizardSectionSet.has(id),
-    [wizardSectionSet]
-  );
-  const sectionInExpandedStage = useCallback(
-    (id: SectionId) => {
-      if (!wizardAccordion) return true;
-      const stage = stageForSection(id);
-      if (!stage) return true;
-      return expandedStage === stage;
-    },
-    [wizardAccordion, expandedStage]
-  );
-
-  const pinnedSet = useMemo(
-    () => (pinnedSections ? new Set(pinnedSections) : null),
-    [pinnedSections]
-  );
-
-  const sectionVisible = useCallback(
-    (id: SectionId) =>
-      sectionInExpandedStage(id) &&
-      sectionInStage(id) &&
-      (id !== "inventory" || isPhysical) &&
-      (id !== "composition" || hasComposition) &&
-      (!pinnedSet || pinnedSet.has(id)),
-    [sectionInExpandedStage, sectionInStage, pinnedSet, isPhysical, hasComposition]
-  );
-  const wizardStages = useMemo(
-    () =>
-      EDITOR_STAGES.filter((stage) => {
-        if (stage.id === "versions" && !showVariantsSection) return false;
-        if (stage.id === "composition" && !hasComposition) return false;
-        return true;
-      }),
-    [showVariantsSection, hasComposition]
-  );
-  const applicableWizardSections = useCallback(
-    (sections: EditorSectionId[]) =>
-      sections.filter(
-        (section) =>
-          (section !== "inventory" || isPhysical) &&
-          (section !== "variants" || showVariantsSection) &&
-          (section !== "composition" || hasComposition)
-      ),
-    [hasComposition, isPhysical, showVariantsSection]
-  );
-
-  const wizardStageStatuses = useMemo(() => {
-    const map = {} as Record<EditorStageId, StageStatus>;
-    for (const stage of wizardStages) {
-      map[stage.id] = rollUpStageStatus(
-        applicableWizardSections(stage.sections).map((section) => sectionStatus(section))
-      );
-    }
-    return map;
-  }, [wizardStages, sectionStatus, applicableWizardSections]);
-  const wizardPercent = useMemo(
-    () =>
-      overallCompletenessPercent(
-        wizardStages
-          .flatMap((stage) => applicableWizardSections(stage.sections))
-          .map((section) => sectionStatus(section))
-      ),
-    [wizardStages, sectionStatus, applicableWizardSections]
-  );
-
-  useEffect(() => {
-    if (wizardAccordion) {
-      setExpandedStage("essentials");
-    }
-  }, [wizardAccordion, itemId]);
-
-  const jumpToStage = useCallback(
-    (stageId: EditorStageId) => {
-      setExpandedStage(stageId);
-      ignoreSpyUntilRef.current = Date.now() + 900;
-      requestAnimationFrame(() => {
-        const el = stageHeaderRefs.current[stageId];
-        if (!el) return;
-        if (isPanelLayout && panelScrollRef.current) {
-          const root = panelScrollRef.current;
-          const rootRect = root.getBoundingClientRect();
-          const elRect = el.getBoundingClientRect();
-          const top = root.scrollTop + (elRect.top - rootRect.top) - 12;
-          root.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-          return;
-        }
-        scrollElementInDashboardRoot(el, {
-          offsetTop: isPanelLayout ? 20 : 96,
-          scrollRootRef,
-        });
-      });
-    },
-    [isPanelLayout]
-  );
-
-  const toggleExpandedStage = useCallback((stageId: EditorStageId) => {
-    setExpandedStage((prev) => (prev === stageId ? prev : stageId));
-    ignoreSpyUntilRef.current = Date.now() + 400;
-  }, []);
-
-  const registerStageHeader = useCallback(
-    (stageId: EditorStageId) => (el: HTMLDivElement | null) => {
-      if (el) {
-        stageHeaderRefs.current[stageId] = el;
-      } else {
-        delete stageHeaderRefs.current[stageId];
-      }
-    },
-    []
-  );
-
-  const renderStageAccordionHeader = useCallback(
-    (stageId: EditorStageId) => {
-      if (!wizardAccordion) return null;
-      const stage = wizardStages.find((entry) => entry.id === stageId);
-      if (!stage) return null;
-      const index = wizardStages.findIndex((entry) => entry.id === stageId);
-      return (
-        <EditorStageAccordionHeader
-          stage={stage}
-          index={index}
-          status={wizardStageStatuses[stageId] ?? "empty"}
-          expanded={expandedStage === stageId}
-          onToggle={() => toggleExpandedStage(stageId)}
-          registerRef={registerStageHeader(stageId)}
-          panel={isPanelLayout}
-        />
-      );
-    },
-    [
-      wizardAccordion,
-      wizardStages,
-      wizardStageStatuses,
-      expandedStage,
-      toggleExpandedStage,
-      registerStageHeader,
-      isPanelLayout,
-    ]
-  );
-
-  const wizardStepperActiveStage = wizardAccordion ? expandedStage : wizard?.stage ?? "essentials";
-  const wizardStepperOnSelect = wizardAccordion
-    ? jumpToStage
-    : wizard?.onSelectStage;
 
   const handleCatalogChange = useCallback(
     (
@@ -1622,7 +1035,11 @@ export function ProductEditorShell({
     wizard,
     mode,
     readOnly,
-    duplicates,
+    similarItems,
+    nameCheckLoading,
+    similarExpanded,
+    setSimilarExpanded,
+    checkDuplicatesOnNameBlur,
     needsReview,
     register,
     errors,
@@ -1637,7 +1054,7 @@ export function ProductEditorShell({
     isPhysical,
     itemType,
     canSelectSingleSku,
-    itemId,
+    itemId: resolvedItemId,
     currentClassification,
     classificationOptions,
     hasComposition,
@@ -1649,10 +1066,6 @@ export function ProductEditorShell({
     baseUom,
     alternateUoms,
     fieldDisabled,
-    showBasicsMore,
-    setShowBasicsMore,
-    showBasicsAdvanced,
-    setShowBasicsAdvanced,
     lengthCm,
     widthCm,
     heightCm,
@@ -1680,7 +1093,10 @@ export function ProductEditorShell({
     valuations,
     name,
     showVariantsSection,
+    sellableVariantCount,
     categoryTemplates,
+    compositionTemplates,
+    extraSkuOptions,
     variantAxisKeys,
     suggestedVariantAxisKeys,
     skuMask,
@@ -1746,9 +1162,16 @@ export function ProductEditorShell({
     [sectionStatus, showStatus, visibleSections]
   );
 
+  const showWizardDrawerStageChrome = Boolean(wizard && isPanelLayout && wizardSteps);
+  const wizardDrawerStageLabel =
+    showWizardDrawerStageChrome && activeWizardStage
+      ? editorStageById(activeWizardStage).label
+      : null;
+
   return (
     <EditorPanelContext.Provider value={isPanelLayout}>
-    <ItemExtensionDataProvider itemId={itemId} catalogContext={catalogContext} enabled={loadExtensionData}>
+    <EditorFieldHelpProvider>
+    <ItemExtensionDataProvider itemId={resolvedItemId} catalogContext={catalogContext} enabled={loadExtensionData}>
     <form
       ref={formRef}
       onSubmit={handleSave}
@@ -1764,7 +1187,7 @@ export function ProductEditorShell({
           (wizard ? "h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden" : "gap-4")
       )}
     >
-      {/* Summary header â€” wizard focuses on the stepper + fields */}
+      {/* Summary header — wizard focuses on the stepper + fields */}
       {!isPanelLayout && mode !== "create" && !wizard ? (
         <div className={editorCardClassName(false, "summary")}>
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1785,12 +1208,11 @@ export function ProductEditorShell({
             {(
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
-                {itemId ? (
+                {resolvedItemId ? (
                   <Badge variant={isActive ? "completed" : "locked"}>
                     {itemOperationalStatusLabel(isActive)}
                   </Badge>
                 ) : null}
-                <Badge variant="default">{variantStrategyLabel(variantStrategy)}</Badge>
                 {needsReview ? <Badge variant="action_required">Needs review</Badge> : null}
               </div>
             )}
@@ -1825,8 +1247,9 @@ export function ProductEditorShell({
                 "flex min-h-0 min-w-0 flex-1 flex-col",
                 wizard && isPanelLayout ? "overflow-visible" : "overflow-hidden",
                 isPanelLayout && "h-full",
-                wizardUseLeftRail && isPanelLayout && editorPanelWizardBleedClass(),
-                wizardUseLeftRail &&
+                wizardShowStepper && wizardUseLeftRail && isPanelLayout && editorPanelWizardBleedClass(),
+                wizardShowStepper &&
+                  wizardUseLeftRail &&
                   (isPanelLayout
                     ? editorPanelWizardLayoutGridClass()
                     : editorPageWizardLayoutGridClass())
@@ -1840,8 +1263,14 @@ export function ProductEditorShell({
               )
         )}
       >
-        {wizard && !wizardUseLeftRail ? (
-          <div className={editorWizardTopBarClass(isPanelLayout)}>
+        {wizardShowStepper && !wizardUseLeftRail ? (
+          <div
+            className={
+              glassWizard
+                ? editorWizardTopBarGlassClass(isPanelLayout)
+                : editorWizardTopBarClass(isPanelLayout)
+            }
+          >
             <EditorStepper
               stages={wizardStages}
               activeStage={wizardStepperActiveStage}
@@ -1851,12 +1280,19 @@ export function ProductEditorShell({
               freeNavigation={wizardAccordion}
               compact
               showDescription={false}
+              surface={glassWizard ? "glass" : "default"}
             />
           </div>
         ) : null}
 
-        {wizard && wizardUseLeftRail ? (
-          <aside className={editorWizardLeftRailAsideClass(isPanelLayout)}>
+        {wizardShowStepper && wizardUseLeftRail ? (
+          <aside
+            className={
+              glassWizard
+                ? editorWizardLeftRailGlassAsideClass(isPanelLayout)
+                : editorWizardLeftRailAsideClass(isPanelLayout)
+            }
+          >
             <div className={editorWizardLeftRailInnerClass(isPanelLayout)}>
               <div className={editorWizardLeftRailStickyClass()}>
                 <EditorStepper
@@ -1869,6 +1305,7 @@ export function ProductEditorShell({
                   vertical
                   compact
                   showDescription={false}
+                  surface={glassWizard ? "glass" : "default"}
                 />
               </div>
             </div>
@@ -1902,11 +1339,12 @@ export function ProductEditorShell({
             wizard &&
               cn(
                 "min-h-0 flex-1 overflow-y-auto overscroll-contain",
-                wizardUseLeftRail &&
+                wizardShowStepper &&
+                  wizardUseLeftRail &&
                   (isPanelLayout
                     ? editorPanelWizardFormScrollClass()
                     : "lg:h-full lg:flex-none lg:pl-4 lg:pr-1"),
-                wizard && !wizardUseLeftRail && isPanelLayout && "pt-4",
+                wizardShowStepper && !wizardUseLeftRail && isPanelLayout && "pt-4",
                 isPanelLayout && wizard && editorPanelWizardScrollClass(),
                 isPanelLayout && !wizard && "pb-1",
                 !isPanelLayout && "pb-16 md:pb-1"
@@ -1917,10 +1355,9 @@ export function ProductEditorShell({
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className={editorPanelBadgesClass()}>
                 <Badge variant="active">{itemTypeLabel(itemType)}</Badge>
-                <Badge variant="default">{variantStrategyLabel(variantStrategy)}</Badge>
                 {needsReview ? <Badge variant="action_required">Needs review</Badge> : null}
               </div>
-              {itemId ? (
+              {resolvedItemId ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <ToggleRow
                     variant="inline"
@@ -1949,9 +1386,21 @@ export function ProductEditorShell({
               ) : null}
             </div>
           ) : null}
+          {!readOnly ? (
+            wizardDrawerStageLabel ? (
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium text-foreground">{wizardDrawerStageLabel}</h2>
+                <EditorFieldHelpToggle />
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <EditorFieldHelpToggle />
+              </div>
+            )
+          ) : null}
           <ItemEditorStageBody {...stageBody} />
 
-          {!readOnly && panelPrimaryAction ? (
+          {!readOnly && panelPrimaryAction && !(wizard && wizardSteps && isPanelLayout) ? (
             <div className="flex justify-end pt-2">
               <PanelMutationPrimaryButton
                 label={panelPrimaryAction.label}
@@ -2030,7 +1479,7 @@ export function ProductEditorShell({
                 {isNavigatePending ? "Leavingâ€¦" : "Cancel"}
               </Button>
               <Button type="submit" disabled={submitPending || isNavigatePending} title="Save (Cmd/Ctrl + Enter)">
-                {submitPending ? "Savingâ€¦" : itemSaveLabel}
+                {submitPending ? "Saving…" : mode === "edit" ? UPDATE_ITEM_LABEL : SAVE_ITEM_LABEL}
               </Button>
             </>
           )}
@@ -2038,6 +1487,7 @@ export function ProductEditorShell({
       )}
     </form>
     </ItemExtensionDataProvider>
+    </EditorFieldHelpProvider>
     </EditorPanelContext.Provider>
   );
 }

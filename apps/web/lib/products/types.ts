@@ -1,4 +1,5 @@
 import type { CatalogItemSettings } from "@/lib/products/catalog-item-settings";
+import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { ItemClassification } from "@/lib/products/classification-labels";
 import { normalizeCompositionFromDetail } from "@/lib/products/composition";
 import {
@@ -169,6 +170,7 @@ export type ProductDetailSnapshot = {
   has_variants: boolean;
   variant_strategy: ProductVariantStrategy;
   variant_axes: string[];
+  extra_sku_options: AttributeTemplateEntry[];
   item_type: ItemType;
   track_inventory: boolean;
   status: ItemStatus;
@@ -340,6 +342,8 @@ export type ProductMasterFormValues = {
   variant_strategy: ProductVariantStrategy;
   /** Category attribute keys this item varies on (drives the variant matrix). */
   variant_axes: string[];
+  /** Product-only attribute templates for extra SKU composition axes. */
+  extra_sku_options: AttributeTemplateEntry[];
   item_type: ItemType;
   track_inventory: boolean;
   reorder_point: string;
@@ -452,6 +456,7 @@ export function detailToFormValues(detail: ProductDetailSnapshot): ProductMaster
     has_variants: detail.has_variants,
     variant_strategy: detail.variant_strategy,
     variant_axes: detail.variant_axes,
+    extra_sku_options: detail.extra_sku_options.map((entry) => ({ ...entry })),
     item_type: detail.item_type,
     track_inventory: detail.track_inventory,
     reorder_point: detail.reorder_point,
@@ -527,12 +532,13 @@ export const defaultProductFormValues: ProductMasterFormValues = {
   barcode: "",
   base_unit_of_measure: "PCS",
   category_id: null,
-  is_purchasable: true,
+  is_purchasable: false,
   is_salable: true,
   is_active: true,
   hsn_sac_code: "",
   has_variants: false,
   variant_axes: [],
+  extra_sku_options: [],
   default_tax_category: "TAXABLE",
   tax_code_id: null,
   is_returnable: true,

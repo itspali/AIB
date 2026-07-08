@@ -7,7 +7,7 @@ import {
 } from "@/lib/theme/themes";
 
 describe("normalizeStoredTheme", () => {
-  it("maps legacy light ids to warm light", () => {
+  it("maps legacy light ids to glass light", () => {
     expect(normalizeStoredTheme("light")).toBe("light");
     expect(normalizeStoredTheme("light-cyan")).toBe("light");
     expect(normalizeStoredTheme("light-blue")).toBe("light");
@@ -29,6 +29,6 @@ describe("normalizeStoredTheme", () => {
 describe("themeToHtmlClass", () => {
   it("maps each theme to its html class", () => {
     expect(themeToHtmlClass("dark")).toBe("dark");
-    expect(themeToHtmlClass("light")).toBe("theme-light-warm");
+    expect(themeToHtmlClass("light")).toBe("theme-light-glass");
   });
 });

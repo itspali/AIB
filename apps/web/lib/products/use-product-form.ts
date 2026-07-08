@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
-import { saveProductMasterProfile, getProductDetail } from "@/app/items/actions";
+import { saveProductMasterProfile, getProductDetail, findExactItemByName } from "@/app/items/actions";
 import { parentSelectOptions, resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
 import {
   ITEM_SAVE_PARTIAL_REACH_ERROR,
   ITEM_SAVE_SUCCESS,
 } from "@/lib/products/product-user-labels";
+import { EXACT_DUPLICATE_ITEM_NAME_MESSAGE } from "@/lib/products/item-name-uniqueness";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import { productMasterSchema } from "@/lib/products/schemas";
 import {
@@ -21,13 +22,20 @@ import {
   type ProductDetailSnapshot,
   type ProductMasterFormValues,
 } from "@/lib/products/types";
-import type { ProductVariantStrategy } from "@/lib/products/variant-strategy";
+import {
+  inferVariantStrategy,
+  type InferVariantStrategyInput,
+  type ProductVariantStrategy,
+} from "@/lib/products/variant-strategy";
+import {
+  resolveItemCompositionTemplates,
+  sanitizeItemVariantAxisKeys,
+  validateItemVariantAxesSelection,
+} from "@/lib/products/item-composition-templates";
 import {
   defaultVariantAxisKeys,
   pickDescriptiveVariantAttributes,
-  sanitizeVariantAxisKeys,
   splitTemplatesByAxis,
-  validateVariantAxesSelection,
   variantAxesZodIssuePath,
 } from "@/lib/products/variant-composition";
 import type { ItemClassification } from "@/lib/products/classification-labels";
@@ -66,6 +74,8 @@ export type UseProductFormOptions = {
    * after first save). Skips the dirty-guard that blocks stale `updated_at`.
    */
   hydrateOnInitialValuesChange?: boolean;
+  /** Sellable SKU rows for inferring variant_strategy on save (not shown in UI). */
+  getVariantStrategyContext?: () => Omit<InferVariantStrategyInput, "persistedStrategy">;
 };
 
 export type CategorySelectOption = {
@@ -113,6 +123,7 @@ export function useProductForm({
   notifyOnSave = true,
   refreshOnSave = true,
   hydrateOnInitialValuesChange = false,
+  getVariantStrategyContext,
 }: UseProductFormOptions): UseProductFormResult {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -147,6 +158,7 @@ export function useProductForm({
   const baseUom = watch("base_unit_of_measure");
   const purchaseUom = watch("purchase_uom");
   const previousBaseUomRef = useRef(baseUom);
+  const previousClassificationRef = useRef<ItemClassification | null>(null);
 
   useEffect(() => {
     register("track_inventory");
@@ -164,20 +176,33 @@ export function useProductForm({
 
   const onSubmit = useCallback(
     (values: ProductMasterFormValues) => {
-      const variantAxes = sanitizeVariantAxisKeys(
+      const strategyContext = getVariantStrategyContext?.();
+      const inferredStrategy = inferVariantStrategy({
+        sellableVariantCount: strategyContext?.sellableVariantCount ?? 0,
+        totalVariantRows: strategyContext?.totalVariantRows ?? 0,
+        persistedStrategy: values.variant_strategy,
+        selectedAxisCount: values.variant_axes?.length ?? 0,
+      });
+
+      const extraTemplates = values.extra_sku_options ?? [];
+      const mergedTemplates = resolveItemCompositionTemplates(categoryTemplates, extraTemplates);
+
+      const variantAxes = sanitizeItemVariantAxisKeys(
         values.variant_axes.length > 0
           ? values.variant_axes
-          : values.variant_strategy === "MULTI_SKU" && values.item_type === "PHYSICAL"
-            ? defaultVariantAxisKeys(categoryTemplates, [])
+          : inferredStrategy === "MULTI_SKU" && values.item_type === "PHYSICAL"
+            ? defaultVariantAxisKeys(mergedTemplates, [])
             : values.variant_axes,
-        categoryTemplates
+        categoryTemplates,
+        extraTemplates
       );
 
-      const axesMessage = validateVariantAxesSelection({
-        variant_strategy: values.variant_strategy,
+      const axesMessage = validateItemVariantAxesSelection({
+        variant_strategy: inferredStrategy,
         item_type: values.item_type,
         variant_axes: variantAxes,
         categoryTemplates,
+        extraTemplates,
       });
       if (axesMessage) {
         form.setError(variantAxesZodIssuePath(), { type: "manual", message: axesMessage });
@@ -200,7 +225,7 @@ export function useProductForm({
       }
 
       if (values.item_type === "PHYSICAL") {
-        const descriptiveTemplates = splitTemplatesByAxis(categoryTemplates, variantAxes).descriptive;
+        const descriptiveTemplates = splitTemplatesByAxis(mergedTemplates, variantAxes).descriptive;
         for (const template of descriptiveTemplates) {
           if (!template.required) continue;
           const value = values.variant_attributes[template.key]?.trim() ?? "";
@@ -222,10 +247,12 @@ export function useProductForm({
       const payload: ProductMasterFormValues = {
         ...values,
         sku: skuTrim,
+        variant_strategy: inferredStrategy,
         variant_axes: variantAxes,
+        extra_sku_options: extraTemplates,
         variant_attributes: pickDescriptiveVariantAttributes(
           values.variant_attributes,
-          categoryTemplates,
+          mergedTemplates,
           variantAxes
         ),
         classification: normalizedRole.classification,
@@ -235,6 +262,29 @@ export function useProductForm({
       };
 
       startTransition(async () => {
+        if (!catalogContext.catalog_items.allow_duplicate_item_names) {
+          const trimmedName = values.name.trim();
+          if (trimmedName.length > 0) {
+            const exact = await findExactItemByName(trimmedName, values.item_id);
+            if ("error" in exact && exact.error) {
+              if (notifyOnSave) {
+                toast.error(exact.error);
+              }
+              return;
+            }
+            if (exact.match) {
+              form.setError("name", {
+                type: "manual",
+                message: EXACT_DUPLICATE_ITEM_NAME_MESSAGE,
+              });
+              if (notifyOnSave) {
+                toast.error(EXACT_DUPLICATE_ITEM_NAME_MESSAGE);
+              }
+              return;
+            }
+          }
+        }
+
         const result = await saveProductMasterProfile(payload);
 
         if ("error" in result) {
@@ -243,6 +293,18 @@ export function useProductForm({
             if (!("error" in refreshed) && refreshed.detail) {
               setValue("updated_at", refreshed.detail.updated_at, { shouldDirty: false });
             }
+          }
+          if ("skuConflict" in result && result.skuConflict) {
+            form.setError("sku", {
+              type: "manual",
+              message: result.error ?? "This product code is already in use.",
+            });
+          }
+          if ("nameConflict" in result && result.nameConflict) {
+            form.setError("name", {
+              type: "manual",
+              message: result.error ?? EXACT_DUPLICATE_ITEM_NAME_MESSAGE,
+            });
           }
           if (notifyOnSave) {
             toast.error(result.error ?? "Unable to save product profile.");
@@ -272,7 +334,7 @@ export function useProductForm({
               savedStrategy === "MULTI_SKU" && loadedStrategy !== "MULTI_SKU";
             toast.success(
               switchedToMulti
-                ? "Product saved. Add sellable SKUs under Variants."
+                ? "Product saved. Add or generate SKUs in the SKUs section."
                 : ITEM_SAVE_SUCCESS
             );
           } else {
@@ -295,6 +357,7 @@ export function useProductForm({
       refreshOnSave,
       router,
       catalogContext.storefronts,
+      getVariantStrategyContext,
       setValue,
     ]
   );
@@ -323,10 +386,24 @@ export function useProductForm({
     if (valuesSeedRef.current === seed) return;
 
     const previousSeed = valuesSeedRef.current;
+    const previousMode = previousSeed?.split(":")[0];
     const sameItem =
       previousSeed != null &&
       previousSeed.split(":")[1] === (nextValues.item_id ?? "new");
     if (sameItem && form.formState.isDirty && !hydrateOnInitialValuesChange) {
+      return;
+    }
+
+    // Create wizard: parent may flip mode before detail props arrive — keep saved item_id.
+    const currentItemId = form.getValues("item_id");
+    if (
+      hydrateOnInitialValuesChange &&
+      previousMode === "create" &&
+      mode === "edit" &&
+      currentItemId &&
+      !nextValues.item_id
+    ) {
+      valuesSeedRef.current = `${mode}:${currentItemId}:${form.getValues("updated_at") ?? ""}`;
       return;
     }
 
@@ -338,12 +415,20 @@ export function useProductForm({
   useEffect(() => {
     if (itemId || !categoryId) return;
     const category = categories.find((entry) => entry.id === categoryId);
-    if (!category) return;
-    setValue("variant_strategy", category.default_variant_strategy, { shouldDirty: true });
-    if (category.default_item_type) {
-      setValue("item_type", category.default_item_type, { shouldDirty: true });
-    }
+    if (!category?.default_item_type) return;
+    setValue("item_type", category.default_item_type, { shouldDirty: true });
   }, [categoryId, categories, itemId, setValue]);
+
+  useEffect(() => {
+    if (previousClassificationRef.current === classification) return;
+    previousClassificationRef.current = classification;
+
+    const defaults = commerceDefaultsForClassification(classification);
+    if (!defaults) return;
+
+    setValue("is_purchasable", defaults.is_purchasable, { shouldDirty: true });
+    setValue("is_salable", defaults.is_salable, { shouldDirty: true });
+  }, [classification, setValue]);
 
   // Keep classification and bundle aligned with item_type.
   useEffect(() => {
@@ -439,4 +524,22 @@ export function useProductForm({
     categoryTemplates,
     categoryOptions,
   };
+}
+
+function commerceDefaultsForClassification(
+  classification: ItemClassification
+): { is_purchasable: boolean; is_salable: boolean } | null {
+  switch (classification) {
+    case "RAW_MATERIAL":
+    case "CONSUMABLE":
+      return { is_purchasable: true, is_salable: false };
+    case "WIP_ASSEMBLY":
+      return { is_purchasable: false, is_salable: false };
+    case "FINISHED_GOOD":
+      return { is_purchasable: true, is_salable: true };
+    case "SERVICE":
+      return { is_purchasable: false, is_salable: true };
+    default:
+      return null;
+  }
 }

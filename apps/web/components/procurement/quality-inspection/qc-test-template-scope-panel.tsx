@@ -36,6 +36,8 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void;
   /** Used when template name is blank but tests are defined (e.g. category/item name). */
   defaultTemplateName?: string | null;
+  /** Hide title and description when wrapped by an editor section heading. */
+  hideIntro?: boolean;
 };
 
 export type QcTestTemplateScopePanelHandle = {
@@ -52,6 +54,7 @@ export const QcTestTemplateScopePanel = forwardRef(function QcTestTemplateScopeP
     className,
     onDirtyChange,
     defaultTemplateName,
+    hideIntro = false,
   }: Props,
   ref: Ref<QcTestTemplateScopePanelHandle>
 ) {
@@ -165,43 +168,57 @@ export const QcTestTemplateScopePanel = forwardRef(function QcTestTemplateScopeP
   };
 
   return (
-    <div className={cn("space-y-3 rounded-lg border border-border bg-muted/15 p-4", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold">Inspection tests</p>
-            {!readOnly && isDirty ? (
-              <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Unsaved
-              </span>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Tests defined here apply during quality inspection for this {scopeLabel}.
-            {scopeType === "ITEM"
-              ? " Item templates override category templates."
-              : " Category templates inherit up the tree when no item template exists."}
-            {!readOnly ? " Saved with Save template or Save changes." : null}
-          </p>
+    <div
+      className={cn(
+        "space-y-3",
+        !hideIntro && "rounded-lg border border-border bg-muted/15 p-4",
+        className
+      )}
+    >
+      {!readOnly || !hideIntro ? (
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          {!hideIntro ? (
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold">Inspection tests</p>
+                {!readOnly && isDirty ? (
+                  <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Unsaved
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tests defined here apply during quality inspection for this {scopeLabel}.
+                {scopeType === "ITEM"
+                  ? " Item templates override category templates."
+                  : " Category templates inherit up the tree when no item template exists."}
+                {!readOnly ? " Saved with Save template or Save changes." : null}
+              </p>
+            </div>
+          ) : !readOnly && isDirty ? (
+            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              Unsaved
+            </span>
+          ) : null}
+          {!readOnly ? (
+            <Button
+              type="button"
+              size="sm"
+              disabled={loading || isPending || !isDirty}
+              onClick={handleSave}
+            >
+              {isPending ? (
+                <>
+                  <Spinner className="mr-2 h-3.5 w-3.5" />
+                  Saving…
+                </>
+              ) : (
+                "Save template"
+              )}
+            </Button>
+          ) : null}
         </div>
-        {!readOnly ? (
-          <Button
-            type="button"
-            size="sm"
-            disabled={loading || isPending || !isDirty}
-            onClick={handleSave}
-          >
-            {isPending ? (
-              <>
-                <Spinner className="mr-2 h-3.5 w-3.5" />
-                Saving…
-              </>
-            ) : (
-              "Save template"
-            )}
-          </Button>
-        ) : null}
-      </div>
+      ) : null}
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

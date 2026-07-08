@@ -63,10 +63,10 @@ Essentials → Variants? → Composition? → Catalog & reach
 
 | Stage | Component | Sections |
 |-------|-----------|----------|
-| Essentials | `ItemEssentialsStage` | overview, salable, purchasable, inventory |
+| Essentials | `ItemEssentialsStage` | overview (Basics grid + expandable cards: tax, units, physical, composition, pricing, inventory) |
 | Variants | `ItemVariantsStage` | variants |
 | Composition | `ItemCompositionStage` | composition |
-| Catalog & reach | `ItemReachStage` | media, product_attributes, custom_fields, tags, visibility |
+| Catalog & reach | `ItemReachStage` | purchasable (vendors), media, product_attributes, custom_fields, tags, visibility |
 
 Orchestration:
 
@@ -93,6 +93,45 @@ Do not bypass `tenant_id` RLS in server actions. Do not use raw button/table mar
 
 ---
 
-## 6. Legacy removal
+## 7. Visual migration (Glass V2 wizard sections)
+
+Wizard create/edit in the drawer uses frosted **outer section cards** while nested matrices, tables, and inset widgets stay flattened/readable.
+
+### Scope
+
+| Flow | Wrapper | Glass outer sections? |
+|------|---------|------------------------|
+| Wizard create/edit (drawer or pop-out) | `ItemCatalogWizardEditor` → `ItemEditorShell` → `MutationGlassRoot` | **Yes** — `EditorGlassSectionsProvider` |
+| Flat drawer edit (no wizard) | `MutationGlassRoot` + `ProductEditorShell` only | **No** — legacy panel sections |
+| Full-page wizard | Same provider via `ItemEditorShell` | **Yes** — page layout already uses `editorPageSectionClass` |
+
+### Implementation
+
+- **Context:** `EditorGlassSectionsProvider` wraps wizard body in `item-editor-shell.tsx` only.
+- **Drawer wizard navigation:** stepper and stage header are hidden in the drawer (`layout="panel"`); use footer Back / Skip / Next (create) or Continue (edit). Full-page pop-out still shows the left stepper rail.
+- **Wizard chrome:** `editorWizardTopBarGlassClass` / `editorWizardLeftRailGlassAsideClass` on full-page wizard only.
+- **Drawer shell (Phase 4):** `ProductItemDrawer` passes `surfaceVariant="glass"` on create/edit (`mutate` width). `RightDrawer` applies `right-drawer-glass-surface` + transparent body; peek and document POS drawers unchanged.
+- **Dedicated outer class:** `EDITOR_GLASS_SECTION_CLASS` (`editor-glass-section`) on top-level `EditorSectionBlock` cards via `editorCardClassName(..., { glass: true })`.
+- **CSS (`globals.css`):**
+  - Flatten rule: `.product-editor-panel .surface-panel:not(.editor-glass-section)` — nested widgets lose double-glass.
+  - Restore rule: `.mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section` — mirrors mutation-form glass tokens.
+  - Nested tuning: `.surface-inset`, nested `.surface-panel`, and table headers inside `.editor-glass-section`.
+
+### QA checklist
+
+- [ ] Drawer create: Essentials → Reach — glass section cards; no duplicate stepper/header chrome in drawer.
+- [ ] Footer shows **Next** on create stages, **Finish** on last stage.
+- [ ] Variant matrix / price tables render as inset panels, not stacked glass cards.
+- [ ] Flat edit (non-wizard) drawer unchanged (muted panel sections).
+- [ ] Light-warm and dark themes — section titles, amber alerts, and borders readable.
+- [ ] Mutate drawer (create/edit) shows frosted shell; peek drawer unchanged.
+
+### Roadmap
+
+Glass V2 item wizard migration is complete through drawer shell polish. Further work is parity-only (e.g. category editor) or list workspace changes outside this scope.
+
+---
+
+## 8. Legacy removal
 
 `ProductCatalogTerminal` and `ProductCatalogLoader` were retired in favor of `ItemsListWorkspaceTerminal`. All new work targets the items list workspace and shared drawer stack above.

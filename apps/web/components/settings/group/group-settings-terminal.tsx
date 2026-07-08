@@ -137,7 +137,7 @@ export function GroupSettingsTerminal({
       className="canvas-scroll-endpad flex flex-col gap-4 lg:grid lg:grid-cols-[13fr_7fr] lg:gap-5"
     >
       <div className="space-y-4">
-        <div className="sticky top-0 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+        <div className="settings-glass-sticky-header sticky top-0 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:-mx-6 md:px-6">
           <div>
             <h1 className="text-lg font-semibold sm:text-xl">{snapshot.name}</h1>
             <div className="mt-1 flex gap-2">

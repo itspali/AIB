@@ -4,6 +4,10 @@ export type EditorSectionId =
   | "purchasable"
   | "inventory"
   | "variants"
+  | "composite_item"
+  | "alternate_uoms"
+  | "item_logistics"
+  | "quality_inspection"
   | "composition"
   | "media"
   | "product_attributes"
@@ -14,6 +18,7 @@ export type EditorSectionId =
 /** Sections that require a persisted item id before they can be used. */
 export const EDITOR_SECTIONS_HIDDEN_WHILE_CREATING: EditorSectionId[] = [
   "variants",
+  "quality_inspection",
   "composition",
   "media",
 ];
@@ -24,6 +29,10 @@ const ALL_SECTION_IDS: EditorSectionId[] = [
   "purchasable",
   "inventory",
   "variants",
+  "composite_item",
+  "alternate_uoms",
+  "item_logistics",
+  "quality_inspection",
   "composition",
   "media",
   "product_attributes",

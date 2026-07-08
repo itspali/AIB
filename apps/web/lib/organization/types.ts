@@ -13,7 +13,7 @@ import {
 import type { Theme } from "@/lib/theme/themes";
 import {
   DEFAULT_CATALOG_ITEM_SETTINGS,
-  isScanIdentifierPolicy,
+  parseCatalogItemSettings,
   type CatalogItemSettings,
   type ScanIdentifierPolicy,
 } from "@/lib/products/catalog-item-settings";
@@ -180,6 +180,7 @@ export type OrganizationSettingsFormValues = {
   sku_auto_generation_enabled: boolean;
   sku_auto_pattern: string;
   sku_auto_prefix: string;
+  allow_duplicate_item_names: boolean;
   allow_line_item_discounts: boolean;
   allow_transaction_discounts: boolean;
   accounting_period_closing_date: string;
@@ -212,22 +213,7 @@ function parseAccountingConfig(raw: unknown): OrganizationAccountingConfig {
 function parseCatalogItemSettingsFromAccounting(
   config: Record<string, unknown>
 ): CatalogItemSettings {
-  const policy = config.scan_identifier_policy;
-  const policyStr = String(policy ?? "");
-  return {
-    scan_identifier_policy: isScanIdentifierPolicy(policyStr)
-      ? policyStr
-      : DEFAULT_CATALOG_ITEM_SETTINGS.scan_identifier_policy,
-    sku_auto_generation_enabled: Boolean(config.sku_auto_generation_enabled),
-    sku_auto_pattern:
-      typeof config.sku_auto_pattern === "string" && config.sku_auto_pattern.trim()
-        ? config.sku_auto_pattern.trim()
-        : DEFAULT_CATALOG_ITEM_SETTINGS.sku_auto_pattern,
-    sku_auto_prefix:
-      typeof config.sku_auto_prefix === "string" && config.sku_auto_prefix.trim()
-        ? config.sku_auto_prefix.trim()
-        : DEFAULT_CATALOG_ITEM_SETTINGS.sku_auto_prefix,
-  };
+  return parseCatalogItemSettings(config);
 }
 
 function parseLocationGovernance(raw: unknown): OrganizationLocationGovernanceConfig {
@@ -282,6 +268,7 @@ export function snapshotToFormValues(
       snapshot.accounting_config.catalog_items.sku_auto_generation_enabled,
     sku_auto_pattern: snapshot.accounting_config.catalog_items.sku_auto_pattern,
     sku_auto_prefix: snapshot.accounting_config.catalog_items.sku_auto_prefix,
+    allow_duplicate_item_names: snapshot.accounting_config.catalog_items.allow_duplicate_item_names,
     allow_line_item_discounts: snapshot.allow_line_item_discounts,
     allow_transaction_discounts: snapshot.allow_transaction_discounts,
     accounting_period_closing_date: snapshot.accounting_period_closing_date

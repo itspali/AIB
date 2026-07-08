@@ -14,7 +14,6 @@ export {
 export {
   ItemVariantsStage,
   type ItemVariantsStageModel,
-  VARIANTS_STAGE,
   VARIANTS_SECTIONS,
 } from "./variants-stage";
 export {

@@ -138,7 +138,6 @@ export function ItemVariantsStage({ model }: Props) {
             defaultPurchasePrice={purchasePrice}
             defaultStandardCost={standardCost}
             defaultMrp={matrixMrpDefault}
-            defaultHsn={hsnSacCode}
             defaultSupplierId={supplierId}
             variantDefaults={{
               price: sellingPrice,

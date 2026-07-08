@@ -6,7 +6,12 @@ import {
   normalizeGtinInput,
   parseCatalogItemSettings,
 } from "@/lib/products/catalog-item-settings";
-import { fetchCategoryRows } from "@/lib/categories/queries";
+import {
+  EXACT_DUPLICATE_ITEM_NAME_MESSAGE,
+  itemNamesMatchTenantWide,
+} from "@/lib/products/item-name-uniqueness";
+import { finalizeAttributeTemplateRows } from "@/lib/categories/attribute-key";
+import type { ItemSource } from "@/lib/products/item-model";
 import { generatePdfFromHtml } from "@/lib/email/generate-document-pdf";
 import { enrichProductDetailSnapshot } from "@/lib/products/detail-enrichment";
 import { renderProductListExportTableHtml, resolveProductListPdfLandscape } from "@/lib/products/list-export";
@@ -14,6 +19,11 @@ import {
   buildProductMasterInputFromImportRow,
   type ProductListImportRow,
 } from "@/lib/products/list-import";
+import {
+  buildProductMasterInputFromSkuImportRow,
+  buildVariantInputFromSkuImportRow,
+  type ProductSkuImportRow,
+} from "@/lib/products/list-sku-import";
 import { fetchProductCatalogContext } from "@/lib/products/commerce-queries";
 import {
   fetchProductListByIds,
@@ -30,6 +40,8 @@ import {
   type FetchProductDetailOptions,
 } from "@/lib/products/queries";
 import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
+import { detailToFormValues } from "@/lib/products/types";
+import { inferVariantStrategy } from "@/lib/products/variant-strategy";
 import type { ProductPeekSection } from "@/lib/products/peek-panels";
 import { resolveSessionProductFieldPermissions } from "@/lib/products/field-permissions-server";
 import { productMasterSchema } from "@/lib/products/schemas";
@@ -188,7 +200,10 @@ export async function deleteProductTag(tagId: string) {
   return { success: true as const };
 }
 
-export async function saveProductMasterProfile(raw: unknown) {
+export async function saveProductMasterProfile(
+  raw: unknown,
+  options?: { source?: ItemSource }
+) {
   const parsed = productMasterSchema.safeParse(raw);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid product profile" };
@@ -218,32 +233,36 @@ export async function saveProductMasterProfile(raw: unknown) {
     .maybeSingle();
   const catalogItems = parseCatalogItemSettings(tenantRow?.accounting_config);
 
-  let sku = values.sku.trim();
-  if (!sku) {
-    if (!values.item_id && catalogItems.sku_auto_generation_enabled) {
-      try {
-        sku = await allocateNextItemSku(supabase, tenantId, catalogItems);
-      } catch (allocationError) {
-        const message =
-          allocationError instanceof Error
-            ? allocationError.message
-            : "Unable to auto-generate product code.";
-        return { error: message };
+  if (!catalogItems.allow_duplicate_item_names) {
+    try {
+      const exactName = await findExactItemNameInTenant(
+        supabase,
+        tenantId,
+        values.name,
+        values.item_id
+      );
+      if (exactName) {
+        return { error: EXACT_DUPLICATE_ITEM_NAME_MESSAGE, nameConflict: true };
       }
-    } else {
-      return { error: "Product code is required." };
+    } catch (lookupError) {
+      const message =
+        lookupError instanceof Error ? lookupError.message : "Unable to verify item name.";
+      return { error: message };
     }
   }
 
-  const gtin = normalizeGtinInput(values.barcode);
+  const manualSku = values.sku.trim();
+  const autoSkuEnabled =
+    !values.item_id && !manualSku && catalogItems.sku_auto_generation_enabled;
 
-  const { data, error } = await supabase.rpc("save_product_master_profile", {
+  let sku = manualSku;
+  const gtin = normalizeGtinInput(values.barcode);
+  const rpcPayload = {
     p_item_id: values.item_id,
     p_name: values.name,
     p_classification: values.classification,
     p_base_uom: values.base_unit_of_measure,
     p_category_id: values.category_id,
-    p_sku: sku,
     p_description: values.description || null,
     p_is_purchasable: values.is_purchasable,
     p_is_salable: values.is_salable,
@@ -300,7 +319,45 @@ export async function saveProductMasterProfile(raw: unknown) {
     p_is_bundle: values.is_bundle,
     p_price_is_tax_inclusive: false,
     p_expected_updated_at: values.item_id ? values.updated_at : null,
-  });
+    p_source: values.item_id ? undefined : options?.source ?? "MANUAL",
+  };
+
+  const maxSkuAttempts = autoSkuEnabled ? 10 : 1;
+  let data: string | null = null;
+  let error: { message: string } | null = null;
+
+  for (let attempt = 0; attempt < maxSkuAttempts; attempt++) {
+    if (!sku) {
+      if (autoSkuEnabled) {
+        try {
+          sku = await allocateNextItemSku(supabase, tenantId, catalogItems);
+        } catch (allocationError) {
+          const message =
+            allocationError instanceof Error
+              ? allocationError.message
+              : "Unable to auto-generate product code.";
+          return { error: message };
+        }
+      } else {
+        return { error: "Product code is required." };
+      }
+    }
+
+    const rpcResult = await supabase.rpc("save_product_master_profile", {
+      ...rpcPayload,
+      p_sku: sku,
+    });
+    data = rpcResult.data as string | null;
+    error = rpcResult.error;
+
+    if (!error) break;
+
+    if (autoSkuEnabled && error.message.toLowerCase().includes("sku already exists")) {
+      sku = "";
+      continue;
+    }
+    break;
+  }
 
   if (error) {
     if (isMissingRpcError(error)) {
@@ -315,7 +372,10 @@ export async function saveProductMasterProfile(raw: unknown) {
       };
     }
     if (message.includes("sku already exists")) {
-      return { error: "Master SKU is already assigned to another product in this workspace." };
+      return {
+        error: "Master SKU is already assigned to another product in this workspace.",
+        skuConflict: true as const,
+      };
     }
     if (message.includes("cannot change after transactions exist")) {
       return {
@@ -362,6 +422,15 @@ export async function saveProductMasterProfile(raw: unknown) {
   });
   if (variantAxesResult.error && !isMissingRpcError(variantAxesResult.error)) {
     return { error: variantAxesResult.error.message };
+  }
+
+  const extraSkuOptions = finalizeAttributeTemplateRows(values.extra_sku_options ?? []);
+  const extraOptionsResult = await supabase.rpc("set_item_extra_sku_options", {
+    p_item_id: itemId,
+    p_extra_sku_options: extraSkuOptions,
+  });
+  if (extraOptionsResult.error && !isMissingRpcError(extraOptionsResult.error)) {
+    return { error: extraOptionsResult.error.message };
   }
 
   const detail = await fetchProductDetail(supabase, tenantId, itemId);
@@ -589,6 +658,51 @@ export async function findSimilarItems(
   return { matches: (data ?? []) as SimilarItem[] };
 }
 
+export type ExactItemNameMatch = {
+  id: string;
+  name: string;
+};
+
+async function findExactItemNameInTenant(
+  supabase: Awaited<ReturnType<typeof requireTenantMutation>>["supabase"],
+  tenantId: string,
+  name: string,
+  excludeItemId?: string | null
+): Promise<ExactItemNameMatch | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  let query = supabase.from("items").select("id, name").eq("tenant_id", tenantId);
+
+  if (excludeItemId) {
+    query = query.neq("id", excludeItemId);
+  }
+
+  const { data, error } = await query.ilike("name", trimmed);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const match = (data ?? []).find((row) => itemNamesMatchTenantWide(row.name, trimmed));
+  return match ? { id: match.id, name: match.name } : null;
+}
+
+export async function findExactItemByName(name: string, excludeItemId?: string | null) {
+  const trimmed = name.trim();
+  if (!trimmed) return { match: null as ExactItemNameMatch | null };
+
+  try {
+    const { supabase, tenantId } = await requireTenantMutation();
+    const match = await findExactItemNameInTenant(supabase, tenantId, trimmed, excludeItemId);
+    return { match };
+  } catch (lookupError) {
+    const message =
+      lookupError instanceof Error ? lookupError.message : "Unable to check item name.";
+    return { error: message };
+  }
+}
+
 type QuickCreateItemInput = {
   name: string;
   sku?: string;
@@ -796,6 +910,119 @@ export async function importProductListRows(
   return { imported, failed };
 }
 
+export async function importProductSkuRows(
+  rows: ProductSkuImportRow[]
+): Promise<
+  | { imported: number; updated: number; failed: number; errors: string[] }
+  | { error: string }
+> {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { error: "No rows to import." };
+  }
+
+  const { supabase, tenantId } = await requireTenantMutation();
+  const categories = await fetchCategoryRows(supabase, tenantId);
+
+  let imported = 0;
+  let updated = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const row of rows) {
+    const sku = row.sku.trim();
+    if (!sku) {
+      failed += 1;
+      errors.push(`Row ${row.rowNumber}: SKU is required.`);
+      continue;
+    }
+
+    const { data: existingVariant, error: lookupError } = await supabase
+      .from("item_variants")
+      .select("id, item_id, sku")
+      .eq("tenant_id", tenantId)
+      .eq("sku", sku)
+      .maybeSingle();
+
+    if (lookupError) {
+      failed += 1;
+      errors.push(`Row ${row.rowNumber}: ${lookupError.message}`);
+      continue;
+    }
+
+    if (existingVariant?.id && existingVariant.item_id) {
+      const variantPayload = buildVariantInputFromSkuImportRow(
+        row,
+        existingVariant.item_id,
+        existingVariant.id
+      );
+      const variantResult = await saveItemVariant(variantPayload);
+      if ("error" in variantResult) {
+        failed += 1;
+        errors.push(`Row ${row.rowNumber}: ${variantResult.error}`);
+        continue;
+      }
+      updated += 1;
+      continue;
+    }
+
+    const productCode = row.productCode.trim() || sku;
+    let targetItemId: string | null = null;
+
+    if (productCode) {
+      const { data: existingItem } = await supabase
+        .from("items")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("code", productCode)
+        .maybeSingle();
+      targetItemId = existingItem?.id ?? null;
+    }
+
+    if (targetItemId) {
+      const variantPayload = buildVariantInputFromSkuImportRow(row, targetItemId);
+      const variantResult = await saveItemVariant(variantPayload);
+      if ("error" in variantResult) {
+        failed += 1;
+        errors.push(`Row ${row.rowNumber}: ${variantResult.error}`);
+        continue;
+      }
+      imported += 1;
+      continue;
+    }
+
+    const masterPayload = buildProductMasterInputFromSkuImportRow(row, categories, {
+      productCode,
+    });
+    if (!masterPayload?.name.trim()) {
+      failed += 1;
+      errors.push(`Row ${row.rowNumber}: Name is required for new products.`);
+      continue;
+    }
+
+    const createResult = await saveProductMasterProfile(masterPayload, { source: "IMPORT" });
+    if ("error" in createResult) {
+      failed += 1;
+      errors.push(`Row ${row.rowNumber}: ${createResult.error}`);
+      continue;
+    }
+
+    if (sku !== productCode) {
+      const variantPayload = buildVariantInputFromSkuImportRow(row, createResult.itemId);
+      const variantResult = await saveItemVariant(variantPayload);
+      if ("error" in variantResult) {
+        failed += 1;
+        errors.push(`Row ${row.rowNumber}: ${variantResult.error}`);
+        continue;
+      }
+    }
+
+    imported += 1;
+  }
+
+  revalidatePath("/items");
+  return { imported, updated, failed, errors };
+}
+
 export async function hydrateProductListImageUrls(itemIds: string[]) {
   const uniqueIds = [...new Set(itemIds.filter(Boolean))];
   if (!uniqueIds.length) return { imageUrls: {} as Record<string, string | null> };
@@ -971,6 +1198,67 @@ export async function saveItemVariantsBulk(itemId: string, variants: BulkVariant
 
   revalidatePath("/items");
   return { success: true as const, createdCount: (data as number) ?? payload.length };
+}
+
+function variantAxisKeysEqual(stored: readonly string[], next: readonly string[]): boolean {
+  if (stored.length !== next.length) return false;
+  return stored.every((key, index) => key === next[index]);
+}
+
+function countSellableVariants(detail: ProductDetailSnapshot): number {
+  return detail.variants.filter((row) => !row.is_master && row.is_sellable !== false).length;
+}
+
+/** Persist variant axes + inferred strategy after matrix create/update (list + detail rely on both). */
+export async function syncItemVariantCatalogAfterMatrix(
+  itemId: string,
+  axisKeys: string[]
+) {
+  if (!itemId.trim()) return { error: "Product id is required." };
+
+  const axesResult = await saveItemVariantAxes(itemId, axisKeys);
+  if ("error" in axesResult) return axesResult;
+
+  const detailResult = await getProductDetail(itemId);
+  if ("error" in detailResult || !detailResult.detail) {
+    return {
+      error: detailResult.error ?? "Unable to load product after saving variants.",
+    };
+  }
+
+  const detail = detailResult.detail;
+  const inferredStrategy = inferVariantStrategy({
+    sellableVariantCount: countSellableVariants(detail),
+    totalVariantRows: detail.variants.length,
+    persistedStrategy: detail.variant_strategy,
+    selectedAxisCount: axisKeys.length,
+  });
+
+  const needsStrategySync = inferredStrategy !== detail.variant_strategy;
+  const needsAxesSync = !variantAxisKeysEqual(detail.variant_axes, axisKeys);
+  if (!needsStrategySync && !needsAxesSync) {
+    return { success: true as const, detail };
+  }
+
+  const values = detailToFormValues(detail);
+  values.variant_strategy = inferredStrategy;
+  values.variant_axes = axisKeys;
+
+  const saveResult = await saveProductMasterProfile(values);
+  if ("error" in saveResult) return saveResult;
+
+  if (saveResult.detail) {
+    return { success: true as const, detail: saveResult.detail };
+  }
+
+  const refreshed = await getProductDetail(itemId);
+  if ("error" in refreshed || !refreshed.detail) {
+    return {
+      error: refreshed.error ?? "Variants were saved but the product profile could not be refreshed.",
+    };
+  }
+
+  return { success: true as const, detail: refreshed.detail };
 }
 
 /** Apply per-variant supplier cost quotes after matrix bulk create (merges into existing catalog). */

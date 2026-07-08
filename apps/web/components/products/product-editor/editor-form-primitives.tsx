@@ -1,6 +1,7 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -12,27 +13,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FieldLabelInfo, mergeFieldLabelInfo } from "@/components/ui/field-label-info";
+import {
+  EditorFieldInlineHint,
+  useEditorFieldHelp,
+} from "@/components/products/product-editor/editor-field-help";
 import { ITEM_EDITOR_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import type { UomOption } from "@/lib/products/uom-options";
 import {
+  editorCardClassName,
+  editorFieldLabelClass,
   editorFieldSpanFullClass,
-  editorPageSectionClass,
+  editorGlassSectionBodyClass,
   editorPanelScrollMarginClass,
-  editorPanelSectionClass,
   editorSectionBodyClass,
   editorSectionDisclosureButtonClass,
   editorSectionDisclosureLineClass,
   editorSectionDisclosureRowClass,
   editorSectionHeadingClass,
   editorSwitchSize,
+  useEditorGlassSections,
   useEditorPanelLayout,
 } from "@/lib/products/editor-chrome";
 import type { EditorSectionId } from "@/lib/products/editor-sections";
 import { cn } from "@/lib/utils";
 
-export function editorCardClassName(panel: boolean, variant: "summary" | "section" = "section") {
-  return panel ? editorPanelSectionClass() : editorPageSectionClass(variant);
-}
+export { editorCardClassName } from "@/lib/products/editor-chrome";
 
 export function EditorField({
   label,
@@ -54,8 +59,9 @@ export function EditorField({
   children: React.ReactNode;
 }) {
   const panel = useEditorPanelLayout();
+  const showFieldHelp = useEditorFieldHelp();
   const labelInfo = mergeFieldLabelInfo(
-    hint && !error ? <p>{hint}</p> : null,
+    hint && !error && !showFieldHelp && !info ? <p>{hint}</p> : null,
     locked && !error ? <p>{ITEM_EDITOR_FIELD_HELP.lockedField}</p> : null,
     info
   );
@@ -69,10 +75,7 @@ export function EditorField({
       )}
     >
       <div className="flex items-center gap-1.5">
-        <Label
-          htmlFor={htmlFor}
-          className={cn("font-medium text-muted-foreground", panel ? "text-xs" : "text-sm")}
-        >
+        <Label htmlFor={htmlFor} className={editorFieldLabelClass(panel)}>
           {label}
         </Label>
         {labelInfo ? <FieldLabelInfo label={label}>{labelInfo}</FieldLabelInfo> : null}
@@ -83,6 +86,7 @@ export function EditorField({
           </span>
         ) : null}
       </div>
+      {showFieldHelp && hint && !error ? <EditorFieldInlineHint>{hint}</EditorFieldInlineHint> : null}
       {children}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
@@ -154,25 +158,31 @@ export function EditorToggleRow({
   variant?: "grid" | "inline";
 }) {
   const panel = useEditorPanelLayout();
+  const showFieldHelp = useEditorFieldHelp();
   const inline = variant === "inline";
   const labelInfo = mergeFieldLabelInfo(
-    description && !panel && !inline ? <p>{description}</p> : null,
+    description && !panel && !inline && !showFieldHelp ? <p>{description}</p> : null,
     info
   );
 
   return (
     <div
       className={cn(
-        "editor-toggle-row flex items-center justify-between gap-2",
+        "editor-toggle-row flex items-start justify-between gap-2",
         !inline && panel && editorFieldSpanFullClass(panel),
-        inline && "shrink-0 gap-2.5 py-0",
+        inline && "shrink-0 items-center gap-2.5 py-0",
         !inline && panel && "py-0.5",
         !inline && !panel && "rounded-lg border border-border px-3 py-2"
       )}
     >
-      <div className="flex min-w-0 items-center gap-1.5 pr-2">
-        <p className={cn("font-medium leading-snug", panel ? "text-xs" : "text-sm")}>{label}</p>
-        {labelInfo ? <FieldLabelInfo label={label}>{labelInfo}</FieldLabelInfo> : null}
+      <div className="min-w-0 flex-1 pr-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className={cn("font-medium leading-snug", panel ? "text-xs" : "text-sm")}>{label}</p>
+          {labelInfo ? <FieldLabelInfo label={label}>{labelInfo}</FieldLabelInfo> : null}
+        </div>
+        {showFieldHelp && description ? (
+          <EditorFieldInlineHint className={inline ? "mt-0.5" : "mt-1"}>{description}</EditorFieldInlineHint>
+        ) : null}
       </div>
       <Switch
         size={editorSwitchSize}
@@ -233,6 +243,105 @@ export function EditorSectionAdvanced({
   );
 }
 
+/** Always-visible grouped panel (pricing, inventory, purchasing) — no extra click to expand. */
+export function EditorGroupedPanel({
+  title,
+  description,
+  headerAside,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  headerAside?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const panel = useEditorPanelLayout();
+  const glass = useEditorGlassSections();
+
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-lg border border-border/60",
+        glass && panel ? "bg-muted/15 dark:bg-muted/10" : "bg-muted/20 dark:bg-muted/15",
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-border/50 px-3 py-2.5 sm:px-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{title}</p>
+          {description ? (
+            <p className="text-xs leading-snug text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        {headerAside ? <div className="shrink-0">{headerAside}</div> : null}
+      </div>
+      <div className="space-y-3 px-3 py-3 sm:px-4">{children}</div>
+    </div>
+  );
+}
+
+/** Collapsible inset card for optional Essentials groups (units, tax, pricing, etc.). */
+export function EditorExpandableCard({
+  title,
+  description,
+  defaultOpen = false,
+  headerAside,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  headerAside?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const panel = useEditorPanelLayout();
+  const glass = useEditorGlassSections();
+
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-lg border border-border/60",
+        glass && panel ? "bg-muted/15 dark:bg-muted/10" : "bg-muted/20 dark:bg-muted/15",
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-border/50 px-3 py-2.5 sm:px-4">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+        >
+          <ChevronDown
+            className={cn(
+              "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180"
+            )}
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">{title}</p>
+            {description ? (
+              <p className="text-xs leading-snug text-muted-foreground">{description}</p>
+            ) : null}
+          </div>
+        </button>
+        {headerAside ? (
+          <div className="shrink-0" onClick={(event) => event.stopPropagation()}>
+            {headerAside}
+          </div>
+        ) : null}
+      </div>
+      {open ? <div className="space-y-3 px-3 py-3 sm:px-4">{children}</div> : null}
+    </div>
+  );
+}
+
 type SectionHeaderToggleProps = {
   label: string;
   description?: string;
@@ -281,6 +390,9 @@ export function EditorSectionBlock({
   hideTitle?: boolean;
   children: React.ReactNode;
 }) {
+  const glassSections = useEditorGlassSections();
+  const useGlassCard = panel && glassSections;
+
   if (hidden) return null;
   const titleInfo = headerToggle
     ? mergeFieldLabelInfo(
@@ -295,8 +407,30 @@ export function EditorSectionBlock({
       data-section={id}
       className={cn("scroll-mt-20", panel && editorPanelScrollMarginClass())}
     >
-      <section className={editorCardClassName(panel, "section")}>
-        {!hideTitle ? (
+      <section className={editorCardClassName(panel, "section", { glass: useGlassCard })}>
+        {!hideTitle && useGlassCard ? (
+          <div className="space-y-0.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <h3 className="text-sm font-medium text-foreground">{title}</h3>
+                  {titleInfo ? <FieldLabelInfo label={title}>{titleInfo}</FieldLabelInfo> : null}
+                </div>
+                {description ? (
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                ) : null}
+              </div>
+              {headerToggle ? (
+                <SectionHeaderToggle
+                  label={headerToggle.label}
+                  checked={headerToggle.checked}
+                  disabled={headerToggle.disabled}
+                  onCheckedChange={headerToggle.onCheckedChange}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : !hideTitle ? (
           <div className={editorSectionHeadingClass(panel)}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -328,7 +462,12 @@ export function EditorSectionBlock({
             </div>
           </div>
         ) : null}
-        <div className={cn(editorSectionBodyClass(panel), hideTitle && panel && "!pt-0")}>
+        <div
+          className={cn(
+            useGlassCard ? editorGlassSectionBodyClass() : editorSectionBodyClass(panel),
+            hideTitle && panel && !useGlassCard && "!pt-0"
+          )}
+        >
           {children}
         </div>
       </section>

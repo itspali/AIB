@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { importProductListRows } from "@/app/items/actions";
+import { importProductListRows, importProductSkuRows } from "@/app/items/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,12 +14,23 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import {
   buildImportPreviewRows,
   buildProductListImportPreview,
   parseProductListSpreadsheetFile,
 } from "@/lib/products/list-import";
+import {
+  buildProductSkuImportPreview,
+  buildSkuImportPreviewRows,
+  detectDuplicateSkusInFile,
+  skuImportTemplateCsv,
+  type ProductSkuImportRow,
+} from "@/lib/products/list-sku-import";
+import { downloadExportBlob } from "@/lib/products/list-export";
+
+type ImportMode = "product" | "sku";
 
 type Props = {
   open: boolean;
@@ -29,13 +40,17 @@ type Props = {
 
 export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<ImportMode>("product");
   const [fileName, setFileName] = useState<string | null>(null);
   const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
   const [previewRows, setPreviewRows] = useState<string[][]>([]);
   const [mappedColumnCount, setMappedColumnCount] = useState(0);
+  const [attributeColumnCount, setAttributeColumnCount] = useState(0);
+  const [duplicateSkus, setDuplicateSkus] = useState<string[]>([]);
   const [parsedRows, setParsedRows] = useState<
     Array<{ rowNumber: number; values: Partial<Record<ProductListColumnId, string>> }>
   >([]);
+  const [parsedSkuRows, setParsedSkuRows] = useState<ProductSkuImportRow[]>([]);
   const [isPending, startTransition] = useTransition();
 
   const reset = () => {
@@ -43,8 +58,24 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
     setPreviewHeaders([]);
     setPreviewRows([]);
     setMappedColumnCount(0);
+    setAttributeColumnCount(0);
+    setDuplicateSkus([]);
     setParsedRows([]);
+    setParsedSkuRows([]);
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleModeChange = (nextMode: ImportMode) => {
+    setMode(nextMode);
+    reset();
+  };
+
+  const handleDownloadTemplate = () => {
+    const csv = skuImportTemplateCsv();
+    downloadExportBlob(
+      new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" }),
+      "items-sku-import-template.csv"
+    );
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,6 +94,31 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
           return;
         }
 
+        if (mode === "sku") {
+          const nextPreview = buildProductSkuImportPreview(sheet);
+          if (nextPreview.mappedColumnIds.length === 0) {
+            toast.error("No recognized column headers found. Download the SKU template to get started.");
+            reset();
+            return;
+          }
+
+          const allSkuRows = buildSkuImportPreviewRows(sheet);
+          const duplicates = detectDuplicateSkusInFile(allSkuRows);
+          if (duplicates.length > 0) {
+            toast.error(`Duplicate SKUs in file: ${duplicates.join(", ")}`);
+          }
+
+          setFileName(file.name);
+          setPreviewHeaders(sheet.headers);
+          setPreviewRows(sheet.rows.slice(0, 8));
+          setMappedColumnCount(nextPreview.mappedColumnIds.length);
+          setAttributeColumnCount(nextPreview.attributeHeaders.length);
+          setDuplicateSkus(duplicates);
+          setParsedSkuRows(allSkuRows);
+          setParsedRows([]);
+          return;
+        }
+
         const nextPreview = buildProductListImportPreview(sheet);
         if (nextPreview.mappedColumnIds.length === 0) {
           toast.error("No recognized column headers found. Use the export template column labels.");
@@ -74,7 +130,10 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
         setPreviewHeaders(sheet.headers);
         setPreviewRows(sheet.rows.slice(0, 8));
         setMappedColumnCount(nextPreview.mappedColumnIds.length);
+        setAttributeColumnCount(0);
+        setDuplicateSkus([]);
         setParsedRows(buildImportPreviewRows(sheet));
+        setParsedSkuRows([]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Unable to read the selected file.");
         reset();
@@ -83,6 +142,52 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
   };
 
   const handleImport = () => {
+    if (mode === "sku") {
+      if (parsedSkuRows.length === 0) {
+        toast.error("Choose a CSV or Excel file to import.");
+        return;
+      }
+      if (duplicateSkus.length > 0) {
+        toast.error(`Fix duplicate SKUs before importing: ${duplicateSkus.join(", ")}`);
+        return;
+      }
+
+      startTransition(async () => {
+        const result = await importProductSkuRows(parsedSkuRows);
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
+
+        if (result.imported === 0 && result.updated === 0) {
+          toast.error("No rows were imported or updated.");
+          if (result.errors.length > 0) {
+            toast.error(result.errors.slice(0, 3).join(" "));
+          }
+          return;
+        }
+
+        const parts = [
+          result.imported > 0
+            ? `${result.imported} new SKU${result.imported === 1 ? "" : "s"}`
+            : null,
+          result.updated > 0
+            ? `${result.updated} updated SKU${result.updated === 1 ? "" : "s"}`
+            : null,
+        ].filter(Boolean);
+        const failureSuffix =
+          result.failed > 0 ? ` ${result.failed} row${result.failed === 1 ? "" : "s"} failed.` : "";
+        toast.success(`Imported ${parts.join(" and ")}.${failureSuffix}`);
+        if (result.errors.length > 0) {
+          toast.error(result.errors.slice(0, 3).join(" "));
+        }
+        onImported?.();
+        onOpenChange(false);
+        reset();
+      });
+      return;
+    }
+
     if (parsedRows.length === 0) {
       toast.error("Choose a CSV or Excel file to import.");
       return;
@@ -111,6 +216,11 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
     });
   };
 
+  const canImport =
+    mode === "sku"
+      ? parsedSkuRows.length > 0 && duplicateSkus.length === 0
+      : parsedRows.length > 0;
+
   return (
     <Dialog
       open={open}
@@ -123,12 +233,58 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
         <DialogHeader>
           <DialogTitle>Import items</DialogTitle>
           <DialogDescription>
-            Upload a CSV or Excel file using the same column labels as export. Rows need at least a
-            Name column; SKU can be left blank when auto-generation is enabled.
+            Upload a CSV or Excel file. Choose simple product import or SKU upsert for one row per
+            sellable SKU.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Import mode</Label>
+            <RadioGroup
+              value={mode}
+              onValueChange={(value) => handleModeChange(value as ImportMode)}
+              className="grid gap-2"
+            >
+              {(
+                [
+                  {
+                    id: "product",
+                    label: "Simple (one row per product)",
+                    hint: "Creates or updates products from Name and shared item fields.",
+                  },
+                  {
+                    id: "sku",
+                    label: "SKU (one row per sellable SKU)",
+                    hint: "Upserts by SKU; updates prices and attributes on existing SKUs.",
+                  },
+                ] as const
+              ).map((option) => (
+                <label
+                  key={option.id}
+                  className="flex cursor-pointer gap-2 rounded-md border border-border/70 px-3 py-2 text-sm"
+                >
+                  <RadioGroupItem value={option.id} className="mt-0.5" />
+                  <span className="space-y-0.5">
+                    <span className="block font-medium">{option.label}</span>
+                    <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
+
+          {mode === "sku" ? (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                Use Product code to group SKUs under one product. SKU is the upsert key.
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                Download template
+              </Button>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label htmlFor="items-import-file">File</Label>
             <Input
@@ -169,8 +325,16 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
                 </table>
               </div>
               <p className="text-xs text-muted-foreground">
-                Recognized {mappedColumnCount} column{mappedColumnCount === 1 ? "" : "s"}.
+                Recognized {mappedColumnCount} column{mappedColumnCount === 1 ? "" : "s"}
+                {mode === "sku" && attributeColumnCount > 0
+                  ? ` and ${attributeColumnCount} attribute column${attributeColumnCount === 1 ? "" : "s"}.`
+                  : "."}
               </p>
+              {duplicateSkus.length > 0 ? (
+                <p className="text-xs text-destructive">
+                  Duplicate SKUs: {duplicateSkus.join(", ")}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -179,7 +343,7 @@ export function ItemsListImportDialog({ open, onOpenChange, onImported }: Props)
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" disabled={isPending || parsedRows.length === 0} onClick={handleImport}>
+          <Button type="button" disabled={isPending || !canImport} onClick={handleImport}>
             {isPending ? "Importing…" : "Import"}
           </Button>
         </DialogFooter>

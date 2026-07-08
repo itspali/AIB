@@ -9,7 +9,6 @@ export type CategoryListSortField = Extract<
   | "parent_name"
   | "is_active"
   | "item_count"
-  | "default_variant_strategy"
   | "default_item_type"
   | "attribute_count"
   | "inherit_parent_attributes"
@@ -44,7 +43,6 @@ const SORTABLE_FIELDS = new Set<CategoryListSortField>([
   "parent_name",
   "is_active",
   "item_count",
-  "default_variant_strategy",
   "default_item_type",
   "attribute_count",
   "inherit_parent_attributes",

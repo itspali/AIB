@@ -60,7 +60,7 @@ export const moduleNavItems: ModuleNavItem[] = [
     icon: Package,
     mobilePrimary: true,
     children: [
-      { href: "/items", label: "Catalog", icon: Package },
+      { href: "/items", label: "Items", icon: Package },
       { href: "/items/categories", label: "Categories", icon: FolderTree },
     ],
   },

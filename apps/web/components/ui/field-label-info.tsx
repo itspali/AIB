@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserFacingErrorMessage } from "@/components/ui/user-facing-error-message";
+import { EditorFieldInlineHint, useEditorFieldHelp } from "@/components/products/product-editor/editor-field-help";
 import { editorSubsectionHeadingWrapClass } from "@/lib/products/editor-chrome";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,7 @@ export function SubsectionHeading({
   className?: string;
   compact?: boolean;
 }) {
+  const showFieldHelp = useEditorFieldHelp();
   const wrapClass = compact
     ? cn(
         "flex w-full flex-col gap-1 bg-transparent px-0 py-0 dark:bg-transparent",
@@ -101,8 +103,11 @@ export function SubsectionHeading({
         >
           {title}
         </h4>
-        {info ? <FieldLabelInfo label={title}>{info}</FieldLabelInfo> : null}
+        {info && !showFieldHelp ? <FieldLabelInfo label={title}>{info}</FieldLabelInfo> : null}
       </div>
+      {info && showFieldHelp ? (
+        <FieldLabelInfoBody className={compact ? "mt-1" : "mt-1.5"}>{info}</FieldLabelInfoBody>
+      ) : null}
       {error ? (
         <UserFacingErrorMessage message={error} action={errorAction} />
       ) : null}

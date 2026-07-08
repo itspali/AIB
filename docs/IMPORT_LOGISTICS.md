@@ -38,6 +38,7 @@ Stored in `workspace_control_registry` (`registry_key = 'IMPORT_LOGISTICS_SETTIN
 
 | Key | Values | Purpose |
 |-----|--------|---------|
+| `imports_enabled` | boolean | Master switch — hides import modules/settings when false |
 | `import_receipt_document_strategy` | `SINGLE_GRN_WITH_STAGES`, `SEPARATE_GRNS_PER_STAGE`, `SINGLE_FINAL_ONLY` | How many GRN documents per import journey |
 | `import_receipt_mode` | `DIRECT_TO_WAREHOUSE`, `STAGING_THEN_GIT`, `STAGING_THEN_TRANSFER` | Staging vs direct path |
 | `po_fulfillment_stage` | `COMMERCIAL`, `FINAL` | When PO open qty is consumed |
@@ -46,7 +47,7 @@ Stored in `workspace_control_registry` (`registry_key = 'IMPORT_LOGISTICS_SETTIN
 | `allow_commercial_receipt_before_customs` | boolean | Skip BoE on commercial stage |
 | `git_enabled` | boolean | Tenant uses procurement GIT module |
 
-**UI:** Settings → Modules → Procurement → **Import & logistics** tab.
+**UI:** Settings → Modules → Procurement → **Policies** tab → enable **We import goods from overseas**. Detailed policies appear on the **Import & logistics** tab when enabled.
 
 **Lib:** `apps/web/lib/procurement/import-logistics-settings.ts`
 

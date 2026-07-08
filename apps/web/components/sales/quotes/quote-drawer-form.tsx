@@ -846,7 +846,7 @@ export function QuoteDrawerForm({
             <Label htmlFor="quote-reject-notes">Reason</Label>
             <textarea
               id="quote-reject-notes"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="glass-form-control flex min-h-[80px] w-full"
               value={rejectNotes}
               onChange={(event) => setRejectNotes(event.target.value)}
               rows={3}

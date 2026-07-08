@@ -44,16 +44,16 @@ describe("module-nav-active", () => {
   });
 
   it("selects the longest matching items child", () => {
-    expect(getActiveModuleNavChild(itemsModule, "/items")?.label).toBe("Catalog");
+    expect(getActiveModuleNavChild(itemsModule, "/items")?.label).toBe("Items");
     expect(getActiveModuleNavChild(itemsModule, "/items/categories")?.label).toBe("Categories");
   });
 
-  it("does not mark Catalog active on the categories route", () => {
-    const catalog = itemsModule.children!.find((child) => child.label === "Catalog")!;
+  it("does not mark Items active on the categories route", () => {
+    const items = itemsModule.children!.find((child) => child.label === "Items")!;
     const categories = itemsModule.children!.find((child) => child.label === "Categories")!;
 
-    expect(isModuleNavChildActive(catalog, "/items", itemsModule)).toBe(true);
-    expect(isModuleNavChildActive(catalog, "/items/categories", itemsModule)).toBe(false);
+    expect(isModuleNavChildActive(items, "/items", itemsModule)).toBe(true);
+    expect(isModuleNavChildActive(items, "/items/categories", itemsModule)).toBe(false);
     expect(isModuleNavChildActive(categories, "/items/categories", itemsModule)).toBe(true);
   });
 

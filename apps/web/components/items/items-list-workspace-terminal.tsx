@@ -13,7 +13,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   fetchMoreProductListRows,
+  fetchProductListByFilterIds,
   getProductCatalogContext,
+  getProductDetail,
   getProductVariants,
   loadProductDrawer,
 } from "@/app/items/actions";
@@ -46,7 +48,6 @@ import { isDeepLinkPeekLanding } from "@/lib/layout/list-module/deep-link-landin
 import type { ListModuleLoadMode } from "@/lib/layout/list-module/drawer-search-params";
 import { useListWorkspace } from "@/lib/layout/list-workspace";
 import { isMutationSurface } from "@/lib/layout/module-drawer-url";
-import { LIST_WORKSPACE_GLASS_V2_ROOT } from "@/lib/layout/list-module-chrome";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import { useModuleAuxiliaryContext } from "@/lib/layout/list-module/use-module-auxiliary-context";
 import type { ProductCatalogLoaderProps } from "@/lib/products/catalog-loader-props";
@@ -542,6 +543,8 @@ function ItemsListWorkspaceTerminalInner({
           loadMutationDetail={loadMutationDetail}
           loadPeekDetail={loadPeekDetail}
           setDrawerDetail={setDrawerDetail}
+          setPeekDetail={setPeekDetail}
+          detailCacheRef={detailCacheRef}
           handleSaved={handleSaved}
           onItemArchived={(itemId) => {
             setProducts((current) => current.filter((row) => row.id !== itemId));
@@ -603,6 +606,8 @@ type ItemsListWorkspaceChromeProps = {
   loadMutationDetail: (itemId: string, variantId: string | null) => void;
   loadPeekDetail: (itemId: string, variantId: string | null) => void;
   setDrawerDetail: React.Dispatch<React.SetStateAction<ProductDetailSnapshot | null>>;
+  setPeekDetail: React.Dispatch<React.SetStateAction<ProductDetailSnapshot | null>>;
+  detailCacheRef: React.MutableRefObject<Map<string, ProductDetailSnapshot>>;
   handleSaved: (itemId: string, savedDetail?: ProductDetailSnapshot | null) => void;
   onItemArchived: (itemId: string) => void;
   router: ReturnType<typeof useRouter>;
@@ -652,6 +657,8 @@ function ItemsListWorkspaceChrome({
   loadMutationDetail,
   loadPeekDetail,
   setDrawerDetail,
+  setPeekDetail,
+  detailCacheRef,
   handleSaved,
   onItemArchived,
   router,
@@ -747,13 +754,9 @@ function ItemsListWorkspaceChrome({
   );
 
   return (
-    <div
-      data-list-workspace-layout={layout}
-      data-ui-header-chrome="unified"
-      className={cn("flex min-h-0 flex-1 flex-col", LIST_WORKSPACE_GLASS_V2_ROOT)}
-    >
+    <>
       <ListModuleShell
-        surface="classic"
+        catalogBody={layout !== "matrix"}
         title={
           <ItemsUnifiedCatalogHeader
             onNewItem={handleNewItem}
@@ -838,7 +841,7 @@ function ItemsListWorkspaceChrome({
           tenantId={tenantId}
           categories={categories}
           catalogContext={catalogContext}
-          detail={drawer.surface === "create" ? null : drawerDetail}
+          detail={drawer.surface === "create" && !drawerDetail ? null : drawerDetail}
           fieldPermissions={fieldPermissions}
           isLoading={drawerIsLoading}
           urlNavigation={urlNavigation}
@@ -866,14 +869,68 @@ function ItemsListWorkspaceChrome({
           onVariantsReload={async () => {
             const itemId = drawer.recordId ?? drawerDetail?.id ?? null;
             if (!itemId) return;
-            const result = await getProductVariants(itemId);
-            if ("error" in result || !result.bundle) {
-              toast.error(result.error ?? "Unable to refresh variants.");
+
+            const [detailResult, variantResult, listPage] = await Promise.all([
+              getProductDetail(itemId),
+              getProductVariants(itemId),
+              fetchProductListByFilterIds([itemId], {
+                expandVariants,
+                includeImages: getIncludeImages(),
+              }),
+            ]);
+
+            if ("error" in variantResult || !variantResult.bundle) {
+              toast.error(variantResult.error ?? "Unable to refresh variants.");
               return;
             }
-            setDrawerDetail((prev) =>
-              prev && prev.id === itemId ? { ...prev, variants: result.bundle!.variants } : prev
+            if ("error" in detailResult || !detailResult.detail) {
+              toast.error(detailResult.error ?? "Unable to refresh product profile.");
+              return;
+            }
+
+            const bundle = variantResult.bundle;
+            const applyVariantRefresh = (prev: ProductDetailSnapshot | null) => {
+              if (!prev || prev.id !== itemId) return prev;
+              return {
+                ...prev,
+                variants: bundle.variants,
+                has_variants: bundle.has_variants,
+                variant_axes: bundle.variant_axes,
+                updated_at: bundle.updated_at,
+                variant_strategy: detailResult.detail.variant_strategy,
+                variant_count_summary: undefined,
+              };
+            };
+
+            setDrawerDetail(applyVariantRefresh);
+            setPeekDetail(applyVariantRefresh);
+
+            const cacheDetail = applyVariantRefresh(
+              detailCacheRef.current.get(peekItemCacheKey(itemId)) ??
+                detailCacheRef.current.get(detailCacheKey(itemId, drawer.variantId)) ??
+                detailResult.detail
             );
+            if (cacheDetail) {
+              for (const key of detailCacheRef.current.keys()) {
+                if (key === peekItemCacheKey(itemId) || key.startsWith(`${itemId}:`)) {
+                  detailCacheRef.current.delete(key);
+                }
+              }
+              detailCacheRef.current.set(
+                detailCacheKey(cacheDetail.id, cacheDetail.variant_id),
+                cacheDetail
+              );
+              detailCacheRef.current.set(peekItemCacheKey(itemId), cacheDetail);
+            }
+
+            setProducts((current) => {
+              const next = current.filter((row) => row.id !== itemId);
+              return [...next, ...listPage.rows].sort((a, b) => {
+                const byName = a.name.localeCompare(b.name);
+                if (byName !== 0) return byName;
+                return (a.default_sku ?? "").localeCompare(b.default_sku ?? "");
+              });
+            });
           }}
           onCreatePersisted={(itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
             if (savedDetail) handleSaved(itemId, savedDetail);
@@ -883,6 +940,6 @@ function ItemsListWorkspaceChrome({
           onItemArchived={onItemArchived}
         />
       ) : null}
-    </div>
+    </>
   );
 }

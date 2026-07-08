@@ -20,13 +20,16 @@ export const LIST_WORKSPACE_GLASS_V2_ROOT =
 export const GLASS_V2_LIST_IMAGE = "glass-v2-list-image";
 export const GLASS_V2_LIST_IMAGE_PLACEHOLDER = "glass-v2-list-image--placeholder";
 
+/** Glass V2 form control surface (text inputs, textareas in drawers and settings). */
+export const GLASS_FORM_CONTROL = "glass-form-control";
+
 export const LIST_MODULE_VIEWPORT_OFFSET = "-mt-1.5 md:-mt-2 lg:-mt-3";
 
 export const LIST_MODULE_VIEWPORT_FALLBACK_HEIGHT =
   "h-[calc(100dvh-4rem-7rem)] max-h-[calc(100dvh-4rem-7rem)] md:h-[calc(100dvh-4rem-6.5rem)] md:max-h-[calc(100dvh-4rem-6.5rem)]";
 
 export const LIST_MODULE_PAGE_CHROME =
-  "z-20 shrink-0 overflow-visible bg-background -mx-3 px-3 pt-2 pb-1 md:-mx-4 md:px-4 md:pt-2.5 md:pb-1.5 lg:-mx-6 lg:px-6 lg:pt-3 lg:pb-2";
+  "list-module-page-chrome z-20 shrink-0 overflow-visible -mx-3 px-3 pt-2 pb-1 md:-mx-4 md:px-4 md:pt-2.5 md:pb-1.5 lg:-mx-6 lg:px-6 lg:pt-3 lg:pb-2";
 
 /** Items-master matrix registry shell (see `ItemsMatrixRegistry`). */
 export const LIST_WORKSPACE_MATRIX_REGISTRY_CARD =

@@ -111,7 +111,6 @@ export function ShipmentManagementTerminal({
     <ListWorkspaceModuleFrame peekOpen={peekOpen}>
       <>
       <ListModuleShell
-        surface="classic"
         className="list-module-shell-root"
         title={
           <UnifiedCatalogHeader

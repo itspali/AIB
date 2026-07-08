@@ -109,6 +109,12 @@ export function useOrganizationPolicyItems(
         mono: formValues.sku_auto_generation_enabled,
       },
       {
+        id: "duplicate-names",
+        label: "Duplicate names",
+        value: formValues.allow_duplicate_item_names ? "Allowed" : "Unique only",
+        tone: formValues.allow_duplicate_item_names ? "neutral" : "caution",
+      },
+      {
         id: "credit",
         label: "Credit",
         value: creditControlLabel(formValues.credit_control_enforcement),

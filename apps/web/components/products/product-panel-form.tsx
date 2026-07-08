@@ -73,7 +73,11 @@ type PanelProps = {
   isLoading?: boolean;
   isDetailRefreshing?: boolean;
   onModeChange: (mode: ProductFormMode) => void;
-  onSaved: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
+  onSaved: (
+    itemId: string,
+    detail?: ProductDetailSnapshot | null,
+    options?: import("@/lib/products/item-editor/editor-shell-shared").ItemSavedOptions
+  ) => void;
   onExtensionsChanged?: () => void;
   onRequestFullDetail?: () => void;
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
@@ -253,12 +257,16 @@ export function ProductPanelScope({
   }, [handleCancel, requestClose]);
 
   const handleSaved = useCallback(
-    (itemId: string, savedDetail?: ProductDetailSnapshot | null) => {
+    (
+      itemId: string,
+      savedDetail?: ProductDetailSnapshot | null,
+      options?: import("@/lib/products/item-editor/editor-shell-shared").ItemSavedOptions
+    ) => {
       if (urlNavigation) {
         if (mode === "edit") {
           setLockedFields([]);
         }
-        onSaved(itemId, savedDetail);
+        onSaved(itemId, savedDetail, options);
         return;
       }
       if (mode === "create") {
@@ -267,7 +275,7 @@ export function ProductPanelScope({
         setLockedFields([]);
         onModeChange("view");
       }
-      onSaved(itemId, savedDetail);
+      onSaved(itemId, savedDetail, options);
     },
     [mode, onModeChange, onSaved, urlNavigation]
   );
@@ -369,7 +377,7 @@ export function ProductPanelScope({
       </div>
     ) : catalogContext && wizard ? (
       <ItemCatalogWizardEditor
-        key={`${detail?.id ?? "new"}-${mode}`}
+        key={wizard.layout === "steps" ? "item-create-wizard" : (detail?.id ?? "edit-wizard")}
         layout="panel"
         mode={mode}
         tenantId={tenantId}

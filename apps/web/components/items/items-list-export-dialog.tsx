@@ -27,12 +27,20 @@ import {
   resolveProductListPdfLandscape,
   resolveProductListPdfOrientationLabel,
   type ProductListExportFormat,
+  type ProductListExportMatrix,
 } from "@/lib/products/list-export";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
+import {
+  buildSkuGrainExportMatrix,
+  filterSkuGrainExportRows,
+  resolveSkuGrainDefaultColumnIds,
+} from "@/lib/products/list-sku-export";
 import type { ProductListRow } from "@/lib/products/types";
 import { cn } from "@/lib/utils";
 
 const PDF_PREVIEW_ROW_LIMIT = 8;
+
+export type ProductListExportGrain = "product" | "sku";
 
 export type ItemsListExportDialogProps = {
   open: boolean;
@@ -41,8 +49,21 @@ export type ItemsListExportDialogProps = {
   defaultColumnIds: ProductListColumnId[];
   rowCount: number;
   previewRows?: ProductListRow[];
-  resolveRows: () => Promise<ProductListRow[]>;
+  resolveRows: (options?: { grain?: ProductListExportGrain }) => Promise<ProductListRow[]>;
 };
+
+function buildExportMatrix(
+  rows: ProductListRow[],
+  columnIds: ProductListColumnId[],
+  fieldPermissions: ProductFieldPermissions,
+  grain: ProductListExportGrain
+): ProductListExportMatrix {
+  if (grain === "sku") {
+    const skuRows = filterSkuGrainExportRows(rows);
+    return buildSkuGrainExportMatrix(skuRows, columnIds, fieldPermissions);
+  }
+  return buildProductListExportMatrix(rows, columnIds, fieldPermissions);
+}
 
 export function ItemsListExportDialog({
   open,
@@ -62,22 +83,40 @@ export function ItemsListExportDialog({
     [fieldPermissions]
   );
 
+  const allowedColumnIds = useMemo(
+    () => exportableColumns.map((column) => column.id),
+    [exportableColumns]
+  );
+
   const initialSelectedColumnIds = useMemo(() => {
-    const allowed = new Set(exportableColumns.map((column) => column.id));
+    const allowed = new Set(allowedColumnIds);
     const preferred = defaultColumnIds.filter((columnId) => allowed.has(columnId));
-    return preferred.length > 0 ? preferred : exportableColumns.map((column) => column.id);
-  }, [defaultColumnIds, exportableColumns]);
+    return preferred.length > 0 ? preferred : allowedColumnIds;
+  }, [allowedColumnIds, defaultColumnIds]);
 
   const [selectedColumnIds, setSelectedColumnIds] =
     useState<ProductListColumnId[]>(initialSelectedColumnIds);
+  const [grain, setGrain] = useState<ProductListExportGrain>("product");
   const [format, setFormat] = useState<ProductListExportFormat>("csv");
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (open) {
+      setGrain("product");
       setSelectedColumnIds(initialSelectedColumnIds);
     }
   }, [initialSelectedColumnIds, open]);
+
+  useEffect(() => {
+    if (grain === "sku") {
+      setSelectedColumnIds((current) => {
+        const next = resolveSkuGrainDefaultColumnIds(allowedColumnIds).filter((columnId) =>
+          current.includes(columnId)
+        );
+        return next.length > 0 ? next : resolveSkuGrainDefaultColumnIds(allowedColumnIds);
+      });
+    }
+  }, [allowedColumnIds, grain]);
 
   const allSelected =
     selectedColumnIds.length === exportableColumns.length && exportableColumns.length > 0;
@@ -95,9 +134,9 @@ export function ItemsListExportDialog({
       return null;
     }
 
-    const matrix = buildProductListExportMatrix(rowsForPreview, selectedColumnIds, fieldPermissions);
+    const matrix = buildExportMatrix(rowsForPreview, selectedColumnIds, fieldPermissions, grain);
     return renderProductListExportTableHtml(matrix, "Items export (preview)", { landscape: pdfLandscape });
-  }, [fieldPermissions, format, pdfLandscape, previewRows, selectedColumnIds]);
+  }, [fieldPermissions, format, grain, pdfLandscape, previewRows, selectedColumnIds]);
 
   const toggleColumn = (columnId: ProductListColumnId, checked: boolean) => {
     setSelectedColumnIds((current) => {
@@ -116,24 +155,29 @@ export function ItemsListExportDialog({
 
     startTransition(async () => {
       try {
-        const rows = await resolveRows();
+        const rows = await resolveRows({ grain });
         if (rows.length === 0) {
-          toast.error("No items match the current filter.");
+          toast.error(
+            grain === "sku"
+              ? "No sellable SKUs match the current filter."
+              : "No items match the current filter."
+          );
           return;
         }
 
-        const matrix = buildProductListExportMatrix(rows, selectedColumnIds, fieldPermissions);
+        const matrix = buildExportMatrix(rows, selectedColumnIds, fieldPermissions, grain);
+        const rowLabel = grain === "sku" ? "SKU" : "item";
 
         if (format === "csv") {
           downloadProductListCsvFromMatrix(matrix);
-          toast.success(`Exported ${rows.length} item${rows.length === 1 ? "" : "s"} as CSV.`);
+          toast.success(`Exported ${rows.length} ${rowLabel}${rows.length === 1 ? "" : "s"} as CSV.`);
           onOpenChange(false);
           return;
         }
 
         if (format === "excel") {
           await downloadProductListExcelFromMatrix(matrix);
-          toast.success(`Exported ${rows.length} item${rows.length === 1 ? "" : "s"} as Excel.`);
+          toast.success(`Exported ${rows.length} ${rowLabel}${rows.length === 1 ? "" : "s"} as Excel.`);
           onOpenChange(false);
           return;
         }
@@ -141,7 +185,7 @@ export function ItemsListExportDialog({
         const result = await exportProductListPdf({
           headers: matrix.headers,
           rows: matrix.rows,
-          title: "Items export",
+          title: grain === "sku" ? "Items export (one row per SKU)" : "Items export",
         });
 
         if ("error" in result) {
@@ -150,7 +194,7 @@ export function ItemsListExportDialog({
         }
 
         downloadPdfFromBase64(result.filename, result.pdfBase64);
-        toast.success(`Exported ${rows.length} item${rows.length === 1 ? "" : "s"} as PDF.`);
+        toast.success(`Exported ${rows.length} ${rowLabel}${rows.length === 1 ? "" : "s"} as PDF.`);
         onOpenChange(false);
       } catch {
         toast.error("Unable to export items.");
@@ -165,11 +209,46 @@ export function ItemsListExportDialog({
           <DialogTitle>Export items</DialogTitle>
           <DialogDescription>
             Export {rowCount} item{rowCount === 1 ? "" : "s"} matching the current filters. Choose
-            columns and file format.
+            row grain, columns, and file format.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Row grain</Label>
+            <RadioGroup
+              value={grain}
+              onValueChange={(value) => setGrain(value as ProductListExportGrain)}
+              className="grid gap-2"
+            >
+              {(
+                [
+                  {
+                    id: "product",
+                    label: "One row per product",
+                    hint: "Current list shape; multi-SKU products collapse to one row unless SKUs are expanded.",
+                  },
+                  {
+                    id: "sku",
+                    label: "One row per SKU",
+                    hint: "One sellable SKU per row with dynamic attribute columns for import round-trip.",
+                  },
+                ] as const
+              ).map((option) => (
+                <label
+                  key={option.id}
+                  className="flex cursor-pointer gap-2 rounded-md border border-border/70 px-3 py-2 text-sm"
+                >
+                  <RadioGroupItem value={option.id} className="mt-0.5" />
+                  <span className="space-y-0.5">
+                    <span className="block font-medium">{option.label}</span>
+                    <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label>Columns</Label>
@@ -201,6 +280,12 @@ export function ItemsListExportDialog({
                 </label>
               ))}
             </div>
+            {grain === "sku" ? (
+              <p className="text-xs text-muted-foreground">
+                Variant attribute columns are appended automatically from merged category and extra
+                SKU options.
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">

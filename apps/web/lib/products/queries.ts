@@ -26,6 +26,7 @@ import {
   extractReorderPointFromCustomFieldsRecord,
 } from "@/lib/products/catalog-reserved-fields";
 import { parseCustomFields } from "@/lib/products/sku-mask";
+import { parseAttributeTemplates } from "@/lib/categories/tree";
 import { isProductVariantStrategy, type ProductVariantStrategy } from "@/lib/products/variant-strategy";
 import type { ProductPeekSection } from "@/lib/products/types";
 import { resolvePeekFocusVariantIds } from "@/lib/products/peek-panels";
@@ -71,6 +72,7 @@ type ItemRow = {
   has_variants: boolean;
   variant_strategy?: string;
   variant_axes?: unknown;
+  extra_sku_options?: unknown;
   item_type?: string | null;
   track_inventory?: boolean | null;
   status?: string | null;
@@ -703,6 +705,7 @@ const PEEK_ITEM_DETAIL_SELECT = `
   has_variants,
   variant_strategy,
   variant_axes,
+  extra_sku_options,
   item_type,
   track_inventory,
   status,
@@ -737,6 +740,7 @@ const ITEM_DETAIL_SELECT = `
   has_variants,
   variant_strategy,
   variant_axes,
+  extra_sku_options,
   item_type,
   track_inventory,
   status,
@@ -988,6 +992,7 @@ function assemblePeekEssentialsSnapshot(
           (entry): entry is string => typeof entry === "string" && entry.trim() !== ""
         )
       : [],
+    extra_sku_options: parseAttributeTemplates(row.extra_sku_options),
     item_type: isItemType(row.item_type ?? "")
       ? (row.item_type as ItemType)
       : "PHYSICAL",
@@ -1402,6 +1407,7 @@ export async function fetchProductDetail(
           (entry): entry is string => typeof entry === "string" && entry.trim() !== ""
         )
       : [],
+    extra_sku_options: parseAttributeTemplates(row.extra_sku_options),
     item_type: isItemType(row.item_type ?? "")
       ? (row.item_type as ItemType)
       : "PHYSICAL",

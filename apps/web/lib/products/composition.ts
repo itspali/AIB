@@ -2,7 +2,7 @@ import type { ItemClassification } from "@/lib/products/classification-labels";
 import type { ItemType } from "@/lib/products/item-model";
 
 /** UI label for the composition feature (DB column remains `is_bundle` until renamed). */
-export const COMPOSITION_FIELD_LABEL = "Sold as a set";
+export const COMPOSITION_FIELD_LABEL = "Composite item";
 export const COMPOSITION_STAGE_LABEL = "Composition";
 export const COMPOSITION_SECTION_LABEL = "Composition";
 
@@ -132,7 +132,7 @@ export function compositionEmptyStateMessage(
   if (classification === "FINISHED_GOOD") {
     return "Add included items (for example TV + optional extended warranty). Use mandatory for always-included lines and optional for add-ons.";
   }
-  return "Change supply-chain role to Finished good or Work in progress, or turn off Sold as a set.";
+  return "Change supply-chain role to Finished good or Work in progress, or turn off Composite item.";
 }
 
 export function shouldClearTrackInventoryWhenCompositionEnabled(

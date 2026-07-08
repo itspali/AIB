@@ -16,7 +16,7 @@ export default function SettingsLayout({ children }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {!isHub ? (
-        <div className="border-b border-border bg-background/80 px-4 py-2 backdrop-blur md:px-6">
+        <div className="settings-glass-nav px-4 py-2 md:px-6">
           <nav
             aria-label="Settings sections"
             className="flex gap-4 overflow-x-auto pb-1 text-sm"

@@ -6,14 +6,12 @@ import { columnWidths } from "@/lib/list-columns/sizing";
 import type { ListColumnDef, ListColumnRegistry } from "@/lib/list-columns/types";
 import { CHIP_DEFAULT_FALLBACK_KEY } from "@/lib/list-columns/types";
 import { ITEM_TYPES } from "@/lib/products/item-model";
-import { PRODUCT_VARIANT_STRATEGIES } from "@/lib/products/variant-strategy";
 
 export const CATEGORY_LIST_COLUMN_IDS = [
   "name",
   "parent_name",
   "is_active",
   "item_count",
-  "default_variant_strategy",
   "default_item_type",
   "attribute_count",
   "inherit_parent_attributes",
@@ -53,11 +51,6 @@ const W_BOOLEAN = columnWidths({
 const W_DATE = columnWidths({
   default: { min: 100, max: 140 },
 });
-
-const VARIANT_STRATEGY_CHIP_CATALOG = PRODUCT_VARIANT_STRATEGIES.map((value) => ({
-  value,
-  label: value === "SINGLE_SKU" ? "Single SKU" : "Multi SKU",
-}));
 
 const ITEM_TYPE_CHIP_CATALOG = ITEM_TYPES.map((value) => ({
   value,
@@ -112,21 +105,6 @@ export const CATEGORY_LIST_COLUMNS: CategoryListColumnDef[] = [
     group: "Inventory",
     valueKind: "number",
     widths: W_NUMBER,
-  },
-  {
-    id: "default_variant_strategy",
-    label: "Variant strategy",
-    defaultVisible: false,
-    group: "Defaults",
-    valueKind: "text",
-    widths: W_TEXT,
-    chipEligible: true,
-    chipValueCatalog: VARIANT_STRATEGY_CHIP_CATALOG,
-    chipDefaultColors: {
-      SINGLE_SKU: { preset: "indigo" },
-      MULTI_SKU: { preset: "violet" },
-      [CHIP_DEFAULT_FALLBACK_KEY]: { preset: "neutral" },
-    },
   },
   {
     id: "default_item_type",

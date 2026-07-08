@@ -2,10 +2,8 @@
 
 import type { ReactNode } from "react";
 import { ListWorkspaceBody } from "@/components/layout/list-workspace-body";
-import { LIST_WORKSPACE_GLASS_V2_ROOT } from "@/lib/layout/list-module-chrome";
 import { ListWorkspaceSplitDetailProvider } from "@/lib/layout/list-workspace-split-detail-context";
-import { useListWorkspace, useOptionalListWorkspace } from "@/lib/layout/list-workspace";
-import { cn } from "@/lib/utils";
+import { useListWorkspace } from "@/lib/layout/list-workspace";
 
 type CatalogBodyProps = {
   listContent: ReactNode;
@@ -34,17 +32,7 @@ type ModuleFrameProps = {
 };
 
 export function ListWorkspaceModuleFrame({ peekOpen, children }: ModuleFrameProps) {
-  const workspace = useOptionalListWorkspace();
-
   return (
-    <ListWorkspaceSplitDetailProvider peekOpen={peekOpen}>
-      <div
-        data-list-workspace-layout={workspace?.layout}
-        data-ui-header-chrome="unified"
-        className={cn("flex min-h-0 flex-1 flex-col", LIST_WORKSPACE_GLASS_V2_ROOT)}
-      >
-        {children}
-      </div>
-    </ListWorkspaceSplitDetailProvider>
+    <ListWorkspaceSplitDetailProvider peekOpen={peekOpen}>{children}</ListWorkspaceSplitDetailProvider>
   );
 }

@@ -48,19 +48,19 @@ type FlowLightProps = { path: string; dur: string; begin?: string; size?: number
 function FlowLight({ path, dur, begin, size = 3, blurId }: FlowLightProps) {
   return (
     <g filter={`url(#${blurId})`} className="auth-flow-orb">
-      <circle r={size + 4} className="fill-primary/12">
+      <circle r={size + 4} className="fill-primary/18">
         <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} calcMode="linear" keyPoints="0;1" keyTimes="0;1" />
       </circle>
-      <circle r={size} className="fill-primary/75">
+      <circle r={size} className="fill-primary/82">
         <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={path} calcMode="linear" keyPoints="0;1" keyTimes="0;1" />
       </circle>
     </g>
   );
 }
 
-function FlowRail({ d, width = 1.1 }: { d: string; width?: number }) {
+function FlowRail({ d, width = 1.2 }: { d: string; width?: number }) {
   return (
-    <path d={d} stroke={ink} strokeOpacity={0.1} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
+    <path d={d} stroke={ink} strokeOpacity={0.14} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
   );
 }
 
@@ -85,7 +85,7 @@ function AssetShadow({ kind, cx, cy }: { kind: ShadowKind; cx: number; cy: numbe
 function WebMonitorIcon() {
   return (
     <g>
-      <rect x={312} y={76} width={40} height={28} rx={3} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.18)} strokeWidth={1.2} />
+      <rect x={312} y={76} width={40} height={28} rx={3} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.21)} strokeWidth={1.2} />
       <rect x={316} y={80} width={32} height={18} rx={1} {...fillSoft(0.06)} />
       <line x1={322} y1={86} x2={342} y2={86} {...inkSoft(0.14)} strokeWidth={1} />
       <line x1={322} y1={92} x2={336} y2={92} {...inkSoft(0.1)} strokeWidth={1} />
@@ -98,7 +98,7 @@ function WebMonitorIcon() {
 function MobilePhoneIcon() {
   return (
     <g>
-      <rect x={376} y={62} width={22} height={38} rx={5} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.18)} strokeWidth={1.2} />
+      <rect x={376} y={62} width={22} height={38} rx={5} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.21)} strokeWidth={1.2} />
       <rect x={380} y={70} width={14} height={22} rx={1} {...fillSoft(0.05)} />
       <circle cx={387} cy={96} r={1.5} {...fillSoft(0.2)} stroke="none" />
       <line x1={381} y1={66} x2={393} y2={66} {...inkSoft(0.12)} strokeWidth={1} />
@@ -109,7 +109,7 @@ function MobilePhoneIcon() {
 function PosTerminalIcon() {
   return (
     <g>
-      <path d="M 420 88 L 454 88 L 458 100 L 416 100 Z" fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.18)} strokeWidth={1.2} />
+      <path d="M 420 88 L 454 88 L 458 100 L 416 100 Z" fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.21)} strokeWidth={1.2} />
       <rect x={424} y={96} width={26} height={14} rx={2} {...fillSoft(0.06)} {...inkSoft(0.14)} strokeWidth={1} />
       <rect x={430} y={100} width={14} height={6} rx={1} {...fillSoft(0.1)} />
       <line x1={438} y1={110} x2={438} y2={114} {...inkSoft(0.12)} strokeWidth={1.2} />
@@ -121,7 +121,7 @@ function PosTerminalIcon() {
 function ParcelIcon() {
   return (
     <g>
-      <rect x={578} y={74} width={26} height={22} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.17)} strokeWidth={1.1} />
+      <rect x={578} y={74} width={26} height={22} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.2)} strokeWidth={1.1} />
       <path d="M 578 80 L 591 74 L 604 80" {...inkSoft(0.15)} strokeWidth={1} fill="none" />
       <line x1={591} y1={74} x2={591} y2={96} {...inkSoft(0.14)} strokeWidth={1} />
       <line x1={584} y1={88} x2={598} y2={88} {...inkSoft(0.12)} strokeWidth={1} />
@@ -132,11 +132,11 @@ function ParcelIcon() {
 function CarrierVanIcon() {
   return (
     <g>
-      <rect x={644} y={80} width={30} height={16} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.17)} strokeWidth={1.1} />
+      <rect x={644} y={80} width={30} height={16} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.2)} strokeWidth={1.1} />
       <path d="M 636 88 H 644" {...inkSoft(0.15)} strokeWidth={1.2} />
       <rect x={638} y={82} width={8} height={10} rx={1} {...fillSoft(0.05)} {...inkSoft(0.12)} strokeWidth={0.9} />
-      <circle cx={652} cy={98} r={4} fill="none" {...inkSoft(0.16)} strokeWidth={1} />
-      <circle cx={668} cy={98} r={4} fill="none" {...inkSoft(0.16)} strokeWidth={1} />
+      <circle cx={652} cy={98} r={4} fill="none" {...inkSoft(0.19)} strokeWidth={1} />
+      <circle cx={668} cy={98} r={4} fill="none" {...inkSoft(0.19)} strokeWidth={1} />
     </g>
   );
 }
@@ -144,7 +144,7 @@ function CarrierVanIcon() {
 function VendorTruckIcon() {
   return (
     <g>
-      <rect x={298} y={324} width={28} height={14} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <rect x={298} y={324} width={28} height={14} rx={2} fill="hsl(var(--card))" fillOpacity={0.88} {...inkSoft(0.19)} strokeWidth={1.1} />
       <rect x={290} y={328} width={10} height={10} rx={1} {...fillSoft(0.06)} {...inkSoft(0.14)} strokeWidth={0.9} />
       <circle cx={304} cy={340} r={3.5} fill="none" {...inkSoft(0.14)} strokeWidth={1} />
       <circle cx={320} cy={340} r={3.5} fill="none" {...inkSoft(0.14)} strokeWidth={1} />
@@ -156,7 +156,7 @@ function VendorTruckIcon() {
 function PurchaseOrderIcon({ frontGrad }: { frontGrad: string }) {
   return (
     <g>
-      <path d="M 408 320 L 440 320 L 440 352 L 408 352 Z" fill={`url(#${frontGrad})`} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <path d="M 408 320 L 440 320 L 440 352 L 408 352 Z" fill={`url(#${frontGrad})`} {...inkSoft(0.19)} strokeWidth={1.1} />
       <path d="M 428 320 L 440 320 L 440 332 L 428 332 Z" fill="hsl(var(--card))" fillOpacity={0.7} {...inkSoft(0.12)} strokeWidth={0.9} />
       <line x1={414} y1={330} x2={432} y2={330} {...inkSoft(0.12)} strokeWidth={1} />
       <line x1={414} y1={338} x2={428} y2={338} {...inkSoft(0.1)} strokeWidth={1} />
@@ -168,10 +168,10 @@ function PurchaseOrderIcon({ frontGrad }: { frontGrad: string }) {
 function WarehouseInventoryIcon({ boxTop, boxFront, boxSide }: { boxTop: string; boxFront: string; boxSide: string }) {
   return (
     <g>
-      <line x1={128} y1={248} x2={200} y2={248} {...inkSoft(0.14)} strokeWidth={1.3} />
-      <line x1={136} y1={210} x2={136} y2={248} {...inkSoft(0.14)} strokeWidth={1.3} />
-      <line x1={192} y1={210} x2={192} y2={248} {...inkSoft(0.14)} strokeWidth={1.3} />
-      <line x1={128} y1={210} x2={200} y2={210} {...inkSoft(0.14)} strokeWidth={1.3} />
+      <line x1={128} y1={248} x2={200} y2={248} {...inkSoft(0.17)} strokeWidth={1.3} />
+      <line x1={136} y1={210} x2={136} y2={248} {...inkSoft(0.17)} strokeWidth={1.3} />
+      <line x1={192} y1={210} x2={192} y2={248} {...inkSoft(0.17)} strokeWidth={1.3} />
+      <line x1={128} y1={210} x2={200} y2={210} {...inkSoft(0.17)} strokeWidth={1.3} />
       <PalletBox x={144} y={216} w={22} h={16} d={5} fills={{ top: boxTop, front: boxFront, side: boxSide }} />
       <PalletBox x={166} y={220} w={18} h={12} d={4} fills={{ top: boxTop, front: boxFront, side: boxSide }} />
       <PalletBox x={152} y={198} w={20} h={14} d={5} fills={{ top: boxTop, front: boxFront, side: boxSide }} />
@@ -196,7 +196,7 @@ function PalletBox({
 }) {
   const ox = d * 0.5;
   const oy = d * 0.3;
-  const s = { stroke: ink, strokeOpacity: 0.14, strokeWidth: 1 };
+  const s = { stroke: ink, strokeOpacity: 0.17, strokeWidth: 1 };
   return (
     <g>
       <polygon points={`${x + w},${y} ${x + w + ox},${y - oy} ${x + w + ox},${y + h - oy} ${x + w},${y + h}`} fill={`url(#${fills.side})`} {...s} />
@@ -211,7 +211,7 @@ function OrderClipboardIcon({ frontGrad }: { frontGrad: string }) {
     <g>
       <rect x={362} y={178} width={8} height={18} rx={2} {...fillSoft(0.1)} {...inkSoft(0.14)} strokeWidth={1} />
       <rect x={358} y={192} width={16} height={6} rx={3} {...fillSoft(0.12)} {...inkSoft(0.14)} strokeWidth={1} />
-      <rect x={352} y={198} width={64} height={72} rx={4} fill={`url(#${frontGrad})`} {...inkSoft(0.17)} strokeWidth={1.2} />
+      <rect x={352} y={198} width={64} height={72} rx={4} fill={`url(#${frontGrad})`} {...inkSoft(0.2)} strokeWidth={1.2} />
       <rect x={360} y={208} width={10} height={10} rx={2} {...inkSoft(0.14)} strokeWidth={1} />
       <path d="M 362 214 L 368 218 L 362 222 Z" {...fillSoft(0.15)} />
       <line x1={374} y1={212} x2={404} y2={212} {...inkSoft(0.13)} strokeWidth={1.1} />
@@ -227,8 +227,8 @@ function OrderClipboardIcon({ frontGrad }: { frontGrad: string }) {
 function FulfillmentTruckIcon({ frontGrad }: { frontGrad: string }) {
   return (
     <g>
-      <rect x={588} y={200} width={48} height={26} rx={3} fill={`url(#${frontGrad})`} {...inkSoft(0.17)} strokeWidth={1.2} />
-      <path d="M 636 200 H 656 L 668 218 H 668 226 H 588" {...inkSoft(0.17)} strokeWidth={1.2} fill="hsl(var(--card))" fillOpacity={0.85} />
+      <rect x={588} y={200} width={48} height={26} rx={3} fill={`url(#${frontGrad})`} {...inkSoft(0.2)} strokeWidth={1.2} />
+      <path d="M 636 200 H 656 L 668 218 H 668 226 H 588" {...inkSoft(0.2)} strokeWidth={1.2} fill="hsl(var(--card))" fillOpacity={0.85} />
       <rect x={642} y={206} width={10} height={10} rx={1} {...fillSoft(0.06)} {...inkSoft(0.12)} strokeWidth={0.9} />
       <circle cx={604} cy={228} r={9} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.15)} strokeWidth={1.1} />
       <circle cx={652} cy={228} r={9} fill="hsl(var(--card))" fillOpacity={0.9} {...inkSoft(0.15)} strokeWidth={1.1} />
@@ -263,7 +263,7 @@ function InsightsChartIcon() {
 function DemandForecastIcon({ frontGrad }: { frontGrad: string }) {
   return (
     <g>
-      <rect x={756} y={284} width={56} height={38} rx={5} fill={`url(#${frontGrad})`} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <rect x={756} y={284} width={56} height={38} rx={5} fill={`url(#${frontGrad})`} {...inkSoft(0.19)} strokeWidth={1.1} />
       <path
         d="M 766 310 L 778 300 L 790 306 L 802 292 L 814 298 L 802 314 Z"
         {...fillSoft(0.07)}
@@ -287,7 +287,7 @@ function DemandForecastIcon({ frontGrad }: { frontGrad: string }) {
 function ProcurementHubIcon({ frontGrad, boxFront }: { frontGrad: string; boxFront: string }) {
   return (
     <g>
-      <rect x={356} y={284} width={56} height={38} rx={5} fill={`url(#${frontGrad})`} {...inkSoft(0.16)} strokeWidth={1.1} />
+      <rect x={356} y={284} width={56} height={38} rx={5} fill={`url(#${frontGrad})`} {...inkSoft(0.19)} strokeWidth={1.1} />
       <path d="M 368 302 H 388 M 378 294 V 310" {...inkSoft(0.14)} strokeWidth={1.2} strokeLinecap="round" />
       <path d="M 394 308 L 404 302 L 414 308 L 404 314 Z" {...fillSoft(0.1)} {...inkSoft(0.14)} strokeWidth={1} />
       <rect x={396} y={300} width={16} height={12} rx={1} fill={`url(#${boxFront})`} {...inkSoft(0.13)} strokeWidth={0.9} />
@@ -361,9 +361,9 @@ export function CommerceAuthIllustration({ className, gradientId = "auth-flow" }
         </filter>
       </defs>
 
-      <FlowRail d={MAIN_LOOP} width={1.2} />
+      <FlowRail d={MAIN_LOOP} width={1.35} />
       {ALL_RAILS.slice(1).map((d) => (
-        <FlowRail key={d} d={d} width={1} />
+        <FlowRail key={d} d={d} width={1.1} />
       ))}
 
       {/* Ground shadows — shape matches asset type */}
@@ -434,22 +434,22 @@ export function CommerceAuthIllustration({ className, gradientId = "auth-flow" }
         <ProcurementHubIcon frontGrad={frontGrad} boxFront={boxFront} />
       </g>
 
-      <text x={164} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
+      <text x={164} y={148} textAnchor="middle" className="fill-muted-foreground/42 text-[12px] font-medium">
         Inventory
       </text>
-      <text x={388} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
+      <text x={388} y={148} textAnchor="middle" className="fill-muted-foreground/42 text-[12px] font-medium">
         Orders
       </text>
-      <text x={624} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
+      <text x={624} y={148} textAnchor="middle" className="fill-muted-foreground/42 text-[12px] font-medium">
         Fulfillment
       </text>
-      <text x={884} y={148} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
+      <text x={884} y={148} textAnchor="middle" className="fill-muted-foreground/42 text-[12px] font-medium">
         Insights
       </text>
-      <text x={388} y={338} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
+      <text x={388} y={338} textAnchor="middle" className="fill-muted-foreground/42 text-[12px] font-medium">
         Procurement
       </text>
-      <text x={784} y={338} textAnchor="middle" className="fill-muted-foreground/32 text-[12px] font-medium">
+      <text x={784} y={338} textAnchor="middle" className="fill-muted-foreground/42 text-[12px] font-medium">
         Demand
       </text>
 
@@ -463,7 +463,7 @@ export function CommerceAuthIllustration({ className, gradientId = "auth-flow" }
           [314, 358, "Vendor"],
           [424, 358, "PO"],
         ].map(([x, y, label]) => (
-          <text key={label as string} x={x as number} y={y as number} textAnchor="middle" className="fill-muted-foreground/24 text-[10px]">
+          <text key={label as string} x={x as number} y={y as number} textAnchor="middle" className="fill-muted-foreground/34 text-[10px]">
             {label as string}
           </text>
         ))}

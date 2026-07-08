@@ -32,6 +32,10 @@ export function isVariantAxisCandidate(template: AttributeTemplateEntry): boolea
   return true;
 }
 
+export function hasVariantAxisCandidates(templates: AttributeTemplateEntry[]): boolean {
+  return filterVariantAxisCandidateTemplates(templates).length > 0;
+}
+
 export function filterVariantAxisCandidateTemplates(
   templates: AttributeTemplateEntry[]
 ): AttributeTemplateEntry[] {
@@ -48,10 +52,50 @@ export function sanitizeVariantAxisKeys(
   return [...axisKeys].filter((key) => allowed.has(key));
 }
 
+export function toggleVariantAxisKey(axisKeys: readonly string[], key: string): string[] {
+  if (axisKeys.includes(key)) {
+    return axisKeys.filter((candidate) => candidate !== key);
+  }
+  return [...axisKeys, key];
+}
+
+export function moveVariantAxisKey(
+  axisKeys: readonly string[],
+  key: string,
+  direction: -1 | 1
+): string[] {
+  const index = axisKeys.indexOf(key);
+  if (index < 0) return [...axisKeys];
+  const target = index + direction;
+  if (target < 0 || target >= axisKeys.length) return [...axisKeys];
+  const next = [...axisKeys];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
 export function countSellableVariants(
   variants: Array<{ is_master?: boolean; is_sellable?: boolean }>
 ): number {
   return variants.filter((variant) => !variant.is_master && variant.is_sellable !== false).length;
+}
+
+/** Non-master variant/SKU rows (excludes the style-anchor master row). */
+export function countVariantSkuRows(
+  variants: Array<{ is_master?: boolean }>
+): number {
+  return variants.filter((variant) => !variant.is_master).length;
+}
+
+/** Lock product code once any variant SKU rows exist under the style master. */
+export function shouldLockProductCode(variants: Array<{ is_master?: boolean }>): boolean {
+  return countVariantSkuRows(variants) >= 1;
+}
+
+/** Lock axis chips once two or more sellable SKU rows exist (not the master-only row). */
+export function shouldLockVariantAxisPicker(
+  variants: Array<{ is_master?: boolean; is_sellable?: boolean }>
+): boolean {
+  return countSellableVariants(variants) >= 2;
 }
 
 /** Product-level attribute values — category fields not used as variant axes. */
@@ -143,13 +187,17 @@ export function splitTemplatesByAxis(
   templates: AttributeTemplateEntry[],
   axisKeys: Iterable<string>
 ): VariantCompositionSplit {
-  const axisSet = new Set(axisKeys);
+  const orderedKeys = [...axisKeys];
+  const axisSet = new Set(orderedKeys);
+  const byKey = new Map(templates.map((template) => [template.key, template]));
   const axes: AttributeTemplateEntry[] = [];
+  for (const key of orderedKeys) {
+    const template = byKey.get(key);
+    if (template) axes.push(template);
+  }
   const descriptive: AttributeTemplateEntry[] = [];
   for (const template of templates) {
-    if (axisSet.has(template.key)) {
-      axes.push(template);
-    } else {
+    if (!axisSet.has(template.key)) {
       descriptive.push(template);
     }
   }
@@ -207,4 +255,35 @@ export function validateVariantAxesSelection(input: {
 
 export function variantAxesZodIssuePath(): typeof VARIANT_AXES_PATH {
   return VARIANT_AXES_PATH;
+}
+
+export type VariantCompositionMode = "draft" | "live";
+
+/** Draft composition on Essentials create wizard until the user continues to the next step. */
+export function resolveVariantCompositionMode(input: {
+  activeWizardStage: string | null;
+  wizardActive: boolean;
+  wizardSteps: boolean;
+}): VariantCompositionMode {
+  if (
+    input.activeWizardStage === "essentials" &&
+    input.wizardActive &&
+    input.wizardSteps
+  ) {
+    return "draft";
+  }
+  return "live";
+}
+
+/** When the variant matrix / axis picker should drive SKU composition in the SKUs section. */
+export function shouldComposeVariants(input: {
+  isMultiSku: boolean;
+  compositionMode: VariantCompositionMode;
+  variantAxisCount: number;
+}): boolean {
+  return (
+    input.isMultiSku ||
+    input.compositionMode === "draft" ||
+    input.variantAxisCount > 0
+  );
 }

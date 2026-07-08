@@ -23,9 +23,16 @@ import type { CategoryRow } from "@/lib/categories/types";
 import { bulkSuccessToastMessage } from "@/lib/products/bulk-schemas";
 import {
   downloadProductListCsv,
+  downloadProductListCsvFromMatrix,
   exportProductListRowsToCsv,
 } from "@/lib/products/bulk-export";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
+import type { ProductListColumnId } from "@/lib/products/list-columns";
+import {
+  buildSkuGrainExportMatrix,
+  filterSkuGrainExportRows,
+  resolveSkuGrainDefaultColumnIds,
+} from "@/lib/products/list-sku-export";
 import { resolveBulkSelectionItemIds } from "@/lib/products/list-row-key";
 import type { ProductListRow } from "@/lib/products/types";
 
@@ -239,20 +246,31 @@ export function useProductListBulkOperations({
           rows = visibleMatches;
         } else {
           const page = await fetchProductListByFilterIds(resolved.itemIds, {
+            expandVariants: expandVariants,
             includeImages: getIncludeImages(),
           });
           rows = page.rows;
         }
 
-        const csv = exportProductListRowsToCsv(rows, fieldPermissions);
-        downloadProductListCsv(csv);
-        toast.success(`Exported ${rows.length} product${rows.length === 1 ? "" : "s"}.`);
+        if (expandVariants) {
+          const skuRows = filterSkuGrainExportRows(rows);
+          const columnIds = resolveSkuGrainDefaultColumnIds(
+            fieldPermissions.allowedFields as ProductListColumnId[]
+          );
+          const matrix = buildSkuGrainExportMatrix(skuRows, columnIds, fieldPermissions);
+          downloadProductListCsvFromMatrix(matrix);
+          toast.success(`Exported ${skuRows.length} SKU${skuRows.length === 1 ? "" : "s"}.`);
+        } else {
+          const csv = exportProductListRowsToCsv(rows, fieldPermissions);
+          downloadProductListCsv(csv);
+          toast.success(`Exported ${rows.length} product${rows.length === 1 ? "" : "s"}.`);
+        }
         clearBulkSelection();
       } catch {
         toast.error("Unable to export selected items.");
       }
     });
-  }, [buildBulkTarget, clearBulkSelection, fieldPermissions, getIncludeImages, products, runBulkTransition]);
+  }, [buildBulkTarget, clearBulkSelection, expandVariants, fieldPermissions, getIncludeImages, products, runBulkTransition]);
 
   const handleBulkToolbarAction = useCallback(
     (action: BulkToolbarAction) => {

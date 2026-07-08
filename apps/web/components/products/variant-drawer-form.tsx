@@ -23,7 +23,7 @@ import {
   editorFieldSpanFullClass,
   editorGridClass,
 } from "@/lib/products/editor-chrome";
-import { composeSkuFromMask } from "@/lib/products/sku-mask";
+import { composeSkuFromMask, resolveEffectiveSkuMask } from "@/lib/products/sku-mask";
 import { splitTemplatesByAxis } from "@/lib/products/variant-composition";
 import {
   SELL_PRICE_COLUMN,
@@ -120,6 +120,10 @@ function VariantEditFormCore({
     () => splitTemplatesByAxis(categoryTemplates, variantAxisKeys).axes,
     [categoryTemplates, variantAxisKeys]
   );
+  const effectiveSkuMask = useMemo(
+    () => resolveEffectiveSkuMask(skuMask, axisAttributeTemplates),
+    [skuMask, axisAttributeTemplates]
+  );
   const skuManualRef = useRef(isEditing);
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -152,12 +156,12 @@ function VariantEditFormCore({
   }, [lengthCm, widthCm, heightCm, form, setValue]);
 
   const regenerateSku = useCallback(() => {
-    const composed = composeSkuFromMask(skuMask, baseSku || "ITEM", variantAttributes);
+    const composed = composeSkuFromMask(effectiveSkuMask, baseSku || "ITEM", variantAttributes);
     if (composed) {
       setValue("sku", composed, { shouldDirty: true });
       skuManualRef.current = false;
     }
-  }, [skuMask, baseSku, variantAttributes, setValue]);
+  }, [effectiveSkuMask, baseSku, variantAttributes, setValue]);
 
   useEffect(() => {
     if (!active) return;
@@ -167,11 +171,11 @@ function VariantEditFormCore({
 
   useEffect(() => {
     if (!active || isEditing || skuManualRef.current || !skuMask.trim()) return;
-    const composed = composeSkuFromMask(skuMask, baseSku || "ITEM", variantAttributes);
+    const composed = composeSkuFromMask(effectiveSkuMask, baseSku || "ITEM", variantAttributes);
     if (composed) {
       setValue("sku", composed, { shouldDirty: true });
     }
-  }, [active, isEditing, skuMask, baseSku, variantAttributes, setValue]);
+  }, [active, isEditing, effectiveSkuMask, baseSku, variantAttributes, setValue]);
 
   const onSubmit = useCallback(
     (values: ItemVariantFormValues) => {

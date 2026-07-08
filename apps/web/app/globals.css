@@ -30,25 +30,25 @@
     --popover-foreground: 210 40% 98%;
   }
 
-  .theme-light-warm {
-    --background: 40 20% 98%;
+  .theme-light-glass {
+    --background: 220 18% 97%;
     --foreground: 222.2 84% 4.9%;
-    --card: 40 15% 99.5%;
+    --card: 220 16% 99%;
     --card-foreground: 222.2 84% 4.9%;
-    --primary: 221 83% 50%;
+    --primary: 187 85% 42%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 40 18% 94%;
+    --secondary: 220 14% 94%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 40 15% 94%;
-    --muted-foreground: 30 10% 42%;
-    --accent: 40 25% 92%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --muted: 220 12% 94%;
+    --muted-foreground: 220 10% 42%;
+    --accent: 262 50% 92%;
+    --accent-foreground: 262 47% 24%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 40 12% 84%;
-    --input: 40 12% 82%;
-    --ring: 221 83% 50%;
-    --popover: 40 15% 99.5%;
+    --border: 220 12% 88%;
+    --input: 220 12% 86%;
+    --ring: 187 85% 42%;
+    --popover: 220 16% 99%;
     --popover-foreground: 222.2 84% 4.9%;
   }
 
@@ -117,7 +117,7 @@
       linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)));
   }
 
-  .theme-light-warm .hub-canvas {
+  .theme-light-glass .hub-canvas {
     background-image:
       radial-gradient(ellipse 90% 60% at 50% -30%, hsl(var(--glow-cyan) / 0.1), transparent 55%),
       radial-gradient(ellipse 70% 50% at 100% 80%, hsl(var(--glow-violet) / 0.08), transparent 50%),
@@ -142,7 +142,7 @@
     background-color: var(--gs-bg-canvas);
   }
 
-  .theme-light-warm .glass-v2-app-shell {
+  .theme-light-glass .glass-v2-app-shell {
     --gs-bg-canvas: #f3f5f8;
     --gs-bg-sidebar: rgba(255, 255, 255, 0.88);
     --gs-bg-top: rgba(255, 255, 255, 0.9);
@@ -193,10 +193,32 @@
     box-shadow: var(--settings-shadow);
   }
 
-  .theme-light-warm .settings-glass-shell {
+  .theme-light-glass .settings-glass-shell {
     --settings-bg-panel: rgba(255, 255, 255, 0.82);
     --settings-border-glow: rgba(0, 0, 0, 0.08);
     --settings-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
+  }
+
+  .settings-glass-nav {
+    @apply border-b backdrop-blur-xl;
+    background: rgba(18, 24, 32, 0.55);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .theme-light-glass .settings-glass-nav {
+    background: rgba(255, 255, 255, 0.78);
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+
+  .settings-glass-sticky-header {
+    @apply border-b backdrop-blur-xl;
+    background: rgba(18, 24, 32, 0.72);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .theme-light-glass .settings-glass-sticky-header {
+    background: rgba(255, 255, 255, 0.88);
+    border-color: rgba(0, 0, 0, 0.06);
   }
 
   /* ── Glass V2 mutation forms (catalog drawers, item detail) ── */
@@ -212,10 +234,47 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
   }
 
-  .theme-light-warm .mutation-glass-root .surface-panel {
+  .theme-light-glass .mutation-glass-root .surface-panel {
     background: rgba(255, 255, 255, 0.82);
     border-color: rgba(0, 0, 0, 0.08);
     box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
+  }
+
+  .glass-form-control {
+    @apply rounded-md border px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: color-mix(in srgb, var(--lw-bg-elevated, hsl(var(--card))) 72%, transparent);
+    border-color: var(--lw-border-glow, hsl(var(--input)));
+  }
+
+  .settings-glass-shell .glass-form-control {
+    background-color: color-mix(in srgb, var(--settings-bg-panel) 88%, transparent);
+    border-color: var(--settings-border-glow);
+  }
+
+  :is(
+      .glass-v2-root,
+      .settings-glass-shell,
+      .mutation-glass-root,
+      .overview-glass-root,
+      .right-drawer-glass-surface
+    )
+    :is(
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+      textarea,
+      select
+    ) {
+    background-color: color-mix(in srgb, var(--lw-bg-elevated, hsl(var(--card))) 72%, transparent);
+    border-color: var(--lw-border-glow, hsl(var(--input)));
+  }
+
+  .settings-glass-shell
+    :is(
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+      textarea,
+      select
+    ) {
+    background-color: color-mix(in srgb, var(--settings-bg-panel) 88%, transparent);
+    border-color: var(--settings-border-glow);
   }
 
   .item-editor-shell {
@@ -236,7 +295,7 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
   }
 
-  .theme-light-warm .hub-panel {
+  .theme-light-glass .hub-panel {
     box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
   }
 
@@ -244,7 +303,7 @@
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
   }
 
-  .theme-light-warm .hub-panel:hover {
+  .theme-light-glass .hub-panel:hover {
     box-shadow: 0 8px 24px rgba(31, 38, 135, 0.1);
   }
 
@@ -256,7 +315,7 @@
     mask-image: radial-gradient(ellipse 85% 75% at 50% 40%, black 20%, transparent 100%);
   }
 
-  .theme-light-warm .hub-grid {
+  .theme-light-glass .hub-grid {
     background-image:
       linear-gradient(to right, hsl(var(--border) / 0.45) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(var(--border) / 0.45) 1px, transparent 1px);
@@ -277,7 +336,7 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
   }
 
-  .theme-light-warm .surface-panel {
+  .theme-light-glass .surface-panel {
     background: rgba(255, 255, 255, 0.82);
     border-color: rgba(0, 0, 0, 0.08);
     box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
@@ -532,7 +591,7 @@
       0 10px 32px hsl(0 0% 0% / 0.32) !important;
   }
 
-  .theme-light-warm .column-settings-panel {
+  .theme-light-glass .column-settings-panel {
     background-color: hsl(var(--secondary)) !important;
     border-color: hsl(var(--border)) !important;
     box-shadow:
@@ -549,8 +608,64 @@
   }
 
   /* Detail-panel item editor: flatten nested cards/tables inside the split pane. */
-  .product-editor-panel .surface-panel {
+  .product-editor-panel .surface-panel:not(.editor-glass-section) {
     @apply space-y-3 rounded-none border-0 bg-transparent p-0 shadow-none dark:bg-transparent;
+  }
+
+  /* Item wizard (drawer): restore glass on top-level section cards only. */
+  .mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section {
+    @apply rounded-[10px] border p-4 backdrop-blur-xl md:p-5;
+    background: rgba(18, 24, 32, 0.6);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  }
+
+  .theme-light-glass .mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 16px rgba(31, 38, 135, 0.06);
+  }
+
+  .mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section h3 {
+    @apply text-sm font-medium normal-case tracking-normal text-foreground;
+  }
+
+  /* Nested widgets inside glass wizard sections stay inset/readable. */
+  .mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section .surface-inset {
+    @apply rounded-lg border border-border/60 bg-muted/20 shadow-sm dark:bg-muted/15;
+  }
+
+  .mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section table thead tr {
+    @apply bg-muted/30;
+  }
+
+  .mutation-glass-root.item-editor-shell .product-editor-panel .editor-glass-section .surface-panel:not(.editor-glass-section) {
+    @apply space-y-3 rounded-lg border border-border/60 bg-muted/15 p-3 shadow-none dark:bg-muted/10;
+  }
+
+  /* Mutate drawer shell (item create/edit) — frosted panel behind wizard glass sections. */
+  .right-drawer-glass-surface {
+    @apply bg-background/95 backdrop-blur-xl;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow:
+      -8px 0 32px rgba(0, 0, 0, 0.28),
+      inset 1px 0 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .theme-light-glass .right-drawer-glass-surface {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow:
+      -8px 0 32px rgba(31, 38, 135, 0.08),
+      inset 1px 0 0 rgba(255, 255, 255, 0.65);
+  }
+
+  .right-drawer-glass-surface footer {
+    @apply border-border/50 bg-background/90 backdrop-blur-xl;
+  }
+
+  .right-drawer-glass-body {
+    @apply bg-transparent;
   }
 
   .product-editor-panel .surface-inset {
@@ -977,7 +1092,7 @@
     @apply border border-border bg-card dark:border-white/10;
   }
 
-  .theme-light-warm :is([data-appearance-root], .overview-glass-root)[data-visual="flat"] .revamp-bento-tile {
+  .theme-light-glass :is([data-appearance-root], .overview-glass-root)[data-visual="flat"] .revamp-bento-tile {
     @apply border-black/[0.06] shadow-sm;
   }
 
@@ -1163,7 +1278,7 @@
     @apply border-border bg-card shadow-sm dark:border-white/10;
   }
 
-  .theme-light-warm .list-module-revamp--flat .revamp-catalog-chrome {
+  .theme-light-glass .list-module-revamp--flat .revamp-catalog-chrome {
     @apply border-black/[0.08];
   }
 
@@ -1226,7 +1341,7 @@
     backdrop-filter: none;
   }
 
-  .theme-light-warm .list-module-revamp--flat .revamp-catalog-body .surface-inset.table-chrome-frame {
+  .theme-light-glass .list-module-revamp--flat .revamp-catalog-body .surface-inset.table-chrome-frame {
     border-color: hsl(0 0% 0% / 0.08) !important;
   }
 
@@ -1826,9 +1941,35 @@
     }
   }
 
-  /* â”€â”€ Shared list workspace (Items + future modules) â”€â”€ */
+  /* ── Shared list workspace (Items + future modules) ── */
 
-  /* â”€â”€ Glass v2 â€” list image chrome â”€â”€ */
+  .list-module-page-chrome {
+    background: transparent;
+  }
+
+  .list-workspace-load-more-footer {
+    border-top-width: 1px;
+    border-top-style: solid;
+    border-top-color: hsl(var(--border));
+    background: hsl(var(--background));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .list-workspace-load-more-footer {
+    background: var(--lw-bg-panel);
+    border-top-color: var(--lw-border-glow);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .table-chrome {
+    background: var(--lw-bg-panel);
+    color: var(--lw-text-body, hsl(var(--foreground)));
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .surface-inset.table-chrome-frame {
+    border-color: var(--lw-border-glow);
+    background: color-mix(in srgb, var(--lw-bg-panel) 88%, transparent);
+  }
+
+  /* ── Glass v2 — list image chrome ── */
 
   .glass-v2-list-image {
     @apply inline-flex items-center justify-center overflow-hidden rounded-md;
@@ -1858,7 +1999,7 @@
     color: color-mix(in srgb, var(--lw-text-muted) 90%, hsl(var(--primary) / 0.4));
   }
 
-  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) .glass-v2-list-image {
+  .theme-light-glass :is(.list-workspace-root, .glass-v2-root) .glass-v2-list-image {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.75),
       0 1px 3px rgba(31, 38, 135, 0.06);
@@ -1888,7 +2029,7 @@
     @apply min-h-0;
   }
 
-  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) {
+  .theme-light-glass :is(.list-workspace-root, .glass-v2-root) {
     --lw-bg-canvas: #f3f5f8;
     --lw-bg-sidebar: #ffffff;
     --lw-bg-panel: rgba(255, 255, 255, 0.8);
@@ -1918,7 +2059,7 @@
       0 12px 32px rgba(31, 38, 135, 0.1) !important;
   }
 
-  .theme-light-warm .list-workspace-column-settings-panel {
+  .theme-light-glass .list-workspace-column-settings-panel {
     background-color: #ffffff !important;
     border-color: rgba(0, 0, 0, 0.08) !important;
     box-shadow:
@@ -2050,7 +2191,7 @@
     border-color: rgba(255, 255, 255, 0.15);
   }
 
-  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox {
+  .theme-light-glass :is(.list-workspace-root, .glass-v2-root) .list-workspace-bulk-checkbox {
     border-color: rgba(0, 0, 0, 0.15);
   }
 
@@ -3117,7 +3258,7 @@
     color: var(--lw-text-body);
   }
 
-  .theme-light-warm :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {
+  .theme-light-glass :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {
     box-shadow: -8px 0 32px rgba(31, 38, 135, 0.08);
   }
 

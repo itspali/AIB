@@ -23,7 +23,7 @@ export function ListLoadMoreFooter({
   if (!hasMore && visibleCount >= totalCount) return null;
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-t border-border bg-background px-4 py-2.5">
+    <div className="list-workspace-load-more-footer flex shrink-0 items-center justify-center gap-3 px-4 py-2.5">
       <p className="text-xs text-muted-foreground">
         Showing {visibleCount.toLocaleString()} of {totalCount.toLocaleString()} {noun}
       </p>

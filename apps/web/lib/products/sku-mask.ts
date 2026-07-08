@@ -17,6 +17,33 @@ export function suggestSkuMask(templates: AttributeTemplateEntry[]): string {
   return `{${BASE_TOKEN}}-${parts.join("-")}`;
 }
 
+export function skuMaskIncludesAxis(mask: string, axisKey: string): boolean {
+  return mask.includes(`{${axisKey}}`);
+}
+
+/** True when every axis template has a `{key}` token in the mask. */
+export function skuMaskCoversAllAxes(
+  mask: string,
+  templates: AttributeTemplateEntry[]
+): boolean {
+  const trimmed = mask.trim();
+  if (!templates.length) return true;
+  if (!trimmed) return false;
+  return templates.every((template) => skuMaskIncludesAxis(trimmed, template.key));
+}
+
+/** Use the stored mask when it covers all axes; otherwise derive from axis order. */
+export function resolveEffectiveSkuMask(
+  mask: string,
+  templates: AttributeTemplateEntry[]
+): string {
+  const trimmed = mask.trim();
+  const suggested = suggestSkuMask(templates);
+  if (!trimmed) return suggested;
+  if (!skuMaskCoversAllAxes(trimmed, templates)) return suggested;
+  return trimmed;
+}
+
 export function composeSkuFromMask(
   mask: string,
   baseSku: string,

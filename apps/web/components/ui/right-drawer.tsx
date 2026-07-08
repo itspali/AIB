@@ -24,6 +24,12 @@ import {
   resolveDrawerWidthVw,
 } from "@/lib/layout/drawer-width-policy";
 import { itemDrawerClassName } from "@/lib/layout/overlay-z-index";
+import {
+  resolveRightDrawerSurfaceVariant,
+  rightDrawerGlassBodyClassName,
+  rightDrawerGlassSurfaceClassName,
+  type RightDrawerSurfaceVariant,
+} from "@/lib/layout/right-drawer-surface";
 import { useListWorkspaceSplitDetailHost } from "@/lib/layout/list-workspace-split-detail-context";
 import {
   useRightDrawerPresentation,
@@ -127,6 +133,8 @@ type RightDrawerProps = {
   peekMode?: boolean;
   /** Override workspace-driven peek presentation. */
   presentation?: RightDrawerPresentation;
+  /** Frosted shell for mutate-width drawers only; peek and document drawers stay default. */
+  surfaceVariant?: RightDrawerSurfaceVariant;
 };
 
 /** @deprecated Session width storage removed — returns default mutate width. */
@@ -337,8 +345,11 @@ export function RightDrawer({
   footerFloating,
   peekMode = false,
   presentation: presentationOverride,
+  surfaceVariant = "default",
 }: RightDrawerProps) {
   const widthVw = resolveDrawerWidthVw(widthPolicy);
+  const glassSurface =
+    resolveRightDrawerSurfaceVariant(widthPolicy, surfaceVariant) === "glass";
   const [portalReady, setPortalReady] = useState(false);
   const isPartialDrawer = usePartialDrawerLayout();
   const splitDetailHost = useListWorkspaceSplitDetailHost();
@@ -417,7 +428,7 @@ export function RightDrawer({
     popOutHref,
     bodyRef,
     scrollable,
-    panelClassName: bodyClassName,
+    panelClassName: rightDrawerGlassBodyClassName(glassSurface, bodyClassName),
     footer,
     footerFloating,
     workspacePresentation: resolvedPresentation,
@@ -444,7 +455,12 @@ export function RightDrawer({
           aria-hidden={false}
         />
         <aside
-          className={cn("matrix-creation-drawer", "matrix-creation-drawer--open", className)}
+          className={cn(
+            "matrix-creation-drawer",
+            "matrix-creation-drawer--open",
+            rightDrawerGlassSurfaceClassName(glassSurface),
+            className
+          )}
           aria-hidden={false}
           aria-label={title}
           role="dialog"
@@ -487,6 +503,7 @@ export function RightDrawer({
       data-drawer-root
       className={cn(
         "fixed inset-y-0 right-0 flex h-full max-h-[100dvh] flex-col gap-0 overflow-hidden border-l border-border/80 border-black/[0.06] bg-background shadow-2xl dark:border-white/10",
+        rightDrawerGlassSurfaceClassName(glassSurface),
         itemDrawerClassName,
         open && "aib-right-drawer-enter",
         className

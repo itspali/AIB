@@ -8,8 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 const BASE_URL = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
-const GROUP_SETTINGS_PATH = "/settings/group";
-const GROUP_PAGE_CHUNK = "/_next/static/chunks/app/settings/group/page.js";
+const GROUP_SETTINGS_PATH = "/settings/enterprise";
+const GROUP_PAGE_CHUNK = "/_next/static/chunks/app/(workspace)/settings/enterprise/page.js";
 
 function loadEnvLocal() {
   try {

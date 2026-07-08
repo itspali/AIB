@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, createElement, useContext, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** Shared utility: bottom-border-only inputs inside marked form roots. */
@@ -14,6 +14,50 @@ export const EditorPanelContext = createContext(false);
 
 export function useEditorPanelLayout() {
   return useContext(EditorPanelContext);
+}
+
+/** Top-level wizard section cards inside {@link ItemEditorShell} — not nested widgets. */
+export const EDITOR_GLASS_SECTION_CLASS = "editor-glass-section";
+
+const EditorGlassSectionsContext = createContext(false);
+
+export function EditorGlassSectionsProvider({
+  children,
+  value = true,
+}: {
+  children: ReactNode;
+  value?: boolean;
+}) {
+  return createElement(EditorGlassSectionsContext.Provider, { value }, children);
+}
+
+export function useEditorGlassSections() {
+  return useContext(EditorGlassSectionsContext);
+}
+
+/** Glass V2 outer section card (drawer wizard only). */
+export function editorGlassSectionClass() {
+  return cn("surface-panel editor-glass-section space-y-3 overflow-hidden");
+}
+
+export type EditorCardClassOptions = {
+  glass?: boolean;
+};
+
+export function editorCardClassName(
+  panel: boolean,
+  variant: "summary" | "section" = "section",
+  options?: EditorCardClassOptions
+) {
+  if (panel && options?.glass) {
+    return editorGlassSectionClass();
+  }
+  return panel ? editorPanelSectionClass() : editorPageSectionClass(variant);
+}
+
+/** Body padding for glass section cards (inline title, no heading band). */
+export function editorGlassSectionBodyClass() {
+  return "space-y-3";
 }
 
 /** Panel section card — light border for separation without nested boxes. */
@@ -125,6 +169,16 @@ export function editorReadOnlyFieldClass(panel: boolean) {
     : "rounded-md border border-border bg-muted/30 px-3 py-2 text-sm";
 }
 
+/** Primary field labels in catalog editors (item + category forms). */
+export function editorFieldLabelClass(panel?: boolean) {
+  return cn("font-medium text-primary", panel ? "text-xs" : "text-sm");
+}
+
+/** Inline hint copy when “Show help” is enabled in catalog editors. */
+export function editorFieldInlineHintClass(panel?: boolean) {
+  return cn("leading-snug text-muted-foreground", panel ? "text-[11px]" : "text-xs");
+}
+
 /** Two-column field grids from md breakpoint; panel drawer uses two columns in the form column. */
 export function editorGridClass(panel: boolean) {
   return cn(
@@ -141,6 +195,14 @@ export function editorFieldSpanFullClass(_panel?: boolean) {
 /** Length, width, height on one row (inside a full-width grid row). */
 export function editorDimensionsLwhGridClass() {
   return "grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-x-4 sm:gap-y-4";
+}
+
+/** Length, width, height, and weight — two rows in panel; one row from md in full-page editors. */
+export function editorShippingDimensionsGridClass(panel: boolean) {
+  return cn(
+    "grid grid-cols-2",
+    panel ? "gap-x-10 gap-y-6" : "gap-x-10 gap-y-8 md:grid-cols-4"
+  );
 }
 
 /** Stacked toggle rows without line separators between them (e.g. Salable / Returnable / Purchasable). */
@@ -245,11 +307,29 @@ export function editorWizardTopBarClass(panel = false) {
   );
 }
 
+/** Glass V2 top stepper strip inside {@link ItemEditorShell}. */
+export function editorWizardTopBarGlassClass(panel = false) {
+  return cn(
+    editorWizardTopBarClass(panel),
+    "border-border/50 bg-background/35 backdrop-blur-xl supports-[backdrop-filter]:bg-background/25",
+    "dark:bg-secondary/55 dark:supports-[backdrop-filter]:bg-secondary/45"
+  );
+}
+
 /** Full-height tinted column for the left wizard stage rail. */
 export function editorWizardLeftRailAsideClass(_panel = false) {
   return cn(
     "flex h-full min-h-0 min-w-0 flex-col self-stretch border-r border-border/60",
     editorWizardRailBgClass()
+  );
+}
+
+/** Glass V2 left wizard rail inside {@link ItemEditorShell}. */
+export function editorWizardLeftRailGlassAsideClass(panel = false) {
+  return cn(
+    editorWizardLeftRailAsideClass(panel),
+    "border-border/50 bg-background/30 backdrop-blur-xl supports-[backdrop-filter]:bg-background/20",
+    "dark:bg-secondary/50 dark:supports-[backdrop-filter]:bg-secondary/40"
   );
 }
 

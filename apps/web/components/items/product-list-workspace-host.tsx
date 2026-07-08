@@ -49,6 +49,7 @@ import {
   withPinnedVisibleColumns,
   withoutItemsWorkspaceDisabledColumns,
 } from "@/lib/items/split-feed-card-plan";
+import { filterSkuGrainExportRows } from "@/lib/products/list-sku-export";
 import {
   collapseVariantListRows,
   injectVariantParentRows,
@@ -545,14 +546,17 @@ export function ProductListWorkspaceHost({
     totalCount,
   };
 
-  const resolveExportRows = useCallback(async () => {
+  const resolveExportRows = useCallback(async (options?: { grain?: "product" | "sku" }) => {
+    const grain = options?.grain ?? "product";
+    const fetchExpanded = grain === "sku" ? true : effectiveExpandVariants;
+
     let sourceRows = redactedProducts;
     if (products.length < totalCount) {
       const fetched: ProductListRow[] = [...products];
       let offset = fetched.length;
       while (offset < totalCount) {
         const page = await fetchMoreProductListRows(offset, {
-          expandVariants: effectiveExpandVariants,
+          expandVariants: fetchExpanded,
           includeImages: false,
         });
         if (!isItemsRouteSessionActive(itemsRouteSession)) break;
@@ -586,11 +590,12 @@ export function ProductListWorkspaceHost({
     }
 
     const sorted = sortProductListRows(rows, prefs.sortField, prefs.sortDirection, {
-      showVariants: effectiveExpandVariants,
+      showVariants: fetchExpanded,
     });
-    return effectiveExpandVariants
-      ? injectVariantParentRows(sorted)
-      : collapseVariantListRows(sorted);
+    if (grain === "sku") {
+      return filterSkuGrainExportRows(sorted);
+    }
+    return fetchExpanded ? injectVariantParentRows(sorted) : collapseVariantListRows(sorted);
   }, [
     categoryFilter,
     effectiveExpandVariants,

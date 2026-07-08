@@ -12,28 +12,66 @@ export type VariantStrategyChoice = {
   description: string;
 };
 
-/** Short intro for the Variant field info popover. */
-export const VARIANT_STRATEGY_FIELD_INTRO =
-  "Do you track one product code or many (for example each size or color)? This does not mean whether you sell online.";
+/** Footnote for the Variant field info popover (options are in {@link VARIANT_STRATEGY_CHOICES}). */
+export const VARIANT_STRATEGY_FIELD_FOOTNOTE = "Not about whether you sell online.";
 
 /** True when the user may pick Single SKU (not when multiple sellable variants already exist). */
 export function canSelectSingleVariantStrategy(sellableVariantCount: number): boolean {
   return sellableVariantCount <= 1;
 }
 
+export type InferVariantStrategyInput = {
+  sellableVariantCount: number;
+  /** Includes master/style rows — used when one sellable SKU sits under a multi style. */
+  totalVariantRows?: number;
+  persistedStrategy?: ProductVariantStrategy;
+  /** Non-empty `variant_axes` implies multi-SKU setup before sellable rows exist. */
+  selectedAxisCount?: number;
+};
+
+/**
+ * Derives `variant_strategy` from sellable SKU rows. Users never pick strategy directly.
+ */
+export function inferVariantStrategy(input: InferVariantStrategyInput): ProductVariantStrategy {
+  const {
+    sellableVariantCount,
+    totalVariantRows = 0,
+    persistedStrategy,
+    selectedAxisCount = 0,
+  } = input;
+  const hasSelectedAxes = selectedAxisCount > 0;
+
+  if (sellableVariantCount >= 2) {
+    return "MULTI_SKU";
+  }
+
+  if (sellableVariantCount === 1) {
+    if (persistedStrategy === "MULTI_SKU" || totalVariantRows > 1 || hasSelectedAxes) {
+      return "MULTI_SKU";
+    }
+    return "SINGLE_SKU";
+  }
+
+  if (persistedStrategy === "MULTI_SKU" || hasSelectedAxes) {
+    return "MULTI_SKU";
+  }
+
+  return "SINGLE_SKU";
+}
+
 /** Labels and guidance for the product editor variant picker. */
 export const VARIANT_STRATEGY_CHOICES: VariantStrategyChoice[] = [
   {
     value: "SINGLE_SKU",
-    label: "One variant",
+    label: "Single",
     description:
-      "One SKU for the whole product. Best when there is only one sellable configuration.",
+      "One product code for the whole item. Use when there is only one sellable version.",
   },
   {
     value: "MULTI_SKU",
-    label: "Multiple variants",
+    label: "Multiple",
     description:
-      "A separate SKU for each configuration (size, color, board type, etc.). Add variants after you save.",
+      "A separate code for each version (size, color, etc.). Add variants after you save.",
   },
 ];
 

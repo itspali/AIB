@@ -16,7 +16,7 @@ export type ItemCatalogWizardEditorProps = Omit<ShellProps, "wizard"> & {
 /** Item wizard body: Glass V2 shell + existing ProductEditorShell stage sections. */
 export function ItemCatalogWizardEditor({ wizard, ...shellProps }: ItemCatalogWizardEditorProps) {
   return (
-    <ItemEditorShell stage={wizard.stage} layout={wizard.layout ?? "steps"}>
+    <ItemEditorShell>
       <ProductEditorShell {...shellProps} wizard={wizard} />
     </ItemEditorShell>
   );

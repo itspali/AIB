@@ -2,7 +2,7 @@
 
 **Read this first** when working on stock, transfers, opening balances, inventory overview, or inbound procurement that touches on-hand quantities.
 
-**Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) (bills / three-way match), [`IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md) (staging receipts, GIT, import shipments).
+**Related docs:** [`AGENT_HANDOVER.md`](./AGENT_HANDOVER.md) (global rules), [`DATA_STANDARDS.md`](./DATA_STANDARDS.md), [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) §9 (list-module pattern), [`NAVIGATION.md`](./NAVIGATION.md) (IA), [`PROCUREMENT_BILLING.md`](./PROCUREMENT_BILLING.md) (bills / three-way match), [`IMPORT_LOGISTICS.md`](./IMPORT_LOGISTICS.md) (staging receipts, GIT, import shipments), [`JOB_WORK_PLAN.md`](./JOB_WORK_PLAN.md) (subcontract / contract-job personas, Wave 6, roadmap).
 
 **Last updated:** 2026-08-02 (import logistics GIT + GL; GRN receipt stages).
 
@@ -206,6 +206,7 @@ All inventory and procurement list modules follow the **Tier B** pattern in [`DE
 | FIFO cost layers | Backend stub; postings blocked client-side |
 | LOT / SERIAL traceability | Future posting model |
 | Live Supabase RPC integration tests | Unit tests only |
+| **Subcontract / job work (full cycle)** | Wave 6 partial — vendor WIP, BOM, GRN backflush. **Release 0 (2026-06-24):** atomic GRN+backflush in `post_goods_receipt`, PO `is_subcontract_job` flag, GRN subcontract panel, `JOB_WORK_SETTINGS` registry stub. See [`JOB_WORK_PLAN.md`](./JOB_WORK_PLAN.md). |
 
 ---
 

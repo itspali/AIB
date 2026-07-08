@@ -230,6 +230,15 @@ export function OrganizationAccountingSection({ form, disabled }: Props) {
             setValue("sku_auto_generation_enabled", checked, { shouldDirty: true })
           }
         />
+        <SwitchRow
+          label="Allow duplicate item names"
+          description="When off, item names must be unique across your workspace. SKUs stay unique either way."
+          checked={watch("allow_duplicate_item_names")}
+          disabled={disabled}
+          onCheckedChange={(checked) =>
+            setValue("allow_duplicate_item_names", checked, { shouldDirty: true })
+          }
+        />
       </div>
     </OrgSettingsSection>
   );

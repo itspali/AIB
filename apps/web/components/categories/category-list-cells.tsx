@@ -81,17 +81,6 @@ export function renderCategoryListCell(
     }
     case "item_count":
       return formatListQuantity(row.item_count);
-    case "default_variant_strategy": {
-      const column = getCategoryColumnDef("default_variant_strategy");
-      const label = row.default_variant_strategy.replace(/_/g, " ");
-      return renderChipOrText({
-        column,
-        valueKey: row.default_variant_strategy,
-        label,
-        textNode: label,
-        chipDisplay: options?.chipDisplay?.default_variant_strategy,
-      });
-    }
     case "default_item_type": {
       const column = getCategoryColumnDef("default_item_type");
       const raw = row.default_item_type;

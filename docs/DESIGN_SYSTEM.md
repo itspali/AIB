@@ -8,13 +8,28 @@ The standard is derived from reference implementations that are considered **fro
 - **Operational list modules** (`/inventory/stock`, `/inventory/transfers`) — lean document lists via `ListModuleShell`; see §3.7 and [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 - **Document line-entry modules** (`/procurement/purchase-orders`, `/procurement/goods-receipts`, `/inventory/stock`, `/inventory/transfers`) — Tier B list + wide drawer with spreadsheet lines; see §3.7, §5.4, and [`PO_UX_PLAN.md`](./PO_UX_PLAN.md) / [`INVENTORY_OPERATIONS.md`](./INVENTORY_OPERATIONS.md).
 - **Entity partners** (`/entities/customers`, `/entities/suppliers`) — Tier A list on `ListModuleShell` with party-specific drawer forms; see §5.3.
-- **Organization Settings** (`/settings/organization`) — single-page configuration forms.
+- **Company settings** (`/settings/company`) — single-page configuration forms; **Access** (`/settings/access`) for delegates and field policies.
 - **Module overview landings** (`/inventory`, `/procurement`, …) — KPI tiles + shortcut cards; see [`NAVIGATION.md`](./NAVIGATION.md) §4.
 
 > Source-of-truth rule: where any older spec or sketch disagrees with the shipped Items Master or
 > Organization Settings, **the shipped code wins**. Do not change the Items Master or Organization
 > Settings layout to match a document — change the document. All Tailwind classes, widths, and file
 > references below reflect the actual implementation.
+
+### Glass V2 (list workspace theme)
+
+**Items** (`/items`) and **Item categories** (`/items/categories`) are the live **Glass V2 master** references.
+They use `LIST_WORKSPACE_GLASS_V2_ROOT` from `apps/web/lib/layout/list-module-chrome.ts` and scoped
+CSS under `.list-workspace-root` in `apps/web/app/globals.css` (`--lw-*` tokens, matrix table, split feed).
+
+All other list modules adopt the same split/matrix/header/peek behavior via shared catalog utilities in
+`apps/web/lib/layout/list-workspace/` (`buildCatalogSplitListPane`, `useListWorkspaceFeedFilter`,
+`useModuleDrawerPeekPresentation`, `split-feed-mappers.ts`). See `.cursor/rules/items-list-layout.mdc`.
+
+- Apply **Glass V2** in tickets/docs = that token bundle + list-workspace CSS, not ad-hoc glass utilities.
+- **Entity categories** (`/sales/customers/categories`, etc.) are a different module — do not confuse with item categories.
+- Phased rollout for all other modules (without refactoring frozen Items/Categories) is documented in
+  **[`GLASS_V2_PLAN.md`](./GLASS_V2_PLAN.md)**.
 
 ---
 
@@ -315,7 +330,7 @@ Semantic HSL CSS variables in `globals.css` (`--background`, `--foreground`, `--
 | Theme id | HTML class | Character |
 |----------|------------|-----------|
 | `dark` (default) | `dark` | Navy canvas, cyan primary, violet accent — **do not modify** |
-| `light` | `theme-light-warm` | Warm off-white canvas; blue primary, warm gray accent |
+| `light` | `theme-light-glass` | Cool slate canvas; cyan primary, violet accent — Glass V2 light |
 
 Users toggle via the Sun/Moon control in the top bar or the profile switch. Light uses **≥3 distinct surface steps** (background → muted → card) so layered UI does not collapse to flat white. Legacy stored values (`light-cyan`, `light-blue`, `light-warm`) map to `light`.
 

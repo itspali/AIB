@@ -10,6 +10,7 @@ import {
   saveItemVariant,
   saveItemVariantAxes,
   saveItemVariantsBulk,
+  syncItemVariantCatalogAfterMatrix,
   syncMatrixVariantSupplierPrices,
   type BulkVariantRow,
 } from "@/app/items/actions";
@@ -18,10 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { composeSkuFromMask, suggestSkuMask } from "@/lib/products/sku-mask";
+import { composeSkuFromMask, resolveEffectiveSkuMask } from "@/lib/products/sku-mask";
 import {
   COST_PRICE_COLUMN,
-  HSN_COLUMN,
+  GTIN_BARCODE_COLUMN,
   MRP_PRICE_COLUMN,
   SELL_PRICE_COLUMN,
 } from "@/lib/products/product-user-labels";
@@ -71,7 +72,6 @@ type Props = {
   defaultPurchasePrice?: string;
   defaultStandardCost?: string;
   defaultMrp?: string;
-  defaultHsn?: string;
   defaultSupplierId?: string | null;
   onGenerated: () => void;
 };
@@ -82,7 +82,7 @@ type RowOverride = {
   sellPrice?: string;
   costPrice?: string;
   mrp?: string;
-  hsn?: string;
+  barcode?: string;
 };
 
 function SectionLabel({ title, meta }: { title: string; meta?: ReactNode }) {
@@ -154,7 +154,7 @@ function formatComboLabel(attributes: Record<string, string>): string {
 function resolveFieldDefault(
   key: string,
   overrides: Record<string, RowOverride>,
-  field: keyof Pick<RowOverride, "sellPrice" | "costPrice" | "mrp" | "hsn">,
+  field: keyof Pick<RowOverride, "sellPrice" | "costPrice" | "mrp" | "barcode">,
   productDefault: string
 ): string {
   const override = overrides[key]?.[field];
@@ -256,6 +256,7 @@ function seedDraftFromVariants(
       sku: variant.sku,
       sellPrice:
         variant.price && variant.price !== "0" ? variant.price : undefined,
+      barcode: variant.barcode?.trim() || undefined,
     };
   }
 
@@ -264,7 +265,7 @@ function seedDraftFromVariants(
 
 const compactInputClass = "h-7 text-xs";
 const priceColClass = "w-[4.75rem] min-w-[4.75rem]";
-const hsnColClass = "w-[5.5rem] min-w-[5.5rem]";
+const gtinColClass = "w-[7rem] min-w-[7rem]";
 
 const FREE_TEXT_AXIS_EXAMPLES: Record<string, string> = {
   color: "Red, Blue, Green",
@@ -308,7 +309,6 @@ export function VariantMatrixGenerator({
   defaultPurchasePrice = "",
   defaultStandardCost = "",
   defaultMrp = "",
-  defaultHsn = "",
   defaultSupplierId = null,
   compositionMode = "live",
   onRegisterCommit,
@@ -333,7 +333,6 @@ export function VariantMatrixGenerator({
   const sellDefault = normalizeMatrixPriceDefault(defaultSellingPrice);
   const costDefault = resolveMatrixCostDefault(defaultPurchasePrice, defaultStandardCost);
   const mrpDefault = normalizeMatrixPriceDefault(defaultMrp);
-  const hsnDefault = defaultHsn?.trim() ?? "";
 
   const { axes: axisTemplates } = useMemo(
     () => splitTemplatesByAxis(categoryTemplates, axisKeys),
@@ -393,11 +392,10 @@ export function VariantMatrixGenerator({
       .filter((axis) => axis.values.length > 0);
   }, [axisTemplates, selectValues, freeValues]);
 
-  const effectiveMask = useMemo(() => {
-    const trimmed = skuMask.trim();
-    if (trimmed) return trimmed;
-    return suggestSkuMask(axisTemplates);
-  }, [skuMask, axisTemplates]);
+  const effectiveMask = useMemo(
+    () => resolveEffectiveSkuMask(skuMask, axisTemplates),
+    [skuMask, axisTemplates]
+  );
 
   const combos = useMemo(() => {
     if (!activeAxes.length) return [];
@@ -434,6 +432,7 @@ export function VariantMatrixGenerator({
         sku: overrides[combo.key]?.sku ?? combo.defaultSku,
         price: resolveSellPrice(combo.key) || null,
         costPrice: resolveCostPrice(combo.key),
+        barcode: overrides[combo.key]?.barcode?.trim() || null,
         attributes: combo.attributes,
         exists: combo.exists,
       }));
@@ -506,6 +505,17 @@ export function VariantMatrixGenerator({
       if ("error" in axesResult) {
         return { error: axesResult.error ?? "Unable to save variant axes." };
       }
+      const syncResult = await syncItemVariantCatalogAfterMatrix(itemId, axisKeys);
+      if ("error" in syncResult) {
+        return { error: syncResult.error ?? "Unable to sync variant catalog metadata." };
+      }
+      if ("detail" in syncResult && syncResult.detail) {
+        return {
+          success: true,
+          updatedAt: syncResult.detail.updated_at,
+          detail: syncResult.detail,
+        };
+      }
       return finishDraftCommit();
     }
 
@@ -553,6 +563,7 @@ export function VariantMatrixGenerator({
       .map((row) => ({
         sku: row.sku.trim(),
         price: row.price,
+        barcode: row.barcode,
         is_active: true,
         variant_attributes: row.attributes,
       }));
@@ -568,10 +579,13 @@ export function VariantMatrixGenerator({
       const variant = resolveExistingVariantForRow(row, variantIndex);
       if (!variant) continue;
 
+      const barcodeOverride = overrides[row.key]?.barcode;
       const payload = {
         ...variantSnapshotToFormValues(variant, itemId),
         sku: row.sku.trim(),
         price: row.price ?? "0",
+        barcode:
+          barcodeOverride !== undefined ? barcodeOverride.trim() : (variant.barcode ?? ""),
         variant_attributes: row.attributes,
       };
       const result = await saveItemVariant(payload);
@@ -600,7 +614,19 @@ export function VariantMatrixGenerator({
       }
     }
 
+    const syncResult = await syncItemVariantCatalogAfterMatrix(itemId, axisKeys);
+    if ("error" in syncResult) {
+      return { error: syncResult.error ?? "Unable to sync variant catalog metadata." };
+    }
+
     setDraftDirty(false);
+    if ("detail" in syncResult && syncResult.detail) {
+      return {
+        success: true,
+        updatedAt: syncResult.detail.updated_at,
+        detail: syncResult.detail,
+      };
+    }
     return finishDraftCommit();
   }, [
     activeAxes.length,
@@ -649,14 +675,27 @@ export function VariantMatrixGenerator({
     const payload: BulkVariantRow[] = includedRows.map((row) => ({
       sku: row.sku.trim(),
       price: row.price,
+      barcode: row.barcode,
       is_active: true,
       variant_attributes: row.attributes,
     }));
 
     startTransition(async () => {
+      const axesResult = await saveItemVariantAxes(itemId, axisKeys);
+      if ("error" in axesResult) {
+        toast.error(axesResult.error ?? "Unable to save variant axes.");
+        return;
+      }
+
       const result = await saveItemVariantsBulk(itemId, payload);
       if ("error" in result) {
         toast.error(result.error ?? "Unable to generate variants.");
+        return;
+      }
+
+      const syncResult = await syncItemVariantCatalogAfterMatrix(itemId, axisKeys);
+      if ("error" in syncResult) {
+        toast.error(syncResult.error ?? "Variants were created but catalog metadata could not sync.");
         return;
       }
 
@@ -827,9 +866,9 @@ export function VariantMatrixGenerator({
                     {MRP_PRICE_COLUMN}
                   </th>
                   <th
-                    className={cn(hsnColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
+                    className={cn(gtinColClass, "px-2 py-1.5 font-medium text-muted-foreground")}
                   >
-                    {HSN_COLUMN}
+                    {GTIN_BARCODE_COLUMN}
                   </th>
                 </tr>
               </thead>
@@ -856,7 +895,7 @@ export function VariantMatrixGenerator({
                     costDefault
                   );
                   const mrpValue = resolveFieldDefault(combo.key, overrides, "mrp", mrpDefault);
-                  const hsnValue = resolveFieldDefault(combo.key, overrides, "hsn", hsnDefault);
+                  const barcodeValue = overrides[combo.key]?.barcode ?? "";
 
                   return (
                     <tr
@@ -931,11 +970,11 @@ export function VariantMatrixGenerator({
                       <td className="px-2 py-1">
                         <Input
                           className={cn(compactInputClass, "font-mono")}
-                          placeholder={hsnDefault || "—"}
+                          placeholder="Optional"
                           disabled={disabledRow}
-                          value={hsnValue}
+                          value={barcodeValue}
                           onChange={(event) =>
-                            patchOverride(combo.key, { hsn: event.target.value })
+                            patchOverride(combo.key, { barcode: event.target.value })
                           }
                         />
                       </td>

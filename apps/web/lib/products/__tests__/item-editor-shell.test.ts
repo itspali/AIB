@@ -5,19 +5,22 @@ describe("item editor stages", () => {
   it("maps each wizard stage to the expected editor sections", () => {
     expect(editorStageById("essentials").sections).toEqual([
       "overview",
+      "variants",
+      "composite_item",
+      "alternate_uoms",
+      "item_logistics",
       "salable",
-      "purchasable",
-      "inventory",
+      "quality_inspection",
     ]);
-    expect(editorStageById("versions").sections).toEqual(["variants"]);
     expect(editorStageById("composition").sections).toEqual(["composition"]);
     expect(editorStageById("reach").sections).toEqual([
+      "purchasable",
       "media",
       "product_attributes",
       "custom_fields",
       "tags",
       "visibility",
     ]);
-    expect(EDITOR_STAGES).toHaveLength(4);
+    expect(EDITOR_STAGES).toHaveLength(3);
   });
 });

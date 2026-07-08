@@ -19,8 +19,10 @@ type Props = {
   toolbar?: ReactNode;
   bulkToolbar?: ReactNode;
   children: ReactNode;
-  /** Glass V2 list workspace chrome (default glass-v2; frozen Items/Categories pass classic). */
+  /** Glass V2 list workspace chrome (default). Pass `surface="classic"` only for legacy skeletons. */
   surface?: ListModuleShellSurface;
+  /** Wrap list body in `revamp-catalog-body` when using glass-v2 (Items matrix omits this). */
+  catalogBody?: boolean;
   /** When false, dashboard page scroll is not locked (e.g. loading skeleton). */
   scrollLock?: boolean;
   /** When false, viewport height is not measured (e.g. loading skeleton). */
@@ -36,6 +38,7 @@ export function ListModuleShell({
   bulkToolbar,
   children,
   surface = "glass-v2",
+  catalogBody,
   scrollLock = true,
   measureViewport = true,
   className,
@@ -50,12 +53,15 @@ export function ListModuleShell({
   );
   useListModuleScrollLock(scrollLock && measureViewport);
 
+  const useCatalogBody = catalogBody ?? surface === "glass-v2";
+
   return (
     <div
       ref={viewportRef}
       data-list-workspace-layout={
         workspaceLayout ?? (surface === "glass-v2" ? "matrix" : undefined)
       }
+      data-ui-header-chrome={surface === "glass-v2" ? "unified" : undefined}
       style={
         viewportHeight != null
           ? { height: viewportHeight, maxHeight: viewportHeight }
@@ -92,9 +98,11 @@ export function ListModuleShell({
         <div
           className={cn(
             "flex min-h-0 flex-1 basis-0 flex-col",
-            surface === "glass-v2"
+            useCatalogBody
               ? "revamp-catalog-body overflow-hidden"
-              : "overflow-hidden pb-1"
+              : surface === "glass-v2"
+                ? "overflow-hidden"
+                : "overflow-hidden pb-1"
           )}
         >
           {children}

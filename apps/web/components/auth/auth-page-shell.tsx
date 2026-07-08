@@ -12,7 +12,7 @@ export function AuthPageShell({ children }: AuthPageShellProps) {
   const gradientId = useId().replace(/:/g, "");
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="hub-canvas min-h-screen">
       <div className="flex min-h-screen flex-col lg:grid lg:grid-cols-2">
         {/* Form first on mobile, right column on desktop */}
         <div className="order-1 flex shrink-0 items-center justify-center px-4 pb-2 pt-8 sm:pt-10 lg:order-2 lg:px-10 lg:py-12 xl:px-16">
@@ -26,7 +26,7 @@ export function AuthPageShell({ children }: AuthPageShellProps) {
               gradientId={gradientId}
               className="h-auto w-full min-h-[230px] sm:min-h-[250px] lg:max-h-[min(72vh,500px)]"
             />
-            <p className="mt-3 hidden text-center text-xs text-muted-foreground/60 lg:block">
+            <p className="mt-3 text-center text-xs text-muted-foreground/65">
               Inventory, orders, and fulfillment — connected in one flow
             </p>
           </div>

@@ -42,6 +42,8 @@ export function formatProductListExportCell(row: ProductListRow, columnId: Produ
       return row.image_url ?? "";
     case "name":
       return row.name;
+    case "product_code":
+      return row.style_code?.trim() || row.default_sku || "";
     case "default_sku":
       return row.default_sku ?? "";
     case "barcode":

@@ -21,6 +21,7 @@ import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type { EditorStageId } from "@/lib/products/editor-stages";
 import type { ItemType } from "@/lib/products/item-model";
 import type { ItemTaxCodePickerOption } from "@/lib/tax/item-tax-code-picker";
+import { shouldLockProductCode } from "@/lib/products/variant-composition";
 import type { UomOption } from "@/lib/products/uom-options";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import type {
@@ -42,7 +43,11 @@ export type UseItemEditorStageModelsInput = {
   wizard?: ItemEssentialsStageModel["wizard"];
   mode: ProductFormMode;
   readOnly: boolean;
-  duplicates: SimilarItem[];
+  similarItems: SimilarItem[];
+  nameCheckLoading: boolean;
+  similarExpanded: boolean;
+  setSimilarExpanded: (value: boolean) => void;
+  checkDuplicatesOnNameBlur: () => void;
   needsReview: boolean;
   register: UseFormRegister<ProductMasterFormValues>;
   errors: FieldErrors<ProductMasterFormValues>;
@@ -69,10 +74,6 @@ export type UseItemEditorStageModelsInput = {
   baseUom: string;
   alternateUoms: ProductMasterFormValues["alternate_uoms"];
   fieldDisabled: boolean;
-  showBasicsMore: boolean;
-  setShowBasicsMore: (value: boolean | ((prev: boolean) => boolean)) => void;
-  showBasicsAdvanced: boolean;
-  setShowBasicsAdvanced: (value: boolean | ((prev: boolean) => boolean)) => void;
   lengthCm: string;
   widthCm: string;
   heightCm: string;
@@ -100,7 +101,10 @@ export type UseItemEditorStageModelsInput = {
   valuations: ProductValuationSnapshot[];
   name: string;
   showVariantsSection: boolean;
+  sellableVariantCount: number;
   categoryTemplates: AttributeTemplateEntry[];
+  compositionTemplates: AttributeTemplateEntry[];
+  extraSkuOptions: AttributeTemplateEntry[];
   variantAxisKeys: string[];
   suggestedVariantAxisKeys: string[];
   skuMask: string;
@@ -158,7 +162,11 @@ export function useItemEditorStageModels(
     wizard,
     mode,
     readOnly,
-    duplicates,
+    similarItems,
+    nameCheckLoading,
+    similarExpanded,
+    setSimilarExpanded,
+    checkDuplicatesOnNameBlur,
     needsReview,
     register,
     errors,
@@ -185,10 +193,6 @@ export function useItemEditorStageModels(
     baseUom,
     alternateUoms,
     fieldDisabled,
-    showBasicsMore,
-    setShowBasicsMore,
-    showBasicsAdvanced,
-    setShowBasicsAdvanced,
     lengthCm,
     widthCm,
     heightCm,
@@ -216,7 +220,10 @@ export function useItemEditorStageModels(
     valuations,
     name,
     showVariantsSection,
+    sellableVariantCount,
     categoryTemplates,
+    compositionTemplates,
+    extraSkuOptions,
     variantAxisKeys,
     suggestedVariantAxisKeys,
     skuMask,
@@ -271,7 +278,11 @@ export function useItemEditorStageModels(
       wizard,
       mode,
       readOnly,
-      duplicates,
+      similarItems,
+      nameCheckLoading,
+      similarExpanded,
+      setSimilarExpanded,
+      checkDuplicatesOnNameBlur,
       needsReview,
       register,
       errors,
@@ -298,36 +309,57 @@ export function useItemEditorStageModels(
       baseUom,
       alternateUoms,
       fieldDisabled,
-      showBasicsMore,
-      setShowBasicsMore,
-      showBasicsAdvanced,
-      setShowBasicsAdvanced,
       lengthCm,
       widthCm,
       heightCm,
       isActive,
       pricingFieldsLocked,
       isSalable,
+      isPurchasable,
       showSalableAdvanced,
       setShowSalableAdvanced,
-      showSellingUnitField,
-      sellingUom,
-      commerceUomOptions,
-      variants,
-      priceBookUomCodes,
-      isPurchasable,
       showPurchasableAdvanced,
       setShowPurchasableAdvanced,
+      showSellingUnitField,
       showPurchaseUnitField,
       showPurchaseConversionField,
+      sellingUom,
       purchaseUom,
+      commerceUomOptions,
       purchaseCommerceUomOptions,
       purchaseUnitConversionHint,
+      variants,
+      priceBookUomCodes,
       trackInventory,
       costingMethod,
       trackingMode,
       valuations,
       name,
+      categoryTemplates,
+      variantAxisKeys,
+      suggestedVariantAxisKeys,
+      sku,
+      skuMask,
+      sellingPrice,
+      purchasePrice,
+      standardCost,
+      matrixMrpDefault,
+      hsnSacCode,
+      supplierId,
+      deadWeightKg,
+      shippingVolume,
+      variantCompositionMode,
+      onRegisterVariantCommit: (commit) => {
+        variantCommitRef.current = commit;
+      },
+      onCompositionDraftChange: setCompositionDraft,
+      onVariantPatch,
+      onVariantsReload,
+      tenantId,
+      media,
+      onExtensionsChanged,
+      sellableVariantCount,
+      productCodeLocked: shouldLockProductCode(variants),
     }),
     [
       renderStageAccordionHeader,
@@ -338,7 +370,11 @@ export function useItemEditorStageModels(
       wizard,
       mode,
       readOnly,
-      duplicates,
+      similarItems,
+      nameCheckLoading,
+      similarExpanded,
+      setSimilarExpanded,
+      checkDuplicatesOnNameBlur,
       needsReview,
       register,
       errors,
@@ -365,55 +401,37 @@ export function useItemEditorStageModels(
       baseUom,
       alternateUoms,
       fieldDisabled,
-      showBasicsMore,
-      setShowBasicsMore,
-      showBasicsAdvanced,
-      setShowBasicsAdvanced,
       lengthCm,
       widthCm,
       heightCm,
       isActive,
       pricingFieldsLocked,
       isSalable,
+      isPurchasable,
       showSalableAdvanced,
       setShowSalableAdvanced,
-      showSellingUnitField,
-      sellingUom,
-      commerceUomOptions,
-      variants,
-      priceBookUomCodes,
-      isPurchasable,
       showPurchasableAdvanced,
       setShowPurchasableAdvanced,
+      showSellingUnitField,
       showPurchaseUnitField,
       showPurchaseConversionField,
+      sellingUom,
       purchaseUom,
+      commerceUomOptions,
       purchaseCommerceUomOptions,
       purchaseUnitConversionHint,
+      variants,
+      priceBookUomCodes,
       trackInventory,
       costingMethod,
       trackingMode,
       valuations,
       name,
-    ]
-  );
-
-  const variantsModel = useMemo<ItemVariantsStageModel | null>(() => {
-    if (!itemId || !showVariantsSection) return null;
-    return {
-      stageAccordionHeader: renderStageAccordionHeader("versions"),
-      sectionVisible,
-      registerSection,
-      isPanelLayout,
-      isMultiSku,
-      itemId,
-      variants,
       categoryTemplates,
       variantAxisKeys,
       suggestedVariantAxisKeys,
-      setValue,
-      skuMask,
       sku,
+      skuMask,
       sellingPrice,
       purchasePrice,
       standardCost,
@@ -422,61 +440,19 @@ export function useItemEditorStageModels(
       supplierId,
       deadWeightKg,
       shippingVolume,
-      lengthCm,
-      widthCm,
-      heightCm,
-      variantStrategy,
-      isPhysical,
       variantCompositionMode,
-      onRegisterVariantCommit: (commit) => {
-        variantCommitRef.current = commit;
-      },
-      onCompositionDraftChange: setCompositionDraft,
-      readOnly,
+      variantCommitRef,
+      setCompositionDraft,
       onVariantPatch,
       onVariantsReload,
       tenantId,
       media,
       onExtensionsChanged,
-    };
-  }, [
-    itemId,
-    showVariantsSection,
-    renderStageAccordionHeader,
-    sectionVisible,
-    registerSection,
-    isPanelLayout,
-    isMultiSku,
-    variants,
-    categoryTemplates,
-    variantAxisKeys,
-    suggestedVariantAxisKeys,
-    setValue,
-    skuMask,
-    sku,
-    sellingPrice,
-    purchasePrice,
-    standardCost,
-    matrixMrpDefault,
-    hsnSacCode,
-    supplierId,
-    deadWeightKg,
-    shippingVolume,
-    lengthCm,
-    widthCm,
-    heightCm,
-    variantStrategy,
-    isPhysical,
-    variantCompositionMode,
-    variantCommitRef,
-    setCompositionDraft,
-    readOnly,
-    onVariantPatch,
-    onVariantsReload,
-    tenantId,
-    media,
-    onExtensionsChanged,
-  ]);
+      sellableVariantCount,
+    ]
+  );
+
+  const variantsModel = useMemo<ItemVariantsStageModel | null>(() => null, []);
 
   const composition = useMemo<ItemCompositionStageModel | null>(() => {
     if (!itemId || !hasComposition) return null;
@@ -558,6 +534,19 @@ export function useItemEditorStageModels(
       purchasePrice,
       standardCost,
       draftAssortmentCells,
+      register,
+      errors,
+      disableInput,
+      pricingFieldsLocked,
+      isPurchasable,
+      showPurchasableAdvanced,
+      setShowPurchasableAdvanced,
+      showPurchaseUnitField,
+      showPurchaseConversionField,
+      purchaseUom,
+      purchaseCommerceUomOptions,
+      purchaseUnitConversionHint,
+      baseUom,
     };
   }, [
     itemId,
@@ -599,6 +588,19 @@ export function useItemEditorStageModels(
     purchasePrice,
     standardCost,
     draftAssortmentCells,
+    register,
+    errors,
+    disableInput,
+    pricingFieldsLocked,
+    isPurchasable,
+    showPurchasableAdvanced,
+    setShowPurchasableAdvanced,
+    showPurchaseUnitField,
+    showPurchaseConversionField,
+    purchaseUom,
+    purchaseCommerceUomOptions,
+    purchaseUnitConversionHint,
+    baseUom,
   ]);
 
   return useMemo(

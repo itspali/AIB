@@ -23,6 +23,8 @@ type Props<T extends string> = {
   showDescription?: boolean;
   /** When true, every stage is clickable (edit accordion). */
   freeNavigation?: boolean;
+  /** Lighter chrome when nested under {@link ItemEditorShell}. */
+  surface?: "default" | "glass";
 };
 
 function dotClasses(status: StageStatus, active: boolean): string {
@@ -83,16 +85,19 @@ export function EditorStepper<T extends string>({
   vertical = false,
   showDescription = true,
   freeNavigation = false,
+  surface = "default",
 }: Props<T>) {
   const activeIndex = stages.findIndex((stage) => stage.id === activeStage);
   const active = stages[activeIndex];
   const stageCount = stages.length;
   const denseHorizontal = compact && !vertical;
+  const glass = surface === "glass";
 
   return (
     <div
       className={cn(
-        compact ? undefined : "space-y-3 rounded-xl border border-border bg-card p-4"
+        compact ? undefined : "space-y-3 rounded-xl border border-border bg-card p-4",
+        glass && compact && "editor-wizard-stepper-glass"
       )}
     >
       {!compact ? (
@@ -185,10 +190,15 @@ export function EditorStepper<T extends string>({
                   denseHorizontal ? "gap-0.5 py-0.5" : "gap-1 py-1",
                   navigable && !isActive
                     ? denseHorizontal
-                      ? "hover:bg-background/40 dark:hover:bg-background/20"
+                      ? glass
+                        ? "hover:bg-background/30 dark:hover:bg-background/15"
+                        : "hover:bg-background/40 dark:hover:bg-background/20"
                       : "hover:bg-muted/70"
                     : "cursor-default",
-                  !denseHorizontal && isActive ? "bg-muted/60" : ""
+                  !denseHorizontal && isActive ? "bg-muted/60" : "",
+                  glass && denseHorizontal && isActive
+                    ? "bg-background/25 dark:bg-background/15"
+                    : ""
                 )}
               >
                 <span className="flex w-full items-center">

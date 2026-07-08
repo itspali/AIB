@@ -15,7 +15,7 @@ type Props = {
 export function SettingsFormShell({ title, description, actions, children, className }: Props) {
   return (
     <div className={cn("canvas-scroll-endpad flex flex-col gap-4 lg:gap-5", className)}>
-      <div className="sticky top-0 z-30 -mx-4 flex flex-wrap items-start justify-between gap-3 border-b border-border bg-background/95 py-3 backdrop-blur md:-mx-6 md:px-6">
+      <div className="settings-glass-sticky-header sticky top-0 z-30 -mx-4 flex flex-wrap items-start justify-between gap-3 py-3 md:-mx-6 md:px-6">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold sm:text-xl">{title}</h1>
           {description ? (

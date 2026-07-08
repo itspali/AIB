@@ -100,6 +100,7 @@ export function filterAllowedColumnIds<T extends string>(
 const ROW_FIELD_MAP: Partial<Record<ProductFieldKey, keyof ProductListRow>> = {
   image: "image_url",
   name: "name",
+  product_code: "style_code",
   default_sku: "default_sku",
   barcode: "barcode",
   classification: "classification",
