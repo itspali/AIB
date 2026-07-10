@@ -87,12 +87,9 @@ export function ProductFormRoute({
   const stageParam = searchParams.get("stage");
   const wizardActive = mode === "create" || mode === "edit";
   const resolvedStageParam = stageParam;
-  const currentStage: EditorStageId =
-    mode === "create"
-      ? "essentials"
-      : isEditorStageId(resolvedStageParam)
-        ? resolvedStageParam
-        : "essentials";
+  const currentStage: EditorStageId = isEditorStageId(resolvedStageParam)
+    ? resolvedStageParam
+    : "essentials";
 
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -148,13 +145,22 @@ export function ProductFormRoute({
       setCreateDetail(savedDetail);
     }
 
-    if (options?.advanceWizard === false) {
+    const variantsStageApplies =
+      savedDetail != null && variantsWizardStageFromDetail(savedDetail);
+    const isFirstPersist = mode === "create" && !createPersistedId && !wizardItemId;
+
+    if (
+      options?.advanceWizard === false &&
+      !(isFirstPersist && variantsStageApplies)
+    ) {
       setCreatePersistedId(savedItemId);
       if (mode === "create") {
         replace(wizardEditHref(savedItemId, "essentials", fromCatalog));
       }
       return;
     }
+
+    setCreatePersistedId(savedItemId);
 
     // Recompute the stage order from the just-saved strategy so single-SKU
     // products skip optional stages when strategy changed during Essentials.
@@ -194,6 +200,7 @@ export function ProductFormRoute({
       activeWizardStage: currentStage,
       itemId: wizardItemId,
       isDirty: hasUnsavedChanges,
+      showVariantsWizardStage: renderShowVariantsWizardStage,
       submitPending: isSaving,
     }) ??
     (isSaving

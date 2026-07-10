@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
+import type { ScanIdentifierPolicy } from "@/lib/products/catalog-item-settings";
 import {
   editorPanelDividerClass,
 } from "@/lib/products/editor-chrome";
@@ -101,6 +102,9 @@ type Props = {
   onRegisterVariantCommit?: (
     commit: (() => Promise<VariantMatrixCommitResult>) | null
   ) => void;
+  onRegisterVariantGenerate?: (
+    generate: (() => Promise<VariantMatrixCommitResult>) | null
+  ) => void;
   onCompositionDraftChange?: (state: VariantMatrixDraftState | null) => void;
   readOnly?: boolean;
   /** Merge a saved field onto one variant without reloading the item form. */
@@ -112,6 +116,9 @@ type Props = {
   onMediaChanged?: () => void;
   /** When false, axis chips render only in the parent (e.g. ItemSkusSection). */
   showAxisPicker?: boolean;
+  /** Hide inline “Create N variants” when the wizard footer owns generation. */
+  hideMatrixInlinePrimaryAction?: boolean;
+  scanIdentifierPolicy?: ScanIdentifierPolicy;
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -193,6 +200,7 @@ export function ProductVariantPanel({
   defaultShowDimensionColumns = false,
   compositionMode = "live",
   onRegisterVariantCommit,
+  onRegisterVariantGenerate,
   onCompositionDraftChange,
   readOnly = false,
   onVariantPatch,
@@ -201,6 +209,8 @@ export function ProductVariantPanel({
   media,
   onMediaChanged,
   showAxisPicker = true,
+  hideMatrixInlinePrimaryAction = false,
+  scanIdentifierPolicy,
 }: Props) {
   const [showDimensions, setShowDimensions] = useState(defaultShowDimensionColumns);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -974,7 +984,9 @@ export function ProductVariantPanel({
             categoryTemplates={categoryTemplates}
             compositionMode={compositionMode}
             onRegisterCommit={onRegisterVariantCommit}
+            onRegisterGenerate={onRegisterVariantGenerate}
             onDraftChange={onCompositionDraftChange}
+            hideInlinePrimaryAction={hideMatrixInlinePrimaryAction}
             axisKeys={variantAxisKeys ?? []}
             suggestedAxisKeys={suggestedVariantAxisKeys}
             onAxisKeysChange={onVariantAxisKeysChange}
@@ -988,6 +1000,7 @@ export function ProductVariantPanel({
             defaultStandardCost={defaultStandardCost}
             defaultMrp={defaultMrp}
             defaultSupplierId={defaultSupplierId}
+            scanIdentifierPolicy={scanIdentifierPolicy}
             onGenerated={handleVariantsGenerated}
           />
         </div>
@@ -1023,6 +1036,7 @@ export function ProductVariantPanel({
         focusedVariantId={editingVariant?.id ?? null}
         onMediaChanged={onMediaChanged}
         variantAxisKeys={variantAxisKeys ?? []}
+        scanIdentifierPolicy={scanIdentifierPolicy}
       />
 
       <AlertDialog

@@ -19,7 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { composeSkuFromMask, resolveEffectiveSkuMask } from "@/lib/products/sku-mask";
+import type { ScanIdentifierPolicy } from "@/lib/products/catalog-item-settings";
+import { composeSkuFromMask, estimateSkuBudget, resolveEffectiveSkuMask } from "@/lib/products/sku-mask";
+import {
+  scanPolicyMayUseSku,
+  validateScanFriendlySkuBatch,
+} from "@/lib/products/scan-friendly-sku";
 import {
   COST_PRICE_COLUMN,
   GTIN_BARCODE_COLUMN,
@@ -47,7 +52,10 @@ export type VariantMatrixCommitResult =
 
 export type VariantMatrixDraftState = {
   includedCount: number;
+  /** Draft Essentials wizard: matrix can be committed on Continue. */
   canCommit: boolean;
+  /** Live Variants wizard: new combinations are ready to bulk-create. */
+  canGenerate: boolean;
   isDirty: boolean;
 };
 
@@ -67,12 +75,18 @@ type Props = {
   /** Draft: rebuild grid in memory; persist via commitDraft on wizard Continue. */
   compositionMode?: VariantCompositionMode;
   onRegisterCommit?: (commit: (() => Promise<VariantMatrixCommitResult>) | null) => void;
+  /** Live: bulk-create handler for the guided Variants wizard footer. */
+  onRegisterGenerate?: (generate: (() => Promise<VariantMatrixCommitResult>) | null) => void;
   onDraftChange?: (state: VariantMatrixDraftState | null) => void;
+  /** Hide the inline generate button when the wizard footer owns the primary action. */
+  hideInlinePrimaryAction?: boolean;
   defaultSellingPrice?: string;
   defaultPurchasePrice?: string;
   defaultStandardCost?: string;
   defaultMrp?: string;
   defaultSupplierId?: string | null;
+  /** When scans may use SKU, generated codes are validated for barcode-friendly shape. */
+  scanIdentifierPolicy?: ScanIdentifierPolicy;
   onGenerated: () => void;
 };
 
@@ -232,8 +246,9 @@ function seedDraftFromVariants(
       if (trimmed) values.add(trimmed);
     }
     if (template.type === "select" && template.options?.length) {
+      const labels = new Set(template.options.map((option) => option.label));
       for (const option of values) {
-        if (!template.options.includes(option)) continue;
+        if (!labels.has(option)) continue;
         draft.selectValues[template.key] = {
           ...(draft.selectValues[template.key] ?? {}),
           [option]: true,
@@ -312,7 +327,10 @@ export function VariantMatrixGenerator({
   defaultSupplierId = null,
   compositionMode = "live",
   onRegisterCommit,
+  onRegisterGenerate,
   onDraftChange,
+  hideInlinePrimaryAction = false,
+  scanIdentifierPolicy,
   onGenerated,
 }: Props) {
   const router = useRouter();
@@ -380,7 +398,9 @@ export function VariantMatrixGenerator({
       .map((template) => {
         let values: string[];
         if (template.type === "select" && template.options?.length) {
-          values = template.options.filter((option) => selectValues[template.key]?.[option]);
+          values = template.options
+            .map((option) => option.label)
+            .filter((option) => selectValues[template.key]?.[option]);
         } else {
           values = (freeValues[template.key] ?? "")
             .split(",")
@@ -397,11 +417,20 @@ export function VariantMatrixGenerator({
     [skuMask, axisTemplates]
   );
 
+  const skuBudget = useMemo(
+    () => estimateSkuBudget(effectiveMask, baseSku || "ITEM", axisTemplates),
+    [effectiveMask, baseSku, axisTemplates]
+  );
+  const showSkuBudget = Boolean(scanIdentifierPolicy && scanPolicyMayUseSku(scanIdentifierPolicy));
+  const skuBudgetBlocksGenerate = showSkuBudget && skuBudget.exceedsMax;
+
   const combos = useMemo(() => {
     if (!activeAxes.length) return [];
     return cartesian(activeAxes).map((attributes) => {
       const key = comboKey(attributes);
-      const defaultSku = composeSkuFromMask(effectiveMask, baseSku || "ITEM", attributes);
+      const defaultSku = composeSkuFromMask(effectiveMask, baseSku || "ITEM", attributes, {
+        axisTemplates,
+      });
       const rowSku = overrides[key]?.sku?.trim();
       const exists =
         existingCombos.has(key) ||
@@ -409,7 +438,7 @@ export function VariantMatrixGenerator({
         Boolean(rowSku && existingSkuSet.has(rowSku));
       return { key, attributes, exists, defaultSku, label: formatComboLabel(attributes) };
     });
-  }, [activeAxes, existingCombos, existingSkuSet, effectiveMask, baseSku, overrides]);
+  }, [activeAxes, axisTemplates, existingCombos, existingSkuSet, effectiveMask, baseSku, overrides]);
 
   const newCombos = combos.filter((combo) => !combo.exists);
   const rowSource = isDraftMode ? combos : newCombos;
@@ -438,27 +467,40 @@ export function VariantMatrixGenerator({
       }));
   }, [overrides, resolveCostPrice, resolveSellPrice, rowSource]);
 
+  const matrixAxesReady =
+    axisKeys.length > 0 &&
+    activeAxes.length > 0 &&
+    activeAxes.length === axisTemplates.length;
+
+  const matrixGenerateReady = useMemo(() => {
+    if (!matrixAxesReady || includedRows.length === 0) return false;
+    const skus = includedRows.map((row) => row.sku.trim());
+    return skus.every(Boolean) && new Set(skus).size === skus.length;
+  }, [includedRows, matrixAxesReady]);
+
   useEffect(() => {
-    if (!isDraftMode) {
-      onDraftChange?.(null);
+    if (!onDraftChange) return;
+    if (isDraftMode) {
+      onDraftChange({
+        includedCount: includedRows.length,
+        canCommit: matrixAxesReady && includedRows.length > 0,
+        canGenerate: false,
+        isDirty: draftDirty,
+      });
       return;
     }
-    onDraftChange?.({
+    onDraftChange({
       includedCount: includedRows.length,
-      canCommit:
-        includedRows.length > 0 &&
-        axisKeys.length > 0 &&
-        activeAxes.length > 0 &&
-        activeAxes.length === axisTemplates.length,
-      isDirty: draftDirty,
+      canCommit: false,
+      canGenerate: matrixGenerateReady,
+      isDirty: false,
     });
   }, [
-    activeAxes.length,
-    axisKeys.length,
-    axisTemplates.length,
     draftDirty,
     includedRows.length,
     isDraftMode,
+    matrixAxesReady,
+    matrixGenerateReady,
     onDraftChange,
   ]);
 
@@ -525,6 +567,18 @@ export function VariantMatrixGenerator({
     }
     if (new Set(skus).size !== skus.length) {
       return { error: "Generated SKUs must be unique." };
+    }
+    if (scanIdentifierPolicy) {
+      const scanIssue = validateScanFriendlySkuBatch(skus, scanIdentifierPolicy);
+      if (scanIssue) return { error: scanIssue };
+    }
+    if (scanIdentifierPolicy && scanPolicyMayUseSku(scanIdentifierPolicy)) {
+      const budget = estimateSkuBudget(effectiveMask, baseSku || "ITEM", axisTemplates);
+      if (budget.exceedsMax) {
+        return {
+          error: `Estimated SKU length ${budget.estimatedLength} exceeds ${budget.maxLength}. Remove an axis from the SKU code, shorten option codes, or add GTIN.`,
+        };
+      }
     }
 
     const variantResult = await getProductVariants(itemId);
@@ -631,11 +685,14 @@ export function VariantMatrixGenerator({
   }, [
     activeAxes.length,
     axisKeys,
-    axisTemplates.length,
+    axisTemplates,
+    baseSku,
     defaultSupplierId,
+    effectiveMask,
     finishDraftCommit,
     includedRows,
     itemId,
+    scanIdentifierPolicy,
   ]);
 
   useEffect(() => {
@@ -647,29 +704,36 @@ export function VariantMatrixGenerator({
     return () => onRegisterCommit?.(null);
   }, [commitDraft, isDraftMode, onRegisterCommit]);
 
-  const handleGenerate = useCallback(() => {
-    if (isDraftMode) return;
+  const generateVariants = useCallback(async (): Promise<VariantMatrixCommitResult> => {
+    if (isDraftMode) return { success: true };
     if (!axisKeys.length) {
-      toast.error("Select at least one attribute under “Varies by”.");
-      return;
+      return { error: "Select at least one attribute under “Varies by”." };
     }
     if (!activeAxes.length) {
-      toast.error("Pick values for each selected axis.");
-      return;
+      return { error: "Pick values for each selected axis." };
     }
     if (!includedRows.length) {
-      toast.error("Select at least one variant combination to generate.");
-      return;
+      return { error: "Select at least one variant combination to generate." };
     }
 
     const skus = includedRows.map((row) => row.sku.trim());
     if (skus.some((sku) => !sku)) {
-      toast.error("Every selected combination needs a SKU.");
-      return;
+      return { error: "Every selected combination needs a SKU." };
     }
     if (new Set(skus).size !== skus.length) {
-      toast.error("Generated SKUs must be unique.");
-      return;
+      return { error: "Generated SKUs must be unique." };
+    }
+    if (scanIdentifierPolicy) {
+      const scanIssue = validateScanFriendlySkuBatch(skus, scanIdentifierPolicy);
+      if (scanIssue) return { error: scanIssue };
+    }
+    if (scanIdentifierPolicy && scanPolicyMayUseSku(scanIdentifierPolicy)) {
+      const budget = estimateSkuBudget(effectiveMask, baseSku || "ITEM", axisTemplates);
+      if (budget.exceedsMax) {
+        return {
+          error: `Estimated SKU length ${budget.estimatedLength} exceeds ${budget.maxLength}. Remove an axis from the SKU code, shorten option codes, or add GTIN.`,
+        };
+      }
     }
 
     const payload: BulkVariantRow[] = includedRows.map((row) => ({
@@ -680,60 +744,90 @@ export function VariantMatrixGenerator({
       variant_attributes: row.attributes,
     }));
 
-    startTransition(async () => {
-      const axesResult = await saveItemVariantAxes(itemId, axisKeys);
-      if ("error" in axesResult) {
-        toast.error(axesResult.error ?? "Unable to save variant axes.");
-        return;
-      }
+    const axesResult = await saveItemVariantAxes(itemId, axisKeys);
+    if ("error" in axesResult) {
+      return { error: axesResult.error ?? "Unable to save variant axes." };
+    }
 
-      const result = await saveItemVariantsBulk(itemId, payload);
-      if ("error" in result) {
-        toast.error(result.error ?? "Unable to generate variants.");
-        return;
-      }
+    const result = await saveItemVariantsBulk(itemId, payload);
+    if ("error" in result) {
+      return { error: result.error ?? "Unable to generate variants." };
+    }
 
-      const syncResult = await syncItemVariantCatalogAfterMatrix(itemId, axisKeys);
-      if ("error" in syncResult) {
-        toast.error(syncResult.error ?? "Variants were created but catalog metadata could not sync.");
-        return;
-      }
+    const syncResult = await syncItemVariantCatalogAfterMatrix(itemId, axisKeys);
+    if ("error" in syncResult) {
+      return {
+        error: syncResult.error ?? "Variants were created but catalog metadata could not sync.",
+      };
+    }
 
-      if (defaultSupplierId) {
-        const costRows = includedRows
-          .filter((row) => row.costPrice.trim())
-          .map((row) => ({ sku: row.sku.trim(), costPrice: row.costPrice.trim() }));
-        if (costRows.length) {
-          const costResult = await syncMatrixVariantSupplierPrices(
-            itemId,
-            defaultSupplierId,
-            costRows
-          );
-          if ("error" in costResult) {
-            toast.error(
+    if (defaultSupplierId) {
+      const costRows = includedRows
+        .filter((row) => row.costPrice.trim())
+        .map((row) => ({ sku: row.sku.trim(), costPrice: row.costPrice.trim() }));
+      if (costRows.length) {
+        const costResult = await syncMatrixVariantSupplierPrices(
+          itemId,
+          defaultSupplierId,
+          costRows
+        );
+        if ("error" in costResult) {
+          return {
+            error:
               costResult.error ??
-                "Variants were created but supplier cost prices could not be saved."
-            );
-          }
+              "Variants were created but supplier cost prices could not be saved.",
+          };
         }
       }
+    }
 
-      toast.success(`Generated ${result.createdCount} variant(s).`);
-      clearDraft();
-      onGenerated();
-      router.refresh();
-    });
+    toast.success(`Generated ${result.createdCount} variant(s).`);
+    clearDraft();
+    onGenerated();
+    router.refresh();
+
+    if ("detail" in syncResult && syncResult.detail) {
+      return {
+        success: true,
+        updatedAt: syncResult.detail.updated_at,
+        detail: syncResult.detail,
+      };
+    }
+    return finishDraftCommit();
   }, [
     activeAxes.length,
-    axisKeys.length,
+    axisKeys,
+    axisTemplates,
+    baseSku,
     clearDraft,
     defaultSupplierId,
+    effectiveMask,
+    finishDraftCommit,
     includedRows,
     isDraftMode,
     itemId,
     onGenerated,
     router,
+    scanIdentifierPolicy,
   ]);
+
+  useEffect(() => {
+    if (isDraftMode || !onRegisterGenerate) {
+      onRegisterGenerate?.(null);
+      return;
+    }
+    onRegisterGenerate(generateVariants);
+    return () => onRegisterGenerate(null);
+  }, [generateVariants, isDraftMode, onRegisterGenerate]);
+
+  const handleGenerate = useCallback(() => {
+    startTransition(async () => {
+      const result = await generateVariants();
+      if ("error" in result) {
+        toast.error(result.error);
+      }
+    });
+  }, [generateVariants]);
 
   const patchOverride = useCallback(
     (comboKeyValue: string, patch: Partial<RowOverride>) => {
@@ -785,16 +879,16 @@ export function VariantMatrixGenerator({
                 <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                   {template.options.map((option) => (
                     <ValueToggleChip
-                      key={option}
-                      label={option}
-                      selected={Boolean(selectValues[template.key]?.[option])}
+                      key={option.label}
+                      label={option.label}
+                      selected={Boolean(selectValues[template.key]?.[option.label])}
                       disabled={isPending}
                       onToggle={() => {
                         setSelectValues((prev) => ({
                           ...prev,
                           [template.key]: {
                             ...(prev[template.key] ?? {}),
-                            [option]: !prev[template.key]?.[option],
+                            [option.label]: !prev[template.key]?.[option.label],
                           },
                         }));
                         markDraftDirty();
@@ -839,6 +933,23 @@ export function VariantMatrixGenerator({
               </span>
             }
           />
+          {showSkuBudget ? (
+            <p
+              className={cn(
+                "text-[11px] tabular-nums",
+                skuBudget.exceedsMax
+                  ? "text-destructive"
+                  : skuBudget.exceedsRecommended
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-muted-foreground"
+              )}
+            >
+              Est. SKU length {skuBudget.estimatedLength} / {skuBudget.maxLength}
+              {skuBudget.exceedsMax
+                ? " — remove an axis from the SKU code, shorten option codes, or add GTIN."
+                : null}
+            </p>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[36rem] text-xs">
               <thead>
@@ -987,9 +1098,14 @@ export function VariantMatrixGenerator({
         </section>
       ) : null}
 
-      {!isDraftMode && includedRows.length > 0 ? (
+      {!isDraftMode && !hideInlinePrimaryAction && includedRows.length > 0 ? (
         <div className="flex justify-end pt-1">
-          <Button type="button" size="sm" disabled={isPending} onClick={handleGenerate}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={isPending || skuBudgetBlocksGenerate}
+            onClick={handleGenerate}
+          >
             {isPending
               ? "Creating…"
               : `Create ${includedRows.length} variant${includedRows.length === 1 ? "" : "s"}`}

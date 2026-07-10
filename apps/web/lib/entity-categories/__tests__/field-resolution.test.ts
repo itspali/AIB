@@ -11,7 +11,10 @@ const tier = {
   key: "tier",
   label: "Tier",
   type: "select" as const,
-  options: ["Gold", "Silver"],
+  options: [
+    { label: "Gold", code: "GOLD" },
+    { label: "Silver", code: "SILV" },
+  ],
   required: true,
 };
 const region = { key: "region", label: "Region", type: "text" as const };

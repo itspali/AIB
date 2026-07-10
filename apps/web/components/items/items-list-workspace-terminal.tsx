@@ -44,6 +44,7 @@ import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider"
 import { filterProductListRowsByFeedQuery } from "@/lib/products/feed-filter";
 import { productListRowKey } from "@/lib/products/list-row-key";
 import { useProductListBulkOperations } from "@/lib/products/use-product-list-bulk-operations";
+import { resolveDeletedRowCountDelta } from "@/lib/products/resolve-deleted-row-count-delta";
 import { isDeepLinkPeekLanding } from "@/lib/layout/list-module/deep-link-landing";
 import type { ListModuleLoadMode } from "@/lib/layout/list-module/drawer-search-params";
 import { useListWorkspace } from "@/lib/layout/list-workspace";
@@ -391,6 +392,7 @@ function ItemsListWorkspaceTerminalInner({
         detailToListRow(savedDetail),
         fieldPermissions.allowedFields
       );
+      const isNewRow = !products.some((row) => row.id === itemId);
       setProducts((current) => {
         const index = current.findIndex((row) => row.id === itemId);
         if (index < 0) {
@@ -400,6 +402,9 @@ function ItemsListWorkspaceTerminalInner({
         next[index] = nextRow;
         return next.sort((a, b) => a.name.localeCompare(b.name));
       });
+      if (isNewRow) {
+        setTotalCount((count) => count + 1);
+      }
       detailCacheRef.current.set(
         detailCacheKey(savedDetail.id, savedDetail.variant_id),
         savedDetail
@@ -407,7 +412,7 @@ function ItemsListWorkspaceTerminalInner({
       setPeekDetail(savedDetail);
       setDrawerDetail(savedDetail);
     },
-    [fieldPermissions.allowedFields]
+    [fieldPermissions.allowedFields, products]
   );
 
   const handleSaved = useCallback(
@@ -508,6 +513,7 @@ function ItemsListWorkspaceTerminalInner({
           exportColumnIds={exportColumnIds}
           products={products}
           setProducts={setProducts}
+          setTotalCount={setTotalCount}
           expandVariants={expandVariants}
           categories={categories}
           fieldPermissions={fieldPermissions}
@@ -546,8 +552,20 @@ function ItemsListWorkspaceTerminalInner({
           setPeekDetail={setPeekDetail}
           detailCacheRef={detailCacheRef}
           handleSaved={handleSaved}
-          onItemArchived={(itemId) => {
-            setProducts((current) => current.filter((row) => row.id !== itemId));
+          onItemArchived={(itemId, mode) => {
+            if (mode === "deleted") {
+              const delta = resolveDeletedRowCountDelta(products, [itemId], expandVariants);
+              setProducts((current) => current.filter((row) => row.id !== itemId));
+              if (delta > 0) {
+                setTotalCount((count) => Math.max(0, count - delta));
+              }
+            } else {
+              setProducts((current) =>
+                current.map((row) =>
+                  row.id === itemId ? { ...row, is_active: false } : row
+                )
+              );
+            }
             if (peekDetail?.id === itemId) setPeekDetail(null);
             drawer.close();
           }}
@@ -567,6 +585,7 @@ type ItemsListWorkspaceChromeProps = {
   exportColumnIds: ProductListColumnId[];
   products: ProductListRow[];
   setProducts: React.Dispatch<React.SetStateAction<ProductListRow[]>>;
+  setTotalCount: React.Dispatch<React.SetStateAction<number>>;
   expandVariants: boolean;
   categories: CategoryRow[];
   fieldPermissions: ProductFieldPermissions;
@@ -609,7 +628,7 @@ type ItemsListWorkspaceChromeProps = {
   setPeekDetail: React.Dispatch<React.SetStateAction<ProductDetailSnapshot | null>>;
   detailCacheRef: React.MutableRefObject<Map<string, ProductDetailSnapshot>>;
   handleSaved: (itemId: string, savedDetail?: ProductDetailSnapshot | null) => void;
-  onItemArchived: (itemId: string) => void;
+  onItemArchived: (itemId: string, mode: "deleted" | "archived") => void;
   router: ReturnType<typeof useRouter>;
 };
 
@@ -622,6 +641,7 @@ function ItemsListWorkspaceChrome({
   exportColumnIds,
   products,
   setProducts,
+  setTotalCount,
   expandVariants,
   categories,
   fieldPermissions,
@@ -667,6 +687,7 @@ function ItemsListWorkspaceChrome({
   const bulk = useProductListBulkOperations({
     products,
     setProducts,
+    setTotalCount,
     totalCount: table.totalCount,
     expandVariants,
     fieldPermissions,

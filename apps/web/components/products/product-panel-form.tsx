@@ -83,8 +83,8 @@ type PanelProps = {
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
   onVariantsReload?: () => void | Promise<void>;
   onClose: () => void;
-  /** After a successful archive (delete) from the panel header. */
-  onItemArchived?: (itemId: string) => void;
+  /** After a successful permanent delete or archive from the panel header. */
+  onItemArchived?: (itemId: string, mode: "deleted" | "archived") => void;
   urlNavigation?: ProductPanelUrlNavigation;
   wizard?: EditorWizardChrome;
   peekPanel?: ProductPeekPanelId;
@@ -128,7 +128,7 @@ type PanelContextValue = {
   fieldPermissions: ProductFieldPermissions;
   mutationHeader: ProductPanelMutationHeader | null;
   setMutationHeader: (header: ProductPanelMutationHeader | null) => void;
-  onItemArchived?: (itemId: string) => void;
+  onItemArchived?: (itemId: string, mode: "deleted" | "archived") => void;
   catalogContext: ProductCatalogContext | null;
   canPermanentlyDelete: boolean;
 };
@@ -484,7 +484,7 @@ export function ProductPanelHeaderActions() {
       }
       toast.success(canPermanentlyDelete ? "Item permanently deleted." : "Item archived.");
       setArchiveDialogOpen(false);
-      onItemArchived?.(detail.id);
+      onItemArchived?.(detail.id, canPermanentlyDelete ? "deleted" : "archived");
       onDismiss();
     });
   }, [canPermanentlyDelete, detail, onDismiss, onItemArchived]);

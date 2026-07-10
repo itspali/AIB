@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import type { SimilarItem } from "@/app/items/actions";
 import { EditorSectionBlock } from "@/components/products/product-editor/editor-form-primitives";
@@ -35,6 +35,7 @@ import { ItemDimensionsSection } from "@/components/items/item-editor/item-dimen
 import { ItemSkusSection } from "@/components/items/item-editor/item-skus-section";
 import { itemTypeSupportsComposition } from "@/lib/products/composition";
 import { ITEM_EDITOR_TOGGLE_HELP } from "@/lib/products/item-editor-field-help";
+import { itemHasShippingDimensions } from "@/lib/products/shipping-dimensions";
 import { fieldHelpText } from "@/components/ui/field-label-info";
 
 export type ItemEssentialsStageModel = {
@@ -193,6 +194,21 @@ export function ItemEssentialsStage({ model }: Props) {
 
   const glassSections = useEditorGlassSections();
   const showCompositeItemSection = itemTypeSupportsComposition(itemType);
+  const alternateUnitsEnabled = (alternateUoms?.length ?? 0) > 0;
+  const dimensionsEnabled = useMemo(
+    () =>
+      itemHasShippingDimensions({
+        dead_weight_kg: deadWeightKg,
+        length_cm: lengthCm,
+        width_cm: widthCm,
+        height_cm: heightCm,
+      }),
+    [deadWeightKg, heightCm, lengthCm, widthCm]
+  );
+  const [dimensionsOpen, setDimensionsOpen] = useState(dimensionsEnabled);
+  useEffect(() => {
+    if (dimensionsEnabled) setDimensionsOpen(true);
+  }, [dimensionsEnabled]);
   const alertBannerClass = cn(
     "mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/30",
     isPanelLayout && !glassSections && "mb-3 rounded-md px-3 py-2.5",
@@ -302,43 +318,86 @@ export function ItemEssentialsStage({ model }: Props) {
       <EditorSectionBlock
         id="alternate_uoms"
         title={ALTERNATE_UNITS_SECTION_LABEL}
+        headerToggle={{
+          label: ALTERNATE_UNITS_SECTION_LABEL,
+          info: fieldHelpText(ITEM_EDITOR_TOGGLE_HELP.alternateUnits),
+          checked: alternateUnitsEnabled,
+          disabled: disableInput("alternate_uoms"),
+          onCheckedChange: (checked) => {
+            if (checked) {
+              if ((alternateUoms?.length ?? 0) === 0) {
+                setValue(
+                  "alternate_uoms",
+                  [{ uom_code: "", conversion_factor: "" }],
+                  { shouldDirty: true }
+                );
+              }
+              return;
+            }
+            setValue("alternate_uoms", [], { shouldDirty: true });
+          },
+        }}
         registerRef={registerSection("alternate_uoms")}
         hidden={!sectionVisible("alternate_uoms")}
         panel={isPanelLayout}
       >
-        <ItemAlternateUnitsSection
-          isPanelLayout={isPanelLayout}
-          isMultiSku={isMultiSku}
-          isPhysical={isPhysical}
-          catalogContext={catalogContext}
-          baseUom={baseUom}
-          alternateUoms={alternateUoms}
-          fieldDisabled={fieldDisabled}
-          register={register}
-          errors={errors}
-          setValue={setValue}
-          disableInput={disableInput}
-        />
+        {alternateUnitsEnabled ? (
+          <ItemAlternateUnitsSection
+            isPanelLayout={isPanelLayout}
+            isMultiSku={isMultiSku}
+            isPhysical={isPhysical}
+            catalogContext={catalogContext}
+            baseUom={baseUom}
+            alternateUoms={alternateUoms}
+            showAlternateUnits
+            fieldDisabled={fieldDisabled}
+            register={register}
+            errors={errors}
+            setValue={setValue}
+            disableInput={disableInput}
+          />
+        ) : null}
       </EditorSectionBlock>
 
       {isPhysical ? (
         <EditorSectionBlock
           id="item_logistics"
           title={DIMENSIONS_SECTION_LABEL}
+          headerToggle={{
+            label: DIMENSIONS_SECTION_LABEL,
+            info: fieldHelpText(ITEM_EDITOR_TOGGLE_HELP.dimensions),
+            checked: dimensionsOpen,
+            disabled:
+              disableInput("dead_weight_kg") ||
+              disableInput("length_cm") ||
+              disableInput("width_cm") ||
+              disableInput("height_cm"),
+            onCheckedChange: (checked) => {
+              setDimensionsOpen(checked);
+              if (checked) return;
+              setValue("dead_weight_kg", "0", { shouldDirty: true });
+              setValue("length_cm", "0", { shouldDirty: true });
+              setValue("width_cm", "0", { shouldDirty: true });
+              setValue("height_cm", "0", { shouldDirty: true });
+              setValue("volume", "", { shouldDirty: true });
+            },
+          }}
           registerRef={registerSection("item_logistics")}
           hidden={!sectionVisible("item_logistics")}
           panel={isPanelLayout}
         >
-          <ItemDimensionsSection
-            isPanelLayout={isPanelLayout}
-            isMultiSku={isMultiSku}
-            lengthCm={lengthCm}
-            widthCm={widthCm}
-            heightCm={heightCm}
-            register={register}
-            errors={errors}
-            disableInput={disableInput}
-          />
+          {dimensionsOpen ? (
+            <ItemDimensionsSection
+              isPanelLayout={isPanelLayout}
+              isMultiSku={isMultiSku}
+              lengthCm={lengthCm}
+              widthCm={widthCm}
+              heightCm={heightCm}
+              register={register}
+              errors={errors}
+              disableInput={disableInput}
+            />
+          ) : null}
         </EditorSectionBlock>
       ) : null}
     </>

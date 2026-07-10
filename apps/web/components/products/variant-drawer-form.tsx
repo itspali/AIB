@@ -16,6 +16,7 @@ import { RightDrawer } from "@/components/ui/right-drawer";
 import { Switch } from "@/components/ui/switch";
 import { useDiscardChangesConfirmation } from "@/lib/forms/use-discard-changes-confirmation";
 import type { AttributeTemplateEntry, CategoryRow } from "@/lib/categories/types";
+import type { ScanIdentifierPolicy } from "@/lib/products/catalog-item-settings";
 import { resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import { VARIANT_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import {
@@ -34,6 +35,10 @@ import {
   formatCalculatedVolumeInfo,
 } from "@/lib/products/shipping-dimensions";
 import { itemVariantSchema } from "@/lib/products/variant-schemas";
+import {
+  scanPolicyMayUseSku,
+  validateScanFriendlySku,
+} from "@/lib/products/scan-friendly-sku";
 import {
   resolveMasterFormSku,
   selectedSellableVariant,
@@ -91,6 +96,7 @@ type VariantEditFormCoreProps = {
   focusedVariantId?: string | null;
   onMediaChanged?: () => void;
   variantAxisKeys?: string[];
+  scanIdentifierPolicy?: ScanIdentifierPolicy;
 };
 
 function VariantEditFormCore({
@@ -114,6 +120,7 @@ function VariantEditFormCore({
   focusedVariantId,
   onMediaChanged,
   variantAxisKeys = [],
+  scanIdentifierPolicy,
 }: VariantEditFormCoreProps) {
   const [isPending, startTransition] = useTransition();
   const axisAttributeTemplates = useMemo(
@@ -156,12 +163,14 @@ function VariantEditFormCore({
   }, [lengthCm, widthCm, heightCm, form, setValue]);
 
   const regenerateSku = useCallback(() => {
-    const composed = composeSkuFromMask(effectiveSkuMask, baseSku || "ITEM", variantAttributes);
+    const composed = composeSkuFromMask(effectiveSkuMask, baseSku || "ITEM", variantAttributes, {
+      axisTemplates: axisAttributeTemplates,
+    });
     if (composed) {
       setValue("sku", composed, { shouldDirty: true });
       skuManualRef.current = false;
     }
-  }, [effectiveSkuMask, baseSku, variantAttributes, setValue]);
+  }, [axisAttributeTemplates, effectiveSkuMask, baseSku, variantAttributes, setValue]);
 
   useEffect(() => {
     if (!active) return;
@@ -171,11 +180,13 @@ function VariantEditFormCore({
 
   useEffect(() => {
     if (!active || isEditing || skuManualRef.current || !skuMask.trim()) return;
-    const composed = composeSkuFromMask(effectiveSkuMask, baseSku || "ITEM", variantAttributes);
+    const composed = composeSkuFromMask(effectiveSkuMask, baseSku || "ITEM", variantAttributes, {
+      axisTemplates: axisAttributeTemplates,
+    });
     if (composed) {
       setValue("sku", composed, { shouldDirty: true });
     }
-  }, [active, isEditing, effectiveSkuMask, baseSku, variantAttributes, setValue]);
+  }, [active, axisAttributeTemplates, isEditing, effectiveSkuMask, baseSku, variantAttributes, setValue]);
 
   const onSubmit = useCallback(
     (values: ItemVariantFormValues) => {
@@ -209,6 +220,18 @@ function VariantEditFormCore({
         }
       }
 
+      if (
+        scanIdentifierPolicy &&
+        scanPolicyMayUseSku(scanIdentifierPolicy) &&
+        !values.barcode.trim()
+      ) {
+        const scanIssue = validateScanFriendlySku(values.sku);
+        if (scanIssue) {
+          toast.error(scanIssue);
+          return;
+        }
+      }
+
       startTransition(async () => {
         const volume = computeVolumeCm3FromDimensions(
           values.length_cm,
@@ -228,7 +251,7 @@ function VariantEditFormCore({
         onSaved();
       });
     },
-    [axisAttributeTemplates, siblingVariants, itemId, isEditing, onSaved]
+    [axisAttributeTemplates, siblingVariants, itemId, isEditing, onSaved, scanIdentifierPolicy]
   );
 
   const submitForm = useCallback(() => {
@@ -470,6 +493,7 @@ export function VariantDrawerForm({
   focusedVariantId,
   onMediaChanged,
   variantAxisKeys,
+  scanIdentifierPolicy,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -487,6 +511,7 @@ export function VariantDrawerForm({
   focusedVariantId?: string | null;
   onMediaChanged?: () => void;
   variantAxisKeys?: string[];
+  scanIdentifierPolicy?: ScanIdentifierPolicy;
 }) {
   const { requestClose, discardDialog } = useDiscardChangesConfirmation({ active: open });
 
@@ -518,6 +543,7 @@ export function VariantDrawerForm({
           focusedVariantId={focusedVariantId}
           onMediaChanged={onMediaChanged}
           variantAxisKeys={variantAxisKeys}
+          scanIdentifierPolicy={scanIdentifierPolicy}
         />
       </RightDrawer>
       {discardDialog}

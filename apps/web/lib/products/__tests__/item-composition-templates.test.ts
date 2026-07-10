@@ -13,7 +13,10 @@ const categoryAxes: AttributeTemplateEntry[] = [
     key: "material",
     label: "Material",
     type: "select",
-    options: ["Cotton", "Poly"],
+    options: [
+      { label: "Cotton", code: "COTT" },
+      { label: "Poly", code: "POLY" },
+    ],
     role: "axis",
   },
 ];
@@ -23,7 +26,10 @@ const extraAxes: AttributeTemplateEntry[] = [
     key: "finish",
     label: "Finish",
     type: "select",
-    options: ["Matte", "Gloss"],
+    options: [
+      { label: "Matte", code: "MATT" },
+      { label: "Gloss", code: "GLOS" },
+    ],
     role: "axis",
   },
 ];
@@ -32,7 +38,7 @@ describe("resolveItemCompositionTemplates", () => {
   it("merges category and extra templates with extra overriding duplicate keys", () => {
     const merged = resolveItemCompositionTemplates(
       [{ key: "shared", label: "Category", type: "text" }],
-      [{ key: "shared", label: "Product", type: "select", options: ["A"] }]
+      [{ key: "shared", label: "Product", type: "select", options: [{ label: "A", code: "A" }] }]
     );
     expect(merged).toHaveLength(1);
     expect(merged[0]?.label).toBe("Product");

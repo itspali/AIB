@@ -323,6 +323,7 @@ export function ItemsMatrixTable({
                       >
                         {renderProductListCell(columnId, row, {
                           showVariants,
+                          showLifecycleDot: columnId === "name",
                           wrapMode,
                           chipDisplay: columnChipDisplay,
                           surface: "matrix",

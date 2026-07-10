@@ -15,6 +15,7 @@ import {
   VARIANTS_SECTION_LABEL,
 } from "@/lib/products/product-user-labels";
 import { computeVolumeCm3FromDimensions } from "@/lib/products/shipping-dimensions";
+import type { ScanIdentifierPolicy } from "@/lib/products/catalog-item-settings";
 import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type {
   ProductMasterFormValues,
@@ -54,7 +55,12 @@ export type ItemVariantsStageModel = {
   onRegisterVariantCommit: (
     commit: (() => Promise<VariantMatrixCommitResult>) | null
   ) => void;
+  onRegisterVariantGenerate?: (
+    generate: (() => Promise<VariantMatrixCommitResult>) | null
+  ) => void;
   onCompositionDraftChange: (state: VariantMatrixDraftState | null) => void;
+  hideMatrixInlinePrimaryAction?: boolean;
+  scanIdentifierPolicy?: ScanIdentifierPolicy;
   readOnly: boolean;
   onVariantPatch?: (variantId: string, patch: Partial<ProductVariantSnapshot>) => void;
   onVariantsReload?: () => void | Promise<void>;
@@ -97,7 +103,10 @@ export function ItemVariantsStage({ model }: Props) {
     isPhysical,
     variantCompositionMode,
     onRegisterVariantCommit,
+    onRegisterVariantGenerate,
     onCompositionDraftChange,
+    hideMatrixInlinePrimaryAction,
+    scanIdentifierPolicy,
     readOnly,
     onVariantPatch,
     onVariantsReload,
@@ -154,7 +163,10 @@ export function ItemVariantsStage({ model }: Props) {
               defaultShowDimensionColumns={isPhysical && isMultiSku}
               compositionMode={variantCompositionMode}
               onRegisterVariantCommit={onRegisterVariantCommit}
+              onRegisterVariantGenerate={onRegisterVariantGenerate}
               onCompositionDraftChange={onCompositionDraftChange}
+              hideMatrixInlinePrimaryAction={hideMatrixInlinePrimaryAction}
+              scanIdentifierPolicy={scanIdentifierPolicy}
               readOnly={readOnly}
               onVariantPatch={onVariantPatch}
               onVariantsReload={onVariantsReload}

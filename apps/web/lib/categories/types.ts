@@ -6,12 +6,18 @@ import type { QcReceiptPolicy } from "@/lib/procurement/qc-receipt-policy";
 /** Whether a category attribute defines variants (axis) or just describes the item. */
 export type AttributeRole = "axis" | "descriptive";
 
+/** Select/multiselect choice: display label (stored on variants) + short SKU code. */
+export type AttributeOption = {
+  label: string;
+  code: string;
+};
+
 export type AttributeTemplateEntry = {
   key: string;
   label: string;
   type: AttributeFieldType;
   required?: boolean;
-  options?: string[];
+  options?: AttributeOption[];
   /**
    * Default composition role suggested to items. "axis" means each value
    * creates a separate SKU; "descriptive" means it stays the same across SKUs.

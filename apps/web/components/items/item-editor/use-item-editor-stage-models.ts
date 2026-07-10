@@ -21,11 +21,12 @@ import type { EditorSectionId } from "@/lib/products/editor-sections";
 import type { EditorStageId } from "@/lib/products/editor-stages";
 import type { ItemType } from "@/lib/products/item-model";
 import type { ItemTaxCodePickerOption } from "@/lib/tax/item-tax-code-picker";
-import { shouldLockProductCode, shouldShowVariantsWizardStage } from "@/lib/products/variant-composition";
+import { shouldLockProductCode, resolveShowVariantsWizardStage } from "@/lib/products/variant-composition";
 import type { UomOption } from "@/lib/products/uom-options";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import type {
   ProductCatalogContext,
+  ProductDetailSnapshot,
   ProductMasterFormValues,
   ProductMediaSnapshot,
   ProductTagSnapshot,
@@ -63,6 +64,7 @@ export type UseItemEditorStageModelsInput = {
   itemType: ProductMasterFormValues["item_type"];
   canSelectSingleSku: boolean;
   itemId: string | null;
+  detail?: ProductDetailSnapshot | null;
   currentClassification: ItemClassification;
   classificationOptions: readonly ItemClassification[];
   hasComposition: boolean;
@@ -119,6 +121,7 @@ export type UseItemEditorStageModelsInput = {
   shippingVolume: string;
   variantCompositionMode: VariantCompositionMode;
   variantCommitRef: RefObject<(() => Promise<VariantMatrixCommitResult>) | null>;
+  variantGenerateRef: RefObject<(() => Promise<VariantMatrixCommitResult>) | null>;
   setCompositionDraft: (state: VariantMatrixDraftState | null) => void;
   compositionDeferSave: boolean;
   compositionCommitRef: RefObject<(() => Promise<CompositionCommitResult>) | null>;
@@ -182,6 +185,7 @@ export function useItemEditorStageModels(
     itemType,
     canSelectSingleSku,
     itemId,
+    detail,
     currentClassification,
     classificationOptions,
     hasComposition,
@@ -238,6 +242,7 @@ export function useItemEditorStageModels(
     shippingVolume,
     variantCompositionMode,
     variantCommitRef,
+    variantGenerateRef,
     setCompositionDraft,
     compositionDeferSave,
     compositionCommitRef,
@@ -456,12 +461,17 @@ export function useItemEditorStageModels(
     ]
   );
 
-  const showVariantsWizardStage = shouldShowVariantsWizardStage({
+  const showVariantsWizardStage = resolveShowVariantsWizardStage({
     isMultiSku,
     variantAxisKeys,
     sellableVariantCount,
     variants,
+    detail: detail ?? null,
   });
+
+  const hideMatrixInlinePrimaryAction = Boolean(
+    wizard && wizard.layout === "steps" && activeWizardStage === "versions"
+  );
 
   const variantsModel = useMemo<ItemVariantsStageModel | null>(() => {
     if (!showVariantsWizardStage) return null;
@@ -496,7 +506,12 @@ export function useItemEditorStageModels(
       onRegisterVariantCommit: (commit) => {
         variantCommitRef.current = commit;
       },
+      onRegisterVariantGenerate: (generate) => {
+        variantGenerateRef.current = generate;
+      },
       onCompositionDraftChange: setCompositionDraft,
+      hideMatrixInlinePrimaryAction,
+      scanIdentifierPolicy: catalogContext.catalog_items.scan_identifier_policy,
       readOnly,
       onVariantPatch,
       onVariantsReload,
@@ -534,7 +549,10 @@ export function useItemEditorStageModels(
     isPhysical,
     variantCompositionMode,
     variantCommitRef,
+    variantGenerateRef,
     setCompositionDraft,
+    hideMatrixInlinePrimaryAction,
+    catalogContext.catalog_items.scan_identifier_policy,
     readOnly,
     onVariantPatch,
     onVariantsReload,

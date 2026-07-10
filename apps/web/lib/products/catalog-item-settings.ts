@@ -98,7 +98,7 @@ export function gtinFieldHint(policy: ScanIdentifierPolicy): string {
       return `Optional UPC/EAN for marketplaces. Scanning uses your SKU — leave GTIN blank if the label shows SKU only.${example}`;
     case "GTIN_THEN_SKU":
     default:
-      return `Optional UPC/EAN from the package. If blank, scanning uses SKU.${example}`;
+      return `Optional UPC/EAN from the package. If blank, scanning uses a short alphanumeric SKU (max 20 characters) — not this long descriptive code.${example}`;
   }
 }
 

@@ -11,7 +11,7 @@ import type {
 import { EditorField } from "@/components/products/product-editor/editor-form-primitives";
 import { Input } from "@/components/ui/input";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
-import { ITEM_EDITOR_FIELD_HELP } from "@/lib/products/item-editor-field-help";
+import { ITEM_EDITOR_FIELD_HELP, CATALOG_FIELD_HELP } from "@/lib/products/item-editor-field-help";
 import { skuFieldHint, gtinFieldHint } from "@/lib/products/catalog-item-settings";
 import {
   shouldComposeVariants,
@@ -20,11 +20,18 @@ import {
   shouldShowSingleSkuEntryFields,
   splitTemplatesByAxis,
 } from "@/lib/products/variant-composition";
-import { skuMaskCoversAllAxes, suggestSkuMask } from "@/lib/products/sku-mask";
+import {
+  estimateSkuBudget,
+  parseSkuMaskAxisKeys,
+  reconcileSkuMaskWithVariantAxes,
+  suggestSkuMaskFromAxisKeys,
+} from "@/lib/products/sku-mask";
+import { scanPolicyMayUseSku } from "@/lib/products/scan-friendly-sku";
 import { editorPanelDividerClass } from "@/lib/products/editor-chrome";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
 import { AttributeTemplateBuilder } from "@/components/categories/attribute-template-builder";
-import { SubsectionHeading, fieldHelpText } from "@/components/ui/field-label-info";
+import { SubsectionHeading, FieldLabelInfo, fieldHelpText } from "@/components/ui/field-label-info";
+import { Checkbox } from "@/components/ui/checkbox";
 import { finalizeAttributeTemplateRows } from "@/lib/categories/attribute-key";
 import {
   categoryOnlyAxisCandidates,
@@ -184,11 +191,35 @@ export function ItemSkusSection({
   const showExtraAxisPicker = extraAxisCandidates.length > 0;
 
   const handleVariantAxisKeysChange = (keys: string[]) => {
+    const nextMask = reconcileSkuMaskWithVariantAxes(skuMask, variantAxisKeys, keys);
     setValue("variant_axes", keys, { shouldDirty: true });
-    const axes = splitTemplatesByAxis(compositionTemplates, keys).axes;
-    if (!skuMaskCoversAllAxes(skuMask, axes)) {
-      setValue("sku_mask", suggestSkuMask(axes), { shouldDirty: true });
+    if (nextMask !== skuMask) {
+      setValue("sku_mask", nextMask, { shouldDirty: true });
     }
+  };
+
+  const selectedSkuMaskKeys = (() => {
+    const fromMask = parseSkuMaskAxisKeys(skuMask).filter((key) => variantAxisKeys.includes(key));
+    if (fromMask.length || skuMask.trim()) return fromMask;
+    return variantAxisKeys;
+  })();
+
+  const variantAxisTemplates = splitTemplatesByAxis(compositionTemplates, variantAxisKeys).axes;
+  const skuBudget = estimateSkuBudget(
+    suggestSkuMaskFromAxisKeys(selectedSkuMaskKeys),
+    sku,
+    variantAxisTemplates
+  );
+  const showSkuBudget = scanPolicyMayUseSku(catalogContext.catalog_items.scan_identifier_policy);
+
+  const handleSkuMaskAxisToggle = (axisKey: string, include: boolean) => {
+    const nextKeys = include
+      ? [...selectedSkuMaskKeys.filter((key) => key !== axisKey), axisKey].filter((key) =>
+          variantAxisKeys.includes(key)
+        )
+      : selectedSkuMaskKeys.filter((key) => key !== axisKey);
+    const ordered = variantAxisKeys.filter((key) => nextKeys.includes(key));
+    setValue("sku_mask", suggestSkuMaskFromAxisKeys(ordered), { shouldDirty: true });
   };
 
   const handleExtraSkuOptionsChange = (rows: AttributeTemplateEntry[]) => {
@@ -199,10 +230,23 @@ export function ItemSkusSection({
     setValue("extra_sku_options", rows, { shouldDirty: true });
 
     const removedKeys = [...previousKeys].filter((key) => !nextKeys.has(key));
-    if (removedKeys.length === 0) return;
+    const addedKeys = [...nextKeys].filter((key) => !previousKeys.has(key));
+    const axisCandidateKeys = new Set(
+      extraSkuOptionAxisCandidates(nextFinalized).map((template) => template.key)
+    );
+    const addedAxisKeys = addedKeys.filter((key) => axisCandidateKeys.has(key));
 
-    const nextAxes = variantAxisKeys.filter((key) => !removedKeys.includes(key));
-    if (nextAxes.length !== variantAxisKeys.length) {
+    let nextAxes = variantAxisKeys.filter((key) => !removedKeys.includes(key));
+    for (const key of addedAxisKeys) {
+      if (!nextAxes.includes(key)) {
+        nextAxes.push(key);
+      }
+    }
+
+    const axesUnchanged =
+      nextAxes.length === variantAxisKeys.length &&
+      nextAxes.every((key, index) => key === variantAxisKeys[index]);
+    if (!axesUnchanged) {
       handleVariantAxisKeysChange(nextAxes);
     }
   };
@@ -299,6 +343,7 @@ export function ItemSkusSection({
             rows={extraSkuOptions}
             onChange={handleExtraSkuOptionsChange}
             showAdvancedOptions
+            hideRequiredField
           />
         ) : extraSkuOptions.length > 0 ? (
           <p className="text-xs text-muted-foreground">
@@ -319,6 +364,59 @@ export function ItemSkusSection({
           />
         ) : null}
       </div>
+
+      {!showSingleSkuEntry && variantAxisTemplates.length > 0 ? (
+        <div className={cn(editorPanelDividerClass(), "space-y-2")}>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-foreground">Include in SKU code</p>
+            <FieldLabelInfo label="Include in SKU code">
+                  {fieldHelpText(CATALOG_FIELD_HELP.skuMaskAxes)}
+            </FieldLabelInfo>
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+            {variantAxisTemplates.map((template) => {
+              const checked = selectedSkuMaskKeys.includes(template.key);
+              const id = `sku-mask-axis-${template.key}`;
+              return (
+                <label
+                  key={template.key}
+                  htmlFor={id}
+                  className="flex cursor-pointer items-center gap-1.5 text-xs text-foreground"
+                >
+                  <Checkbox
+                    id={id}
+                    checked={checked}
+                    disabled={readOnly || disableInput("sku_mask")}
+                    onCheckedChange={(value) =>
+                      handleSkuMaskAxisToggle(template.key, value === true)
+                    }
+                  />
+                  {template.label}
+                </label>
+              );
+            })}
+          </div>
+          {showSkuBudget ? (
+            <p
+              className={cn(
+                "text-[11px] tabular-nums",
+                skuBudget.exceedsMax
+                  ? "text-destructive"
+                  : skuBudget.exceedsRecommended
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-muted-foreground"
+              )}
+            >
+              Est. SKU length {skuBudget.estimatedLength} / {skuBudget.maxLength}
+              {skuBudget.exceedsMax
+                ? " — remove an axis from the SKU code, shorten option codes, or add GTIN."
+                : skuBudget.exceedsRecommended
+                  ? " — approaching the barcode sticker limit."
+                  : null}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {showVariantRowsInEssentials && itemId ? (
         <ProductVariantPanel
@@ -360,6 +458,7 @@ export function ItemSkusSection({
           media={media}
           onMediaChanged={onMediaChanged}
           showAxisPicker={false}
+          scanIdentifierPolicy={catalogContext.catalog_items.scan_identifier_policy}
         />
       ) : showVariantRowsInEssentials ? (
         <p className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">

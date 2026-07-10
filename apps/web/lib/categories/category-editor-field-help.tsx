@@ -32,7 +32,7 @@ export const CATEGORY_EDITOR_FIELD_HELP = {
   attributeType: "How the value is captured on items — text, number, single choice, and more.",
 
   attributeOptions:
-    "Comma-separated choices for select-style types, e.g. Small, Medium, Large.",
+    "Comma-separated choices for select-style types. Use Label or Label:CODE for SKU segments (e.g. Black:BLK, Extra Large:XL).",
 
   attributeVersionAxis:
     "Suggest this attribute as a version axis for multi-SKU items. Authors still choose per item.",

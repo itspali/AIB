@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canEssentialsWizardFastAdvance,
+  canEssentialsWizardNavigateOnly,
   resolveEssentialsWizardAdvance,
 } from "@/lib/products/item-editor/editor-shell-shared";
 
@@ -22,6 +23,16 @@ describe("resolveEssentialsWizardAdvance", () => {
         compositionDraftDirty: false,
       })
     ).toBe(false);
+  });
+
+  it("advances when essentials is dirty and the Variants wizard stage applies", () => {
+    expect(
+      resolveEssentialsWizardAdvance({
+        itemId: "item-1",
+        isDirty: true,
+        showVariantsWizardStage: true,
+      })
+    ).toBe(true);
   });
 
   it("advances when profile is clean (Next)", () => {
@@ -52,6 +63,28 @@ describe("resolveEssentialsWizardAdvance", () => {
       })
     ).toBe(true);
   });
+
+  it("advances on first create save when the Variants wizard stage applies", () => {
+    expect(
+      resolveEssentialsWizardAdvance({
+        itemId: null,
+        isDirty: true,
+        isFirstCreateSave: true,
+        showVariantsWizardStage: true,
+      })
+    ).toBe(true);
+  });
+
+  it("stays on first create save for single-SKU essentials-only path", () => {
+    expect(
+      resolveEssentialsWizardAdvance({
+        itemId: null,
+        isDirty: true,
+        isFirstCreateSave: true,
+        showVariantsWizardStage: false,
+      })
+    ).toBe(false);
+  });
 });
 
 describe("canEssentialsWizardFastAdvance", () => {
@@ -76,6 +109,37 @@ describe("canEssentialsWizardFastAdvance", () => {
         itemId: "item-1",
         isDirty: false,
         compositionDraftDirty: true,
+      })
+    ).toBe(false);
+  });
+});
+
+describe("canEssentialsWizardNavigateOnly", () => {
+  it("advances when profile is clean even if variant draft is dirty", () => {
+    expect(
+      canEssentialsWizardNavigateOnly({
+        itemId: "item-1",
+        isDirty: false,
+        compositionDraftDirty: true,
+      })
+    ).toBe(true);
+  });
+
+  it("does not advance when profile is dirty", () => {
+    expect(
+      canEssentialsWizardNavigateOnly({
+        itemId: "item-1",
+        isDirty: true,
+        compositionDraftDirty: true,
+      })
+    ).toBe(false);
+  });
+
+  it("does not advance before first persist", () => {
+    expect(
+      canEssentialsWizardNavigateOnly({
+        itemId: null,
+        isDirty: false,
       })
     ).toBe(false);
   });

@@ -1,3 +1,4 @@
+import { parseAttributeOptions } from "@/lib/categories/attribute-options";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 
 /** Normalize a key for uniqueness comparisons. */
@@ -64,7 +65,8 @@ export function finalizeAttributeTemplateRows(
       const label = row.label.trim();
       if (!label) return row;
       const key = row.key.trim() || suggestUniqueAttributeKey(label, all, index);
-      return { ...row, label, key };
+      const options = parseAttributeOptions(row.options);
+      return { ...row, label, key, options };
     })
     .filter((row) => row.label.trim().length > 0);
 }

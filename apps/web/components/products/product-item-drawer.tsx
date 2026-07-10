@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ProductPanelBody,
   ProductPanelScope,
@@ -10,7 +10,9 @@ import {
   resolveProductPanelTitle,
   useProductPanelContext,
 } from "@/components/products/product-panel-form";
+import { ItemLifecycleStatusDot } from "@/components/products/item-lifecycle-status-dot";
 import { ProductPrimaryImage } from "@/components/products/product-primary-image";
+import { resolveItemDetailLifecycleStatus } from "@/lib/products/item-lifecycle-status";
 import { RightDrawer } from "@/components/ui/right-drawer";
 import type { CategoryRow } from "@/lib/categories/types";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
@@ -26,6 +28,7 @@ import type { DrawerWidthPolicy } from "@/lib/layout/drawer-width-policy";
 import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
 import { useProductCreateWizard } from "@/lib/products/use-product-create-wizard";
 import type { ItemSavedOptions } from "@/lib/products/item-editor/editor-shell-shared";
+import { variantsWizardStageFromDetail } from "@/lib/products/variant-composition";
 import { pickPrimaryImagePreviewUrl } from "@/lib/products/primary-image";
 
 type UrlNavigation = {
@@ -52,7 +55,7 @@ type Props = {
   onCreatePersisted?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
   /** Keeps catalog detail/variants in sync during the create wizard. */
   onDetailSaved?: (itemId: string, detail?: ProductDetailSnapshot | null) => void;
-  onItemArchived?: (itemId: string) => void;
+  onItemArchived?: (itemId: string, mode: "deleted" | "archived") => void;
   peekPanel?: ProductPeekPanelId;
   onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
   peekPanelLoading?: ProductPeekPanelId | null;
@@ -95,7 +98,9 @@ function ProductItemDrawerSheet({
   closeOnEscape: boolean;
   showHeaderThumbnail: boolean;
 }) {
-  const { onDismiss, fullPageHref, mutationHeader } = useProductPanelContext();
+  const { onDismiss, fullPageHref, mutationHeader, detail } = useProductPanelContext();
+  const lifecycleStatus =
+    mode === "view" && detail ? resolveItemDetailLifecycleStatus(detail, null) : null;
 
   return (
     <RightDrawer
@@ -106,6 +111,17 @@ function ProductItemDrawerSheet({
       onRequestClose={onDismiss}
       title={title}
       description={description}
+      titleContent={
+        lifecycleStatus ? (
+          <h2 className="flex min-w-0 items-center gap-1.5 truncate text-left text-sm font-semibold leading-5 text-foreground">
+            <ItemLifecycleStatusDot
+              tone={lifecycleStatus.tone}
+              label={lifecycleStatus.label}
+            />
+            <span className="truncate">{title}</span>
+          </h2>
+        ) : undefined
+      }
       titleLeading={
         showHeaderThumbnail ? (
           <ProductPrimaryImage imageUrl={imageUrl} alt={imageAlt} size="drawer-header" />
@@ -157,6 +173,7 @@ export function ProductItemDrawer({
 }: Props) {
   const [persistedCreateId, setPersistedCreateId] = useState<string | null>(null);
   const [createWizardDetail, setCreateWizardDetail] = useState<ProductDetailSnapshot | null>(null);
+  const effectiveDetail = detail ?? createWizardDetail;
   const isCreateFlow = surface === "create";
   const isVariantEdit =
     surface === "edit" && detail != null && isDetailVariantSkuContext(detail);
@@ -165,41 +182,54 @@ export function ProductItemDrawer({
   const wizardHost = useProductCreateWizard({
     active: isWizardFlow,
     layout: isEditAccordion ? "accordion" : "steps",
-    variantStrategy: detail?.variant_strategy ?? "SINGLE_SKU",
-    hasComposition: detail?.is_bundle ?? false,
+    variantStrategy: effectiveDetail?.variant_strategy ?? "SINGLE_SKU",
+    hasComposition: effectiveDetail?.is_bundle ?? false,
     onFinished: (itemId) => {
       urlNavigation.onPeekAfterSave(itemId);
       setPersistedCreateId(null);
     },
   });
 
+  const resetWizardRef = useRef(wizardHost.resetWizard);
+  resetWizardRef.current = wizardHost.resetWizard;
+  const wasOpenRef = useRef(false);
+
   useEffect(() => {
     if (!open) {
       setPersistedCreateId(null);
       setCreateWizardDetail(null);
-      wizardHost.resetWizard();
+      resetWizardRef.current();
+      wasOpenRef.current = false;
       return;
     }
-    if (isWizardFlow) {
-      wizardHost.resetWizard();
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    if (justOpened && isWizardFlow) {
+      resetWizardRef.current();
     }
-  }, [open, isWizardFlow, wizardHost.resetWizard]);
+  }, [open, isWizardFlow]);
 
   const mode = surfaceToMode(surface, persistedCreateId);
   const allowBackgroundInteraction = surface === "peek";
-  const effectiveDetail = detail ?? createWizardDetail;
 
   const handleSaved = useCallback(
     (itemId: string, savedDetail?: ProductDetailSnapshot | null, options?: ItemSavedOptions) => {
       if (savedDetail && isCreateFlow) {
         setCreateWizardDetail(savedDetail);
       }
-      if (isCreateFlow && !persistedCreateId) {
+      const isFirstPersist = isCreateFlow && !persistedCreateId;
+      const variantsStageApplies =
+        savedDetail != null && variantsWizardStageFromDetail(savedDetail);
+
+      if (isCreateFlow && isFirstPersist) {
         setPersistedCreateId(itemId);
         onCreatePersisted?.(itemId, savedDetail);
       }
 
-      if (options?.advanceWizard === false) {
+      if (
+        options?.advanceWizard === false &&
+        !(isFirstPersist && variantsStageApplies)
+      ) {
         onDetailSaved?.(itemId, savedDetail);
         return;
       }

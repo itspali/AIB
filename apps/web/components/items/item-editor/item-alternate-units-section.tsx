@@ -19,6 +19,7 @@ type Props = {
   catalogContext: ProductCatalogContext;
   baseUom: string;
   alternateUoms: ProductMasterFormValues["alternate_uoms"];
+  showAlternateUnits: boolean;
   fieldDisabled: boolean;
   register: UseFormRegister<ProductMasterFormValues>;
   errors: FieldErrors<ProductMasterFormValues>;
@@ -33,6 +34,7 @@ export function ItemAlternateUnitsSection({
   catalogContext,
   baseUom,
   alternateUoms,
+  showAlternateUnits,
   fieldDisabled,
   register,
   errors,
@@ -61,14 +63,16 @@ export function ItemAlternateUnitsSection({
         </p>
       ) : null}
 
-      <ProductUnitsSection
-        catalogContext={catalogContext}
-        baseUom={baseUom}
-        alternateUoms={alternateUoms ?? []}
-        alternatesDisabled={fieldDisabled}
-        hideHeading
-        onAlternateUomsChange={(rows) => setValue("alternate_uoms", rows, { shouldDirty: true })}
-      />
+      {showAlternateUnits ? (
+        <ProductUnitsSection
+          catalogContext={catalogContext}
+          baseUom={baseUom}
+          alternateUoms={alternateUoms ?? []}
+          alternatesDisabled={fieldDisabled}
+          hideHeading
+          onAlternateUomsChange={(rows) => setValue("alternate_uoms", rows, { shouldDirty: true })}
+        />
+      ) : null}
     </div>
   );
 }

@@ -25,13 +25,15 @@ import type {
 } from "@/components/products/variant-matrix-generator";
 import type { EditorStageId } from "@/lib/products/editor-stages";
 import {
-  canEssentialsWizardFastAdvance,
+  canEssentialsWizardNavigateOnly,
   EDITOR_FIELD_SECTION,
   essentialsCreatePrimaryLabel,
   resolveEssentialsWizardAdvance,
+  versionsWizardPrimaryLabel,
   type ItemSavedOptions,
   type SectionId,
 } from "@/lib/products/item-editor/editor-shell-shared";
+import { variantsWizardStageFromDetail } from "@/lib/products/variant-composition";
 import { mergeStorefrontVisibility } from "@/lib/products/storefront-visibility";
 import type {
   ProductCatalogContext,
@@ -73,6 +75,7 @@ export type UseItemEditorSaveOrchestrationInput = {
   onDirtyChange?: (dirty: boolean) => void;
   compositionDraft: VariantMatrixDraftState | null;
   compositionSectionDirty: boolean;
+  showVariantsWizardStage?: boolean;
   trackInventory: boolean;
   trackingMode: ProductMasterFormValues["tracking_mode"];
   scrollToSection: (id: SectionId) => void;
@@ -88,6 +91,7 @@ export type UseItemEditorSaveOrchestrationInput = {
   locationMatrixRef: RefObject<VariantAssortmentMatrixHandle | null>;
   openingStockMatrixRef: RefObject<VariantOpeningStockMatrixHandle | null>;
   variantCommitRef: RefObject<(() => Promise<VariantMatrixCommitResult>) | null>;
+  variantGenerateRef: RefObject<(() => Promise<VariantMatrixCommitResult>) | null>;
   compositionCommitRef: RefObject<(() => Promise<CompositionCommitResult>) | null>;
 };
 
@@ -118,6 +122,7 @@ export function useItemEditorSaveOrchestration({
   onDirtyChange,
   compositionDraft,
   compositionSectionDirty,
+  showVariantsWizardStage = false,
   trackInventory,
   trackingMode,
   scrollToSection,
@@ -127,14 +132,30 @@ export function useItemEditorSaveOrchestration({
   locationMatrixRef,
   openingStockMatrixRef,
   variantCommitRef,
+  variantGenerateRef,
   compositionCommitRef,
 }: UseItemEditorSaveOrchestrationInput) {
   const [reachSaveErrors, setReachSaveErrors] = useState<ReachPersistFailures | null>(null);
   const [wizardSubmitPending, setWizardSubmitPending] = useState(false);
+  const pendingCreateSaveRef = useRef(false);
   const onSavedParentRef = useRef(onSaved);
   onSavedParentRef.current = onSaved;
 
   const itemSaveLabel = mode === "edit" ? UPDATE_ITEM_LABEL : SAVE_ITEM_LABEL;
+
+  const resolveSavedNavOptions = (
+    savedDetail: ProductDetailSnapshot | null | undefined,
+    options?: ItemSavedOptions
+  ): ItemSavedOptions | undefined => {
+    const base = options ?? {};
+    if (base.advanceWizard === false) return base;
+    const detailShowsVariants =
+      savedDetail != null && variantsWizardStageFromDetail(savedDetail);
+    if (pendingCreateSaveRef.current && detailShowsVariants) {
+      return { ...base, advanceWizard: true };
+    }
+    return Object.keys(base).length > 0 ? base : undefined;
+  };
 
   itemSavedHandlerRef.current = async (savedId, savedDetail, options) => {
     setReachSaveErrors(null);
@@ -145,7 +166,11 @@ export function useItemEditorSaveOrchestration({
       if (!persistResult.ok) {
         setReachSaveErrors(persistResult.failures);
         scrollToSectionRef.current("visibility");
-        onSavedParentRef.current?.(savedId, savedDetail ?? null, options);
+        onSavedParentRef.current?.(
+          savedId,
+          savedDetail ?? null,
+          resolveSavedNavOptions(savedDetail, options)
+        );
         return false;
       }
     }
@@ -159,12 +184,20 @@ export function useItemEditorSaveOrchestration({
       if (!openingResult.ok) {
         setReachSaveErrors(openingResult.failures);
         scrollToSectionRef.current("visibility");
-        onSavedParentRef.current?.(savedId, savedDetail ?? null, options);
+        onSavedParentRef.current?.(
+          savedId,
+          savedDetail ?? null,
+          resolveSavedNavOptions(savedDetail, options)
+        );
         return false;
       }
     }
-    const resolved = options ?? pendingSaveOptionsRef.current;
+    const resolved = resolveSavedNavOptions(
+      savedDetail,
+      options ?? pendingSaveOptionsRef.current
+    );
     pendingSaveOptionsRef.current = undefined;
+    pendingCreateSaveRef.current = false;
     onSavedParentRef.current?.(savedId, savedDetail ?? null, resolved);
     return true;
   };
@@ -197,8 +230,15 @@ export function useItemEditorSaveOrchestration({
       isDirty,
       compositionDraftDirty: compositionDraft?.isDirty,
       compositionSectionDirty,
+      showVariantsWizardStage,
     }),
-    [compositionDraft?.isDirty, compositionSectionDirty, isDirty, itemId]
+    [
+      compositionDraft?.isDirty,
+      compositionSectionDirty,
+      isDirty,
+      itemId,
+      showVariantsWizardStage,
+    ]
   );
 
   const wizardPrimaryLabel = useMemo(() => {
@@ -208,9 +248,20 @@ export function useItemEditorSaveOrchestration({
       itemId,
       isDirty,
       compositionDraftDirty: compositionDraft?.isDirty,
+      showVariantsWizardStage,
       submitPending,
     });
     if (essentialsLabel) return essentialsLabel;
+
+    const versionsLabel = versionsWizardPrimaryLabel({
+      createWizard: wizardSteps,
+      activeWizardStage,
+      submitPending,
+      matrixState: compositionDraft,
+      wizardIsLast: wizard?.isLast ?? false,
+      mode,
+    });
+    if (versionsLabel) return versionsLabel;
 
     if (submitPending) {
       if (
@@ -239,7 +290,9 @@ export function useItemEditorSaveOrchestration({
     variantCompositionMode,
     wizard,
     wizardSteps,
+    compositionDraft,
     compositionDraft?.isDirty,
+    showVariantsWizardStage,
   ]);
 
   useEffect(() => {
@@ -252,19 +305,57 @@ export function useItemEditorSaveOrchestration({
             return;
           }
 
+          const isFirstCreateSave = !itemId;
+          pendingCreateSaveRef.current = isFirstCreateSave;
           const essentialsAdvance =
             nav.type === "primary" &&
             wizardSteps &&
             activeWizardStage === "essentials" &&
-            resolveEssentialsWizardAdvance(essentialsAdvanceInput);
+            resolveEssentialsWizardAdvance({
+              ...essentialsAdvanceInput,
+              isFirstCreateSave,
+            });
 
           if (
             nav.type === "primary" &&
             wizardSteps &&
             activeWizardStage === "essentials" &&
-            itemId &&
-            canEssentialsWizardFastAdvance(essentialsAdvanceInput)
+            canEssentialsWizardNavigateOnly(essentialsAdvanceInput)
           ) {
+            onSaved(itemId, detail, { advanceWizard: true });
+            return;
+          }
+
+          if (
+            nav.type === "primary" &&
+            wizardSteps &&
+            activeWizardStage === "versions" &&
+            itemId &&
+            !isDirty
+          ) {
+            if (compositionDraft?.canGenerate && variantGenerateRef.current) {
+              const result = await variantGenerateRef.current();
+              if ("error" in result) {
+                toast.error(result.error);
+                return;
+              }
+              if (result.updatedAt) {
+                setValue("updated_at", result.updatedAt, { shouldDirty: false });
+              }
+              const savedDetail = result.detail ?? detail ?? null;
+              if (result.detail) {
+                const hydrated = {
+                  ...detailToFormValues(result.detail),
+                  storefront_visibility: mergeStorefrontVisibility(
+                    catalogContext.storefronts,
+                    detailToFormValues(result.detail).storefront_visibility
+                  ),
+                };
+                form.reset(hydrated);
+              }
+              onSaved(itemId, savedDetail, { advanceWizard: true });
+              return;
+            }
             onSaved(itemId, detail, { advanceWizard: true });
             return;
           }
@@ -374,8 +465,10 @@ export function useItemEditorSaveOrchestration({
     setValue,
     variantCompositionMode,
     variantCommitRef,
+    variantGenerateRef,
     compositionCommitRef,
     essentialsAdvanceInput,
+    compositionDraft,
   ]);
 
   useEffect(() => {

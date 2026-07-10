@@ -31,13 +31,19 @@ const size: AttributeTemplateEntry = {
   key: "size",
   label: "Size",
   type: "select",
-  options: ["1kg", "5kg"],
+  options: [
+    { label: "1kg", code: "1KG" },
+    { label: "5kg", code: "5KG" },
+  ],
 };
 const color: AttributeTemplateEntry = {
   key: "color",
   label: "Color",
   type: "select",
-  options: ["Red", "Blue"],
+  options: [
+    { label: "Red", code: "RED" },
+    { label: "Blue", code: "BLUE" },
+  ],
 };
 const brand: AttributeTemplateEntry = {
   key: "brand",
@@ -71,7 +77,10 @@ describe("isDefaultAxisTemplate", () => {
         key: "tags",
         label: "Tags",
         type: "multiselect",
-        options: ["A", "B"],
+        options: [
+          { label: "A", code: "A" },
+          { label: "B", code: "B" },
+        ],
       })
     ).toBe(false);
   });
@@ -84,7 +93,7 @@ describe("isVariantAxisCandidate", () => {
         key: "tags",
         label: "Tags",
         type: "multiselect",
-        options: ["A"],
+        options: [{ label: "A", code: "A" }],
       })
     ).toBe(false);
     expect(isVariantAxisCandidate({ ...size, role: "descriptive" })).toBe(false);
@@ -125,7 +134,7 @@ describe("sanitizeVariantAxisKeys", () => {
         key: "tags",
         label: "Tags",
         type: "multiselect" as const,
-        options: ["A"],
+        options: [{ label: "A", code: "A" }],
       },
     ];
     expect(sanitizeVariantAxisKeys(["size", "tags", "missing"], templates)).toEqual(["size"]);
@@ -181,8 +190,8 @@ describe("variant axis key helpers", () => {
   });
 
   it("builds SKU mask tokens in axis order", () => {
-    expect(suggestSkuMask([color, size])).toBe("{BASE}-{color}-{size}");
-    expect(suggestSkuMask([size, color])).toBe("{BASE}-{size}-{color}");
+    expect(suggestSkuMask([color, size])).toBe("{BASE}{color}{size}");
+    expect(suggestSkuMask([size, color])).toBe("{BASE}{size}{color}");
   });
 });
 
@@ -270,7 +279,7 @@ describe("validateVariantAxesSelection", () => {
             key: "tags",
             label: "Tags",
             type: "multiselect",
-            options: ["A"],
+            options: [{ label: "A", code: "A" }],
           },
         ],
       })

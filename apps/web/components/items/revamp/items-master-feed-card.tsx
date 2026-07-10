@@ -13,6 +13,8 @@ import { LIST_WORKSPACE_BULK_CHECKBOX_CLASS } from "@/lib/layout/list-table-chro
 import {
   GLASS_V2_LIST_IMAGE,
 } from "@/lib/layout/list-module-chrome";
+import { ItemLifecycleStatusDot } from "@/components/products/item-lifecycle-status-dot";
+import { resolveItemListRowLifecycleStatus } from "@/lib/products/item-lifecycle-status";
 import { isProductListRowInactive } from "@/lib/products/list-row-key";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import type { ProductListRow } from "@/lib/products/types";
@@ -66,6 +68,7 @@ export function ItemsMasterFeedCard({
     [columns, product, showVariants]
   );
   const rowInactive = isProductListRowInactive(product, showVariants);
+  const lifecycleStatus = resolveItemListRowLifecycleStatus(product, showVariants);
   const bulkEnabled = Boolean(onBulkToggle);
 
   return (
@@ -130,6 +133,7 @@ export function ItemsMasterFeedCard({
             plan.showImage && "spatial-master-card-name-cell"
           )}
         >
+          <ItemLifecycleStatusDot tone={lifecycleStatus.tone} label={lifecycleStatus.label} />
           <span className="min-w-0 flex-1 truncate">{plan.name}</span>
           {plan.capabilityIcons.length > 0 ? (
             <span className="flex shrink-0 items-center gap-1">

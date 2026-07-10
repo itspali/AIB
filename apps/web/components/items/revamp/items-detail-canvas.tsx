@@ -16,6 +16,8 @@ import type { CategoryRow } from "@/lib/categories/types";
 import { itemFullPageHref } from "@/lib/products/item-navigation";
 import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
 import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
+import { ItemLifecycleStatusDot } from "@/components/products/item-lifecycle-status-dot";
+import { resolveItemDetailLifecycleStatus } from "@/lib/products/item-lifecycle-status";
 import { cn } from "@/lib/utils";
 import { DrawerPopOutButton } from "@/components/layout/drawer-pop-out-button";
 
@@ -70,6 +72,7 @@ export function ItemsDetailCanvas({
   }
 
   const view = buildItemsRecordDetailView(detail, selectedRow);
+  const lifecycleStatus = resolveItemDetailLifecycleStatus(detail, selectedRow);
   const popOutHref = view.itemId
     ? itemFullPageHref("view", view.itemId, { fromCatalog: true })
     : undefined;
@@ -81,7 +84,13 @@ export function ItemsDetailCanvas({
           {popOutHref ? <DrawerPopOutButton href={popOutHref} label="Open item outside panel" /> : null}
           <div className="min-w-0 flex-1">
             <h2 className="spatial-detail-id truncate">{view.skuDisplay}</h2>
-            <p className="spatial-detail-name truncate">{view.name}</p>
+            <p className="spatial-detail-name flex min-w-0 items-center gap-1.5 truncate">
+              <ItemLifecycleStatusDot
+                tone={lifecycleStatus.tone}
+                label={lifecycleStatus.label}
+              />
+              <span className="truncate">{view.name}</span>
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">

@@ -1,10 +1,13 @@
 import { formatCurrency, formatDate } from "@/lib/dashboard/format";
 import { classificationLabel } from "@/lib/products/classification-labels";
-import { itemStatusLabel } from "@/lib/products/item-model";
+import {
+  resolveItemDetailLifecycleStatus,
+  type ItemLifecycleStatusTone,
+} from "@/lib/products/item-lifecycle-status";
 import { taxCategoryLabel } from "@/lib/products/tax-options";
 import type { ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
 
-export type ItemsRecordStatusTone = "active" | "inactive" | "warning";
+export type ItemsRecordStatusTone = ItemLifecycleStatusTone;
 
 export type ItemsRecordDetailView = {
   itemId: string | null;
@@ -63,21 +66,7 @@ function resolveStatus(
   detail: ProductDetailSnapshot | null,
   row: ProductListRow | null
 ): { label: string; tone: ItemsRecordStatusTone } {
-  if (detail?.needs_review) {
-    return { label: "Needs review", tone: "warning" };
-  }
-  if (detail?.status) {
-    const label = itemStatusLabel(detail.status);
-    const tone: ItemsRecordStatusTone =
-      detail.status === "ACTIVE" ? "active" : detail.status === "DRAFT" ? "warning" : "inactive";
-    return { label, tone };
-  }
-  if (row?.variant_id && row.variant_is_active === false) {
-    return { label: "Variant inactive", tone: "inactive" };
-  }
-  return row?.is_active
-    ? { label: "Active", tone: "active" }
-    : { label: "Inactive", tone: "inactive" };
+  return resolveItemDetailLifecycleStatus(detail, row);
 }
 
 function formatRelativeUpdated(iso: string | null | undefined): string {

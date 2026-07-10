@@ -35,10 +35,12 @@ import {
 } from "@/lib/products/list-sku-export";
 import { resolveBulkSelectionItemIds } from "@/lib/products/list-row-key";
 import type { ProductListRow } from "@/lib/products/types";
+import { resolveDeletedRowCountDelta } from "@/lib/products/resolve-deleted-row-count-delta";
 
 type UseProductListBulkOperationsOptions = {
   products: ProductListRow[];
   setProducts: React.Dispatch<React.SetStateAction<ProductListRow[]>>;
+  setTotalCount: React.Dispatch<React.SetStateAction<number>>;
   totalCount: number;
   expandVariants: boolean;
   fieldPermissions: ProductFieldPermissions;
@@ -51,6 +53,7 @@ type UseProductListBulkOperationsOptions = {
 export function useProductListBulkOperations({
   products,
   setProducts,
+  setTotalCount,
   totalCount,
   expandVariants,
   fieldPermissions,
@@ -157,9 +160,13 @@ export function useProductListBulkOperations({
   const removeBulkDeletedRows = useCallback(
     (itemIds: string[]) => {
       const idSet = new Set(itemIds);
+      const delta = resolveDeletedRowCountDelta(products, itemIds, expandVariants);
       setProducts((current) => current.filter((row) => !idSet.has(row.id)));
+      if (delta > 0) {
+        setTotalCount((current) => Math.max(0, current - delta));
+      }
     },
-    [setProducts]
+    [expandVariants, products, setProducts, setTotalCount]
   );
 
   const closeAllBulkDialogs = useCallback(() => {

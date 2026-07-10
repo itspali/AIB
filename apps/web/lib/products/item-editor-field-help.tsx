@@ -94,6 +94,10 @@ export const ITEM_EDITOR_TOGGLE_HELP = {
     "Cannot change because this item already has stock movements.",
   composition:
     "On = customers buy one offer made from other items. Stock and tax apply to each component, not this parent.",
+  alternateUnits:
+    "On = define extra units (box, dozen) with conversion to your base unit for sales and purchases.",
+  dimensions:
+    "On = capture package size and weight for shipping quotes. Does not change how stock is counted.",
 } as const;
 
 export const COMPOSITION_FIELD_HELP = {
@@ -104,7 +108,9 @@ export const COMPOSITION_FIELD_HELP = {
 
 export const CATALOG_FIELD_HELP = {
   skuMask:
-    "Pattern for auto product codes. Use {BASE} and names like {Size} for each variant. Example: {BASE}-{Option1}-{Option2}.",
+    "Compact barcode-friendly pattern: {BASE} plus short axis tokens. Prefer short option codes (BLK, 8G). Generated variant SKUs start with V. You can omit some “Varies by” axes from the SKU code to stay under 20 characters.",
+  skuMaskAxes:
+    "Choose which variant attributes appear in the generated SKU. Unchecked axes still create unique combinations; they just are not encoded in the code.",
   customFields: "Extra details you define (shelf spot, internal code, etc.).",
   customFieldKey: "Short label for this detail (e.g. shelf_spot).",
   customFieldValue: "Value stored for that label.",
@@ -128,7 +134,8 @@ export const MEDIA_FIELD_HELP = {
 } as const;
 
 export const VARIANT_FIELD_HELP = {
-  variantSkuMask: (mask: string) => `Code pattern: ${mask}`,
+  variantSkuMask: (mask: string) =>
+    `Code pattern: ${mask}. Keep SKUs short (max 20 chars) when GTIN is blank. Omit axes from the SKU code if needed.`,
   sellPrice:
     "Leave empty to use the product default selling price. Enter an amount to override.",
   buyPrice: "Preferred supplier quote for this variant. Manage all vendors under Suppliers.",

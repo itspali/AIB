@@ -137,13 +137,18 @@ export type EssentialsWizardAdvanceInput = {
   isDirty: boolean;
   compositionDraftDirty?: boolean;
   compositionSectionDirty?: boolean;
+  /** When true, first create save advances to the Variants wizard stage. */
+  showVariantsWizardStage?: boolean;
+  isFirstCreateSave?: boolean;
 };
 
 /** Whether the create-wizard primary action should advance past Essentials after save/commit. */
 export function resolveEssentialsWizardAdvance(input: EssentialsWizardAdvanceInput): boolean {
+  if (input.isFirstCreateSave && input.showVariantsWizardStage) return true;
   if (!input.itemId) return false;
   if (input.compositionDraftDirty || input.compositionSectionDirty) return true;
   if (!input.isDirty) return true;
+  if (input.isDirty && input.showVariantsWizardStage) return true;
   return false;
 }
 
@@ -157,6 +162,20 @@ export function canEssentialsWizardFastAdvance(input: EssentialsWizardAdvanceInp
   );
 }
 
+/**
+ * Essentials wizard: profile is already persisted — advance to the next stage without
+ * saving or committing the variant matrix on Essentials (variant work continues on Variants).
+ */
+export function canEssentialsWizardNavigateOnly(
+  input: EssentialsWizardAdvanceInput
+): boolean {
+  if (!input.itemId || input.isDirty) return false;
+  return resolveEssentialsWizardAdvance({
+    ...input,
+    isFirstCreateSave: false,
+  });
+}
+
 export function essentialsCreatePrimaryLabel(input: {
   /** True during the guided create wizard (step layout), including after the first Essentials save. */
   createEssentialsWizard: boolean;
@@ -164,16 +183,44 @@ export function essentialsCreatePrimaryLabel(input: {
   itemId: string | null;
   isDirty: boolean;
   compositionDraftDirty?: boolean;
+  showVariantsWizardStage?: boolean;
   submitPending: boolean;
 }): string | null {
   if (!input.createEssentialsWizard || input.activeWizardStage !== "essentials") {
     return null;
   }
   if (input.submitPending) return "Saving…";
-  if (!input.itemId) return "Save";
+  if (!input.itemId) {
+    return input.showVariantsWizardStage ? "Save & continue" : "Save";
+  }
   if (input.compositionDraftDirty) {
     return input.isDirty ? "Save & continue" : "Next";
   }
-  if (input.isDirty) return "Save";
+  if (input.isDirty) {
+    return input.showVariantsWizardStage ? "Save & continue" : "Save";
+  }
   return "Next";
+}
+
+/** Variants wizard stage: footer owns bulk-create or continue to the next stage. */
+export function versionsWizardPrimaryLabel(input: {
+  createWizard: boolean;
+  activeWizardStage: EditorStageId | null;
+  submitPending: boolean;
+  matrixState: { includedCount: number; canGenerate: boolean } | null;
+  wizardIsLast: boolean;
+  mode: "create" | "edit" | "view";
+}): string | null {
+  if (!input.createWizard || input.activeWizardStage !== "versions") {
+    return null;
+  }
+  if (input.submitPending) {
+    return input.matrixState?.canGenerate ? "Creating…" : "Saving…";
+  }
+  if (input.matrixState?.canGenerate && input.matrixState.includedCount > 0) {
+    const count = input.matrixState.includedCount;
+    return `Create ${count} variant${count === 1 ? "" : "s"}`;
+  }
+  if (input.wizardIsLast) return "Finish";
+  return input.mode === "create" ? "Next" : "Continue";
 }

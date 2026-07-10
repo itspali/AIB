@@ -1,3 +1,7 @@
+import {
+  attributeOptionLabels,
+  parseOptionsDraftInput,
+} from "@/lib/categories/attribute-options";
 import { attributeTypeLabel, attributeTypeNeedsOptions } from "@/lib/categories/attribute-types";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 
@@ -6,13 +10,10 @@ export function resolveAttributeOptions(
   optionsDraft?: string
 ): string[] {
   if (optionsDraft !== undefined) {
-    return optionsDraft
-      .split(",")
-      .map((option) => option.trim())
-      .filter(Boolean);
+    return attributeOptionLabels(parseOptionsDraftInput(optionsDraft));
   }
 
-  return (entry.options ?? []).map((option) => option.trim()).filter(Boolean);
+  return attributeOptionLabels(entry.options);
 }
 
 export function attributeTemplateMissingOptions(

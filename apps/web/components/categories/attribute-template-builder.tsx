@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { isDuplicateAttributeKey, suggestUniqueAttributeKey } from "@/lib/categories/attribute-key";
 import {
+  formatOptionsDraftDisplay,
+  parseOptionsDraftInput,
+} from "@/lib/categories/attribute-options";
+import {
   ATTRIBUTE_FIELD_TYPES,
   attributeTypeNeedsOptions,
   type AttributeFieldType,
@@ -30,6 +34,8 @@ type Props = {
   onChange: (rows: AttributeTemplateEntry[]) => void;
   /** When true, show per-attribute version-axis suggestion. */
   showAdvancedOptions?: boolean;
+  /** Hide the per-attribute Required control (e.g. Extra SKU options in item editor). */
+  hideRequiredField?: boolean;
 };
 
 const emptyRow = (): AttributeTemplateEntry => ({
@@ -48,17 +54,6 @@ const FIELD_TYPE_GROUPS = ATTRIBUTE_FIELD_TYPES.reduce<
   return groups;
 }, new Map());
 
-function parseOptionsInput(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((option) => option.trim())
-    .filter(Boolean);
-}
-
-function formatOptionsDisplay(options: string[] | undefined): string {
-  return (options ?? []).join(", ");
-}
-
 function versionAxisSelectValue(row: AttributeTemplateEntry): "axis" | "descriptive" {
   if (row.role === "axis") return "axis";
   if (row.role === "descriptive") return "descriptive";
@@ -69,6 +64,7 @@ export function AttributeTemplateBuilder({
   rows,
   onChange,
   showAdvancedOptions = false,
+  hideRequiredField = false,
 }: Props) {
   const [optionsDrafts, setOptionsDrafts] = useState<Record<number, string>>({});
 
@@ -143,7 +139,7 @@ export function AttributeTemplateBuilder({
               ? "Two attributes cannot share the same internal key."
               : undefined;
             const optionsError = optionsMissing
-              ? "Add at least one comma-separated choice for this field."
+              ? "Add at least one choice for this field (Label or Label:CODE)."
               : undefined;
             const hasRowError = Boolean(duplicateKeyError || optionsError);
 
@@ -224,15 +220,15 @@ export function AttributeTemplateBuilder({
                           value={
                             index in optionsDrafts
                               ? optionsDrafts[index]
-                              : formatOptionsDisplay(row.options)
+                              : formatOptionsDraftDisplay(row.options)
                           }
-                          placeholder="Small, Medium, Large"
+                          placeholder="Black:BLK, Red:RD, 128GB:128G"
                           aria-invalid={optionsMissing}
                           aria-describedby={optionsError ? `${optionsId}-error` : undefined}
                           onChange={(e) => {
                             const raw = e.target.value;
                             setOptionsDrafts((current) => ({ ...current, [index]: raw }));
-                            updateRow(index, { options: parseOptionsInput(raw) });
+                            updateRow(index, { options: parseOptionsDraftInput(raw) });
                           }}
                           onBlur={() => {
                             setOptionsDrafts((current) => {
@@ -272,27 +268,29 @@ export function AttributeTemplateBuilder({
                       </CategoryAttrFieldLabel>
                     ) : null}
 
-                    <CategoryAttrFieldLabel
-                      label="Required"
-                      htmlFor={requiredId}
-                      help={CATEGORY_EDITOR_FIELD_HELP.attributeRequired}
-                      className="w-[6.75rem] shrink-0"
-                    >
-                      <Select
-                        value={row.required ? "yes" : "no"}
-                        onValueChange={(value) =>
-                          updateRow(index, { required: value === "yes" })
-                        }
+                    {!hideRequiredField ? (
+                      <CategoryAttrFieldLabel
+                        label="Required"
+                        htmlFor={requiredId}
+                        help={CATEGORY_EDITOR_FIELD_HELP.attributeRequired}
+                        className="w-[6.75rem] shrink-0"
                       >
-                        <SelectTrigger id={requiredId}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="yes">Yes</SelectItem>
-                          <SelectItem value="no">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </CategoryAttrFieldLabel>
+                        <Select
+                          value={row.required ? "yes" : "no"}
+                          onValueChange={(value) =>
+                            updateRow(index, { required: value === "yes" })
+                          }
+                        >
+                          <SelectTrigger id={requiredId}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </CategoryAttrFieldLabel>
+                    ) : null}
 
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center">
                       <Button

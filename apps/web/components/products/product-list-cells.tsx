@@ -32,7 +32,9 @@ import {
 import { isBlankMatrixDisplayValue } from "@/lib/layout/matrix-blank-value";
 import { cn } from "@/lib/utils";
 import type { ProductListViewMode } from "@/lib/products/list-prefs";
+import { ItemLifecycleStatusDot } from "@/components/products/item-lifecycle-status-dot";
 import { ProductListItemImage } from "@/components/products/product-list-item-image";
+import { resolveItemListRowLifecycleStatus } from "@/lib/products/item-lifecycle-status";
 
 type ProductListCellSurface = "list" | "matrix";
 
@@ -143,6 +145,7 @@ function wrappedTextValue(
 type RenderProductListCellOptions = {
   onImageClick?: (product: ProductListRow) => void;
   showVariants?: boolean;
+  showLifecycleDot?: boolean;
   wrapMode?: TextWrapMode;
   chipDisplay?: Partial<Record<ProductListColumnId, ColumnChipDisplay>>;
   surface?: ProductListCellSurface;
@@ -172,13 +175,29 @@ export function renderProductListCell(
       const nameWrapClass = resolveProductListCellTextWrapClass("name", wrapMode);
       const nameTextClass =
         wrapMode === "wrap"
-          ? cn("block", listTypography(surface, LIST_TABLE_CELL_PRIMARY), nameWrapClass)
+          ? cn("block min-w-0", listTypography(surface, LIST_TABLE_CELL_PRIMARY), nameWrapClass)
           : cn("block min-w-0", listTypography(surface, LIST_TABLE_CELL_PRIMARY), nameWrapClass);
+      const lifecycleStatus = options?.showLifecycleDot
+        ? resolveItemListRowLifecycleStatus(product, showVariants)
+        : null;
 
       return (
         <div className={productListVariantNameIndentClass(presentation, showVariants)}>
-          <span className={nameTextClass}>
-            {product.name?.trim() ? product.name : matrixCellEmpty(surface)}
+          <span
+            className={cn(
+              "flex min-w-0 items-center gap-1.5",
+              wrapMode === "wrap" && "flex-wrap"
+            )}
+          >
+            {lifecycleStatus ? (
+              <ItemLifecycleStatusDot
+                tone={lifecycleStatus.tone}
+                label={lifecycleStatus.label}
+              />
+            ) : null}
+            <span className={nameTextClass}>
+              {product.name?.trim() ? product.name : matrixCellEmpty(surface)}
+            </span>
           </span>
           {subline ? (
             <span

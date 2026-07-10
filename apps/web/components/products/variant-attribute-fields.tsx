@@ -110,17 +110,17 @@ export function VariantAttributeFields({
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {template.options.map((option) => {
-                  const isSelected = selected.has(option);
+                  const isSelected = selected.has(option.label);
                   return (
                     <button
-                      key={option}
+                      key={option.label}
                       type="button"
                       disabled={disabled}
                       aria-pressed={isSelected}
                       onClick={() => {
                         const next = new Set(selected);
-                        if (next.has(option)) next.delete(option);
-                        else next.add(option);
+                        if (next.has(option.label)) next.delete(option.label);
+                        else next.add(option.label);
                         onChange(template.key, formatMultiselectValue(next));
                       }}
                       className={cn(
@@ -133,7 +133,7 @@ export function VariantAttributeFields({
                           : "border-border bg-background text-foreground shadow-sm hover:border-primary/30 hover:bg-muted/60"
                       )}
                     >
-                      {option}
+                      {option.label}
                     </button>
                   );
                 })}
@@ -171,8 +171,8 @@ export function VariantAttributeFields({
                 <SelectContent>
                   <SelectItem value="none">Not set</SelectItem>
                   {template.options.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
+                    <SelectItem key={option.label} value={option.label}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

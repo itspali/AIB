@@ -144,6 +144,7 @@ import {
   resolveFormVariantStrategy,
   resolveVariantCompositionMode,
   shouldShowVariantsWizardStage,
+  resolveShowVariantsWizardStage,
   splitTemplatesByAxis,
   usedVariantAttributeKeys,
 } from "@/lib/products/variant-composition";
@@ -693,6 +694,7 @@ export function ProductEditorShell({
   scrollToSectionRef.current = sectionNavScrollToSectionRef.current;
 
   const variantCommitRef = useRef<(() => Promise<VariantMatrixCommitResult>) | null>(null);
+  const variantGenerateRef = useRef<(() => Promise<VariantMatrixCommitResult>) | null>(null);
   const compositionCommitRef = useRef<(() => Promise<CompositionCommitResult>) | null>(null);
   const [compositionDraft, setCompositionDraft] = useState<VariantMatrixDraftState | null>(null);
   const [compositionSectionDirty, setCompositionSectionDirty] = useState(false);
@@ -719,11 +721,12 @@ export function ProductEditorShell({
     storefrontVisibility,
   });
 
-  const showVariantsWizardStage = shouldShowVariantsWizardStage({
+  const showVariantsWizardStage = resolveShowVariantsWizardStage({
     isMultiSku,
     variantAxisKeys,
     sellableVariantCount,
     variants,
+    detail: detail ?? null,
   });
 
   const {
@@ -795,6 +798,7 @@ export function ProductEditorShell({
     onDirtyChange,
     compositionDraft,
     compositionSectionDirty,
+    showVariantsWizardStage,
     trackInventory,
     trackingMode,
     scrollToSection,
@@ -804,6 +808,7 @@ export function ProductEditorShell({
     locationMatrixRef,
     openingStockMatrixRef,
     variantCommitRef,
+    variantGenerateRef,
     compositionCommitRef,
   });
 
@@ -1079,6 +1084,7 @@ export function ProductEditorShell({
     itemType,
     canSelectSingleSku,
     itemId: resolvedItemId,
+    detail,
     currentClassification,
     classificationOptions,
     hasComposition,
@@ -1135,6 +1141,7 @@ export function ProductEditorShell({
     shippingVolume,
     variantCompositionMode,
     variantCommitRef,
+    variantGenerateRef,
     setCompositionDraft,
     compositionDeferSave,
     compositionCommitRef,

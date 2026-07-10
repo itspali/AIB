@@ -4,6 +4,7 @@ import {
   slugifyAttributeKey,
   suggestUniqueAttributeKey,
 } from "@/lib/categories/attribute-key";
+import { attributeOptionLabels } from "@/lib/categories/attribute-options";
 import type { AttributeTemplateEntry } from "@/lib/categories/types";
 import type { EntityWorkspace } from "@/lib/entities/types";
 
@@ -72,7 +73,7 @@ export function templateEntryToEntityFieldDefinition(
     label: entry.label.trim() || key,
     type,
     required: entry.required === true,
-    options: type === "select" ? entry.options ?? [] : undefined,
+    options: type === "select" ? attributeOptionLabels(entry.options) : undefined,
   };
 }
 

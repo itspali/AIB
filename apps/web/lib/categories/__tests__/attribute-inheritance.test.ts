@@ -7,7 +7,15 @@ import {
 } from "@/lib/categories/tree";
 
 const brand = { key: "brand", label: "Brand", type: "text" as const };
-const size = { key: "size", label: "Size", type: "select" as const, options: ["S", "M"] };
+const size = {
+  key: "size",
+  label: "Size",
+  type: "select" as const,
+  options: [
+    { label: "S", code: "S" },
+    { label: "M", code: "M" },
+  ],
+};
 const color = { key: "color", label: "Color", type: "text" as const };
 const fit = { key: "fit", label: "Fit", type: "text" as const };
 

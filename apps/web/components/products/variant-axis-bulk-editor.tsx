@@ -201,8 +201,8 @@ export function VariantAxisInlineCell({ template, value, disabled, onChange }: I
         </SelectTrigger>
         <SelectContent>
           {template.options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
+            <SelectItem key={option.label} value={option.label}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>

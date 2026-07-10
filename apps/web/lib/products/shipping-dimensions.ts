@@ -6,6 +6,21 @@ export function hasPositiveDimension(value: string | null | undefined): boolean 
   return Number.isFinite(n) && n > 0;
 }
 
+/** True when any package dimension or weight field is set on the item master. */
+export function itemHasShippingDimensions(input: {
+  dead_weight_kg?: string | null;
+  length_cm?: string | null;
+  width_cm?: string | null;
+  height_cm?: string | null;
+}): boolean {
+  return (
+    hasPositiveDimension(input.dead_weight_kg) ||
+    hasPositiveDimension(input.length_cm) ||
+    hasPositiveDimension(input.width_cm) ||
+    hasPositiveDimension(input.height_cm)
+  );
+}
+
 /** Prefer an explicit value; otherwise inherit the master/default row. */
 export function resolveShippingDimensionDefault(
   own: string | null | undefined,

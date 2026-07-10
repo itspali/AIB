@@ -135,6 +135,35 @@ export function variantsWizardStageFromDetail(input: {
   });
 }
 
+/** Live form state plus persisted detail (post-save) for wizard stage visibility. */
+export function resolveShowVariantsWizardStage(input: {
+  isMultiSku: boolean;
+  variantAxisKeys: string[];
+  sellableVariantCount: number;
+  variants: Array<{ is_master?: boolean; is_sellable?: boolean }>;
+  detail?: {
+    item_type: string;
+    variant_strategy: string;
+    variant_axes?: string[] | null;
+    variants?: Array<{ is_master?: boolean; is_sellable?: boolean }>;
+  } | null;
+}): boolean {
+  if (
+    shouldShowVariantsWizardStage({
+      isMultiSku: input.isMultiSku,
+      variantAxisKeys: input.variantAxisKeys,
+      sellableVariantCount: input.sellableVariantCount,
+      variants: input.variants,
+    })
+  ) {
+    return true;
+  }
+  if (input.detail) {
+    return variantsWizardStageFromDetail(input.detail);
+  }
+  return false;
+}
+
 /** Keeps unsaved items in single-SKU form mode until variant axes or SKU rows exist. */
 export function resolveFormVariantStrategy(
   inferred: "SINGLE_SKU" | "MULTI_SKU",

@@ -64,6 +64,19 @@ describe("essentialsCreatePrimaryLabel", () => {
     ).toBe("Next");
   });
 
+  it("returns Save & continue before create when the Variants stage applies", () => {
+    expect(
+      essentialsCreatePrimaryLabel({
+        createEssentialsWizard: true,
+        activeWizardStage: "essentials",
+        itemId: null,
+        isDirty: true,
+        showVariantsWizardStage: true,
+        submitPending: false,
+      })
+    ).toBe("Save & continue");
+  });
+
   it("returns null outside the create essentials wizard", () => {
     expect(
       essentialsCreatePrimaryLabel({

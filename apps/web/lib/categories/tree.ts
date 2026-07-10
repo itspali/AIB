@@ -1,3 +1,4 @@
+import { parseAttributeOptions } from "@/lib/categories/attribute-options";
 import { isAttributeFieldType } from "@/lib/categories/attribute-types";
 import type { AttributeTemplateEntry, CategoryRow, CategoryTreeNode } from "@/lib/categories/types";
 
@@ -190,12 +191,6 @@ export function filterCategoryTree(
   return nodes.map(filterNode).filter((n): n is CategoryTreeNode => n !== null);
 }
 
-function parseTemplateOptions(raw: unknown): string[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const options = raw.map((value) => String(value).trim()).filter(Boolean);
-  return options.length > 0 ? options : undefined;
-}
-
 export function parseAttributeTemplates(raw: unknown): AttributeTemplateEntry[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -210,7 +205,7 @@ export function parseAttributeTemplates(raw: unknown): AttributeTemplateEntry[] 
         label: String(entry.label ?? entry.key ?? ""),
         type: isAttributeFieldType(typeValue) ? typeValue : "text",
         required: Boolean(entry.required),
-        options: parseTemplateOptions(entry.options),
+        options: parseAttributeOptions(entry.options),
         role,
       };
     })

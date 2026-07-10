@@ -42,7 +42,10 @@ function buildAttributeTemplates(
       };
 
       if (attributeTypeNeedsOptions(entry.type) && entry.options?.length) {
-        template.options = entry.options.map((option) => option.trim()).filter(Boolean);
+        template.options = entry.options.map((option) => ({
+          label: option.label.trim(),
+          code: option.code.trim().toUpperCase(),
+        }));
       }
 
       if (entry.role === "axis" || entry.role === "descriptive") {
