@@ -35,7 +35,7 @@ export async function executeItemsFilterRpc(
   const { data: rows, error: viewError } = await supabase
     .from(VIEW_NAME)
     .select(
-      "item_id, name, description, category_id, category_name, hsn_sac_code, base_unit_of_measure, created_at, default_sku, selling_price, purchase_price"
+      "item_id, name, description, category_id, category_name, hsn_sac_code, base_unit_of_measure, created_at, default_sku, selling_price, purchase_price, is_active"
     )
     .eq("tenant_id", tenantId);
 

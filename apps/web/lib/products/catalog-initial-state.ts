@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { validateFilterAst } from "@/lib/search/executor/validate-ast";
 import { executeItemsFilterRpc, normalizeItemsAst } from "@/lib/search/executor/supabase-items";
 import { resolveSearchFieldPermissionsFromSession } from "@/lib/search/permissions/resolve-permissions-server";
-import { fetchDefaultCustomModuleView } from "@/lib/search/views/queries";
+import { resolveActiveCustomModuleView } from "@/lib/search/views/catalog-view-bootstrap";
+import { fetchCustomModuleViewsForUser } from "@/lib/search/views/queries";
 import {
   savedViewNeedsNativeFilter,
   toSavedViewSnapshot,
@@ -21,7 +22,6 @@ import {
 } from "@/lib/products/list-queries";
 import {
   coerceProductListPrefs,
-  DEFAULT_SHOW_VARIANTS,
   resolveProductListExpandVariants,
   shouldIncludeListImages,
 } from "@/lib/products/list-prefs";
@@ -33,6 +33,7 @@ export type ProductCatalogInitialState = {
   products: ProductListRow[];
   totalCount: number;
   hasMore: boolean;
+  initialSavedViews: CustomModuleView[];
   initialSavedView: SavedViewSnapshot | null;
   initialFilteredItemIds: string[] | null;
   fieldPermissions: ProductFieldPermissions;
@@ -43,20 +44,26 @@ export async function resolveProductCatalogInitialState(
   tenantId: string,
   userId: string,
   operatorRole: UserRole,
-  listPrefs?: ProductListPrefs | null
+  listPrefs?: ProductListPrefs | null,
+  options?: { activeViewIdFromCookie?: string | null }
 ): Promise<ProductCatalogInitialState> {
   const coercedPrefs = listPrefs ? coerceProductListPrefs(listPrefs) : null;
   const expandVariants = coercedPrefs
-    ? resolveProductListExpandVariants(DEFAULT_SHOW_VARIANTS, coercedPrefs.viewMode)
+    ? resolveProductListExpandVariants(coercedPrefs.showVariants, coercedPrefs.viewMode)
     : false;
   const includeImages = shouldIncludeListImages(coercedPrefs);
 
-  const [fieldPermissions, defaultView] = await Promise.all([
+  const [fieldPermissions, moduleViews] = await Promise.all([
     resolveProductFieldPermissions(supabase, tenantId, operatorRole),
-    fetchDefaultCustomModuleView(supabase, tenantId, userId, "items"),
+    fetchCustomModuleViewsForUser(supabase, tenantId, userId, "items"),
   ]);
 
-  if (!defaultView) {
+  const activeView = resolveActiveCustomModuleView(
+    moduleViews,
+    options?.activeViewIdFromCookie
+  );
+
+  if (!activeView) {
     const page = await fetchProductListPage(supabase, tenantId, fieldPermissions, {
       includeImages,
       expandVariants,
@@ -65,22 +72,23 @@ export async function resolveProductCatalogInitialState(
       products: page.rows,
       totalCount: page.totalCount,
       hasMore: page.hasMore,
+      initialSavedViews: moduleViews,
       initialSavedView: null,
       initialFilteredItemIds: null,
       fieldPermissions,
     };
   }
 
-  const initialSavedView = toSavedViewSnapshot(defaultView);
+  const initialSavedView = toSavedViewSnapshot(activeView);
 
-  if (savedViewNeedsNativeFilter(defaultView.compiled_ast)) {
+  if (savedViewNeedsNativeFilter(activeView.compiled_ast)) {
     const searchPermissions = await resolveSearchFieldPermissionsFromSession(
       supabase,
       tenantId,
       userId,
       operatorRole
     );
-    const validation = validateFilterAst(defaultView.compiled_ast, "items", searchPermissions);
+    const validation = validateFilterAst(activeView.compiled_ast, "items", searchPermissions);
     if (validation.ok) {
       try {
         const normalizedAst = await normalizeItemsAst(supabase, tenantId, validation.ast);
@@ -93,12 +101,13 @@ export async function resolveProductCatalogInitialState(
           products: page.rows,
           totalCount: page.totalCount,
           hasMore: page.hasMore,
+          initialSavedViews: moduleViews,
           initialSavedView,
           initialFilteredItemIds: itemIds,
           fieldPermissions,
         };
       } catch (error) {
-        console.warn("[products] default view filter failed, falling back to full list:", error);
+        console.warn("[products] active view filter failed, falling back to full list:", error);
       }
     }
   }
@@ -111,6 +120,7 @@ export async function resolveProductCatalogInitialState(
     products: page.rows,
     totalCount: page.totalCount,
     hasMore: page.hasMore,
+    initialSavedViews: moduleViews,
     initialSavedView,
     initialFilteredItemIds: null,
     fieldPermissions,

@@ -2291,6 +2291,25 @@
     overflow: hidden;
   }
 
+  /* Items split feed: flex row so thumbnail aligns with SKU/name stack and stays put when name wraps. */
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card--items-split-feed {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.75rem;
+    @apply py-2.5;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-image-cell--items-split {
+    grid-row: auto;
+    grid-column: auto;
+    align-self: auto;
+    width: 2.625rem;
+    height: 2.625rem;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
   :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-image-cell .spatial-master-card-image {
     display: flex !important;
     height: 100% !important;
@@ -2335,6 +2354,20 @@
     align-items: center;
     padding-top: 0.625rem;
     padding-bottom: 0.625rem;
+  }
+
+  /* Items split feed: align bulk checkbox with the name row (below SKU) on image cards. */
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-checkbox--align-name {
+    align-self: start;
+    align-items: center;
+    padding-top: calc(0.625rem + 0.875rem + 0.125rem);
+    padding-bottom: 0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .spatial-master-card-checkbox {
+    align-self: start;
+    display: flex;
+    align-items: center;
   }
 
   /* Glass v2 â€” category tree rows (reference for non-split list modules) */
@@ -3038,24 +3071,40 @@
   }
 
   /* Matrix peek — document drawers inside Items-master shell */
-  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll > div > header {
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll > div > header.spatial-detail-header {
+    background-color: var(--lw-bg-sidebar);
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-creation-drawer
+    .matrix-form-scroll
+    > div
+    > header:not(.spatial-detail-header) {
     @apply mb-2 flex shrink-0 items-start justify-between gap-3 border-b px-0 pb-4 pt-0;
     border-color: var(--lw-border-glow);
     background: transparent;
   }
 
-  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll h2 {
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll h2:not(.spatial-detail-id) {
     color: var(--lw-text-accent);
     @apply font-mono text-[1.05rem] font-bold tracking-tight md:text-[1.15rem];
   }
 
-  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll header p {
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer .matrix-form-scroll header p:not(.spatial-detail-name) {
     color: var(--lw-text-muted);
     @apply mt-0.5 font-mono text-xs;
   }
 
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-creation-drawer.module-drawer-peek-shell
+    .matrix-form-scroll
+    .spatial-detail-body {
+    @apply min-h-0 flex-1 gap-3 p-3 md:p-3;
+  }
+
   :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer.module-drawer-peek-shell .matrix-form-scroll > div > div[class*="overflow"] {
     background-color: var(--lw-bg-canvas);
+    @apply min-h-0 flex-1 px-0 py-0;
   }
 
   :is(.list-workspace-root, .glass-v2-root) .matrix-table__cell-content {
@@ -3250,6 +3299,41 @@
     border-color: var(--lw-border-glow);
   }
 
+  :is(.list-workspace-root, .glass-v2-root) .matrix-drawer-backdrop--pass-through {
+    @apply pointer-events-none bg-black/0 opacity-0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer.module-drawer-peek-shell {
+    width: 60vw;
+    max-width: 100vw;
+    padding: 0;
+    top: 0;
+    bottom: 0;
+    height: 100dvh;
+    right: -60vw;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-creation-drawer.module-drawer-peek-shell.matrix-creation-drawer--open {
+    right: 0;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-creation-drawer.module-drawer-peek-shell
+    .matrix-form-scroll {
+    @apply m-0 min-h-0 flex-1 gap-0 overflow-hidden p-0;
+    margin-inline: 0;
+    height: 100%;
+  }
+
+  :is(.list-workspace-root, .glass-v2-root)
+    .matrix-creation-drawer.module-drawer-peek-shell
+    .matrix-form-scroll
+    > div {
+    @apply flex min-h-0 flex-1 flex-col;
+    height: 100%;
+  }
+
   :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {
     @apply fixed bottom-0 right-[-460px] top-0 z-[200] flex w-[min(460px,100vw)] flex-col border-l p-6 backdrop-blur-xl transition-[right,bottom] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)];
     background-color: var(--lw-bg-sidebar);
@@ -3316,6 +3400,16 @@
   @media (max-width: 768px) {
     :is(.list-workspace-root, .glass-v2-root) .matrix-input-row-grid {
       @apply grid-cols-1;
+    }
+
+    :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer.module-drawer-peek-shell {
+      @apply right-0 top-auto h-[85vh] w-full rounded-t-2xl border-l-0 border-t;
+      bottom: -100%;
+      height: 85vh;
+    }
+
+    :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer.module-drawer-peek-shell.matrix-creation-drawer--open {
+      @apply bottom-0;
     }
 
     :is(.list-workspace-root, .glass-v2-root) .matrix-creation-drawer {

@@ -5,7 +5,9 @@ import { fetchEntityListPage } from "@/lib/entities/list-queries";
 import { getEntityWorkspaceConfig } from "@/lib/entities/workspace-config";
 import type { EntityWorkspace } from "@/lib/entities/types";
 import { getModulePageContext } from "@/lib/layout/module-page";
-import { fetchDefaultCustomModuleView } from "@/lib/search/views/queries";
+import { readActiveModuleViewIdFromCookie } from "@/lib/search/views/active-module-view-cookie.server";
+import { resolveActiveCustomModuleView } from "@/lib/search/views/catalog-view-bootstrap";
+import { fetchCustomModuleViewsForUser } from "@/lib/search/views/queries";
 import { toSavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
 
@@ -25,13 +27,15 @@ export async function EntityCatalogLoader({ workspace }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
   const { supabase, tenantId, userId } = await getModulePageContext();
 
-  const [page, defaultView] = await Promise.all([
+  const [page, moduleViews, activeViewIdFromCookie] = await Promise.all([
     fetchEntityListPage(supabase, workspace),
-    fetchDefaultCustomModuleView(supabase, tenantId, userId, config.savedViewModuleKey),
+    fetchCustomModuleViewsForUser(supabase, tenantId, userId, config.savedViewModuleKey),
+    readActiveModuleViewIdFromCookie(config.savedViewModuleKey),
   ]);
 
-  const initialSavedView: SavedViewSnapshot | null = defaultView
-    ? toSavedViewSnapshot(defaultView)
+  const activeView = resolveActiveCustomModuleView(moduleViews, activeViewIdFromCookie);
+  const initialSavedView: SavedViewSnapshot | null = activeView
+    ? toSavedViewSnapshot(activeView)
     : null;
 
   return (
@@ -42,6 +46,7 @@ export async function EntityCatalogLoader({ workspace }: Props) {
       initialRows={page.rows}
       initialTotalCount={page.totalCount}
       initialHasMore={page.hasMore}
+      initialSavedViews={moduleViews}
       initialSavedView={initialSavedView}
     />
     </ListWorkspaceCatalogLoaderRoot>

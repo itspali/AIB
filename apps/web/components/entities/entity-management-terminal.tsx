@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -37,7 +36,7 @@ import {
 } from "@/components/layout/list-workspace-catalog-module";
 import { UnifiedCatalogHeader } from "@/components/layout/unified-catalog-header";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
-import { scopeFromModuleName } from "@/lib/search/views/module-view-registry";
+import { useRestoreModuleSavedView } from "@/lib/search/views/use-restore-module-saved-view";
 import { useDeviceClass } from "@/hooks/use-device-class";
 import type { EntityListColumnRegistryKey, EntityListColumnId } from "@/lib/entities/list-columns";
 import {
@@ -71,6 +70,7 @@ import {
 import { useDocumentListPagination } from "@/lib/documents/use-document-list-pagination";
 import { filterEntitiesByAst } from "@/lib/search/executor/client-scopes";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
+import type { CustomModuleView } from "@/lib/search/types";
 
 const EntityItemDrawer = lazyClientExport(
   () => import("@/components/entities/entity-item-drawer"),
@@ -95,6 +95,7 @@ type Props = {
   initialRows: EntityListRow[];
   initialTotalCount?: number;
   initialHasMore?: boolean;
+  initialSavedViews?: CustomModuleView[];
   initialSavedView?: SavedViewSnapshot | null;
 };
 
@@ -175,13 +176,19 @@ export function EntityManagementTerminal({
   initialRows,
   initialTotalCount = initialRows.length,
   initialHasMore = false,
+  initialSavedViews = [],
   initialSavedView = null,
 }: Props) {
   const config = getEntityWorkspaceConfig(workspace);
   const registryKey: EntityListColumnRegistryKey = config.listColumnRegistryKey;
   const drawer = useModuleDrawerUrl(config.listHref);
   const omnibar = useOptionalOmnibarContext();
-  const serverViewHydratedRef = useRef(false);
+
+  useRestoreModuleSavedView({
+    moduleName: config.savedViewModuleKey,
+    initialSavedViews,
+    initialSavedView,
+  });
   const { deviceClass } = useDeviceClass();
   const fetchEntityPage = useCallback(
     (offset: number) => fetchMoreEntities(workspace, offset),
@@ -428,19 +435,6 @@ export function EntityManagementTerminal({
     },
     [runBulkActivate, runBulkDeactivate]
   );
-
-  useLayoutEffect(() => {
-    if (!omnibar || serverViewHydratedRef.current) return;
-    serverViewHydratedRef.current = true;
-    if (initialSavedView) {
-      omnibar.hydrateModuleViewFromServer(initialSavedView, null);
-      return;
-    }
-    const scope = scopeFromModuleName(config.savedViewModuleKey);
-    if (scope) {
-      omnibar.markDefaultViewResolvedOnServer(scope);
-    }
-  }, [config.savedViewModuleKey, initialSavedView, omnibar]);
 
   useEffect(() => {
     if (!omnibar?.scopePinnedToAll) return;

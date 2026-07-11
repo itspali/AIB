@@ -203,86 +203,105 @@ function DrawerChrome({
 }: DrawerChromeProps) {
   const overlayChrome = workspacePresentation === "overlay";
   const splitInlineChrome = workspacePresentation === "inline-panel";
-  const showPopOut = overlayChrome && isPartialDrawer && Boolean(popOutHref?.trim());
+  const matrixPeekChrome = workspacePresentation === "matrix-panel";
+  const catalogDetailChrome = splitInlineChrome || matrixPeekChrome;
+  const showPopOut =
+    Boolean(popOutHref?.trim()) &&
+    (catalogDetailChrome || (overlayChrome && isPartialDrawer));
+
+  const headerChrome = (
+    <>
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 gap-2",
+          catalogDetailChrome ? "items-start" : "items-center"
+        )}
+      >
+        {showPopOut && popOutHref ? (
+          <DrawerPopOutButton href={popOutHref} />
+        ) : null}
+        {titleLeading ? <div className="shrink-0">{titleLeading}</div> : null}
+        <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
+          {titleContent ? (
+            <div className="min-w-0 w-full">{titleContent}</div>
+          ) : inSheet ? (
+            <>
+              <SheetTitle className={cn(drawerTitleClassName, "min-w-0 w-full text-left")}>
+                {title}
+              </SheetTitle>
+              {description ? (
+                <p className={drawerDescriptionClassName}>{description}</p>
+              ) : (
+                <SheetDescription className="sr-only">{title}</SheetDescription>
+              )}
+            </>
+          ) : (
+            <>
+              <h2
+                className={cn(
+                  catalogDetailChrome
+                    ? "spatial-detail-id min-w-0 w-full truncate text-left"
+                    : cn(drawerTitleClassName, "min-w-0 w-full truncate text-left")
+                )}
+              >
+                {title}
+              </h2>
+              {description ? (
+                <p
+                  className={cn(
+                    catalogDetailChrome
+                      ? "spatial-detail-name truncate"
+                      : drawerDescriptionClassName
+                  )}
+                >
+                  {description}
+                </p>
+              ) : (
+                <p className="sr-only">{title}</p>
+              )}
+            </>
+          )}
+          {titleContent && description ? (
+            <p className={drawerDescriptionClassName}>{description}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {headerActions}
+        {showCloseButton ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 shrink-0 p-0"
+            onClick={onClose}
+            aria-label="Close drawer"
+            title="Close"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+    </>
+  );
+
+  const catalogDetailBodyClass = catalogDetailChrome ? "spatial-detail-body" : "px-4 py-4 sm:px-6";
 
   return (
     <>
-      <SheetHeader
-        className={cn(
-          splitInlineChrome
-            ? "spatial-detail-header shrink-0"
-            : cn(
-                "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 text-left border-b border-border/80 border-black/[0.06] dark:border-white/10",
-                APP_HEADER_HEIGHT_CLASS,
-                APP_HEADER_PADDING_X_CLASS
-              )
-        )}
-      >
-        <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2">
-          {showPopOut && popOutHref ? (
-            <DrawerPopOutButton href={popOutHref} />
-          ) : null}
-          {titleLeading ? <div className="shrink-0">{titleLeading}</div> : null}
-          <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
-            {titleContent ? (
-              <div className="min-w-0 w-full">{titleContent}</div>
-            ) : inSheet ? (
-              <>
-                <SheetTitle className={cn(drawerTitleClassName, "min-w-0 w-full text-left")}>
-                  {title}
-                </SheetTitle>
-                {description ? (
-                  <p className={drawerDescriptionClassName}>{description}</p>
-                ) : (
-                  <SheetDescription className="sr-only">{title}</SheetDescription>
-                )}
-              </>
-            ) : (
-              <>
-                <h2
-                  className={cn(
-                    splitInlineChrome
-                      ? "spatial-detail-id min-w-0 w-full truncate text-left"
-                      : cn(drawerTitleClassName, "min-w-0 w-full truncate text-left")
-                  )}
-                >
-                  {title}
-                </h2>
-                {description ? (
-                  <p
-                    className={cn(
-                      splitInlineChrome ? "spatial-detail-name truncate" : drawerDescriptionClassName
-                    )}
-                  >
-                    {description}
-                  </p>
-                ) : (
-                  <p className="sr-only">{title}</p>
-                )}
-              </>
-            )}
-            {titleContent && description ? (
-              <p className={drawerDescriptionClassName}>{description}</p>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {headerActions}
-          {showCloseButton ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9 w-9 shrink-0 p-0"
-              onClick={onClose}
-              aria-label="Close drawer"
-              title="Close"
-            >
-              <X className="h-4 w-4" aria-hidden />
-            </Button>
-          ) : null}
-        </div>
-      </SheetHeader>
+      {catalogDetailChrome ? (
+        <header className="spatial-detail-header shrink-0">{headerChrome}</header>
+      ) : (
+        <SheetHeader
+          className={cn(
+            "flex shrink-0 flex-row items-center justify-between gap-2 space-y-0 text-left border-b border-border/80 border-black/[0.06] dark:border-white/10",
+            APP_HEADER_HEIGHT_CLASS,
+            APP_HEADER_PADDING_X_CLASS
+          )}
+        >
+          {headerChrome}
+        </SheetHeader>
+      )}
       {footer && footerFloating ? (
         <div
           ref={bodyRef}
@@ -303,7 +322,7 @@ function DrawerChrome({
             ref={bodyRef}
             className={cn(
               "flex min-h-0 flex-1 flex-col",
-              splitInlineChrome ? "spatial-detail-body" : "px-4 py-4 sm:px-6",
+              catalogDetailBodyClass,
               scrollable ? "overflow-x-hidden overflow-y-auto" : "overflow-hidden",
               panelClassName
             )}
@@ -403,7 +422,9 @@ export function RightDrawer({
   }, [closeOnEscape, open, requestClose]);
 
   const effectiveShowClose =
-    showCloseButton && resolvedPresentation === "overlay";
+    showCloseButton &&
+    (resolvedPresentation === "overlay" ||
+      (resolvedPresentation === "matrix-panel" && allowBackgroundInteraction));
 
   const layoutProviderValue = useMemo(() => {
     if (resolvedPresentation === "inline-panel") {
@@ -447,17 +468,24 @@ export function RightDrawer({
   );
 
   if (resolvedPresentation === "matrix-panel") {
+    const matrixBackdropDismissible = !allowBackgroundInteraction;
     const matrixPanel = (
-      <>
-        <div
-          className={cn("matrix-drawer-backdrop", "matrix-drawer-backdrop--open")}
-          onClick={() => requestClose()}
-          aria-hidden={false}
-        />
+      <div
+        className="list-workspace-root glass-v2-root pointer-events-none fixed inset-0 z-[190]"
+        data-matrix-peek-portal=""
+      >
+        {matrixBackdropDismissible ? (
+          <div
+            className={cn("matrix-drawer-backdrop", "matrix-drawer-backdrop--open", "pointer-events-auto")}
+            onClick={() => requestClose()}
+            aria-hidden={false}
+          />
+        ) : null}
         <aside
           className={cn(
             "matrix-creation-drawer",
             "matrix-creation-drawer--open",
+            "pointer-events-auto",
             rightDrawerGlassSurfaceClassName(glassSurface),
             className
           )}
@@ -467,9 +495,9 @@ export function RightDrawer({
         >
           <div className="matrix-form-scroll flex min-h-0 flex-1 flex-col">{drawerLayout}</div>
         </aside>
-      </>
+      </div>
     );
-    return matrixPanel;
+    return portalReady ? createPortal(matrixPanel, document.body) : matrixPanel;
   }
 
   if (resolvedPresentation === "inline-panel") {

@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import {
   clearCustomModuleViewDefault,
   deleteCustomModuleView,
-  listCustomModuleViews,
   setCustomModuleViewDefault,
   updateCustomModuleView,
 } from "@/app/search/views/actions";
@@ -328,28 +327,51 @@ export function ModuleViewSelect({
     if (!moduleDef) return;
     setIsLoadingViews(true);
     try {
-      const result = await listCustomModuleViews(moduleDef.moduleName);
-      if (!result.ok) {
-        toast.error(result.error ?? "Unable to load saved views.");
-        return;
-      }
-      setViews(result.views ?? []);
+      const views = await omnibar?.prefetchModuleViews(moduleDef.moduleName);
+      if (!views) return;
+      setViews(views);
       setViewsLoaded(true);
+    } catch {
+      toast.error("Unable to load saved views.");
     } finally {
       setIsLoadingViews(false);
     }
-  }, [moduleDef]);
+  }, [moduleDef, omnibar]);
+
+  const applyCachedViews = useCallback(() => {
+    if (!moduleDef || !omnibar) return false;
+    const cached = omnibar.getCachedModuleViews(moduleDef.moduleName);
+    if (!cached) return false;
+    setViews(cached);
+    setViewsLoaded(true);
+    return true;
+  }, [moduleDef, omnibar]);
 
   useEffect(() => {
     setViews([]);
     setViewsLoaded(false);
     setIsLoadingViews(false);
-  }, [moduleDef?.moduleName]);
+    if (applyCachedViews()) return;
+  }, [applyCachedViews, moduleDef?.moduleName]);
 
   useEffect(() => {
     if (!viewsLoaded) return;
     void loadViews();
   }, [loadViews, omnibar?.savedViewsRevision, viewsLoaded]);
+
+  const handleTriggerPointerEnter = useCallback(() => {
+    if (!moduleDef || !omnibar || viewsLoaded || isLoadingViews) return;
+    if (omnibar.getCachedModuleViews(moduleDef.moduleName)) {
+      applyCachedViews();
+      return;
+    }
+    void omnibar.prefetchModuleViews(moduleDef.moduleName).then((nextViews) => {
+      setViews(nextViews);
+      setViewsLoaded(true);
+    }).catch(() => {
+      /* best-effort idle prefetch */
+    });
+  }, [applyCachedViews, isLoadingViews, moduleDef, omnibar, viewsLoaded]);
 
   useEffect(() => {
     if (!menuOpen || viewsLoaded || isLoadingViews) return;
@@ -496,6 +518,7 @@ export function ModuleViewSelect({
             type="button"
             variant="ghost"
             aria-busy={isFilterLoading || isDefaultViewBootstrapping}
+            onPointerEnter={handleTriggerPointerEnter}
             className={cn(
               "min-w-0 max-w-full overflow-hidden font-normal",
               borderless
@@ -537,7 +560,12 @@ export function ModuleViewSelect({
             onSetDefault={handleSetAllDefault}
           />
 
-          {views.length === 0 ? (
+          {isLoadingViews ? (
+            <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+              <Spinner className="size-3.5 shrink-0 border-[1.5px]" />
+              Loading views…
+            </div>
+          ) : views.length === 0 ? (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">No saved views yet</p>
           ) : (
             views.map((view) => (

@@ -157,10 +157,10 @@ export const AUTO_LAYOUT_PREF = "auto" as const;
 export type CardGridColumnPref = CardGridColumnCount | typeof AUTO_LAYOUT_PREF;
 export type FrozenColumnPref = ProductListFrozenColumnCount | typeof AUTO_LAYOUT_PREF;
 
-export const PRODUCT_LIST_PREFS_VERSION = 10;
+export const PRODUCT_LIST_PREFS_VERSION = 11;
 
-/** Variants list toggle defaults off on every load; not restored from storage. */
 export const DEFAULT_SHOW_VARIANTS = false;
+export const DEFAULT_CATEGORY_FILTER_ID = "all";
 
 export type ProductListColumnPrefsByContext = Record<
   ProductListViewMode,
@@ -193,6 +193,8 @@ export type ProductListPrefs = {
   frozenColumnCount: FrozenColumnPref;
   /** When true, table view lists one row per variant for multi-variant items. */
   showVariants: boolean;
+  /** Toolbar category filter; `"all"` shows every category. */
+  categoryFilterId: string;
   /** Tile style when viewMode is card. */
   cardLayout: ProductCardLayout;
   /** Detail card row layout (ignored for shop tiles). */
@@ -440,6 +442,7 @@ export function getDefaultProductListPrefs(): ProductListPrefs {
     columnPrefs: getDefaultProductListColumnPrefsByContext(),
     cardGridColumns: getDefaultCardGridColumns(),
     showVariants: DEFAULT_SHOW_VARIANTS,
+    categoryFilterId: DEFAULT_CATEGORY_FILTER_ID,
     cardLayout: "v2",
     cardOrientation: "horizontal",
     cardMetaDisplay: "labels",
@@ -459,6 +462,13 @@ function parseClientRevision(value: unknown): number {
     return Math.floor(value);
   }
   return 0;
+}
+
+function parseCategoryFilterId(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_CATEGORY_FILTER_ID;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === DEFAULT_CATEGORY_FILTER_ID) return DEFAULT_CATEGORY_FILTER_ID;
+  return trimmed;
 }
 
 function isLegacyFlatPrefs(parsed: LegacyFlatProductListPrefs): boolean {
@@ -681,6 +691,7 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
       ? parseCardGridColumns(parsed.cardGridColumns)
       : getDefaultCardGridColumns();
   const showVariants = parsed.showVariants === true;
+  const categoryFilterId = parseCategoryFilterId(parsed.categoryFilterId);
   const partial = parsed as Partial<ProductListPrefs>;
   const cardLayout = parseProductCardLayout(partial.cardLayout);
   const cardOrientation =
@@ -708,6 +719,7 @@ export function coerceProductListPrefs(raw: unknown): ProductListPrefs {
       columnPrefs,
       cardGridColumns,
       showVariants,
+      categoryFilterId,
       cardLayout,
       cardOrientation,
       cardMetaDisplay,
@@ -761,16 +773,11 @@ export function loadProductListPrefs(): ProductListPrefs | null {
   }
 }
 
-export function applyShowVariantsDefault(prefs: ProductListPrefs): ProductListPrefs {
-  return { ...prefs, showVariants: DEFAULT_SHOW_VARIANTS };
-}
-
 export function saveProductListPrefs(prefs: ProductListPrefs): void {
   if (typeof window === "undefined") return;
   try {
     const normalized = clampCardGridColumns({
       ...prefs,
-      showVariants: DEFAULT_SHOW_VARIANTS,
       prefsVersion: PRODUCT_LIST_PREFS_VERSION,
     });
     localStorage.setItem(
@@ -913,16 +920,16 @@ export function resolvePrefsOnMount(
   const local = localPrefs ? coerceProductListPrefs(localPrefs) : null;
 
   if (!server && !local) return getDefaultProductListPrefs();
-  if (!server && local) return applyShowVariantsDefault(local);
-  if (server && !local) return applyShowVariantsDefault(server);
+  if (!server && local) return local;
+  if (server && !local) return server;
 
   const resolvedLocal = local!;
   const resolvedServer = server!;
   const localRevision = resolvedLocal.clientRevision ?? 0;
   const serverRevision = resolvedServer.clientRevision ?? 0;
 
-  if (localRevision > serverRevision) return applyShowVariantsDefault(resolvedLocal);
-  return applyShowVariantsDefault(resolvedServer);
+  if (localRevision > serverRevision) return resolvedLocal;
+  return resolvedServer;
 }
 
 export function mergeInitialProductListPrefs(
@@ -947,9 +954,8 @@ export function shouldPersistPrefsImmediately(
   next: ProductListPrefs
 ): boolean {
   if (previous.viewMode !== next.viewMode) return true;
-  if (previous.showVariants !== next.showVariants && !isShowVariantsOnlyPrefChange(previous, next)) {
-    return true;
-  }
+  if (previous.showVariants !== next.showVariants) return true;
+  if (previous.categoryFilterId !== next.categoryFilterId) return true;
   if (previous.cardLayout !== next.cardLayout) return true;
   if (previous.cardOrientation !== next.cardOrientation) return true;
   if (previous.cardMetaDisplay !== next.cardMetaDisplay) return true;

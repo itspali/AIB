@@ -152,9 +152,11 @@ export function useModuleDrawerUrl(
       ) {
         return;
       }
+      const method = state.surface === "peek" ? "replace" : "push";
       syncHistory(
         moduleDrawerPeekHref(basePath, recordId, livePreserveParams(searchParams), variant),
-        { recordId, variantId: variant, action: null, surface: "peek" }
+        { recordId, variantId: variant, action: null, surface: "peek" },
+        method
       );
     },
     [basePath, searchParams, state.recordId, state.surface, state.variantId, syncHistory]

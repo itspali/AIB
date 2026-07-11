@@ -17,7 +17,7 @@ import {
   logSearchTelemetry,
   resolveSearchFieldPermissions,
 } from "@/app/search/actions";
-import { getDefaultCustomModuleView } from "@/app/search/views/actions";
+import { getDefaultCustomModuleView, listCustomModuleViews } from "@/app/search/views/actions";
 import { compileFilterQuery } from "@/lib/search/compiler/compile";
 import { serializeCriterionDraft } from "@/lib/search/compiler/clause-serialize";
 import { isDraftReadyFilterClause } from "@/lib/search/compiler/parser";
@@ -58,6 +58,13 @@ import {
   savedViewNeedsNativeFilter,
 } from "@/lib/search/views/saved-view-utils";
 import { isSavedViewsScope, getModuleViewDefinition } from "@/lib/search/views/module-view-registry";
+import { persistActiveModuleViewId, readActiveModuleViewId } from "@/lib/search/views/active-module-view-storage";
+import {
+  getModuleViewsCache,
+  hasModuleViewsCache,
+  invalidateModuleViewsCache,
+  seedModuleViewsCache,
+} from "@/lib/search/views/module-views-cache";
 import type { OperatorProfile } from "@/lib/user/types";
 
 type OmnibarContextValue = {
@@ -120,6 +127,9 @@ type OmnibarContextValue = {
     filteredItemIds: string[] | null
   ) => void;
   markDefaultViewResolvedOnServer: (scope: FilterScope) => void;
+  seedModuleViews: (moduleName: string, views: readonly CustomModuleView[]) => void;
+  getCachedModuleViews: (moduleName: string) => CustomModuleView[] | null;
+  prefetchModuleViews: (moduleName: string) => Promise<CustomModuleView[]>;
 };
 
 const OmnibarContext = createContext<OmnibarContextValue | null>(null);
@@ -128,6 +138,21 @@ const defaultViewFetchByModule = new Map<
   string,
   ReturnType<typeof getDefaultCustomModuleView>
 >();
+
+const moduleViewsFetchByModule = new Map<string, ReturnType<typeof listCustomModuleViews>>();
+
+function fetchModuleViewsDeduped(moduleName: string) {
+  const inFlight = moduleViewsFetchByModule.get(moduleName);
+  if (inFlight) return inFlight;
+
+  const request = listCustomModuleViews(moduleName).finally(() => {
+    if (moduleViewsFetchByModule.get(moduleName) === request) {
+      moduleViewsFetchByModule.delete(moduleName);
+    }
+  });
+  moduleViewsFetchByModule.set(moduleName, request);
+  return request;
+}
 
 function fetchDefaultCustomModuleViewDeduped(moduleName: string) {
   const inFlight = defaultViewFetchByModule.get(moduleName);
@@ -287,10 +312,39 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
   }, []);
 
   const notifySavedViewsChanged = useCallback(() => {
+    const moduleDef = getModuleViewDefinition(scope);
+    if (moduleDef) {
+      invalidateModuleViewsCache(moduleDef.moduleName);
+    }
     setSavedViewsRevision((value) => value + 1);
+  }, [scope]);
+
+  const seedModuleViews = useCallback((moduleName: string, views: readonly CustomModuleView[]) => {
+    seedModuleViewsCache(moduleName, views);
+  }, []);
+
+  const getCachedModuleViews = useCallback((moduleName: string) => {
+    return getModuleViewsCache(moduleName);
+  }, []);
+
+  const prefetchModuleViews = useCallback(async (moduleName: string) => {
+    const cached = getModuleViewsCache(moduleName);
+    if (cached) return cached;
+
+    const result = await fetchModuleViewsDeduped(moduleName);
+    if (!result.ok) {
+      throw new Error(result.error ?? "Unable to load saved views.");
+    }
+    const views = result.views ?? [];
+    seedModuleViewsCache(moduleName, views);
+    return views;
   }, []);
 
   const clearFilters = useCallback(() => {
+    const moduleDef = getModuleViewDefinition(scope);
+    if (moduleDef) {
+      persistActiveModuleViewId(moduleDef.moduleName, null);
+    }
     setRawQuery("");
     setAppliedQuery("");
     setCompileResult(null);
@@ -302,7 +356,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     setOpenPaletteAfterViewLoad(false);
     setIsExecuting(false);
     setModuleFilterRevision((value) => value + 1);
-  }, []);
+  }, [scope]);
 
   const focusInput = useCallback(() => {
     inputRef.current?.focus();
@@ -590,6 +644,8 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
         compiled_ast: view.compiled_ast,
       };
 
+      persistActiveModuleViewId(view.module_name, view.id);
+
       setRawQuery("");
       setAppliedQuery(view.raw_search_text);
       setFilterError(null);
@@ -674,6 +730,7 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       }
       setIsExecuting(false);
 
+      persistActiveModuleViewId(view.module_name, view.id);
       compileSavedViewQuery(view, viewScope);
       finishDefaultViewBootstrap();
     },
@@ -706,6 +763,51 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       finishDefaultViewBootstrap();
       return;
     }
+    if (defaultAppliedRef.current) {
+      return;
+    }
+
+    const moduleDef = getModuleViewDefinition(routeScope);
+    const storedViewId = moduleDef ? readActiveModuleViewId(moduleDef.moduleName) : null;
+    if (storedViewId && moduleDef) {
+      if (!permissions) {
+        setIsDefaultViewBootstrapping(true);
+        return;
+      }
+
+      const applyStoredView = (view: CustomModuleView | undefined) => {
+        if (defaultFetchScopeRef.current !== routeScope) return;
+        if (!pathnameMatchesScope(pathname, routeScope)) return;
+        if (!view) {
+          defaultAppliedRef.current = false;
+          tryApplyDefaultViewRef.current();
+          return;
+        }
+        defaultAppliedRef.current = true;
+        setResolvingDefaultView(view);
+        loadSavedView(view);
+      };
+
+      const cached = getModuleViewsCache(moduleDef.moduleName);
+      const cachedView = cached?.find((entry) => entry.id === storedViewId);
+      if (cachedView) {
+        applyStoredView(cachedView);
+        return;
+      }
+
+      defaultAppliedRef.current = true;
+      void fetchModuleViewsDeduped(moduleDef.moduleName).then((result) => {
+        if (!result.ok) {
+          defaultAppliedRef.current = false;
+          tryApplyDefaultViewRef.current();
+          return;
+        }
+        const views = result.views ?? [];
+        seedModuleViewsCache(moduleDef.moduleName, views);
+        applyStoredView(views.find((entry) => entry.id === storedViewId));
+      });
+      return;
+    }
 
     const fetchResult = defaultFetchResultRef.current;
     if (fetchResult === undefined) {
@@ -719,9 +821,6 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
     if (!permissions) {
       setIsDefaultViewBootstrapping(true);
       setResolvingDefaultView(fetchResult);
-      return;
-    }
-    if (defaultAppliedRef.current) {
       return;
     }
 
@@ -807,6 +906,17 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
 
     if (!pathnameMatchesScope(pathname, routeScope)) {
       finishDefaultViewBootstrap();
+      return;
+    }
+
+    const storedViewId = readActiveModuleViewId(moduleDef.moduleName);
+    if (storedViewId) {
+      if (!hasModuleViewsCache(moduleDef.moduleName)) {
+        void prefetchModuleViews(moduleDef.moduleName).catch(() => {
+          /* hover/idle prefetch is best-effort */
+        });
+      }
+      tryApplyDefaultViewRef.current();
       return;
     }
 
@@ -1042,6 +1152,9 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       resolvingDefaultView,
       hydrateModuleViewFromServer,
       markDefaultViewResolvedOnServer,
+      seedModuleViews,
+      getCachedModuleViews,
+      prefetchModuleViews,
     }),
     [
       rawQuery,
@@ -1093,6 +1206,9 @@ export function OmnibarProvider({ children, operatorProfile, tenantId }: Props) 
       resolvingDefaultView,
       hydrateModuleViewFromServer,
       markDefaultViewResolvedOnServer,
+      seedModuleViews,
+      getCachedModuleViews,
+      prefetchModuleViews,
     ]
   );
 

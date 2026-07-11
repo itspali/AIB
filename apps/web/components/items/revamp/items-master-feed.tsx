@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { ProductListSkeleton } from "@/components/products/product-list-skeleton";
 import { ItemsMasterFeedCard } from "@/components/items/revamp/items-master-feed-card";
+import type { TextWrapMode } from "@/lib/display/text-wrap";
 import { filterProductListRowsByFeedQuery } from "@/lib/products/feed-filter";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import { productListRowKey } from "@/lib/products/list-row-key";
@@ -11,6 +12,7 @@ import type { ProductListRow } from "@/lib/products/types";
 type Props = {
   products: ProductListRow[];
   columns: ProductListColumnId[];
+  columnWrapModes?: Partial<Record<ProductListColumnId, TextWrapMode>>;
   loading?: boolean;
   selectedId: string | null;
   selectedVariantId: string | null;
@@ -38,6 +40,7 @@ function isRowSelected(
 export function ItemsMasterFeed({
   products,
   columns,
+  columnWrapModes,
   loading = false,
   selectedId,
   selectedVariantId,
@@ -70,6 +73,7 @@ export function ItemsMasterFeed({
                 key={rowKey(product)}
                 product={product}
                 columns={columns}
+                nameWrapMode={columnWrapModes?.name}
                 showVariants={effectiveExpandVariants}
                 active={isRowSelected(product, selectedId, selectedVariantId)}
                 bulkSelected={bulkEnabled ? bulkSelectedIds!.has(bulkKey) : false}

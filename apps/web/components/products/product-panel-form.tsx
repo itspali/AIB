@@ -143,6 +143,10 @@ export function useProductPanelContext(): PanelContextValue {
   return value;
 }
 
+export function useOptionalProductPanelContext(): PanelContextValue | null {
+  return useContext(ProductPanelContext);
+}
+
 function resolveFullPageHref(mode: ProductFormMode, detail: ProductDetailSnapshot | null): string {
   if (mode === "create") return itemFullPageHref("create", null, { fromCatalog: true });
   if (!detail) return ITEMS_HREF;
@@ -371,6 +375,7 @@ export function ProductPanelScope({
         onPeekPanelChange={onPeekPanelChange}
         peekPanelLoading={peekPanelLoading}
         isValuationsLoading={isValuationsLoading}
+        showContextBanner={false}
       />
     ) : variantCatalogEdit && detail ? (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">

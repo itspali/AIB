@@ -30,7 +30,6 @@ import {
   coerceProductListPrefs,
   didColumnSettingsChange,
   getColumnPrefsSlice,
-  isShowVariantsOnlyPrefChange,
   isTableLikeViewMode,
   loadProductListPrefs,
   resolveCardGridColumns,
@@ -51,20 +50,18 @@ import {
 } from "@/lib/items/split-feed-card-plan";
 import { filterSkuGrainExportRows } from "@/lib/products/list-sku-export";
 import {
-  collapseVariantListRows,
-  injectVariantParentRows,
   listHasExpandedVariantRows,
   mergeProductListRowImages,
 } from "@/lib/products/list-row-key";
 import {
-  sortProductListRows,
-  type ProductListSortDirection,
-  type ProductListSortField,
-} from "@/lib/products/list-sort";
+  countDisplayedProductListRows,
+  shapeDisplayedProductListRows,
+} from "@/lib/products/shape-displayed-product-list";
+import type { ProductListSortDirection, ProductListSortField } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
 import { ITEMS_HREF } from "@/lib/products/item-navigation";
 import { isItemsRouteSessionActive } from "@/lib/products/items-route-generation";
-import { applyFallbackTextFilter } from "@/lib/search/executor/apply-fallback-text";
+import { applyProductListStructuralFilters } from "@/lib/products/resolve-structural-list-filter";
 
 const ProductListToolbarCount = lazyClientExport(
   () => import("@/components/products/product-list-toolbar"),
@@ -160,7 +157,9 @@ export function ProductListWorkspaceHost({
   const omnibar = useOptionalOmnibarContext();
   const { deviceClass } = useDeviceClass();
 
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState(
+    () => resolvePrefsOnMount(initialListPrefs, loadProductListPrefs()).categoryFilterId
+  );
   const initialListPrefsRef = useRef(initialListPrefs);
   const hydratedRef = useRef(false);
   const [prefs, setPrefs] = useState<ProductListPrefs>(() =>
@@ -185,6 +184,7 @@ export function ProductListWorkspaceHost({
     prevPrefsRef.current = hydrated;
     suppressPrefsPersistRef.current = true;
     setPrefs(hydrated);
+    setCategoryFilter(hydrated.categoryFilterId);
     setPrefsHydrated(true);
     onExpandVariantsChangeRef.current?.(
       resolveProductListExpandVariants(hydrated.showVariants, "table"),
@@ -226,10 +226,6 @@ export function ProductListWorkspaceHost({
     }
     const previous = prevPrefsRef.current;
     if (previous === prefs) return;
-    if (isShowVariantsOnlyPrefChange(previous, prefs)) {
-      prevPrefsRef.current = prefs;
-      return;
-    }
     prevPrefsRef.current = prefs;
     saveProductListPrefs(prefs);
     savingColumnPrefsRef.current = didColumnSettingsChange(previous, prefs);
@@ -271,8 +267,15 @@ export function ProductListWorkspaceHost({
     supportsVariantExpansion && prefs.showVariants !== expandVariants;
 
   useEffect(() => {
-    if (omnibar?.scopePinnedToAll) setCategoryFilter("all");
-  }, [omnibar?.scopePinnedToAll, omnibar?.moduleFilterRevision]);
+    if (omnibar?.scopePinnedToAll) {
+      setCategoryFilter("all");
+      handlePrefsChange((current) =>
+        current.categoryFilterId === "all"
+          ? current
+          : { ...current, categoryFilterId: "all" }
+      );
+    }
+  }, [handlePrefsChange, omnibar?.scopePinnedToAll, omnibar?.moduleFilterRevision]);
 
   const categoryOptions = useMemo(() => {
     const tree = buildCategoryTree(categories);
@@ -292,23 +295,14 @@ export function ProductListWorkspaceHost({
     if (categoryFilter !== "all") {
       rows = rows.filter((product) => product.category_id === categoryFilter);
     }
-    if (omnibar?.appliedQuery.trim()) {
-      const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
-      if (hasStructuralFilter && !structuralFilterResolved && omnibar.filteredItemIds) {
-        rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
-      } else if (!hasStructuralFilter && omnibar.residualText) {
-        rows = applyFallbackTextFilter(
-          rows.map((row) => ({ ...row, description: null })),
-          omnibar.residualText
-        );
-      }
-    }
-    if (omnibar?.inlinePreviewText) {
-      rows = applyFallbackTextFilter(
-        rows.map((row) => ({ ...row, description: null })),
-        omnibar.inlinePreviewText
-      );
-    }
+    rows = applyProductListStructuralFilters(rows, {
+      appliedQuery: omnibar?.appliedQuery ?? "",
+      activeAst: omnibar?.activeAst ?? [],
+      filteredItemIds: omnibar?.filteredItemIds,
+      residualText: omnibar?.residualText,
+      inlinePreviewText: omnibar?.inlinePreviewText,
+      structuralFilterResolved,
+    });
     return rows;
   }, [
     redactedProducts,
@@ -321,14 +315,27 @@ export function ProductListWorkspaceHost({
     structuralFilterResolved,
   ]);
 
-  const displayedProducts = useMemo(() => {
-    const sorted = sortProductListRows(filteredProducts, prefs.sortField, prefs.sortDirection, {
-      showVariants: effectiveExpandVariants,
-    });
-    return effectiveExpandVariants
-      ? injectVariantParentRows(sorted)
-      : collapseVariantListRows(sorted);
-  }, [effectiveExpandVariants, filteredProducts, prefs.sortField, prefs.sortDirection]);
+  const displayedProducts = useMemo(
+    () =>
+      shapeDisplayedProductListRows(filteredProducts, {
+        showVariants: effectiveExpandVariants,
+        sortField: prefs.sortField,
+        sortDirection: prefs.sortDirection,
+        activeAst: omnibar?.activeAst,
+      }),
+    [
+      effectiveExpandVariants,
+      filteredProducts,
+      omnibar?.activeAst,
+      prefs.sortDirection,
+      prefs.sortField,
+    ]
+  );
+
+  const displayedRowCount = useMemo(
+    () => countDisplayedProductListRows(displayedProducts, effectiveExpandVariants),
+    [displayedProducts, effectiveExpandVariants]
+  );
 
   const baseCardGridColumns = useMemo(
     () => resolveCardGridColumns(prefs, deviceClass),
@@ -494,7 +501,14 @@ export function ProductListWorkspaceHost({
 
   const toolbarProps = {
     categoryFilter,
-    onCategoryFilterChange: setCategoryFilter,
+    onCategoryFilterChange: (value: string) => {
+      setCategoryFilter(value);
+      handlePrefsChange((current) =>
+        current.categoryFilterId === value
+          ? current
+          : { ...current, categoryFilterId: value }
+      );
+    },
     categoryOptions,
     prefs,
     onPrefsChange: handlePrefsChange,
@@ -506,7 +520,7 @@ export function ProductListWorkspaceHost({
     },
     fieldPermissions,
     detectedDeviceClass: listPaneLayout.deviceClass,
-    resultCount: filteredProducts.length,
+    resultCount: displayedRowCount,
     totalCount,
     prefsHydrated,
     isSavingPrefs,
@@ -541,7 +555,7 @@ export function ProductListWorkspaceHost({
     freezeColumnsAuto: listPaneLayout.freezeColumnsAuto,
     prefsHydrated,
     isExpandVariantsSyncing,
-    filteredCount: filteredProducts.length,
+    filteredCount: displayedRowCount,
     categoryFilter,
     totalCount,
   };
@@ -571,31 +585,25 @@ export function ProductListWorkspaceHost({
     if (categoryFilter !== "all") {
       rows = rows.filter((product) => product.category_id === categoryFilter);
     }
-    if (omnibar?.appliedQuery.trim()) {
-      const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
-      if (hasStructuralFilter && !structuralFilterResolved && omnibar.filteredItemIds) {
-        rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
-      } else if (!hasStructuralFilter && omnibar.residualText) {
-        rows = applyFallbackTextFilter(
-          rows.map((row) => ({ ...row, description: null })),
-          omnibar.residualText
-        );
-      }
-    }
-    if (omnibar?.inlinePreviewText) {
-      rows = applyFallbackTextFilter(
-        rows.map((row) => ({ ...row, description: null })),
-        omnibar.inlinePreviewText
-      );
-    }
+    rows = applyProductListStructuralFilters(rows, {
+      appliedQuery: omnibar?.appliedQuery ?? "",
+      activeAst: omnibar?.activeAst ?? [],
+      filteredItemIds: omnibar?.filteredItemIds,
+      residualText: omnibar?.residualText,
+      inlinePreviewText: omnibar?.inlinePreviewText,
+      structuralFilterResolved,
+    });
 
-    const sorted = sortProductListRows(rows, prefs.sortField, prefs.sortDirection, {
+    const shaped = shapeDisplayedProductListRows(rows, {
       showVariants: fetchExpanded,
+      sortField: prefs.sortField,
+      sortDirection: prefs.sortDirection,
+      activeAst: omnibar?.activeAst,
     });
     if (grain === "sku") {
-      return filterSkuGrainExportRows(sorted);
+      return filterSkuGrainExportRows(shaped);
     }
-    return fetchExpanded ? injectVariantParentRows(sorted) : collapseVariantListRows(sorted);
+    return shaped;
   }, [
     categoryFilter,
     effectiveExpandVariants,
@@ -619,7 +627,7 @@ export function ProductListWorkspaceHost({
     toolbarCount,
     toolbarControls,
     resolveExportRows,
-    exportRowCount: filteredProducts.length,
+    exportRowCount: displayedRowCount,
     exportColumnIds: displayColumns,
   });
 }
@@ -646,7 +654,7 @@ export function useItemsCatalogExpandVariants({
   itemsRouteSession = 0,
 }: UseItemsCatalogExpandVariantsArgs) {
   const initialExpandVariants = resolveProductListExpandVariants(
-    false,
+    coerceProductListPrefs(initialListPrefs ?? {}).showVariants,
     coerceProductListPrefs(initialListPrefs ?? {}).viewMode
   );
   const expandVariantsRef = useRef(initialExpandVariants);
@@ -675,11 +683,15 @@ export function useItemsCatalogExpandVariants({
       if (expandVariantsRef.current === nextExpandVariants) return;
       const ssrListReady = initialProducts.length > 0;
       const ssrShapeMatches = nextExpandVariants === initialExpandVariants;
+      const productsShapeMismatch =
+        nextExpandVariants !== listHasExpandedVariantRows(productsRef.current);
       expandVariantsRef.current = nextExpandVariants;
       setExpandVariants(nextExpandVariants);
-      if (source === "sync" && ssrListReady && ssrShapeMatches) return;
-      if (!nextExpandVariants) return;
-      if (listHasExpandedVariantRows(productsRef.current)) return;
+      if (source === "sync" && ssrListReady && ssrShapeMatches && !productsShapeMismatch) {
+        return;
+      }
+      if (!productsShapeMismatch) return;
+
       const requestId = expandVariantsFetchRequestRef.current + 1;
       expandVariantsFetchRequestRef.current = requestId;
       void (async () => {

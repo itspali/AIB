@@ -2429,13 +2429,10 @@ export async function deleteItemMedia(mediaId: string, storagePath?: string) {
 export async function saveProductListUserPrefs(raw: unknown) {
   const { supabase } = await requireTenantMutation();
 
-  const { coerceProductListPrefs, DEFAULT_SHOW_VARIANTS } = await import(
+  const { coerceProductListPrefs } = await import(
     "@/lib/products/list-prefs"
   );
-  const prefs = {
-    ...coerceProductListPrefs(raw),
-    showVariants: DEFAULT_SHOW_VARIANTS,
-  };
+  const prefs = coerceProductListPrefs(raw);
 
   const { error } = await supabase.rpc("save_user_product_list_prefs", {
     p_prefs: prefs,

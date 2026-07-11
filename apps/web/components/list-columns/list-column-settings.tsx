@@ -630,6 +630,7 @@ export function ListColumnSettings<TId extends string>({
     const isLocked = lockedColumnSet.has(columnId);
     const isDisabledColumn = disabledColumnSet.has(columnId);
     const rowDisabled = disabled || !applicable || isLocked || isDisabledColumn;
+    const preferenceDisabled = disabled || !applicable || isDisabledColumn;
     const visible =
       isLocked || (!isDisabledColumn && prefs.visibleColumns.includes(columnId));
     const isDragOver = dragOverId === columnId;
@@ -708,7 +709,7 @@ export function ListColumnSettings<TId extends string>({
             >
               <Switch
                 checked={chipEnabled}
-                disabled={rowDisabled}
+                disabled={preferenceDisabled}
                 onCheckedChange={(checked) => toggleChipMode(columnId, checked)}
                 aria-label={`Show ${column.label} as chips`}
                 className="h-4 w-7 shrink-0 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3 [&>span]:shadow-sm"
@@ -719,7 +720,7 @@ export function ListColumnSettings<TId extends string>({
           {visible && applicable && columnSupportsWrapControl(column.valueKind) ? (
             <Select
               value={effectiveWrapMode(columnId)}
-              disabled={rowDisabled}
+              disabled={preferenceDisabled}
               onValueChange={(value) => setWrapMode(columnId, value as TextWrapMode)}
             >
               <SelectTrigger
@@ -746,7 +747,7 @@ export function ListColumnSettings<TId extends string>({
           <ColumnChipColorEditor
             column={column}
             display={prefs.columnChipDisplay?.[columnId]}
-            disabled={rowDisabled}
+            disabled={preferenceDisabled}
             expanded={expandedChipColumnId === columnId}
             onExpandedChange={(next) => setExpandedChipColumnId(next ? columnId : null)}
             onChange={(display) => setChipDisplay(columnId, display)}

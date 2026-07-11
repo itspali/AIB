@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -36,6 +35,10 @@ import {
 } from "@/components/layout/list-workspace-split-layout";
 import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { useListWorkspace, type ListWorkspaceLayout } from "@/lib/layout/list-workspace";
+import {
+  persistListFeedFilterQuery,
+  readListFeedFilterQuery,
+} from "@/lib/layout/list-workspace/feed-filter-storage";
 import { isMutationSurface } from "@/lib/layout/module-drawer-url";
 import { filterCategoryListRowsByFeedQuery } from "@/lib/categories/feed-filter";
 import { withoutCategoriesWorkspaceDisabledColumns } from "@/lib/categories/category-row-meta";
@@ -64,8 +67,9 @@ import {
 import type { CategoryRow } from "@/lib/categories/types";
 import { filterCategoryTree, flattenTree } from "@/lib/categories/tree";
 import { useFilteredCategories } from "@/lib/categories/use-filtered-categories";
-import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
+import { useRestoreModuleSavedView } from "@/lib/search/views/use-restore-module-saved-view";
 import type { SavedViewSnapshot } from "@/lib/search/views/saved-view-utils";
+import type { CustomModuleView } from "@/lib/search/types";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import { cn } from "@/lib/utils";
 
@@ -103,6 +107,7 @@ const CategoryTreePanel = dynamic(
 type Props = {
   initialRows: CategoryRow[];
   itemCountByCategoryId?: Record<string, number>;
+  initialSavedViews?: CustomModuleView[];
   initialSavedView?: SavedViewSnapshot | null;
 };
 
@@ -118,13 +123,19 @@ function resolveBulkCategoryIds(
 export function CategoryManagementTerminal({
   initialRows,
   itemCountByCategoryId: initialItemCountByCategoryId = {},
+  initialSavedViews = [],
   initialSavedView = null,
 }: Props) {
   const { setLayout } = useListWorkspace();
   const isSplitDesktop = useListWorkspaceSplitDesktop();
   const drawer = useModuleDrawerUrl(CATEGORIES_HREF, { canonicalizeLegacy: true });
-  const omnibar = useOptionalOmnibarContext();
-  const serverViewHydratedRef = useRef(false);
+
+  useRestoreModuleSavedView({
+    moduleName: "categories",
+    initialSavedViews,
+    initialSavedView,
+  });
+
   const { deviceClass } = useDeviceClass();
   const [rows, setRows] = useState(initialRows);
   const [rowsLoading, setRowsLoading] = useState(initialRows.length === 0);
@@ -141,7 +152,13 @@ export function CategoryManagementTerminal({
   const [bulkSelectAllMatching, setBulkSelectAllMatching] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
-  const [feedFilterQuery, setFeedFilterQuery] = useState("");
+  const [feedFilterQuery, setFeedFilterQueryState] = useState(() =>
+    readListFeedFilterQuery("categories")
+  );
+  const setFeedFilterQuery = useCallback((value: string) => {
+    setFeedFilterQueryState(value);
+    persistListFeedFilterQuery("categories", value);
+  }, []);
 
   const handlePrefsChange = useCallback(
     (next: CategoryListPrefs) => {
@@ -459,16 +476,6 @@ export function CategoryManagementTerminal({
     },
     [runBulkActivate, runBulkDeactivate, runBulkExport]
   );
-
-  useLayoutEffect(() => {
-    if (!omnibar || serverViewHydratedRef.current) return;
-    serverViewHydratedRef.current = true;
-    if (initialSavedView) {
-      omnibar.hydrateModuleViewFromServer(initialSavedView, null);
-      return;
-    }
-    omnibar.markDefaultViewResolvedOnServer("categories");
-  }, [initialSavedView, omnibar]);
 
   useEffect(() => {
     setPrefs(loadCategoryListPrefs());

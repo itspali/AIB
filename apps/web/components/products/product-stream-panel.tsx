@@ -34,21 +34,22 @@ import {
   shouldPersistPrefsImmediately,
   supportsProductListVariantExpansion,
   didColumnSettingsChange,
-  isShowVariantsOnlyPrefChange,
   type ProductListPrefs,
 } from "@/lib/products/list-prefs";
 import { resolveColumnWrapModes, resolveVisibleColumns } from "@/lib/products/resolve-list-columns";
 import type { ProductListColumnId } from "@/lib/products/list-columns";
 import {
-  collapseVariantListRows,
   productListRowKey,
-  injectVariantParentRows,
 } from "@/lib/products/list-row-key";
-import { sortProductListRows, type ProductListSortDirection, type ProductListSortField } from "@/lib/products/list-sort";
+import {
+  countDisplayedProductListRows,
+  shapeDisplayedProductListRows,
+} from "@/lib/products/shape-displayed-product-list";
+import type { ProductListSortDirection, ProductListSortField } from "@/lib/products/list-sort";
 import type { ProductListRow } from "@/lib/products/types";
 import { resolveListPaneLayoutOverrides } from "@/lib/products/list-pane-layout";
 import { useElementWidth } from "@/lib/layout/use-element-width";
-import { applyFallbackTextFilter } from "@/lib/search/executor/apply-fallback-text";
+import { applyProductListStructuralFilters } from "@/lib/products/resolve-structural-list-filter";
 import { ITEMS_HREF } from "@/lib/products/item-navigation";
 import { isItemsRouteSessionActive } from "@/lib/products/items-route-generation";
 
@@ -174,7 +175,9 @@ export function ProductStreamPanel({
   const omnibar = useOptionalOmnibarContext();
   const { deviceClass } = useDeviceClass();
   const { ref: listPaneRef, width: listPaneWidth } = useElementWidth<HTMLDivElement>();
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>(() =>
+    resolvePrefsOnMount(initialListPrefs, loadProductListPrefs()).categoryFilterId
+  );
   const initialListPrefsRef = useRef(initialListPrefs);
   const hydratedRef = useRef(false);
   const [prefs, setPrefs] = useState<ProductListPrefs>(() =>
@@ -203,6 +206,7 @@ export function ProductStreamPanel({
     prevPrefsRef.current = hydrated;
     suppressPrefsPersistRef.current = true;
     setPrefs(hydrated);
+    setCategoryFilter(hydrated.categoryFilterId);
     setPrefsHydrated(true);
 
     const syncExpand = onExpandVariantsChangeRef.current;
@@ -253,12 +257,6 @@ export function ProductStreamPanel({
 
     const previous = prevPrefsRef.current;
     if (previous === prefs) return;
-
-    if (isShowVariantsOnlyPrefChange(previous, prefs)) {
-      prevPrefsRef.current = prefs;
-      return;
-    }
-
     prevPrefsRef.current = prefs;
     saveProductListPrefs(prefs);
     savingColumnPrefsRef.current = didColumnSettingsChange(previous, prefs);
@@ -311,8 +309,18 @@ export function ProductStreamPanel({
     if (omnibar?.scopePinnedToAll) {
       setCategoryFilter("all");
       onCategoryFilterChange?.("all");
+      handlePrefsChange((current) =>
+        current.categoryFilterId === "all"
+          ? current
+          : { ...current, categoryFilterId: "all" }
+      );
     }
-  }, [omnibar?.scopePinnedToAll, omnibar?.moduleFilterRevision, onCategoryFilterChange]);
+  }, [
+    handlePrefsChange,
+    omnibar?.scopePinnedToAll,
+    omnibar?.moduleFilterRevision,
+    onCategoryFilterChange,
+  ]);
 
   const categoryOptions = useMemo(() => {
     const tree = buildCategoryTree(categories);
@@ -334,26 +342,14 @@ export function ProductStreamPanel({
       rows = rows.filter((product) => product.category_id === categoryFilter);
     }
 
-    if (omnibar?.appliedQuery.trim()) {
-      const hasStructuralFilter = omnibar.activeAst.some((clause) => clause.kind !== "text");
-
-      if (hasStructuralFilter && !structuralFilterResolved && omnibar.filteredItemIds) {
-        rows = rows.filter((product) => omnibar.filteredItemIds?.has(product.id));
-      } else if (!hasStructuralFilter && omnibar.residualText) {
-        rows = applyFallbackTextFilter(
-          rows.map((row) => ({ ...row, description: null })),
-          omnibar.residualText
-        );
-      }
-    }
-
-    // Live, uncommitted text preview as the user types in the inline bar.
-    if (omnibar?.inlinePreviewText) {
-      rows = applyFallbackTextFilter(
-        rows.map((row) => ({ ...row, description: null })),
-        omnibar.inlinePreviewText
-      );
-    }
+    rows = applyProductListStructuralFilters(rows, {
+      appliedQuery: omnibar?.appliedQuery ?? "",
+      activeAst: omnibar?.activeAst ?? [],
+      filteredItemIds: omnibar?.filteredItemIds,
+      residualText: omnibar?.residualText,
+      inlinePreviewText: omnibar?.inlinePreviewText,
+      structuralFilterResolved,
+    });
 
     return rows;
   }, [
@@ -367,14 +363,27 @@ export function ProductStreamPanel({
     structuralFilterResolved,
   ]);
 
-  const displayedProducts = useMemo(() => {
-    const sorted = sortProductListRows(filteredProducts, prefs.sortField, prefs.sortDirection, {
-      showVariants: effectiveExpandVariants,
-    });
-    return effectiveExpandVariants
-      ? injectVariantParentRows(sorted)
-      : collapseVariantListRows(sorted);
-  }, [effectiveExpandVariants, filteredProducts, prefs.sortField, prefs.sortDirection]);
+  const displayedProducts = useMemo(
+    () =>
+      shapeDisplayedProductListRows(filteredProducts, {
+        showVariants: effectiveExpandVariants,
+        sortField: prefs.sortField,
+        sortDirection: prefs.sortDirection,
+        activeAst: omnibar?.activeAst,
+      }),
+    [
+      effectiveExpandVariants,
+      filteredProducts,
+      omnibar?.activeAst,
+      prefs.sortDirection,
+      prefs.sortField,
+    ]
+  );
+
+  const displayedRowCount = useMemo(
+    () => countDisplayedProductListRows(displayedProducts, effectiveExpandVariants),
+    [displayedProducts, effectiveExpandVariants]
+  );
 
   const displayedRowKeys = useMemo(
     () => displayedProducts.map((product) => productListRowKey(product, effectiveExpandVariants)),
@@ -658,6 +667,11 @@ export function ProductStreamPanel({
       onCategoryFilterChange={(value: string) => {
         setCategoryFilter(value);
         onCategoryFilterChange?.(value);
+        handlePrefsChange((current) =>
+          current.categoryFilterId === value
+            ? current
+            : { ...current, categoryFilterId: value }
+        );
       }}
       categoryOptions={categoryOptions}
       prefs={prefs}
@@ -671,7 +685,7 @@ export function ProductStreamPanel({
       }}
       fieldPermissions={fieldPermissions}
       detectedDeviceClass={deviceClass}
-      resultCount={filteredProducts.length}
+      resultCount={displayedRowCount}
       totalCount={totalCount}
       prefsHydrated={prefsHydrated}
       isSavingPrefs={isSavingPrefs}

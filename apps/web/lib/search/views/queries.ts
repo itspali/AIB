@@ -18,21 +18,30 @@ export function mapCustomModuleViewRow(row: Record<string, unknown>): CustomModu
   };
 }
 
-export async function fetchDefaultCustomModuleView(
+export async function fetchCustomModuleViewsForUser(
   supabase: SupabaseClient,
   tenantId: string,
   userId: string,
   moduleName: string
-): Promise<CustomModuleView | null> {
+): Promise<CustomModuleView[]> {
   const { data, error } = await supabase
     .from("custom_module_views")
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("user_id", userId)
     .eq("module_name", moduleName)
-    .eq("is_system_default", true)
-    .maybeSingle();
+    .order("view_name", { ascending: true });
 
-  if (error || !data) return null;
-  return mapCustomModuleViewRow(data);
+  if (error || !data) return [];
+  return data.map((row) => mapCustomModuleViewRow(row as Record<string, unknown>));
+}
+
+export async function fetchDefaultCustomModuleView(
+  supabase: SupabaseClient,
+  tenantId: string,
+  userId: string,
+  moduleName: string
+): Promise<CustomModuleView | null> {
+  const views = await fetchCustomModuleViewsForUser(supabase, tenantId, userId, moduleName);
+  return views.find((view) => view.is_system_default) ?? null;
 }

@@ -297,34 +297,40 @@ describe("resolveCardGridColumns", () => {
     ).toBe(true);
   });
 
-  it("treats variants toggle changes as session-only prefs", () => {
+  it("defaults categoryFilterId to all and coerces persisted values", () => {
+    expect(getDefaultProductListPrefs().categoryFilterId).toBe("all");
+    expect(
+      coerceProductListPrefs({
+        ...getDefaultProductListPrefs(),
+        categoryFilterId: "cat-123",
+      }).categoryFilterId
+    ).toBe("cat-123");
+  });
+
+  it("persists showVariants through resolvePrefsOnMount", () => {
+    const withVariantsOn = {
+      ...getDefaultProductListPrefs(),
+      showVariants: true,
+      clientRevision: 5,
+    };
+    expect(resolvePrefsOnMount(withVariantsOn, null).showVariants).toBe(true);
+    expect(resolvePrefsOnMount(null, withVariantsOn).showVariants).toBe(true);
+    expect(
+      resolvePrefsOnMount(withVariantsOn, {
+        ...withVariantsOn,
+        clientRevision: 10,
+      }).showVariants
+    ).toBe(true);
+  });
+
+  it("persists variants-only pref changes immediately", () => {
     const base = getDefaultProductListPrefs();
     expect(
       isShowVariantsOnlyPrefChange(base, { ...base, showVariants: true })
     ).toBe(true);
     expect(
       shouldPersistPrefsImmediately(base, { ...base, showVariants: true })
-    ).toBe(false);
-  });
-
-  it("resolvePrefsOnMount always starts with variants toggle off", () => {
-    const withVariantsOn = {
-      ...getDefaultProductListPrefs(),
-      showVariants: true,
-      clientRevision: 5,
-    };
-    expect(
-      resolvePrefsOnMount(withVariantsOn, null).showVariants
-    ).toBe(false);
-    expect(
-      resolvePrefsOnMount(null, withVariantsOn).showVariants
-    ).toBe(false);
-    expect(
-      resolvePrefsOnMount(withVariantsOn, {
-        ...withVariantsOn,
-        clientRevision: 10,
-      }).showVariants
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("preserves cardLayout when coerced", () => {

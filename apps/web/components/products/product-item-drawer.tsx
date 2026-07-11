@@ -10,10 +10,14 @@ import {
   resolveProductPanelTitle,
   useProductPanelContext,
 } from "@/components/products/product-panel-form";
-import { ItemLifecycleStatusDot } from "@/components/products/item-lifecycle-status-dot";
+import {
+  ItemDetailPeekHeaderIdentity,
+  resolveItemDetailPeekHeaderLines,
+} from "@/components/items/item-detail-peek-header";
 import { ProductPrimaryImage } from "@/components/products/product-primary-image";
 import { resolveItemDetailLifecycleStatus } from "@/lib/products/item-lifecycle-status";
 import { RightDrawer } from "@/components/ui/right-drawer";
+import { useModuleDrawerPeekPresentation } from "@/lib/layout/use-module-drawer-peek-presentation";
 import type { CategoryRow } from "@/lib/categories/types";
 import type { ProductFieldPermissions } from "@/lib/products/field-permissions";
 import type { ProductFormMode } from "@/lib/products/use-product-form";
@@ -70,9 +74,9 @@ function surfaceToMode(surface: DrawerSurface, persistedCreateId: string | null)
   return "view";
 }
 
-/** Item peek, create, and edit share the mutate drawer width (60vw). */
-function resolveItemDrawerWidthPolicy(_surface: DrawerSurface): DrawerWidthPolicy {
-  return "mutate";
+/** Item peek uses peek width; create/edit use mutate width. */
+function resolveItemDrawerWidthPolicy(surface: DrawerSurface): DrawerWidthPolicy {
+  return surface === "peek" ? "peek" : "mutate";
 }
 
 function ProductItemDrawerSheet({
@@ -82,8 +86,6 @@ function ProductItemDrawerSheet({
   description,
   mode,
   allowBackgroundInteraction,
-  imageUrl,
-  imageAlt,
   closeOnEscape,
   showHeaderThumbnail,
 }: {
@@ -93,14 +95,17 @@ function ProductItemDrawerSheet({
   description?: string;
   mode: ProductFormMode;
   allowBackgroundInteraction: boolean;
-  imageUrl: string | null;
-  imageAlt: string;
   closeOnEscape: boolean;
   showHeaderThumbnail: boolean;
 }) {
   const { onDismiss, fullPageHref, mutationHeader, detail } = useProductPanelContext();
-  const lifecycleStatus =
-    mode === "view" && detail ? resolveItemDetailLifecycleStatus(detail, null) : null;
+  const isPeek = surface === "peek";
+  const peekPresentation = useModuleDrawerPeekPresentation(isPeek);
+  const peekHeaderLines =
+    mode === "view" && detail ? resolveItemDetailPeekHeaderLines(detail, null) : null;
+  const lifecycleStatus = resolveItemDetailLifecycleStatus(detail, null);
+  const drawerTitle = peekHeaderLines?.title ?? title;
+  const drawerDescription = peekHeaderLines ? undefined : description;
 
   return (
     <RightDrawer
@@ -109,33 +114,41 @@ function ProductItemDrawerSheet({
         if (!next) onDismiss();
       }}
       onRequestClose={onDismiss}
-      title={title}
-      description={description}
+      title={drawerTitle}
+      description={drawerDescription}
       titleContent={
-        lifecycleStatus ? (
-          <h2 className="flex min-w-0 items-center gap-1.5 truncate text-left text-sm font-semibold leading-5 text-foreground">
-            <ItemLifecycleStatusDot
-              tone={lifecycleStatus.tone}
-              label={lifecycleStatus.label}
-            />
-            <span className="truncate">{title}</span>
-          </h2>
+        peekHeaderLines ? (
+          <ItemDetailPeekHeaderIdentity
+            headerLines={peekHeaderLines}
+            lifecycleStatus={lifecycleStatus}
+          />
         ) : undefined
       }
       titleLeading={
-        showHeaderThumbnail ? (
-          <ProductPrimaryImage imageUrl={imageUrl} alt={imageAlt} size="drawer-header" />
+        showHeaderThumbnail && detail ? (
+          <ProductPrimaryImage
+            imageUrl={pickPrimaryImagePreviewUrl(
+              detail.media,
+              detail.variant_id,
+              detail.variants
+            )}
+            alt={drawerTitle}
+            size="drawer-header"
+          />
         ) : undefined
       }
       headerActions={<ProductPanelHeaderActions />}
       footer={mutationHeader ? <ProductPanelFooterActions /> : undefined}
       allowBackgroundInteraction={allowBackgroundInteraction}
       widthPolicy={resolveItemDrawerWidthPolicy(surface)}
-      surfaceVariant={surface === "peek" ? "default" : "glass"}
+      surfaceVariant={isPeek ? "default" : "glass"}
       popOutHref={fullPageHref}
       scrollable={mode === "view"}
       showCloseButton
       closeOnEscape={closeOnEscape}
+      peekMode={isPeek}
+      className={peekPresentation.peekShellClassName}
+      bodyClassName={peekPresentation.peekBodyClassName}
     >
       {mode === "view" ? (
         <ProductPanelBody />
@@ -262,10 +275,6 @@ export function ProductItemDrawer({
 
   const title = resolveProductPanelTitle(mode, effectiveDetail);
   const description = resolveProductPanelDescription(mode, effectiveDetail);
-  const imageUrl =
-    mode === "create" || !effectiveDetail
-      ? null
-      : pickPrimaryImagePreviewUrl(effectiveDetail.media, effectiveDetail.variant_id, effectiveDetail.variants);
 
   if (!open || surface === "closed") return null;
 
@@ -301,10 +310,8 @@ export function ProductItemDrawer({
         description={description}
         mode={mode}
         allowBackgroundInteraction={allowBackgroundInteraction}
-        imageUrl={imageUrl}
-        imageAlt={title}
         closeOnEscape={!isWizardFlow}
-        showHeaderThumbnail={mode === "view" || (mode === "edit" && isVariantEdit)}
+        showHeaderThumbnail={mode === "edit" && isVariantEdit}
       />
     </ProductPanelScope>
   );

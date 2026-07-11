@@ -112,6 +112,7 @@ type Props = {
   onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
   peekPanelLoading?: ProductPeekPanelId | null;
   isValuationsLoading?: boolean;
+  showContextBanner?: boolean;
 };
 
 const fieldLabelClass = "text-xs text-muted-foreground";
@@ -531,6 +532,7 @@ export function ProductItemSummaryCard({
   onPeekPanelChange,
   peekPanelLoading = null,
   isValuationsLoading = false,
+  showContextBanner = true,
 }: Props) {
   const { ref: layoutRef, width: layoutWidth } = useElementWidth<HTMLDivElement>();
   const twoColumns = layoutWidth != null && layoutWidth >= 720;
@@ -634,12 +636,14 @@ export function ProductItemSummaryCard({
 
   return (
     <div ref={layoutRef} className="space-y-3 p-3 pb-6">
-      <SummaryContextBanner
-        detail={detail}
-        variantSkuContext={variantSkuContext}
-        selectedVariant={selectedVariant}
-        productCode={productCode}
-      />
+      {showContextBanner ? (
+        <SummaryContextBanner
+          detail={detail}
+          variantSkuContext={variantSkuContext}
+          selectedVariant={selectedVariant}
+          productCode={productCode}
+        />
+      ) : null}
 
       {usePeekTabs ? (
         <Tabs

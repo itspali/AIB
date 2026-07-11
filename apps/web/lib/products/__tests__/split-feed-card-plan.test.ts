@@ -159,6 +159,16 @@ describe("buildSplitFeedCardPlan", () => {
     ]);
   });
 
+  it("omits has variants icon when the item has no variants", () => {
+    const plan = buildSplitFeedCardPlan(
+      ["default_sku", "name", "has_variants"],
+      sampleRow({ has_variants: false }),
+      false
+    );
+
+    expect(plan.capabilityIcons).toEqual([]);
+  });
+
   it("caps meta segments at five fields", () => {
     const columns: ProductListColumnId[] = [
       "default_sku",

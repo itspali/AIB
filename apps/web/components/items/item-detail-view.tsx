@@ -16,6 +16,7 @@ type Props = {
   onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
   peekPanelLoading?: ProductPeekPanelId | null;
   isValuationsLoading?: boolean;
+  showContextBanner?: boolean;
   className?: string;
 };
 
@@ -31,6 +32,7 @@ export function ItemDetailView({
   onPeekPanelChange,
   peekPanelLoading,
   isValuationsLoading = false,
+  showContextBanner = true,
   className,
 }: Props) {
   return (
@@ -44,6 +46,7 @@ export function ItemDetailView({
         onPeekPanelChange={onPeekPanelChange}
         peekPanelLoading={peekPanelLoading}
         isValuationsLoading={isValuationsLoading}
+        showContextBanner={showContextBanner}
       />
     </MutationGlassRoot>
   );

@@ -4,6 +4,9 @@ export const DRAWER_WIDTH_PEEK_VW = 42;
 export const DRAWER_WIDTH_MUTATE_VW = 60;
 export const DRAWER_WIDTH_DOCUMENT_VW = 60;
 
+/** Matrix-layout catalog peek drawer (Items matrix view). */
+export const MATRIX_PEEK_DRAWER_WIDTH_VW = 60;
+
 /** @deprecated Use {@link DRAWER_WIDTH_PEEK_VW} — kept for layout helpers that referenced 40vw peek. */
 export const DRAWER_WIDTH_LEGACY_PEEK_VW = 40;
 

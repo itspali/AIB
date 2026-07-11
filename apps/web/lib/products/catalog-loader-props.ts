@@ -15,7 +15,6 @@ import { resolveProductFieldPermissions } from "@/lib/products/field-permissions
 import { fetchProductListPage } from "@/lib/products/list-queries";
 import {
   coerceProductListPrefs,
-  DEFAULT_SHOW_VARIANTS,
   resolveProductListExpandVariants,
   shouldIncludeListImages,
 } from "@/lib/products/list-prefs";
@@ -33,7 +32,8 @@ import type { ProductCatalogInitialState } from "@/lib/products/catalog-initial-
 import type { ProductCatalogContext, ProductDetailSnapshot } from "@/lib/products/types";
 import type { ProductPeekPanelId } from "@/lib/products/types";
 import type { ProductListPrefs } from "@/lib/products/list-prefs";
-import type { UserRole } from "@/lib/user/types";
+import { readActiveModuleViewIdFromCookie } from "@/lib/search/views/active-module-view-cookie.server";
+import type { CustomModuleView } from "@/lib/search/types";
 
 export type ProductCatalogLoaderProps = {
   tenantId: string;
@@ -41,6 +41,7 @@ export type ProductCatalogLoaderProps = {
   initialProducts: ProductCatalogInitialState["products"];
   listTotalCount: number;
   listHasMore: boolean;
+  initialSavedViews: CustomModuleView[];
   initialSavedView: ProductCatalogInitialState["initialSavedView"];
   initialFilteredItemIds: ProductCatalogInitialState["initialFilteredItemIds"];
   fieldPermissions: ProductCatalogInitialState["fieldPermissions"];
@@ -117,10 +118,11 @@ export async function resolveProductCatalogLoaderProps(input: {
   const urlParams = drawerSearchParams(searchParams);
   const peekPanel = parseProductPeekPanel(urlParams);
 
-  const [initialListPrefs, catalogContext, categories] = await Promise.all([
+  const [initialListPrefs, catalogContext, categories, activeViewIdFromCookie] = await Promise.all([
     loadUserProductListPrefs(supabase, userId, tenantId),
     fetchProductCatalogContext(supabase, tenantId),
     fetchCategoryRows(supabase, tenantId),
+    readActiveModuleViewIdFromCookie("items"),
   ]);
 
   if (
@@ -133,7 +135,7 @@ export async function resolveProductCatalogLoaderProps(input: {
     const scope = drawerParams.drawer.surface === "edit" ? "full" : "peek";
     const coercedPrefs = initialListPrefs ? coerceProductListPrefs(initialListPrefs) : null;
     const expandVariants = coercedPrefs
-      ? resolveProductListExpandVariants(DEFAULT_SHOW_VARIANTS, coercedPrefs.viewMode)
+      ? resolveProductListExpandVariants(coercedPrefs.showVariants, coercedPrefs.viewMode)
       : false;
     const includeImages = shouldIncludeListImages(coercedPrefs);
     const fieldPermissions = await resolveProductFieldPermissions(
@@ -168,6 +170,7 @@ export async function resolveProductCatalogLoaderProps(input: {
       initialProducts: listPage.rows,
       listTotalCount: listPage.totalCount,
       listHasMore: listPage.hasMore,
+      initialSavedViews: [],
       initialSavedView: null,
       initialFilteredItemIds: null,
       fieldPermissions,
@@ -184,7 +187,8 @@ export async function resolveProductCatalogLoaderProps(input: {
     tenantId,
     userId,
     operatorRole,
-    initialListPrefs
+    initialListPrefs,
+    { activeViewIdFromCookie }
   );
 
   return {
@@ -193,6 +197,7 @@ export async function resolveProductCatalogLoaderProps(input: {
     initialProducts: catalogState.products,
     listTotalCount: catalogState.totalCount,
     listHasMore: catalogState.hasMore,
+    initialSavedViews: catalogState.initialSavedViews,
     initialSavedView: catalogState.initialSavedView,
     initialFilteredItemIds: catalogState.initialFilteredItemIds,
     fieldPermissions: catalogState.fieldPermissions,

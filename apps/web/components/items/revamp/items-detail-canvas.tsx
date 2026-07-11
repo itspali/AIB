@@ -1,25 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
-import { ArrowLeft, Package, Pencil } from "lucide-react";
+import { Package } from "lucide-react";
 import { ItemDetailView } from "@/components/items/item-detail-view";
-import { MutationIconButton } from "@/components/layout/mutation-form/mutation-icon-button";
+import { ItemDetailPeekHeader } from "@/components/items/item-detail-peek-header";
 import {
-  buildItemsRecordDetailView,
   ItemsRecordDetailBody,
   ItemsRecordDetailHero,
 } from "@/components/items/revamp/items-record-detail-body";
-import { Button } from "@/components/ui/button";
+import { ProductPanelHeaderActions } from "@/components/products/product-panel-form";
 import { Spinner } from "@/components/ui/spinner";
 import { resolveEffectiveAttributeTemplates } from "@/lib/categories/tree";
 import type { CategoryRow } from "@/lib/categories/types";
 import { itemFullPageHref } from "@/lib/products/item-navigation";
 import type { ProductCatalogContext, ProductDetailSnapshot, ProductListRow } from "@/lib/products/types";
 import type { ProductPeekPanelId } from "@/lib/products/peek-panels";
-import { ItemLifecycleStatusDot } from "@/components/products/item-lifecycle-status-dot";
-import { resolveItemDetailLifecycleStatus } from "@/lib/products/item-lifecycle-status";
 import { cn } from "@/lib/utils";
-import { DrawerPopOutButton } from "@/components/layout/drawer-pop-out-button";
+import { useOptionalProductPanelContext } from "@/components/products/product-panel-form";
 
 type Props = {
   detail: ProductDetailSnapshot | null;
@@ -30,7 +27,6 @@ type Props = {
   peekPanel?: ProductPeekPanelId;
   onPeekPanelChange?: (panel: ProductPeekPanelId) => void;
   peekPanelLoading?: ProductPeekPanelId | null;
-  onEdit: () => void;
   onBack?: () => void;
   showMobileBack?: boolean;
   className?: string;
@@ -45,11 +41,11 @@ export function ItemsDetailCanvas({
   peekPanel,
   onPeekPanelChange,
   peekPanelLoading,
-  onEdit,
   onBack,
   showMobileBack = false,
   className,
 }: Props) {
+  const panelContext = useOptionalProductPanelContext();
   const categoryTemplates = useMemo(() => {
     if (!detail?.category_id || categories.length === 0) return [];
     return resolveEffectiveAttributeTemplates(detail.category_id, categories);
@@ -71,51 +67,21 @@ export function ItemsDetailCanvas({
     );
   }
 
-  const view = buildItemsRecordDetailView(detail, selectedRow);
-  const lifecycleStatus = resolveItemDetailLifecycleStatus(detail, selectedRow);
-  const popOutHref = view.itemId
-    ? itemFullPageHref("view", view.itemId, { fromCatalog: true })
-    : undefined;
+  const itemId = detail?.id ?? selectedRow?.id ?? null;
+  const popOutHref =
+    panelContext?.fullPageHref ??
+    (itemId ? itemFullPageHref("view", itemId, { fromCatalog: true }) : undefined);
 
   return (
     <section className={cn("spatial-detail-pane", className)}>
-      <header className="spatial-detail-header">
-        <div className="flex min-h-0 min-w-0 flex-1 items-center gap-2">
-          {popOutHref ? <DrawerPopOutButton href={popOutHref} label="Open item outside panel" /> : null}
-          <div className="min-w-0 flex-1">
-            <h2 className="spatial-detail-id truncate">{view.skuDisplay}</h2>
-            <p className="spatial-detail-name flex min-w-0 items-center gap-1.5 truncate">
-              <ItemLifecycleStatusDot
-                tone={lifecycleStatus.tone}
-                label={lifecycleStatus.label}
-              />
-              <span className="truncate">{view.name}</span>
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {showMobileBack && onBack ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="spatial-mobile-back h-8 lg:hidden"
-              onClick={onBack}
-            >
-              <ArrowLeft className="mr-1 h-3.5 w-3.5" aria-hidden />
-              Back
-            </Button>
-          ) : null}
-          {view.itemId ? (
-            <MutationIconButton
-              label="Edit item"
-              icon={Pencil}
-              onClick={onEdit}
-              className="h-8 w-8"
-            />
-          ) : null}
-        </div>
-      </header>
+      <ItemDetailPeekHeader
+        detail={detail}
+        selectedRow={selectedRow}
+        popOutHref={popOutHref}
+        showMobileBack={showMobileBack}
+        onBack={onBack}
+        trailingActions={panelContext ? <ProductPanelHeaderActions /> : null}
+      />
 
       <div className="spatial-detail-body min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
         {detail ? (
@@ -132,6 +98,7 @@ export function ItemsDetailCanvas({
               peekPanel={peekPanel}
               onPeekPanelChange={onPeekPanelChange}
               peekPanelLoading={peekPanelLoading}
+              showContextBanner={false}
             />
           )
         ) : (

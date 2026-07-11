@@ -152,15 +152,14 @@ function buildSplitFeedCapabilityIcons(
     if (columnId === "has_variants") {
       const presentation = resolveProductListRowPresentation(product, showVariants);
       if (presentation.isExpandedVariantRow) continue;
-      const label = getColumnDef(columnId).label;
       const enabled = presentation.showHasVariantsIndicator;
+      if (!enabled) continue;
+      const label = getColumnDef(columnId).label;
       icons.push({
         columnId,
-        enabled,
+        enabled: true,
         label,
-        tooltip: enabled
-          ? productListHasVariantsBadgeLabel(product.sellable_variant_count)
-          : `No ${label.toLowerCase()}`,
+        tooltip: productListHasVariantsBadgeLabel(product.sellable_variant_count),
       });
       continue;
     }

@@ -30,6 +30,7 @@ import {
 } from "@/components/layout/list-workspace-split-layout";
 import { Button } from "@/components/ui/button";
 import { ItemsDetailCanvas } from "@/components/items/revamp/items-detail-canvas";
+import { ProductPanelScope } from "@/components/products/product-panel-form";
 import { ItemsMasterFeed } from "@/components/items/revamp/items-master-feed";
 import { ItemsMatrixRegistryPane } from "@/components/items/items-matrix-registry-pane";
 import {
@@ -43,11 +44,16 @@ import { lazyClientExport } from "@/lib/lazy/lazy-client-export";
 import { useOptionalOmnibarContext } from "@/components/search/omnibar-provider";
 import { filterProductListRowsByFeedQuery } from "@/lib/products/feed-filter";
 import { productListRowKey } from "@/lib/products/list-row-key";
+import { countDisplayedProductListRows } from "@/lib/products/shape-displayed-product-list";
 import { useProductListBulkOperations } from "@/lib/products/use-product-list-bulk-operations";
 import { resolveDeletedRowCountDelta } from "@/lib/products/resolve-deleted-row-count-delta";
 import { isDeepLinkPeekLanding } from "@/lib/layout/list-module/deep-link-landing";
 import type { ListModuleLoadMode } from "@/lib/layout/list-module/drawer-search-params";
 import { useListWorkspace } from "@/lib/layout/list-workspace";
+import {
+  persistListFeedFilterQuery,
+  readListFeedFilterQuery,
+} from "@/lib/layout/list-workspace/feed-filter-storage";
 import { isMutationSurface } from "@/lib/layout/module-drawer-url";
 import { useModuleDrawerUrl } from "@/lib/layout/use-module-drawer-url";
 import { useModuleAuxiliaryContext } from "@/lib/layout/list-module/use-module-auxiliary-context";
@@ -71,6 +77,7 @@ import { allocateItemsRouteSession } from "@/lib/products/items-route-generation
 import { useProductPeekPanel } from "@/lib/products/use-product-peek-panel";
 import { cn } from "@/lib/utils";
 import type { CategoryRow } from "@/lib/categories/types";
+import { useRestoreModuleSavedView } from "@/lib/search/views/use-restore-module-saved-view";
 
 const SPLIT_LIST_PANE_WIDTH_PX = 380;
 
@@ -97,6 +104,9 @@ function ItemsListWorkspaceTerminalInner({
   initialProducts,
   listTotalCount = initialProducts.length,
   listHasMore = false,
+  initialSavedView = null,
+  initialFilteredItemIds = null,
+  initialSavedViews = [],
   categories: initialCategories = [],
   fieldPermissions,
   initialListPrefs,
@@ -110,6 +120,13 @@ function ItemsListWorkspaceTerminalInner({
   const isSplitDesktop = useListWorkspaceSplitDesktop();
   const itemsRouteSessionRef = useRef(allocateItemsRouteSession());
 
+  useRestoreModuleSavedView({
+    moduleName: "items",
+    initialSavedViews,
+    initialSavedView,
+    initialFilteredItemIds,
+  });
+
   const [products, setProducts] = useState(initialProducts);
   const [totalCount, setTotalCount] = useState(listTotalCount);
   const [hasMore, setHasMore] = useState(listHasMore);
@@ -120,7 +137,13 @@ function ItemsListWorkspaceTerminalInner({
   const [peekLoading, setPeekLoading] = useState(false);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [categories, setCategories] = useState<CategoryRow[]>(initialCategories);
-  const [feedFilterQuery, setFeedFilterQuery] = useState("");
+  const [feedFilterQuery, setFeedFilterQueryState] = useState(() =>
+    readListFeedFilterQuery("items")
+  );
+  const setFeedFilterQuery = useCallback((value: string) => {
+    setFeedFilterQueryState(value);
+    persistListFeedFilterQuery("items", value);
+  }, []);
   const categoriesRequestedRef = useRef(initialCategories.length > 0);
   const detailCacheRef = useRef<Map<string, ProductDetailSnapshot>>(new Map());
   const [, startPeekTransition] = useTransition();
@@ -706,6 +729,11 @@ function ItemsListWorkspaceChrome({
     [table.displayedProducts, feedFilterQuery]
   );
 
+  const feedFilteredRowCount = useMemo(
+    () => countDisplayedProductListRows(feedFilteredProducts, table.effectiveExpandVariants),
+    [feedFilteredProducts, table.effectiveExpandVariants]
+  );
+
   const displayedRowKeys = useMemo(
     () =>
       feedFilteredProducts.map((row) =>
@@ -727,7 +755,7 @@ function ItemsListWorkspaceChrome({
       totalMatchingCount={table.totalCount}
       selectAllMatching={bulk.bulkSelectAllMatching}
       pageAllSelected={pageAllSelected}
-      visibleCount={feedFilteredProducts.length}
+      visibleCount={feedFilteredRowCount}
       isPending={bulk.isBulkPending}
       fieldPermissions={fieldPermissions}
       onClearSelection={bulk.clearBulkSelection}
@@ -758,6 +786,7 @@ function ItemsListWorkspaceChrome({
     <ItemsMasterFeed
       products={table.displayedProducts}
       columns={table.visibleColumns}
+      columnWrapModes={table.columnWrapModes}
       loading={listLoading}
       selectedId={drawer.recordId}
       selectedVariantId={drawer.variantId ?? null}
@@ -809,51 +838,81 @@ function ItemsListWorkspaceChrome({
               </div>
             }
             detailPane={
-              <ItemsDetailCanvas
-                detail={peekDetail}
-                selectedRow={selectedRow}
-                loading={peekLoading}
-                catalogContext={catalogContext}
+              <ProductPanelScope
+                mode="view"
+                tenantId={tenantId}
                 categories={categories}
+                catalogContext={catalogContext ?? null}
+                detail={peekDetail}
+                fieldPermissions={fieldPermissions}
+                isLoading={peekLoading}
+                onModeChange={() => {}}
+                onSaved={() => {}}
+                onClose={() => {
+                  drawer.close();
+                  setMobileDetailOpen(false);
+                }}
+                urlNavigation={urlNavigation}
+                onItemArchived={onItemArchived}
+                onRequestFullDetail={() => {
+                  if (!peekDetail?.id) return;
+                  loadPeekDetail(peekDetail.id, peekDetail.variant_id ?? null);
+                }}
+                onExtensionsChanged={() => {
+                  if (!peekDetail?.id) return;
+                  loadPeekDetail(peekDetail.id, peekDetail.variant_id ?? null);
+                }}
                 peekPanel={peekPanel}
                 onPeekPanelChange={onPeekPanelChange}
                 peekPanelLoading={peekPanelLoading}
-                onEdit={handleEdit}
-                onBack={() => setMobileDetailOpen(false)}
-                showMobileBack={mobileDetailOpen && !isSplitDesktop}
-              />
+              >
+                <ItemsDetailCanvas
+                  detail={peekDetail}
+                  selectedRow={selectedRow}
+                  loading={peekLoading}
+                  catalogContext={catalogContext}
+                  categories={categories}
+                  peekPanel={peekPanel}
+                  onPeekPanelChange={onPeekPanelChange}
+                  peekPanelLoading={peekPanelLoading}
+                  onBack={() => setMobileDetailOpen(false)}
+                  showMobileBack={mobileDetailOpen && !isSplitDesktop}
+                />
+              </ProductPanelScope>
             }
           />
         ) : (
-          <ListWorkspaceMatrixLayout footer={loadMoreFooter ?? undefined}>
-            {matrixPane}
-          </ListWorkspaceMatrixLayout>
+          <>
+            <ListWorkspaceMatrixLayout footer={loadMoreFooter ?? undefined}>
+              {matrixPane}
+            </ListWorkspaceMatrixLayout>
+            {peekDrawerOpen ? (
+              <ProductItemDrawer
+                open={peekDrawerOpen}
+                surface="peek"
+                tenantId={tenantId}
+                categories={categories}
+                catalogContext={catalogContext ?? null}
+                detail={peekDetail}
+                fieldPermissions={fieldPermissions}
+                isLoading={peekLoading && !peekDetail}
+                isDetailRefreshing={peekLoading && Boolean(peekDetail)}
+                urlNavigation={urlNavigation}
+                peekPanel={peekPanel}
+                onPeekPanelChange={onPeekPanelChange}
+                peekPanelLoading={peekPanelLoading}
+                onExtensionsChanged={() => {
+                  if (!peekDetail?.id) return;
+                  loadPeekDetail(peekDetail.id, peekDetail.variant_id ?? null);
+                }}
+                onItemArchived={onItemArchived}
+              />
+            ) : null}
+          </>
         )}
       </ListModuleShell>
 
       <ProductListBulkDialogs {...bulk.dialogProps} />
-
-      {peekDrawerOpen && !splitLayoutActive ? (
-        <ProductItemDrawer
-          open={peekDrawerOpen}
-          surface="peek"
-          tenantId={tenantId}
-          categories={categories}
-          catalogContext={catalogContext ?? null}
-          detail={peekDetail}
-          fieldPermissions={fieldPermissions}
-          isLoading={peekLoading}
-          urlNavigation={urlNavigation}
-          peekPanel={peekPanel}
-          onPeekPanelChange={onPeekPanelChange}
-          peekPanelLoading={peekPanelLoading}
-          onExtensionsChanged={() => {
-            if (!peekDetail?.id) return;
-            loadPeekDetail(peekDetail.id, peekDetail.variant_id ?? null);
-          }}
-          onItemArchived={onItemArchived}
-        />
-      ) : null}
 
       {mutationDrawerOpen ? (
         <ProductItemDrawer

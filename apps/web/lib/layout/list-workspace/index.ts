@@ -12,6 +12,11 @@ export {
   useOptionalListWorkspace,
 } from "@/lib/layout/list-workspace/list-workspace-context";
 export { filterRowsByFeedQuery } from "@/lib/layout/list-workspace/feed-filter";
+export {
+  listFeedFilterStorageKey,
+  persistListFeedFilterQuery,
+  readListFeedFilterQuery,
+} from "@/lib/layout/list-workspace/feed-filter-storage";
 export { useListWorkspaceFeedFilter } from "@/lib/layout/list-workspace/use-list-workspace-feed-filter";
 export { buildCatalogSplitListPane } from "@/lib/layout/list-workspace/build-catalog-split-list-pane";
 export {
